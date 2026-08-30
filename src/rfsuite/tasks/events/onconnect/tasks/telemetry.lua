@@ -56,6 +56,8 @@ function M.wakeup()
   log("wakeup: adding cmd=" .. tostring(TelemetryApi.command) .. " to queue")
   mspState.queue:add({
     command = TelemetryApi.command,
+    timeout = 5.0,
+    maxRetries = 2,
     simulatorResponse = TelemetryApi.simulatorResponse,
     processReply = function(_, buf)
       log("processReply: received bytes=" .. tostring(buf and #buf or 0))
