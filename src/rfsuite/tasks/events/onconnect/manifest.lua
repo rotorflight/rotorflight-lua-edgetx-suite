@@ -4,6 +4,7 @@ return {
   "uid",
   "rtc",
   { name = "status", context = "both" },
+  { name = "telemetry", context = "both" },
   { name = "flight_stats", context = "widget" },
   { name = "dataflash_summary", context = "widget" },
   { name = "battery_config", context = "both" },

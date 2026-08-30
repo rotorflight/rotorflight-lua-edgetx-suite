@@ -62,6 +62,7 @@ function M.wakeup()
       local parsed = TelemetryApi.parse(buf)
       if parsed then
         log("processReply: parsed config successfully")
+        session.telemetry_config = parsed
         session.crsfTelemetryConfig = {
           mode = parsed.crsf_telemetry_mode,
           linkRate = parsed.crsf_telemetry_link_rate,

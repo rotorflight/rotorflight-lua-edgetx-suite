@@ -181,6 +181,9 @@ local function getTelemetrySensorsStatus()
   if type(summary) ~= "table" then
     return nil
   end
+  if summary.loaded == false then
+    return nil
+  end
   if tonumber(summary.total or 0) <= 0 then
     return false
   end

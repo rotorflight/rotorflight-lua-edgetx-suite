@@ -31,6 +31,8 @@
   - Standardized all 102 MSP API modules (`Api.parse`) to return a clean, flat table (`return { ... }`) rather than mixed wrapped tables (`{ parsed = ... }`), eliminating duplicate unnesting logic across servo, esc, and setup pages and improving API tester introspection.
 
 ### Bug Fixes & Improvements
+- **Telemetry Sensor Status Initialization (`tasks/events/onconnect`, `app/pages/tools/diagnostics`)**:
+  - Load telemetry configuration during the connection chain and distinguish an unloaded configuration from a validation failure, preventing a false `ERROR` before the first sensor read.
 - **Housekeeping Queue Starvation & Dependency Loading Order (`tasks/msp/runtime.lua`, `queue.lua`)**:
   - Eliminated the staggered module-loading race condition where `UID` dependencies finished loading before `API_VERSION` dependencies, inadvertently seizing the transmit slot and starving the connect chain.
   - Held `UID` read back until `API_VERSION` is successfully received and verified, ensuring primary flight controller compatibility is established before secondary model preference lookups.
