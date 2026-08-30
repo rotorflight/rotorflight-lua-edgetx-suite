@@ -288,7 +288,7 @@ function Controls.appendEscSubheader(children, x, y, w, firmware, version)
     type  = "label",
     x = x, y = y,
     text  = text,
-    color = COLOR_THEME_SECONDARY2,
+    color = COLOR_THEME_PRIMARY1,
     font  = SMLSIZE
   }
 
