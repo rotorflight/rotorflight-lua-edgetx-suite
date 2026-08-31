@@ -251,6 +251,16 @@ local function ensureFileExists(path)
   return true
 end
 
+local cachedMcuId = nil
+local cachedPrefs = nil
+local cachedPath = nil
+
+function M.clearCache()
+  cachedMcuId = nil
+  cachedPrefs = nil
+  cachedPath = nil
+end
+
 function M.buildPath(mcuId)
   local safeId = normalizeMcuId(mcuId)
   if not safeId then return nil end
@@ -260,9 +270,13 @@ function M.buildPath(mcuId)
   return buildPathForRoot(roots[1], safeId)
 end
 
-function M.loadByMcuId(mcuId)
+function M.loadByMcuId(mcuId, force)
   local safeId = normalizeMcuId(mcuId)
   if not safeId then return nil, nil end
+
+  if not force and cachedMcuId == safeId and cachedPrefs and cachedPath then
+    return deepCopyTable(cachedPrefs), cachedPath
+  end
 
   local defaults = defaultModelPreferences()
   local roots = orderedRoots(safeId)
@@ -287,12 +301,20 @@ function M.loadByMcuId(mcuId)
         end
       end
 
+      cachedMcuId = safeId
+      cachedPrefs = deepCopyTable(merged)
+      cachedPath = path
+
       return merged, path
     end
   end
 
   -- Could not create/load file on any root; still return defaults in-memory.
-  return deepCopyTable(defaults), nil
+  local fallback = deepCopyTable(defaults)
+  cachedMcuId = safeId
+  cachedPrefs = deepCopyTable(fallback)
+  cachedPath = nil
+  return fallback, nil
 end
 
 function M.saveByMcuId(mcuId, prefs)
@@ -313,6 +335,9 @@ function M.saveByMcuId(mcuId, prefs)
     if okTouch then
       local okSave, saveErr = saveIni(path, data)
       if okSave then
+        cachedMcuId = safeId
+        cachedPrefs = deepCopyTable(data)
+        cachedPath = path
         -- No signal is sent. Writing this file IS the event -- see lib/preferences.lua.
         return true
       end

@@ -23,6 +23,19 @@ function M.wakeup()
   local session = root.session
   if type(session) ~= "table" then return end
 
+  -- If MspRuntime has already resolved UID and model preferences, reuse it immediately
+  if session.mcu_id and session.mcu_id ~= "" then
+    if not ModelPreferences then ModelPreferences = loadModule("lib/model_preferences.lua") end
+    if not session.modelPreferences and ModelPreferences and type(ModelPreferences.loadByMcuId) == "function" then
+      local prefs, filePath = ModelPreferences.loadByMcuId(session.mcu_id)
+      session.modelPreferences = prefs
+      session.modelPreferencesFile = filePath
+    end
+    session.modelPreferencesResolved = true
+    done = true
+    return
+  end
+
   if not requestSent then
     local msp = loadModule("tasks/msp/runtime.lua")
     local mspState = msp and type(msp.getState) == "function" and msp.getState()
