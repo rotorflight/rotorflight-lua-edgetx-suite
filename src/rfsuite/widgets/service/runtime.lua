@@ -185,7 +185,8 @@ local function readStatus(self)
     else
       local text = (t and t("widgets.service.loading")) or "Loading data..."
       if status.total and status.total > 0 then
-        text = text .. " (" .. tostring(status.done) .. "/" .. tostring(status.total) .. ")"
+        local currentStep = math.min((status.done or 0) + 1, status.total)
+        text = text .. " (" .. tostring(currentStep) .. "/" .. tostring(status.total) .. ")"
       end
       status.text = text
     end

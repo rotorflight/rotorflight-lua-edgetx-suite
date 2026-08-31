@@ -582,7 +582,8 @@ local function updateConnectionState(self)
     end
     local loadingTasksStr = (t and t("widgets.dashboard.loading_tasks")) or "Loading data..."
     if showNumbers then
-      statusLine = loadingTasksStr .. " (" .. tostring(pDone) .. "/" .. tostring(pTotal) .. ")"
+      local currentStep = math.min(pDone + 1, pTotal)
+      statusLine = loadingTasksStr .. " (" .. tostring(currentStep) .. "/" .. tostring(pTotal) .. ")"
     else
       statusLine = loadingTasksStr
     end
