@@ -495,6 +495,52 @@ local function wipeTable(t)
   for k in pairs(t) do t[k] = nil end
 end
 
+-- The sensor names the dashboard widget tries for the two link RSSI values, in its order
+-- (RSS1_SOURCES/RSS2_SOURCES in widgets/dashboard/runtime.lua). Held at module level so the
+-- audio poll below allocates nothing per tick.
+local RSS1_SOURCES = { "1RSS", "RSS1", "rssi1" }
+local RSS2_SOURCES = { "2RSS", "RSS2", "rssi2" }
+
+local function roundInt(value, fallback)
+  if type(value) ~= "number" then
+    return fallback
+  end
+  return math.floor(value + 0.5)
+end
+
+local function normalizeCellVoltage(value, fallback)
+  local v = tonumber(value)
+  if type(v) ~= "number" or v <= 0 then
+    return fallback
+  end
+  -- Accept the encodings the battery config is stored in:
+  -- volts (4.2), decivolts (42), centivolts (420), millivolts (4200).
+  if v > 1000 then
+    v = v / 1000
+  elseif v > 100 then
+    v = v / 100
+  elseif v > 10 then
+    v = v / 10
+  end
+  if v <= 0 then
+    return fallback
+  end
+  return v
+end
+
+local function readFirstSensorNumber(names, fallback)
+  if not (Sensors and type(Sensors.getValue) == "function") then
+    return fallback
+  end
+  for i = 1, #names do
+    local value = Sensors.getValue(names[i])
+    if type(value) == "number" then
+      return value
+    end
+  end
+  return fallback
+end
+
 state = {
   shouldExit   = false,
   cards        = {},
@@ -2952,18 +2998,83 @@ function M.run(event, touchState)
         if fuel > 100 then fuel = 100 end
       end
 
+      -- lib/audio.lua is shared: the dashboard widget hands it the state its own readTelemetry
+      -- builds (widgets/dashboard/runtime.lua), the tool hands it this table. An announcement is
+      -- written once against a field name, so it can only behave the same on both paths if both
+      -- callers supply the same fields under the same names and with the same normalisation --
+      -- which is what the block below mirrors, rounding included.
       if Sensors then
-        state.telemetryState.profile = Sensors.getValue("pid_profile") or state.telemetryState.profile
-        state.telemetryState.rateProfile = Sensors.getValue("rate_profile") or state.telemetryState.rateProfile
-        state.telemetryState.batteryProfile = Sensors.getValue("battery_profile") or state.telemetryState.batteryProfile
-        state.telemetryState.bec_voltage = Sensors.getValue("bec_voltage") or state.telemetryState.bec_voltage
-        state.telemetryState.armFlags = Sensors.getValue("armflags") or state.telemetryState.armFlags
-        state.telemetryState.governor = Sensors.getValue("governor") or state.telemetryState.governor
-        state.telemetryState.escTemp = Sensors.getValue("temp_esc") or state.telemetryState.escTemp
+        local ts = state.telemetryState
+        local armFlagsValue = Sensors.getValue("armflags")
+
+        ts.rpm = Sensors.getValue("rpm") or ts.rpm
+        ts.lq = lq
+        ts.profile = roundInt(Sensors.getValue("pid_profile") or ts.profile, ts.profile or 1)
+        ts.rateProfile = roundInt(Sensors.getValue("rate_profile") or ts.rateProfile, ts.rateProfile or 1)
+        ts.batteryProfile = roundInt(Sensors.getValue("battery_profile") or ts.batteryProfile, ts.batteryProfile or 1)
+        ts.armFlags = roundInt(armFlagsValue or ts.armFlags, ts.armFlags or 0)
+        local armDisableFlagsValue = Sensors.getValue("armdisableflags")
+        if type(armDisableFlagsValue) == "number" then
+          ts.armDisableFlags = math.max(0, math.floor(armDisableFlagsValue + 0.5))
+        end
+        ts.governor = roundInt(Sensors.getValue("governor") or ts.governor, ts.governor or 0)
+        ts.mcuTemp = roundInt(Sensors.getValue("temp_mcu") or ts.mcuTemp, ts.mcuTemp or 0)
+        ts.escTemp = roundInt(Sensors.getValue("temp_esc") or ts.escTemp, ts.escTemp or 0)
+        ts.bec_voltage = Sensors.getValue("bec_voltage") or ts.bec_voltage
+        ts.throttlePercent = roundInt(Sensors.getValue("throttle_percent") or ts.throttlePercent, ts.throttlePercent or 0)
+
+        local currentValue = Sensors.getValue("current")
+        local wattsValue = Sensors.getValue("watts")
+        if type(wattsValue) ~= "number" and type(currentValue) == "number" and vbat > 0 then
+          wattsValue = vbat * currentValue
+        end
+        ts.current = currentValue or ts.current
+        ts.watts = wattsValue or ts.watts
+        ts.altitude = Sensors.getValue("altitude") or ts.altitude
+        ts.consumedMah = Sensors.getValue("smartconsumption") or ts.consumedMah
+
+        local cellCountValue = Sensors.getValue("battery_cell_count")
+        if type(cellCountValue) == "number" and cellCountValue > 0 then
+          ts.batteryCellCount = roundInt(cellCountValue, ts.batteryCellCount or 0)
+        elseif vbat > 0 then
+          -- No cell-count sensor: infer it from the pack voltage and the battery config's
+          -- maximum cell voltage, the default being a 4.2 V chemistry.
+          local session = _G.rfsuite and _G.rfsuite.session or nil
+          local batteryConfig = session and (session.batteryConfig or session.battery_config) or nil
+          local maxCellVoltage = normalizeCellVoltage(batteryConfig and batteryConfig.vbatmaxcellvoltage, 4.2)
+          local inferredCells = math.max(1, math.floor((vbat / maxCellVoltage) + 0.5))
+          local existingCells = tonumber(ts.batteryCellCount)
+          if not existingCells or existingCells <= 0 then
+            ts.batteryCellCount = inferredCells
+          else
+            local perCell = vbat / existingCells
+            -- Reconnect-safe: a cell count carried over from another pack shows up as an
+            -- implausible per-cell voltage, and is replaced rather than kept.
+            if perCell < 2.5 or perCell > 4.5 then
+              ts.batteryCellCount = inferredCells
+            end
+          end
+        end
+
+        if type(armFlagsValue) == "number" then
+          if type(bit32) == "table" and type(bit32.btest) == "function" then
+            ts.armed = bit32.btest(armFlagsValue, 1)
+          else
+            ts.armed = armFlagsValue ~= 0
+          end
+        end
+
+        ts.rss1 = readFirstSensorNumber(RSS1_SOURCES, ts.rss1)
+        ts.rss2 = readFirstSensorNumber(RSS2_SOURCES, ts.rss2)
       end
 
       state.telemetryState.voltage = vbat > 0 and vbat or state.telemetryState.voltage
       state.telemetryState.fuel = fuel >= 0 and fuel or state.telemetryState.fuel
+      if fuel >= 0 then
+        -- The fuel alerts stay silent until a real reading has arrived, so that the seeded
+        -- default cannot be announced as a measurement.
+        state.telemetryState.fuelTelemetrySeen = true
+      end
 
       local batteryReady = (vbat > 0) or (fuel >= 0)
       local rfReady = (lq ~= 0)
@@ -2993,6 +3104,20 @@ function M.run(event, touchState)
         state.telemetryState.batteryProfile = nil
         state.telemetryState.voltage = nil
         state.telemetryState.fuel = nil
+        state.telemetryState.fuelTelemetrySeen = nil
+        state.telemetryState.rpm = nil
+        state.telemetryState.lq = nil
+        state.telemetryState.armDisableFlags = nil
+        state.telemetryState.mcuTemp = nil
+        state.telemetryState.throttlePercent = nil
+        state.telemetryState.current = nil
+        state.telemetryState.watts = nil
+        state.telemetryState.altitude = nil
+        state.telemetryState.consumedMah = nil
+        state.telemetryState.batteryCellCount = nil
+        state.telemetryState.armed = nil
+        state.telemetryState.rss1 = nil
+        state.telemetryState.rss2 = nil
       end
     end
 
