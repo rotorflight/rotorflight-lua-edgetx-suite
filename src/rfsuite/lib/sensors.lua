@@ -38,7 +38,29 @@ local SIM_FILE_ALIASES = {
   ["rpm"] = "rpm",
 }
 
-local debugEnabled = false
+local debugEnabled = nil
+
+-- This flag was declared false with nothing anywhere in the tree assigning it, so every call
+-- site behind it was unreachable -- including the ones that say WHY a sensor did not resolve,
+-- which is what a report about a missing telemetry value needs. The suite's own log level
+-- decides now, so the diagnostics appear when a pilot raises it and stay silent otherwise.
+--
+-- Resolved ONCE rather than per call, and that is a budget decision rather than a style one.
+-- These call sites sit on the sensor read path, which runs inside the widget's state pass;
+-- asking `Log.wanted` each time walks the preference table and lowercases a string per sensor
+-- per pass, and that showed up as ~950 instructions on `pass.state` -- over its budget on its
+-- own. The cost of resolving once is that raising the log level takes effect when the module is
+-- next loaded rather than immediately, which is the right trade for a diagnostic that a pilot
+-- turns on deliberately and then goes flying with.
+local function debugWanted()
+  if debugEnabled == nil then
+    local L = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+    if type(L) ~= "table" or type(L.wanted) ~= "function" then return false end
+    debugEnabled = L.wanted("debug") == true
+  end
+  return debugEnabled
+end
+
 local loggedSimulatorState = false
 local loggedSources = {}
 local simValueCache = {}
@@ -58,7 +80,7 @@ local function nowSeconds()
 end
 
 local function debugLog(key, msg)
-  if not debugEnabled then return end
+  if not debugWanted() then return end
   if key and loggedSources[key] then return end
   if key then loggedSources[key] = true end
   if not taggedLog then
@@ -441,7 +463,7 @@ function Sensors.getValue(source)
       local simValue = readSimSensorFile(resolved, source)
       if type(simValue) == "number" then
         local normalized = normalizeSimValue(resolved, simValue)
-        if debugEnabled then debugLog("sim-use:" .. source, "using sim value " .. resolved .. " = " .. tostring(normalized)) end
+        if debugWanted() then debugLog("sim-use:" .. source, "using sim value " .. resolved .. " = " .. tostring(normalized)) end
         return normalized
       end
     end
@@ -449,7 +471,7 @@ function Sensors.getValue(source)
     local simDirect = readSimSensorFile(source, source)
     if type(simDirect) == "number" then
       local normalized = normalizeSimValue(source, simDirect)
-      if debugEnabled then debugLog("sim-direct-use:" .. source, "using sim direct value " .. source .. " = " .. tostring(normalized)) end
+      if debugWanted() then debugLog("sim-direct-use:" .. source, "using sim direct value " .. source .. " = " .. tostring(normalized)) end
       return normalized
     end
 
@@ -459,7 +481,7 @@ function Sensors.getValue(source)
         local simPathValue = readSimSensorFile(paths[i], source)
         if type(simPathValue) == "number" then
           local normalized = normalizeSimValue(paths[i], simPathValue)
-          if debugEnabled then debugLog("sim-search-hit:" .. source, "using sim search value " .. paths[i] .. " = " .. tostring(normalized)) end
+          if debugWanted() then debugLog("sim-search-hit:" .. source, "using sim search value " .. paths[i] .. " = " .. tostring(normalized)) end
           return normalized
         end
       end
@@ -473,7 +495,7 @@ function Sensors.getValue(source)
   if activePath then
     local val = readTelemetryValue(activePath)
     if type(val) == "number" then
-      if debugEnabled then debugLog("telemetry-hit-cached:" .. source, "hit " .. activePath .. " = " .. tostring(val)) end
+      if debugWanted() then debugLog("telemetry-hit-cached:" .. source, "hit " .. activePath .. " = " .. tostring(val)) end
       return val
     end
   end
@@ -491,7 +513,7 @@ function Sensors.getValue(source)
       if type(val) == "number" then
         Sensors.active_paths = Sensors.active_paths or {}
         Sensors.active_paths[source] = paths[i]
-        if debugEnabled then debugLog("telemetry-hit:" .. source, "hit " .. paths[i] .. " = " .. tostring(val)) end
+        if debugWanted() then debugLog("telemetry-hit:" .. source, "hit " .. paths[i] .. " = " .. tostring(val)) end
         return val
       end
     end
@@ -502,7 +524,7 @@ function Sensors.getValue(source)
     if type(value) == "number" then
       Sensors.active_paths = Sensors.active_paths or {}
       Sensors.active_paths[source] = resolved
-      if debugEnabled then debugLog("telemetry-hit:" .. source, "telemetry hit " .. resolved .. " = " .. tostring(value)) end
+      if debugWanted() then debugLog("telemetry-hit:" .. source, "telemetry hit " .. resolved .. " = " .. tostring(value)) end
       return value
     end
   end
@@ -511,7 +533,7 @@ function Sensors.getValue(source)
   if type(direct) == "number" then
     Sensors.active_paths = Sensors.active_paths or {}
     Sensors.active_paths[source] = source
-    if debugEnabled then debugLog("telemetry-direct-hit:" .. source, "telemetry direct hit " .. source .. " = " .. tostring(direct)) end
+    if debugWanted() then debugLog("telemetry-direct-hit:" .. source, "telemetry direct hit " .. source .. " = " .. tostring(direct)) end
     return direct
   end
 

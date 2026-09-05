@@ -210,6 +210,63 @@ local function emitLog(opts, msg, level)
   end
 end
 
+local pilotConfigApi = nil
+local pilotConfigApiLoaded = false
+
+-- Loaded once and kept. Audio.process runs several times a second, so a loadScript per pass is
+-- the shape the event tasks were taken apart for; the flag it reads changes only on connect.
+local function getPilotConfigApi()
+  if pilotConfigApiLoaded then
+    return pilotConfigApi
+  end
+  pilotConfigApiLoaded = true
+
+  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/tasks/msp/api/pilot_config.lua", "t")
+  if chunk then
+    local ok, mod = pcall(chunk)
+    if ok and type(mod) == "table" then
+      pilotConfigApi = mod
+    end
+  end
+
+  return pilotConfigApi
+end
+
+-- WHO decides that the remaining capacity is announced.
+--
+-- From MSP API 12.09 the flight controller carries a MODEL_TELL_CAPACITY bit in its pilot
+-- config (`src/main/pg/pilot.h`), where the enum is introduced as indicating "what features on
+-- the radio should be enabled for this model". A SET bit therefore turns the announcement on
+-- for this craft whatever the radio is configured to do, so the same helicopter behaves the
+-- same way on any transmitter. The `model_params_sync` task reads the word on connect and
+-- parks it in the session.
+--
+-- A CLEAR bit does NOT turn it off, and that asymmetry is deliberate rather than an oversight.
+-- `modelFlags` has no entry in the firmware's PG_RESET_TEMPLATE, so a board nobody has
+-- configured for this reports zero, which is indistinguishable from a deliberate no. Letting
+-- zero win would silence an announcement that is on by default, on every board new enough to
+-- report the word at all -- the opposite of what the bit is for.
+--
+-- The announcement itself is the fuel level spoken once per connection: that IS the capacity
+-- this model has left, and until now it was reachable only through the radio-side setting.
+local function initialFuelWanted(events)
+  local root = type(_G) == "table" and _G.rfsuite or nil
+  local session = type(root) == "table" and root.session or nil
+  local pilot = type(session) == "table" and session.pilotConfig or nil
+  local flags = type(pilot) == "table" and pilot.model_flags or nil
+
+  if flags ~= nil then
+    local Api = getPilotConfigApi()
+    if type(Api) == "table" and type(Api.flagSet) == "function" then
+      if Api.flagSet(flags, Api.FLAG_TELL_CAPACITY) == true then
+        return true
+      end
+    end
+  end
+
+  return prefEnabled(events, "initial_fuel", true)
+end
+
 local function getLocaleModule()
   if localeModule then
     return localeModule
@@ -965,7 +1022,7 @@ function Audio.process(self, opts)
     audioState.fuelSeenPositive = false
   end
 
-  local initialFuelEnabled = prefEnabled(events, "initial_fuel", true)
+  local initialFuelEnabled = initialFuelWanted(events)
   if initialFuelEnabled and audioState.initialized and not audioState.initialFuelAnnounced then
     local fuel = tonumber(self.state and self.state.fuel)
     -- Same reason as the battery capacity above: this announcement is meant once per
