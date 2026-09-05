@@ -30,6 +30,7 @@ local ui = {
     model_theme_preflight = "nil",
     model_theme_inflight = "nil",
     model_theme_postflight = "nil",
+    theme_per_phase = false,
   },
   themes = nil,
 }
@@ -64,6 +65,17 @@ local function refreshThemes(forceRefresh)
   debugLog("refreshThemes count=" .. tostring(ui.themes and #ui.themes or 0))
 end
 
+-- Every selection except the general theme may legitimately be unset: a per-model theme that
+-- is not given falls through to the general one, and a phase override that is not given falls
+-- through to the theme of its own context.
+local OPTIONAL_THEME_KEYS = {
+  "theme_inflight",
+  "theme_postflight",
+  "model_theme_preflight",
+  "model_theme_inflight",
+  "model_theme_postflight",
+}
+
 local function ensureValidSelections()
   local defaultPath = DashboardLib.getDefaultThemePath(ui.themes)
   if not defaultPath then return end
@@ -71,21 +83,13 @@ local function ensureValidSelections()
   if not DashboardLib.getThemeByPath(ui.themes, ui.config.theme_preflight) then
     ui.config.theme_preflight = defaultPath
   end
-  if not DashboardLib.getThemeByPath(ui.themes, ui.config.theme_inflight) then
-    ui.config.theme_inflight = defaultPath
-  end
-  if not DashboardLib.getThemeByPath(ui.themes, ui.config.theme_postflight) then
-    ui.config.theme_postflight = defaultPath
-  end
 
-  if ui.config.model_theme_preflight ~= "nil" and not DashboardLib.getThemeByPath(ui.themes, ui.config.model_theme_preflight) then
-    ui.config.model_theme_preflight = "nil"
-  end
-  if ui.config.model_theme_inflight ~= "nil" and not DashboardLib.getThemeByPath(ui.themes, ui.config.model_theme_inflight) then
-    ui.config.model_theme_inflight = "nil"
-  end
-  if ui.config.model_theme_postflight ~= "nil" and not DashboardLib.getThemeByPath(ui.themes, ui.config.model_theme_postflight) then
-    ui.config.model_theme_postflight = "nil"
+  for i = 1, #OPTIONAL_THEME_KEYS do
+    local key = OPTIONAL_THEME_KEYS[i]
+    local value = ui.config[key]
+    if value ~= "nil" and not DashboardLib.getThemeByPath(ui.themes, value) then
+      ui.config[key] = "nil"
+    end
   end
 end
 
@@ -111,8 +115,9 @@ local function ensureLoaded(prefs)
   end
 
   ui.config.theme_preflight = src.theme_preflight or defaultPath
-  ui.config.theme_inflight = src.theme_inflight or defaultPath
-  ui.config.theme_postflight = src.theme_postflight or defaultPath
+  ui.config.theme_inflight = src.theme_inflight or "nil"
+  ui.config.theme_postflight = src.theme_postflight or "nil"
+  ui.config.theme_per_phase = src.theme_per_phase == true
   ui.config.model_override = modelOverride
   ui.config.model_theme_preflight = (modelSrc and modelSrc.model_theme_preflight) or "nil"
   ui.config.model_theme_inflight = (modelSrc and modelSrc.model_theme_inflight) or "nil"
@@ -126,7 +131,7 @@ local function getThemeId(path)
   return DashboardLib.getThemeIdByPath(ui.themes, path, fallback)
 end
 
-local function getModelThemeId(path)
+local function getOptionalThemeId(path)
   if path == nil or path == "" or path == "nil" then return 0 end
   local fallback = DashboardLib.getThemeIdByPath(ui.themes, DashboardLib.getDefaultThemePath(ui.themes), 1)
   return DashboardLib.getThemeIdByPath(ui.themes, path, fallback)
@@ -141,7 +146,7 @@ local function setThemeFromId(key, id)
   end
 end
 
-local function setModelThemeFromId(key, id)
+local function setOptionalThemeFromId(key, id)
   local numeric = tonumber(id) or 0
   local nextPath = "nil"
   if numeric ~= 0 then
@@ -153,6 +158,32 @@ local function setModelThemeFromId(key, id)
     ui.config[key] = nextPath
     ui.runtime.markDirty()
   end
+end
+
+-- The two phase rows are identical in both sections and differ only in the key prefix they
+-- write to: "theme_" for the general context, "model_theme_" for the connected model.
+local function appendPhaseOverrides(children, x, y, w, i18n, prefix, options, active)
+  local used = 0
+
+  used = used + Controls.appendComboSelect(
+    children, x, y + used, w,
+    t(i18n, "theme_inflight_override", "Inflight Override"),
+    options,
+    getOptionalThemeId(ui.config[prefix .. "inflight"]),
+    function(id) setOptionalThemeFromId(prefix .. "inflight", id) end,
+    { active = active }
+  )
+
+  used = used + Controls.appendComboSelect(
+    children, x, y + used, w,
+    t(i18n, "theme_postflight_override", "Postflight Override"),
+    options,
+    getOptionalThemeId(ui.config[prefix .. "postflight"]),
+    function(id) setOptionalThemeFromId(prefix .. "postflight", id) end,
+    { active = active }
+  )
+
+  return used
 end
 
 -- Per-model preferences are keyed by the flight controller's MCU id, so the
@@ -168,6 +199,7 @@ local function saveToPreferences(prefs)
   prefs.dashboard.theme_preflight = ui.config.theme_preflight
   prefs.dashboard.theme_inflight = ui.config.theme_inflight
   prefs.dashboard.theme_postflight = ui.config.theme_postflight
+  prefs.dashboard.theme_per_phase = ui.config.theme_per_phase == true
   -- Ensure legacy model_override keys are not stored in global preferences
   prefs.dashboard.model_override = nil
   prefs.dashboard.model_theme_preflight = nil
@@ -292,34 +324,26 @@ function M.build(ctx)
 
   local themeOptions = DashboardLib.buildThemeOptions(ui.themes)
   local modelOptions = DashboardLib.buildModelThemeOptions(ui.themes, t(i18n, "model_disabled", "Disabled"))
+  local overrideOptions = DashboardLib.buildModelThemeOptions(ui.themes, t(i18n, "theme_use_context", "Use theme above"))
+  local perPhase = ui.config.theme_per_phase == true
 
   Controls.appendSectionHeader(children, x, cursorY, w,
     t(i18n, "section_dashboard_theme", "Dashboard Theme"), true, function() end)
   cursorY = cursorY + Controls.SECTION_H
 
+  -- One theme for everything that is not the connected model. It carries all three flight
+  -- phases, which it declares and switches between itself.
   cursorY = cursorY + Controls.appendComboSelect(
     children, x, cursorY, w,
-    t(i18n, "theme_preflight", "Theme Preflight"),
+    t(i18n, "theme", "Theme"),
     themeOptions,
     getThemeId(ui.config.theme_preflight),
     function(id) setThemeFromId("theme_preflight", id) end
   )
 
-  cursorY = cursorY + Controls.appendComboSelect(
-    children, x, cursorY, w,
-    t(i18n, "theme_inflight", "Theme Inflight"),
-    themeOptions,
-    getThemeId(ui.config.theme_inflight),
-    function(id) setThemeFromId("theme_inflight", id) end
-  )
-
-  cursorY = cursorY + Controls.appendComboSelect(
-    children, x, cursorY, w,
-    t(i18n, "theme_postflight", "Theme Postflight"),
-    themeOptions,
-    getThemeId(ui.config.theme_postflight),
-    function(id) setThemeFromId("theme_postflight", id) end
-  )
+  if perPhase then
+    cursorY = cursorY + appendPhaseOverrides(children, x, cursorY, w, i18n, "theme_", overrideOptions, nil)
+  end
 
   cursorY = cursorY + 10
   Controls.appendSectionHeader(children, x, cursorY, w,
@@ -350,33 +374,33 @@ function M.build(ctx)
   )
 
   if ui.config.model_override == true then
+    -- The theme of the connected model, again for all three of its phases.
     cursorY = cursorY + Controls.appendComboSelect(
       children, x, cursorY, w,
-      t(i18n, "theme_preflight", "Theme Preflight"),
+      t(i18n, "theme", "Theme"),
       modelOptions,
-      getModelThemeId(ui.config.model_theme_preflight),
-      function(id) setModelThemeFromId("model_theme_preflight", id) end,
+      getOptionalThemeId(ui.config.model_theme_preflight),
+      function(id) setOptionalThemeFromId("model_theme_preflight", id) end,
       { active = modelStoreActive }
     )
 
-    cursorY = cursorY + Controls.appendComboSelect(
-      children, x, cursorY, w,
-      t(i18n, "theme_inflight", "Theme Inflight"),
-      modelOptions,
-      getModelThemeId(ui.config.model_theme_inflight),
-      function(id) setModelThemeFromId("model_theme_inflight", id) end,
-      { active = modelStoreActive }
-    )
-
-    cursorY = cursorY + Controls.appendComboSelect(
-      children, x, cursorY, w,
-      t(i18n, "theme_postflight", "Theme Postflight"),
-      modelOptions,
-      getModelThemeId(ui.config.model_theme_postflight),
-      function(id) setModelThemeFromId("model_theme_postflight", id) end,
-      { active = modelStoreActive }
-    )
+    if perPhase then
+      cursorY = cursorY + appendPhaseOverrides(children, x, cursorY, w, i18n, "model_theme_", overrideOptions, modelStoreActive)
+    end
   end
+
+  cursorY = cursorY + 10
+  Controls.appendSectionHeader(children, x, cursorY, w,
+    t(i18n, "section_advanced", "Advanced"), true, function() end)
+  cursorY = cursorY + Controls.SECTION_H
+
+  -- Off, the page offers one theme per context and nothing else. On, each context gains the
+  -- two overrides that let a phase be drawn by a different theme than the one above it.
+  cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
+    t(i18n, "theme_per_phase", "Per-Phase Themes"),
+    ui.runtime.getBoolGetter("theme_per_phase"),
+    ui.runtime.getBoolSetter("theme_per_phase")
+  )
 end
 
 function M.onClose()

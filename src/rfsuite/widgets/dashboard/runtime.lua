@@ -1108,6 +1108,13 @@ local EMPTY_DASHBOARD = {}
 -- resolver runs on every background pass, and so does the log line at the end of it.
 local themePathMemo = {}
 
+-- A stored path is a selection only if it names a theme: an empty select is written as the
+-- string "nil", and an absent one is empty or missing altogether.
+local function selectedThemePath(value)
+  if value and value ~= "" and value ~= "nil" then return value end
+  return nil
+end
+
 local function resolveThemePathForState(dashboard, modelPrefs, flightMode)
   if themePathMemo.dashboard == dashboard
     and themePathMemo.modelPrefs == modelPrefs
@@ -1117,47 +1124,60 @@ local function resolveThemePathForState(dashboard, modelPrefs, flightMode)
 
   local modelDashboard = modelPrefs and modelPrefs.dashboard or {}
   local modelOverride = modelDashboard.model_override == true
-  local key = "theme_preflight"
-  local modelKey = "model_theme_preflight"
 
-  if flightMode == "inflight" then
-    key = "theme_inflight"
-    modelKey = "model_theme_inflight"
-  elseif flightMode == "postflight" then
-    key = "theme_postflight"
-    modelKey = "model_theme_postflight"
+  -- A theme declares preflight, inflight and postflight itself and switches between them, so
+  -- the phase keys are overrides on top of the theme chosen for the context. They are read
+  -- only while the per-phase option is on; with it off the context theme covers all three,
+  -- and the keys keep their values for whoever turns the option back on.
+  local key = nil
+  local modelKey = nil
+  if dashboard and dashboard.theme_per_phase == true then
+    if flightMode == "inflight" then
+      key = "theme_inflight"
+      modelKey = "model_theme_inflight"
+    elseif flightMode == "postflight" then
+      key = "theme_postflight"
+      modelKey = "model_theme_postflight"
+    end
   end
 
   local chosen = nil
   local reason = nil
+
+  -- The model's theme is a context of its own, so an unset phase override falls back to it
+  -- and only an unset model theme reaches the global table. Without that step a per-model
+  -- theme set for the ground alone was replaced by a global one the moment the aircraft went
+  -- inflight, which is not what a select left at its default reads as.
   if modelOverride then
-    local modelValue = modelDashboard[modelKey]
-    if modelValue and modelValue ~= "" and modelValue ~= "nil" then
-      chosen = modelValue
-      reason = "model_" .. modelKey
+    if modelKey then
+      chosen = selectedThemePath(modelDashboard[modelKey])
+      if chosen then reason = "model_" .. modelKey end
     end
+    if not chosen then
+      chosen = selectedThemePath(modelDashboard.model_theme_preflight)
+      if chosen then reason = "model_context" end
+    end
+  end
+
+  if not chosen and key and dashboard then
+    chosen = selectedThemePath(dashboard[key])
+    if chosen then reason = "global_" .. key end
   end
 
   if not chosen then
-    local globalValue = dashboard and dashboard[key] or nil
-    if globalValue and globalValue ~= "" and globalValue ~= "nil" then
-      chosen = globalValue
-      reason = "global_" .. key
-    else
-      local globalPreflight = dashboard and dashboard["theme_preflight"] or nil
-      if globalPreflight and globalPreflight ~= "" and globalPreflight ~= "nil" then
-        chosen = globalPreflight
-        reason = "global_preflight_fallback"
-      else
-        chosen = "system/default"
-        reason = "default_fallback"
-      end
-    end
+    chosen = selectedThemePath(dashboard and dashboard.theme_preflight)
+    if chosen then reason = "global_context" end
+  end
+
+  if not chosen then
+    chosen = "system/default"
+    reason = "default_fallback"
   end
 
   logGv("resolveTheme: mode=%s, modelOverride=%s, modelKey=%s, modelValue=%s, globalKey=%s, globalValue=%s => chosen=%s (%s)",
-    tostring(flightMode), tostring(modelOverride), tostring(modelKey), tostring(modelDashboard[modelKey]),
-    tostring(key), tostring(dashboard and dashboard[key]), tostring(chosen), tostring(reason))
+    tostring(flightMode), tostring(modelOverride), tostring(modelKey),
+    tostring(modelKey and modelDashboard[modelKey]),
+    tostring(key), tostring(key and dashboard and dashboard[key]), tostring(chosen), tostring(reason))
 
   themePathMemo.dashboard = dashboard
   themePathMemo.modelPrefs = modelPrefs

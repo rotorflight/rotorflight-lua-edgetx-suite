@@ -74,8 +74,10 @@ local function defaultPreferences()
     },
     dashboard = {
       theme_preflight = "system/default",
-      theme_inflight = "system/default",
-      theme_postflight = "system/default",
+      -- Phase overrides on top of the theme above, read only while theme_per_phase is on.
+      theme_inflight = "nil",
+      theme_postflight = "nil",
+      theme_per_phase = false,
       theme_config_target = "system/default",
       connection_guard = true,
     }
