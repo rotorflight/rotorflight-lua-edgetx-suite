@@ -112,12 +112,11 @@ local function resolveThresholdColor(value, thresholds, defaultColor, isFahrenhe
   return defaultColor
 end
 
-local function getArcValueColor(value, state, box, themeCommon, utils)
+local function getArcValueColor(value, state, box, themeCommon, utils, isTemp, fahrenheit, curHasValue, gaugeMax, unit)
   if type(value) ~= "number" then
     return ARC_BG_COLOR
   end
 
-  local unit = box and box.unit
   if unit == "%" then
     local alertPct = tonumber(box and box.alertpct) or 15
     local warnPct = tonumber(box and box.warnpct) or 30
@@ -126,7 +125,62 @@ local function getArcValueColor(value, state, box, themeCommon, utils)
     return ARC_OK_COLOR
   end
 
-  if value <= 0 then
+  -- Temperature sources: inverted threshold logic (high = warning/critical).
+  -- No division by battery cell count; raw value is evaluated directly.
+  if isTemp then
+    -- When telemetry has no reading, use background color.
+    -- Legitimate low/negative temperatures (<= 0 °C) remain valid (green).
+    if curHasValue == false then
+      return ARC_BG_COLOR
+    end
+
+    -- Resolve warn threshold (°C): box property -> theme config -> default 90.
+    local warnTemp = tonumber(box and (box.warntemp or box.warn))
+    if not warnTemp then
+      local cfg = state and state.themeConfig
+      warnTemp = tonumber(cfg and cfg.esctemp_warn)
+    end
+    warnTemp = warnTemp or 90
+
+    -- Resolve alert threshold (°C): box property -> theme config -> default max(warn+15, 105).
+    local isDefaultAlert = false
+    local alertTemp = tonumber(box and (box.alerttemp or box.alert))
+    if not alertTemp then
+      local cfg = state and state.themeConfig
+      alertTemp = tonumber(cfg and cfg.esctemp_alert)
+    end
+    if not alertTemp then
+      alertTemp = math.max(warnTemp + 15, 105)
+      isDefaultAlert = true
+    end
+
+    -- Ensure warn < alert.
+    if warnTemp > alertTemp then
+      local tmp = warnTemp
+      warnTemp = alertTemp
+      alertTemp = tmp
+    end
+
+    -- When Fahrenheit display is active, renderArc already converts curVal to °F
+    -- before calling this function, so the thresholds must be converted as well.
+    if fahrenheit then
+      warnTemp = cToF(warnTemp)
+      alertTemp = cToF(alertTemp)
+    end
+
+    -- Cap defaulted alert threshold at gaugeMax so alert color remains reachable even if
+    -- user or theme increases warnTemp beyond standard scale limits.
+    if isDefaultAlert and type(gaugeMax) == "number" and gaugeMax > warnTemp then
+      alertTemp = math.min(alertTemp, gaugeMax)
+    end
+
+    if value >= alertTemp then return ARC_ALERT_COLOR end
+    if value >= warnTemp then return ARC_WARN_COLOR end
+    return ARC_OK_COLOR
+  end
+
+  -- Default: battery cell voltage handling (ascending thresholds, low = bad).
+  if value <= 0 or curHasValue == false then
     return ARC_BG_COLOR
   end
 
@@ -552,7 +606,8 @@ end
 
 local function renderArc(nodes, rect, box, state, themeCommon, utils)
   local source = utils.resolveValue(box.source, box, state)
-  local isTemp = isTempSource(source)
+  local unit = utils.resolveValue(box.unit, box, state)
+  local isTemp = isTempSource(source) or unit == "°C" or unit == "°F"
   local fahrenheit = isTemp and useFahrenheit()
 
   local defaultMin = isTemp and 20 or 18.0
@@ -629,7 +684,7 @@ local function renderArc(nodes, rect, box, state, themeCommon, utils)
       if type(box.thresholds) == "table" and #box.thresholds > 0 and curHasValue then
         arcValueColor = resolveThresholdColor(curVal, box.thresholds, ARC_OK_COLOR, fahrenheit, box)
       else
-        arcValueColor = getArcValueColor(curVal, state, box, themeCommon, utils)
+        arcValueColor = getArcValueColor(curVal, state, box, themeCommon, utils, isTemp, fahrenheit, curHasValue, gaugeMax, unit)
       end
     end
     cachedArcColor = arcValueColor or ARC_OK_COLOR
@@ -655,7 +710,6 @@ local function renderArc(nodes, rect, box, state, themeCommon, utils)
   local valueY = cy - math.floor(thickness * 1.3) - valueCenterLift + valueYOffset
   if valueY < rect.y + 10 then valueY = rect.y + 10 end
 
-  local unit = utils.resolveValue(box.unit, box, state)
   if fahrenheit then
     unit = "°F"
   elseif isTemp and (unit == nil or unit == "") then
