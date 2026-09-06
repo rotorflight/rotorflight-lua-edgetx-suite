@@ -48,6 +48,7 @@ return {
     model_armed_banner = "Modell ist ARMED - Einstellungen gesperrt",
     model_armed_warning = "Modell ist ARMED! Bitte disarmen.",
     model_armed_save_blocked = "Speichern gesperrt: Modell ist ARMED!",
+    model_armed_reload_blocked = "Neu laden gesperrt: Modell ist ARMED!",
     header_system = "System",
     header_configuration = "Konfiguration",
     modules = {

@@ -48,6 +48,7 @@ return {
     model_armed_banner = "Model is ARMED - settings locked",
     model_armed_warning = "Model is ARMED! Please disarm.",
     model_armed_save_blocked = "Save blocked: Model is ARMED!",
+    model_armed_reload_blocked = "Reload blocked: Model is ARMED!",
     header_system = "System",
     header_configuration = "Configuration",
     modules = {
