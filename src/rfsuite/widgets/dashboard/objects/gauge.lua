@@ -117,6 +117,10 @@ local function getArcValueColor(value, state, box, themeCommon, utils, isTemp, f
     return ARC_BG_COLOR
   end
 
+  if unit == nil then
+    unit = (utils and type(utils.resolveValue) == "function") and utils.resolveValue(box and box.unit, box, state) or (box and box.unit)
+  end
+
   if unit == "%" then
     local alertPct = tonumber(box and box.alertpct) or 15
     local warnPct = tonumber(box and box.warnpct) or 30
@@ -257,7 +261,8 @@ end
 
 local function renderBar(nodes, rect, box, state, themeCommon, utils)
   local source = utils.resolveValue(box.source, box, state)
-  local isTemp = isTempSource(source)
+  local unit = utils.resolveValue(box.unit, box, state)
+  local isTemp = isTempSource(source) or unit == "°C" or unit == "°F"
   local fahrenheit = isTemp and useFahrenheit()
   local rawValue = readDerived(state, source)
   local hasValue = type(rawValue) == "number"
@@ -774,7 +779,7 @@ local function renderArc(nodes, rect, box, state, themeCommon, utils)
       end
       local valueColor = utils.resolveTextColor(box, state, WHITE)
       if unit == "%" and curHasValue then
-        valueColor = getArcValueColor(curVal, state, box, themeCommon, utils)
+        valueColor = getArcValueColor(curVal, state, box, themeCommon, utils, isTemp, fahrenheit, curHasValue, gaugeMax, unit)
       end
       cachedValColor = valueColor
       return cachedValColor
