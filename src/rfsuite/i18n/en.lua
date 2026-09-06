@@ -646,7 +646,7 @@ return {
         section_preview = "Preview",
         section_development = "Development",
         save_confirm = "Confirm on Save",
-        save_armed_warning = "Show Disarm-to-Save Warning",
+        save_armed_warning = "Show Disarm Warning on Save/Reload",
         reload_confirm = "Confirm on Reload",
         preview_setup_wizard = "Setup Assistant",
         preview_confirm_setup_wizard = "The setup assistant is not finished. Its screens and their order can still change, and it can write to the flight controller. Check what it has written before you fly. Show it anyway?",

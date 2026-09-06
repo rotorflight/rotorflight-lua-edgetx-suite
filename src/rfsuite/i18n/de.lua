@@ -646,7 +646,7 @@ return {
         section_preview = "Vorschau",
         section_development = "Entwicklung",
         save_confirm = "Bestätigen beim Speichern",
-        save_armed_warning = "Warnung 'Bitte disarmen zum Speichern'",
+        save_armed_warning = "Warnung 'Bitte disarmen' bei Speichern/Neuladen",
         reload_confirm = "Bestätigen beim Neuladen",
         preview_setup_wizard = "Setup-Assistent",
         preview_confirm_setup_wizard = "Der Setup-Assistent ist noch nicht fertig. Seine Seiten und deren Reihenfolge können sich noch ändern, und er kann auf den Flight Controller schreiben. Prüfe vor dem Fliegen, was er geschrieben hat. Trotzdem anzeigen?",

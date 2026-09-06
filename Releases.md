@@ -146,6 +146,7 @@
 - **Save & Reload Interlock, Non-Blocking Feedback & Local Settings While Armed (`ui/home.lua`, `i18n`, fixes #136)**:
   - Header Save and Reload actions remain interactive on pages that declare them instead of forcing them disabled in the header layout, ensuring user input reliably routes to `onSave` / `onReload`.
   - When the modal warning preference is disabled (`save_armed_warning = false`), tapping Save or Reload provides immediate non-blocking feedback by temporarily updating the top armed banner to `"Save blocked: Model is ARMED!"` / `"Reload blocked: Model is ARMED!"` for 2.5 seconds before auto-reverting, keeping the page visible and navigable.
+  - Relabeled the safety switch in Settings › General to "Show Disarm Warning on Save/Reload" to reflect that it governs armed notices for both operations.
   - Unblocked saving on local tool settings pages (`settings_*` such as Preferences, Audio, Localization) while armed, as these pages do not communicate with the FC via MSP.
   - Saving FC parameters while armed remains strictly blocked in all cases.
 

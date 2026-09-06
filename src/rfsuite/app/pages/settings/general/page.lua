@@ -131,7 +131,7 @@ end
 
 local SAFETY_ITEMS = {
   { key = "save_confirm",                 labelKey = "save_confirm",                 fallback = "Confirm on Save" },
-  { key = "save_armed_warning",           labelKey = "save_armed_warning",           fallback = "Show Disarm-to-Save Warning" },
+  { key = "save_armed_warning",           labelKey = "save_armed_warning",           fallback = "Show Disarm Warning on Save/Reload" },
   { key = "reload_confirm",               labelKey = "reload_confirm",               fallback = "Confirm on Reload" },
 }
 
