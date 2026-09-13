@@ -3154,6 +3154,7 @@ function M.run(event, touchState)
         local audioContext = state.audioContext
         audioContext.audioState = state.audioState
         audioContext.preferences = state.preferences
+        state.telemetryState.rfConnected = state.rfConnected
         audioContext.state = state.telemetryState
         audioContext.modelName = modelName
         Audio.process(audioContext, { log = function(msg, level) if Log then pcall(Log.emit, "rfsuite.audio", msg, level, false) end end })
@@ -3167,6 +3168,7 @@ function M.run(event, touchState)
           local audioContext = state.audioContext
           audioContext.audioState = state.audioState
           audioContext.preferences = state.preferences
+          state.telemetryState.rfConnected = state.rfConnected
           audioContext.state = state.telemetryState
           Audio.announceConnectionLost(audioContext, rfReady,
             { log = function(msg, level) if Log then pcall(Log.emit, "rfsuite.audio", msg, level, false) end end })

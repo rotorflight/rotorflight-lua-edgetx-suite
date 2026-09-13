@@ -31,9 +31,16 @@ local audio_volume = nil
 local master_gvar_idx = nil
 local master_gvar_last = nil
 local VOL_GVAR_OFF = -1024
+local CONNECTION_RECOVERY_WINDOW = 120
 
 local function is_rf_connected(self)
-  return self.state and self.state.rfConnected == true
+  if self and self.state and self.state.rfConnected ~= nil then
+    return self.state.rfConnected == true
+  end
+  if type(_G) == "table" and _G.rfsuite and _G.rfsuite.session and _G.rfsuite.session.rfConnected ~= nil then
+    return _G.rfsuite.session.rfConnected == true
+  end
+  return false
 end
 
 local function pct_to_vol_raw(pct)
@@ -44,26 +51,22 @@ local function pct_to_vol_raw(pct)
 end
 
 local function is_telemetry_lost_active(self, now)
-  local audioState = self.audioState
+  local audioState = self and self.audioState
   if not audioState or not audioState.connectionLostPending then return false end
-  local category = "link"
-  local behaviour = { repeatKey = "link_repeat", repeatDefault = 0 }
-  local limit = tonumber(self.preferences and self.preferences.audio_events and self.preferences.audio_events[behaviour.repeatKey]) or behaviour.repeatDefault
-  limit = math.floor(limit)
-  if limit < 0 then limit = 0 end
-  if limit > 10 then limit = 10 end
-
-  if limit > 0 then
-    local counts = audioState.alertRepeats
-    if counts ~= nil and (counts["telemetry_lost"] or 0) >= limit then
-      return false
-    end
+  local lostAt = tonumber(audioState.connectionLostAt) or 0
+  if lostAt <= 0 or (now - lostAt) > CONNECTION_RECOVERY_WINDOW then
+    audioState.connectionLostPending = nil
+    audioState.connectionLostAt = nil
+    return false
   end
   return true
 end
 
 local function refresh_volume_state(self, isCritical)
-  local prefs = self.preferences and self.preferences.audio
+  local prefs = self and self.preferences and self.preferences.audio
+  if not prefs and type(_G) == "table" and _G.rfsuite and _G.rfsuite.preferences then
+    prefs = _G.rfsuite.preferences.audio
+  end
   
   -- Layer A
   local v = prefs and tonumber(prefs.level) or 0
@@ -156,7 +159,7 @@ local LQ_HYSTERESIS = 5
 -- How long a lost connection stays eligible for a recovery announcement. Past it the pending
 -- flag is dropped without a word: a model that answers again a quarter of an hour later is a
 -- new flight, and "telemetry recovered" belongs to the one that was interrupted.
-local CONNECTION_RECOVERY_WINDOW = 120
+-- CONNECTION_RECOVERY_WINDOW defined at top
 
 -- What separates "the pack is gone" from "the pack is low". A disconnected main battery reads
 -- as no voltage at all, and the lowest a flight pack is ever taken to is far above this, so
@@ -404,6 +407,38 @@ local function readAudioEventPrefs()
   return session.modelPreferences.audio_events
 end
 
+local function is_critical_active(self, now, events)
+  local audioState = self and self.audioState
+  if not audioState then return false end
+
+  if audioState.voltageLowSince ~= nil then
+    return true
+  end
+
+  if prefEnabled(events, "esc_temperature", false) then
+    local audioEventPrefs = readAudioEventPrefs()
+    local escThreshold = tonumber(audioEventPrefs and audioEventPrefs.esc_threshold)
+      or tonumber((self.preferences and self.preferences.audio_events and self.preferences.audio_events.esc_threshold) or 90)
+    local escTemp = tonumber(self.state and self.state.escTemp)
+    if escTemp ~= nil and escTemp >= escThreshold then
+      return true
+    end
+  end
+
+  if prefEnabled(events, "fuel_empty", false) then
+    local fuel = tonumber(self.state and self.state.fuel)
+    if fuel ~= nil and fuel <= 0 and audioState.fuelSeenPositive then
+      return true
+    end
+  end
+
+  if is_telemetry_lost_active(self, now) then
+    return true
+  end
+
+  return false
+end
+
 local function isArmedFromState(state)
   if type(state) ~= "table" then
     return false
@@ -530,13 +565,7 @@ local function playVoltage(volts, decimals, opts)
   else
     spoken = math.floor((volts * 10) + 0.5)
   end
-  local ok, err
-  local lvl = audio_volume
-  if lvl then
-    ok, err = pcall(playNumber, spoken, unitVolts(), attribute, lvl)
-  else
-    ok, err = pcall(playNumber, spoken, unitVolts(), attribute)
-  end
+  local ok, err = pcall(playNumber, spoken, unitVolts(), attribute, audio_volume)
   if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
 end
 
@@ -617,14 +646,8 @@ local function playResolvedEventFile(relativePath, opts)
     return false
   end
   if type(playFile) == "function" then
-    local level = audio_volume
-    emitLog(opts, "playFile -> " .. tostring(path) .. (level and (" @" .. level) or ""), "debug")
-    local ok, err
-    if level then
-      ok, err = pcall(playFile, path, level)
-    else
-      ok, err = pcall(playFile, path)
-    end
+    emitLog(opts, "playFile -> " .. tostring(path) .. (audio_volume and (" @" .. audio_volume) or ""), "debug")
+    local ok, err = pcall(playFile, path, audio_volume)
     if not ok then emitLog(opts, "playFile error: " .. tostring(err), "error") end
     return ok
   end
@@ -633,13 +656,7 @@ end
 
 local function playRawFile(path, opts)
   if type(playFile) == "function" then
-    local level = audio_volume
-    local ok, _
-    if level then
-      ok, _ = pcall(playFile, path, level)
-    else
-      ok, _ = pcall(playFile, path)
-    end
+    local ok, _ = pcall(playFile, path, audio_volume)
     return ok
   end
   return false
@@ -800,13 +817,7 @@ local function announceProfileEvent(self, eventKey, value, soundFile, opts)
     tryPlayEventFile(audioState, now, soundFile, opts)
     if type(playNumber) == "function" then
       emitLog(opts, "playNumber -> " .. tostring(rounded), "info")
-      local lvl = audio_volume
-      local ok, err
-      if lvl then
-        ok, err = pcall(playNumber, rounded, 0, lvl)
-      else
-        ok, err = pcall(playNumber, rounded, 0)
-      end
+      local ok, err = pcall(playNumber, rounded, 0, audio_volume)
       if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
     end
     audioState.lastValues[eventKey] = rounded
@@ -944,26 +955,14 @@ local function announceBatteryCapacityEvent(self, opts)
     tryPlayEventFile(audioState, now, "evt/battery.wav", opts)
     if type(playNumber) == "function" then
       emitLog(opts, "playNumber -> " .. tostring(capacity) .. " mAh", "info")
-      local lvl = audio_volume
-      local ok, err
-      if lvl then
-        ok, err = pcall(playNumber, capacity, unitMah(), lvl)
-      else
-        ok, err = pcall(playNumber, capacity, unitMah())
-      end
+      local ok, err = pcall(playNumber, capacity, unitMah(), audio_volume)
       if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
     end
   else
     emitLog(opts, "battery profile change value=" .. tostring(profile) .. " file=evt/battery.wav", "info")
     tryPlayEventFile(audioState, now, "evt/battery.wav", opts)
     if type(playNumber) == "function" then
-      local lvl = audio_volume
-      local ok, err
-      if lvl then
-        ok, err = pcall(playNumber, configIndex, 0, lvl)
-      else
-        ok, err = pcall(playNumber, configIndex, 0)
-      end
+      local ok, err = pcall(playNumber, configIndex, 0, audio_volume)
       if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
     end
   end
@@ -1195,6 +1194,8 @@ function Audio.announceConnectionLost(self, rfLinkUp, opts)
   audioState.connectionLostAt = now
   emitLog(opts, "telemetry lost while armed, RF link still up", "info")
 
+  refresh_volume_state(self, true)
+
   if not resolveEventPath(CONNECTION_LOST_SOUND) then
     if not audioState.connectionSoundMissingLogged then
       audioState.connectionSoundMissingLogged = true
@@ -1227,7 +1228,18 @@ function Audio.resetConnectionState(audioState)
     return
   end
 
-  -- isCritical hold is now managed by refresh_volume_state being called on every pass
+  local now = nowSeconds()
+  local isCritical = false
+  if audioState.connectionLostPending then
+    local lostAt = tonumber(audioState.connectionLostAt) or 0
+    if lostAt > 0 and (now - lostAt) <= CONNECTION_RECOVERY_WINDOW then
+      isCritical = true
+    else
+      audioState.connectionLostPending = nil
+      audioState.connectionLostAt = nil
+    end
+  end
+  refresh_volume_state(nil, isCritical)
 
   audioState.initialized = false
   audioState.modelAnnounced = false
@@ -1347,6 +1359,8 @@ function Audio.process(self, opts)
   end
 
   local events = (self.preferences and self.preferences.audio_events) or {}
+  local isCritical = is_critical_active(self, now, events)
+  refresh_volume_state(self, isCritical)
 
   -- Getting here at all is what a recovery is: both callers run this function only while their
   -- connection gate is open. The window bounds it, so a model brought back to the bench long
@@ -1432,6 +1446,7 @@ function Audio.process(self, opts)
             audioState.voltageLowSince = now
           end
           if (now - audioState.voltageLowSince) >= hold then
+            refresh_volume_state(self, true)
             -- A throttle that survives a reload of the module, beside the per-alert interval:
             -- the tool and the widget each hold their own audio state, and this is what keeps
             -- one from repeating what the other has just said.
@@ -1492,13 +1507,7 @@ function Audio.process(self, opts)
       if alertMaySpeak(audioState, events, "mcu_temperature", now) then
         if tryPlayEventFile(audioState, now, "stat/alerts/mcu.wav", opts) then
           if type(playNumber) == "function" then
-            local lvl = audio_volume
-            local ok, err
-            if lvl then
-              ok, err = pcall(playNumber, math.floor(mcuTemp + 0.5), unitCelsius(), lvl)
-            else
-              ok, err = pcall(playNumber, math.floor(mcuTemp + 0.5), unitCelsius())
-            end
+            local ok, err = pcall(playNumber, math.floor(mcuTemp + 0.5), unitCelsius(), audio_volume)
             if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
           end
           alertSpoken(audioState, events, "mcu_temperature", now)
@@ -1551,13 +1560,7 @@ function Audio.process(self, opts)
         if alertMaySpeak(audioState, events, "lq", now) then
           if tryPlayEventFile(audioState, now, "stat/alerts/lq.wav", opts) then
             if type(playNumber) == "function" then
-              local lvl = audio_volume
-              local ok, err
-              if lvl then
-                ok, err = pcall(playNumber, math.floor(lq + 0.5), unitPercent(), lvl)
-              else
-                ok, err = pcall(playNumber, math.floor(lq + 0.5), unitPercent())
-              end
+              local ok, err = pcall(playNumber, math.floor(lq + 0.5), unitPercent(), audio_volume)
               if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
             end
             -- The warning level does not buzz even when the category is set to, which is the
@@ -1734,13 +1737,7 @@ function Audio.process(self, opts)
               if tryPlayEventFile(audioState, now, calloutSound, opts) then
                 if type(playNumber) == "function" then
                   emitLog(opts, "fuel callout playNumber -> " .. tostring(lowestCrossed), "info")
-                  local lvl = audio_volume
-                  local ok, err
-                  if lvl then
-                    ok, err = pcall(playNumber, lowestCrossed, unitPercent(), lvl)
-                  else
-                    ok, err = pcall(playNumber, lowestCrossed, unitPercent())
-                  end
+                  local ok, err = pcall(playNumber, lowestCrossed, unitPercent(), audio_volume)
                   if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
                 end
               end
@@ -1802,13 +1799,7 @@ function Audio.process(self, opts)
           local calloutSound = isElectricModel and "evt/battery.wav" or "stat/alerts/fuel.wav"
           if tryPlayEventFile(audioState, now, calloutSound, opts) then
             if type(playNumber) == "function" then
-              local lvl = audio_volume
-              local ok, err
-              if lvl then
-                ok, err = pcall(playNumber, fuel, unitPercent(), lvl)
-              else
-                ok, err = pcall(playNumber, fuel, unitPercent())
-              end
+              local ok, err = pcall(playNumber, fuel, unitPercent(), audio_volume)
               if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
             end
             audioState.initialFuelAnnounced = true
@@ -1819,28 +1810,6 @@ function Audio.process(self, opts)
       end
     end
   end
-
-  local isCritical = false
-  if audioState.voltageLowSince ~= nil then isCritical = true end
-  if prefEnabled(events, "esc_temperature", false) then
-    local audioEventPrefs = readAudioEventPrefs()
-    local escThreshold = tonumber(audioEventPrefs and audioEventPrefs.esc_threshold) or tonumber((self.preferences and self.preferences.audio_events and self.preferences.audio_events.esc_threshold) or 90)
-    local escTemp = tonumber(self.state and self.state.escTemp)
-    if escTemp ~= nil and escTemp >= escThreshold then
-      isCritical = true
-    end
-  end
-  if prefEnabled(events, "fuel_empty", false) then
-    local fuel = tonumber(self.state and self.state.fuel)
-    if fuel ~= nil and fuel <= 0 and audioState.fuelSeenPositive then
-      isCritical = true
-    end
-  end
-  if is_telemetry_lost_active(self, now) then
-    isCritical = true
-  end
-
-  refresh_volume_state(self, isCritical)
 
   if not audioState.initialized then
     audioState.initialized = true
