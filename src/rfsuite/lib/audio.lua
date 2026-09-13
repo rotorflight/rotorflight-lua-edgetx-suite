@@ -31,6 +31,10 @@ local audio_volume = nil
 local master_gvar_idx = nil
 local master_gvar_last = nil
 local VOL_GVAR_OFF = -1024
+
+-- How long a lost connection stays eligible for a recovery announcement. Past it the pending
+-- flag is dropped without a word: a model that answers again a quarter of an hour later is a
+-- new flight, and "telemetry recovered" belongs to the one that was interrupted.
 local CONNECTION_RECOVERY_WINDOW = 120
 
 local function is_rf_connected(self)
@@ -55,8 +59,6 @@ local function is_telemetry_lost_active(self, now)
   if not audioState or not audioState.connectionLostPending then return false end
   local lostAt = tonumber(audioState.connectionLostAt) or 0
   if lostAt <= 0 or (now - lostAt) > CONNECTION_RECOVERY_WINDOW then
-    audioState.connectionLostPending = nil
-    audioState.connectionLostAt = nil
     return false
   end
   return true
@@ -155,11 +157,6 @@ local RSSI_LINK_SOURCES = {
 -- quality resting on the threshold otherwise alternates between two levels, and each rise
 -- would speak.
 local LQ_HYSTERESIS = 5
-
--- How long a lost connection stays eligible for a recovery announcement. Past it the pending
--- flag is dropped without a word: a model that answers again a quarter of an hour later is a
--- new flight, and "telemetry recovered" belongs to the one that was interrupted.
--- CONNECTION_RECOVERY_WINDOW defined at top
 
 -- What separates "the pack is gone" from "the pack is low". A disconnected main battery reads
 -- as no voltage at all, and the lowest a flight pack is ever taken to is far above this, so
@@ -1358,10 +1355,6 @@ function Audio.process(self, opts)
     audioState.fuelSeenPositive = false
   end
 
-  local events = (self.preferences and self.preferences.audio_events) or {}
-  local isCritical = is_critical_active(self, now, events)
-  refresh_volume_state(self, isCritical)
-
   -- Getting here at all is what a recovery is: both callers run this function only while their
   -- connection gate is open. The window bounds it, so a model brought back to the bench long
   -- after it went quiet does not open with an announcement about a flight that is over.
@@ -1378,6 +1371,10 @@ function Audio.process(self, opts)
       emitLog(opts, "telemetry back after " .. string.format("%.1f", since) .. " s, too late to call it a recovery", "debug")
     end
   end
+
+  local events = (self.preferences and self.preferences.audio_events) or {}
+  local isCritical = is_critical_active(self, now, events)
+  refresh_volume_state(self, isCritical)
 
   local governorEnabled = prefEnabled(events, "governor_state", true)
   if audioState.lastEnabled.governor_state ~= governorEnabled then
