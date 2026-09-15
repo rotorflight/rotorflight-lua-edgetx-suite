@@ -2527,7 +2527,18 @@ function Runtime.new(zone, options)
           _G.rfsuite.session.event_context = nil
         end
       end
-      if self._job.step(self) then
+      -- Run the step under pcall so that a raise (including a CPU-limit kill or a
+      -- theme build error) always clears _job.  Without this guard a raising step
+      -- pins the widget in the JOB branch for ever: the next pass finds _job still
+      -- set, reruns the same step, raises again, and the STATE branch — where
+      -- performBackgroundWork / MspRuntime.tick live — is never reached again.
+      local stepOk, stepErr = pcall(self._job.step, self)
+      if not stepOk then
+        widgetLog(self, "job step error (" .. tostring(self._job.kind) .. "): " .. tostring(stepErr), "error")
+        self._job   = nil
+        self.built  = false
+      elseif stepErr then
+        -- step returned true: job is done.
         self._job = nil
       end
       -- The second of the two clock reads the gap line is built from; see traceInstructionUsage.
