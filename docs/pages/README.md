@@ -11,7 +11,7 @@ One file per page, at the path of the page under `src/rfsuite/app/pages/` with `
 appended: the page `setup/power/smartfuel/page.lua` is documented in
 `docs/pages/setup/power/smartfuel.md`. Menu entries that only open a submenu have no file.
 
-**Status:** 93 reachable pages, 6 written. 72 of them carry an in-app help text behind the
+**Status:** 93 reachable pages, 7 written. 72 of them carry an in-app help text behind the
 `?` in the header, which is the text to start a page file from; the others start from the
 page source.
 
@@ -44,7 +44,7 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 | Configuration | `setup/configuration.md` | yes | read-only while armed | to write |
 | Radio Config | `setup/radio_config.md` | yes | read-only while armed | to write |
 | Telemetry | `setup/telemetry.md` | yes | read-only while armed | to write |
-| Accelerometer | `setup/accelerometer.md` | yes | read-only while armed | to write |
+| Accelerometer | [setup/accelerometer.md](setup/accelerometer.md) | yes | read-only while armed | written |
 | Alignment | `setup/alignment.md` | yes | read-only while armed | to write |
 | Ports | `setup/ports.md` | yes | read-only while armed | to write |
 | Mixer → Swash | `setup/mixer/swash.md` | no | read-only while armed | to write |
