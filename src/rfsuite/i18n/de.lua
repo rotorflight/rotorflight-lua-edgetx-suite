@@ -42,7 +42,8 @@ return {
       failed_message = "Der Flugcontroller hat die Einstellungen nicht bestätigt.",
       eeprom_pending = "Gespeichert, aber der EEPROM-Schreibvorgang steht noch aus:",
       read_required = "Konfiguration zuerst vollständig lesen. Bitte das Laden abwarten oder mit Neu laden erneut versuchen.",
-      page_changed = "Die Seite wurde gewechselt. Bitte zur Seite zurückkehren und erneut speichern."
+      page_changed = "Die Seite wurde gewechselt. Bitte zur Seite zurückkehren und erneut speichern.",
+      confirm_required = "Dieses Speichern muss bestätigt werden, und die Rückfrage konnte nicht angezeigt werden. Es wurde nichts geschrieben."
     },
     closing_rfsuite = "RFSuite wird beendet...",
     model_armed_title = "Modell Armed",
@@ -1967,8 +1968,10 @@ return {
         help_title = "Profile kopieren",
         help_p1 = "Hier kannst du Einstellungen zwischen den Profilen kopieren.",
         help_p2 = "Wähle den Typ (PID oder Rate) sowie Quell- und Zielprofil aus.",
+        help_p3 = "SAVE fragt nach, welches Profil überschrieben wird: das Zielprofil behält danach nichts von seinen eigenen Einstellungen, und rückgängig machen lässt sich das nicht. Angeboten werden nur die Profile, die der Flight Controller meldet.",
         msgbox_save = "Profil kopieren",
-        msgbox_msg = "Möchten Sie das ausgewählte Profil wirklich kopieren?",
+        msgbox_msg = "%s-Profil %d mit Profil %d überschreiben? Das lässt sich nicht rückgängig machen.",
+        msp_unavailable = "Keine Verbindung zum Flight Controller.",
         warn_same_profile = "Quell- und Zielprofil sind identisch."
       },
       diagnostics_profile_select = {

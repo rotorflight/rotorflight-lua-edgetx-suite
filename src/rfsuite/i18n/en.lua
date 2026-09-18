@@ -42,7 +42,8 @@ return {
       failed_message = "The flight controller did not confirm the settings.",
       eeprom_pending = "Saved, but the EEPROM write is pending:",
       read_required = "Read the complete configuration before saving. Wait for loading to finish, or use Reload to try again.",
-      page_changed = "The page changed. Return to the page and save again."
+      page_changed = "The page changed. Return to the page and save again.",
+      confirm_required = "This save has to be confirmed, and the confirmation could not be shown. Nothing was written."
     },
     closing_rfsuite = "Closing RFSuite...",
     model_armed_title = "Model Armed",
@@ -1967,8 +1968,10 @@ return {
         help_title = "Copy Profile",
         help_p1 = "Copy settings between profiles.",
         help_p2 = "Select the type (PID or Rate) and the source/destination profiles.",
+        help_p3 = "SAVE asks which profile is about to be overwritten: the destination keeps none of its own settings afterwards and there is no undo. Only the profiles the flight controller reports are offered.",
         msgbox_save = "Copy Profile",
-        msgbox_msg = "Are you sure you want to copy the selected profile?",
+        msgbox_msg = "Overwrite %s profile %d with profile %d? This cannot be undone.",
+        msp_unavailable = "No connection to the flight controller.",
         warn_same_profile = "Source and destination profiles are the same."
       },
       diagnostics_profile_select = {

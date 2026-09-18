@@ -11,7 +11,7 @@ One file per page, at the path of the page under `src/rfsuite/app/pages/` with `
 appended: the page `setup/power/smartfuel/page.lua` is documented in
 `docs/pages/setup/power/smartfuel.md`. Menu entries that only open a submenu have no file.
 
-**Status:** 93 reachable pages, 19 written. 73 of them carry an in-app help text behind the
+**Status:** 93 reachable pages, 20 written. 73 of them carry an in-app help text behind the
 `?` in the header, which is the text to start a page file from; the others start from the
 page source.
 
@@ -100,7 +100,7 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 
 | Page | File | In-app help | Conditions | Status |
 | --- | --- | --- | --- | --- |
-| Copy Profiles | `tools/copy_profiles.md` | yes | needs the flight controller, read-only while armed | to write |
+| Copy Profiles | [tools/copy_profiles.md](tools/copy_profiles.md) | yes | needs the flight controller, read-only while armed | written |
 | Select Profile | `tools/select_profile.md` | yes | needs the flight controller, read-only while armed | to write |
 | Flight Log | `tools/flight_log.md` | yes | preview switch *Flight Log*, read-only while armed | written |
 | Diagnostics → FBL Status | `tools/diagnostics/fblstatus.md` | no | needs the flight controller, read-only while armed | to write |

@@ -21,6 +21,26 @@ page and save again. Arming continues to prevent FC writes. Both checks of the a
 the configured warning style: the notice, or the transient banner when the armed warning is
 disabled. Local radio settings do not need an FC read and keep their existing save behaviour.
 
+## Confirming a save
+
+*Confirm on Save*, under *System* > *Settings* > *General*, puts a question in front of every Save.
+It is on by default and can be switched off. Two things override it, and both ask whatever the
+preference says.
+
+The first is an arming state that cannot be read: the question is asked anyway, because the
+alternative is writing to a flight controller that may be armed without anybody having been told
+the check did not run.
+
+The second is a page whose Save destroys something that cannot be read back afterwards. Such a page
+supplies the words of the question itself, so that it names what is about to be lost instead of
+only asking whether to save, and it requires the question rather than leaving it to the preference.
+**Tools > Copy Profiles** is the one page that does this today: it asks which profile is about to be
+overwritten and which one it is copied from, because the destination profile's tune is replaced and
+nothing anywhere holds what was there before. Answering *No* writes nothing.
+
+The re-checks described above are unaffected either way: the page, its read state and the arming
+state are all checked again after the answer and immediately before anything is written.
+
 ## Pages covered
 
 - Flight Tuning: PIDs, Rates and Governor.
