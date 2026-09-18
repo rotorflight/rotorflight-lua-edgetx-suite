@@ -59,6 +59,12 @@ local ui = {
   progress = 0
 }
 
+-- The page's own initial values, kept so that leaving the page can put them back.
+-- `ui` is module state and the module outlives the page, so without this a second
+-- visit whose read does not arrive would show what the previous ESC answered.
+local CONFIG_DEFAULTS = {}
+for k, v in pairs(ui.config) do CONFIG_DEFAULTS[k] = v end
+
 local function getSession()
   local root = _G and _G.rfsuite
   return root and root.session or nil
@@ -168,6 +174,10 @@ local function queueScorpionRead(isAutoReload, retryOnError)
 
   if ui.runtime.readPending then return true, nil end
 
+  -- The block held from an earlier read belongs to whatever answered then. Drop it
+  -- as the next read starts, so a reply that is refused, or that never arrives,
+  -- cannot leave a save to be built from the previous ESC's block.
+  ui.parsedCache = nil
   ui.runtime.readPending = true
   if not isAutoReload then
     ui.loading = true
@@ -180,6 +190,14 @@ local function queueScorpionRead(isAutoReload, retryOnError)
   queueScorpionReadActual(queue, retryOnError)
   return true, nil
 end
+
+-- `M.onSave` passes the reason string straight into the report dialog, so a reason that is
+-- an ordinary situation has to be a translated key, not a code token. A save before the ESC
+-- has been read is exactly that: an ESC that did not answer, a reply that was refused, or a
+-- page saved before the read came back.
+local MESSAGE_KEYS = {
+  esc_not_read = { "save_error_not_read", "Read the ESC before saving." }
+}
 
 local function queueScorpionWrite(requestRebuild)
   if not MspRuntime or not EscParametersScorpionApi or type(MspRuntime.getState) ~= "function" then
@@ -342,9 +360,14 @@ function M.onSave(ctx)
   local ok, err = queueScorpionWrite(ctx and ctx.requestRebuild)
   if not ok then
     if ctx and type(ctx.reportSave) == "function" then
+      local mapped = MESSAGE_KEYS[err]
+      local message = tostring(err or "MSP write failed")
+      if mapped then
+        message = pageText(ctx and ctx.i18n, mapped[1], mapped[2])
+      end
       ctx.reportSave({
         title = pageText(ctx and ctx.i18n, "save_error_title", "Error"),
-        message = tostring(err or "MSP write failed")
+        message = message
       })
     end
     return false
@@ -656,6 +679,16 @@ function M.build(ctx)
 end
 
 function M.onClose()
+  -- Everything the last reply left behind. The page module outlives its own close,
+  -- so without this the next visit would show that ESC's values, firmware and name --
+  -- and could save them -- even when its own read does not arrive.
+  ui.parsedCache = nil
+  ui.escModel = nil
+  ui.escVersion = nil
+  ui.escFirmware = nil
+  for k, v in pairs(CONFIG_DEFAULTS) do ui.config[k] = v end
+  local closingSession = getSession()
+  if closingSession then closingSession.setup_esc_motors_esc_tools_scorp = nil end
   if Common and type(Common.resetPageState) == "function" then
     Common.resetPageState(ui, {
       resetLoaded = true,

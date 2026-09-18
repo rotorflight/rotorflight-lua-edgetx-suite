@@ -74,6 +74,12 @@ local ui = {
   progress = 0
 }
 
+-- The page's own initial values, kept so that leaving the page can put them back.
+-- `ui` is module state and the module outlives the page, so without this a second
+-- visit whose read does not arrive would show what the previous ESC answered.
+local CONFIG_DEFAULTS = {}
+for k, v in pairs(ui.config) do CONFIG_DEFAULTS[k] = v end
+
 local function getSession()
   local root = _G and _G.rfsuite
   return root and root.session or nil
@@ -188,6 +194,13 @@ local function queueAm32Read(isAutoReload)
 
   if ui.runtime.readPending then return true, nil end
 
+  -- The block held from an earlier read belongs to whatever answered then. Drop it
+  -- as the next read starts, so a reply that is refused, or that never arrives,
+  -- cannot leave a save to be built from the previous ESC's block. The four-way
+  -- connect sequence re-enters this function once per step and the block is only
+  -- assigned at the end of it, so clearing here also covers the seconds between an
+  -- ESC Target change and the read that follows it.
+  ui.parsedCache = nil
   ui.runtime.readPending = true
   if not isAutoReload then
     ui.loading = true
@@ -1046,6 +1059,18 @@ function M.onClose()
   ui.motorCount = nil
   ui.motorConfigRetryPending = nil
   ui.motorConfigRetryTimer = nil
+  -- Everything the last reply left behind. The page module outlives its own close,
+  -- so without this the next visit would show that ESC's values, firmware and name --
+  -- and could save them -- even when its own read does not arrive. `escTarget` above
+  -- is already cleared and starts again at 0, so the block left here need not even
+  -- belong to the ESC the next visit addresses.
+  ui.parsedCache = nil
+  ui.escModel = nil
+  ui.escVersion = nil
+  ui.escFirmware = nil
+  for k, v in pairs(CONFIG_DEFAULTS) do ui.config[k] = v end
+  local closingSession = getSession()
+  if closingSession then closingSession.setup_esc_motors_esc_tools_am32 = nil end
   if Common and type(Common.resetPageState) == "function" then
     Common.resetPageState(ui, {
       resetLoaded = true,

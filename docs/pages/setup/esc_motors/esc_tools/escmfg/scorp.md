@@ -65,7 +65,11 @@ version the ESC reported. *Section* switches between three groups of settings.
   changed. The block that was read is the basis, so a setting this page does not offer goes
   back exactly as it was read, and a Save with nothing edited changes nothing in the ESC.
 - Saving before the ESC has been read is refused with an error rather than written, since
-  there would be no block to write back.
+  there would be no block to write back. It is this visit's read that counts: leaving the page
+  and coming back starts again with nothing read, and so does *Reload*.
+- Leaving the page puts the settings, the model, firmware and version back to what the page
+  shows before it has read anything, so a visit whose read does not arrive shows the page's own
+  initial values rather than the last ESC's.
 - The ESC is read when the page opens, and again by *Reload*. Switching *Section* does not
   read it again.
 - After a successful write the page reads the ESC back on its own. The flight controller

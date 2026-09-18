@@ -61,6 +61,12 @@ local ui = {
   progress = 0
 }
 
+-- The page's own initial values, kept so that leaving the page can put them back.
+-- `ui` is module state and the module outlives the page, so without this a second
+-- visit whose read does not arrive would show what the previous ESC answered.
+local CONFIG_DEFAULTS = {}
+for k, v in pairs(ui.config) do CONFIG_DEFAULTS[k] = v end
+
 local function getSession()
   local root = _G and _G.rfsuite
   return root and root.session or nil
@@ -687,6 +693,18 @@ function M.build(ctx)
 end
 
 function M.onClose()
+  -- Everything the last reply left behind. The page module outlives its own close, so
+  -- without this the next visit shows that ESC's values, firmware and name until its own
+  -- read answers -- and shows them for good if that read is refused or never arrives.
+  -- The save is gated separately, on `ui.runtime.escReadComplete`, which
+  -- `Common.resetPageState` clears below; this is what the page DISPLAYS.
+  ui.parsedCache = nil
+  ui.escModel = nil
+  ui.escVersion = nil
+  ui.escFirmware = nil
+  for k, v in pairs(CONFIG_DEFAULTS) do ui.config[k] = v end
+  local closingSession = getSession()
+  if closingSession then closingSession.setup_esc_motors_esc_tools_flrtr = nil end
   if Common and type(Common.resetPageState) == "function" then
     Common.resetPageState(ui, {
       resetLoaded = true,
