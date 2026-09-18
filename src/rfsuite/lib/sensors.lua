@@ -128,8 +128,8 @@ end
 -- getValue() answers 0 for a sensor the model still carries but the radio does not send, and 0
 -- is a number, so such a sensor would be taken for a reading. getSourceValue() returns nothing
 -- for exactly that sensor and its last value otherwise, which tells a dead sensor apart from a
--- live one that happens to read zero. Only asked before a search path is adopted, and only about
--- a zero, so neither a settled source nor a reading of its own costs anything.
+-- live one that happens to read zero. Only asked where a path is adopted, and only about a zero,
+-- so neither a settled source nor a reading of its own costs anything.
 local function telemetryValueIsLive(name)
   local getSrcV = _G.getSourceValue
   if type(getSrcV) ~= "function" then return true end
@@ -586,8 +586,10 @@ function Sensors.getValue(source)
   end
 
   if resolved then
+    -- The alias is the first search path for most sources, so without this test the loop above
+    -- rejects a dead sensor and this retries the same name and adopts it at 0 for the session.
     local value = readTelemetryValue(resolved)
-    if type(value) == "number" then
+    if type(value) == "number" and (value ~= 0 or telemetryValueIsLive(resolved)) then
       Sensors.active_paths = Sensors.active_paths or {}
       Sensors.active_paths[source] = resolved
       if debugWanted() then debugLog("telemetry-hit:" .. source, "telemetry hit " .. resolved .. " = " .. tostring(value)) end
@@ -596,7 +598,7 @@ function Sensors.getValue(source)
   end
 
   local direct = readTelemetryValue(source)
-  if type(direct) == "number" then
+  if type(direct) == "number" and (direct ~= 0 or telemetryValueIsLive(source)) then
     Sensors.active_paths = Sensors.active_paths or {}
     Sensors.active_paths[source] = source
     if debugWanted() then debugLog("telemetry-direct-hit:" .. source, "telemetry direct hit " .. source .. " = " .. tostring(direct)) end
