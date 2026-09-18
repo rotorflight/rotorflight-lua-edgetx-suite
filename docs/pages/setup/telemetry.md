@@ -31,3 +31,8 @@ Any sensor slot holding an ID outside the custom catalog (such as native CRSF se
 - **Save**: Writes the enabled telemetry sensors to the flight controller and saves to EEPROM.
 - **Reload**: Re-reads the current telemetry configuration from the flight controller.
 - **Star (*)**: Loads default custom telemetry sensors into the selection.
+
+## Related
+
+- [Custom telemetry sensors](../../reference/telemetry-sensors.md) — how the values selected here
+  become sensors on the radio, and why an unrecognised sensor costs more than itself.
