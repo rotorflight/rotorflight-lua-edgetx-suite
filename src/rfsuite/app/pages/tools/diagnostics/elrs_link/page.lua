@@ -17,6 +17,7 @@ end
 local Common = nil
 local ElrsTask = nil
 local ConfirmDialog = nil
+local Armed = nil
 local t = nil
 
 local state = {
@@ -57,11 +58,44 @@ local function ensureDeps()
   if not t then t = Common and Common.pageT("diagnostics_elrs_link") or nil end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
   if not ConfirmDialog then ConfirmDialog = loadModule("ui/confirm_dialog.lua") end
+  -- Through the suite's own module cache where there is one, rather than through this file's
+  -- loadModule: lib/armed.lua is a shared library and this page is dropped and rebuilt on every
+  -- close, so the local loader would read and compile it off the card again each time. The other
+  -- four above keep the local loader on purpose -- elrslink_task.lua carries module-level state
+  -- that the setup assistant drives separately, and sharing that is not this change's business.
+  if not Armed then
+    if _G.rfsuite and _G.rfsuite.require then
+      Armed = _G.rfsuite.require("lib/armed.lua")
+    else
+      Armed = loadModule("lib/armed.lua")
+    end
+    if type(Armed) ~= "table" and _G and _G.rfsuite and _G.rfsuite.Log then
+      _G.rfsuite.Log.emit("rfsuite.elrs", "Failed to load lib/armed.lua", "error")
+    end
+  end
 end
 
 local function pageText(i18n, key, fallback)
   local obj = i18n or state.i18n
   if t then return t(obj, key, fallback) end
+  return fallback
+end
+
+-- A string that is not this page's, by its whole key. The arming state a confirmation quotes is
+-- the tool's fact rather than this page's, so it is said in the words the header's own Save
+-- already uses instead of in a second wording that could drift away from it.
+--
+-- Named and shaped the way ui/home.lua names and shapes it, because the packager resolves
+-- `tr("key", "fallback")` at build time and leaves anything it does not recognise as the
+-- fallback -- which ships the English string in every locale with nothing going red.
+local function tr(key, fallback)
+  local obj = state.i18n
+  if obj and type(obj.t) == "function" then
+    local ok, value = pcall(obj.t, key)
+    if ok and type(value) == "string" and value ~= "" and value ~= key then
+      return value
+    end
+  end
   return fallback
 end
 
@@ -176,6 +210,20 @@ local function actionModeLabel(i18n, mode)
     return pageText(i18n, "action_probe_only", "Probe only")
 end
 
+-- Whether a sync may be started at all, and it answers YES only on a clear no.
+--
+-- A guard in front of a write fails CLOSED, which is the rule lib/armed.lua states in its own
+-- words: "cannot tell" is not "safe to proceed". `Armed and Armed.isArmed()` reads the same and
+-- does the opposite -- a lib/armed.lua that is not on the card, or a loader that returned
+-- something that is not a module, would leave both write buttons exactly as they were before this
+-- page had a guard at all, and say nothing about it anywhere.
+local function armedRefusesTheWrite()
+  if type(Armed) ~= "table" or type(Armed.isArmed) ~= "function" then
+    return true
+  end
+  return Armed.isArmed() == true
+end
+
 -- The question a sync button asks, with both sides as the page already shows them.
 --
 -- The probe that makes the buttons live has read the module and the flight controller by the
@@ -196,6 +244,14 @@ local function syncQuestion(i18n, mode)
     .. ": " .. formatRotorflightSummary(i18n)
   lines[#lines + 1] = pageText(i18n, "elrs_module", "ELRS Module")
     .. ": " .. formatElrsSummary(i18n)
+  -- Where the arming state could not be read at all, the question says so rather than being
+  -- asked as if it had been checked. The header's Save does the same thing for the same reason:
+  -- "cannot tell" is not "disarmed", and the pilot is the only one who can settle it.
+  if type(Armed) == "table" and type(Armed.isUncertain) == "function" and Armed.isUncertain() then
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = tr("app.dialogs.confirm_save_arm_unknown",
+      "Cannot read the arming state. Is the model disarmed?")
+  end
   return table.concat(lines, "\n")
 end
 
@@ -212,6 +268,16 @@ local function startSync(i18n, mode)
     if type(state.requestRebuild) == "function" then state.requestRebuild() end
   end
 
+  -- Not while the craft is armed. The entry is locked against being ENTERED while armed, but a
+  -- page opened before the arming edge stays open across it and its buttons stay live, so the
+  -- press has to ask the question the menu asked earlier. The header's Save refuses on the same
+  -- predicate; this is the same refusal, one button over.
+  if armedRefusesTheWrite() then
+    state.notice = pageText(i18n, "status_unavailable_armed", "Unavailable while armed")
+    rebuild()
+    return
+  end
+
   local shown = false
   if ConfirmDialog and type(ConfirmDialog.show) == "function" then
     shown = ConfirmDialog.show({
@@ -220,6 +286,13 @@ local function startSync(i18n, mode)
       onConfirm = function()
         -- The answer can arrive after the page has gone, and the task handle goes with it.
         if not ElrsTask then return end
+        -- The question stands over an arbitrary number of ticks and the craft can be armed
+        -- under it, so the state is read again here rather than inherited from the press.
+        if armedRefusesTheWrite() then
+          state.notice = pageText(i18n, "status_unavailable_armed", "Unavailable while armed")
+          rebuild()
+          return
+        end
         state.notice = nil
         requestTelemetryConfig(true)
         ElrsTask.start(mode)
@@ -466,6 +539,7 @@ function M.closePage()
   Common = nil
   ElrsTask = nil
   ConfirmDialog = nil
+  Armed = nil
   t = nil
 end
 

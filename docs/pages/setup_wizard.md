@@ -42,6 +42,10 @@ both sides is shown as done rather than asked again.
 
 ## Notes
 
+- **Nothing on the Link step writes while the model is armed.** The assistant's own menu entry is
+  locked while armed, but a step that was already open stays open across the arming edge. Both
+  *use this* buttons and the two pickers are refused for as long as the model is armed, and a
+  transfer that was already running is abandoned rather than finished.
 - **The channels the assistant lays out are CH5 to CH8 and the four stick channels.** It replaces
   every mixer line and every input line on the channels it writes, which the channel screen says
   before it does so.

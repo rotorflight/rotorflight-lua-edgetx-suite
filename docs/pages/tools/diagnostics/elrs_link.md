@@ -17,6 +17,10 @@ both and, on request, writes one side to match the other.
 The menu entry is locked while the model is armed. The page needs a connected model on CRSF
 telemetry; without one it says so and reads nothing.
 
+A page that was already open when the model was armed stays open — the lock is on entering the
+entry, not on leaving the page. Its two write buttons refuse for as long as the model is armed;
+see *Settings* below.
+
 ## What it shows
 
 | Row | What it is |
@@ -41,6 +45,17 @@ Both write buttons ask first, and the question quotes the two sides as the rows 
 i.e. as the last probe read them.
 Answering no writes nothing. Where the radio cannot put the question up, nothing is written either
 and the Status row says so.
+
+Neither sync writes while the model is armed. Pressing one puts no question up, sends nothing,
+and leaves *Unavailable while armed* on the Status row; the state is read again when the question
+is answered, so arming the model while the question stands cancels the write; and a transfer that
+was already running is abandoned on the spot, because a press is not the write — the module is
+read parameter by parameter first and the writes follow over the next several seconds. *Probe*
+only reads and stays available throughout.
+
+Where the radio cannot read the arming state at all — the link is up and the flight controller
+does not report the arming flags — the question is still asked, says so in its last line, and
+answering yes writes. A save elsewhere in the suite asks the same question for the same reason.
 
 ## Notes
 

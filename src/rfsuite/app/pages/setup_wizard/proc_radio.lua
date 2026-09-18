@@ -1880,10 +1880,13 @@ procs[#procs + 1] = {
 -- and `lib/crsf.lua` multiplexes the frames, so this conversation and the MSP one do not eat each
 -- other's replies. This procedure drives that task and shows what it found.
 --
--- ON ARMING, deliberately: every frame pushed to the module replaces one RC channel frame for
--- that cycle, so this must not run while the craft is armed. That is not re-tested here -- the
--- assistant's own menu entry is `lockedWhileArmed`, which is the suite's mechanism for it, and a
--- second, weaker test beside it would answer *not armed* for three different reasons.
+-- ON ARMING: every frame pushed to the module replaces one RC channel frame for that cycle, so
+-- this must not run while the craft is armed. It is not re-tested here, and the reason has
+-- changed. `lockedWhileArmed` answers whether the assistant may be ENTERED, which leaves a
+-- procedure that was already open across the arming edge with its rows live; and a page no
+-- longer has to write a second, weaker test, because lib/armed.lua publishes the same predicate
+-- the header's own Save uses. What covers the three rows below is the task itself: it refuses a
+-- write while armed, at the one point every one of its callers passes through.
 -- ---------------------------------------------------------------------------------------------
 
 local ELRS_TASK_PATH = "app/pages/tools/diagnostics/elrs_link/elrslink_task.lua"

@@ -169,40 +169,37 @@ local function ensureEvents()
   end
 end
 
+-- Both predicates are lib/armed.lua's now, so that a page can ask them too: the header's Save
+-- and Reload are not the only writes in the tool, a page draws buttons of its own, and a page
+-- entered before the arming edge is still open after it.
+local ArmedState = nil
+local armedStateReported = false
+
+-- The module, or nil. It is asked for at most once per failure rather than once per pass: the
+-- require cache answers a miss without touching the card, but the miss itself is worth saying
+-- out loud exactly once -- every armed gate in this file reads through here, so a module that
+-- cannot be loaded is not a small fault and must not be a silent one.
+local function armedState()
+  if type(ArmedState) == "table" then return ArmedState end
+  local loaded = loadModule("lib/armed.lua")
+  if type(loaded) == "table" then
+    ArmedState = loaded
+    return ArmedState
+  end
+  if not armedStateReported then
+    armedStateReported = true
+    if _G.rfsuite and _G.rfsuite.Log and type(_G.rfsuite.Log.emit) == "function" then
+      pcall(_G.rfsuite.Log.emit, "rfsuite.ui",
+        "lib/armed.lua did not load; every armed gate in the tool now reads as disarmed", "error")
+    end
+  end
+  return nil
+end
+
 local function isModelArmed()
   ensureEvents()
-  if not Sensors or type(Sensors.getValue) ~= "function" then
-    return false
-  end
-  local isSim = false
-  if Sensors and type(Sensors.isSimulator) == "function" then
-    isSim = Sensors.isSimulator()
-  end
-  if not isSim and type(getRSSI) == "function" then
-    local ok, rssi = pcall(getRSSI)
-    if ok and type(rssi) == "number" and rssi <= 0 then
-      return false
-    end
-  end
-  local value = Sensors.getValue("armflags")
-  if value ~= nil then
-    if type(value) == "number" then
-      if type(bit32) == "table" and type(bit32.btest) == "function" then
-        return bit32.btest(value, 1)
-      end
-      return value ~= 0
-    end
-    if type(value) == "boolean" then
-      return value
-    end
-    if type(value) == "string" then
-      local n = tonumber(value)
-      if type(n) == "number" then
-        return n ~= 0
-      end
-    end
-  end
-  return false
+  local armed = armedState()
+  return armed ~= nil and armed.isArmed() == true
 end
 
 -- A no-op stand-in rather than false. Every call site below is `pcall(Log.emit, ...)`, and Lua
@@ -210,32 +207,12 @@ end
 -- very pcall that was written to contain it.
 local NO_LOG = { emit = function() end }
 -- Whether the armed state cannot be established AT ALL, as opposed to being established as
--- disarmed. isModelArmed answers the question the screen needs -- "paint the warning?" -- and
--- answers false for three different reasons: not armed, no sensor, no link. That is the right
--- default for a warning, which must not stand permanently on a radio that cannot know. It is
--- the wrong default in front of a WRITE, where "cannot tell" is not "safe to proceed".
---
--- Deliberately narrow. A missing sensor module is a broken tool and not this question; a link
--- that is down cannot carry the write either, so the save fails on its own terms. What is left
--- is the case worth asking about: the link is up, the module is there, and the flight
--- controller does not report the arming flags -- no bridge, or no slot for them among its
--- forty telemetry sensors.
+-- disarmed. Why the two questions are not the same one, and why this one is deliberately
+-- narrow, is written where the predicates live: lib/armed.lua.
 local function armedStateIsUncertain()
   ensureEvents()
-  if not Sensors or type(Sensors.getValue) ~= "function" then
-    return false
-  end
-  if Sensors.getValue("armflags") ~= nil then
-    return false
-  end
-  local isSim = type(Sensors.isSimulator) == "function" and Sensors.isSimulator() or false
-  if not isSim and type(getRSSI) == "function" then
-    local ok, rssi = pcall(getRSSI)
-    if ok and type(rssi) == "number" and rssi <= 0 then
-      return false
-    end
-  end
-  return true
+  local armed = armedState()
+  return armed ~= nil and armed.isUncertain() == true
 end
 
 local Log = nil
@@ -2835,7 +2812,8 @@ function M.run(event, touchState)
         Events = nil
         Audio = nil
         Sensors = nil
-        
+        ArmedState = nil
+
         -- Clear the global table so everything becomes unreachable
         _G.rfsuite = nil
         

@@ -2052,7 +2052,7 @@ return {
         confirm_elrs_to_rf = "Set Rotorflight's telemetry configuration to match the ELRS module, and save it?",
         confirm_cancelled = "Nothing was written",
         confirm_no_dialog = "This radio cannot show the confirmation.",
-        help_message = "Compares the packet rate and telemetry ratio of the ExpressLRS transmitter module with the link rate and ratio the flight controller was configured for. Probe only reads. RF -> ELRS writes the module to match the flight controller; ELRS -> RF writes the flight controller and saves it. Both ask before they write."
+        help_message = "Compares the packet rate and telemetry ratio of the ExpressLRS transmitter module with the link rate and ratio the flight controller was configured for. Probe only reads. RF -> ELRS writes the module to match the flight controller; ELRS -> RF writes the flight controller and saves it. Both ask before they write, and neither writes while the model is armed."
       },
       diagnostics_validate_sensors = {
         status_ok = "OK",

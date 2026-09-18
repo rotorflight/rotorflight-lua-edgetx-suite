@@ -626,10 +626,52 @@ end
 
 local CrsfManager = nil
 
+-- The armed backstop, and it is here rather than at the button for two reasons.
+--
+-- The press that starts a sync is not the write. The module is pinged, then every parameter is
+-- read in chunks, and only after all that does a PARAMETER_WRITE leave -- seconds later, one per
+-- WRITE_DELAY_SECONDS. A check taken at the press therefore covers the press and not the window
+-- after it, and the craft can be armed inside that window with the button already greyed out, so
+-- the pilot cannot stop it either.
+--
+-- And this task has more than one caller. The diagnostics page drives it, and so does the setup
+-- assistant's link procedure, from three separate places including a combo's own `set`. This
+-- function is the single point all of their write paths pass through.
+--
+-- A probe only reads and is left alone. The refusal fails CLOSED: a predicate that cannot be
+-- loaded is not a licence to write, which is the rule lib/armed.lua states for itself.
+local Armed = nil
+
+local function armedRefusesTheWrite()
+    if Armed == nil then
+        if _G.rfsuite and _G.rfsuite.require then
+            Armed = _G.rfsuite.require("lib/armed.lua")
+        else
+            Armed = loadModule("lib/armed.lua")
+        end
+        if type(Armed) ~= "table" then
+            Armed = false
+            logMsg("lib/armed.lua did not load; a sync will be refused rather than risked", "error")
+        end
+    end
+    if type(Armed) ~= "table" or type(Armed.isArmed) ~= "function" then return true end
+    return Armed.isArmed() == true
+end
+
 function M.wakeup()
     if taskComplete then return end
     local now = nowSeconds()
     local session = getSession()
+
+    -- `state == "write"` covers the single-option write, which runs with no sync mode set; the
+    -- mode covers a sync from the moment it is started, before the walk has reached its writes.
+    if (state == "write" or manualSyncMode ~= SYNC_MODE_OFF) and armedRefusesTheWrite() then
+        logMsg("sync abandoned: the model is armed", "warn")
+        setStatus("status_unavailable_armed", "Unavailable while armed")
+        clearPendingWrites()
+        completeTask()
+        return
+    end
 
     if not session or session.isConnected ~= true or session.telemetryType ~= "crsf" then
         if not isSimulation() then
