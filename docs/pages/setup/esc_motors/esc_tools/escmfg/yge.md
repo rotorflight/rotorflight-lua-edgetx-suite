@@ -63,10 +63,11 @@ while the model is armed.
 ## Notes
 
 - Saving writes the whole parameter block to the ESC, not only the settings that were changed.
-  Every setting the page offers is written back as it was read unless it was edited. The one
-  exception is the flags byte, which the page rebuilds from the four switches it carries
-  (*Direction*, *F3C Auto*, *Keep mAh* and the 12 V BEC): any other bit the ESC keeps in that
-  byte is written back as zero, even by a Save that edited nothing.
+  Every setting the page offers is written back as it was read unless it was edited, and so is
+  everything in the block the page does not show. That includes the bits of the flags byte the
+  page does not set: it sets four of them -- *Direction*, *F3C Auto*, *Keep mAh*, and the 12 V
+  BEC flag, which follows *BEC Voltage* reaching 12.0 V -- and writes the rest back as the ESC
+  reported them.
 - *Motor Timing* is stored in the ESC in an encoding of its own, which is not the order the
   list is drawn in: the automatic modes and the fixed angles are separate ranges, and the ESC
   defines no value between them. The page translates in both directions, so what the row reads

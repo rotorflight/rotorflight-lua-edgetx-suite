@@ -115,8 +115,12 @@ local function unpackFlags(flagsVal)
   ui.config.flags_bec12v = (flagsVal >> 3) & 1
 end
 
-local function packFlags()
-  local f = 0
+-- The four bits below are the ones this page sets; whatever else the ESC keeps in this byte
+-- is neither shown nor the page's to decide. So they are written into the byte that was read:
+-- building it from the four alone would write everything else back as zero, on a save that
+-- changed none of them.
+local function packFlags(readFlags)
+  local f = (readFlags or 0) & ~0x0F
   if ui.config.flags_direction == 1 then f = f | (1 << 0) end
   if ui.config.flags_f3cauto == 1 then f = f | (1 << 1) end
   if ui.config.flags_keepmah == 1 then f = f | (1 << 2) end
@@ -250,7 +254,7 @@ local function queueYgeWrite(requestRebuild)
     writeData[k] = v
   end
 
-  writeData.flags = packFlags()
+  writeData.flags = packFlags(ui.parsedCache.flags)
 
   ui.saving = true
   if requestRebuild and type(ui.runtime.requestRebuild) == "function" then
