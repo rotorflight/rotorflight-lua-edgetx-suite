@@ -61,6 +61,12 @@ reports that setting as one it has.
 
 ## Notes
 
+- *Governor P Gain*, *Governor I Gain* and *Motor Poles* are shown one above the word the
+  parameter block stores, which is how Rotorflight's other configuration tools present them.
+  Earlier releases put the page's number straight on the wire instead: the page then read one
+  below what those tools show for the same ESC, a save stored a word one above the number that
+  had been entered, and the lowest setting of each of the three rows could not be reached at
+  all. The same ESC therefore reads one higher here than it did on an earlier release.
 - The page opens behind a notice asking for the main and tail blades to be taken off before
   the ESC is configured. The settings are drawn once that notice is dismissed.
 - Saving writes the whole parameter block to the ESC, not only the settings that were

@@ -45,6 +45,16 @@ local SIM_RESPONSE = {
     238, 255, 1, 0 -- activefields (U32 little)
 }
 
+-- Three of the block's words are stored one below the number Rotorflight's other
+-- configuration tools show for them, so the value on the page and the value on the wire are
+-- not the same number. The fourth biased word, capacity_correction, is absent here on
+-- purpose: the page already carries that one, in the display function of its own control.
+local WIRE_OFFSET = {
+    gov_p = 1,
+    gov_i = 1,
+    motor_poles = 1
+}
+
 local TYPE_LEN = {U8=1,S8=1,U16=2,S16=2,U24=3,U32=4,U64=8,U120=15,U128=16}
 
 -- How many bytes FIELD_SPEC describes. A shorter reply does not fail to parse: read_unsigned
@@ -110,6 +120,9 @@ function Api.parse(buf)
         elseif string.sub(typ, 1, 1)=='S' then out[name]=read_signed(buf,pos,len,big); pos=pos+len
         else out[name]=read_unsigned(buf,pos,len,big); pos=pos+len end
     end
+    for name, bias in pairs(WIRE_OFFSET) do
+        if out[name] ~= nil then out[name] = out[name] + bias end
+    end
     return out
 end
 
@@ -118,6 +131,17 @@ function Api.buildWritePayload(data)
     for _, f in ipairs(FIELD_SPEC) do
         local name, typ = f[1], f[2]; local len = TYPE_LEN[typ] or 1; local big = has_big_flag(f)
         local v = data[name]
+        local bias = WIRE_OFFSET[name]
+        if bias then
+            local n = tonumber(v)
+            -- A field the caller never supplied keeps packing as zero, and a shifted value is
+            -- never taken below zero: 0xFFFF is what the ESC answers a write it refused, so a
+            -- word of that shape must not be built here.
+            if n then
+                v = n - bias
+                if v < 0 then v = 0 end
+            end
+        end
         if typ=='U120' or typ=='U128' then local b=pack_string(v,len); for _,x in ipairs(b) do payload[#payload+1]=x end
         else local b=pack_unsigned(v or 0,len,big); for _,x in ipairs(b) do payload[#payload+1]=x end end
     end
