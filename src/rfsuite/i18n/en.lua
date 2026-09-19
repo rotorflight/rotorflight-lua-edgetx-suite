@@ -2056,11 +2056,12 @@ return {
       },
       diagnostics_validate_sensors = {
         status_ok = "OK",
+        status_novalue = "NO DATA",
         status_invalid = "INVALID",
         no_sensors = "No telemetry sensors configured.",
         loading_title = "Loading",
         loading_message = "Reading telemetry config",
-        help_message = "Validates configured telemetry sensors by checking if they exist in radio telemetry and provide numeric values."
+        help_message = "Checks each configured sensor. OK: receiving it now. NO DATA: known, nothing arriving. INVALID: no such sensor."
       },
       developer_msp_speed = {
         section_test = "MSP Speed Test",

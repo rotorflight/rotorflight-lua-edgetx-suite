@@ -2056,11 +2056,12 @@ return {
       },
       diagnostics_validate_sensors = {
         status_ok = "OK",
+        status_novalue = "KEINE DATEN",
         status_invalid = "UNGUELTIG",
         no_sensors = "Keine Telemetrie-Sensoren konfiguriert.",
         loading_title = "Laden",
         loading_message = "Lese Telemetrie-Konfiguration",
-        help_message = "Prueft konfigurierte Telemetrie-Sensoren darauf, ob sie in der Radio-Telemetrie vorhanden sind und numerische Werte liefern."
+        help_message = "Prueft jeden Sensor. OK: wird empfangen. KEINE DATEN: bekannt, nichts kommt an. UNGUELTIG: nicht vorhanden."
       },
       developer_msp_speed = {
         section_test = "MSP-Geschwindigkeitstest",

@@ -214,12 +214,30 @@ local function hasTelemetryField(name)
   return ok and type(info) == "table" and info.id ~= nil
 end
 
-local function hasNumericValue(name)
-  if type(name) ~= "string" or name == "" or type(getValue) ~= "function" then
+-- getValue() cannot answer the question this page asks, in either direction. It answers a TABLE
+-- for the two units whose value is not a scalar -- UNIT_CELLS and UNIT_GPS, both of which this
+-- suite registers itself -- so a working cell-voltage or GPS row failed an "is it a number" test.
+-- And once the radio stops receiving a sensor it answers integer 0, which is a number, so a row
+-- nothing is sending passed the same test.
+--
+-- getSourceValue() answers both. It returns nothing for a name the model has no sensor for, and
+-- its SECOND return value is false once the sensor has gone old -- immediately when the link
+-- drops, and after that sensor's own timeout when only it falls silent. A table is accepted as a
+-- value here because it is one.
+local function hasLiveValue(name)
+  if type(name) ~= "string" or name == "" then
+    return false
+  end
+  local getSrcV = _G.getSourceValue
+  if type(getSrcV) == "function" then
+    local ok, value, live = pcall(getSrcV, name)
+    return ok and value ~= nil and live ~= false
+  end
+  if type(getValue) ~= "function" then
     return false
   end
   local ok, value = pcall(getValue, name)
-  return ok and type(value) == "number"
+  return ok and (type(value) == "number" or type(value) == "table")
 end
 
 local function rowColor(status)
@@ -232,15 +250,17 @@ local function rowColor(status)
   return type(RED) == "number" and RED or COLOR_THEME_PRIMARY1
 end
 
+-- rowColor already separates the three states; the text did not, and the text is what a pilot
+-- reads. "novalue" means the model carries the sensor and nothing current is arriving for it,
+-- which is a different answer from "this sensor is not configured at all".
 local function statusText(i18n, status)
   if status == "ok" then
     return pageText(i18n, "status_ok", "OK")
   end
+  if status == "novalue" then
+    return pageText(i18n, "status_novalue", "NO DATA")
+  end
   return pageText(i18n, "status_invalid", "INVALID")
-end
-
-local function isSourceAvailable(source)
-  return hasTelemetryField(source) and hasNumericValue(source)
 end
 
 local function buildRows()
@@ -259,25 +279,31 @@ local function buildRows()
     local sources = meta and meta.sources or nil
 
     if type(sources) == "table" and #sources > 0 then
-      local allPresent = true
-      local anyPresent = false
+      -- The middle state is decided by whether the RADIO HAS the sensors, not by whether one of
+      -- them happens to be current: a multi-source row whose sensors are all there but idle --
+      -- the adjustment pair only moves when an adjustment fires -- is the same "known, nothing
+      -- arriving" case as a single source, and calling it INVALID would say the radio does not
+      -- have them.
+      local allLive = true
+      local anyField = false
       for j = 1, #sources do
         local sourceName = sources[j]
-        local present = isSourceAvailable(sourceName)
-        if present then
-          anyPresent = true
-        else
-          allPresent = false
+        local exists = hasTelemetryField(sourceName)
+        if exists then
+          anyField = true
+        end
+        if not (exists and hasLiveValue(sourceName)) then
+          allLive = false
         end
       end
-      if allPresent then
+      if allLive then
         status = "ok"
-      elseif anyPresent then
+      elseif anyField then
         status = "novalue"
       end
     else
       local exists = source and hasTelemetryField(source) or false
-      local hasValue = exists and hasNumericValue(source) or false
+      local hasValue = exists and hasLiveValue(source) or false
       if hasValue then
         status = "ok"
       elseif exists then

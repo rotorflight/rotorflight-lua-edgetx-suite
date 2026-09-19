@@ -248,14 +248,41 @@ local function formatPacketRate(value)
   return packetRateCacheText
 end
 
-local function readLiveRfInfo()
-  if type(getValue) ~= "function" then
-    return "-", "-"
+-- RFMD_MAP has an entry for 0, and getValue() answers integer 0 both for a name the model has no
+-- sensor for and for a sensor the radio has stopped receiving. Either state therefore came out of
+-- this function as a confident "25Hz / 900Mhz" -- on a page a pilot typically opens because
+-- something is wrong. getSourceValue() answers nothing for the first state, and its second return
+-- value is false for the second, so neither reaches the map.
+local function readLiveRfmd(name)
+  local getSrcV = _G.getSourceValue
+  if type(getSrcV) == "function" then
+    local ok, value, live = pcall(getSrcV, name)
+    if ok and type(value) == "number" and live ~= false then
+      return value
+    end
+    return nil
   end
 
+  -- Without getSourceValue the existence half is still reachable through getFieldInfo, which
+  -- resolves against the model's own sensor table.
+  if type(getFieldInfo) ~= "function" or type(getValue) ~= "function" then
+    return nil
+  end
+  local okInfo, info = pcall(getFieldInfo, name)
+  if not (okInfo and type(info) == "table" and info.id ~= nil) then
+    return nil
+  end
+  local okValue, value = pcall(getValue, name)
+  if okValue and type(value) == "number" then
+    return value
+  end
+  return nil
+end
+
+local function readLiveRfInfo()
   for i = 1, #RFMD_SENSOR_CANDIDATES do
-    local ok, value = pcall(getValue, RFMD_SENSOR_CANDIDATES[i])
-    if ok and type(value) == "number" then
+    local value = readLiveRfmd(RFMD_SENSOR_CANDIDATES[i])
+    if value ~= nil then
       local rfmd = math.floor(value + 0.5)
       local info = RFMD_MAP[rfmd]
       if info then
@@ -714,6 +741,19 @@ function M.closePage()
   state.packetRateRequestPending = false
   state.lastPacketRateFetchAt = 0
   state.i18n = nil
+
+  -- The page module is held in a small LRU, so this state outlives the page. Everything read
+  -- over MSP is the flight controller's, and the next visit may be a different flight
+  -- controller: leaving the values and the fetch timestamp behind let the cache gate above
+  -- take its early return and draw the previous board for the rest of the refresh interval,
+  -- with nothing on screen saying the values were not read. Dropping both is what makes the
+  -- next visit read again; the rows fall back to "-" on their own, at the point where they
+  -- are rendered.
+  state.lastFetchAt = 0
+  state.values = {}
+  packetRateCacheKey = nil
+  packetRateCacheText = "-"
+
   if AsyncLoadUi and type(AsyncLoadUi.reset) == "function" then
     AsyncLoadUi.reset(state)
   end
