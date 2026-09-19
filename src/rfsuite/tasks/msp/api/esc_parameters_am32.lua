@@ -4,6 +4,9 @@
 local Api = {
   command = 217, -- MSP_ESC_PARAMETERS_AM32
   writeCommand = 218, -- MSP_SET_ESC_PARAMETERS_AM32
+  -- The flight controller puts the ESC family it detected in the first byte of the block.
+  -- 0xC2 is AM32's, as ESC_SIG_AM32 in the firmware's own sensors/esc_sensor.c.
+  mspSignature = 0xC2,
   simulatorResponse = {
     194,64,1,3,1,2,19,50,1,0,10,100,0,100,0,255,255,255,255,0,0,0,0,0,1,26,16,50,12,24,0,1,5,0,128,128,128,50,0,50,0,0,10,10,5,145,102,7,1,0
   },
@@ -96,6 +99,10 @@ end
 
 function Api.parse(buf)
   if type(buf) ~= "table" or #buf < 50 then return nil end
+  -- A reply from another ESC family is long enough to pass the length test and decodes into
+  -- this layout without error, the page adopts it as the ESC's state, and a save writes it
+  -- back. Refuse it instead; the caller already treats nil as 'no data'.
+  if tonumber(buf[1]) ~= Api.mspSignature then return nil end
   local timingAdvance, timingAdvanceEncoding = normalizeTimingAdvance(buf[26])
   return {
     esc_signature = buf[1] or 0,

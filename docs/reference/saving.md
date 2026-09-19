@@ -44,11 +44,12 @@ the shared Save action above; each writes the ESC's whole parameter block over M
 settings that were changed. Two rules follow from that.
 
 A page reads the block only if it is that ESC's. The flight controller names the ESC family it
-detected in the first byte of the block, and the *BLHeli_S*, *Bluejay*, *Hobbywing V5*, *OMP*,
-*Scorpion*, *XDFly*, *YGE* and *ZTW* pages refuse a reply from another family rather than
-decoding it with their own field list. BLHeli_S and Bluejay report the same family, so those
-two decide on the ESC's main revision instead. A refused read leaves the page on its own
-initial values; use *Reload* after selecting the page for the ESC that is actually fitted.
+detected in the first byte of the block, and the *AM32*, *BLHeli_S*, *Bluejay*, *Flyrotor*,
+*Hobbywing V5*, *OMP*, *Scorpion*, *XDFly*, *YGE* and *ZTW* pages -- all ten -- refuse a reply
+from another family rather than decoding it with their own field list. BLHeli_S and Bluejay
+report the same family, so those two decide on the ESC's main revision instead. A refused
+read leaves the page on its own initial values; use *Reload* after selecting the page for
+the ESC that is actually fitted.
 
 On those same pages, Save is refused until a read has succeeded, and reports the reason. A block that was never read
 cannot be written back: every setting the page does not itself show would go to the ESC as
