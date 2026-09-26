@@ -2508,6 +2508,9 @@ function Runtime.new(zone, options)
   end
 
   local function reloadActiveTheme(self)
+    -- A reload carried over from a telemetry read pass is answered by this one, whoever called
+    -- it. Cleared first, so a load that raises is retried by the same tests as it was before.
+    self._themeReloadPending = nil
     local modelPrefs = self.modelPreferences or (type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.session) == "table" and _G.rfsuite.session.modelPreferences) or nil
     local selectedTheme = resolveThemePathForState((self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD, modelPrefs, self.flightMode)
     local nextConfig = {}
@@ -2640,9 +2643,11 @@ function Runtime.new(zone, options)
     -- Use hadInflightFlight instead of flightMode, because flightMode can jump to preflight
     -- when sensors go offline, while hadInflightFlight stays true until next session.
     local isPostflightOffline = (self.state.hadInflightFlight == true) and (self.state.rfConnected ~= true)
+    local readThisPass = false
     if not isPostflightOffline then
       if (now - (self._lastTelemetryReadAt or 0)) >= TELEMETRY_READ_SECONDS then
         self._lastTelemetryReadAt = now
+        readThisPass = true
         readTelemetry(self.state, self.audioState)
         -- The snapshot the reactive closures read, rebuilt on the same cadence as the
         -- telemetry read that feeds it -- probing is legal here and nowhere in the sweep.
@@ -2824,13 +2829,32 @@ function Runtime.new(zone, options)
     -- it already has on screen, and a rebuild there would be a torn-down LVGL tree for no
     -- visible difference -- once per arm, and again on every link transition after a flight.
     local modeChanged = (nextMode ~= self.flightMode)
-    self.flightMode = nextMode
-
-    if selectedTheme ~= self.themePath
+    local wantReload = self._themeReloadPending == true
+      or selectedTheme ~= self.themePath
       or modelPrefsChanged
       or not self.theme
-      or (modeChanged and self.themeStateKeys[nextMode] ~= self.themeStateKey) then
-      reloadActiveTheme(self)
+      or (modeChanged and self.themeStateKeys[nextMode] ~= self.themeStateKey)
+
+    -- A theme reload does not share a pass with the telemetry read: the two are the largest
+    -- pieces of state work this runtime has, and on connect they land together with the connect
+    -- chain. A reload that falls due in a read pass is carried to the next logic tick, and the
+    -- flight mode waits with it, so nothing in between sees the new mode against the old theme.
+    -- The next tick computes the mode again from the same state; only a preference change, which
+    -- this pass has already consumed above, has to ride on the flag. A reload is carried once: the
+    -- next tick is normally not a read pass (the read runs every TELEMETRY_READ_SECONDS, the tick
+    -- every LOGIC_TICK_SECONDS), but where passes come further apart than the read interval every
+    -- tick reads, and a carried reload then runs anyway rather than waiting for ever.
+    if wantReload and readThisPass and self._themeReloadPending ~= true then
+      self._themeReloadPending = true
+      -- As the reload itself would: a job already queued belongs to the theme being replaced. In
+      -- a foreground pass none is (a job pass never reaches this function), but widget.background
+      -- runs this work whatever is queued.
+      self._job = nil
+    else
+      self.flightMode = nextMode
+      if wantReload then
+        reloadActiveTheme(self)
+      end
     end
     
     -- The overlay, last in the pass: it reads the per-model preferences and the connection state
@@ -2997,6 +3021,13 @@ function Runtime.new(zone, options)
       if not self.built then
         self._job = { kind = "splash", step = splashJobStep }
       end
+      return
+    end
+
+    -- A theme reload waits for the next logic tick (see performBackgroundWork). Queuing a scene job here
+    -- would build against the theme that reload is about to replace, and run ahead of it.
+    if self._themeReloadPending then
+      self._passEndAt = nowSeconds()
       return
     end
 
