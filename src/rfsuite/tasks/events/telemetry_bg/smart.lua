@@ -34,7 +34,19 @@ local state = {
   lastFirmwareFuelMissingLog = 0
 }
 
+-- Every module this file loads is a shared library, and the rest of the Lua state -- the
+-- dashboard, the flight record -- takes it through lib/require.lua. A bare loadScript here
+-- compiled a second copy of each one, and for lib/sensors.lua that copy kept a path cache, miss
+-- records and a search throttle of its own, which the Sensors.reset() at the link edges never
+-- reached. Only a table is taken from the memoizer: it stores `true` for a module that returned
+-- nothing, and every slot below is indexed as a table.
 local function loadModule(path)
+  local req = _G.rfsuite and _G.rfsuite.require
+  if type(req) == "function" then
+    local mod = req(path)
+    if type(mod) == "table" then return mod end
+    return nil
+  end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, mode)
   if type(chunk) ~= "function" then return nil end
@@ -548,7 +560,6 @@ function Smart.wakeup()
     logSmart("smart reset source=" .. tostring(sourceMode) .. " cap=" .. tostring(packCapacity), "info")
   end
 
-  local voltage = tonumber(getSensor("voltage"))
   if not firmwareActive then
     if not voltage or voltage <= 2 then
       resetComputedState()
