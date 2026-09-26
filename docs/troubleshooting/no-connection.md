@@ -28,7 +28,7 @@ values off the flight controller. This page is the order to check things in.
 Two sequences run, and both have to finish before everything is available:
 
 1. **The handshake**, in the MSP runtime: the API version (MSP 1), the firmware version (MSP 3)
-   and the board's unique id (MSP 2). The link counts as connected only once the API version has
+   and the board's unique id (MSP 160). The link counts as connected only once the API version has
    been read and accepted, which is what the tool's start screen and the dashboard's connected
    state wait for. The unique id is what the per-model preferences file is keyed by.
 2. **The connect tasks**, one per pass: the status, the telemetry configuration, the battery and

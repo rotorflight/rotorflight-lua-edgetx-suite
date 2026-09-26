@@ -1,9 +1,7 @@
--- OnConnect task: read MCU UID and load model preferences
+-- OnConnect task: wait for the MSP runtime's MCU UID read and resolve the model preferences
 local M = {}
 
 local done = false
-local requestSent = false
-local UidApi = nil
 local ModelPreferences = nil
 local MspRuntime = nil
 
@@ -47,63 +45,27 @@ function M.wakeup()
     return
   end
 
-  if not requestSent then
-    if MspRuntime == nil then
-      MspRuntime = loadShared("tasks/msp/runtime.lua") or false
-    end
-    local msp = MspRuntime or nil
-    local mspState = msp and type(msp.getState) == "function" and msp.getState()
-    if not mspState or not mspState.queue then return end
-
-    if not UidApi then UidApi = loadModule("tasks/msp/api/uid.lua") end
-    if not ModelPreferences then ModelPreferences = loadModule("lib/model_preferences.lua") end
-    if not UidApi then
-      if session then session.modelPreferencesResolved = true end
-      done = true
-      return
-    end
-
-    mspState.queue:add({
-      command = UidApi.command,
-      simulatorResponse = UidApi.simulatorResponse,
-      timeout = 5.0,
-      -- Bounded below the task timeout in tasks/events/common/runner.lua, so this read
-      -- is given up by the queue before the runner re-queues the task that owns it.
-      maxRetries = 2,
-      processReply = function(self, buf)
-        local parsed = UidApi.parse(buf)
-        if parsed and parsed.mcuId and parsed.mcuId ~= "" then
-          local mcuId = tostring(parsed.mcuId)
-          session.mcu_id = mcuId
-          if type(root.diagnostics) == "table" then root.diagnostics.mcu_id = mcuId end
-          if ModelPreferences and type(ModelPreferences.loadByMcuId) == "function" then
-            local prefs, filePath = ModelPreferences.loadByMcuId(mcuId, true)
-            session.modelPreferences = prefs
-            session.modelPreferencesFile = filePath
-          end
-        end
-        session.modelPreferencesResolved = true
-        done = true
-      end,
-      errorHandler = function(msg, reason)
-        -- "cleared" is the queue dropping this request, not the flight controller refusing it:
-        -- nothing was sent, so the request is still owed. Leaving the task incomplete with its
-        -- latch open is what lets the runner ask for it again on a later pass.
-        if reason == "cleared" then
-          requestSent = false
-          return
-        end
-        if session then session.modelPreferencesResolved = true end
-        done = true
-      end
-    })
-    requestSent = true
+  -- The MSP runtime reads the UID itself on every connect (enqueueUidRead in
+  -- tasks/msp/runtime.lua) and publishes it into the session together with the model
+  -- preferences. A read of this task's own would repeat that request and load the preferences a
+  -- second time, and what it wrote would not last: the runtime's publish() copies its own UID
+  -- over session.mcu_id after every queue pass. So this task only waits until the runtime's read
+  -- has an outcome. Without a UID the preferences are still marked resolved, as before, so
+  -- nothing that waits on them waits for the runner's timeout instead.
+  if MspRuntime == nil then
+    MspRuntime = loadShared("tasks/msp/runtime.lua") or false
   end
+  local msp = MspRuntime or nil
+  local mspState = msp and type(msp.getState) == "function" and msp.getState()
+  if not mspState or mspState.uidReadSettled ~= true then return end
+
+  session.modelPreferencesResolved = true
+  done = true
 end
 
 function M.isComplete() return done end
 function M.reset() 
-  done = false; requestSent = false
+  done = false
   local root = _G and _G.rfsuite
   if root and type(root.session) == "table" then
     root.session.mcu_id = nil
