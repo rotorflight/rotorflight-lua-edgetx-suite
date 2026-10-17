@@ -58,6 +58,19 @@ local FIELD_SPEC = {
 -- stored value.
 local ERROR_DECAY_GAIN_CYCLIC = "error_decay_gain_cyclic"
 
+-- The cyclic and yaw master gains (percent) follow it, on firmware carrying
+-- rotorflight-firmware#538. That added them without an API version bump, so a 12.10 build may or
+-- may not have them and only the reply length tells. They are read only when the reply carries
+-- both, and written only when they were read, so a build that has the decay gain but not the
+-- master gains never gets bytes it does not expect.
+--
+-- Every parse also records the answer as `session.hasMasterGain`, which is what the Adjustments
+-- page and the PID Controller help ask instead of the API version: a reply long enough to carry
+-- the gains comes from firmware that also has adjustment functions 83 and 84. The MSP runtime
+-- clears it on disconnect, so it never answers for another link.
+local CYCLIC_MASTER_GAIN = "cyclic_master_gain"
+local YAW_MASTER_GAIN = "yaw_master_gain"
+
 -- The simulator answers MSP_API_VERSION with 12.9, so its reply ends before the 12.10 field.
 local SIM_RESPONSE = {
     3,25,250,0,12,0,1,45,45,60,50,50,100,15,15,20,2,10,10,15,100,100,6,0,30,0,0,0,40,55,0,75,20,25,0,15,90,90,15,15,20,10,20
@@ -145,6 +158,16 @@ function Api.parse(buf)
     if #buf > need then
         out[ERROR_DECAY_GAIN_CYCLIC] = tonumber(buf[need + 1]) or 0
     end
+    local hasMasterGain = #buf >= need + 3
+    if hasMasterGain then
+        out[CYCLIC_MASTER_GAIN] = tonumber(buf[need + 2]) or 100
+        out[YAW_MASTER_GAIN] = tonumber(buf[need + 3]) or 100
+    end
+    local root = _G and _G.rfsuite
+    local session = root and root.session
+    if type(session) == "table" then
+        session.hasMasterGain = hasMasterGain
+    end
     return out
 end
 
@@ -161,6 +184,11 @@ function Api.buildWritePayload(data)
     local gain = data[ERROR_DECAY_GAIN_CYCLIC]
     if type(gain) == "number" and sessionApiAtLeast12_10() then
         p[#p+1] = math.floor(gain) & 0xFF
+        local cyclic, yaw = data[CYCLIC_MASTER_GAIN], data[YAW_MASTER_GAIN]
+        if type(cyclic) == "number" and type(yaw) == "number" then
+            p[#p+1] = math.floor(cyclic) & 0xFF
+            p[#p+1] = math.floor(yaw) & 0xFF
+        end
     end
     return p
 end

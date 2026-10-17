@@ -707,6 +707,8 @@ return {
         ground_error_decay = "Ground Error Decay",
         inflight_error_decay = "Inflight Error Decay",
         error_decay_stick_gain = "Error Decay Stick Gain",
+        master_gain = "Master Gain",
+        cyclic = "Cyclic",
         error_limit = "Error limit",
         hsi_offset_limit = "HSI Offset limit",
         error_rotation = "Error rotation",
@@ -723,6 +725,7 @@ return {
         help_p4 = "Error rotation: Allow errors to be shared between all axes.",
         help_p5 = "I-term relax: Limit accumulation of I-term during fast movements - helps reduce bounce back after fast stick movements. Generally needs to be lower for large helis and can be higher for small helis. Best to only reduce as much as is needed for your flying style.",
         help_stick_gain = "Error Decay Stick Gain: the further the cyclic stick is deflected, the faster the cyclic I-term decays, on the ground and in flight; 0 = off.",
+        help_master_gain = "Master Gain: scales the cyclic P, I, D and Offset gains (Cyclic) and the tail P, I and D gains (Yaw) together, keeping their ratios. Feedforward, Boost and precomp are not scaled. A change in flight does not upset trim already held by I and Offset.",
         tbl_off = "Off",
         tbl_on = "On",
         tbl_rp = "RP",
@@ -1942,7 +1945,9 @@ return {
         fn_gov_min_throttle = "Gov Min Throttle",
         fn_gov_headspeed = "Gov Headspeed",
         fn_gov_yaw_ff = "Gov Yaw FF",
-        fn_battery_profile = "Battery Profile"
+        fn_battery_profile = "Battery Profile",
+        fn_cyclic_master_gain = "Cyclic Master Gain",
+        fn_yaw_master_gain = "Yaw Master Gain"
       },
       setup_failsafe = {
         title = "Failsafe",
@@ -3193,6 +3198,8 @@ return {
       fn_gov_headspeed = "Gov Headspeed",
       fn_gov_yaw_ff = "Gov Yaw FF",
       fn_battery_profile = "Battery Profile",
+      fn_cyclic_master_gain = "Cyclic Master Gain",
+      fn_yaw_master_gain = "Yaw Master Gain",
       fn_unknown = "Function",
       -- The in-flight tuning overlay's own screens.
       inflight_title = "TUNING",

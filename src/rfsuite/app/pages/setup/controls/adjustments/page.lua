@@ -17,6 +17,7 @@ local AdjustmentRangesApi = nil
 local GetAdjRangeApi = nil
 local GetAdjFuncsApi = nil
 local SetAdjustmentRangeApi = nil
+local PidProfileApi = nil
 local LoadingOverlay = nil
 local ConfirmDialog = nil
 local ApiVersion = nil
@@ -119,7 +120,12 @@ local ADJUST_FUNCTIONS = {
   {id = 79, labelKey = "fn_gov_min_throttle", labelFallback = "Gov Min Throttle", min = 0, max = 100, minApi = {12, 0, 9}},
   {id = 80, labelKey = "fn_gov_headspeed", labelFallback = "Gov Headspeed", min = 0, max = 10000, minApi = {12, 0, 9}},
   {id = 81, labelKey = "fn_gov_yaw_ff", labelFallback = "Gov Yaw FF", min = 0, max = 250, minApi = {12, 0, 9}},
-  {id = 82, labelKey = "fn_battery_profile", labelFallback = "Battery Profile", min = 1, max = 6}
+  {id = 82, labelKey = "fn_battery_profile", labelFallback = "Battery Profile", min = 1, max = 6},
+  -- 83 and 84 came with rotorflight-firmware#538, which did not bump the API version: a 12.10
+  -- build without them skips a range that names either one, without a word. `masterGain` lists
+  -- them only once a PID profile reply has shown the master gains (session.hasMasterGain).
+  {id = 83, labelKey = "fn_cyclic_master_gain", labelFallback = "Cyclic Master Gain", min = 25, max = 200, minApi = {12, 0, 10}, masterGain = true},
+  {id = 84, labelKey = "fn_yaw_master_gain", labelFallback = "Yaw Master Gain", min = 25, max = 200, minApi = {12, 0, 10}, masterGain = true}
 }
 
 local ui = {
@@ -160,6 +166,7 @@ local function ensureDeps()
   if not GetAdjRangeApi then GetAdjRangeApi = loadModule("tasks/msp/api/get_adjustment_range.lua") end
   if not GetAdjFuncsApi then GetAdjFuncsApi = loadModule("tasks/msp/api/get_adjustment_function_ids.lua") end
   if not SetAdjustmentRangeApi then SetAdjustmentRangeApi = loadModule("tasks/msp/api/set_adjustment_range.lua") end
+  if not PidProfileApi then PidProfileApi = loadModule("tasks/msp/api/pid_profile.lua") end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
   if not ConfirmDialog then ConfirmDialog = loadModule("ui/confirm_dialog.lua") end
   if not ApiVersion then ApiVersion = loadModule("lib/api_version.lua") end
@@ -290,18 +297,21 @@ local function apiVersionIsAtMost(required, current)
   return not ApiVersion.isAtLeast(current, reqPlusOne)
 end
 
-local function functionVisible(def, current)
+local function functionVisible(def, current, hasMasterGain)
   if def.minApi and not apiVersionIsAtLeast(def.minApi, current) then return false end
   if def.maxApi and not apiVersionIsAtMost(def.maxApi, current) then return false end
+  if def.masterGain and not hasMasterGain then return false end
   return true
 end
 
 local function buildFunctionOptions()
   local current = currentApiVersion()
+  local session = getSession()
+  local hasMasterGain = session and session.hasMasterGain == true
   local entries = {}
   for i = 1, #ADJUST_FUNCTIONS do
     local def = ADJUST_FUNCTIONS[i]
-    if functionVisible(def, current) then
+    if functionVisible(def, current, hasMasterGain) then
       entries[#entries + 1] = {
         value = def.id,
         label = def.labelFallback
@@ -773,10 +783,31 @@ local function startLoad(requestRebuild)
       if type(requestRebuild) == "function" then requestRebuild() end
 
       -- Step 2: the table itself, by whichever route this API version has
-      if paged then
-        readPaged()
+      local function readTable()
+        if paged then
+          readPaged()
+        else
+          readWholeTable()
+        end
+      end
+
+      -- Step 1b, from API 12.10 and only while nothing has told this link yet: one PID profile
+      -- read, whose parse records whether the firmware has the master gains and with them
+      -- functions 83 and 84. A read that fails leaves them unlisted and the table still loads.
+      local session = getSession()
+      if session and session.hasMasterGain == nil and PidProfileApi
+        and apiVersionIsAtLeast({12, 0, 10}, currentApiVersion()) then
+        queue:add({
+          command = PidProfileApi.command,
+          simulatorResponse = PidProfileApi.simulatorResponse,
+          processReply = function(self3, buf3)
+            PidProfileApi.parse(buf3)
+            readTable()
+          end,
+          errorHandler = readTable
+        })
       else
-        readWholeTable()
+        readTable()
       end
     end,
     errorHandler = failed
@@ -1895,6 +1926,7 @@ function M.onClose()
   GetAdjRangeApi = nil
   GetAdjFuncsApi = nil
   SetAdjustmentRangeApi = nil
+  PidProfileApi = nil
   LoadingOverlay = nil
   ConfirmDialog = nil
   ApiVersion = nil

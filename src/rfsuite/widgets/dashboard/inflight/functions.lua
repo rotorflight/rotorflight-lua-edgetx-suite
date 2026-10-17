@@ -193,7 +193,11 @@ M.FUNCTIONS = {
   { id = 81, name = t("widgets.dashboard.fn_gov_yaw_ff", "Gov Yaw FF"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_yaw_weight" },
   { id = 82, name = t("widgets.dashboard.fn_battery_profile", "Battery Profile"), min = 1, max = 6,
-    cmd = 175, api = "battery_profile", field = "batteryProfile" }
+    cmd = 175, api = "battery_profile", field = "batteryProfile" },
+  { id = 83, name = t("widgets.dashboard.fn_cyclic_master_gain", "Cyclic Master Gain"), min = 25, max = 200,
+    cmd = 94, api = "pid_profile", field = "cyclic_master_gain" },
+  { id = 84, name = t("widgets.dashboard.fn_yaw_master_gain", "Yaw Master Gain"), min = 25, max = 200,
+    cmd = 94, api = "pid_profile", field = "yaw_master_gain" }
 }
 
 local byId = {}

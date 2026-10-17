@@ -714,6 +714,11 @@ local function doDisconnect(now, reason, keepLink)
   if type(cache) == "table" and type(cache.clear) == "function" then
     cache.clear()
   end
+  -- The same goes for what a PID profile reply told about the firmware (tasks/msp/api/pid_profile.lua):
+  -- a reflash reboots the board, so the next link may answer differently.
+  if _G.rfsuite and type(_G.rfsuite.session) == "table" then
+    _G.rfsuite.session.hasMasterGain = nil
+  end
   state.pendingVersionRead = true
   state.pendingUidRead = true
   -- A refusal (`keepLink`) is an outcome for the UID read as well: tick() stops at the
