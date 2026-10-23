@@ -298,7 +298,7 @@ local sensorsById = {
     -- GPS Coordinates
     [77] = { sid = 0x1125, name = "GPS", unit = UNIT_RAW, prec = 0, dec = decLatLong },
     -- GPS altitude
-    [78] = { sid = 0x1126, name = "GAlt", unit = UNIT_METERS, prec = 2, dec = decS16 },
+    [78] = { sid = 0x1126, name = "GAlt", unit = UNIT_METERS, prec = 1, dec = decS16 },
     -- GPS heading
     [79] = { sid = 0x1127, name = "GHdg", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
     -- GPS ground speed
