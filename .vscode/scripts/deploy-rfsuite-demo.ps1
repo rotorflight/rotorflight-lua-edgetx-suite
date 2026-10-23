@@ -401,33 +401,33 @@ New-ThemeIndexFile -TargetCoreDir $targetCore -TargetUserDir $targetUserRoot
 # Run translation pre-compiler and resolver to inline the language strings
 Write-Host "Running i18n pre-compiler and resolver for language: $Language (source: $languageSource)"
 
-$pythonCmd = 'python'
-if (-not (Get-Command $pythonCmd -ErrorAction SilentlyContinue)) {
-    if (Get-Command 'python3' -ErrorAction SilentlyContinue) {
-        $pythonCmd = 'python3'
-    } elseif (Get-Command 'py' -ErrorAction SilentlyContinue) {
-        $pythonCmd = 'py'
-    } else {
-        $pathsToTry = @(
-            "$env:LOCALAPPDATA\Microsoft\WindowsApps\python.exe",
-            "$env:LOCALAPPDATA\Microsoft\WindowsApps\python3.exe",
-            "C:\msys64\ucrt64\bin\python.exe",
-            "C:\msys64\usr\bin\python.exe",
-            "C:\Python312\python.exe",
-            "C:\Python311\python.exe",
-            "C:\Python310\python.exe",
-            "C:\Program Files\Python312\python.exe",
-            "C:\Program Files\Python311\python.exe",
-            "C:\Program Files\Python310\python.exe"
-        )
-        foreach ($p in $pathsToTry) {
-            if (Test-Path $p) {
-                $pythonCmd = $p
-                break
-            }
+# The Microsoft Store alias (WindowsApps\python.exe) exists but only prints an install
+# hint and exits 9009, so each candidate has to actually run before it is chosen.
+$pythonCmd = $null
+$pathsToTry = @(
+    'python',
+    'python3',
+    'py',
+    "C:\msys64\ucrt64\bin\python.exe",
+    "C:\msys64\usr\bin\python.exe",
+    "C:\Python312\python.exe",
+    "C:\Python311\python.exe",
+    "C:\Python310\python.exe",
+    "C:\Program Files\Python312\python.exe",
+    "C:\Program Files\Python311\python.exe",
+    "C:\Program Files\Python310\python.exe"
+)
+foreach ($p in $pathsToTry) {
+    if (-not (Get-Command $p -ErrorAction SilentlyContinue)) { continue }
+    try {
+        & $p --version *> $null
+        if ($LASTEXITCODE -eq 0) {
+            $pythonCmd = $p
+            break
         }
-    }
+    } catch {}
 }
+if (-not $pythonCmd) { throw "No working Python found (the Microsoft Store alias does not count); install Python or MSYS2 python." }
 
 & $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\precompile_i18n.py') --root $toolsRoot
 if ($LASTEXITCODE -ne 0) { throw "precompile_i18n failed on $toolsRoot (exit $LASTEXITCODE); the demo was not deployed." }
