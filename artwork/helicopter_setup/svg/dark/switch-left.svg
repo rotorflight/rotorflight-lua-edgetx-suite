@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#acb3b9" font-family="Arial, sans-serif">
+<style>.switch-flick.art-c5b3410af6 {
+
+
+
+
+
+  color: #acb3b9;
+}
+
+.plate.art-c5b3410af6 {
+  fill: #1a1c1f;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.lever.art-c5b3410af6 {
+
+
+}
+
+.arm.art-c5b3410af6 {
+  stroke: currentColor;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+
+.tip.art-c5b3410af6 {
+  fill: #3ca8ec;
+}
+
+.pivot.art-c5b3410af6 {
+  fill: currentColor;
+}
+
+@keyframes art-c5b3410af6-flick {
+  0%, 35% {
+
+  }
+  50%, 85% {
+
+  }
+  100% {
+
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lever.art-c5b3410af6 {
+
+
+  }
+}</style>
+<g transform="translate(48.33333333333333 6) scale(3.0833333333333335)"><g class="switch-flick art-c5b3410af6"><rect class="plate art-c5b3410af6" x="6" y="30" width="28" height="14" rx="4"></rect><g class="lever art-c5b3410af6" transform="rotate(-28 20 36)"><line class="arm art-c5b3410af6" x1="20" y1="36" x2="20" y2="8"></line><circle class="tip art-c5b3410af6" cx="20" cy="8" r="4"></circle></g><circle class="pivot art-c5b3410af6" cx="20" cy="36" r="3.5"></circle></g></g>
+</svg>

@@ -1183,6 +1183,9 @@ local function onHelp()
   end
   if type(message) ~= "string" or message == "" then
     message = resolveI18nHelpMessageFromPagePath(menuId)
+    if (type(message) ~= "string" or message == "") and state.menu.getCurrentMenuHelp then
+      message = state.menu.getCurrentMenuHelp()
+    end
     if type(message) ~= "string" or message == "" then
       return
     end
@@ -1469,6 +1472,8 @@ local function returnToRootOnDisconnect()
   if not state.menu or state.menu.isRoot() then
     return
   end
+  local page = getActivePageModule()
+  if page and page.handlesDisconnect == true then return end
 
   closeHelpDialogIfOpen()
   state.pendingMenuOpen = nil
@@ -2915,6 +2920,10 @@ local function buildScene()
   if currentMenuId ~= "root" and not PageRegistry then
     ensurePageRegistry()
   end
+  -- A procedural page may own its full-screen navigation while keeping the
+  -- host's lifecycle and EXIT dispatch.
+  local framePage = PageRegistry and PageRegistry.byMenuId and PageRegistry.byMenuId[currentMenuId]
+  local ownsFrame = framePage and framePage.hideSuiteFrame == true
   local actions = Header.resolveActions({
     headerActions = state.headerActions,
     menu          = state.menu,
@@ -2946,6 +2955,7 @@ local function buildScene()
   local bannerH = isArmed and (profile.armedBannerH or 24) or 0
   local contentY = tileGap + bannerH
   local contentW = LCD_W - contentPad * 2
+  if ownsFrame then contentX, contentY, contentW = 0, bannerH, LCD_W end
 
   -- ── Help view (no lvgl.dialog – avoids LVGL lifecycle crashes) ───────────────
   if state.helpContent then
@@ -3080,12 +3090,14 @@ local function buildScene()
       wipeTable(state.cards)
       state.focusIndex = 0
       local pageBodyH = pageBodyHeight() - bannerH
+      if ownsFrame then pageBodyH = LCD_H - bannerH end
       local ok, err = pcall(pageModule.build, {
         children = children,
         x = contentX,
         y = contentY,
         w = contentW,
         h = pageBodyH,
+        armed = isArmed,
         i18n = state.i18n,
         preferences = state.preferences,
         menu = state.menu,
@@ -3234,6 +3246,9 @@ local function buildScene()
     }
   }
 
+  if ownsFrame then
+    lyt = children
+  else
   Header.appendToLayout(lyt, {
     actions  = actions,
     i18n     = state.i18n,
@@ -3247,6 +3262,7 @@ local function buildScene()
     connectionGlyph = currentConnectionGlyph,
     onConnectionStatus = showConnectionStatusNotice
   })
+  end
 
   if lvgl and type(lvgl.clear) == "function" then
     lvgl.clear()

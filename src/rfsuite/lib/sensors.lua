@@ -930,6 +930,29 @@ readValue = function(source)
   return nil
 end
 
+-- Opt-in live reads for configuration feedback. Keep the existing getValue
+-- contract (including held readings) unchanged for dashboard consumers.
+local function liveValue(source)
+  if type(source) ~= "string" or type(_G.getSourceValue) ~= "function" then return nil end
+  readValue(source)
+  local path = Sensors.active_paths and Sensors.active_paths[source]
+  if not path then return nil end
+  if duplicateNames ~= false then path = slotName(path) end
+  local ok, value, current = pcall(_G.getSourceValue, path)
+  if ok and current == true and type(value) == "number" then return value end
+  return nil
+end
+
+function Sensors.getLiveValue(source)
+  local value = liveValue(source)
+  if value ~= nil then return value end
+  local derived = DERIVED[source]
+  if not derived then return nil end
+  local word = liveValue(derived.word)
+  if type(word) ~= "number" or word < 0 or word > 0x7fffffff or word % 1 ~= 0 then return nil end
+  return (word >> derived.shift) & derived.mask
+end
+
 -- Flush cached sensor paths and miss / probe timers (e.g. on model disconnect/reconnect).
 function Sensors.reset()
   if Sensors.active_paths then

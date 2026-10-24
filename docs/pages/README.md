@@ -101,7 +101,8 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 
 | Page | File | In-app help | Conditions | Status |
 | --- | --- | --- | --- | --- |
-| Full initial setup (Complete run / Radio / Flight controller) | [setup_wizard.md](setup_wizard.md) | yes | preview switch *Setup Assistant*, read-only while armed | written |
+| Legacy initial setup (Complete run / Radio / Flight controller) | [setup_wizard.md](setup_wizard.md) | retained, unlisted | no entry in Wizards; code and templates retained | written |
+| Helicopter Setup (complete, 19 steps, history) | [helicopter_setup.md](helicopter_setup.md) | yes | preview switch *Setup Assistant*, connected/disarmed, API 12.09+ | written |
 
 ## System → Tools
 

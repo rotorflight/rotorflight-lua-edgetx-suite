@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#545c64" font-family="Arial, sans-serif">
+<style>.pulse-train.art-81e608152d {
+
+
+
+
+}
+
+path.art-81e608152d {
+  fill: none;
+  stroke: #007bc7;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}</style>
+<g transform="translate(6 60.93333333333334) scale(1.7333333333333334)"><g class="pulse-train art-81e608152d"><path d="M0 19 L3 19 L3 3 L12.12 3 L12.12 19 L120 19" class="art-81e608152d"></path></g></g>
+</svg>

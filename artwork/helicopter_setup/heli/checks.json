@@ -1,0 +1,84 @@
+{
+  "source_dimensions": [
+    1913,
+    822
+  ],
+  "canvas": [
+    2000,
+    1000
+  ],
+  "source_sha256": "1016b679026ad57fba61b8ca35f3b11e6a3051717034be1a8b8bf6423cca85cc",
+  "tail_hub_before": [
+    126,
+    453
+  ],
+  "tail_hub_after": [
+    236,
+    459
+  ],
+  "tail_translation": [
+    110,
+    6
+  ],
+  "unchanged_pixels_outside_blade_masks": true,
+  "changed_pixels_inside_blade_masks": 73826,
+  "canopy_change_negative_control_detected": true,
+  "rotation_degrees_clockwise": 20.0,
+  "transformed_skid_angle_degrees": 19.999999999999993,
+  "skid_length_before": 470.0,
+  "skid_length_after": 469.99999999999994,
+  "wrong_15_degree_control_rejected": true,
+  "rotation_pivot": [
+    1463,
+    900
+  ],
+  "rotation_alignment_y": -6,
+  "rotated_solid_bbox": [
+    337,
+    104,
+    1654,
+    901
+  ],
+  "outputs": [
+    {
+      "name": "accepted/heli-remove-blades.png",
+      "dimensions": [
+        2000,
+        1000
+      ],
+      "bytes": 452799,
+      "sha256": "aafd384870bf2cdc9b686a664fc34f03e08b85e3284577e6d2f0cf2747ab8b20",
+      "alpha_extrema": [
+        0,
+        255
+      ]
+    },
+    {
+      "name": "accepted/heli-level.png",
+      "dimensions": [
+        2000,
+        1000
+      ],
+      "bytes": 387941,
+      "sha256": "e3c08f81e13c29b98f2c6cc98b625515f8c91a5a1ea5a70a8ddbaa0735d2a590",
+      "alpha_extrema": [
+        0,
+        255
+      ]
+    },
+    {
+      "name": "accepted/heli-tail-lift.png",
+      "dimensions": [
+        2000,
+        1000
+      ],
+      "bytes": 552074,
+      "sha256": "ccc4aa98d24890b7d868ead4dd706e108ed623492d1c194f05ce328d003024ed",
+      "alpha_extrema": [
+        0,
+        255
+      ]
+    }
+  ],
+  "mirrored_nose_left": true
+}

@@ -1,0 +1,510 @@
+{
+  "frame": [
+    220,
+    160
+  ],
+  "exports": [
+    {
+      "name": "esc",
+      "component": "EscArt",
+      "props": {},
+      "index": 0
+    },
+    {
+      "name": "motor-gears",
+      "component": "MotorGearArt",
+      "props": {},
+      "index": 0
+    },
+    {
+      "name": "receiver",
+      "component": "ReceiverArt",
+      "props": {},
+      "index": 0
+    },
+    {
+      "name": "servo",
+      "component": "ServoArt",
+      "props": {},
+      "index": 0
+    },
+    {
+      "name": "servo-arm",
+      "component": "ServoArmArt",
+      "props": {},
+      "index": 0
+    },
+    {
+      "name": "gyro-roll",
+      "component": "GyroArt",
+      "props": {
+        "axis": "roll"
+      },
+      "index": 0,
+      "viewPadding": 10
+    },
+    {
+      "name": "gyro-pitch",
+      "component": "GyroArt",
+      "props": {
+        "axis": "pitch"
+      },
+      "index": 0,
+      "viewPadding": 10
+    },
+    {
+      "name": "gyro-yaw",
+      "component": "GyroArt",
+      "props": {
+        "axis": "yaw"
+      },
+      "index": 0,
+      "viewPadding": 10
+    },
+    {
+      "name": "pitch-0",
+      "component": "PitchArt",
+      "props": {
+        "angle": 0,
+        "label": "0\u00b0"
+      },
+      "index": 0
+    },
+    {
+      "name": "pitch-9",
+      "component": "PitchArt",
+      "props": {
+        "angle": 9,
+        "label": "9\u00b0"
+      },
+      "index": 0
+    },
+    {
+      "name": "pulse-50-1520",
+      "component": "PulseTrain",
+      "props": {
+        "rate": 50,
+        "width": 1520
+      },
+      "index": 0
+    },
+    {
+      "name": "pulse-333-1520",
+      "component": "PulseTrain",
+      "props": {
+        "rate": 333,
+        "width": 1520
+      },
+      "index": 0
+    },
+    {
+      "name": "pulse-560-760",
+      "component": "PulseTrain",
+      "props": {
+        "rate": 560,
+        "width": 760
+      },
+      "index": 0
+    },
+    {
+      "name": "rate-trainer-cyclic",
+      "component": "RateCurve",
+      "props": {
+        "rate": 180,
+        "expo": 40,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0
+    },
+    {
+      "name": "rate-trainer-yaw",
+      "component": "RateCurve",
+      "props": {
+        "rate": 270,
+        "expo": 50,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0
+    },
+    {
+      "name": "rate-sport-cyclic",
+      "component": "RateCurve",
+      "props": {
+        "rate": 250,
+        "expo": 40,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0
+    },
+    {
+      "name": "rate-sport-yaw",
+      "component": "RateCurve",
+      "props": {
+        "rate": 400,
+        "expo": 50,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0
+    },
+    {
+      "name": "rate-3d-cyclic",
+      "component": "RateCurve",
+      "props": {
+        "rate": 400,
+        "expo": 30,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0
+    },
+    {
+      "name": "rate-3d-yaw",
+      "component": "RateCurve",
+      "props": {
+        "rate": 600,
+        "expo": 40,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0
+    },
+    {
+      "name": "stick-center",
+      "component": "StickIcon",
+      "props": {
+        "x": 0,
+        "y": 0
+      },
+      "index": 0
+    },
+    {
+      "name": "stick-left",
+      "component": "StickIcon",
+      "props": {
+        "x": -1,
+        "y": 0
+      },
+      "index": 0
+    },
+    {
+      "name": "stick-right",
+      "component": "StickIcon",
+      "props": {
+        "x": 1,
+        "y": 0
+      },
+      "index": 0
+    },
+    {
+      "name": "stick-forward",
+      "component": "StickIcon",
+      "props": {
+        "x": 0,
+        "y": -1
+      },
+      "index": 0
+    },
+    {
+      "name": "stick-back",
+      "component": "StickIcon",
+      "props": {
+        "x": 0,
+        "y": 1
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-motion-level",
+      "component": "SwashArt",
+      "props": {
+        "scene": "level"
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-motion-roll",
+      "component": "SwashArt",
+      "props": {
+        "scene": "roll"
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-motion-pitch",
+      "component": "SwashArt",
+      "props": {
+        "scene": "pitch"
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-motion-collective",
+      "component": "SwashArt",
+      "props": {
+        "scene": "collective"
+      },
+      "index": 0
+    },
+    {
+      "name": "rotor-cw",
+      "component": "RotorDirArt",
+      "props": {
+        "dir": "cw"
+      },
+      "index": 0
+    },
+    {
+      "name": "rotor-ccw",
+      "component": "RotorDirArt",
+      "props": {
+        "dir": "ccw"
+      },
+      "index": 0
+    },
+    {
+      "name": "switch-left",
+      "component": "SwitchFlick",
+      "props": {},
+      "index": 0,
+      "leverAngle": -28
+    },
+    {
+      "name": "switch-right",
+      "component": "SwitchFlick",
+      "props": {},
+      "index": 0,
+      "leverAngle": 28
+    },
+    {
+      "name": "tail-servo",
+      "component": "TailArt",
+      "props": {
+        "kind": "servo",
+        "move": false
+      },
+      "index": 0
+    },
+    {
+      "name": "tail-servo-move",
+      "component": "TailArt",
+      "props": {
+        "kind": "servo",
+        "move": true
+      },
+      "index": 0
+    },
+    {
+      "name": "tail-motor",
+      "component": "TailArt",
+      "props": {
+        "kind": "motor",
+        "move": false
+      },
+      "index": 0
+    },
+    {
+      "name": "tail-motor-move",
+      "component": "TailArt",
+      "props": {
+        "kind": "motor",
+        "move": true
+      },
+      "index": 0
+    },
+    {
+      "name": "tail-bidirectional",
+      "component": "TailArt",
+      "props": {
+        "kind": "bidirectional",
+        "move": false
+      },
+      "index": 0
+    },
+    {
+      "name": "tail-bidirectional-move",
+      "component": "TailArt",
+      "props": {
+        "kind": "bidirectional",
+        "move": true
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-direct",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 1,
+        "tailServo": false
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-direct-tail",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 1,
+        "tailServo": true
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-120-front",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": false
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-120-rear",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": false
+      },
+      "index": 1
+    },
+    {
+      "name": "swash-120-front-tail",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": true
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-120-rear-tail",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": true
+      },
+      "index": 1
+    },
+    {
+      "name": "swash-135-front",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": false
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-135-rear",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": false
+      },
+      "index": 1
+    },
+    {
+      "name": "swash-135-front-tail",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": true
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-135-rear-tail",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": true
+      },
+      "index": 1
+    },
+    {
+      "name": "swash-140-front",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": false
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-140-rear",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": false
+      },
+      "index": 1
+    },
+    {
+      "name": "swash-140-front-tail",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": true
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-140-rear-tail",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": true
+      },
+      "index": 1
+    },
+    {
+      "name": "swash-90l",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 5,
+        "tailServo": false
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-90l-tail",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 5,
+        "tailServo": true
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-90v",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 6,
+        "tailServo": false
+      },
+      "index": 0
+    },
+    {
+      "name": "swash-90v-tail",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 6,
+        "tailServo": true
+      },
+      "index": 0
+    }
+  ],
+  "custom": [
+    "heli-remove-blades",
+    "heli-level",
+    "heli-tail-lift"
+  ]
+}

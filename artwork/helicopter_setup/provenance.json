@@ -1,0 +1,127 @@
+{
+  "repository": "https://github.com/rotorflight/rotorflight-configurator",
+  "pullRequest": 491,
+  "commit": "4a57ba971d7ffef06f39bb66b3f376d150a27e25",
+  "license": "GPL-3.0",
+  "files": [
+    {
+      "path": "src/components/SwashServoDiagram.svelte",
+      "file": "upstream/SwashServoDiagram.svelte",
+      "status": "imported",
+      "sha256": "0b4ae1399b5f4c3c5bb0e12cca4dcb079276a47579ae1dd6b936c1099436c54d"
+    },
+    {
+      "path": "src/tabs/setup_wizard/EscArt.svelte",
+      "file": "upstream/EscArt.svelte",
+      "status": "imported",
+      "sha256": "2ddb232badc70ed574925e6bc0c17dc28b64ae07228f01f70fb0e393886480f8"
+    },
+    {
+      "path": "src/tabs/setup_wizard/GyroArt.svelte",
+      "file": "upstream/GyroArt.svelte",
+      "status": "imported",
+      "sha256": "df97cabe3685104e38ebde65f81edc1772ccc772ea13cc55b087d2c1cce29468"
+    },
+    {
+      "path": "src/tabs/setup_wizard/HeliSide.svelte",
+      "status": "replaced-by-approved-helicopter-artwork",
+      "sha256": "c1c211ee04f44d8c463fe9f042ed896ff8a637612a256cf2e92e813908a3bf3d"
+    },
+    {
+      "path": "src/tabs/setup_wizard/MotorGearArt.svelte",
+      "file": "upstream/MotorGearArt.svelte",
+      "status": "imported",
+      "sha256": "c9d8046d5b5d3a34226677d59f1e6830591dcb72fde1e8ace301fe69dd6a619e"
+    },
+    {
+      "path": "src/tabs/setup_wizard/PitchArt.svelte",
+      "file": "upstream/PitchArt.svelte",
+      "status": "imported",
+      "sha256": "8acd3ad6c6fb44846626da3e3ffb7e21d793d7e941f15800b022a2cc55fe566f"
+    },
+    {
+      "path": "src/tabs/setup_wizard/PulseTrain.svelte",
+      "file": "upstream/PulseTrain.svelte",
+      "status": "imported",
+      "sha256": "73b0e713d67b926ee10fb5b075c49d1a7380fdfa8a0e9bca63c56a8f93f47187"
+    },
+    {
+      "path": "src/tabs/setup_wizard/RateCurve.svelte",
+      "file": "upstream/RateCurve.svelte",
+      "status": "imported",
+      "sha256": "132576fb5f171acae872c198986087b836c28d9538b0a4426bf7d31f3966c639"
+    },
+    {
+      "path": "src/tabs/setup_wizard/ReceiverArt.svelte",
+      "file": "upstream/ReceiverArt.svelte",
+      "status": "imported",
+      "sha256": "3e677c769b424916f6dc6786364a8982cc3a33485eea198074b55d25480634c8"
+    },
+    {
+      "path": "src/tabs/setup_wizard/RotorDirArt.svelte",
+      "file": "upstream/RotorDirArt.svelte",
+      "status": "imported",
+      "sha256": "747fac3bab44d02926b1adcf5d66ebcf8308b614ff2e64e54ff21404e45a0900"
+    },
+    {
+      "path": "src/tabs/setup_wizard/ServoArmArt.svelte",
+      "file": "upstream/ServoArmArt.svelte",
+      "status": "imported",
+      "sha256": "03a31611b44f8dc1c03244c5e89a2853c95fbb0f8b164acaa7e724416d53a40b"
+    },
+    {
+      "path": "src/tabs/setup_wizard/ServoArt.svelte",
+      "file": "upstream/ServoArt.svelte",
+      "status": "imported",
+      "sha256": "45cf2d04e32080964805446df7f080ce9366a5f9c5f0b3473319bb496f01d582"
+    },
+    {
+      "path": "src/tabs/setup_wizard/StickIcon.svelte",
+      "file": "upstream/StickIcon.svelte",
+      "status": "imported",
+      "sha256": "40ab2449e83b28bab1aaaa7bdb930892ef22bacb734065dc805d304942c87356"
+    },
+    {
+      "path": "src/tabs/setup_wizard/SwashArt.svelte",
+      "file": "upstream/SwashArt.svelte",
+      "status": "imported",
+      "sha256": "a0c026b87048c46fb5d771e6b9997221549b40577fb029655ef6ed012cec4db4"
+    },
+    {
+      "path": "src/tabs/setup_wizard/SwitchFlick.svelte",
+      "file": "upstream/SwitchFlick.svelte",
+      "status": "imported",
+      "sha256": "1a264cef0e9b73344d575b11870ea4545ab9ccb6c2e034fc649a029e35273118"
+    },
+    {
+      "path": "src/tabs/setup_wizard/TailArt.svelte",
+      "file": "upstream/TailArt.svelte",
+      "status": "imported",
+      "sha256": "896d820ae9fe57a279c7aa6fd732203552cb0f836d6489303e8d4ea6cbf6e6eb"
+    },
+    {
+      "path": "src/js/swash.js",
+      "file": "upstream/swash.js",
+      "status": "support",
+      "sha256": "92e33b74b0685f6a96046142833df307ffb565cb6f390a3c7c62f1a870271f77"
+    },
+    {
+      "path": "src/tabs/setup_wizard/rates.js",
+      "file": "upstream/rates.js",
+      "status": "support",
+      "sha256": "4bfce823b82af5940ade4684018f97d7b3419dbcc95b68bf915940e1ec52c203"
+    },
+    {
+      "path": "src/css/app.css",
+      "file": "upstream/theme.css",
+      "status": "support",
+      "sha256": "744c83ab6388d552c8976b94bf9e074fbc3cc7de92fa6439ae2a0d9df1f749b0"
+    },
+    {
+      "path": "LICENSE",
+      "file": "upstream/LICENSE",
+      "status": "support",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    }
+  ]
+}

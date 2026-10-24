@@ -1,0 +1,1 @@
+- Include the raw System Status and System Config sensors with logging enabled in new Rotorflight model templates, preserving every existing sensor (`templates/5.Rotorflight/Rotorflight.yml`).

@@ -27,6 +27,16 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_setup_apis.lua
 
+  helicopter-wizard:
+    name: Helicopter wizard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/wizard/verify.lua
+      - run: python3 bin/wizard/audit_source.py
+      - run: python3 bin/wizard/verify_negative.py --lua lua5.3
+
   instruction-budget:
     name: Instruction budget
     runs-on: ubuntu-latest
@@ -308,6 +318,17 @@ jobs:
 
       - name: Check the pending release notes
         run: python bin/release/collect_release_notes.py --check
+
+  packed-system-state:
+    name: Live packed system state
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - name: Check fields, freshness and negative control
+        run: lua5.3 bin/telemetry/verify_system_state.lua --self-test
 
   msp-override-payloads:
     name: MSP override payloads

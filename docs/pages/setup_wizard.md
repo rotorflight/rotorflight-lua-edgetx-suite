@@ -12,10 +12,10 @@ press.
 
 ## Where to find it
 
-*Configuration* → *Wizards* → *Setup Assistant* → *Complete run*, *Radio* or *Flight controller*
-
-Hidden until *System* → *Settings* → *General* → *Preview* → *Setup Assistant* is on. Greyed out
-until the flight controller answers. Read-only while the model is armed.
+The old Setup Assistant is no longer listed under *Configuration* → *Wizards*.
+Its menu definitions, page code and transmitter templates remain in the repository
+for reuse. The former entries were *Complete run*, *Radio* and *Flight controller*;
+the behaviour below documents that retained implementation.
 
 The three entries are not shortcuts into one walk: each opens the same assistant bounded to one
 section, with the same steps and the same completion criteria. A step that is already done on

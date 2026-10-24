@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#545c64" font-family="Arial, sans-serif">
+<style>.servo-arm-art.art-a0015a0852 {
+
+
+
+
+
+  color: #545c64;
+}
+
+.body.art-a0015a0852 {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.label.art-a0015a0852 {
+  fill: rgba(0,123,199,.1);
+  stroke: #007bc7;
+  stroke-width: 1;
+}
+
+.swash.art-a0015a0852 {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+.rod.art-a0015a0852 {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.ball.art-a0015a0852,
+.spline.art-a0015a0852 {
+  fill: #007bc7;
+}
+
+.horn.art-a0015a0852 {
+  fill: #ffffff;
+  stroke: #007bc7;
+  stroke-width: 1.6;
+}
+
+.ghost.art-a0015a0852 {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+  opacity: 0.7;
+}
+
+.square.art-a0015a0852 {
+  fill: none;
+  stroke: #007bc7;
+  stroke-width: 1.2;
+}
+
+.arrow.art-a0015a0852 {
+  fill: none;
+  stroke: #007bc7;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.head.art-a0015a0852 {
+  fill: #007bc7;
+}</style>
+<g transform="translate(13.478260869565219 6) scale(1.608695652173913)"><g class="servo-arm-art art-a0015a0852"><rect class="swash art-a0015a0852" x="58" y="6" width="54" height="6" rx="2.5"></rect><line class="rod art-a0015a0852" x1="90" y1="12" x2="90" y2="50"></line><circle class="ball art-a0015a0852" cx="90" cy="12" r="2.6"></circle><rect class="body art-a0015a0852" x="10" y="54" width="14" height="7" rx="1.5"></rect><rect class="body art-a0015a0852" x="74" y="54" width="14" height="7" rx="1.5"></rect><rect class="body art-a0015a0852" x="22" y="46" width="54" height="40" rx="4"></rect><rect class="label art-a0015a0852" x="38" y="60" width="30" height="14" rx="2"></rect><g transform="rotate(-24 40 50)"><rect class="ghost art-a0015a0852" x="34" y="45" width="58" height="10" rx="5"></rect></g><path class="arrow art-a0015a0852" d="M100 40 A54 54 0 0 0 98 22"></path><path class="head art-a0015a0852" d="M94 25 L98 18 L103 25 Z"></path><rect class="horn art-a0015a0852" x="34" y="45" width="60" height="10" rx="5"></rect><circle class="ball art-a0015a0852" cx="90" cy="50" r="2.6"></circle><circle class="spline art-a0015a0852" cx="40" cy="50" r="4"></circle><path class="square art-a0015a0852" d="M82 50 L82 42 L90 42"></path></g></g>
+</svg>

@@ -1,0 +1,1 @@
+- Add an opt-in live sensor read and shared decoder for all System Status and System Config fields. The System Status diagnostic page uses the same field definitions while retaining its independent dedicated-sensor comparison; configuration feedback can reject held or unavailable readings (`lib/sensors.lua`, `lib/system_state.lua`, `tools/diagnostics/system_status`).

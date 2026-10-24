@@ -1,0 +1,1 @@
+- Keep custom servo Hz edits visible while awaiting fresh FC status, and lock template/Hz controls until unplugged servos are confirmed after restart (helicopter_setup).

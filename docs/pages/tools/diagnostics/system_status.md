@@ -6,6 +6,10 @@ sidebar_position: 57
 
 # System Status
 
+The diagnostic page and other consumers share the field definitions in
+`lib/system_state.lua`. The comparison column still reads each dedicated sensor
+independently, so it can reveal a disagreement with the packed word.
+
 The two packed status sensors of the flight controller, decoded: *System Status* (CRSF `STAT`,
 S.Port `5140`) carries the live state -- armed, airborne, failsafe, rescue, governor state and
 more -- and *System Config* (CRSF `SCFG`, S.Port `5141`) the slower configuration -- the three

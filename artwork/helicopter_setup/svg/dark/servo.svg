@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#acb3b9" font-family="Arial, sans-serif">
+<style>.servo-art.art-f83c46d7be {
+
+
+
+
+
+  color: #acb3b9;
+}
+
+.body.art-f83c46d7be {
+  fill: #1a1c1f;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.label.art-f83c46d7be {
+  fill: rgba(60,168,236,.16);
+  stroke: #3ca8ec;
+  stroke-width: 1;
+}
+
+.horn.art-f83c46d7be {
+  fill: #1a1c1f;
+  stroke: #3ca8ec;
+  stroke-width: 1.6;
+}
+
+.spline.art-f83c46d7be {
+  fill: #3ca8ec;
+}
+
+.hole.art-f83c46d7be {
+  fill: #101213;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.lead.art-f83c46d7be {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.lead.accent.art-f83c46d7be {
+  stroke: #3ca8ec;
+}</style>
+<g transform="translate(6 9.548387096774192) scale(1.6774193548387097)"><g class="servo-art art-f83c46d7be"><path class="lead art-f83c46d7be" d="M84 58 C98 58 100 74 120 74"></path><path class="lead accent art-f83c46d7be" d="M84 61 C96 61 98 78 118 78"></path><rect class="body art-f83c46d7be" x="6" y="40" width="14" height="8" rx="1.5"></rect><rect class="body art-f83c46d7be" x="84" y="40" width="14" height="8" rx="1.5"></rect><circle class="hole art-f83c46d7be" cx="12" cy="44" r="1.8"></circle><circle class="hole art-f83c46d7be" cx="92" cy="44" r="1.8"></circle><rect class="body art-f83c46d7be" x="20" y="28" width="64" height="40" rx="4"></rect><rect class="label art-f83c46d7be" x="40" y="42" width="36" height="14" rx="2"></rect><rect class="body art-f83c46d7be" x="24" y="21" width="26" height="9" rx="2"></rect><g transform="rotate(-18 37 18)"><rect class="horn art-f83c46d7be" x="31" y="13" width="56" height="10" rx="5"></rect><circle class="hole art-f83c46d7be" cx="60" cy="18" r="1.6"></circle><circle class="hole art-f83c46d7be" cx="70" cy="18" r="1.6"></circle><circle class="hole art-f83c46d7be" cx="80" cy="18" r="1.6"></circle></g><circle class="spline art-f83c46d7be" cx="37" cy="18" r="4"></circle></g></g>
+</svg>

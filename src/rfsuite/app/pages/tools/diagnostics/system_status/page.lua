@@ -31,6 +31,7 @@ end
 
 local Common = nil
 local Sensors = nil
+local SystemState = nil
 local t = nil
 
 -- The firmware sends System Status every 100 ms and System Config every 500 ms by default
@@ -81,6 +82,7 @@ local NO_COMMON = {
 }
 
 local function ensureDeps()
+  if not SystemState then SystemState = loadModule("lib/system_state.lua") end
   if not Common then Common = loadModule("app/pages/settings/common.lua") or NO_COMMON end
   if not t then t = Common and Common.pageT("diagnostics_system_status") or nil end
 end
@@ -192,75 +194,34 @@ local function loadNames(i18n)
   }
 end
 
--- The field at bit `shift` of `word`, cut by `mask`: the *_SHIFT / *_MASK pairs of
--- telemetry/status.h, written here as they read there (0x7 is three bits, 0x1 one flag bit).
--- Integer operators: a float division would round the word on a radio whose numbers are single
--- precision, and a word with any bit above 24 set (System Config always has one) then
--- loses its low bits -- the PID profile among them.
-local function field(word, shift, mask)
-  return (word >> shift) & mask
-end
-
-local function flag(names, word, bit)
-  return field(word, bit, 0x1) == 1 and names.yes or names.no
-end
-
-local function enum(table_, value)
-  return table_[value] or tostring(value)
-end
-
--- One row per field of status.h, in bit order: { key, decode }. The key names the row's value in
--- state.text and its label in loadNames().labels.
-local STATUS_FIELDS = {
-  { "armed", function(n, w) return flag(n, w, 0) end },
-  { "airborne", function(n, w) return flag(n, w, 1) end },
-  { "motors_running", function(n, w) return flag(n, w, 2) end },
-  { "rx_link_up", function(n, w) return flag(n, w, 3) end },
-  { "failsafe_phase", function(n, w) return enum(n.failsafe, field(w, 6, 0x7)) end },
-  { "gps_fix", function(n, w) return enum(n.gpsFix, field(w, 9, 0x3)) end },
-  { "gps_healthy", function(n, w) return flag(n, w, 11) end },
-  { "spooled_up", function(n, w) return flag(n, w, 12) end },
-  { "battery_state", function(n, w) return enum(n.battery, field(w, 14, 0x7)) end },
-  { "control_saturated", function(n, w) return flag(n, w, 17) end },
-  { "gyro_overflow", function(n, w) return flag(n, w, 18) end },
-  { "acc_not_calibrated", function(n, w) return flag(n, w, 19) end },
-  { "override_active", function(n, w) return flag(n, w, 20) end },
-  { "rescue_state", function(n, w) return enum(n.rescue, field(w, 21, 0x7)) end },
-  { "blackbox_logging", function(n, w) return flag(n, w, 24) end },
-  { "governor_state", function(n, w) return enum(n.govState, field(w, 25, 0xF)) end },
+-- Wire positions and masks have one owner in lib/system_state.lua. This page
+-- owns only labels and enum names; the dedicated sensors remain independent.
+local STATUS_FIELDS, CONFIG_FIELDS = {}, {}
+local ENUM_NAMES = {
+  failsafe_phase="failsafe", gps_fix="gpsFix", battery_state="battery",
+  rescue_state="rescue", governor_state="govState", governor_mode="govMode"
 }
-
-local CONFIG_FIELDS = {
-  { "pid_profile", function(_, w) return tostring(field(w, 0, 0x7)) end },
-  { "rate_profile", function(_, w) return tostring(field(w, 3, 0x7)) end },
-  { "battery_profile", function(_, w) return tostring(field(w, 6, 0x7)) end },
-  { "unsaved_changes", function(n, w) return flag(n, w, 12) end },
-  { "saving", function(n, w) return flag(n, w, 13) end },
-  { "reboot_required", function(n, w) return flag(n, w, 14) end },
-  { "beeper_on", function(n, w) return flag(n, w, 15) end },
-  { "acc_present", function(n, w) return flag(n, w, 16) end },
-  { "baro_present", function(n, w) return flag(n, w, 17) end },
-  { "mag_present", function(n, w) return flag(n, w, 18) end },
-  { "gps_present", function(n, w) return flag(n, w, 19) end },
-  { "blackbox_full", function(n, w) return flag(n, w, 21) end },
-  { "rpm_source_active", function(n, w) return flag(n, w, 22) end },
-  { "governor_mode", function(n, w) return enum(n.govMode, field(w, 23, 0x7)) end },
-}
-
--- The five shared fields: the word, its decode, and how the dedicated sensor's value reads as the
--- same field. ARM carries the whole arming-flags word; only its ARMED bit is the shared field.
+local function enum(table_, value) return table_[value] or tostring(value) end
+local function formatField(names, key, value)
+  if type(value)=="boolean" then return value and names.yes or names.no end
+  local list=ENUM_NAMES[key]
+  return list and enum(names[list],value) or tostring(value)
+end
 local SHARED_FIELDS = {
-  armflags = { word = "system_status", row = "armed", decode = function(n, w) return flag(n, w, 0) end,
-    dedicated = function(n, v) return flag(n, v, 0) end },
-  governor = { word = "system_status", row = "governor_state", decode = function(n, w) return enum(n.govState, field(w, 25, 0xF)) end,
-    dedicated = function(n, v) return enum(n.govState, v) end },
-  pid_profile = { word = "system_config", row = "pid_profile", decode = function(_, w) return tostring(field(w, 0, 0x7)) end,
-    dedicated = function(_, v) return tostring(v) end },
-  rate_profile = { word = "system_config", row = "rate_profile", decode = function(_, w) return tostring(field(w, 3, 0x7)) end,
-    dedicated = function(_, v) return tostring(v) end },
-  battery_profile = { word = "system_config", row = "battery_profile", decode = function(_, w) return tostring(field(w, 6, 0x7)) end,
-    dedicated = function(_, v) return tostring(v) end },
+  armflags = { word="system_status",row="armed",
+    dedicated=function(n,v) return (v & 1)==1 and n.yes or n.no end },
+  governor = { word="system_status",row="governor_state",
+    dedicated=function(n,v) return enum(n.govState,v) end },
+  pid_profile = { word="system_config",row="pid_profile",dedicated=function(_,v) return tostring(v) end },
+  rate_profile = { word="system_config",row="rate_profile",dedicated=function(_,v) return tostring(v) end },
+  battery_profile = { word="system_config",row="battery_profile",dedicated=function(_,v) return tostring(v) end }
 }
+local function prepareFields()
+  if #STATUS_FIELDS>0 or not SystemState then return end
+  for source,rows in pairs({system_status=STATUS_FIELDS,system_config=CONFIG_FIELDS}) do
+    for i,f in ipairs(SystemState.fields[source]) do rows[i]={f[1]} end
+  end
+end
 
 local function sourceEntry(key)
   local entry = state.sources[key]
@@ -322,7 +283,10 @@ local function formatWord(names, prefix, entry, fields)
   text[prefix] = kindText(names, entry)
   text[prefix .. "_name"] = entry.name or "-"
   local word = entry.value
-  if word == nil then
+  local source=prefix=="status" and "system_status" or "system_config"
+  local decoded=SystemState and SystemState.decode(source,word)
+  entry.decoded=decoded
+  if not decoded then
     text[prefix .. "_raw"] = nil
     for i = 1, #fields do text[fields[i][1]] = nil end
     return
@@ -330,7 +294,7 @@ local function formatWord(names, prefix, entry, fields)
   text[prefix .. "_raw"] = string.format("0x%08X", word)
   for i = 1, #fields do
     local f = fields[i]
-    text[f[1]] = f[2](names, word)
+    text[f[1]] = formatField(names,f[1],decoded[f[1]])
   end
 end
 
@@ -339,7 +303,7 @@ local function formatShared(names, key)
   local spec = SHARED_FIELDS[key]
   local wordEntry = state.sources[spec.word]
   local own = state.sources[key]
-  local fromWord = (wordEntry and wordEntry.value ~= nil) and spec.decode(names, wordEntry.value) or nil
+  local fromWord = (wordEntry and wordEntry.decoded) and formatField(names,spec.row,wordEntry.decoded[spec.row]) or nil
   local fromSensor = (own and own.value ~= nil) and spec.dedicated(names, own.value) or nil
   text["cmp_" .. key .. "_word"] = fromWord or "-"
   if fromSensor == nil then
@@ -469,6 +433,7 @@ end
 
 function M.build(ctx)
   ensureDeps()
+  prepareFields()
   state.requestRebuild = ctx.requestRebuild
   state.i18n = ctx.i18n
   if not state.names then state.names = loadNames(ctx.i18n) end
@@ -548,6 +513,7 @@ function M.closePage()
   state.readDeferred = false
   Common = nil
   Sensors = nil
+  SystemState = nil
   t = nil
 end
 

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#545c64" font-family="Arial, sans-serif">
+<style>.swash-diagram.art-edfae4f798 {
+
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+}
+
+figure.art-edfae4f798 {
+
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+}
+
+figcaption.art-edfae4f798 {
+  font-size: 0.75rem;
+  color: #545c64;
+}
+
+svg.art-edfae4f798 {
+
+
+
+}
+
+.body.art-edfae4f798 {
+  fill: rgba(0,123,199,0.16);
+}
+
+.swash.art-edfae4f798 {
+  fill: none;
+  stroke: #007bc7;
+  stroke-width: 3;
+}
+
+.swash.direct.art-edfae4f798 {
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+  opacity: 0.6;
+}
+
+.nose.art-edfae4f798 {
+  fill: #007bc7;
+  opacity: 0.6;
+}
+
+.badge.art-edfae4f798 {
+  fill: #131516;
+}
+
+.label.art-edfae4f798 {
+  fill: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.legend.art-edfae4f798 {
+
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: #33383d;
+}
+
+.legend.art-edfae4f798 li:where(.art-edfae4f798) {
+
+  align-items: center;
+  gap: 6px;
+}
+
+.chip.art-edfae4f798 {
+
+  place-items: center;
+
+
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #ffffff;
+  background-color: #131516;
+}</style>
+<g transform="translate(58.9655172413793 6) scale(1.2758620689655173)"><g class="art-edfae4f798"><path class="body art-edfae4f798" d="M40 6 C56 6 66 24 66 42 C66 58 57 68 46 70 L44 104 L36 104
+               L34 70 C23 68 14 58 14 42 C14 24 24 6 40 6 Z"></path><rect class="body art-edfae4f798" x="46" y="92" width="3" height="20" rx="1.5"></rect><circle class="swash art-edfae4f798" cx="40" cy="40" r="24"></circle><path class="nose art-edfae4f798" d="M40 32 L46 46 L40 42 L34 46 Z"></path><!--[0--><!--[--><g transform="translate(40 16)"><rect class="badge art-edfae4f798" x="-7" y="-7" width="14" height="14" rx="3" transform="rotate(0)"></rect><text class="label art-edfae4f798" dy="0.35em">1</text></g><g transform="translate(24.573097367523054 58.38506663485547)"><rect class="badge art-edfae4f798" x="-7" y="-7" width="14" height="14" rx="3" transform="rotate(-140)"></rect><text class="label art-edfae4f798" dy="0.35em">2</text></g><g transform="translate(55.426902632476946 58.38506663485547)"><rect class="badge art-edfae4f798" x="-7" y="-7" width="14" height="14" rx="3" transform="rotate(140)"></rect><text class="label art-edfae4f798" dy="0.35em">3</text></g><!--]--><!--]--><!--[-1--><!--]--></g></g>
+</svg>

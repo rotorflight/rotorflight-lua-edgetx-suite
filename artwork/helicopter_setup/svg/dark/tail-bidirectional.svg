@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#acb3b9" font-family="Arial, sans-serif">
+<style>.tail-art.art-a2f28d2c15 {
+
+
+
+
+
+  color: #acb3b9;
+}
+
+.body.art-a2f28d2c15 {
+  fill: #1a1c1f;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.motor.art-a2f28d2c15 {
+  fill: rgba(60,168,236,.16);
+  stroke: #3ca8ec;
+  stroke-width: 1.4;
+}
+
+.shaft.art-a2f28d2c15,
+.link.art-a2f28d2c15 {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.slider.art-a2f28d2c15 {
+  fill: #3ca8ec;
+}
+
+.rotor.art-a2f28d2c15 {
+  fill: none;
+  stroke: #3ca8ec;
+  stroke-width: 1.6;
+}
+
+.arrow.art-a2f28d2c15 {
+  fill: none;
+  stroke: #3ca8ec;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.head.art-a2f28d2c15 {
+  fill: #3ca8ec;
+}</style>
+<g transform="translate(6 19.33333333333333) scale(1.7333333333333334)"><g class="tail-art art-a2f28d2c15"><path class="body art-a2f28d2c15" d="M118 32 L30 31 L30 37 L118 38 Z"></path><!--[-1--><rect class="motor art-a2f28d2c15" x="22" y="26" width="14" height="16" rx="3"></rect><line class="shaft art-a2f28d2c15" x1="29" y1="42" x2="29" y2="56"></line><ellipse class="rotor art-a2f28d2c15" cx="29" cy="56" rx="18" ry="2"></ellipse><!--[0--><path class="arrow art-a2f28d2c15" d="M6 50 A8 8 0 0 0 6 62"></path><path class="arrow art-a2f28d2c15" d="M52 50 A8 8 0 0 1 52 62"></path><path class="head art-a2f28d2c15" d="M2 52 L6 46 L10 52 Z"></path><path class="head art-a2f28d2c15" d="M48 60 L52 66 L56 60 Z"></path><!--]--><!--]--></g></g>
+</svg>

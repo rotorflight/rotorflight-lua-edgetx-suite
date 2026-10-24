@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#545c64" font-family="Arial, sans-serif">
+<style>.stick-icon.art-c9660e3dc4 {
+
+
+
+
+  color: #545c64;
+}
+
+.box.art-c9660e3dc4 {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+.cross.art-c9660e3dc4 {
+  stroke: currentColor;
+  stroke-width: 0.8;
+  opacity: 0.4;
+}
+
+.stick.art-c9660e3dc4 {
+  stroke: #007bc7;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.knob.art-c9660e3dc4 {
+  fill: #007bc7;
+}</style>
+<g transform="translate(36 6) scale(6.166666666666667)"><g class="stick-icon art-c9660e3dc4"><rect class="box art-c9660e3dc4" x="2" y="2" width="20" height="20" rx="4"></rect><line class="cross art-c9660e3dc4" x1="12" y1="5" x2="12" y2="19"></line><line class="cross art-c9660e3dc4" x1="5" y1="12" x2="19" y2="12"></line><line class="stick art-c9660e3dc4" x1="12" y1="12" x2="12" y2="5"></line><circle class="knob art-c9660e3dc4" cx="12" cy="5" r="3"></circle></g></g>
+</svg>
