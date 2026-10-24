@@ -10,6 +10,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 -- Cached per scope as well as per file. A theme's module keeps the values it has read in its own
 -- upvalues, and running the file again is the only way to get a module that has read nothing, so
 -- the standard values and a model's overrides are never shown by the same copy.
@@ -399,7 +401,7 @@ function M.build(ctx)
       y = ctx.y,
       w = ctx.w,
       text = scopeText,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE
     }
     ctx.y = ctx.y + SCOPE_LABEL_H
@@ -412,7 +414,7 @@ function M.build(ctx)
         y = ctx.y,
         w = ctx.w,
         text = t(ctx.i18n, "model_store_missing", "Connect the flight controller to save this model's settings"),
-        color = COLOR_THEME_PRIMARY1,
+        color = Palette.text,
         font = SMLSIZE
       }
       return
@@ -426,7 +428,7 @@ function M.build(ctx)
         y = ctx.y,
         w = ctx.w,
         text = fitToRow(failed .. ": " .. ui.loadError, SMLSIZE, ctx.w),
-        color = COLOR_THEME_PRIMARY1,
+        color = Palette.text,
         font = SMLSIZE
       }
       return
@@ -458,7 +460,7 @@ function M.build(ctx)
     y = labelY,
     w = w,
     text = t(i18n, "no_theme_settings", "No settings available for this dashboard theme"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
 end

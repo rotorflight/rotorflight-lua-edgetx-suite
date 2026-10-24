@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local SavePipeline = nil
 local Common = nil
@@ -571,7 +573,7 @@ function M.build(ctx)
       type = "label",
       x = x + 10, y = cursorY + 10,
       text = "Unsupported API version",
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       font = MIDSIZE
     }
     return
@@ -720,7 +722,7 @@ function M.build(ctx)
     local statusText = trialStatusText(i18n, trial.status)
     if statusText then
       children[#children + 1] = { type = "label", x = x + 10, y = cursorY + 5,
-        w = w - 20, text = statusText, color = COLOR_THEME_SECONDARY1, font = SMLSIZE }
+        w = w - 20, text = statusText, color = Palette.accent, font = SMLSIZE }
       cursorY = cursorY + 30
     end
     children[#children + 1] = {
@@ -742,7 +744,7 @@ function M.build(ctx)
       type = "label",
       x = x + 16, y = cursorY + 10,
       text = pageText(i18n, "unsaved_changes", "Unsaved changes"),
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       font = SMLSIZE
     }
   end

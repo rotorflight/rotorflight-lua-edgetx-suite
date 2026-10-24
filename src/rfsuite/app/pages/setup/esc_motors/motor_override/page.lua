@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -403,7 +405,7 @@ function M.build(ctx)
     w = w,
     text = pageText(i18n, "motor_override_note",
       "Blades off and the craft secured. The motor turns as soon as the throttle leaves zero."),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
   cursorY = cursorY + (Controls.LABEL_H or 20) + 8

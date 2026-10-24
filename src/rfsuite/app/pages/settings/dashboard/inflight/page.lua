@@ -43,6 +43,8 @@ local function loadModule(path)
   return chunk()
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local Controls = nil
 local Setup = nil
@@ -311,7 +313,7 @@ local function appendTrimPicker(children, x, y, w, label, get, set)
   local rowH = Controls.ROW_H
   children[#children + 1] = {
     type = "label", x = x, y = Controls.labelY(y, rowH), w = w - pickerW - 18,
-    text = label, color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    text = label, color = Palette.text, font = SMLSIZE
   }
   children[#children + 1] = {
     type = "switch",
@@ -739,7 +741,7 @@ end
 
 local function appendNote(children, x, y, w, text)
   children[#children + 1] = {
-    type = "label", x = x, y = y, w = w, text = text, color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    type = "label", x = x, y = y, w = w, text = text, color = Palette.text, font = SMLSIZE
   }
   return noteLines(text, w) * 24
 end
@@ -763,7 +765,7 @@ local function buildGeneral(children, x, y, w, i18n)
   local rowH = Controls.ROW_H
   children[#children + 1] = {
     type = "label", x = x, y = Controls.labelY(cursorY, rowH), w = w - pickerW - 18,
-    text = t(i18n, "switch", "Interlock switch"), color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    text = t(i18n, "switch", "Interlock switch"), color = Palette.text, font = SMLSIZE
   }
   children[#children + 1] = {
     type = "switch",
@@ -858,7 +860,7 @@ end
 local function appendGvarNote(children, x, y, w, readingNote, widestNote)
   ui.gvarNote = readingNote
   children[#children + 1] = {
-    type = "label", x = x, y = y, w = w, color = COLOR_THEME_PRIMARY1, font = SMLSIZE,
+    type = "label", x = x, y = y, w = w, color = Palette.text, font = SMLSIZE,
     text = function() return ui.gvarNote or "" end
   }
   return math.max(noteLines(readingNote, w), noteLines(widestNote, w)) * 24

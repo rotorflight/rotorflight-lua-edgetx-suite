@@ -14,6 +14,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local ElrsTask = nil
 local ConfirmDialog = nil
@@ -452,7 +454,7 @@ function M.build(ctx)
       y = thisY + 8,
       w = labelW - 10,
       text = row.label,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE
     }
 
@@ -462,7 +464,7 @@ function M.build(ctx)
       y = thisY + 8,
       w = valueW - 6,
       text = tostring(row.value),
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       align = RIGHT,
       font = SMLSIZE
     }
@@ -473,7 +475,7 @@ function M.build(ctx)
       y = thisY + rowH - 2,
       w = w,
       h = 1,
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       filled = true
     }
   end
@@ -494,9 +496,9 @@ function M.build(ctx)
     children[#children + 1] = {
       type = "button",
       x = x, y = btnY, w = btnW, h = btnH,
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       text = pageText(i18n, "action_probe", "Probe"),
-      textColor = WHITE,
+      textColor = Palette.accentText,
       active = buttonsEnabled,
       press = function()
         -- A probe only reads, but started while armed it would stand still until the disarm
@@ -515,9 +517,9 @@ function M.build(ctx)
     children[#children + 1] = {
       type = "button",
       x = x + btnW + gap, y = btnY, w = btnW, h = btnH,
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       text = pageText(i18n, "action_rf_to_elrs", "RF -> ELRS"),
-      textColor = WHITE,
+      textColor = Palette.accentText,
       active = buttonsEnabled,
       press = function()
         startSync(i18n, ElrsTask.MODE_ROTORFLIGHT_TO_ELRS)
@@ -528,9 +530,9 @@ function M.build(ctx)
     children[#children + 1] = {
       type = "button",
       x = x + (btnW + gap) * 2, y = btnY, w = btnW, h = btnH,
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       text = pageText(i18n, "action_elrs_to_rf", "ELRS -> RF"),
-      textColor = WHITE,
+      textColor = Palette.accentText,
       active = buttonsEnabled,
       press = function()
         startSync(i18n, ElrsTask.MODE_ELRS_TO_ROTORFLIGHT)

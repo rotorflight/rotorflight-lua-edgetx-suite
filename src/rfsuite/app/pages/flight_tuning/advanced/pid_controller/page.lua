@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -265,7 +267,7 @@ local function appendSingleFieldRow(children, x, y, w, labelText, label1, key1, 
     x = x, y = labelY,
     w = mainW,
     text  = labelText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -276,7 +278,7 @@ local function appendSingleFieldRow(children, x, y, w, labelText, label1, key1, 
       x = xLabel1, y = labelY,
       w = labelW1 - labelGap,
       text  = label1,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font  = SMLSIZE,
       align = RIGHT
     }
@@ -317,7 +319,7 @@ local function appendSingleFieldRow(children, x, y, w, labelText, label1, key1, 
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1
@@ -347,7 +349,7 @@ local function appendDualFieldRow(children, x, y, w, rowLabel, label1, key1, spe
       x = x, y = labelY,
       w = mainW,
       text  = rowLabel,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font  = SMLSIZE
     }
   end
@@ -358,7 +360,7 @@ local function appendDualFieldRow(children, x, y, w, rowLabel, label1, key1, spe
     x = xLabel1, y = labelY,
     w = labelW - labelGap,
     text  = label1,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE,
     align = RIGHT
   }
@@ -401,7 +403,7 @@ local function appendDualFieldRow(children, x, y, w, rowLabel, label1, key1, spe
       x = xLabel2, y = labelY,
       w = labelW - labelGap,
       text  = label2,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font  = SMLSIZE,
       align = RIGHT
     }
@@ -442,7 +444,7 @@ local function appendDualFieldRow(children, x, y, w, rowLabel, label1, key1, spe
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1
@@ -474,7 +476,7 @@ local function appendTripleFieldRow(children, x, y, w, i18n, labelText, key0, sp
     x = x, y = labelY,
     w = mainW,
     text  = labelText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -512,7 +514,7 @@ local function appendTripleFieldRow(children, x, y, w, i18n, labelText, key0, sp
         x = labelX[i], y = labelY,
         w = labelW_prefix,
         text  = prefixes[i],
-        color = COLOR_THEME_PRIMARY1,
+        color = Palette.text,
         font  = SMLSIZE,
         align = RIGHT
       }
@@ -554,7 +556,7 @@ local function appendTripleFieldRow(children, x, y, w, i18n, labelText, key0, sp
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1
@@ -575,7 +577,7 @@ local function appendSingleChoiceRow(children, x, y, w, labelText, key, options)
     x = x, y = labelY,
     w = mainW,
     text  = labelText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -611,7 +613,7 @@ local function appendSingleChoiceRow(children, x, y, w, labelText, key, options)
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1

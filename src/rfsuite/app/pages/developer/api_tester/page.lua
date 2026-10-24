@@ -7,6 +7,8 @@ local function loadModule(path)
   return chunk()
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 -- Log laden
 if not Log then
   Log = loadModule("lib/log.lua")
@@ -90,7 +92,7 @@ local function appendDataRow(children, x, y, w, labelText, valueText)
     y = y + 8,
     w = labelW,
     text = tostring(labelText or ""),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE,
   }
 
@@ -100,7 +102,7 @@ local function appendDataRow(children, x, y, w, labelText, valueText)
     y = y + 8,
     w = valueW,
     text = tostring(valueText or "-"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     align = RIGHT,
     font = SMLSIZE,
   }
@@ -111,7 +113,7 @@ local function appendDataRow(children, x, y, w, labelText, valueText)
     y = y + rowH,
     w = w,
     h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true,
   }
 
@@ -661,7 +663,7 @@ function M.build(ctx)
     y = labelY,
     w = labelW,
     text = t(i18n, "label_api", "API"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE,
   }
 
@@ -693,7 +695,7 @@ function M.build(ctx)
     y = ctrlY,
     w = buttonW,
     text = "",
-    color = COLOR_THEME_SECONDARY1,
+    color = Palette.accent,
     press = ui.handlers.test,
   }
 
@@ -703,7 +705,7 @@ function M.build(ctx)
     y = Controls.labelY(ctrlY, Controls.CTRL_H),
     w = buttonW,
     text = t(i18n, "btn_test", "Test"),
-    color = WHITE,
+    color = Palette.accentText,
     align = CENTER,
     font = SMLSIZE,
   }
@@ -714,7 +716,7 @@ function M.build(ctx)
     y = cursorY + rowH,
     w = w,
     h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true,
   }
 

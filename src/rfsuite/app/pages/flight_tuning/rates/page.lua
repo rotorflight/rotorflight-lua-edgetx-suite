@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -632,7 +634,7 @@ local function drawColumnHeader(children, x, y, w, i18n, layout, cols)
     y = y + headerLineY,
     w = w,
     h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true
   }
 
@@ -645,7 +647,7 @@ local function drawColumnHeader(children, x, y, w, i18n, layout, cols)
       y = y + headerTextY,
       w = cellW,
       text = headerText,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = headerFont,
       align = CENTER
     }
@@ -673,7 +675,7 @@ local function drawGrid(children, x, y, w, i18n, layoutParams, tableDef, rowsCon
       y = cursorY + rowLabelY,
       w = labelW,
       text = labelText,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = layoutParams and layoutParams.rowFont or MIDSIZE
     }
 
@@ -830,7 +832,7 @@ function M.build(ctx)
       type = "label",
       x = x, y = y + 20, w = w,
       text = "Unsupported rates type",
-      color = COLOR_THEME_WARNING,
+      color = Palette.warning,
       align = CENTER
     }
     return

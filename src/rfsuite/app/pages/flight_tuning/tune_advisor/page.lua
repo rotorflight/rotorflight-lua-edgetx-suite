@@ -40,6 +40,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local Controls = nil
 local MspRuntime = nil
@@ -1050,7 +1052,7 @@ end
 -- One line of text that may wrap, and the height it takes
 local function appendText(children, x, y, w, text, color)
   children[#children + 1] = {
-    type = "label", x = x, y = y, w = w, text = text, color = color or COLOR_THEME_PRIMARY1, font = SMLSIZE
+    type = "label", x = x, y = y, w = w, text = text, color = color or Palette.text, font = SMLSIZE
   }
   local lineH = Controls.LABEL_H or 21
   if type(Controls.estimateWrappedTextHeight) == "function" then
@@ -1069,14 +1071,14 @@ local function appendValueRow(children, x, y, w, label, value)
   local labelW = math.floor(w * 0.42)
   children[#children + 1] = {
     type = "label", x = x + 10, y = labelY, w = labelW - 10,
-    text = label, color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    text = label, color = Palette.text, font = SMLSIZE
   }
   children[#children + 1] = {
     type = "label", x = x + labelW, y = labelY, w = w - labelW - 10,
-    text = value, color = COLOR_THEME_PRIMARY1, align = RIGHT, font = SMLSIZE
+    text = value, color = Palette.text, align = RIGHT, font = SMLSIZE
   }
   children[#children + 1] = {
-    type = "rectangle", x = x, y = y + rowH, w = w, h = 1, color = COLOR_THEME_SECONDARY2, filled = true
+    type = "rectangle", x = x, y = y + rowH, w = w, h = 1, color = Palette.border, filled = true
   }
   return rowH + 1
 end

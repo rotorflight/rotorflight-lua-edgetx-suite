@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local SavePipeline = nil
 local Common = nil
@@ -591,7 +593,7 @@ local function appendPortRow(children, x, y, w, lineTitle, port, portIndex, i18n
     x = x, y = labelY,
     w = xFunc - x - 8,
     text  = lineTitle,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -684,7 +686,7 @@ local function appendPortRow(children, x, y, w, lineTitle, port, portIndex, i18n
       x = xBaud + 8, y = labelY,
       w = wBaud - 8,
       text  = baudFieldValues[1],
-      color = COLOR_THEME_PRIMARY1
+      color = Palette.text
     }
     baudChoices = nil
   end
@@ -723,7 +725,7 @@ local function appendPortRow(children, x, y, w, lineTitle, port, portIndex, i18n
     type   = "rectangle",
     x = x, y = dividerY,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1
@@ -795,7 +797,7 @@ function M.build(ctx)
       x = x + 10, y = cursorY + 10,
       w = w - 20,
       text  = pageText(i18n, "no_ports_reported", "No serial ports reported by FC."),
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font  = SMLSIZE
     }
     return

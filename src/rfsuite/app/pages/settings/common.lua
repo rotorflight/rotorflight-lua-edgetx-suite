@@ -1,5 +1,16 @@
 local M = {}
 
+local function loadModule(path)
+  if _G.rfsuite and _G.rfsuite.require then
+    return _G.rfsuite.require(path)
+  end
+  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local chunk = assert(loadScript(fullPath, "t"))
+  return chunk()
+end
+
+local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+
 local function wipeTable(t)
   if type(t) ~= "table" then return end
   for k in pairs(t) do
@@ -215,7 +226,7 @@ function M.appendReadFailedNotice(children, x, y, w)
     y = y,
     w = w - 20,
     text = "@i18n(app.read_failed)@",
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
 end
@@ -293,7 +304,7 @@ function M.appendSectionHeader(children, x, y, w, title)
     x = x,
     y = y,
     text = title,
-    color = WHITE,
+    color = Palette.settingsText,
     font = DBLSIZE
   }
 
@@ -303,7 +314,7 @@ function M.appendSectionHeader(children, x, y, w, title)
     y = y + 2,
     w = 16,
     text = "v",
-    color = WHITE,
+    color = Palette.settingsText,
     align = RIGHT,
     font = DBLSIZE
   }
@@ -314,7 +325,7 @@ function M.appendSectionHeader(children, x, y, w, title)
     y = y + 34,
     w = w,
     h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true
   }
 end
@@ -334,7 +345,7 @@ function M.appendSettingsRow(children, x, y, w, labelText, valueText, withArrow,
     y = labelY,
     w = valueX - x - 8,
     text = labelText,
-    color = WHITE,
+    color = Palette.settingsText,
     font = MIDSIZE
   }
 
@@ -344,7 +355,7 @@ function M.appendSettingsRow(children, x, y, w, labelText, valueText, withArrow,
     y = ctrlY,
     w = valueW,
     h = ctrlH,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.card,
     filled = true
   }
 
@@ -355,7 +366,7 @@ function M.appendSettingsRow(children, x, y, w, labelText, valueText, withArrow,
     y = labelY,
     w = valueLabelW,
     text = valueText,
-    color = WHITE,
+    color = Palette.settingsText,
     align = RIGHT,
     font = MIDSIZE
   }
@@ -367,7 +378,7 @@ function M.appendSettingsRow(children, x, y, w, labelText, valueText, withArrow,
       y = labelY,
       w = 14,
       text = "v",
-      color = WHITE,
+      color = Palette.settingsText,
       align = RIGHT,
       font = MIDSIZE
     }
@@ -379,7 +390,7 @@ function M.appendSettingsRow(children, x, y, w, labelText, valueText, withArrow,
     y = y + rowH - 1,
     w = w,
     h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true
   }
 end

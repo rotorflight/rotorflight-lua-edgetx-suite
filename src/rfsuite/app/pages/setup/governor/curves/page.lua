@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -352,7 +354,7 @@ function M.build(ctx)
     type = "rectangle",
     x = gx, y = gy,
     w = gw, h = gh,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = false
   }
 
@@ -363,7 +365,7 @@ function M.build(ctx)
       type = "line",
       x = 0, y = 0, w = 0, h = 0,
       pts = { { gx, gridY }, { gx + gw, gridY } },
-      color = COLOR_THEME_SECONDARY2,
+      color = Palette.border,
       thickness = 1
     }
   end
@@ -375,7 +377,7 @@ function M.build(ctx)
       type = "line",
       x = 0, y = 0, w = 0, h = 0,
       pts = { { gridX, gy }, { gridX, gy + gh } },
-      color = COLOR_THEME_SECONDARY2,
+      color = Palette.border,
       thickness = 1
     }
   end
@@ -392,7 +394,7 @@ function M.build(ctx)
         type = "line",
         x = 0, y = 0, w = 0, h = 0,
         pts = { { prevX, prevY }, { ptX, ptY } },
-        color = COLOR_THEME_PRIMARY1 or WHITE,
+        color = Palette.text,
         thickness = 2
       }
     end
@@ -402,7 +404,7 @@ function M.build(ctx)
       type = "rectangle",
       x = ptX - 3, y = ptY - 3,
       w = 7, h = 7,
-      color = COLOR_THEME_PRIMARY1 or WHITE,
+      color = Palette.text,
       filled = true
     }
 
@@ -446,7 +448,7 @@ function M.build(ctx)
       y = cursorY,
       w = fieldW,
       text = THROTTLE_STEPS[i] or ("P" .. tostring(i)),
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE,
       align = CENTER
     }
@@ -481,7 +483,7 @@ function M.build(ctx)
       type = "label",
       x = x + 16, y = cursorY,
       text = pageText(i18n, "unsaved_changes", "Unsaved changes"),
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       font = SMLSIZE
     }
   end

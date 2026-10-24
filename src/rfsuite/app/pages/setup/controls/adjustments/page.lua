@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -1212,10 +1214,10 @@ function M.build(ctx)
     end
   end
   local activeStr = pageText(i18n, "active_ranges", "Active ranges") .. ": " .. tostring(activeCount) .. " / 42"
-  local activeColor = COLOR_THEME_PRIMARY1
+  local activeColor = Palette.text
   if ui.readError then
     activeStr = pageText(i18n, "read_failed", "Could not read the adjustments from the flight controller")
-    activeColor = COLOR_THEME_SECONDARY1
+    activeColor = Palette.accent
   end
 
   local enaUs = nil
@@ -1249,7 +1251,7 @@ function M.build(ctx)
       type = "label",
       x = x + 160, y = cursorY + 10,
       text = pageText(i18n, "unsaved_changes", "Unsaved changes"),
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       font = SMLSIZE
     }
   end
@@ -1259,7 +1261,7 @@ function M.build(ctx)
     x = x + w - 180, y = cursorY + 10,
     w = 170,
     text = outputStr,
-    color = COLOR_THEME_SECONDARY1,
+    color = Palette.accent,
     align = RIGHT,
     font = SMLSIZE
   }
@@ -1268,7 +1270,7 @@ function M.build(ctx)
     type = "rectangle",
     x = x, y = cursorY,
     w = w, h = 1,
-    color = COLOR_THEME_SECONDARY2, filled = true
+    color = Palette.border, filled = true
   }
   cursorY = cursorY + 8
 
@@ -1360,7 +1362,7 @@ function M.build(ctx)
     x = x + 10, y = enaRowY + labelY_offset,
     w = labelW - 10,
     text = pageText(i18n, "enable_channel", "Enable Channel"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
 
@@ -1420,7 +1422,7 @@ function M.build(ctx)
     x = liveX, y = enaRowY + labelY_offset,
     w = liveW,
     text = liveText_ena,
-    color = COLOR_THEME_SECONDARY1,
+    color = Palette.accent,
     align = CENTER,
     font = SMLSIZE
   }
@@ -1448,7 +1450,7 @@ function M.build(ctx)
     type = "rectangle",
     x = x, y = enaRowY + rowH,
     w = w, h = 1,
-    color = COLOR_THEME_SECONDARY2, filled = true
+    color = Palette.border, filled = true
   }
   cursorY = cursorY + rowH + 1
 
@@ -1464,7 +1466,7 @@ function M.build(ctx)
     x = x + 10, y = rangeRowY + labelY_offset,
     w = inputStartX - x - 20,
     text = pageText(i18n, "enable_range", "Enable Range"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
 
@@ -1516,7 +1518,7 @@ function M.build(ctx)
     type = "rectangle",
     x = x, y = rangeRowY + rowH,
     w = w, h = 1,
-    color = COLOR_THEME_SECONDARY2, filled = true
+    color = Palette.border, filled = true
   }
   cursorY = cursorY + rowH + 1
 
@@ -1534,7 +1536,7 @@ function M.build(ctx)
       x = x + 10, y = valChRowY + labelY_offset,
       w = labelW - 10,
       text = pageText(i18n, "value_channel", "Value Channel"),
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE
     }
 
@@ -1584,7 +1586,7 @@ function M.build(ctx)
       x = liveX_val, y = valChRowY + labelY_offset,
       w = liveW,
       text = adjLiveText,
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       align = CENTER,
       font = SMLSIZE
     }
@@ -1593,7 +1595,7 @@ function M.build(ctx)
       type = "rectangle",
       x = x, y = valChRowY + rowH,
       w = w, h = 1,
-      color = COLOR_THEME_SECONDARY2, filled = true
+      color = Palette.border, filled = true
     }
     cursorY = cursorY + rowH + 1
 
@@ -1628,7 +1630,7 @@ function M.build(ctx)
       x = x + 10, y = r1RowY + labelY_offset,
       w = r1StartX - x - 20,
       text = r1Label,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE
     }
 
@@ -1690,7 +1692,7 @@ function M.build(ctx)
       type = "rectangle",
       x = x, y = r1RowY + rowH,
       w = w, h = 1,
-      color = COLOR_THEME_SECONDARY2, filled = true
+      color = Palette.border, filled = true
     }
     cursorY = cursorY + rowH + 1
 
@@ -1704,7 +1706,7 @@ function M.build(ctx)
         x = x + 10, y = r2RowY + labelY_offset,
         w = r1StartX - x - 20,
         text = r2Label,
-        color = COLOR_THEME_PRIMARY1,
+        color = Palette.text,
         font = SMLSIZE
       }
 
@@ -1766,7 +1768,7 @@ function M.build(ctx)
         type = "rectangle",
         x = x, y = r2RowY + rowH,
         w = w, h = 1,
-        color = COLOR_THEME_SECONDARY2, filled = true
+        color = Palette.border, filled = true
       }
       cursorY = cursorY + rowH + 1
     end
@@ -1801,7 +1803,7 @@ function M.build(ctx)
       x = x + 10, y = vRangeRowY + labelY_offset,
       w = inputStartX - x - 20,
       text = pageText(i18n, "value_range", "Value Range"),
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE
     }
 
@@ -1849,7 +1851,7 @@ function M.build(ctx)
       type = "rectangle",
       x = x, y = vRangeRowY + rowH,
       w = w, h = 1,
-      color = COLOR_THEME_SECONDARY2, filled = true
+      color = Palette.border, filled = true
     }
     cursorY = cursorY + rowH + 1
   end

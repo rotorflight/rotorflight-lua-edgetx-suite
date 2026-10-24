@@ -1,5 +1,16 @@
 local HelpView = {}
 
+local function loadModule(path)
+  if _G.rfsuite and _G.rfsuite.require then
+    return _G.rfsuite.require(path)
+  end
+  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local chunk = assert(loadScript(fullPath, "t"))
+  return chunk()
+end
+
+local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+
 function HelpView.open(ctx)
   return false
 end
@@ -59,7 +70,7 @@ function HelpView.build(ctx)
       type = "label",
       w = textW,
       text = line ~= "" and line or " ",
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE
     }
   end

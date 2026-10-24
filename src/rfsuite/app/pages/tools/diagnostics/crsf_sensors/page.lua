@@ -23,6 +23,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local MspRuntime = nil
 local StatusApi = nil
@@ -235,17 +237,17 @@ local function appendRow(children, x, y, w, label, key, emphasis)
   children[#children + 1] = {
     type = "label", x = x, y = y + 4, w = labelW - 10,
     text = label,
-    color = emphasis and COLOR_THEME_SECONDARY1 or COLOR_THEME_PRIMARY1,
+    color = emphasis and Palette.accent or Palette.text,
     font = SMLSIZE
   }
   children[#children + 1] = {
     type = "label", x = x + labelW, y = y + 4, w = w - labelW - 6,
     text = function() return text[key] or "-" end,
-    color = COLOR_THEME_PRIMARY1, align = RIGHT, font = SMLSIZE
+    color = Palette.text, align = RIGHT, font = SMLSIZE
   }
   children[#children + 1] = {
     type = "rectangle", x = x, y = y + ROW_H - 2, w = w, h = 1,
-    color = COLOR_THEME_SECONDARY1, filled = true
+    color = Palette.accent, filled = true
   }
   return ROW_H
 end
@@ -254,7 +256,7 @@ local function appendNote(children, x, y, w, message)
   children[#children + 1] = {
     type = "label", x = x, y = y + 4, w = w,
     text = message,
-    color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    color = Palette.text, font = SMLSIZE
   }
   return ROW_H
 end

@@ -3,6 +3,17 @@
 
 local Header = {}
 
+local function loadModule(path)
+  if _G.rfsuite and _G.rfsuite.require then
+    return _G.rfsuite.require(path)
+  end
+  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local chunk = assert(loadScript(fullPath, "t"))
+  return chunk()
+end
+
+local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+
 local DEFAULT_LAYOUT = {
   rightPad = 20,
   memW = 126,
@@ -143,7 +154,7 @@ function Header.appendToLayout(lyt, ctx)
       type  = "label",
       x = xMem, y = cfg.topButtonY + cfg.memYOffset, w = cfg.memW,
       text  = Header.getLuaMemLabel(),
-      color = COLOR_THEME_PRIMARY1, align = RIGHT, font = SMLSIZE
+      color = Palette.text, align = RIGHT, font = SMLSIZE
     }
   end
 

@@ -21,6 +21,8 @@ local function loadModule(path)
   return nil
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+
 local function getDisplayProfile()
   if not DisplayProfile then
     DisplayProfile = loadModule("core/display_profile.lua")
@@ -266,7 +268,7 @@ function Controls.appendSectionHeader(children, x, y, w, title, expanded, onTogg
     type  = "label",
     x = x, y = y + 2,
     text  = title,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = MIDSIZE
   }
 
@@ -281,7 +283,7 @@ function Controls.appendSectionHeader(children, x, y, w, title, expanded, onTogg
     w = SECTION_ARROW_W,
     h = SECTION_ARROW_H,
     text  = "",
-    color = COLOR_THEME_SECONDARY1,
+    color = Palette.accent,
     press = onToggle
   }
 
@@ -291,7 +293,7 @@ function Controls.appendSectionHeader(children, x, y, w, title, expanded, onTogg
     y = btnY + 3,
     w = SECTION_ARROW_W,
     text  = icon,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     align = CENTER,
     font  = SMLSIZE
   }
@@ -301,7 +303,7 @@ function Controls.appendSectionHeader(children, x, y, w, title, expanded, onTogg
     type   = "rectangle",
     x = x, y = y + sectionH - 6,
     w = w, h = SECTION_BAR_H,
-    color  = COLOR_THEME_SECONDARY1, filled = true
+    color  = Palette.accent, filled = true
   }
 
   -- Divider line (bottom edge)
@@ -309,7 +311,7 @@ function Controls.appendSectionHeader(children, x, y, w, title, expanded, onTogg
     type   = "rectangle",
     x = x, y = y + sectionH - 1,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 end
 
@@ -320,7 +322,7 @@ function Controls.appendStaticSectionHeader(children, x, y, w, title)
     type  = "label",
     x = x, y = y + 2,
     text  = title,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = MIDSIZE
   }
 
@@ -328,7 +330,7 @@ function Controls.appendStaticSectionHeader(children, x, y, w, title)
     type   = "rectangle",
     x = x, y = y + staticSectionH - 6,
     w = w, h = 3,
-    color  = COLOR_THEME_SECONDARY1, filled = true
+    color  = Palette.accent, filled = true
   }
 end
 
@@ -365,7 +367,7 @@ function Controls.appendEscSubheader(children, x, y, w, firmware, version)
     type  = "label",
     x = x, y = y,
     text  = text,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -455,7 +457,7 @@ function Controls.appendRadioSwitch(children, x, y, w, labelText, value,
     x = x, y = labelY,
     w = barX - x - 8,
     text  = labelText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -515,7 +517,7 @@ function Controls.appendRadioSwitch(children, x, y, w, labelText, value,
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1
@@ -576,7 +578,7 @@ function Controls.appendNumberField(children, x, y, w, labelText, opts)
     x = x, y = labelY,
     w = fieldX - x - 8,
     text  = labelText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
   local maxSteps = math.ceil((maxVal - minVal) / stepVal)
@@ -650,7 +652,7 @@ function Controls.appendNumberField(children, x, y, w, labelText, opts)
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1
@@ -721,7 +723,7 @@ function Controls.appendComboSelect(children, x, y, w, labelText, options,
     x = x, y = labelY,
     w = comboX - x - 8,
     text  = labelText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -786,7 +788,7 @@ function Controls.appendComboSelect(children, x, y, w, labelText, options,
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1
@@ -818,7 +820,7 @@ function Controls.appendTextField(children, x, y, w, labelText, opts)
     x = x, y = labelY,
     w = labelW,
     text  = labelText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -841,7 +843,7 @@ function Controls.appendTextField(children, x, y, w, labelText, opts)
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1

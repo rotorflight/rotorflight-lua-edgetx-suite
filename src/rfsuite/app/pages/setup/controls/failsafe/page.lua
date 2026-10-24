@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -364,7 +366,7 @@ function M.build(ctx)
       x = x + leftMargin, y = cursorY + labelYOffset,
       w = titleW,
       text  = chName,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font  = SMLSIZE
     }
 
@@ -447,7 +449,7 @@ function M.build(ctx)
       type   = "rectangle",
       x = x, y = cursorY + rowH,
       w = w, h = 1,
-      color  = COLOR_THEME_SECONDARY2, filled = true
+      color  = Palette.border, filled = true
     }
 
     cursorY = cursorY + rowH + 1
@@ -458,7 +460,7 @@ function M.build(ctx)
       type = "label",
       x = x + 16, y = cursorY + 10,
       text = pageText(i18n, "unsaved_changes", "Unsaved changes"),
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       font = SMLSIZE
     }
   end

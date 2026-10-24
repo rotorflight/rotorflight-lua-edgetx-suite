@@ -7,6 +7,8 @@ local function loadModule(path)
   return chunk()
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+
 local state
 
 -- lib/log.lua once it is reachable, false once it is known not to be. This file has a `Log`
@@ -2481,7 +2483,7 @@ local function appendArmedBanner(children, x, y, w, h, text)
   children[#children + 1] = {
     type = "rectangle",
     x = x, y = y, w = w, h = h,
-    color = COLOR_THEME_WARNING or COLOR_THEME_SECONDARY1,
+    color = Palette.warning,
     filled = true
   }
 
@@ -2499,7 +2501,7 @@ local function appendArmedBanner(children, x, y, w, h, text)
     y = y + math.floor((h - textH) / 2),
     w = math.max(0, (x + w) - textX - pad),
     text  = text,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 end
@@ -2524,7 +2526,7 @@ local function appendPageBuildError(children, x, y, w, h, i18n, menuId, err)
     type  = "label",
     x = x, y = cursorY, w = w,
     text  = title,
-    color = COLOR_THEME_WARNING or COLOR_THEME_PRIMARY1,
+    color = Palette.warning,
     font  = MIDSIZE
   }
   cursorY = cursorY + titleH + gap
@@ -2533,7 +2535,7 @@ local function appendPageBuildError(children, x, y, w, h, i18n, menuId, err)
     type  = "label",
     x = x, y = cursorY, w = w,
     text  = menuText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
   cursorY = cursorY + lineH + gap
@@ -2551,7 +2553,7 @@ local function appendPageBuildError(children, x, y, w, h, i18n, menuId, err)
     type  = "label",
     x = x, y = cursorY, w = w, h = messageH,
     text  = tostring(err),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -2559,7 +2561,7 @@ local function appendPageBuildError(children, x, y, w, h, i18n, menuId, err)
     type  = "label",
     x = x, y = hintY, w = w,
     text  = hint,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 end
@@ -2574,7 +2576,7 @@ local function appendMenuPendingNotice(children, contentX, contentY, contentW, b
     x = contentX, y = contentY + math.max(0, math.floor((pageBodyHeight() - bannerH - lineH) / 2)),
     w = contentW,
     text  = MENU_PENDING_TEXT,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = MIDSIZE,
     align = CENTER
   }
@@ -2644,7 +2646,7 @@ local function buildScene()
       {
         type = "rectangle",
         x = 0, y = 0, w = screenW, h = screenH,
-        color = COLOR_THEME_PRIMARY3,
+        color = Palette.panel,
         filled = true
       },
       {
@@ -2656,7 +2658,7 @@ local function buildScene()
         type = "label",
         x = 0, y = screenH / 2 - 44, w = screenW,
         text = title,
-        color = COLOR_THEME_PRIMARY2,
+        color = Palette.panelText,
         align = CENTER,
         font = MIDSIZE
       },
@@ -2664,7 +2666,7 @@ local function buildScene()
         type = "label",
         x = 20, y = screenH / 2 - 4, w = screenW - 40,
         text = message,
-        color = COLOR_THEME_PRIMARY2,
+        color = Palette.panelText,
         align = CENTER,
         font = SMLSIZE
       }
@@ -2691,14 +2693,14 @@ local function buildScene()
       children[#children + 1] = {
         type = "rectangle",
         x = barX, y = barY, w = barW, h = barH,
-        color = COLOR_THEME_DISABLED,
+        color = Palette.panelProgressTrack,
         filled = true
       }
       if fillW > 0 then
         children[#children + 1] = {
           type = "rectangle",
           x = barX + 2, y = barY + 2, w = fillW, h = barH - 4,
-          color = COLOR_THEME_SECONDARY2,
+          color = Palette.panelProgressFill,
           filled = true
         }
       end
@@ -2783,7 +2785,7 @@ local function buildScene()
       {
         type = "rectangle",
         x = 0, y = 0, w = LCD_W or 320, h = LCD_H or 240,
-        color = COLOR_THEME_PRIMARY3,
+        color = Palette.panel,
         filled = true
       }
     }
@@ -2814,7 +2816,7 @@ local function buildScene()
       {
         type = "rectangle",
         x = 0, y = 0, w = LCD_W or 320, h = LCD_H or 240,
-        color = COLOR_THEME_PRIMARY3,
+        color = Palette.panel,
         filled = true
       }
     }
@@ -2842,7 +2844,7 @@ local function buildScene()
       {
         type = "rectangle",
         x = 0, y = 0, w = LCD_W or 320, h = LCD_H or 240,
-        color = COLOR_THEME_PRIMARY3,
+        color = Palette.panel,
         filled = true
       }
     }
@@ -2872,7 +2874,7 @@ local function buildScene()
       {
         type = "rectangle",
         x = 0, y = 0, w = LCD_W or 320, h = LCD_H or 240,
-        color = COLOR_THEME_PRIMARY3,
+        color = Palette.panel,
         filled = true
       }
     }
@@ -3028,7 +3030,7 @@ local function buildScene()
         type  = "label",
         x = contentX + labelIndent, y = cursorY,
         text  = group.title,
-        color = COLOR_THEME_PRIMARY1,
+        color = Palette.text,
         font  = SMLSIZE
       }
       -- Divider line
@@ -3036,7 +3038,7 @@ local function buildScene()
         type   = "rectangle",
         x = contentX, y = cursorY + groupTitleH,
         w = contentW, h = groupDivH,
-        color  = COLOR_THEME_SECONDARY1,
+        color  = Palette.accent,
         filled = true
       }
       cursorY = cursorY + groupHeaderH
@@ -3654,14 +3656,14 @@ function M.run(event, touchState)
             {
               type = "rectangle",
               x = 0, y = 0, w = LCD_W or 320, h = LCD_H or 240,
-              color = COLOR_THEME_PRIMARY3,
+              color = Palette.panel,
               filled = true
             },
             {
               type = "label",
               x = 0, y = (LCD_H or 240) / 2 - 10, w = LCD_W or 320,
               text = tr,
-              color = COLOR_THEME_PRIMARY2,
+              color = Palette.panelText,
               align = CENTER,
               font = MIDSIZE
             }

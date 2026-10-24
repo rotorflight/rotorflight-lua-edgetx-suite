@@ -3,11 +3,22 @@
 
 local Tiles = {}
 
+local function loadModule(path)
+  if _G.rfsuite and _G.rfsuite.require then
+    return _G.rfsuite.require(path)
+  end
+  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local chunk = assert(loadScript(fullPath, "t"))
+  return chunk()
+end
+
+local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+
 local function resolveTileTextColor(isEnabled, focused)
   if not isEnabled or focused then
-    return GREY_DARK or BLACK or COLOR_THEME_SECONDARY2
+    return Palette.tileMuted
   end
-  return COLOR_THEME_PRIMARY1 or WHITE
+  return Palette.text
 end
 
 local function formatTileText(text)
@@ -65,7 +76,7 @@ function Tiles.appendBadge(children, cx, cy, radius, text)
   children[#children + 1] = {
     type = "circle",
     x = cx, y = cy, radius = radius,
-    color = RED or COLOR_THEME_WARNING,
+    color = Palette.error,
     filled = true
   }
 
@@ -76,7 +87,7 @@ function Tiles.appendBadge(children, cx, cy, radius, text)
     w = radius * 2,
     text  = text,
     font  = SMLSIZE,
-    color = WHITE or COLOR_THEME_PRIMARY2,
+    color = Palette.accentText,
     align = CENTER
   }
 end
@@ -90,7 +101,7 @@ local function appendDoneBadge(children, x, y, size)
   children[#children + 1] = {
     type = "circle",
     x = cx, y = cy, radius = radius,
-    color = GREEN or COLOR_THEME_ACTIVE,
+    color = Palette.ok,
     filled = true
   }
   local s = math.max(3, math.floor(radius * 0.55))
@@ -98,7 +109,7 @@ local function appendDoneBadge(children, x, y, size)
     type = "line",
     pts = { { cx - s, cy }, { cx - math.floor(s / 3), cy + math.floor(s * 2 / 3) }, { cx + s, cy - math.floor(s * 2 / 3) } },
     thickness = math.max(2, math.floor(radius / 4)),
-    color = WHITE or COLOR_THEME_PRIMARY2
+    color = Palette.accentText
   }
 end
 
@@ -141,7 +152,7 @@ function Tiles.append(children, x, y, size, iconFile, text, focused, pressHandle
   if not isEnabled then
     children[#children + 1] = {
       type = "rectangle", x = x + 1, y = y + 1, w = size - 2, h = size - 2,
-      color = COLOR_THEME_DISABLED, filled = true
+      color = Palette.tile, filled = true
     }
   end
 

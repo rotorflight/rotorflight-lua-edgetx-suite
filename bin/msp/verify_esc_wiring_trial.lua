@@ -2,6 +2,9 @@
 local root = (arg and arg[1]) or "."
 local function source(path) return root .. "/" .. path end
 
+-- settings/common.lua and the page read the colour roles of ui/palette.lua when they load.
+local Palette = assert(loadfile(source("src/rfsuite/ui/palette.lua")))()
+_G.rfsuite = { palette = Palette }
 local TrialApi = assert(loadfile(source("src/rfsuite/tasks/msp/api/esc_sensor_trial.lua")))()
 local ConfigApi = assert(loadfile(source("src/rfsuite/tasks/msp/api/esc_sensor_config.lua")))()
 local Common = assert(loadfile(source("src/rfsuite/app/pages/settings/common.lua")))()
@@ -19,6 +22,7 @@ _G.MIDSIZE = 2
 
 local modules = {
   ["app/pages/settings/common.lua"] = Common,
+  ["ui/palette.lua"] = Palette,
   ["ui/controls.lua"] = {
     STATIC_SECTION_H = 1,
     appendStaticSectionHeader = function() end,

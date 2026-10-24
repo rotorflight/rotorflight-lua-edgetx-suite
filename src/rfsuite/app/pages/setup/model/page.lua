@@ -20,6 +20,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -112,7 +114,7 @@ local function appendRadioWideNote(children, x, cursorY, w, i18n)
   children[#children + 1] = {
     type = "label", x = x + 10, y = cursorY, w = w - 10,
     text = pageText(i18n, "radio_wide", "Stored on this radio, for every model"),
-    color = COLOR_THEME_SECONDARY1,
+    color = Palette.accent,
     font = SMLSIZE,
   }
   return cursorY + 20

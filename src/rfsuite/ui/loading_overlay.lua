@@ -1,5 +1,16 @@
 local M = {}
 
+local function loadModule(path)
+  if _G.rfsuite and _G.rfsuite.require then
+    return _G.rfsuite.require(path)
+  end
+  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local chunk = assert(loadScript(fullPath, "t"))
+  return chunk()
+end
+
+local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+
 local function clamp01(v)
   local n = tonumber(v) or 0
   if n < 0 then return 0 end
@@ -226,7 +237,7 @@ function M.append(children, opts)
     y = boxY,
     w = boxW,
     h = boxH,
-    color = COLOR_THEME_PRIMARY2,
+    color = Palette.background,
     filled = true
   }
 
@@ -236,7 +247,7 @@ function M.append(children, opts)
     y = boxY + 10,
     w = innerW,
     text = title,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = MIDSIZE
   }
 
@@ -246,7 +257,7 @@ function M.append(children, opts)
     y = boxY + messageTop,
     w = innerW,
     text = message,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
 
@@ -262,7 +273,7 @@ function M.append(children, opts)
       y = barY,
       w = barW,
       h = barH,
-      color = COLOR_THEME_SECONDARY2,
+      color = Palette.progressTrack,
       filled = true
     }
 
@@ -276,7 +287,7 @@ function M.append(children, opts)
         y = barY + 2,
         w = math.max(1, fillW),
         h = fillH,
-        color = COLOR_THEME_SECONDARY1,
+        color = Palette.accent,
         filled = true,
         size = function()
           return math.floor(fillMaxW * clamp01(progressFn()) + 0.5), fillH
@@ -289,7 +300,7 @@ function M.append(children, opts)
         y = barY + 2,
         w = fillW,
         h = barH - 4,
-        color = COLOR_THEME_SECONDARY1,
+        color = Palette.accent,
         filled = true
       }
     end

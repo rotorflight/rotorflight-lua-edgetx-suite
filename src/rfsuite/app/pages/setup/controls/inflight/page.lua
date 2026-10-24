@@ -26,6 +26,8 @@ local function loadModule(path)
   return chunk()
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local Controls = nil
 local Setup = nil
@@ -221,7 +223,7 @@ end
 
 local function appendNote(children, x, y, w, text)
   children[#children + 1] = {
-    type = "label", x = x, y = y, w = w, text = text, color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    type = "label", x = x, y = y, w = w, text = text, color = Palette.text, font = SMLSIZE
   }
   -- A label narrower than its text WRAPS rather than clipping, so a constant advance draws
   -- the next row on top of the second line -- which is what the longest note on this page
@@ -250,7 +252,7 @@ end
 -- frame, which is what a counter needs and all it needs.
 local function appendProgressNote(children, x, y, w, source)
   children[#children + 1] = {
-    type = "label", x = x, y = y, w = w, color = COLOR_THEME_PRIMARY1, font = SMLSIZE,
+    type = "label", x = x, y = y, w = w, color = Palette.text, font = SMLSIZE,
     text = function()
       local fn = source()
       if type(fn) ~= "function" then return "" end

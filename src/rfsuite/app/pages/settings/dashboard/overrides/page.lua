@@ -17,6 +17,8 @@ local function loadModule(path)
   return chunk()
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local Controls = nil
 local DashboardLib = nil
@@ -119,7 +121,7 @@ end
 -- clipping, so the advance is measured instead of assumed.
 local function appendNote(children, x, y, w, text)
   children[#children + 1] = {
-    type = "label", x = x, y = y, w = w, text = text, color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    type = "label", x = x, y = y, w = w, text = text, color = Palette.text, font = SMLSIZE
   }
   local lines = 1
   if type(Controls.estimateWrappedTextHeight) == "function" then
@@ -242,12 +244,12 @@ local function appendThemeRow(children, x, y, w, btnH, labelText, buttonText, pr
   local btnX = x + w - btnW - 10
   children[#children + 1] = {
     type = "label", x = x, y = Controls.labelY(y, rowH), w = btnX - x - 8,
-    text = labelText, color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    text = labelText, color = Palette.text, font = SMLSIZE
   }
   appendButton(children, btnX, Controls.controlY(y, rowH, btnH), btnW, btnH, buttonText, press)
   children[#children + 1] = {
     type = "rectangle", x = x, y = y + rowH, w = w, h = 1,
-    color = COLOR_THEME_SECONDARY2, filled = true
+    color = Palette.border, filled = true
   }
   return rowH + 1
 end

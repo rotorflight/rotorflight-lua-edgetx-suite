@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -668,9 +670,9 @@ end
 
 local function countColorGetter()
   if ui.countOver then
-    return COLOR_THEME_WARNING or COLOR_THEME_PRIMARY1
+    return Palette.warning
   end
-  return COLOR_THEME_PRIMARY1
+  return Palette.text
 end
 
 -- One line showing how many of the 40 slots a save would fill. Text and colour are getters,
@@ -866,7 +868,7 @@ function M.build(ctx)
         y = cursorY + 2,
         w = w,
         text = warnText,
-        color = COLOR_THEME_WARNING or COLOR_THEME_PRIMARY1,
+        color = Palette.warning,
         font = SMLSIZE
       }
       cursorY = cursorY + textH + 8
@@ -891,7 +893,7 @@ function M.build(ctx)
           y = cursorY + 6,
           w = countW,
           text = groupCount,
-          color = on > 0 and COLOR_THEME_PRIMARY1 or COLOR_THEME_DISABLED,
+          color = on > 0 and Palette.text or Palette.muted,
           align = RIGHT,
           font = SMLSIZE
         }

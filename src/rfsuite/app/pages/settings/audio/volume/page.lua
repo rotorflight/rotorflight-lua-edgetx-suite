@@ -6,6 +6,8 @@ local function loadModule(path)
   return chunk()
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 -- The mode rules lib/audio.lua acts on (lib/audio_volume.lua), so the page shows what the suite
@@ -213,7 +215,7 @@ local function appendGvarPicker(children, x, y, w, labelText, help)
   children[#children + 1] = {
     type = "label",
     x = x, y = Controls.labelY(y, rowH), w = pickerX - x - 8,
-    text = labelText, color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    text = labelText, color = Palette.text, font = SMLSIZE
   }
   children[#children + 1] = {
     type = "source",
@@ -249,7 +251,7 @@ local function appendGvarPicker(children, x, y, w, labelText, help)
   children[#children + 1] = {
     type = "rectangle",
     x = x, y = y + rowH, w = w, h = 1,
-    color = COLOR_THEME_SECONDARY2, filled = true
+    color = Palette.border, filled = true
   }
   return rowH + 1
 end
@@ -259,7 +261,7 @@ local function appendNote(children, x, y, w, text)
     type = "label",
     x = x, y = y, w = w,
     text = text,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
   return Controls.LABEL_H + 4
@@ -454,7 +456,7 @@ local function appendButtonRow(children, x, y, w, labelText, buttons, help)
   children[#children + 1] = {
     type = "label",
     x = x, y = Controls.labelY(y, rowH), w = left - x - 8,
-    text = labelText, color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    text = labelText, color = Palette.text, font = SMLSIZE
   }
   local bx = left
   for i, b in ipairs(buttons) do
@@ -480,7 +482,7 @@ local function appendButtonRow(children, x, y, w, labelText, buttons, help)
   children[#children + 1] = {
     type = "rectangle",
     x = x, y = y + rowH, w = w, h = 1,
-    color = COLOR_THEME_SECONDARY2, filled = true
+    color = Palette.border, filled = true
   }
   return rowH + 1
 end

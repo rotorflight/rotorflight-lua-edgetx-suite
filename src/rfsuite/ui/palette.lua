@@ -1,0 +1,31 @@
+-- Tool UI colours, named for their meaning on screen rather than their current theme slot.
+local palette = {
+  background = COLOR_THEME_PRIMARY2,
+  card = COLOR_THEME_SECONDARY2,
+  border = COLOR_THEME_SECONDARY2,
+  text = COLOR_THEME_PRIMARY1,
+  muted = COLOR_THEME_DISABLED,
+  accent = COLOR_THEME_SECONDARY1,
+  accentText = WHITE,
+  warning = COLOR_THEME_WARNING,
+  error = RED,
+  ok = GREEN,
+  caution = ORANGE,
+  panel = COLOR_THEME_PRIMARY3,
+  panelText = COLOR_THEME_PRIMARY2,
+  headingText = COLOR_THEME_PRIMARY2,
+  settingsText = WHITE,
+  logWarning = COLOR_THEME_PRIMARY2,
+  strongBorder = COLOR_THEME_PRIMARY1,
+  wizardBorder = GREY_DEFAULT,
+  grid = COLOR_THEME_DISABLED,
+  cursor = COLOR_THEME_FOCUS,
+  progressTrack = COLOR_THEME_SECONDARY2,
+  testProgressTrack = GREY_DARK,
+  panelProgressTrack = COLOR_THEME_DISABLED,
+  panelProgressFill = COLOR_THEME_SECONDARY2,
+  tile = COLOR_THEME_DISABLED,
+  tileMuted = GREY_DARK or BLACK or COLOR_THEME_SECONDARY2,
+}
+if _G.rfsuite then _G.rfsuite.palette = palette end
+return palette

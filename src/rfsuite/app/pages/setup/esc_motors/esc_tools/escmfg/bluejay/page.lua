@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local Controls = nil
 local MspRuntime = nil
@@ -1078,7 +1080,7 @@ function M.build(ctx)
     type = "label",
     x = x + 16, y = cursorY + 10,
     text = function() return ui.dirty and unsavedText or "" end,
-    color = COLOR_THEME_SECONDARY1,
+    color = Palette.accent,
     font = SMLSIZE
   }
 end

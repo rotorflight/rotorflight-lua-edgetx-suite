@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local SavePipeline = nil
 local Common = nil
@@ -1162,7 +1164,7 @@ function M.build(ctx)
     x = slotX1, y = labelY1,
     w = labelW,
     text = pageText(i18n, "roll", "Roll"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
   children[#children + 1] = {
@@ -1186,7 +1188,7 @@ function M.build(ctx)
     x = slotX2, y = labelY1,
     w = labelW,
     text = pageText(i18n, "pitch", "Pitch"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
   children[#children + 1] = {
@@ -1210,7 +1212,7 @@ function M.build(ctx)
     x = slotX3, y = labelY1,
     w = labelW,
     text = pageText(i18n, "yaw", "Yaw"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
   children[#children + 1] = {
@@ -1233,7 +1235,7 @@ function M.build(ctx)
     type = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true
   }
 
@@ -1250,7 +1252,7 @@ function M.build(ctx)
     x = x + leftPad, y = labelY2,
     w = magLabelW,
     text = pageText(i18n, "mag", "Mag"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
 
@@ -1336,7 +1338,7 @@ function M.build(ctx)
     type = "rectangle",
     x = x, y = y + 2 * rowH,
     w = w, h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true
   }
 
@@ -1379,7 +1381,7 @@ function M.build(ctx)
       type = "rectangle",
       x = x, y = y + fieldsH,
       w = w, h = 1,
-      color = COLOR_THEME_SECONDARY2,
+      color = Palette.border,
       filled = true
     }
   end
@@ -1437,7 +1439,7 @@ function M.build(ctx)
       type = "rectangle",
       x = rightX - originX, y = splitY - originY,
       w = rightW, h = splitH,
-      color = COLOR_THEME_PRIMARY3 or BLACK,
+      color = Palette.panel,
       filled = true
     }
   }
@@ -1474,7 +1476,7 @@ function M.build(ctx)
     type = "rectangle",
     x = x + leftW, y = splitY,
     w = 1, h = splitH,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true
   }
 
@@ -1486,7 +1488,7 @@ function M.build(ctx)
     x = x + 6, y = splitY + 2,
     w = leftW - 10,
     text = liveTextFn,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
 
@@ -1496,7 +1498,7 @@ function M.build(ctx)
     x = x + 6, y = splitY + 2 + lineH,
     w = leftW - 10,
     text = offsetText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
 
@@ -1505,7 +1507,7 @@ function M.build(ctx)
     x = x + 6, y = splitY + 2 + 2 * lineH,
     w = leftW - 10,
     text = viewYawTextFn,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
 
@@ -1519,7 +1521,7 @@ function M.build(ctx)
       type = "rectangle",
       x = x + 6, y = boxY,
       w = leftW - 12, h = boxH,
-      color = COLOR_THEME_SECONDARY2,
+      color = Palette.border,
       filled = false
     }
 
@@ -1528,7 +1530,7 @@ function M.build(ctx)
       x = x + 10, y = boxY + 2,
       w = leftW - 20,
       text = pageText(i18n, "nose_direction", "Nose Direction"),
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE
     }
 
@@ -1540,7 +1542,7 @@ function M.build(ctx)
         w = leftW - 20,
         text = nosePrimaryFn,
         visible = noseTwoLineFn,
-        color = COLOR_THEME_SECONDARY1 or YELLOW,
+        color = Palette.accent,
         font = SMLSIZE
       }
       children[#children + 1] = {
@@ -1549,7 +1551,7 @@ function M.build(ctx)
         w = leftW - 20,
         text = noseSecondaryFn,
         visible = noseTwoLineFn,
-        color = COLOR_THEME_PRIMARY1,
+        color = Palette.text,
         font = SMLSIZE
       }
     end
@@ -1559,7 +1561,7 @@ function M.build(ctx)
       w = leftW - 20,
       text = noseCombinedFn,
       visible = twoLineRoom and noseOneLineFn or nil,
-      color = COLOR_THEME_SECONDARY1 or YELLOW,
+      color = Palette.accent,
       font = SMLSIZE
     }
   end

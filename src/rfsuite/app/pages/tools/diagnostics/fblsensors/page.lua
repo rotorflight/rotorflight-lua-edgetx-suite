@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local MspRuntime = nil
 local LoadingOverlay = nil
@@ -180,7 +182,7 @@ function M.build(ctx)
     type = "label",
     x = x, y = rowY + lblOffY, w = sensorLabelW,
     text = pageText(i18n, "sensor", "Sensor"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE
   }
   
@@ -221,7 +223,7 @@ function M.build(ctx)
     type = "label",
     x = toggleX - streamLabelW - 5, y = rowY + lblOffY, w = streamLabelW,
     text = pageText(i18n, "stream", "Echtzeit-Stream"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     align = RIGHT,
     font = SMLSIZE
   }
@@ -230,7 +232,7 @@ function M.build(ctx)
   children[#children + 1] = {
     type   = "rectangle",
     x = x, y = rowY + rowH + 2, w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   -- ── Graph Area (Responsive & Shorter to avoid scroll) ────────────────────────
@@ -246,7 +248,7 @@ function M.build(ctx)
   children[#children + 1] = {
     type = "rectangle",
     x = graphX, y = graphY, w = graphW, h = graphH,
-    color = COLOR_THEME_SECONDARY2, filled = false
+    color = Palette.border, filled = false
   }
   
   -- Zero line
@@ -255,7 +257,7 @@ function M.build(ctx)
     children[#children + 1] = {
       type = "rectangle",
       x = graphX, y = zeroY, w = graphW, h = 1,
-      color = COLOR_THEME_SECONDARY2, filled = true
+      color = Palette.border, filled = true
     }
   end
 
@@ -279,7 +281,7 @@ function M.build(ctx)
         children[#children + 1] = {
           type = "rectangle",
           x = math.floor(lastX), y = math.min(lastY, py), w = segW, h = math.abs(py - lastY) + 1,
-          color = COLOR_THEME_SECONDARY1, filled = true
+          color = Palette.accent, filled = true
         }
       end
       lastX = px
@@ -298,7 +300,7 @@ function M.build(ctx)
     type = "label",
     x = graphX + 5, y = graphY + 5, w = graphW - 10,
     text = string.format("%.2f", currentVal),
-    color = COLOR_THEME_PRIMARY1, font = SMLSIZE
+    color = Palette.text, font = SMLSIZE
   }
 end
 

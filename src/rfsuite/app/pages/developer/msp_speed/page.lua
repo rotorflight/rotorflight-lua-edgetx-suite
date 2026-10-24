@@ -6,6 +6,8 @@ local function loadModule(path)
   return chunk()
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local Controls = nil
 local MspRuntime = nil
@@ -114,7 +116,7 @@ local function appendDataRow(children, x, y, w, labelText, valueText)
     y = y + 8,
     w = labelW,
     text = labelText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE,
   }
 
@@ -124,7 +126,7 @@ local function appendDataRow(children, x, y, w, labelText, valueText)
     y = y + 8,
     w = valueW,
     text = valueText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     align = RIGHT,
     font = SMLSIZE,
   }
@@ -135,7 +137,7 @@ local function appendDataRow(children, x, y, w, labelText, valueText)
     y = y + rowH,
     w = w,
     h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true,
   }
 
@@ -502,7 +504,7 @@ function M.build(ctx)
     y = labelY,
     w = labelW,
     text = t(i18n, "duration", "Duration"),
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = SMLSIZE,
   }
 
@@ -549,7 +551,7 @@ function M.build(ctx)
     y = cursorY + rowH,
     w = w,
     h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true,
   }
 
@@ -579,7 +581,7 @@ function M.build(ctx)
       y = cursorY,
       w = w,
       text = t(i18n, "running", "Running") .. " " .. tostring(done) .. "s/" .. tostring(total) .. "s",
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = XXSMLSIZE
     }
 
@@ -589,7 +591,7 @@ function M.build(ctx)
       y = cursorY + 14,
       w = barW,
       h = 8,
-      color = GREY_DARK,
+      color = Palette.testProgressTrack,
       filled = true
     }
 
@@ -599,7 +601,7 @@ function M.build(ctx)
       y = cursorY + 15,
       w = fillW,
       h = 6,
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       filled = true
     }
   end

@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -250,7 +252,7 @@ local function drawColumnHeader(children, x, y, w, i18n)
     type = "rectangle",
     x = x, y = y + headerLineY,
     w = w, h = 1,
-    color = COLOR_THEME_SECONDARY2, filled = true
+    color = Palette.border, filled = true
   }
 
   local columns = { "roll", "pitch", "yaw" }
@@ -262,7 +264,7 @@ local function drawColumnHeader(children, x, y, w, i18n)
       x = cellX, y = y + headerTextY,
       w = cellW,
       text = headerText,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE,
       align = CENTER
     }
@@ -284,7 +286,7 @@ local function appendBandwidthRow(children, x, y, w, i18n, labelText, key0, key1
     x = x, y = labelY,
     w = labelW - 8,
     text  = labelText,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -329,7 +331,7 @@ local function appendBandwidthRow(children, x, y, w, i18n, labelText, key0, key1
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1

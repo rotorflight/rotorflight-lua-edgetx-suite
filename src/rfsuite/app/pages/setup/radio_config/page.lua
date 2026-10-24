@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local SavePipeline = nil
 local Common = nil
@@ -276,7 +278,7 @@ local function appendDoubleFieldRow(children, x, y, w, rowLabelText, field1, fie
       x = x, y = labelY,
       w = mainW,
       text  = rowLabelText,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font  = SMLSIZE
     }
   end
@@ -291,7 +293,7 @@ local function appendDoubleFieldRow(children, x, y, w, rowLabelText, field1, fie
       x = xLabel1, y = labelY,
       w = labelW1 - labelGap,
       text  = field1.label,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font  = SMLSIZE,
       align = RIGHT
     }
@@ -324,7 +326,7 @@ local function appendDoubleFieldRow(children, x, y, w, rowLabelText, field1, fie
       x = xLabel2, y = labelY,
       w = labelW2 - labelGap,
       text  = field2.label,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font  = SMLSIZE,
       align = RIGHT
     }
@@ -350,7 +352,7 @@ local function appendDoubleFieldRow(children, x, y, w, rowLabelText, field1, fie
     type   = "rectangle",
     x = x, y = dividerY,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1

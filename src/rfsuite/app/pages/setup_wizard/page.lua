@@ -34,6 +34,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local Controls = nil
 local LoadingOverlay = nil
@@ -685,15 +687,15 @@ function wiz.row(children, x, y, w, name, value, marker)
   if markerW < 44 then markerW = 44 end
   local nameW = math.floor((w - markerW) * 0.45)
   local textY = y + math.floor((rowH - 18) / 2)
-  label(children, x, textY, nameW, name, wiz.font, COLOR_THEME_PRIMARY1)
-  label(children, x + nameW + 4, textY, w - markerW - nameW - 8, value, wiz.font, COLOR_THEME_PRIMARY1)
+  label(children, x, textY, nameW, name, wiz.font, Palette.text)
+  label(children, x + nameW + 4, textY, w - markerW - nameW - 8, value, wiz.font, Palette.text)
   if marker ~= nil then
-    label(children, x + w - markerW, textY, markerW, marker, wiz.font, COLOR_THEME_PRIMARY1)
+    label(children, x + w - markerW, textY, markerW, marker, wiz.font, Palette.text)
   end
   children[#children + 1] = {
     type = "rectangle",
     x = x, y = y + rowH - 1, w = w, h = 1,
-    color = GREY_DEFAULT, filled = true
+    color = Palette.wizardBorder, filled = true
   }
   return rowH
 end
@@ -705,7 +707,7 @@ function wiz.toggleRow(children, x, y, w, name, get, set)
   local rowH = wiz.ROW_H
   local toggleW, toggleH = 64, math.min(26, rowH - 6)
   local toggleX = x + w - toggleW
-  label(children, x, y + math.floor((rowH - 18) / 2), toggleX - x - 8, name, wiz.font, COLOR_THEME_PRIMARY1)
+  label(children, x, y + math.floor((rowH - 18) / 2), toggleX - x - 8, name, wiz.font, Palette.text)
   children[#children + 1] = {
     type = "toggle",
     x = toggleX, y = y + math.floor((rowH - toggleH) / 2), w = toggleW, h = toggleH,
@@ -727,7 +729,7 @@ function wiz.toggleRow(children, x, y, w, name, get, set)
   children[#children + 1] = {
     type = "rectangle",
     x = x, y = y + rowH - 1, w = w, h = 1,
-    color = GREY_DEFAULT, filled = true
+    color = Palette.wizardBorder, filled = true
   }
   return rowH
 end
@@ -750,8 +752,8 @@ function wiz.findingRow(children, x, y, w, name, value, actions)
   local rowH = wiz.ROW_H
   local textY = y + math.floor((rowH - 18) / 2)
 
-  label(children, x, textY, nameW, name, wiz.font, COLOR_THEME_PRIMARY1)
-  label(children, x + nameW + 4, textY, textW - nameW - 4, value, wiz.font, COLOR_THEME_PRIMARY1)
+  label(children, x, textY, nameW, name, wiz.font, Palette.text)
+  label(children, x + nameW + 4, textY, textW - nameW - 4, value, wiz.font, Palette.text)
 
   for i, action in ipairs(actions or {}) do
     children[#children + 1] = {
@@ -769,7 +771,7 @@ function wiz.findingRow(children, x, y, w, name, value, actions)
   children[#children + 1] = {
     type = "rectangle",
     x = x, y = y + rowH - 1, w = w, h = 1,
-    color = GREY_DEFAULT, filled = true
+    color = Palette.wizardBorder, filled = true
   }
   return rowH
 end
@@ -792,8 +794,8 @@ function wiz.findingToggle(children, x, y, w, name, value, get, set)
   local nameW = math.floor(textW * 0.42)
   local textY = y + math.floor((rowH - 18) / 2)
 
-  label(children, x, textY, nameW, name, wiz.font, COLOR_THEME_PRIMARY1)
-  label(children, x + nameW + 4, textY, textW - nameW - 4, value, wiz.font, COLOR_THEME_PRIMARY1)
+  label(children, x, textY, nameW, name, wiz.font, Palette.text)
+  label(children, x + nameW + 4, textY, textW - nameW - 4, value, wiz.font, Palette.text)
 
   children[#children + 1] = {
     type = "toggle",
@@ -813,7 +815,7 @@ function wiz.findingToggle(children, x, y, w, name, value, get, set)
   children[#children + 1] = {
     type = "rectangle",
     x = x, y = y + rowH - 1, w = w, h = 1,
-    color = GREY_DEFAULT, filled = true
+    color = Palette.wizardBorder, filled = true
   }
   return rowH
 end
@@ -829,7 +831,7 @@ function wiz.paragraph(children, x, y, w, text)
     x = x, y = y, w = w,
     text = text,
     font = wiz.font,
-    color = COLOR_THEME_PRIMARY1
+    color = Palette.text
   }
   local height = 0
   if Controls and type(Controls.estimateWrappedTextHeight) == "function" then
@@ -974,7 +976,7 @@ local function buildOverview(ctx, x, top, w)
           local name = (proc.section == "board")
             and pageText(i18n, "section_board", "Flight controller")
             or pageText(i18n, "section_radio", "Radio")
-          label(children, x, cursor, w, name, wiz.font, COLOR_THEME_SECONDARY1)
+          label(children, x, cursor, w, name, wiz.font, Palette.accent)
           cursor = cursor + 24
         end
         section = proc.section
@@ -1045,13 +1047,13 @@ local function insertHeader(children, at, x, y, w, title)
       type = "label",
       x = x, y = y + 2, w = w,
       text = tostring(title or ""),
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = font
     },
     {
       type = "rectangle",
       x = x, y = y + band - 6, w = w, h = 3,
-      color = COLOR_THEME_SECONDARY1, filled = true
+      color = Palette.accent, filled = true
     }
   }
   for index = #scratch, 1, -1 do table.insert(children, at + 1, scratch[index]) end

@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local t = nil
 
@@ -31,12 +33,12 @@ end
 
 local function getLogColor(level)
   local l = string.lower(tostring(level or "debug"))
-  if l == "error" then return COLOR_THEME_WARNING end
-  if l == "warn"  then return COLOR_THEME_PRIMARY2 end
-  if l == "info"  then return COLOR_THEME_PRIMARY1 end
+  if l == "error" then return Palette.warning end
+  if l == "warn"  then return Palette.logWarning end
+  if l == "info"  then return Palette.text end
   -- debug / trace: use a mid-contrast colour that remains legible on both
   -- light and dark themes (avoids the invisible-white problem of GREY_DEFAULT).
-  return COLOR_THEME_DISABLED
+  return Palette.muted
 end
 
 -- ---------------------------------------------------------------------------
@@ -156,7 +158,7 @@ function M.build(ctx)
     y      = y,
     w      = w,
     h      = h,
-    color  = COLOR_THEME_PRIMARY3,
+    color  = Palette.panel,
     filled = true
   }
 
@@ -166,7 +168,7 @@ function M.build(ctx)
       type  = "label",
       x = x + 10, y = y + 20, w = w - 20,
       text  = pageText(ctx.i18n, "no_logs", "No logs available"),
-      color = COLOR_THEME_DISABLED, align = CENTER
+      color = Palette.muted, align = CENTER
     }
     return
   end

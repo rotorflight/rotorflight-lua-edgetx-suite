@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local MspRuntime = nil
 local AsyncLoadUi = nil
@@ -265,7 +267,7 @@ function M.build(ctx)
       y = thisY + 8,
       w = labelW - 10,
       text = row.label,
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE
     }
 
@@ -275,7 +277,7 @@ function M.build(ctx)
       y = thisY + 8,
       w = valueW - 6,
       text = tostring(row.value),
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       align = RIGHT,
       font = SMLSIZE
     }
@@ -286,7 +288,7 @@ function M.build(ctx)
       y = thisY + rowH - 2,
       w = w,
       h = 1,
-      color = COLOR_THEME_SECONDARY1,
+      color = Palette.accent,
       filled = true
     }
   end

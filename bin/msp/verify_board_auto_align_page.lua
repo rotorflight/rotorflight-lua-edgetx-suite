@@ -86,7 +86,8 @@ local actual = {
   ["tasks/msp/api/sensor_alignment.lua"] = true,
   ["tasks/msp/api/board_auto_align.lua"] = true,
   ["lib/api_version.lua"] = true,
-  ["app/pages/setup/alignment/auto_align_lifecycle.lua"] = true
+  ["app/pages/setup/alignment/auto_align_lifecycle.lua"] = true,
+  ["ui/palette.lua"] = true
 }
 local stubs = {
   ["app/pages/settings/common.lua"] = Common,

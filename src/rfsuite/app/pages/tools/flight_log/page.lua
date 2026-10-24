@@ -21,6 +21,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local Controls = nil
 local FlightLog = nil
@@ -470,7 +472,7 @@ local function appendLabel(children, x, y, w, text, color, align)
     y = y,
     w = w,
     text = text,
-    color = color or COLOR_THEME_PRIMARY1,
+    color = color or Palette.text,
     font = SMLSIZE,
     align = align
   }
@@ -483,7 +485,7 @@ local function appendDivider(children, x, y, w)
     y = y,
     w = w,
     h = 1,
-    color = COLOR_THEME_SECONDARY2,
+    color = Palette.border,
     filled = true
   }
 end
@@ -587,14 +589,14 @@ local function buildFlights(children, x, y, w, h, i18n)
   end
   -- PRIMARY1 rather than PRIMARY2: the summary line sits on the page background rather than on a
   -- header, and PRIMARY2 is the colour the themes reserve for text that already has one behind it.
-  appendLabel(children, x + 6, cursorY + 4, w - 12, heading, COLOR_THEME_PRIMARY1)
+  appendLabel(children, x + 6, cursorY + 4, w - 12, heading, Palette.text)
   cursorY = cursorY + 26
   appendDivider(children, x, cursorY, w)
   cursorY = cursorY + 4
 
   if #rows == 0 then
     appendLabel(children, x + 10, cursorY + 20, w - 20,
-      pageText(i18n, "no_flights", "No flights recorded yet"), COLOR_THEME_DISABLED, CENTER)
+      pageText(i18n, "no_flights", "No flights recorded yet"), Palette.muted, CENTER)
     return
   end
 
@@ -621,9 +623,9 @@ local function buildFlights(children, x, y, w, h, i18n)
       string.format("%s %s", row.date, string.sub(row.time, 1, 5)))
     appendLabel(children, modelX, cursorY + 8, modelW,
       string.format("%s  %s", row.model ~= "" and row.model or "-", batteryLabel(row.battery)),
-      COLOR_THEME_DISABLED)
+      Palette.muted)
     appendLabel(children, btnX - durW - 8, cursorY + 8, durW, formatDuration(row.seconds),
-      COLOR_THEME_PRIMARY1, RIGHT)
+      Palette.text, RIGHT)
     appendButton(children, btnX, cursorY + 3, btnW, 28, ">", function()
       ui.flight = row
       ui.view = "flight"
@@ -642,7 +644,7 @@ local function buildFlights(children, x, y, w, h, i18n)
       end
     end)
     appendLabel(children, x + 74, pagerY + 6, w - 150,
-      string.format("%d / %d", ui.page + 1, pages), COLOR_THEME_DISABLED, CENTER)
+      string.format("%d / %d", ui.page + 1, pages), Palette.muted, CENTER)
     appendButton(children, x + w - 66, pagerY, 60, 28, pageText(i18n, "next", "Next"), function()
       if ui.page < pages - 1 then
         ui.page = ui.page + 1
@@ -681,7 +683,7 @@ end
 local function appendField(children, x, y, w, label, value)
   local labelW = math.max(90, math.min(190, math.floor(w * 0.40)))
   appendLabel(children, x + 6, y + 6, labelW, label)
-  appendLabel(children, x + labelW + 12, y + 6, w - labelW - 20, value, COLOR_THEME_DISABLED)
+  appendLabel(children, x + labelW + 12, y + 6, w - labelW - 20, value, Palette.muted)
   appendDivider(children, x, y + 28, w)
   return 29
 end
@@ -691,7 +693,7 @@ local function buildFlight(children, x, y, w, h, i18n)
   local cursorY = y
   if row == nil then
     appendLabel(children, x + 10, cursorY + 20, w - 20,
-      pageText(i18n, "no_flights", "No flights recorded yet"), COLOR_THEME_DISABLED, CENTER)
+      pageText(i18n, "no_flights", "No flights recorded yet"), Palette.muted, CENTER)
     return
   end
 
@@ -699,7 +701,7 @@ local function buildFlight(children, x, y, w, h, i18n)
   -- its heading has to. The date and the time are what identify it, and they are here rather than
   -- repeated as two rows of their own below.
   appendLabel(children, x + 6, cursorY, w - 12,
-    string.format("%s %s", row.date, row.time), COLOR_THEME_PRIMARY1)
+    string.format("%s %s", row.date, row.time), Palette.text)
   cursorY = cursorY + 22
 
   cursorY = cursorY + appendField(children, x, cursorY, w, pageText(i18n, "field_model", "Model"),
@@ -712,12 +714,12 @@ local function buildFlight(children, x, y, w, h, i18n)
   local stats = row.stats and FlightLog.parseStats(row.stats) or nil
   if stats == nil then
     appendLabel(children, x + 6, cursorY + 10, w - 12,
-      pageText(i18n, "no_stats", "This flight was recorded without statistics."), COLOR_THEME_DISABLED)
+      pageText(i18n, "no_stats", "This flight was recorded without statistics."), Palette.muted)
     return
   end
 
   cursorY = cursorY + 6
-  appendLabel(children, x + 6, cursorY, w - 12, pageText(i18n, "stats_title", "Statistics"), COLOR_THEME_PRIMARY1)
+  appendLabel(children, x + 6, cursorY, w - 12, pageText(i18n, "stats_title", "Statistics"), Palette.text)
   cursorY = cursorY + 22
   local labels = statLabels(i18n)
   for i = 1, #FlightLog.STAT_KEYS do
@@ -733,7 +735,7 @@ local function buildModels(children, x, y, w, h, i18n)
   local cursorY = y
   if #ui.modelOrder == 0 then
     appendLabel(children, x + 10, cursorY + 20, w - 20,
-      pageText(i18n, "no_flights", "No flights recorded yet"), COLOR_THEME_DISABLED, CENTER)
+      pageText(i18n, "no_flights", "No flights recorded yet"), Palette.muted, CENTER)
     return
   end
 
@@ -747,9 +749,9 @@ local function buildModels(children, x, y, w, h, i18n)
     local entry = ui.models[name]
     appendLabel(children, x + 6, cursorY + 8, btnX - timeW - countW - 24, name)
     appendLabel(children, btnX - timeW - countW - 12, cursorY + 8, countW, tostring(entry.count),
-      COLOR_THEME_DISABLED, RIGHT)
+      Palette.muted, RIGHT)
     appendLabel(children, btnX - timeW - 8, cursorY + 8, timeW, formatTotal(entry.seconds),
-      COLOR_THEME_DISABLED, RIGHT)
+      Palette.muted, RIGHT)
     appendButton(children, btnX, cursorY + 3, btnW, 28, ">", function()
       ui.filterModel = name
       ui.view = "flights"
@@ -878,11 +880,11 @@ local function buildBatteryForm(children, x, y, w, h, i18n)
 
   appendLabel(children, x + 6, cursorY, w - 12,
     ui.editMode == "create" and pageText(i18n, "new_battery", "New battery")
-      or pageText(i18n, "edit_battery", "Edit battery"), COLOR_THEME_PRIMARY1)
+      or pageText(i18n, "edit_battery", "Edit battery"), Palette.text)
   cursorY = cursorY + 22
 
   if ui.editError ~= nil then
-    appendLabel(children, x + 6, cursorY, w - 12, ui.editError, COLOR_THEME_WARNING)
+    appendLabel(children, x + 6, cursorY, w - 12, ui.editError, Palette.warning)
     cursorY = cursorY + 22
   end
 
@@ -938,7 +940,7 @@ local function buildBatteryForm(children, x, y, w, h, i18n)
     })
 
   -- All models is derived: on exactly when no row is on, and stored as an empty list.
-  appendLabel(children, x + 6, cursorY, w - 12, pageText(i18n, "battery_models", "Models"), COLOR_THEME_PRIMARY1)
+  appendLabel(children, x + 6, cursorY, w - 12, pageText(i18n, "battery_models", "Models"), Palette.text)
   cursorY = cursorY + 22
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     pageText(i18n, "models_all", "All models"),
@@ -1007,7 +1009,7 @@ local function buildBattery(children, x, y, w, h, i18n)
   local cursorY = y
   if entry == nil then
     appendLabel(children, x + 10, cursorY + 20, w - 20,
-      pageText(i18n, "error_notfound", "That pack is no longer in the file"), COLOR_THEME_DISABLED, CENTER)
+      pageText(i18n, "error_notfound", "That pack is no longer in the file"), Palette.muted, CENTER)
     return
   end
 
@@ -1016,11 +1018,11 @@ local function buildBattery(children, x, y, w, h, i18n)
   -- id, which is what the rest of the suite calls it by anyway.
   appendLabel(children, x + 6, cursorY, w - 12,
     (type(entry.name) == "string" and entry.name ~= "") and entry.name or entry.id,
-    COLOR_THEME_PRIMARY1)
+    Palette.text)
   cursorY = cursorY + 22
 
   if ui.editError ~= nil then
-    appendLabel(children, x + 6, cursorY, w - 12, ui.editError, COLOR_THEME_WARNING)
+    appendLabel(children, x + 6, cursorY, w - 12, ui.editError, Palette.warning)
     cursorY = cursorY + 22
   end
 
@@ -1064,7 +1066,7 @@ local function buildBatteries(children, x, y, w, h, i18n)
 
   if #ui.registry == 0 then
     appendLabel(children, x + 10, cursorY + 10, w - 20,
-      pageText(i18n, "no_batteries", "No batteries in the registry"), COLOR_THEME_DISABLED, CENTER)
+      pageText(i18n, "no_batteries", "No batteries in the registry"), Palette.muted, CENTER)
     return
   end
 
@@ -1078,12 +1080,12 @@ local function buildBatteries(children, x, y, w, h, i18n)
     appendLabel(children, x + 6, cursorY + 8, btnX - lastW - numW * 2 - 24,
       (type(entry.name) == "string" and entry.name ~= "") and entry.name or entry.id)
     appendLabel(children, btnX - lastW - numW * 2 - 12, cursorY + 8, numW,
-      tostring(math.floor(entry.cycles or 0)), COLOR_THEME_DISABLED, RIGHT)
+      tostring(math.floor(entry.cycles or 0)), Palette.muted, RIGHT)
     appendLabel(children, btnX - lastW - numW - 8, cursorY + 8, numW,
-      tostring(ui.flightsByBattery[entry.id] or 0), COLOR_THEME_DISABLED, RIGHT)
+      tostring(ui.flightsByBattery[entry.id] or 0), Palette.muted, RIGHT)
     appendLabel(children, btnX - lastW - 4, cursorY + 8, lastW,
       (type(entry.last) == "string" and entry.last ~= "") and entry.last or "-",
-      COLOR_THEME_DISABLED, RIGHT)
+      Palette.muted, RIGHT)
     appendButton(children, btnX, cursorY + 3, btnW, 28, ">", function()
       ui.batteryId = entry.id
       ui.editError = nil
@@ -1125,7 +1127,7 @@ local function buildSettings(children, x, y, w, h, i18n)
     end)
 
   cursorY = cursorY + 8
-  appendLabel(children, x + 6, cursorY, w - 12, FlightLog.dataPath(), COLOR_THEME_DISABLED)
+  appendLabel(children, x + 6, cursorY, w - 12, FlightLog.dataPath(), Palette.muted)
 end
 
 function M.build(ctx)

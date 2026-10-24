@@ -23,6 +23,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = loadModule("app/pages/settings/common.lua")
 local M_MSP = loadModule("app/pages/setup_wizard/msp.lua")
 local Wlog = loadModule("app/pages/setup_wizard/log.lua") or
@@ -1304,7 +1306,7 @@ local function makeChannelProcedure(channel, order)
         -- shows a switch name, so it is the half that can give.
         local pickerW = math.min(150, math.floor(area.w * 0.42))
         w.label(children, area.x, y + math.floor((w.ROW_H - 18) / 2), area.w - pickerW - 8,
-          pickerName(i18n, entry.key), w.font, COLOR_THEME_PRIMARY1)
+          pickerName(i18n, entry.key), w.font, Palette.text)
 
         -- Two picker kinds for two channel kinds. Where the function sits AT a position -- arming,
         -- the throttle hold, rescue -- the radio's own position picker is exactly right: which
@@ -1421,7 +1423,7 @@ local function makeChannelProcedure(channel, order)
         if entry.key == "throttle" then
           w.data.pickedGov = w.data.pickedGov or {}
           w.label(children, area.x, y + math.floor((w.ROW_H - 18) / 2), area.w - pickerW - 8,
-            t(i18n, "pick_governor", "Governor switch"), w.font, COLOR_THEME_PRIMARY1)
+            t(i18n, "pick_governor", "Governor switch"), w.font, Palette.text)
           children[#children + 1] = {
             type = "source",
             x = area.x + area.w - pickerW, y = y + 2, w = pickerW, h = w.ROW_H - 6,
@@ -2295,7 +2297,7 @@ local function linkChoice(w, children, area, y, kind, label, task)
 
   local pickerW = math.min(150, math.floor(area.w * 0.42))
   w.label(children, area.x, y + math.floor((w.ROW_H - 18) / 2), area.w - pickerW - 8,
-    label, w.font, COLOR_THEME_PRIMARY1)
+    label, w.font, Palette.text)
 
   children[#children + 1] = {
     type = "choice",

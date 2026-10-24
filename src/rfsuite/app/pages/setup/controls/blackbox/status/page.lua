@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -398,7 +400,7 @@ local function appendStatusRow(children, x, y, w, label, value)
     type  = "label",
     x = x + leftMargin, y = labelY,
     text  = label,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font  = SMLSIZE
   }
 
@@ -408,7 +410,7 @@ local function appendStatusRow(children, x, y, w, label, value)
     x = x + leftMargin, y = labelY,
     w = w - leftMargin - rightMargin,
     text  = value,
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     align = RIGHT,
     font  = SMLSIZE
   }
@@ -418,7 +420,7 @@ local function appendStatusRow(children, x, y, w, label, value)
     type   = "rectangle",
     x = x, y = y + rowH,
     w = w, h = 1,
-    color  = COLOR_THEME_SECONDARY2, filled = true
+    color  = Palette.border, filled = true
   }
 
   return rowH + 1

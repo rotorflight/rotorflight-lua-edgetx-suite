@@ -9,6 +9,8 @@ local function loadModule(path)
 	return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -411,7 +413,7 @@ local function appendCompactNumberField(children, x, y, w, labelText, opts)
 		y = labelY,
 		w = fieldX - x - 8,
 		text = labelText,
-		color = COLOR_THEME_PRIMARY1,
+		color = Palette.text,
 		font = SMLSIZE
 	}
 
@@ -446,7 +448,7 @@ local function appendCompactNumberField(children, x, y, w, labelText, opts)
 		y = y + rowH,
 		w = w,
 		h = 1,
-		color = COLOR_THEME_SECONDARY2,
+		color = Palette.border,
 		filled = true
 	}
 
@@ -496,7 +498,7 @@ local function appendHorizontalFields(children, x, y, w, labelText, rows, i18n)
 		y = groupLabelY,
 		w = labelW,
 		text = labelText,
-		color = COLOR_THEME_PRIMARY1,
+		color = Palette.text,
 		font = SMLSIZE
 	}
 
@@ -518,7 +520,7 @@ local function appendHorizontalFields(children, x, y, w, labelText, rows, i18n)
 			y = headerY,
 			w = cellW,
 			text = string.upper(getGovRowTitle(i18n, row.labelKey)),
-			color = COLOR_THEME_PRIMARY1,
+			color = Palette.text,
 			font = SMLSIZE,
 			align = CENTER
 		}
@@ -552,7 +554,7 @@ local function appendHorizontalFields(children, x, y, w, labelText, rows, i18n)
 		y = y + rowH,
 		w = w,
 		h = 1,
-		color = COLOR_THEME_SECONDARY2,
+		color = Palette.border,
 		filled = true
 	}
 
@@ -690,7 +692,7 @@ function M.build(ctx)
 			y = cursorY + 20,
 			w = w,
 			text = pageText(i18n, "disabled_message"),
-			color = COLOR_THEME_WARNING,
+			color = Palette.warning,
 			align = CENTER
 		}
 		if ctx.navButtons and ctx.navButtons.save then ctx.navButtons.save.enabled = false end
@@ -715,7 +717,7 @@ function M.build(ctx)
 						y = cursorY + 6,
 						w = w,
 						text = getGovGroupTitle(i18n, group.key),
-						color = COLOR_THEME_PRIMARY2,
+						color = Palette.headingText,
 						font = SMLSIZE
 					}
 					cursorY = cursorY + 28

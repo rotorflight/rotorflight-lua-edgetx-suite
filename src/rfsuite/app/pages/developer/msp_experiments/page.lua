@@ -15,6 +15,8 @@ local function loadModule(path)
     return chunk()
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local Controls = nil
 local MspRuntime = nil
@@ -280,7 +282,7 @@ function M.build(ctx)
         y = cursorY,
         w = fieldW - 8, 
         text = "UINT8 (0-255)",
-        color = COLOR_THEME_PRIMARY1,
+        color = Palette.text,
         font = SMLSIZE,
         align = RIGHT,
     }
@@ -291,7 +293,7 @@ function M.build(ctx)
         y = cursorY + 24,
         w = w,
         h = 2,
-        color = COLOR_THEME_PRIMARY1,
+        color = Palette.strongBorder,
         filled = true,
     }
     cursorY = cursorY + 34

@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local MspRuntime = nil
 local TelemetryApi = nil
@@ -244,12 +246,12 @@ end
 
 local function rowColor(status)
   if status == "ok" then
-    return type(GREEN) == "number" and GREEN or COLOR_THEME_PRIMARY1
+    return Palette.ok
   end
   if status == "novalue" then
-    return type(ORANGE) == "number" and ORANGE or COLOR_THEME_PRIMARY1
+    return Palette.caution
   end
-  return type(RED) == "number" and RED or COLOR_THEME_PRIMARY1
+  return Palette.error
 end
 
 -- rowColor already separates the three states; the text did not, and the text is what a pilot
@@ -398,7 +400,7 @@ function M.build(ctx)
       y = rowY + 8,
       w = w,
       text = pageText(ctx.i18n, "no_sensors", "No telemetry sensors configured."),
-      color = COLOR_THEME_PRIMARY1,
+      color = Palette.text,
       font = SMLSIZE
     }
   else
@@ -412,7 +414,7 @@ function M.build(ctx)
         y = thisY + 8,
         w = labelW - 10,
         text = row.label,
-        color = COLOR_THEME_PRIMARY1,
+        color = Palette.text,
         font = SMLSIZE
       }
 
@@ -433,7 +435,7 @@ function M.build(ctx)
         y = thisY + rowH - 2,
         w = w,
         h = 1,
-        color = COLOR_THEME_SECONDARY1,
+        color = Palette.accent,
         filled = true
       }
     end

@@ -9,6 +9,8 @@ local function loadModule(path)
 	return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Controls = nil
 local Common = nil
 local MspRuntime = nil
@@ -402,7 +404,7 @@ local function drawColumnHeader(children, x, y, w, i18n, layout)
 		y = y + headerLineY,
 		w = w,
 		h = 1,
-		color = COLOR_THEME_SECONDARY2,
+		color = Palette.border,
 		filled = true
 	}
 
@@ -415,7 +417,7 @@ local function drawColumnHeader(children, x, y, w, i18n, layout)
 			y = y + headerTextY,
 			w = cellW,
 			text = headerText,
-			color = COLOR_THEME_PRIMARY1,
+			color = Palette.text,
 			font = headerFont,
 			align = CENTER
 		}
@@ -437,7 +439,7 @@ local function addGroup(children, x, y, w, i18n, group, layout)
 		y = y + rowLabelY,
 		w = labelW - 8,
 		text = getRowTitle(i18n, group.key),
-		color = COLOR_THEME_PRIMARY1,
+		color = Palette.text,
 		font = rowLabelFont
 	}
 

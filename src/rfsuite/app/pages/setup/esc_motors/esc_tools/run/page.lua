@@ -9,6 +9,8 @@ local function loadModule(path)
   return mod
 end
 
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
 local Common = nil
 local t = nil
 
@@ -57,7 +59,7 @@ function M.build(ctx)
     type = "label",
     x = x + 10, y = y + 10,
     text = title .. " - Work in progress...",
-    color = COLOR_THEME_PRIMARY1,
+    color = Palette.text,
     font = MIDSIZE
   }
 end

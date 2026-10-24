@@ -1,5 +1,6 @@
 local M = {}
 local function load(path) return assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, "t"))() end
+local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or load)("ui/palette.lua")
 local Common, Controls, Standby, t
 local NOTE_LINE_H = 24
 local ui = { loaded = false, dirty = false, enabled = false, rows = {}, runtime = nil, salvaged = false }
@@ -145,12 +146,12 @@ function M.build(ctx)
     function(value) ui.enabled = value == true; ui.dirty = true; ctx.requestRebuild() end)
   if ui.salvaged then
     y = y + appendNote(children, x, y, w,
-      t(i18n, "saved_entries_skipped", "Unsupported saved entries were skipped."), COLOR_THEME_WARNING)
+      t(i18n, "saved_entries_skipped", "Unsupported saved entries were skipped."), Palette.warning)
   end
   for rowNumber = 1, #ui.rows do
     local row = ui.rows[rowNumber]
     y = y + appendLine(children, x, y, w, string.format(rowFormat, rowNumber),
-      COLOR_THEME_SECONDARY1)
+      Palette.accent)
     local _, choices = options(#row, true)
     for field = 1, #row do
       y = y + Controls.appendComboSelect(children, x, y, w,
