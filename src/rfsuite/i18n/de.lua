@@ -1412,7 +1412,7 @@ return {
       },
       setup_esc_motors = {
         configurator_title = "%s-Konfigurator",
-        help_run = "Platzhalter für den ESC-Konfigurator des gewählten Herstellers.\nWork in progress...: Diese Seite bietet noch keine Reglereinstellungen.",
+        help_run = "Platzhalter für den ESC-Konfigurator des gewählten Herstellers; er bietet noch keine Reglereinstellungen.",
         section_basic = "Basis",
         section_advanced = "Erweitert",
         section_limits = "Grenzen",
