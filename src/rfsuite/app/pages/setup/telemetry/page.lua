@@ -15,13 +15,12 @@ local Controls = nil
 local Common = nil
 local MspRuntime = nil
 local TelemetryApi = nil
+local SavePipeline = nil
 local RxConfigApi = nil
 local ConfirmDialog = nil
 local LoadingOverlay = nil
 local ApiVersion = nil
 local t = nil
-
-M.eepromWrite = true
 
 -- The page opens on this list of groups; a group's sensors are built only when the group is
 -- opened. Each title is a complete i18n marker because the packager resolves literal keys only.
@@ -602,35 +601,40 @@ local function buildWritePayload(selected)
 end
 
 local function queueTelemetryWrite(payload)
-  if not TelemetryApi or not MspRuntime or type(MspRuntime.getState) ~= "function" then
+  if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
+  if not SavePipeline or not TelemetryApi then
     return false, "msp_runtime_unavailable"
   end
 
   local session = getSession()
-  local mspState = MspRuntime.getState()
-  local queue = mspState and mspState.queue
   local telemetryApi = TelemetryApi
-  if not queue or type(queue.add) ~= "function" then
-    return false, "msp_queue_unavailable"
-  end
 
-  queue:add({
-    command = telemetryApi.writeCommand,
-    payload = payload,
-    timeout = 5.0,
-    isWrite = true,
-    processReply = function()
+  return SavePipeline.start({
+    pageId = "setup_telemetry",
+    steps = {
+      {
+        label = "MSP_SET_TELEMETRY_CONFIG",
+        command = telemetryApi.writeCommand,
+        payload = payload
+      }
+    },
+    reboot = false,
+    onSaved = function()
+      -- The pipeline can finish after the page closes, so update the session first.
       if type(session) == "table" and type(telemetryApi.parse) == "function" then
         session.telemetry_config = telemetryApi.parse(payload)
       end
+      if not ui.runtime then return end
       ui.telemetryBuffer = copyBuffer(payload)
+      ui.dirty = false
     end,
-    errorHandler = function()
-      -- Keep local state; user can retry Save.
+    onDone = function(result)
+      if not ui.runtime then return end
+      if type(ui.runtime.requestRebuild) == "function" then
+        ui.runtime.requestRebuild()
+      end
     end
   })
-
-  return true, nil
 end
 
 local function getBoolGetter(sensorId)
@@ -836,13 +840,6 @@ function M.onSave(ctx)
     return false
   end
 
-  ui.dirty = false
-  if ctx and type(ctx.reportSave) == "function" then
-    ctx.reportSave({
-      title = pageText(ctx and ctx.i18n, "saved_title", "Saved"),
-      message = pageText(ctx and ctx.i18n, "saved_message", "Telemetry sensors saved")
-    })
-  end
   return true
 end
 
@@ -898,7 +895,11 @@ function M.build(ctx)
           pageText(i18n, item.labelKey, item.labelFallback),
           getBoolGetter(sensorId),
           getBoolSetter(sensorId),
-          getActiveGetter(sensorId)
+          getActiveGetter(sensorId),
+          {
+            helpText = pageText(i18n, "sensor_help", "Select whether the flight controller sends this sensor; native CRSF sensors are locked on."),
+            helpTitle = pageText(i18n, item.labelKey, item.labelFallback)
+          }
         )
       end
     end
@@ -1002,6 +1003,7 @@ function M.onClose()
   Common = nil
   MspRuntime = nil
   TelemetryApi = nil
+  SavePipeline = nil
   RxConfigApi = nil
   ConfirmDialog = nil
   LoadingOverlay = nil
