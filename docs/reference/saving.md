@@ -399,6 +399,12 @@ or commit is shown as a failed save. A Save pressed while its save is still runn
 After a successful save, the page reads the values back from the flight controller if it is still
 open.
 
+Setup > Telemetry sends its save through the tool's shared save: the telemetry configuration
+write, then one EEPROM write. The page is marked clean only once the flight controller has stored
+the values; a write the flight controller refuses or does not answer is shown as a failed save.
+Save pressed while the save is still running is ignored. After a successful save, the page and
+session keep the written values without reading them back from the flight controller.
+
 ## ESC Configurator pages
 
 *Setup* > *ESC & Motors* > *ESC Tools* opens one page per ESC firmware. These pages do not use
