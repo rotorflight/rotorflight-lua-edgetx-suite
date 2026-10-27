@@ -20,6 +20,10 @@ With governor mode OFF the page shows a disabled message instead of fields, and 
 Reload are disabled. LIMIT and DIRECT show only the two throttle limits. ELECTRO (the page's
 name for ELECTRIC) and NITRO show all fields below.
 
+With the flight controller's GOVERNOR feature off, no governor runs regardless of the stored
+mode. The page shows the mode as OFF and hides the governor gains, as *Setup* → *Governor* →
+*General* does. The stored mode is kept and returns when the feature is switched on.
+
 ## Settings
 
 Values are read from the flight controller. All fields except the throttle limits are shown
