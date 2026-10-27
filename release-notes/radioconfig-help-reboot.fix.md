@@ -1,0 +1,2 @@
+- **Radio Config help explains the restart on Save (`setup/radio_config`)**:
+  - The help now states that saving writes the values to EEPROM and reboots the flight controller, and explains each setting in display order. The new page documentation covers the same settings and save behaviour (#615).
