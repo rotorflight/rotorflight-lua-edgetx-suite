@@ -1412,6 +1412,7 @@ return {
       },
       setup_esc_motors = {
         configurator_title = "%s Configurator",
+        help_run = "Placeholder for the selected maker's ESC configurator.\nWork in progress...: No ESC settings are available on this page yet.",
         section_basic = "Basic",
         section_advanced = "Advanced",
         section_limits = "Limits",
