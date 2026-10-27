@@ -350,18 +350,10 @@ end
 local function getPidLoopChoices(currentValue)
   local gyroDelta = ui.config.task_delta_time_gyro
   if not gyroDelta or gyroDelta <= 0 then gyroDelta = 250 end
-  local rawGyroHz = 1000000 / gyroDelta
-  local gyroHz = math.floor((rawGyroHz / 1000) + 0.5) * 1000
+  local gyroHz = 1000000 / gyroDelta
 
   local function formatPidLoopKhz(valueKhz)
-    local rounded = math.floor((valueKhz * 100) + 0.5) / 100
-    local text = string.format("%.2f", rounded)
-    text = string.gsub(text, "0+$", "")
-    text = string.gsub(text, "%.$", "")
-    if not string.find(text, "%.") and rounded >= 2 then
-      text = text .. ".0"
-    end
-    return text .. " kHz"
+    return string.format("%.2f", valueKhz) .. " kHz"
   end
 
   local options = {}
@@ -461,7 +453,7 @@ function M.build(ctx)
           ui.dirty = true
         end
       end,
-      length = 32
+      length = 16
     }
   )
 
@@ -476,28 +468,44 @@ function M.build(ctx)
         ui.config.pid_process_denom = newVal
         ui.dirty = true
       end
-    end
+    end,
+    {
+      helpText = pageText(i18n, "help_pid_loop_speed", "Sets the control-loop frequency, labelled from the board's reported gyro rate; 1 to 2 kHz is recommended."),
+      helpTitle = pageText(i18n, "pid_loop_speed", "PID loop speed")
+    }
   )
 
   -- 3) GPS switch
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     pageText(i18n, "feature_gps", "GPS"),
     getBoolGetter(FEATURE_BIT_GPS),
-    getBoolSetter(FEATURE_BIT_GPS)
+    getBoolSetter(FEATURE_BIT_GPS),
+    {
+      helpText = pageText(i18n, "help_feature_gps", "Enables GPS telemetry; assign a GPS port under Ports first."),
+      helpTitle = pageText(i18n, "feature_gps", "GPS")
+    }
   )
 
   -- 4) LED_STRIP switch
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     pageText(i18n, "feature_led_strip", "LED_STRIP"),
     getBoolGetter(FEATURE_BIT_LED_STRIP),
-    getBoolSetter(FEATURE_BIT_LED_STRIP)
+    getBoolSetter(FEATURE_BIT_LED_STRIP),
+    {
+      helpText = pageText(i18n, "help_feature_led_strip", "Enables support for WS2811/2812 RGB LED strips."),
+      helpTitle = pageText(i18n, "feature_led_strip", "LED_STRIP")
+    }
   )
 
   -- 5) CMS switch
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     pageText(i18n, "feature_cms", "CMS"),
     getBoolGetter(FEATURE_BIT_CMS),
-    getBoolSetter(FEATURE_BIT_CMS)
+    getBoolSetter(FEATURE_BIT_CMS),
+    {
+      helpText = pageText(i18n, "help_feature_cms", "Enables the firmware's Configuration Menu System (CMS)."),
+      helpTitle = pageText(i18n, "feature_cms", "CMS")
+    }
   )
 end
 

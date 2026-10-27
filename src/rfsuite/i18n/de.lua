@@ -1338,8 +1338,11 @@ return {
         saved_message = "Konfiguration gespeichert",
         save_error_title = "Fehler",
         help_title = "Konfiguration-Hilfe",
-        help_p1 = "Verwenden Sie diese Seite für die Systemkonfiguration wie Fluggerätname, PID-Loop-Geschwindigkeit und Feature-Flags.",
-        help_p2 = "Speichern schreibt diese Werte in das EEPROM und startet den Flugcontroller neu."
+        help_p1 = "Hier Modellname mit bis zu 16 Zeichen, PID-Loop-Geschwindigkeit und Funktionen einstellen; Speichern schreibt sie ins EEPROM und startet den Flugcontroller neu.",
+        help_pid_loop_speed = "Stellt die Regelfrequenz ein, beschriftet anhand der vom Flugcontroller gemeldeten Gyrofrequenz; empfohlen sind 1 bis 2 kHz.",
+        help_feature_gps = "Aktiviert GPS-Telemetrie; zuerst unter Ports einen GPS-Port zuweisen.",
+        help_feature_led_strip = "Aktiviert die Unterstützung für WS2811/2812-RGB-LED-Streifen.",
+        help_feature_cms = "Aktiviert das Configuration Menu System (CMS) der Firmware."
       },
       setup_governor = {
         title = "Governor",

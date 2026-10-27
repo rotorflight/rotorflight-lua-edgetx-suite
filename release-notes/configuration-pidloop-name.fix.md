@@ -1,0 +1,2 @@
+- **Correct PID-loop labels and craft-name limit (`setup/configuration`)**:
+  - Label PID-loop choices from the unrounded gyro rate reported by the flight controller, with two decimals in kHz, and limit craft names to the 16 characters the flight controller stores (#615).
