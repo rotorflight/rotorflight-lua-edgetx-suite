@@ -633,6 +633,7 @@ local function queueTelemetryWrite(payload)
       -- The pipeline can finish after the page closes, so update the session first.
       if type(session) == "table" and type(telemetryApi.parse) == "function" then
         session.telemetry_config = telemetryApi.parse(payload)
+        session.telemetryConfigBuffer = copyBuffer(payload)
       end
       if not ui.runtime then return end
       ui.telemetryBuffer = copyBuffer(payload)

@@ -1,0 +1,2 @@
+- **ELRS sync keeps saved telemetry sensor slots (`setup/telemetry`, `tools/diagnostics/elrs_link`)**:
+  - A successful Setup > Telemetry save updates the configuration buffer used by ELRS -> RF, including when the save finishes after leaving the page, so the sync keeps the saved sensor slots (#614).
