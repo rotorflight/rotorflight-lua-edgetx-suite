@@ -40,8 +40,7 @@ return function(ctx)
     return { message = message }
   end
 
-  local fallback = "Bluejay settings for the selected ESC.\n"
-    .. "ESC Target: selects the ESC to read and write.\n"
+  local fallback = "ESC Target: selects the ESC to read and write.\n"
     .. "Section: switches the settings group.\n"
     .. "Motor Direction: selects the direction of rotation.\n"
     .. "Rampup Start Power: sets rampup power as a percentage through layout 200.\n"
