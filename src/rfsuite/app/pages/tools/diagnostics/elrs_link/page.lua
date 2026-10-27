@@ -31,6 +31,7 @@ local state = {
   refreshIntervalSec = 0.5,
   i18n = nil,
   taskRunning = false,
+  armedRefusal = false,
   fetchingConfig = false
 }
 
@@ -337,9 +338,19 @@ end
 
 local function rebuildRows(i18n)
   if not ElrsTask then return false end
+
+  local refusesProbe = armedRefusesTheWrite()
+  -- The host rebuilds on both arming edges even while it skips this page's wakeup. Stop only
+  -- probes here; syncs keep their task-level write guards and completion handling.
+  if refusesProbe and ElrsTask.getMode() == ElrsTask.MODE_PROBE and ElrsTask.isRunning() then
+    ElrsTask.cancel()
+  end
+  if state.armedRefusal and not refusesProbe then state.notice = nil end
+  state.armedRefusal = refusesProbe
   
   local status = ElrsTask.getStatusText(i18n or state.i18n)
   local isRunning = ElrsTask.isRunning()
+  state.taskRunning = isRunning
   -- A declined or unanswerable confirmation leaves the task untouched, so its own status still
   -- reads as the probe that ran before it. The notice is what tells the pilot nothing was
   -- written. It stands only while nothing is running, so a task that starts for any reason
@@ -353,7 +364,7 @@ local function rebuildRows(i18n)
   -- rather than an arming nobody saw.
   if type(Armed) ~= "table" or type(Armed.isArmed) ~= "function" then
     status = pageText(i18n, "status_arming_unknown", "Arming state unknown")
-  elseif Armed.isArmed() == true then
+  elseif refusesProbe then
     status = pageText(i18n, "status_unavailable_armed", "Unavailable while armed")
   end
 
@@ -377,7 +388,6 @@ local function rebuildRows(i18n)
 
   state.rows = rows
   state.rowSignature = signature
-  state.taskRunning = isRunning
   return true
 end
 
@@ -392,7 +402,7 @@ end
 function M.onReload()
   state.notice = nil
   requestTelemetryConfig(true)
-  if ElrsTask then
+  if ElrsTask and not armedRefusesTheWrite() then
     ElrsTask.start(ElrsTask.MODE_PROBE)
   end
   return true
@@ -575,6 +585,8 @@ function M.closePage()
   state.fetchingConfig = false
   state.answered = false
   state.notice = nil
+  state.taskRunning = false
+  state.armedRefusal = false
   LoadingOverlay = nil
   Common = nil
   ElrsTask = nil

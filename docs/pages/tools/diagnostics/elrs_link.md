@@ -55,7 +55,7 @@ signal's headroom above that floor, so a faster rate gives the same signal less 
 
 | Setting | What it does |
 | --- | --- |
-| Probe | Reads both sides again. Writes nothing. |
+| Probe | Reads both sides again without writing; refused while armed, cancelled if the model arms during the read. |
 | RF -> ELRS | Sets the module's packet rate and telemetry ratio to the flight controller's link rate and ratio. |
 | ELRS -> RF | Sets the flight controller's telemetry mode to *Custom* with the module's rate and ratio, and saves it to the board. |
 
@@ -74,9 +74,13 @@ several seconds — so a transfer can still be running when the model is armed. 
 when the model is disarmed: it stops there, sends nothing more, and the Status row reads
 *Stopped: model was armed* — also when the arming cleared a write to the flight controller that
 was waiting to be sent. A write that had already left before the arming is not undone, so run the
-sync again. *Probe* only reads, but it too does nothing while the model is armed, and a probe that
-had already started its walk when the model was armed stops the same way instead of finishing on half a walk;
-press *Probe* again.
+sync again.
+
+*Probe* only reads, but is refused while the model is armed. Arming cancels a running probe,
+including the opening probe and one started by Reload, instead of leaving the buttons greyed out
+until disarm. Reload still requests the flight controller's configuration, but refuses its probe
+while armed. After disarm the refusal clears and the buttons are available; press *Probe* to
+start a fresh read.
 
 The Status row reads *Unavailable while armed* for as long as the model is armed, and shows what
 the page last did again once it is disarmed.
