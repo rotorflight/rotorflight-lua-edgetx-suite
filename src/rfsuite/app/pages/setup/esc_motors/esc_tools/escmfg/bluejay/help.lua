@@ -3,8 +3,7 @@ return function(ctx)
   local section = ctx and tonumber(ctx.section) or 1
 
   if section == 2 then
-    local fallback = "Bluejay settings for the selected ESC.\n"
-      .. "ESC Target: selects the ESC to read and write.\n"
+    local fallback = "ESC Target: selects the ESC to read and write.\n"
       .. "Section: switches the settings group.\n"
       .. "Motor Timing: selects commutation timing from 0 to 30 degrees.\n"
       .. "Demag Compensation: selects Off, Low or High.\n"
@@ -17,8 +16,7 @@ return function(ctx)
   end
 
   if section == 3 then
-    local fallback = "Bluejay settings for the selected ESC.\n"
-      .. "ESC Target: selects the ESC to read and write.\n"
+    local fallback = "ESC Target: selects the ESC to read and write.\n"
       .. "Section: switches the settings group.\n"
       .. "Beep Strength: sets beep volume from 1 to 255.\n"
       .. "Beacon Strength: sets lost-model beacon volume from 1 to 255.\n"
@@ -29,8 +27,7 @@ return function(ctx)
   end
 
   if section == 4 then
-    local fallback = "Bluejay settings for the selected ESC.\n"
-      .. "ESC Target: selects the ESC to read and write.\n"
+    local fallback = "ESC Target: selects the ESC to read and write.\n"
       .. "Section: switches the settings group.\n"
       .. "Temperature Protection: limits power at the selected temperature.\n"
       .. "Low RPM Power Protection: available through layout 200 only.\n"
