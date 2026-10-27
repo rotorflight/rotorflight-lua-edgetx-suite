@@ -55,7 +55,7 @@ signal's headroom above that floor, so a faster rate gives the same signal less 
 
 | Setting | What it does |
 | --- | --- |
-| Probe | Reads both sides again without writing; refused while armed, cancelled if the model arms during the read. |
+| Probe | Reads both sides again without writing; refused while armed, available after disarm. Arming stops any probe, including the opening probe or one started by Reload. |
 | RF -> ELRS | Sets the module's packet rate and telemetry ratio to the flight controller's link rate and ratio. |
 | ELRS -> RF | Sets the flight controller's telemetry mode to *Custom* with the module's rate and ratio, and saves it to the board. |
 
