@@ -1194,7 +1194,7 @@ return {
         help_voltage_drop_rate = "Begrenzt, wie schnell die gefilterte Spannung im Spannungsmodus fallen darf, um kurze Lastsack-Spitzen fuer SmartFuel zu dämpfen.",
         help_charge_drop_rate = "Begrenzt, wie schnell der gemeldete SmartFuel-Wert im Spannungsmodus sinken darf, sobald das Modell scharf geschaltet wurde.",
         help_sag_gain = "Staerke der Lastsack-Kompensation im Spannungsmodus. Hoehere Werte kompensieren aggressiver.",
-        help_message = "Wie die Restkapazität des Akkus geschätzt wird.\nFirmware Quelle: was der Flugcontroller berechnet; COMBINED nimmt den ungünstigeren Wert aus Spannung und Strom.\nSpannungsabfallrate: wie schnell die gefilterte Spannung fallen darf, damit kurzes Einbrechen unter Last die Schätzung nicht nach unten zieht.\nLadungsabfallrate: wie schnell die gemeldete Ladung sinken darf, sobald das Modell scharf geschaltet wurde.\nSag Gain: wie stark die Spannung bei Last ausgeglichen wird; erhöhen, wenn die Anzeige im Flug zu niedrig ist.",
+        help_message = "Wie die Restkapazität des Akkus geschätzt wird.\nFirmware Quelle: Aus deaktiviert SmartFuel; VOLTAGE nutzt Spannung, CURRENT mAh-Verbrauch und Kapazität, COMBINED den niedrigeren Wert; aktive Modi brauchen einen Akkuspannungssensor.\nSpannungsabfallrate: begrenzt den Abfall der Spannungsspur in VOLTAGE und COMBINED.\nLadungsabfallrate: begrenzt den Abfall des Ladeprozentsatzes der Spannungsspur ab dem ersten Scharfschalten in VOLTAGE und COMBINED.\nSag Gain: gleicht Lastsack in VOLTAGE und COMBINED aus; erhöhen, wenn SmartFuel unter Last zu niedrig anzeigt, senken, wenn zu hoch.",
         loading_title = "Laden",
         loading_message = "Lese SmartFuel-Konfiguration",
         saved_title = "Gespeichert",

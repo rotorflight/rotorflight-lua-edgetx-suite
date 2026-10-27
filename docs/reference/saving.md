@@ -225,6 +225,7 @@ A chained load must finish successfully even if an earlier error allowed the pag
 reading other records. Previously read session values alone do not grant permission to save.
 The page's existing reboot policy is otherwise unchanged; Battery, Sources and SmartFuel
 now report the confirmed outcome through the shared save, which sends their writes and one EEPROM commit.
+A Save pressed while their save is still running is ignored.
 
 Configuration, Radio Config, Accelerometer and SmartFuel write whole records from what the page
 holds, and before a read has succeeded that is the page's own starting values rather than the
