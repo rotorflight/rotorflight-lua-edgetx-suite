@@ -1792,7 +1792,7 @@ return {
         set_defaults_title = "Telemetry Sensors",
         set_defaults_msg = "Load default telemetry sensors?",
         too_many_sensors = "No more than 40 telemetry sensors can be enabled.",
-        help_message = "Open a group to switch its sensors on or off; each group shows how many are on.\nSensors: slots a save fills; above 40 the line turns red and Save is refused.\nBack: returns from a group to the list of groups.\n*: loads the default sensors.\nSave: writes all groups and reports success after EEPROM storage.",
+        help_message = "Open a group to switch its sensors on or off.\nSensors n / 40: slots a save fills on the flight controller.\nAbove 40: the line turns red and Save is refused.\nGroup n / m: sensors switched on, of those it offers.\nBack: from a group to the list of groups.\n*: loads the default sensors.\nSave: writes all groups at once.",
         sensor_help = "Select whether the flight controller sends this sensor; native CRSF sensors are locked on.",
         count_format = "Sensors: %d / %d",
         count_over_format = "Sensors: %d / %d - more than 40 cannot be saved",

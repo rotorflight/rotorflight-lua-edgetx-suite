@@ -1792,7 +1792,7 @@ return {
         set_defaults_title = "Telemetrie-Sensoren",
         set_defaults_msg = "Standard-Telemetrie-Sensoren laden?",
         too_many_sensors = "Es können maximal 40 Telemetrie-Sensoren aktiviert werden.",
-        help_message = "Eine Gruppe öffnen, um ihre Sensoren ein- oder auszuschalten; jede Gruppe zeigt die Anzahl eingeschalteter Sensoren.\nSensoren: belegte Plätze beim Speichern; über 40 wird die Zeile rot und Speichern abgelehnt.\nZurück: führt aus einer Gruppe zur Liste der Gruppen.\n*: lädt die Standard-Sensoren.\nSpeichern: schreibt alle Gruppen und meldet Erfolg nach dem Speichern im EEPROM.",
+        help_message = "Eine Gruppe öffnen, um ihre Sensoren ein- oder auszuschalten.\nSensoren n / 40: Plätze, die Speichern im Flugcontroller belegt.\nÜber 40: Die Zeile wird rot, Speichern wird abgelehnt.\nGruppe n / m: eingeschaltete von angebotenen Sensoren.\nZurück: aus einer Gruppe zur Liste der Gruppen.\n*: lädt die Standard-Sensoren.\nSpeichern: schreibt alle Gruppen auf einmal.",
         sensor_help = "Legt fest, ob der Flugcontroller diesen Sensor sendet; native CRSF-Sensoren sind fest eingeschaltet.",
         count_format = "Sensoren: %d / %d",
         count_over_format = "Sensoren: %d / %d - mehr als 40 lassen sich nicht speichern",
