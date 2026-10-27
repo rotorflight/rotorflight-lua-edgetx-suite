@@ -1194,13 +1194,14 @@ return {
         help_voltage_drop_rate = "Begrenzt, wie schnell die gefilterte Spannung im Spannungsmodus fallen darf, um kurze Lastsack-Spitzen fuer SmartFuel zu dämpfen.",
         help_charge_drop_rate = "Begrenzt, wie schnell der gemeldete SmartFuel-Wert im Spannungsmodus sinken darf, sobald das Modell scharf geschaltet wurde.",
         help_sag_gain = "Staerke der Lastsack-Kompensation im Spannungsmodus. Hoehere Werte kompensieren aggressiver.",
-        help_message = "Wie die Restkapazität des Akkus geschätzt wird.\nFirmware Quelle: was der Flugcontroller berechnet; COMBINED nimmt den ungünstigeren Wert aus Spannung und Strom.\nSpannungsabfallrate: wie schnell die gefilterte Spannung fallen darf, damit kurzes Einbrechen unter Last die Schätzung nicht nach unten zieht.\nLadungsabfallrate: wie schnell die gemeldete Ladung sinken darf, sobald das Modell scharf geschaltet wurde.\nSag Gain: wie stark die Spannung bei Last ausgeglichen wird; erhöhen, wenn die Anzeige im Flug zu niedrig ist.\nDie letzten drei gelten nur bei VOLTAGE und COMBINED.",
+        help_message = "Wie die Restkapazität des Akkus geschätzt wird.\nFirmware Quelle: was der Flugcontroller berechnet; COMBINED nimmt den ungünstigeren Wert aus Spannung und Strom.\nSpannungsabfallrate: wie schnell die gefilterte Spannung fallen darf, damit kurzes Einbrechen unter Last die Schätzung nicht nach unten zieht.\nLadungsabfallrate: wie schnell die gemeldete Ladung sinken darf, sobald das Modell scharf geschaltet wurde.\nSag Gain: wie stark die Spannung bei Last ausgeglichen wird; erhöhen, wenn die Anzeige im Flug zu niedrig ist.\nDie Abstimmung gilt für Spannungs- und kombinierte Schätzungen, auch auf dem Sender bei Firmware OFF (LOCAL).",
         loading_title = "Laden",
         loading_message = "Lese SmartFuel-Konfiguration",
         saved_title = "Gespeichert",
         saved_message = "SmartFuel Einstellungen gespeichert",
+        save_error_title = "Fehler",
         warning_title = "Warnung",
-        model_prefs_failed_message = "SmartFuel-Werte an den FC gesendet; Modelleinstellungen nicht gespeichert",
+        model_prefs_failed_message = "Modelleinstellungen nicht gespeichert",
         pending_model_prefs_failed_message = "FC-Schreiben ausstehend; Modelleinstellungen nicht gespeichert"
       },
       flight_tuning_pids = {
@@ -1253,9 +1254,10 @@ return {
         loading_message = "Lese Batteriekonfiguration",
         saved_title = "Gespeichert",
         saved_message = "Batterieeinstellungen gespeichert",
+        save_error_title = "Fehler",
         warning_title = "Warnung",
         saved_local_only_message = "Lokal gespeichert; FC-Schreiben ausstehend",
-        model_prefs_failed_message = "Akkuwerte an den FC gesendet; Modelleinstellungen nicht gespeichert",
+        model_prefs_failed_message = "Modelleinstellungen nicht gespeichert",
         pending_model_prefs_failed_message = "FC-Schreiben ausstehend; Modelleinstellungen nicht gespeichert"
       },
       setup_power_sources = {
@@ -1275,6 +1277,7 @@ return {
         loading_message = "Lese Batteriekonfiguration",
         saved_title = "Gespeichert",
         saved_message = "Quellen gespeichert",
+        save_error_title = "Fehler",
         warning_title = "Warnung",
         saved_local_only_message = "Lokal gespeichert; FC-Schreiben ausstehend"
       },

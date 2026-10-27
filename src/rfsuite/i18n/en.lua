@@ -1194,13 +1194,14 @@ return {
         help_voltage_drop_rate = "Limits how quickly filtered voltage may fall in voltage mode to reduce brief load-sag spikes affecting SmartFuel.",
         help_charge_drop_rate = "Limits how quickly the reported SmartFuel value may drop in voltage mode once the model has been armed.",
         help_sag_gain = "Strength of load-sag compensation in voltage mode. Higher values compensate more aggressively.",
-        help_message = "How the remaining fuel of the pack is estimated.\nFirmware Source: what the flight controller computes; COMBINED takes the more pessimistic of voltage and current.\nVoltage drop rate: how fast the filtered voltage may fall, so that a brief sag under load does not pull the estimate down.\nCharge drop rate: how fast the reported fuel may drop once the model has been armed.\nSag gain: how strongly the voltage is corrected for sag under load; raise it if the estimate reads too low in flight.\nThe last three apply to VOLTAGE and COMBINED only.",
+        help_message = "How the remaining fuel of the pack is estimated.\nFirmware Source: what the flight controller computes; COMBINED takes the more pessimistic of voltage and current.\nVoltage drop rate: how fast the filtered voltage may fall, so that a brief sag under load does not pull the estimate down.\nCharge drop rate: how fast the reported fuel may drop once the model has been armed.\nSag gain: how strongly the voltage is corrected for sag under load; raise it if the estimate reads too low in flight.\nTuning applies to voltage and combined estimates, including the radio's when firmware is OFF (LOCAL).",
         loading_title = "Loading",
         loading_message = "Reading SmartFuel config",
         saved_title = "Saved",
         saved_message = "SmartFuel settings saved",
+        save_error_title = "Error",
         warning_title = "Warning",
-        model_prefs_failed_message = "SmartFuel values sent to FC; model settings not saved",
+        model_prefs_failed_message = "Model settings not saved",
         pending_model_prefs_failed_message = "FC write pending; model settings not saved"
       },
       flight_tuning_pids = {
@@ -1253,9 +1254,10 @@ return {
         loading_message = "Reading battery config",
         saved_title = "Saved",
         saved_message = "Battery settings saved",
+        save_error_title = "Error",
         warning_title = "Warning",
         saved_local_only_message = "Saved locally; FC write pending",
-        model_prefs_failed_message = "Battery values sent to FC; model settings not saved",
+        model_prefs_failed_message = "Model settings not saved",
         pending_model_prefs_failed_message = "FC write pending; model settings not saved"
       },
       setup_power_sources = {
@@ -1275,6 +1277,7 @@ return {
         loading_message = "Reading battery config",
         saved_title = "Saved",
         saved_message = "Power sources saved",
+        save_error_title = "Error",
         warning_title = "Warning",
         saved_local_only_message = "Saved locally; FC write pending"
       },

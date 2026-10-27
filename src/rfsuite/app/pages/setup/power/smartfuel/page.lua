@@ -14,12 +14,11 @@ local Common = nil
 local PowerModelPreferences = nil
 local MspRuntime = nil
 local SmartfuelApi = nil
+local SavePipeline = nil
 local Log = nil
 local LoadingOverlay = nil
 local t = nil
 local PowerFields = nil
-
-M.eepromWrite = true
 
 local function newRuntime()
 	return {
@@ -250,17 +249,10 @@ local function saveModelPreferences(session)
 	return PowerModelPreferences.save(session)
 end
 
-local function queueSmartfuelWrite(session)
-	if not SmartfuelApi or not MspRuntime or type(MspRuntime.getState) ~= "function" then
-		logWarn("write skipped: msp runtime/api unavailable")
+local function queueSmartfuelWrite()
+	if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
+	if not SavePipeline or not SmartfuelApi then
 		return false, "msp_runtime_unavailable"
-	end
-
-	local mspState = MspRuntime.getState()
-	local queue = mspState and mspState.queue
-	if not queue or type(queue.add) ~= "function" then
-		logWarn("write skipped: msp queue unavailable")
-		return false, "msp_queue_unavailable"
 	end
 
 	local api = SmartfuelApi
@@ -270,35 +262,31 @@ local function queueSmartfuelWrite(session)
 		charge_drop_rate = ui.config.charge_drop_rate,
 		sag_gain = ui.config.sag_gain
 	})
-	logDebug("write enqueue cmd=" .. tostring(api.writeCommand)
-		.. " payload=["
-		.. tostring(payload and payload[1]) .. ","
-		.. tostring(payload and payload[2]) .. ","
-		.. tostring(payload and payload[3]) .. ","
-		.. tostring(payload and payload[4]) .. "]")
+	local steps = {
+		{
+			label = "MSP_SET_SMARTFUEL_CONFIG",
+			command = api.writeCommand,
+			payload = payload
+		}
+	}
 
-	queue:add({
-		command = api.writeCommand,
-		payload = payload,
-		timeout = 5.0,
-		isWrite = true,
-		processReply = function()
-			logDebug("write reply cmd=" .. tostring(api.writeCommand))
-			if type(session) == "table" then
-				session.smartfuel_config = session.smartfuel_config or {}
-				session.smartfuel_config.smartfuel_mode = ui.config.firmware_mode
-				session.smartfuel_config.voltage_drop_rate = ui.config.voltage_drop_rate
-				session.smartfuel_config.charge_drop_rate = ui.config.charge_drop_rate
-				session.smartfuel_config.sag_gain = ui.config.sag_gain
-			end
+	return SavePipeline.start({
+		pageId = "setup_power_smartfuel",
+		steps = steps,
+		reboot = false,
+		onSaved = function()
+			if not ui.runtime then return end
+			ui.dirty = false
+			ui.runtime.lastSessionSignature = buildSessionSignature()
 		end,
-		errorHandler = function()
-			logWarn("write error cmd=" .. tostring(api.writeCommand))
-			-- Keep local values; FC write can be retried with Save.
+		onDone = function(result)
+			if not ui.runtime then return end
+			if result.saved then queueSmartfuelRead() end
+			if type(ui.runtime.requestRebuild) == "function" then
+				ui.runtime.requestRebuild()
+			end
 		end
 	})
-
-	return true, nil
 end
 
 function M.getHeaderActions()
@@ -353,29 +341,7 @@ function M.onSave(ctx)
 		session.battery_config.smartfuelRemoteSource = ui.config.firmware_mode
 	end
 
-	local okMsp, errMsp = queueSmartfuelWrite(session)
-
-	if ctx and type(ctx.reportSave) == "function" then
-		if okMsp and okPrefs then
-			local savedTitle = pageText(ctx and ctx.i18n, "saved_title", "Saved")
-			local savedMessage = pageText(ctx and ctx.i18n, "saved_message", "SmartFuel settings saved")
-			ctx.reportSave({ ok = true, title = savedTitle, message = savedMessage })
-		elseif okMsp and not okPrefs then
-			ctx.reportSave({
-				title = pageText(ctx.i18n, "warning_title", "Warning"),
-				message = pageText(ctx.i18n, "model_prefs_failed_message", "SmartFuel values sent to FC; model settings not saved")
-					.. ": " .. modelSaveReason(ctx.i18n, errPrefs)
-			})
-		elseif (not okMsp) and okPrefs then
-			ctx.reportSave({ title = "Warning", message = "Saved local SmartFuel values. FC write pending: " .. tostring(errMsp or "msp") })
-		else
-			ctx.reportSave({
-				title = pageText(ctx.i18n, "warning_title", "Warning"),
-				message = pageText(ctx.i18n, "pending_model_prefs_failed_message", "FC write pending; model settings not saved")
-					.. ": " .. modelSaveReason(ctx.i18n, errPrefs)
-			})
-		end
-	end
+	local ok, err = queueSmartfuelWrite()
 
 	-- Force smart calculator to pick up new config immediately.
 	if _G and _G.rfsuite and _G.rfsuite.tasks and _G.rfsuite.tasks.events then
@@ -385,8 +351,28 @@ function M.onSave(ctx)
 		end
 	end
 
-	ui.dirty = false
-	ui.runtime.lastSessionSignature = buildSessionSignature()
+	if not okPrefs then
+		local message = pageText(ctx and ctx.i18n, "model_prefs_failed_message", "Model settings not saved")
+			.. ": " .. modelSaveReason(ctx and ctx.i18n, errPrefs)
+		if not ok then
+			err = tostring(err or "MSP write failed") .. "\n" .. message
+		elseif ctx and type(ctx.reportSave) == "function" then
+			ctx.reportSave({
+				title = pageText(ctx.i18n, "warning_title", "Warning"),
+				message = message
+			})
+		end
+	end
+
+	if not ok then
+		if ctx and type(ctx.reportSave) == "function" then
+			ctx.reportSave({
+				title = pageText(ctx and ctx.i18n, "save_error_title", "Error"),
+				message = tostring(err or "MSP write failed")
+			})
+		end
+		return false
+	end
 	return true
 end
 
@@ -573,6 +559,7 @@ function M.onClose()
 	PowerModelPreferences = nil
 	MspRuntime = nil
 	SmartfuelApi = nil
+	SavePipeline = nil
 	Log = nil
 	LoadingOverlay = nil
 	t = nil

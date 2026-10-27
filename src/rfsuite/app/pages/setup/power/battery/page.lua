@@ -15,12 +15,11 @@ local PowerModelPreferences = nil
 local MspRuntime = nil
 local BatteryConfigApi = nil
 local BatteryProfileApi = nil
+local SavePipeline = nil
 local Sensors = nil
 local SmartFuelReserve = nil
 local t = nil
 local PowerFields = nil
-
-M.eepromWrite = true
 
 local PROFILE_MIN = 0
 local PROFILE_MAX = 5
@@ -551,6 +550,49 @@ local function buildBatteryPayload(batteryConfig)
 	return BatteryConfigApi.buildWritePayload(data)
 end
 
+local function queueBatteryWrite(batteryConfig, activeProfile)
+	if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
+	if not SavePipeline or not BatteryConfigApi then
+		return false, "msp_runtime_unavailable"
+	end
+
+	local steps = {}
+	-- Only send the profile where the pilot selected one on this page. The combo's fallback
+	-- must not switch the board's active profile on a setup with no BATTERY_PROFILE sensor.
+	if ui.profileDirty and BatteryProfileApi and type(BatteryProfileApi.buildWritePayload) == "function" then
+		steps[#steps + 1] = {
+			label = "MSP_SET_BATTERY_PROFILE",
+			command = BatteryProfileApi.writeCommand,
+			payload = BatteryProfileApi.buildWritePayload({ batteryProfile = activeProfile })
+		}
+	end
+	steps[#steps + 1] = {
+		label = "MSP_SET_BATTERY_CONFIG",
+		command = BatteryConfigApi.writeCommand,
+		payload = buildBatteryPayload(batteryConfig)
+	}
+
+	return SavePipeline.start({
+		pageId = "setup_power_battery",
+		steps = steps,
+		reboot = false,
+		onSaved = function()
+			if not ui.runtime then return end
+			ui.dirty = false
+			ui.reserveDirty = false
+			ui.profileDirty = false
+			ui.runtime.lastSessionSignature = buildSessionSignature()
+		end,
+		onDone = function(result)
+			if not ui.runtime then return end
+			if result.saved then queueBatteryRead() end
+			if type(ui.runtime.requestRebuild) == "function" then
+				ui.runtime.requestRebuild()
+			end
+		end
+	})
+end
+
 function M.getHeaderActions()
 	ensureDeps()
 	return {
@@ -651,38 +693,7 @@ function M.onSave(ctx)
 	end
 	local okPrefs, errPrefs = saveModelPreferences(session)
 
-	local okMsp = false
-	if MspRuntime and BatteryConfigApi and type(MspRuntime.getState) == "function" then
-		local mspState = MspRuntime.getState()
-		local queue = mspState and mspState.queue
-		if queue and type(queue.add) == "function" then
-			okMsp = true
-			-- Only send the profile where the pilot selected one on this page. The page cannot
-			-- read the active profile back from the flight controller, so sending the combo's
-			-- fallback switches the board to profile 1 on every save made on a setup with no
-			-- BATTERY_PROFILE sensor, and M.eepromWrite makes that permanent.
-			if ui.profileDirty and BatteryProfileApi and type(BatteryProfileApi.buildWritePayload) == "function" then
-				queue:add({
-					command = BatteryProfileApi.writeCommand,
-					payload = BatteryProfileApi.buildWritePayload({ batteryProfile = activeProfile }),
-					timeout = 5.0,
-					isWrite = true,
-					processReply = function() end,
-					errorHandler = function() end
-				})
-			end
-
-			queue:add({
-				command = BatteryConfigApi.writeCommand,
-				payload = buildBatteryPayload(batteryConfig),
-				timeout = 5.0,
-				isWrite = true,
-				processReply = function() end,
-				errorHandler = function() end
-			})
-
-		end
-	end
+	local ok, err = queueBatteryWrite(batteryConfig, activeProfile)
 
 	if _G and _G.rfsuite and _G.rfsuite.tasks and _G.rfsuite.tasks.events then
 		local bg = _G.rfsuite.tasks.events.telemetry_bg
@@ -691,37 +702,28 @@ function M.onSave(ctx)
 		end
 	end
 
-	if ctx and type(ctx.reportSave) == "function" then
-		if okMsp and okPrefs then
-			ctx.reportSave({
-				ok = true,
-				title = pageText(ctx and ctx.i18n, "saved_title", "Saved"),
-				message = pageText(ctx and ctx.i18n, "saved_message", "Battery settings saved")
-			})
-		elseif okMsp and not okPrefs then
+	if not okPrefs then
+		local message = pageText(ctx and ctx.i18n, "model_prefs_failed_message", "Model settings not saved")
+			.. ": " .. modelSaveReason(ctx and ctx.i18n, errPrefs)
+		if not ok then
+			err = tostring(err or "MSP write failed") .. "\n" .. message
+		elseif ctx and type(ctx.reportSave) == "function" then
 			ctx.reportSave({
 				title = pageText(ctx.i18n, "warning_title", "Warning"),
-				message = pageText(ctx.i18n, "model_prefs_failed_message", "Battery values sent to FC; model settings not saved")
-					.. ": " .. modelSaveReason(ctx.i18n, errPrefs)
-			})
-		elseif (not okMsp) and okPrefs then
-			ctx.reportSave({
-				title = pageText(ctx and ctx.i18n, "warning_title", "Warning"),
-				message = pageText(ctx and ctx.i18n, "saved_local_only_message", "Saved locally; FC write pending")
-			})
-		else
-			ctx.reportSave({
-				title = pageText(ctx.i18n, "warning_title", "Warning"),
-				message = pageText(ctx.i18n, "pending_model_prefs_failed_message", "FC write pending; model settings not saved")
-					.. ": " .. modelSaveReason(ctx.i18n, errPrefs)
+				message = message
 			})
 		end
 	end
 
-	ui.dirty = false
-	ui.reserveDirty = false
-	ui.profileDirty = false
-	ui.runtime.lastSessionSignature = buildSessionSignature()
+	if not ok then
+		if ctx and type(ctx.reportSave) == "function" then
+			ctx.reportSave({
+				title = pageText(ctx and ctx.i18n, "save_error_title", "Error"),
+				message = tostring(err or "MSP write failed")
+			})
+		end
+		return false
+	end
 	return true
 end
 
@@ -918,6 +920,7 @@ function M.onClose()
 	MspRuntime = nil
 	BatteryConfigApi = nil
 	BatteryProfileApi = nil
+	SavePipeline = nil
 	Sensors = nil
 	SmartFuelReserve = nil
 	PowerFields = nil
