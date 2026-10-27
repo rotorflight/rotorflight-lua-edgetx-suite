@@ -1,0 +1,1 @@
+- **Bluejay keeps cached settings with their ESC target (`setup/esc_motors/esc_tools/escmfg/bluejay`)**: switching targets no longer shows another ESC's values or model name when the new reply is refused; same-target session restore and the Save guard are preserved. Adds section-specific help in English and German (#600).

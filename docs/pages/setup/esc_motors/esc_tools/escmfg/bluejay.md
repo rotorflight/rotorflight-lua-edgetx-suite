@@ -97,7 +97,8 @@ is read and written.
 - Leaving the page drops what the ESC answered -- the block, its firmware and version, and
   the values in the list -- so the next visit shows nothing until its own read lands.
 - The ESC is read when the page opens. Switching *ESC Target* reads the newly chosen ESC;
-  switching *Section* does not.
+  switching *Section* does not. Until a read succeeds for the selected target, its initial
+  values and no model name are shown, unless the session holds a read from that same target.
 
 ## Related
 

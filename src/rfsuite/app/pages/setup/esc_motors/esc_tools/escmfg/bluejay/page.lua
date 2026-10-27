@@ -128,6 +128,7 @@ local function logMsg(msg, level)
 end
 
 local function queueBluejayReadActual(queue)
+  local escTarget = ui.escTarget or 0
   queue:add({
     command = EscParametersBluejayApi.command,
     timeout = 15,
@@ -161,6 +162,7 @@ local function queueBluejayReadActual(queue)
         local session = getSession()
         if session then
           session.setup_esc_motors_esc_tools_bluejay = {
+            escTarget = escTarget,
             config = {},
             parsedCache = ui.parsedCache,
             layoutRevision = ui.layoutRevision,
@@ -410,7 +412,7 @@ end
 local function loadFromSession()
   local session = getSession()
   local cached = session and session.setup_esc_motors_esc_tools_bluejay or nil
-  if type(cached) == "table" and type(cached.config) == "table" then
+  if type(cached) == "table" and cached.escTarget == ui.escTarget and type(cached.config) == "table" then
     for k, v in pairs(ui.config) do
       if cached.config[k] ~= nil then
         ui.config[k] = cached.config[k]
@@ -503,6 +505,11 @@ local function ensureLoaded()
   end
 
   if not loadFromSession() then
+    for k, v in pairs(CONFIG_DEFAULTS) do ui.config[k] = v end
+    ui.parsedCache = nil
+    ui.escModel = nil
+    ui.escVersion = nil
+    ui.escFirmware = nil
     ui.layoutRevision = nil
     ui.supportsLedControl = false
   end
@@ -578,6 +585,7 @@ end
 
 function M.getHeaderActions()
   return {
+    help = true,
     save = true,
     reload = true,
     menu = true
@@ -610,6 +618,12 @@ function M.onReload(ctx)
   ui.connTimer = nil
   queueBluejayRead(false)
   return true
+end
+
+function M.onHelp(ctx)
+  local help = loadModule("app/pages/setup/esc_motors/esc_tools/escmfg/bluejay/help.lua")
+  if type(help) ~= "function" then return nil end
+  return help({ i18n = ctx and ctx.i18n, section = ui.currentSection })
 end
 
 function M.build(ctx)
