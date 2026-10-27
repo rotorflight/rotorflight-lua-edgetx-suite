@@ -1,0 +1,2 @@
+- **Info decodes RF Mode for the module's ExpressLRS generation (`app/pages/tools/diagnostics/info/page.lua`)**:
+  - Uses the shared 3.x and 4.x rate tables after the module identifies itself, correcting the rates shown for RFMD values. Until then RF Mode and RF Band read `-`; RF Band also reads `-` when the resolved rate carries no band (#614).

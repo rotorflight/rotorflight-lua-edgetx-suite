@@ -2581,7 +2581,7 @@ return {
         msp_transport = "MSP Transport",
         supported_versions = "Supported MSP API",
         simulation = "Simulation",
-        help_message = "Shows firmware, board, transport, and link information read from the flight controller and runtime.",
+        help_message = "Shows firmware, board, transport, and link information read from the flight controller and runtime.\nRF Mode: decoded for the module's ExpressLRS generation once it has identified itself; - until then.\nRF Band: shown for ExpressLRS 4.x modules, whose rate names the band; - for 3.x.",
         loading_title = "Loading",
         loading_message = "Reading live data",
         loading_failed = "Loading failed",
