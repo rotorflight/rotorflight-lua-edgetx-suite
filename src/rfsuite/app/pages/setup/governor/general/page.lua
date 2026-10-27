@@ -243,6 +243,7 @@ local function queueGovWrite(requestRebuild)
         if session then
           session.governor_config = writeData
           session.governorMode = writeData.gov_mode
+          session.governorFeature = (writeFeatures.enabledFeatures & (1 << 26)) ~= 0
         end
       end
       if ui.runtime ~= visit then return end

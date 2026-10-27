@@ -101,6 +101,8 @@ The same holds for the named colour strings above: they are mapped to a colour n
 box is built, not on the first reading that arrives.
 
 #### Governor state thresholds
+With the GOVERNOR feature off, the mode reads OFF and governor gains and TTA fields are hidden regardless of the stored mode, as on *Setup* → *Governor* → *General*.
+
 For governor status boxes (`type = "text"`, `source = "governor"`), thresholds can match against governor state labels:
 
 ```lua

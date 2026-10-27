@@ -17,6 +17,7 @@ local MspRuntime = nil
 local GovernorApi = nil
 local SavePipeline = nil
 local GovernorConfigApi = nil
+local Governor = nil
 local LoadingOverlay = nil
 local Sensors = nil
 local Profile = nil
@@ -125,6 +126,7 @@ local function ensureDeps()
 	if not MspRuntime then MspRuntime = loadModule("tasks/msp/runtime.lua") end
 	if not GovernorApi then GovernorApi = loadModule("tasks/msp/api/governor_profile.lua") end
 	if not GovernorConfigApi then GovernorConfigApi = loadModule("tasks/msp/api/governor_config.lua") end
+	if not Governor then Governor = loadModule("lib/governor.lua") end
 	if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
 	if not Sensors then Sensors = loadModule("lib/sensors.lua") end
 	if not Profile then Profile = loadModule("lib/profile.lua") end
@@ -673,7 +675,7 @@ function M.build(ctx)
 	end
 
 	local session = getSession()
-	local govMode = tonumber(session and session.governorMode or 0) or 0
+	local govMode = tonumber(Governor.getEffectiveMode(session)) or 0
 	local govModeName = GOV_MODES[govMode] or "OFF"
 
 	local sectionHeaderH = (Controls and Controls.STATIC_SECTION_H) or 38
@@ -793,6 +795,7 @@ function M.onClose()
 	MspRuntime = nil
 	GovernorApi = nil
 	SavePipeline = nil
+	Governor = nil
 	LoadingOverlay = nil
 	Sensors = nil
 	t = nil
