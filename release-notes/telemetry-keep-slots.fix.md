@@ -1,3 +1,0 @@
-- **Telemetry saves keep sensors in their existing slots (`app/pages/setup/telemetry/page.lua`, `docs/pages/setup/telemetry.md`)**:
-  - Saving no longer reorders existing sensors, preserving their radio discovery order and the sensor assigned to each per-slot telemetry interval (#590).
-  - Newly switched-on sensors take the lowest free slots, which can include one freed in the same save. Switching a sensor off frees its slot without moving the others.

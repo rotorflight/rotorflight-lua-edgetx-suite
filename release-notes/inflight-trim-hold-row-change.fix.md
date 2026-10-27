@@ -1,2 +1,0 @@
-- **In-flight tuning: a held adjust trim no longer steps again when the selection moves (`widgets/dashboard/inflight/drive.lua`, `docs/dashboard/inflight-tuning.md`)**:
-  - In the navigate layout, a walk or bank trim step, a tap on the row list or a bank chip while the adjust trim was held could step the newly selected row as if the trim had been pressed again. One press of the adjust trim is now one step, whatever moves the selection while it is held.

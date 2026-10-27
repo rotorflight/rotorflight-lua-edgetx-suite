@@ -1,3 +1,0 @@
-- **A Per-Model Settings Reset whose save fails keeps the setting (`app/pages/settings/dashboard/overrides/page.lua`, `docs/pages/settings/dashboard/overrides.md`)**:
-  - *Reset* and *Reset all* put back what they removed when the model's file cannot be written: the row stays listed and can be reset again, and a later save of another page no longer writes the removal the page reported as failed. A model whose *Own settings for this model* switch was only inferred keeps it unset (#856).
-  - The instruction accounting (`bin/accounting/measure.lua`, `bin/accounting/budgets.lua`) now opens Per-Model Settings, a tile Dashboard > Settings builds at run time, and prices it with one model setting that differs from the standard.

@@ -1,2 +1,0 @@
-- **VS Code deploy and radio ZIP tasks include every widget (`.vscode/scripts/deploy-rfsuite-demo.ps1`)**:
-  - For #853, every directory under `src/widgets` is deployed under its own name in `WIDGETS`, so the RFSuite Service widget is deployed alongside the dashboard, as the release packager already does.

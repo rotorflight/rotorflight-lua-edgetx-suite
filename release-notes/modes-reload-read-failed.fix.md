@@ -1,2 +1,0 @@
-- **Failed reads show a notice instead of mode ranges (`app/pages/setup/controls/modes/page.lua`, `docs/pages/setup/controls/modes.md`, `docs/reference/saving.md`)**:
-  - On Setup > Controls > Modes, a read that fails after a Reload or on opening the page now shows that the settings could not be read, in place of the ranges. Before, the ranges left on the page -- among them an edit Reload had just discarded -- were shown as the flight controller's.

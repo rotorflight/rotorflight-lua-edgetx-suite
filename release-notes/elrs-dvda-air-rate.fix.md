@@ -1,2 +1,0 @@
-- **ELRS Link uses a DVDA mode's air rate (`app/pages/tools/diagnostics/elrs_link/elrslink_task.lua`, `docs/pages/tools/diagnostics/elrs_link.md`)**:
-  - For #625, D250, D500, DK250 and DK500 count as 1000 Hz and D50Hz as 200 Hz when the telemetry ratio is resolved and the flight controller is synchronized, instead of the handset rate in the mode's name; *RF -> ELRS* keeps the module's current mode when its air rate already matches the flight controller.

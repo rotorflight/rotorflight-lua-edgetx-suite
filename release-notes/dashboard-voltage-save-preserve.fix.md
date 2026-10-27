@@ -1,1 +1,0 @@
-- Keep automatic and inherited dashboard voltage bounds when saving unchanged voltage fields; preserve explicitly edited model ranges even when they equal the theme defaults (settings/dashboard/settings).

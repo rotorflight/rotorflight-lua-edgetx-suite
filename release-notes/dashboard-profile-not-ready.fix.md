@@ -1,1 +1,0 @@
-- **Battery profile page before the connection is ready (`widgets/dashboard`)**: Draw the profiles without a press and say *CHANGEABLE ONLY WHEN CONNECTED* in the foot line while the connection is not ready, as the page already does while the model is armed, instead of offering buttons whose press queues nothing.

@@ -1,2 +1,0 @@
-- **Translation package resolver (`.vscode/scripts/resolve_i18n_tags.py`)**:
-  - Preserve `--` inside quoted Lua translation strings while continuing to remove actual line comments (#467).

@@ -1,2 +1,0 @@
-- **The dashboard stores readings below 1 from the first one on (`widgets/dashboard/runtime.lua`)**:
-  - For #717, the telemetry fields that take raw readings (voltage, BEC voltage, current, watts, altitude, consumption, fuel, link quality, RSSI, RPM) start at the float 0.0, so a pack voltage below 1 V reaches the screen at once instead of only after a reading of 1 V or more.

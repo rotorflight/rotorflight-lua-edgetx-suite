@@ -1,1 +1,0 @@
-- **Menu tiles can show a done mark (`app/menu_registry.lua`, `ui/tiles.lua`, `ui/home.lua`, `docs/developer/menu-entry-marks.md`)**: a menu entry may name a `doneWhen` condition; while it is true the tile carries a green check in its top-right corner. The armed badge takes precedence. Nothing in the menu sets such a condition yet; the page behind an entry publishes it.

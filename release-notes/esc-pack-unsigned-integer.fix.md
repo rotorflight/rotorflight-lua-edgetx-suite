@@ -1,1 +1,0 @@
-- **Preserve U32 ESC parameters on write (`tasks/msp/api/esc_parameters_{yge,scorpion,omp,xdfly,ztw}.lua`)**: U32 parameter fields are packed with integer operations, so a value of 2^24 or more, such as a YGE serial number, is written back exactly as it was read instead of rounded. For #848.

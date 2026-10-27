@@ -1,2 +1,0 @@
-- **Per-Model Settings shows a fractional value as stored (`app/pages/settings/dashboard/overrides/page.lua`, `docs/pages/settings/dashboard/overrides.md`)**:
-  - The overview showed a fractional theme value rounded down on the radio, so a *v_max* of 25.2 read 25 and an edit from 18.0 to 18.1 read 18. It now shows the value as stored (part of #915).

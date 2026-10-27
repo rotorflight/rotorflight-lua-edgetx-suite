@@ -1,4 +1,0 @@
-- **Governor Mode now controls the governor feature and restarts the flight controller when needed (`app/pages/setup/governor/general/page.lua`, `docs/pages/setup/governor/general.md`)**:
-  - The governor feature is now set or cleared with Mode, as in the Rotorflight Configurator, so a mode picked on a board whose governor feature was off now runs the governor (#592).
-  - The page shows OFF while the governor feature is off. A save that leaves Mode untouched keeps the stored mode.
-  - A save that changes Mode or the governor feature restarts the flight controller, because the firmware applies both only at start-up; other governor settings save without a restart. The save's progress and outcome show in the shared save notice.

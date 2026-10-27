@@ -1,1 +1,0 @@
-- **A page can open another page (`ui/home.lua`, `docs/developer/page-context.md`)**: the page context gains `openPage(menuId)`, which leaves the page on screen and opens the target through the menu, with the menu's conditions. Nothing calls it yet.

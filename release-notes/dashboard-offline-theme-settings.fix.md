@@ -1,1 +1,0 @@
-- Keep the last model's theme settings on the offline post-flight screen, including model overrides of the radio's theme; clear the retained context on the next connection (dashboard).

@@ -1,5 +1,0 @@
-- **A raised master volume no longer stays raised when the tool is closed within the 8 seconds (`lib/audio.lua`, `widgets/dashboard/runtime.lua`, `ui/home.lua`, `docs/audio/events.md`)**:
-  - In the *Master volume* mode of *Settings* > *Audio* > *Volume*, the tool started from the radio's tool list and the dashboard each keep their own copy of the audio module, and EdgeTX does not refresh widgets while the tool runs. A tool closed while a critical announcement still held the *Alert Level* left it there, because the dashboard wrote only a value different from the one it had written itself.
-  - On its first volume refresh, and on the first after a pause of more than 2 seconds, the dashboard or the tool now reads the global variable back and writes the level it wants when the variable holds another value. A dashboard still waiting for the model refreshes the volume every 0.5 s for this, as the tool does while it waits.
-  - A global variable that already holds the level wanted is not written again at that first refresh, so a start no longer marks the model for a save when nothing changed.
-  - The follow-up to the raise per alarm (#778).

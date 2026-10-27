@@ -1,2 +1,0 @@
-- **The @SRB-RC post-flight per-cell tile is titled V/CELL instead of VOLTAGE (`widgets/dashboard/themes/@srb-rc/postflight.lua`, `docs/dashboard/themes.md`)**:
-  - For #493, the tile showing the landing voltage per cell takes a new `widgets.dashboard.cell_voltage` title, so it no longer reads like a pack voltage next to *Ending Voltage*; `volts_per_cell` keeps titling the pack-voltage tiles of @AERC and @RT-RC.

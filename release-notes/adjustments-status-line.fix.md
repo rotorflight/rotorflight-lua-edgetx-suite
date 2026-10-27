@@ -1,2 +1,0 @@
-- **Adjustments no longer draws "Unsaved changes" over "Active ranges" (`app/pages/setup/controls/adjustments/page.lua`, `ui/controls.lua`, `docs/pages/setup/controls/adjustments.md`)**:
-  - For #661, the unsaved-changes text is placed after the measured width of the first label, or on a second line when the status line is too narrow, with the settings below moving down to make room.

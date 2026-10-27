@@ -1,2 +1,0 @@
-- **Modes and Adjustments help matches their controls and save behavior (`i18n/en.lua`, `i18n/de.lua`)**:
-  - For #746, Modes names its Start and End number fields, and Adjustments says Save writes each changed range before EEPROM.

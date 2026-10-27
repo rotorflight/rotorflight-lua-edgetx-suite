@@ -1,3 +1,0 @@
-- **Settings > Dashboard > Settings opens from the dashboard with any number of themes (`app/lib/dashboard_builder.lua`, `app/menu_registry.lua`, `app/pages/settings/dashboard/lib.lua`, `ui/home.lua`, `docs/pages/settings/dashboard/settings.md`)**:
-  - The theme grid is made over several passes, a few themes at a time, and keeps what each pass finished. Opened from the dashboard it no longer runs into the widget's instruction limit and closes the tool; it shows *Loading...* for a moment and then the whole grid.
-  - The theme scan behind it is taken in the same steps, and the builder writes one debug line per build, built only when the log level lets it out.

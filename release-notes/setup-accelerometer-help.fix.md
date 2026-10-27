@@ -1,2 +1,0 @@
-- **Accelerometer help has one line per setting (`app/pages/setup/accelerometer/help.lua`, `docs/pages/setup/accelerometer.md`)**:
-  - The `?` sheet is one line with the calibration steps, then one line each for Roll and Pitch saying which way to move the trim for a drift. The timing details it carried before stay on the documentation page, which now also gives the trim's unit and the drift directions.

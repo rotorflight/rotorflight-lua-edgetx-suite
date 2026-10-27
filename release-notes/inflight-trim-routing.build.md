@@ -1,1 +1,0 @@
-- Resolve in-flight row trim assignments once per drive after trim discovery, keeping input sampling order and pulse timing unchanged (`widgets/dashboard/inflight/drive.lua`).

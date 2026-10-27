@@ -1,3 +1,0 @@
-- **A consumption reserve of 0 % is accepted (`lib/smartfuel_reserve.lua`, `app/pages/setup/power/battery/page.lua`, `docs/pages/setup/power/battery.md`)**:
-  - For #893, a reserve below 15 % (from the Battery page or the flight controller's `cbat_alert_percent`) is no longer replaced by 35 %. The Battery page offers 0 to 60 %, and 0 means no reserve: the SmartFuel figure follows the raw reading one-to-one. A value above 60 % still falls back to 35 %.
-  - The Battery page's help is one sentence now, since every row carries its own `?`; the rows for Selected Battery, the capacities and Cell count say what only the page help said before.

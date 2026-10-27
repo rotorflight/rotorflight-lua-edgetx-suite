@@ -1,2 +1,0 @@
-- **The YGE ESC page shows the serial number as S/N with plain digits (`app/pages/setup/esc_motors/esc_tools/escmfg/yge/init.lua`, `tasks/msp/api/rx_config.lua`, `tasks/msp/api/serial_config.lua`)**:
-  - For #875, the serial number is assembled and printed with integer arithmetic, so it no longer reads `Ver: 43550.0` or turns into exponent notation from 10 000 000 up; the RX and serial configuration writers pack U32 values without a floating-point quotient.

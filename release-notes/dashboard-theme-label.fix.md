@@ -1,1 +1,0 @@
-- Rename the English dashboard Design menu entry to Theme and align its documentation paths (#378). (`settings/dashboard/theme`)

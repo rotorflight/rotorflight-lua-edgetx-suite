@@ -1,3 +1,0 @@
-- **Telemetry applies the native CRSF sensor lock only with a CRSF receiver (`app/pages/setup/telemetry/page.lua`, `docs/pages/setup/telemetry.md`)**:
-  - On any receiver other than CRSF (SmartPort, F.Port, FBUS, SBUS, etc.), Altitude, Attitude (Combined) and Flight Mode can be switched off and stay off when saved, and the pitch, roll and yaw attitude switches are no longer greyed out (#590).
-  - The CRSF mode header and native-mode warning now appear only with a CRSF receiver. Telemetry settings can be saved once both the sensor and receiver settings have been read.

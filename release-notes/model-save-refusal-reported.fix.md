@@ -1,2 +1,0 @@
-- **Setup > Model reports a save the save pipeline refuses (`app/pages/setup/model/page.lua`, `docs/pages/setup/model.md`)**:
-  - When the save pipeline refuses to start the flight controller write (another save still running, for example), the page now shows an Error box naming the reason as the pipeline gives it (a short code such as `busy`), as the other pages that save through the pipeline do, instead of closing the save notice without a message. The radio-wide switches, saved first, are not affected (#851).

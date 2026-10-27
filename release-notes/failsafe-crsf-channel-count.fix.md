@@ -1,2 +1,0 @@
-- **Failsafe lists only the channels the flight controller reports (`tasks/msp/api/rxfail_config.lua`, `app/pages/setup/controls/failsafe/page.lua`, `docs/pages/setup/controls/failsafe.md`)**:
-  - For #597, the RXFAIL_CONFIG parser reads only the complete records in the reply, so a CRSF/ELRS model shows its 16 channels instead of two extra rows reading Auto / 875us; the page help describes the three failsafe modes.

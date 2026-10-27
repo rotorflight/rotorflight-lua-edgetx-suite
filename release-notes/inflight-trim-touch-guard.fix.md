@@ -1,4 +1,0 @@
-- **In-flight tuning: trim and touch refuse each other's step (`widgets/dashboard/inflight/drive.lua`, `docs/dashboard/inflight-tuning.md`)**:
-  - A tap on a step control during a trim's pulse, or the pause after it, is refused with *too fast - one step at a time* instead of replacing the trim's value before the flight controller has counted it, or stretching it into a second step. A trim's step press during a touch pulse, a hold or the pause after them is refused with the same line instead of being lost, or stepping late once the touch is done.
-  - A walk or bank trim pressed while a step is still on the wire shows the same line instead of being dropped without a word; held on, it moves at its usual repeat once the step is off the wire.
-  - Letting go of a held step control starts the same pause a tap ends with, so the next tap or trim press after a long hold no longer lands its value straight on the hold's.

@@ -1,2 +1,0 @@
-- **Translate telemetry sensor switch labels (`app/pages/setup/telemetry/page.lua`, `i18n/en.lua`, `i18n/de.lua`, `docs/pages/setup/telemetry.md`)**:
-  - All 90 sensor names now use localized labels in source and packaged builds, including German translations (#590).

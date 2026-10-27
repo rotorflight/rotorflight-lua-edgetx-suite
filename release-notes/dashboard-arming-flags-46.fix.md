@@ -1,2 +1,0 @@
-- **Dashboard arming-disable reasons follow the firmware's flag order (`widgets/dashboard/objects/text/governor.lua`, `widgets/dashboard/themes/deck/common.lua`, `widgets/dashboard/themes/urban/common.lua`, `widgets/dashboard/themes/grid/common.lua`)**:
-  - An active servo or mixer override (bit 25) is now named *Override*, and the arm switch flag (bit 26) is decoded in the governor box and the Deck, Urban and Grid themes (#593, #606).
