@@ -104,7 +104,7 @@ _G.rfsuite = { palette = { accent = 0 }, session = { esc4WayMotorCount = 2 } }
 _G.SMLSIZE = 0
 _G.getTime = function() return ticks end
 _G.loadScript = function(path)
-  local relative = path:gsub("^/SCRIPTS/TOOLS/rfsuite%-core/", "")
+  local relative = string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", "")
   local module = modules[relative]
   assert(module, "unexpected module: " .. relative)
   return function() return module end
