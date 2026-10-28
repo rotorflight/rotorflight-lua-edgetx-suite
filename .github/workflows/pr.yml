@@ -617,3 +617,11 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/telemetry/verify_save_telemetry_page.lua
+
+  info-rf-mode:
+    name: Info RF Mode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/diagnostics/verify_info_rf_mode.lua
