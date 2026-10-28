@@ -22,7 +22,7 @@ return function(ctx)
   local help_p4 = t(i18n, "help_p4",
     "All models: offer the pack for every model, else only those switched on.")
   local help_p6 = t(i18n, "help_p6",
-    "New battery/Edit: full-screen form until Save or Cancel. Save rewrites only this pack's plain-text registry line; all other lines stay unchanged.")
+    "New battery: full-screen form, also opened by Edit, until Save or Cancel. Save rewrites only this pack's plain-text registry line; all other lines stay unchanged.")
   local help_p7 = t(i18n, "help_p7",
     "Write a flight log: after connecting, the dashboard asks for this model's pack.")
   local help_p8 = t(i18n, "help_p8",

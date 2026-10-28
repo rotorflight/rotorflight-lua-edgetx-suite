@@ -3218,7 +3218,7 @@ return {
         help_p2 = "Mindestflugdauer: ein Flug dauert vom Scharfschalten bis Entschaerfen; kuerzeres Scharfschalten wird nicht aufgezeichnet.",
         help_p3 = "Akkus: Wahl im Dashboard; die Flugzeile nennt den Akku; erster Flug zaehlt einen Zyklus.",
         help_p4 = "Alle Modelle: Akku fuer jedes Modell, sonst nur fuer eingeschaltete.",
-        help_p6 = "Neuer Akku/Bearbeiten: Vollbildformular bis Speichern/Abbrechen. Speichern schreibt nur die Akkuzeile der Textdatei neu; andere Zeilen bleiben unveraendert.",
+        help_p6 = "Neuer Akku: Vollbildformular, auch ueber Bearbeiten, bis Speichern/Abbrechen. Speichern schreibt nur die Akkuzeile der Textdatei neu; andere Zeilen bleiben unveraendert.",
         help_p7 = "Flugbuch schreiben: das Dashboard fragt nach dem Verbinden nach dem Akku.",
         help_p8 = "Akkuprofil des Akkus setzen: die Akkuwahl im Dashboard kann auch das Akkuprofil im Flugcontroller setzen, nie im scharfen Zustand.",
         help_p9 = "Zellen: hat der Flugcontroller eine Zellenzahl je Profil, muss sie auch passen; 0 laesst sie weg. Bei Gleichstand wird kein Profil gesetzt.",
