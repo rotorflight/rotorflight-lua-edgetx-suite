@@ -475,3 +475,11 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/logs/verify_graph_stop.lua
       - run: lua5.3 bin/logs/verify_logs_page.lua
+
+  flight-log-free-id:
+    name: Flight log pack ids
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_log/verify_free_id.lua
