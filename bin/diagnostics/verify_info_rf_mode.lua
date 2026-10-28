@@ -59,8 +59,8 @@ local function loadPage(mode, generation)
     return true
   end
   _G.loadScript = function(path)
-    assert(path:sub(1, #prefix) == prefix, "unexpected module prefix: " .. path)
-    local module = assert(modules[path:sub(#prefix + 1)], "unexpected module: " .. path)
+    assert(string.sub(path, 1, #prefix) == prefix, "unexpected module prefix: " .. path)
+    local module = assert(modules[string.sub(path, #prefix + 1)], "unexpected module: " .. path)
     return function() return module end
   end
   return assert(loadfile(pagePath))()
