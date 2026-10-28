@@ -1,3 +1,4 @@
 - **New battery ids avoid deleted packs' logged flights (`lib/flight_log.lua`, `app/pages/tools/flight_log/page.lua`, `app/pages/tools/flight_log/help.lua`, `i18n/en.lua`, `i18n/de.lua`, `docs/pages/tools/flight_log.md`)**:
   - The suggested id excludes every id still named by a logged flight, using the completed flight counts, so a new pack no longer inherits a deleted pack's flights (#861).
-  - Entering such an id by hand remains allowed; saving shows how many old flights now count under the new pack.
+  - Entering such an id by hand remains allowed when creating or renaming a pack; saving shows how many logged flights now count under this pack.
+  - The Flight Log help uses concise, label-first explanations of its settings and pack editor in English and German.

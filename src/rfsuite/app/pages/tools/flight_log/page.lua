@@ -845,6 +845,7 @@ local function saveEdit(i18n)
       cycles = tonumber(edit.cycles) or 0
     })
   else
+    inheritedFlights = (id ~= edit.originalId) and (ui.flightsByBattery[id] or 0) or 0
     result = FlightLog.updateBattery(edit.originalId, {
       id = id,
       name = FlightLog.sanitizeName(edit.name),
@@ -875,7 +876,7 @@ local function saveEdit(i18n)
   ui.editError = nil
   if inheritedFlights > 0 then
     ui.editError = string.format(
-      pageText(i18n, "notice_inherited_flights", "This id has %d logged flights of a deleted pack; they now count under this pack."),
+      pageText(i18n, "notice_inherited_flights", "Logged flights now counted under this pack: %d"),
       inheritedFlights)
   end
   ui.batteryId = id

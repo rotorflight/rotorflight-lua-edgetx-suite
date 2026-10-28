@@ -104,8 +104,9 @@ and *Delete*. Deleting asks first.
 
 A new pack's suggested id never reuses a deleted pack's id while logged flights still name it.
 The editor becomes available once the flight log has finished loading. Typing a deleted pack's
-id by hand is allowed: saving shows a notice with the number of its logged flights that now
-count under the new pack, including in the flight list and the pack's flight count.
+id by hand is allowed when creating a pack or changing its id: saving shows a notice with the
+number of its logged flights that now count under this pack, including in the flight list and
+the pack's flight count.
 
 Renaming a pack's id, or deleting it, takes the pack chosen for the connected model with it: the
 choice follows the new id, or is cleared.
