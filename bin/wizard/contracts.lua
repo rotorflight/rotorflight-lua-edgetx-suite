@@ -3290,6 +3290,10 @@ return function(h)
             checked=checked+1;kinds[cards[card].art or "?"]=true
             check(item.visible()==true,"VISUAL a line with a points getter is visible before its first points pass: "..name.." card "..card)
             item.pts()
+            -- A retained scene is built again (a help sheet closing) and gets new native objects.
+            w.buildCount=(w.buildCount or 0)+1
+            check(item.visible()==true,"VISUAL a line with a points getter is visible before its first points pass after a rebuild: "..name.." card "..card)
+            item.pts()
           end
         end
       end

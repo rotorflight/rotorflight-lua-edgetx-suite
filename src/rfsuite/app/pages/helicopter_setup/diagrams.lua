@@ -33,11 +33,13 @@ function M.append(children, w, card, x, y, width, height)
   -- A line whose points come from a getter has no native object until its first points pass,
   -- and EdgeTX runs the visible getter first: hiding it then flags a null object and the radio
   -- faults (lua_lvgl_widget.cpp: LvglWidgetObjectBase::callRefs, LvglWidgetLine::isVisible).
-  -- Such a line therefore reports itself visible until its points have been read once.
+  -- Such a line therefore reports itself visible until its points have been read once in the
+  -- current build: a retained scene is built again (a help sheet closing, for one), and every
+  -- build makes new native objects from the same descriptors.
   local function reactiveLine(item, visible)
-    local get, drawn = item.pts, false
-    item.pts = function() drawn = true; return get() end
-    item.visible = function() return not drawn or visible() end
+    local get, drawnIn = item.pts, false
+    item.pts = function() drawnIn = w.buildCount; return get() end
+    item.visible = function() return drawnIn ~= w.buildCount or visible() end
   end
   local function rect(a,b,c,d,color)
     local item = { type = "rectangle", x = px(a), y = py(b),

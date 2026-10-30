@@ -74,12 +74,13 @@ function M.new(children,w,x,y,width,height)
   -- Even hidden/stale native lines always receive valid, fixed-size point tables.
   project(0,0)
   -- A line with a points getter has no native object before its first points pass, and EdgeTX
-  -- evaluates visible first: hiding it then would flag a null object. It stays visible until drawn.
+  -- evaluates visible first: hiding it then would flag a null object. It stays visible until drawn
+  -- in the current build, since a retained scene is built again with new native objects.
   for i,path in ipairs(paths) do
-    local pts,drawn={},false
+    local pts,drawnIn={},false
     for j,index in ipairs(path) do pts[j]=s.projected[index] end
-    children[#children+1]={type="line",pts=function() drawn=true;return pts end,
-      visible=function() return not drawn or s.valid end,thickness=thick[i],
+    children[#children+1]={type="line",pts=function() drawnIn=w.buildCount;return pts end,
+      visible=function() return drawnIn~=w.buildCount or s.valid end,thickness=thick[i],
       color=accent[i] and w.palette.accent or w.palette.text}
   end
   children[#children+1]={type="label",x=x,y=y+height-22,w=width,h=22,font=SMLSIZE,
