@@ -11,6 +11,26 @@ local function hexEncode(input)
   return result
 end
 
+-- Done marks on the Helicopter Setup step tiles, from the wizard's per-FC completion record.
+-- The record is read once per flight controller and kept in the session; the wizard updates
+-- the session copy when it records a step.
+local HelicopterHistory = nil
+local function helicopterStepDone(step)
+  return function()
+    local session = _G.rfsuite and _G.rfsuite.session
+    if not session or type(session.mcu_id) ~= "string" then return false end
+    local record = session.helicopterSetupHistory
+    if not record or record.id ~= session.mcu_id then
+      if not HelicopterHistory then
+        HelicopterHistory = loadScript("/SCRIPTS/TOOLS/rfsuite-core/app/pages/helicopter_setup/history_store.lua", "t")()
+      end
+      record = { id = session.mcu_id, mask = HelicopterHistory.mask(session.mcu_id, session.modelPreferencesFile) }
+      session.helicopterSetupHistory = record
+    end
+    return (record.mask & (1 << (step - 1))) ~= 0
+  end
+end
+
 -- Static manifest definition - themes are loaded dynamically at runtime
 local manifest = {
   sections = {
@@ -312,13 +332,60 @@ local manifest = {
     wizards_menu = {
       title = "@i18n(app.modules.wizards.name)@",
       pages = {
-        { id = "setup_wizard", title = "@i18n(app.modules.setup_wizard.name)@", menuId = "setup_wizard_retired_page", icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true }
+        { id = "helicopter_setup", title = "@i18n(app.modules.helicopter_setup.name)@", menuId = "helicopter_setup_menu", icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} }
       }
     },
-    -- The setup assistant is being replaced; until its successor ships, its entry opens a page
-    -- that says so instead of the assistant.
-    setup_wizard_retired_page = {
-      title = "@i18n(app.modules.setup_wizard.name)@",
+    -- The whole run and its parts, side by side. The parts are not shortcuts into a walk: each
+    -- opens the same assistant bounded to one section, with the same criteria and the same list.
+    helicopter_setup_menu = {
+      title = "@i18n(app.modules.helicopter_setup.name)@",
+      help = "@i18n(app.modules.helicopter_setup.menuHelp)@",
+      pages = {
+        { id = "all", title = "@i18n(app.modules.helicopter_setup.completeSetup)@", menuId = "helicopter_setup_page", icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_01", title = 1 .. ". " .. "@i18n(app.modules.helicopter_setup.sensors)@", menuId = "helicopter_setup_step_01_page", doneWhen = helicopterStepDone(1), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_02", title = 2 .. ". " .. "@i18n(app.modules.helicopter_setup.receiver)@", menuId = "helicopter_setup_step_02_page", doneWhen = helicopterStepDone(2), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_03", title = 3 .. ". " .. "@i18n(app.modules.helicopter_setup.modeSwitches)@", menuId = "helicopter_setup_step_03_page", doneWhen = helicopterStepDone(3), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_04", title = 4 .. ". " .. "@i18n(app.modules.helicopter_setup.profiles)@", menuId = "helicopter_setup_step_04_page", doneWhen = helicopterStepDone(4), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_05", title = 5 .. ". " .. "@i18n(app.modules.helicopter_setup.rates)@", menuId = "helicopter_setup_step_05_page", doneWhen = helicopterStepDone(5), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_06", title = 6 .. ". " .. "@i18n(app.modules.helicopter_setup.swash)@", menuId = "helicopter_setup_step_06_page", doneWhen = helicopterStepDone(6), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_07", title = 7 .. ". " .. "@i18n(app.modules.helicopter_setup.servoType)@", menuId = "helicopter_setup_step_07_page", doneWhen = helicopterStepDone(7), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_08", title = 8 .. ". " .. "@i18n(app.modules.helicopter_setup.governor)@", menuId = "helicopter_setup_step_08_page", doneWhen = helicopterStepDone(8), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_09", title = 9 .. ". " .. "@i18n(app.modules.helicopter_setup.motor)@", menuId = "helicopter_setup_step_09_page", doneWhen = helicopterStepDone(9), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_10", title = 10 .. ". " .. "@i18n(app.modules.helicopter_setup.connect)@", menuId = "helicopter_setup_step_10_page", doneWhen = helicopterStepDone(10), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_11", title = 11 .. ". " .. "@i18n(app.modules.helicopter_setup.escTelemetry)@", menuId = "helicopter_setup_step_11_page", doneWhen = helicopterStepDone(11), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_12", title = 12 .. ". " .. "@i18n(app.modules.helicopter_setup.spinTest)@", menuId = "helicopter_setup_step_12_page", doneWhen = helicopterStepDone(12), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_13", title = 13 .. ". " .. "@i18n(app.modules.helicopter_setup.servoTile)@", menuId = "helicopter_setup_step_13_page", doneWhen = helicopterStepDone(13), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_14", title = 14 .. ". " .. "@i18n(app.modules.helicopter_setup.controlDirections)@", menuId = "helicopter_setup_step_14_page", doneWhen = helicopterStepDone(14), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_15", title = 15 .. ". " .. "@i18n(app.modules.helicopter_setup.level)@", menuId = "helicopter_setup_step_15_page", doneWhen = helicopterStepDone(15), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_16", title = 16 .. ". " .. "@i18n(app.modules.helicopter_setup.bladePitch)@", menuId = "helicopter_setup_step_16_page", doneWhen = helicopterStepDone(16), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_17", title = 17 .. ". " .. "@i18n(app.modules.helicopter_setup.tail)@", menuId = "helicopter_setup_step_17_page", doneWhen = helicopterStepDone(17), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_18", title = 18 .. ". " .. "@i18n(app.modules.helicopter_setup.gyroCheck)@", menuId = "helicopter_setup_step_18_page", doneWhen = helicopterStepDone(18), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "step_19", title = 19 .. ". " .. "@i18n(app.modules.helicopter_setup.finish)@", menuId = "helicopter_setup_step_19_page", doneWhen = helicopterStepDone(19), icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} },
+        { id = "history", title = "@i18n(app.modules.helicopter_setup.historyTitle)@", menuId = "helicopter_setup_history_page", icon = "@pages/setup/icon.png", enabledWhen = "fblConnected", lockedWhileArmed = true, minApiVersion = {12, 0, 9} }
+      }
+    },
+    helicopter_setup_step_01_page = { title = "@i18n(app.modules.helicopter_setup.sensors)@", pages = {} },
+    helicopter_setup_step_02_page = { title = "@i18n(app.modules.helicopter_setup.receiver)@", pages = {} },
+    helicopter_setup_step_03_page = { title = "@i18n(app.modules.helicopter_setup.modeSwitches)@", pages = {} },
+    helicopter_setup_step_04_page = { title = "@i18n(app.modules.helicopter_setup.profiles)@", pages = {} },
+    helicopter_setup_step_05_page = { title = "@i18n(app.modules.helicopter_setup.rates)@", pages = {} },
+    helicopter_setup_step_06_page = { title = "@i18n(app.modules.helicopter_setup.swash)@", pages = {} },
+    helicopter_setup_step_07_page = { title = "@i18n(app.modules.helicopter_setup.servoType)@", pages = {} },
+    helicopter_setup_step_08_page = { title = "@i18n(app.modules.helicopter_setup.governor)@", pages = {} },
+    helicopter_setup_step_09_page = { title = "@i18n(app.modules.helicopter_setup.motor)@", pages = {} },
+    helicopter_setup_step_10_page = { title = "@i18n(app.modules.helicopter_setup.connect)@", pages = {} },
+    helicopter_setup_step_11_page = { title = "@i18n(app.modules.helicopter_setup.escTelemetry)@", pages = {} },
+    helicopter_setup_step_12_page = { title = "@i18n(app.modules.helicopter_setup.spinTest)@", pages = {} },
+    helicopter_setup_step_13_page = { title = "@i18n(app.modules.helicopter_setup.servoDirectionCentre)@", pages = {} },
+    helicopter_setup_step_14_page = { title = "@i18n(app.modules.helicopter_setup.controlDirections)@", pages = {} },
+    helicopter_setup_step_15_page = { title = "@i18n(app.modules.helicopter_setup.level)@", pages = {} },
+    helicopter_setup_step_16_page = { title = "@i18n(app.modules.helicopter_setup.bladePitch)@", pages = {} },
+    helicopter_setup_step_17_page = { title = "@i18n(app.modules.helicopter_setup.tail)@", pages = {} },
+    helicopter_setup_step_18_page = { title = "@i18n(app.modules.helicopter_setup.gyroCheck)@", pages = {} },
+    helicopter_setup_step_19_page = { title = "@i18n(app.modules.helicopter_setup.finish)@", pages = {} },
+    helicopter_setup_history_page = { title = "@i18n(app.modules.helicopter_setup.historyTitle)@", pages = {} },
+    helicopter_setup_page = {
+      title = "@i18n(app.modules.helicopter_setup.name)@",
       pages = {}
     },
     setup_configuration_page = {

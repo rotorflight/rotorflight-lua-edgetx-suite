@@ -108,6 +108,11 @@ it with the model on the bench rather than in the air.
 *ELRS -> RF* writes the flight controller's configuration and commits it to permanent storage, the
 same as a save on any other page.
 
+The same link task also drives the ExpressLRS cards in the receiver step of the Helicopter
+Setup wizard. The wizard runs it under an owner of its own, so a flight controller write still in
+flight is dropped when the wizard leaves the card; this page runs it without an owner, and a sync
+it has started runs to its end, the permanent save included, as before.
+
 ## Related
 
 - [Rotorflight documentation](https://doc.rotorflight.org/) — the `crsf_telemetry_mode`,

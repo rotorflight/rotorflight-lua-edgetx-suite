@@ -1,6 +1,5 @@
 -- EdgeTX MSP API: rpm_filter_v2 (ported from Ethos)
--- Reference module: no shipped page loads it. It is kept for the developer API tester, which
--- loads a module by its name, and as the starting point for a page that needs this message.
+-- Helicopter Setup reads custom notch sources to check whether the RPM filter needs a signal.
 
 local Api = {
   command = 154,
@@ -34,7 +33,7 @@ function Api.buildReadPayload(payloadData, _, _, _, axis)
 end
 
 function Api.parse(buf)
-  if type(buf) ~= "table" then return nil end
+  if type(buf) ~= "table" or #buf < 64 then return nil end
   local i = 1
   local parsed = {}
   for idx = 1, 16 do

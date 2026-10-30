@@ -21,7 +21,7 @@ armed.
 
 | Setting | What it does |
 | --- | --- |
-| Firmware Source | Which estimate the flight controller computes: *OFF (LOCAL)*, *VOLTAGE*, *CURRENT* or *COMBINED*. Combined takes the more pessimistic of voltage and current. The four names follow the radio's language. |
+| Firmware Source | Which estimate the flight controller computes: *OFF (LOCAL)*, *VOLTAGE*, *CURRENT* or *COMBINED*. Combined takes the more pessimistic of voltage and current. The four names follow the radio's language; the Helicopter Setup wizard's ESC step offers the same list. |
 | Voltage drop rate | How fast the filtered voltage may fall in voltage mode, so that a brief sag under load does not pull the estimate down. 0 to 250 mV/s, default 10. |
 | Charge drop rate | How fast the reported fuel may drop in voltage mode once the model has been armed. 0.00 to 2.50 %/s in steps of 0.01, default 0.50. |
 | Sag gain | Strength of the load-sag compensation in voltage mode; higher compensates more aggressively. Raise it if the estimate reads too low under load in flight. 0 to 100 %, default 40. |

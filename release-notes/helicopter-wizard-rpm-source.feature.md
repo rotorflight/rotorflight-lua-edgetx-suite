@@ -1,0 +1,1 @@
+- Helicopter Setup keeps throttle range available without Advanced, confirms each ELRS link change, and adds RPM source selection with reboot guidance and the flight controller's fast-RPM verdict; bidirectional DShot also supports PROSHOT1000 (helicopter_setup). Printed port labels now recognize FLYDRAGON_V2_2 by board name in the wizard and Ports page (setup/ports).

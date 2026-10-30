@@ -133,9 +133,11 @@ function Api.buildWritePayload(data)
   appendU16(data.vbatwarningcellvoltage)
   payload[#payload+1] = tonumber(data.lvcPercentage) or 0
   payload[#payload+1] = tonumber(data.consumptionWarningPercentage) or 0
-  if data.batteryCapacities then
+  -- Accept the parsed flat record as well as the Power pages' array adapter. This lets
+  -- transport clients round-trip every received profile without copying codec logic.
+  if data.batteryCapacities or data.batteryCapacity_5 ~= nil then
     for i = 1, 6 do
-      appendU16(data.batteryCapacities[i])
+      appendU16(data.batteryCapacities and data.batteryCapacities[i] or data["batteryCapacity_" .. (i - 1)])
     end
     -- Only behind the capacities: the board reads the capacities first whenever 12 bytes remain,
     -- so cell blocks sent without them would be taken for capacities. And only where the read

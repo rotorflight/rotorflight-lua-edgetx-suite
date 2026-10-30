@@ -121,18 +121,22 @@ function Api.parse(buf)
     -- A reply from another family decodes into this layout without error, the page adopts it
     -- as the ESC's state, and a save writes it back; refuse it instead, which the caller
     -- already treats as 'no data'.
-    -- There is no length test to go with it: an OpenYGE block is two header bytes plus two
-    -- per parameter, sized from the count the ESC itself reports, so a shorter reply is a
-    -- smaller ESC rather than a truncated one.
+    -- OpenYGE sizes the block from its declared parameter count. Keep decoding compatible
+    -- with the tools page, but expose coverage so transactions can reject truncated reads.
     if tonumber(buf[1]) ~= Api.mspSignature then return nil end
-    local pos=1; local out={}
+    local count = #buf >= 4 and read_unsigned(buf,3,2,false) or nil
+    local declaredBytes = count and Api.mspHeaderBytes + 2 * count or 0
+    local pos=1; local out={_parameterCount=count, _receivedBytes=#buf, _present={},
+        _complete=count ~= nil and #buf >= declaredBytes, _tail={}}
     for _, f in ipairs(FIELD_SPEC) do
         local name, typ = f[1], f[2]
         local len = TYPE_LEN[typ] or 1; local big = has_big_flag(f)
+        out._present[name] = pos + len - 1 <= math.min(#buf, declaredBytes)
         if typ=='U120' or typ=='U128' then out[name]=bytes_to_string(buf,pos,len); pos=pos+len
         elseif string.sub(typ, 1, 1)=='S' then out[name]=read_signed(buf,pos,len,big); pos=pos+len
         else out[name]=read_unsigned(buf,pos,len,big); pos=pos+len end
     end
+    for i=pos,math.min(#buf,declaredBytes) do out._tail[#out._tail+1]=buf[i] end
     out.timing_raw = out.timing
     out.timing = motor_timing_to_ui(out.timing)
     return out
@@ -146,6 +150,11 @@ function Api.buildWritePayload(data)
         if name=='timing' then v = motor_timing_from_ui(v, data.timing_raw) end
         if typ=='U120' or typ=='U128' then local b=pack_string(v,len); for _,x in ipairs(b) do payload[#payload+1]=x end
         else local b=pack_unsigned(v or 0,len,big); for _,x in ipairs(b) do payload[#payload+1]=x end end
+    end
+    if data._parameterCount then
+        local length = Api.mspHeaderBytes + 2 * data._parameterCount
+        for i=#payload,length+1,-1 do payload[i]=nil end
+        for _,b in ipairs(data._tail or {}) do payload[#payload+1]=b end
     end
     return payload
 end

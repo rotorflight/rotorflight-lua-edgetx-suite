@@ -1,0 +1,1 @@
+- Helicopter Setup lists PWM, DShot 150 and DShot 300 first, treats DShot 150 as having no bidirectional DShot RPM (choosing it turns bidirectional DShot off), offers FBUS instead of F.Port2 from API 12.10, and calibrates the tail at 22.5 degrees each way so a square of paper folded corner to corner can stand in for a pitch gauge (helicopter_setup).

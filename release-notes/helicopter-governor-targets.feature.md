@@ -1,0 +1,1 @@
+- Add per-PID-profile FC headspeed targets and ramp times to Electric/Nitro setup, using existing profile transactions and Governor page limits. Warn when RPM filtering has no selected RPM signal, including with governor Off; filter settings remain read-only (`helicopter_setup`).

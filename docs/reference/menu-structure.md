@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**120 entries, 99 of them open a page, 63 of those pages are documented.**
+**141 entries, 119 of them open a page, 84 of those pages are documented.**
 
 ## Diagrams
 
@@ -70,23 +70,25 @@ flowchart LR
   n4 --> n13
   n14["Wizards"]:::menu
   n0 --> n14
-  n15["System"]:::section
-  n16["Tools"]:::menu
-  n15 --> n16
-  n17["Diagnostics"]:::menu
+  n15["Helicopter Setup"]:::menu
+  n14 --> n15
+  n16["System"]:::section
+  n17["Tools"]:::menu
   n16 --> n17
-  n18["Logs"]:::documented
-  n15 --> n18
-  n19["Settings"]:::menu
-  n15 --> n19
-  n20["Dashboard"]:::menu
-  n19 --> n20
-  n21["Audio"]:::undocumented
-  n19 --> n21
-  n22["Events"]:::undocumented
-  n21 --> n22
-  n23["Developer"]:::menu
-  n15 --> n23
+  n18["Diagnostics"]:::menu
+  n17 --> n18
+  n19["Logs"]:::documented
+  n16 --> n19
+  n20["Settings"]:::menu
+  n16 --> n20
+  n21["Dashboard"]:::menu
+  n20 --> n21
+  n22["Audio"]:::undocumented
+  n20 --> n22
+  n23["Events"]:::undocumented
+  n22 --> n23
+  n24["Developer"]:::menu
+  n16 --> n24
   classDef section stroke:#78909c,stroke-width:3px,font-weight:bold
   classDef menu stroke:#1e88e5,stroke-width:2px
   classDef documented stroke:#43a047,stroke-width:2px
@@ -267,8 +269,50 @@ flowchart LR
 ```mermaid
 flowchart LR
   n0["Wizards"]:::menu
-  n1["Full initial setup"]:::undocumented
+  n1["Helicopter Setup"]:::menu
   n0 --> n1
+  n2["Complete setup"]:::documented
+  n1 --> n2
+  n3["1. Board orientation"]:::documented
+  n1 --> n3
+  n4["2. Receiver"]:::documented
+  n1 --> n4
+  n5["3. Mode switches"]:::documented
+  n1 --> n5
+  n6["4. Profiles #amp; gain"]:::documented
+  n1 --> n6
+  n7["5. Rates"]:::documented
+  n1 --> n7
+  n8["6. Swashplate"]:::documented
+  n1 --> n8
+  n9["7. Servo type"]:::documented
+  n1 --> n9
+  n10["8. Governor"]:::documented
+  n1 --> n10
+  n11["9. Motor #amp; ESC"]:::documented
+  n1 --> n11
+  n12["10. Connect the servos"]:::documented
+  n1 --> n12
+  n13["11. ESC telemetry"]:::documented
+  n1 --> n13
+  n14["12. ESC #amp; spin test"]:::documented
+  n1 --> n14
+  n15["13. Servo setup"]:::documented
+  n1 --> n15
+  n16["14. Control directions"]:::documented
+  n1 --> n16
+  n17["15. Level the swash"]:::documented
+  n1 --> n17
+  n18["16. Blade pitch"]:::documented
+  n1 --> n18
+  n19["17. Tail rotor"]:::documented
+  n1 --> n19
+  n20["18. Gyro check"]:::documented
+  n1 --> n20
+  n21["19. Finish"]:::documented
+  n1 --> n21
+  n22["Setup history"]:::documented
+  n1 --> n22
   classDef section stroke:#78909c,stroke-width:3px,font-weight:bold
   classDef menu stroke:#1e88e5,stroke-width:2px
   classDef documented stroke:#43a047,stroke-width:2px
@@ -473,7 +517,28 @@ Section `configuration`.
 | Setup &rsaquo; Model | `model` | `setup_model_page` | `setup/model` | [setup/model.md](../pages/setup/model.md) | `enabledWhen = "fblConnected"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; GPS | `gps` | `setup_gps_page` | `setup/gps` | **none** | `lockedWhileArmed = true` |
 | Wizards | `wizards` | `wizards_menu` | menu, 1 entry | &mdash; | `enabledWhen = "fblConnected"`, `visibleWhen = "previewSetupWizard"`, `lockedWhileArmed = true` |
-| Wizards &rsaquo; Full initial setup | `setup_wizard` | `setup_wizard_retired_page` | `setup_wizard_retired` | **none** | `enabledWhen = "fblConnected"`, `lockedWhileArmed = true` |
+| Wizards &rsaquo; Helicopter Setup | `helicopter_setup` | `helicopter_setup_menu` | menu, 21 entries | &mdash; | `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }`, menu: `help = "@i18n(app.modules.helicopter_setup.menuHelp)@"` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; Complete setup | `all` | `helicopter_setup_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 1. Board orientation | `step_01` | `helicopter_setup_step_01_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 1 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 2. Receiver | `step_02` | `helicopter_setup_step_02_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 2 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 3. Mode switches | `step_03` | `helicopter_setup_step_03_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 3 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 4. Profiles & gain | `step_04` | `helicopter_setup_step_04_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 4 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 5. Rates | `step_05` | `helicopter_setup_step_05_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 5 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 6. Swashplate | `step_06` | `helicopter_setup_step_06_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 6 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 7. Servo type | `step_07` | `helicopter_setup_step_07_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 7 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 8. Governor | `step_08` | `helicopter_setup_step_08_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 8 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 9. Motor & ESC | `step_09` | `helicopter_setup_step_09_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 9 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 10. Connect the servos | `step_10` | `helicopter_setup_step_10_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 10 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 11. ESC telemetry | `step_11` | `helicopter_setup_step_11_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 11 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 12. ESC & spin test | `step_12` | `helicopter_setup_step_12_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 12 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 13. Servo setup | `step_13` | `helicopter_setup_step_13_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 13 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 14. Control directions | `step_14` | `helicopter_setup_step_14_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 14 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 15. Level the swash | `step_15` | `helicopter_setup_step_15_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 15 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 16. Blade pitch | `step_16` | `helicopter_setup_step_16_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 16 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 17. Tail rotor | `step_17` | `helicopter_setup_step_17_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 17 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 18. Gyro check | `step_18` | `helicopter_setup_step_18_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 18 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 19. Finish | `step_19` | `helicopter_setup_step_19_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 19 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; Setup history | `history` | `helicopter_setup_history_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
 
 ## System
 

@@ -31,6 +31,7 @@ local function newPage(spec)
     ["ui/loading_overlay.lua"] = {},
     ["lib/sensors.lua"] = {},
     ["lib/profile.lua"] = { getActivePidProfile = function() return 1 end },
+    ["lib/governor_fields.lua"] = assert(loadfile("src/rfsuite/lib/governor_fields.lua"))(),
     ["lib/log.lua"] = {},
     ["tasks/msp/runtime.lua"] = { getState = function() return mspState end },
     ["tasks/events/runtime.lua"] = {},

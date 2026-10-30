@@ -13,6 +13,17 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_setup_apis.lua
 
+  helicopter-wizard:
+    name: Helicopter wizard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/wizard/verify.lua
+      - run: python3 bin/wizard/audit_source.py
+      - run: python3 bin/wizard/flow.py --check
+      - run: python3 bin/wizard/verify_negative.py --lua lua5.3
+
   create-zip:
     name: Build PR ZIP (${{ matrix.lang }})
     runs-on: ubuntu-latest

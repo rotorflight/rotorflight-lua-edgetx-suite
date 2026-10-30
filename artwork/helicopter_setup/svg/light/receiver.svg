@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#545c64" font-family="Arial, sans-serif">
+<style>.receiver-art.art-800de1194f {
+
+
+
+
+
+  color: #545c64;
+}
+
+.antenna.art-800de1194f {
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.tip.art-800de1194f,
+.pin.art-800de1194f {
+  fill: currentColor;
+}
+
+.rx.art-800de1194f {
+  fill: rgba(0,123,199,.1);
+  stroke: #007bc7;
+  stroke-width: 1.6;
+}
+
+.led.art-800de1194f {
+  fill: #56ac1d;
+}
+
+.wire.art-800de1194f {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.wire.accent.art-800de1194f {
+  stroke: #007bc7;
+}
+
+.board.art-800de1194f,
+.port.art-800de1194f {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+.port.art-800de1194f {
+  fill: rgba(0,123,199,.1);
+  stroke: #007bc7;
+}
+
+.chip.art-800de1194f {
+  fill: currentColor;
+  opacity: 0.35;
+}</style>
+<g transform="translate(6 28) scale(1.4857142857142858)"><g class="receiver-art art-800de1194f"><line class="antenna art-800de1194f" x1="14" y1="26" x2="5" y2="4"></line><line class="antenna art-800de1194f" x1="42" y1="26" x2="51" y2="4"></line><circle class="tip art-800de1194f" cx="5" cy="4" r="1.8"></circle><circle class="tip art-800de1194f" cx="51" cy="4" r="1.8"></circle><rect class="rx art-800de1194f" x="8" y="26" width="40" height="28" rx="4"></rect><circle class="led art-800de1194f" cx="16" cy="34" r="2.2"></circle><path class="wire art-800de1194f" d="M48 36 C66 36 70 35 86 35"></path><path class="wire accent art-800de1194f" d="M48 40 C66 40 70 39 86 39"></path><path class="wire art-800de1194f" d="M48 44 C66 44 70 43 86 43"></path><rect class="board art-800de1194f" x="88" y="14" width="46" height="46" rx="4"></rect><rect class="port art-800de1194f" x="84" y="31" width="8" height="16" rx="1.5"></rect><rect class="chip art-800de1194f" x="104" y="28" width="18" height="18" rx="2"></rect><!--[--><!--[--><circle class="pin art-800de1194f" cx="96" cy="20" r="1.3"></circle><circle class="pin art-800de1194f" cx="104" cy="20" r="1.3"></circle><circle class="pin art-800de1194f" cx="112" cy="20" r="1.3"></circle><circle class="pin art-800de1194f" cx="120" cy="20" r="1.3"></circle><circle class="pin art-800de1194f" cx="128" cy="20" r="1.3"></circle><!--]--><!--[--><circle class="pin art-800de1194f" cx="96" cy="54" r="1.3"></circle><circle class="pin art-800de1194f" cx="104" cy="54" r="1.3"></circle><circle class="pin art-800de1194f" cx="112" cy="54" r="1.3"></circle><circle class="pin art-800de1194f" cx="120" cy="54" r="1.3"></circle><circle class="pin art-800de1194f" cx="128" cy="54" r="1.3"></circle><!--]--><!--]--></g></g>
+</svg>

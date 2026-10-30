@@ -729,6 +729,13 @@ function MenuRegistry.new(manifest, i18n, options)
     return self.currentMenuId
   end
 
+  -- A menu may carry its own help text (`help` in its manifest definition) for the header `?`.
+  function self.getCurrentMenuHelp()
+    local container = getCurrentContainer()
+    local help = container and container.help
+    return type(help) == "string" and help ~= "" and help or nil
+  end
+
   function self.isRootEntryEnabled(sectionId, entryId)
     local section = getSectionById(sectionId)
     if not section then

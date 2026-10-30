@@ -1,0 +1,1563 @@
+{
+  "reference": "b8f0eca5a73e8ea00a21a8122a8f7029ad705ee7",
+  "scope": "Wizard files and directly used shared helpers. External files are mapped only for the wizard-used subset; unrelated tab features are outside this port. This is traceability, not JavaScript statement/branch coverage.",
+  "additions": [
+    {
+      "id": "governor-targets-ramps-and-filter-signal",
+      "beyond_configurator": true,
+      "flow_cards": {
+        "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": [
+          "headspeedProfile",
+          "rampTimes",
+          "rpmFilter"
+        ]
+      },
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua",
+        "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+        "src/rfsuite/lib/governor_fields.lua"
+      ],
+      "writes": {
+        "governor_profile": [
+          "governor_headspeed"
+        ],
+        "governor_config": [
+          "gov_spoolup_time",
+          "gov_spooldown_time",
+          "gov_recovery_time"
+        ]
+      },
+      "reads": {
+        "governor_profile": [
+          "governor_headspeed"
+        ],
+        "governor_config": [
+          "gov_spoolup_time",
+          "gov_spooldown_time",
+          "gov_recovery_time"
+        ],
+        "filter_config": [
+          "rpm_preset"
+        ],
+        "rpm_filter_v2": [
+          "notch_source_1..16 (axes 0..2, CUSTOM only)"
+        ]
+      },
+      "contracts": [
+        "S08.headspeed-and-ramps",
+        "S08.headspeed-scope-and-help",
+        "S08.rpm-filter-signal"
+      ],
+      "adaptation": "Additional Suite controls beyond the pinned Configurator wizard: exact FC headspeed per configured PID profile (profile one if unknown), ramp seconds and read-only RPM-filter signal warning in every mode. Existing profileLoop owns selection/read/write/restore; per-profile reads stay outside startup and scene build. Full API records retain untouched fields. Shared Governor page limits and seconds formatter replace page-local definitions."
+    },
+    {
+      "id": "esc-range-and-operating-mode",
+      "beyond_configurator": true,
+      "targets": [
+        "src/rfsuite/lib/esc_params.lua",
+        "src/rfsuite/app/pages/helicopter_setup/esc_link.lua",
+        "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
+        "src/rfsuite/app/pages/helicopter_setup/transport.lua",
+        "src/rfsuite/app/pages/setup/esc_motors/throttle/page.lua"
+      ],
+      "writes": {
+        "esc_parameters_yge": [
+          "governor",
+          "stick_zero_us",
+          "stick_range_us"
+        ],
+        "esc_parameters_hw5": [
+          "flight_mode"
+        ],
+        "motor_config": [
+          "mincommand",
+          "minthrottle",
+          "maxthrottle"
+        ]
+      },
+      "reads": {
+        "esc_parameters_yge": [
+          "governor",
+          "stick_zero_us",
+          "stick_range_us",
+          "esc_model",
+          "esc_type",
+          "firmware_version"
+        ],
+        "esc_parameters_hw5": [
+          "flight_mode",
+          "model_name",
+          "firmware_version",
+          "_supported"
+        ],
+        "motor_config": [
+          "mincommand",
+          "minthrottle",
+          "maxthrottle"
+        ],
+        "esc_sensor_config": [
+          "protocol",
+          "half_duplex"
+        ],
+        "motor_telemetry": [
+          "voltage",
+          "temperature"
+        ]
+      },
+      "contracts": [
+        "S11.esc-read-before-write-and-signature",
+        "S11.range-routes-and-spin-gate",
+        "S11.yge-range-transaction",
+        "S11.mode-expectations-and-layouts",
+        "S11.hw-mode-transaction",
+        "S11.cache-retry-and-card-layout",
+        "S11.shared-mode-labels-and-pulse-limits"
+      ],
+      "adaptation": "Suite additions beyond the pinned Configurator: protocol descriptor capabilities; YGE analog throttle range and YGE/Hobbywing V5 operating mode with explicit button writes. Existing API modules exclusively own codecs. Shared esc_params owns bounded cache retries, fresh complete-block transactions, status-based restart detection and changed-field readback. Parameter reads run after load, never during page construction; pilot assertions and calibration remain distinct. Mode option value-to-i18n-key mappings live only in the family descriptor. The Suite throttle page and wizard share API pulse limits without changing the 50..2250 us bounds."
+    },
+    {
+      "id": "esc-telemetry-power-and-battery",
+      "beyond_configurator": true,
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
+        "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+        "src/rfsuite/lib/power_fields.lua",
+        "src/rfsuite/tasks/msp/api/battery_config.lua",
+        "src/rfsuite/tasks/msp/api/smartfuel_config.lua",
+        "src/rfsuite/app/pages/setup/power/sources/page.lua",
+        "src/rfsuite/app/pages/setup/power/battery/page.lua",
+        "src/rfsuite/app/pages/setup/power/smartfuel/page.lua"
+      ],
+      "writes": {
+        "battery_config": [
+          "voltageMeterSource",
+          "currentMeterSource",
+          "batteryCellCount",
+          "batteryCapacity",
+          "batteryCapacity_0..5",
+          "batteryCellCount_0..5"
+        ],
+        "smartfuel_config": [
+          "smartfuel_mode"
+        ]
+      },
+      "reads": {
+        "battery_config": [
+          "batteryCapacity",
+          "batteryCellCount",
+          "voltageMeterSource",
+          "currentMeterSource",
+          "vbatmincellvoltage",
+          "vbatmaxcellvoltage",
+          "vbatfullcellvoltage",
+          "vbatwarningcellvoltage",
+          "lvcPercentage",
+          "consumptionWarningPercentage",
+          "batteryCapacity_0..5",
+          "batteryCellCount_0..5",
+          "vbatmincellvoltage_0..5",
+          "vbatmaxcellvoltage_0..5",
+          "vbatfullcellvoltage_0..5",
+          "vbatwarningcellvoltage_0..5",
+          "hasProfileCells"
+        ],
+        "battery_profile": [
+          "batteryProfile"
+        ],
+        "smartfuel_config": [
+          "smartfuel_mode",
+          "voltage_drop_rate",
+          "charge_drop_rate",
+          "sag_gain"
+        ],
+        "motor_telemetry": [
+          "voltage",
+          "current"
+        ],
+        "analog": [
+          "voltage",
+          "current"
+        ]
+      },
+      "contracts": [
+        "S11.power-shared-specs-and-availability",
+        "S11.power-live-sources-and-warning",
+        "S11.power-roundtrip-save-discard-and-failure",
+        "S11.power-help-and-layout"
+      ],
+      "adaptation": "Additional Power cards after live telemetry, beyond the pinned Configurator. Three optional single-message startup reads use transport only; SmartFuel follows the menu API 12.0.9 gate, Battery has no version gate and capability comes from the reply. All six capacity slots fit two cards; active profile is read-only and never switched. Source options, capacity/cell limits and capacity scaling are extracted from existing Power pages into power_fields, which both pages and wizard consume. Analog replaces the servo live poll only on Power cards; ESC readings reuse motor_telemetry. Complete received battery and SmartFuel records round-trip through the existing wizard save/discard/EEPROM boundary; the battery codec also accepts its flat parse result."
+    }
+  ],
+  "files": [
+    {
+      "source": "components/SwashServoDiagram.svelte",
+      "sha256": "0b4ae1399b5f4c3c5bb0e12cca4dcb079276a47579ae1dd6b936c1099436c54d",
+      "functions": [
+        "place"
+      ],
+      "props": [
+        "swashType, tailServo = true"
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Front/rear reference selection replaces two simultaneous drawings; it changes no FC setting. Explicit refusal blocks advance until retried."
+    },
+    {
+      "source": "js/features.svelte.js",
+      "sha256": "8d0a7724e8da590174d2429d8f26ff5ee9c77b359313a3bfb157d07073e892f9",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/forms.lua",
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "S02.protocol-ids-presets-feature-group",
+        "S02.order-detection-and-throttle",
+        "S08.governor-feature-and-rpm",
+        "S09-S12.versioned-esc-and-ports"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "js/swash.js",
+      "sha256": "92e33b74b0685f6a96046142833df307ffb565cb6f390a3c7c62f1a870271f77",
+      "functions": [
+        "ccpm"
+      ],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "js/tail_motor.js",
+      "sha256": "0fbb06e33343f105935a0c4beae4f0fa11615f78c767ea0b0a346c6deaf6f924",
+      "functions": [
+        "hasTailOutputSwitch",
+        "tailOutputCommand",
+        "readTailOutput",
+        "switchTailOutput",
+        "tailOutputMatches",
+        "setTtaGainAllProfiles",
+        "motorOutputProblem",
+        "applyTailMode"
+      ],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/swash.lua",
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "CORE.prepared-api-roundtrip",
+        "CORE.second-pass-edges",
+        "CORE.status-expiry-during-pending-request",
+        "CORE.trial-state-and-diagnostics",
+        "CORE.wiring-success-polling-and-teardown",
+        "S06.tail-transition-and-pin"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/configuration/AutoAlignWizard.svelte",
+      "sha256": "2fc725bf52a4e4b895a41f51920967ed3823001a8e5999e1ded0e5443ae4ed53",
+      "functions": [
+        "sendBoardAutoAlignQuery",
+        "finish",
+        "t",
+        "setWizard",
+        "clearPoll",
+        "clearAutoClose",
+        "startAutoCloseCountdown",
+        "onQueryFailed",
+        "queryBoardAutoAlign",
+        "onClickRetry",
+        "onClickCalibrate",
+        "onClickClose",
+        "handleDialogClose",
+        "stop"
+      ],
+      "props": [
+        "onButtonDisabled, onClose"
+      ],
+      "events": [
+        "onclick",
+        "onclose"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "CORE.prepared-api-roundtrip",
+        "CORE.second-pass-edges",
+        "CORE.status-expiry-during-pending-request",
+        "CORE.trial-state-and-diagnostics",
+        "CORE.wiring-success-polling-and-teardown",
+        "S01.calibration-alignment"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/configuration/util.js",
+      "sha256": "3d32155791333d57be41ca9ad851e02be31af5fce4a8626f606e89d308c9b420",
+      "functions": [
+        "getPortFunc",
+        "getPortType",
+        "getPortExcl",
+        "getPortBaudrate",
+        "setPortBaudrate",
+        "pidDenomOptions",
+        "gyroFrequencyLabel"
+      ],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/forms.lua"
+      ],
+      "contracts": [
+        "S02.port-selection"
+      ],
+      "adaptation": "Only wizard-used UART/VCP IDs, free/current port filtering and function masks are in scope. Board-specific decorative port captions use Suite UART numbering."
+    },
+    {
+      "source": "tabs/governor/state.svelte.js",
+      "sha256": "15c624bd21fe28bc6cf618ca533028a299dd8b02698db059690bb9898c61c4e1",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/forms.lua",
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "S02.protocol-ids-presets-feature-group",
+        "S02.order-detection-and-throttle",
+        "S08.governor-feature-and-rpm",
+        "S09-S12.versioned-esc-and-ports"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/motors/EscWiringDetectWizard.svelte",
+      "sha256": "8069a5fc1f2f345e2c524677c5adac088db2068dc9c3350c067e7a009c8189dc",
+      "functions": [
+        "sendTrialQuery",
+        "finish",
+        "t",
+        "yesNo",
+        "setWizard",
+        "clearPoll",
+        "onQueryFailed",
+        "stopTrial",
+        "queryTrial",
+        "onClickRetry",
+        "onClickClose",
+        "onClickSaveReboot",
+        "handleDialogClose",
+        "stop"
+      ],
+      "props": [
+        "onDetected, onButtonDisabled, onClose, onSaveRequested"
+      ],
+      "events": [
+        "onclick",
+        "onclose"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "CORE.prepared-api-roundtrip",
+        "CORE.second-pass-edges",
+        "CORE.status-expiry-during-pending-request",
+        "CORE.trial-state-and-diagnostics",
+        "CORE.wiring-success-polling-and-teardown",
+        "S01.calibration-alignment"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/motors/state.svelte.js",
+      "sha256": "75b1a192ed11b0b81ece69fca5f934b85da5c010e6d6b0ca7f17365e8f437d48",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/forms.lua",
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "S02.protocol-ids-presets-feature-group",
+        "S02.order-detection-and-throttle",
+        "S08.governor-feature-and-rpm",
+        "S09-S12.versioned-esc-and-ports"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/receiver/RxWiringDetectWizard.svelte",
+      "sha256": "5b39b353e38ee7c4ff1646b6e82011195ecc89cda173714e647dcdf8ace44252",
+      "functions": [
+        "sendTrialQuery",
+        "finish",
+        "t",
+        "yesNo",
+        "setWizard",
+        "clearPoll",
+        "onQueryFailed",
+        "stopTrial",
+        "queryTrial",
+        "onClickRetry",
+        "onClickClose",
+        "onClickSaveReboot",
+        "handleDialogClose",
+        "stop"
+      ],
+      "props": [
+        "onDetected, onButtonDisabled, onClose, onSaveRequested"
+      ],
+      "events": [
+        "onclick",
+        "onclose"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "CORE.prepared-api-roundtrip",
+        "CORE.second-pass-edges",
+        "CORE.status-expiry-during-pending-request",
+        "CORE.trial-state-and-diagnostics",
+        "CORE.wiring-success-polling-and-teardown",
+        "S01.calibration-alignment",
+        "CORE.receiver-trial-radio-guard"
+      ],
+      "adaptation": "Receiver wiring detection is directed to USB Configurator: the trial reinitializes the receiver UART carrying radio MSP. A radio-side guard sends no START. Mapping, protocol/port configuration, live inputs and throttle setup stay in this step."
+    },
+    {
+      "source": "tabs/receiver/channelPresets.js",
+      "sha256": "1301983c89edfed00753e0a4c821480713b180d3b1926cb9746b26d21ed96898",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/forms.lua",
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "S02.protocol-ids-presets-feature-group",
+        "S02.order-detection-and-throttle",
+        "S08.governor-feature-and-rpm",
+        "S09-S12.versioned-esc-and-ports"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/receiver/protocols.js",
+      "sha256": "a19f1a9e5557631693d590ab22ad8871001f5803800dd7f3d1fd1b7b8eac58eb",
+      "functions": [
+        "getCrsfTelemetry",
+        "getSmartportTelemetry"
+      ],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/forms.lua",
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "S02.protocol-ids-presets-feature-group",
+        "S02.order-detection-and-throttle",
+        "S08.governor-feature-and-rpm",
+        "S09-S12.versioned-esc-and-ports"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/BladesOffWarning.svelte",
+      "sha256": "7e1b9ee60a3f7aab340142af5e331e3917a960534f11d72627b0fbde662c8e62",
+      "functions": [],
+      "props": [
+        "text, tail = false"
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/EscArt.svelte",
+      "sha256": "2ddb232badc70ed574925e6bc0c17dc28b64ae07228f01f70fb0e393886480f8",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
+        "src/rfsuite/app/pages/helicopter_setup/steps/throttle.lua"
+      ],
+      "contracts": [
+        "VISUAL.wizard-intro-pictures"
+      ],
+      "adaptation": "The packaged ESC picture appears on the first telemetry and throttle cards, including both PWM calibration and battery-connection variants."
+    },
+    {
+      "source": "tabs/setup_wizard/GyroArt.svelte",
+      "sha256": "df97cabe3685104e38ebde65f81edc1772ccc772ea13cc55b087d2c1cce29468",
+      "functions": [],
+      "props": [
+        "axis = \"roll\""
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.configurator-pictures"
+      ],
+      "adaptation": "Packaged Configurator roll, pitch and yaw correction pictures replace the mechanical sketches; physical response is confirmed by the pilot."
+    },
+    {
+      "source": "tabs/setup_wizard/HeliSide.svelte",
+      "sha256": "c1c211ee04f44d8c463fe9f042ed896ff8a637612a256cf2e92e813908a3bf3d",
+      "functions": [],
+      "props": [
+        "scene = \"level\""
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Mechanical reference geometry is static, as in the source. Source scene/axis/angle variants become task-specific line drawings. Physical response is confirmed by the pilot."
+    },
+    {
+      "source": "tabs/setup_wizard/LiveBar.svelte",
+      "sha256": "ac6d02634739f3dbaeacba881e59f0d0738af73eb61ab9ccf4f4032d8861a08f",
+      "functions": [],
+      "props": [
+        "f = 0, tone = null"
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Function-bound cached geometry changes with the source parameter or MSP value; the switch cue alone is a decorative timed movement."
+    },
+    {
+      "source": "tabs/setup_wizard/MainMotorTest.svelte",
+      "sha256": "29ba69f31e213e6d30832b314efdd94065feaeb7099fdc87cf86e006969e3f1e",
+      "functions": [
+        "nudge",
+        "send",
+        "start",
+        "stop"
+      ],
+      "props": [
+        "disabled = false"
+      ],
+      "events": [
+        "onblur",
+        "onclick",
+        "onkeydown",
+        "onkeyup",
+        "onpointercancel",
+        "onpointerdown",
+        "onpointerleave",
+        "onpointerup"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "CORE.prepared-api-roundtrip",
+        "CORE.second-pass-edges",
+        "CORE.status-expiry-during-pending-request",
+        "CORE.trial-state-and-diagnostics",
+        "CORE.wiring-success-polling-and-teardown",
+        "S10.connection-gate",
+        "S12.motor-hold-and-calibration",
+        "S17.tail-servo-and-motor-variants"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/MotorCheck.svelte",
+      "sha256": "7935bf98016ccacb5db025c55419db100e83889ad14dc06225716d7a23bd5160",
+      "functions": [
+        "poll"
+      ],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "CORE.prepared-api-roundtrip",
+        "CORE.second-pass-edges",
+        "CORE.status-expiry-during-pending-request",
+        "CORE.trial-state-and-diagnostics",
+        "CORE.wiring-success-polling-and-teardown",
+        "S10.connection-gate",
+        "S12.motor-hold-and-calibration",
+        "S17.tail-servo-and-motor-variants"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/MotorGearArt.svelte",
+      "sha256": "c9d8046d5b5d3a34226677d59f1e6830591dcb72fde1e8ace301fe69dd6a619e",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "docs/pages/helicopter_setup.md",
+        "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Decorative source illustration replaced by explicit task labels, numerical fields and help; artwork is intentionally redesigned."
+    },
+    {
+      "source": "tabs/setup_wizard/PitchArt.svelte",
+      "sha256": "8acd3ad6c6fb44846626da3e3ffb7e21d793d7e941f15800b022a2cc55fe566f",
+      "functions": [],
+      "props": [
+        "angle = 9, label = null"
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.configurator-pictures"
+      ],
+      "adaptation": "Packaged Configurator pitch-9 pictures show both calibration references; pitch-0 shows the level-check tip."
+    },
+    {
+      "source": "tabs/setup_wizard/PulseTrain.svelte",
+      "sha256": "73b0e713d67b926ee10fb5b075c49d1a7380fdfa8a0e9bca63c56a8f93f47187",
+      "functions": [],
+      "props": [
+        "rate, width = 1500"
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.configurator-pictures"
+      ],
+      "adaptation": "Each servo type has a packaged picture composed of this pulse train above the Configurator servo drawing. Custom or mixed settings retain cached waveform geometry. Image and sketch visibility change within the same scene."
+    },
+    {
+      "source": "tabs/setup_wizard/RateCurve.svelte",
+      "sha256": "132576fb5f171acae872c198986087b836c28d9538b0a4426bf7d31f3966c639",
+      "functions": [],
+      "props": [
+        "rate, expo, shape = 2, scale = 500, axisLabel = \"\""
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Function-bound cached geometry changes with the source parameter or MSP value; the switch cue alone is a decorative timed movement."
+    },
+    {
+      "source": "tabs/setup_wizard/RebootLater.svelte",
+      "sha256": "899fc80b7ec3eeeb6e5cbe474c1575d6c12efc51db5efe33487a8b8fa234e5a2",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Pending-restart feedback and the gate navigation replace the web banner."
+    },
+    {
+      "source": "tabs/setup_wizard/ReceiverArt.svelte",
+      "sha256": "3e677c769b424916f6dc6786364a8982cc3a33485eea198074b55d25480634c8",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua"
+      ],
+      "contracts": [
+        "VISUAL.wizard-intro-pictures"
+      ],
+      "adaptation": "The first receiver card shows the packaged Configurator receiver picture."
+    },
+    {
+      "source": "tabs/setup_wizard/RotorDirArt.svelte",
+      "sha256": "747fac3bab44d02926b1adcf5d66ebcf8308b614ff2e64e54ff21404e45a0900",
+      "functions": [],
+      "props": [
+        "dir = \"cw\""
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Function-bound cached geometry changes with the source parameter or MSP value; the switch cue alone is a decorative timed movement."
+    },
+    {
+      "source": "tabs/setup_wizard/ServoArmArt.svelte",
+      "sha256": "03a31611b44f8dc1c03244c5e89a2853c95fbb0f8b164acaa7e724416d53a40b",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/steps/servos.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.wizard-intro-pictures"
+      ],
+      "adaptation": "Every screen size starts with the packaged servo-arm picture and three arm-fitting, direction and centring instructions. The unchanged servo grid follows, and only its entry starts centre holds."
+    },
+    {
+      "source": "tabs/setup_wizard/ServoArt.svelte",
+      "sha256": "45cf2d04e32080964805446df7f080ce9366a5f9c5f0b3473319bb496f01d582",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua",
+        "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua"
+      ],
+      "contracts": [
+        "VISUAL.configurator-pictures",
+        "VISUAL.wizard-intro-pictures"
+      ],
+      "adaptation": "Both connection cards and the first geometry-correction card show the packaged Configurator servo picture; servo-type group cards retain their pulse pictures."
+    },
+    {
+      "source": "tabs/setup_wizard/SetupWizard.svelte",
+      "sha256": "f9a2c61041f8caf904b9ba5d6394772403149719dfd0d1f5fd4d67de612f4dda",
+      "functions": [
+        "readStoredStep",
+        "storeStep",
+        "takeSnapshot",
+        "isArmed",
+        "poll",
+        "overrideTimeout",
+        "refreshOverrides",
+        "holdMixer",
+        "passthroughMixer",
+        "releaseMixer",
+        "releaseMixers",
+        "holdServo",
+        "releaseServo",
+        "releaseServos",
+        "releaseAll",
+        "sendServo",
+        "sendMixerInput",
+        "sendMixerConfig",
+        "markChanged",
+        "save",
+        "saveAndReboot",
+        "revert",
+        "openTab",
+        "goTo",
+        "next",
+        "onClickHelp",
+        "isDirty",
+        "onSave",
+        "onRevert"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+        "src/rfsuite/app/pages/helicopter_setup/transport.lua",
+        "src/rfsuite/app/pages/helicopter_setup/page.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua",
+        "src/rfsuite/app/pages/helicopter_setup/navigation.lua",
+        "src/rfsuite/app/pages/helicopter_setup/feedback.lua",
+        "src/rfsuite/app/pages/helicopter_setup/history.lua",
+        "src/rfsuite/app/pages/helicopter_setup/history_store.lua"
+      ],
+      "contracts": [
+        "CORE.prepared-api-roundtrip",
+        "CORE.second-pass-edges",
+        "CORE.status-expiry-during-pending-request",
+        "CORE.trial-state-and-diagnostics",
+        "CORE.wiring-success-polling-and-teardown",
+        "CORE.paged-startup",
+        "CORE.individual-step-entry",
+        "CORE.step-switch-save-discard",
+        "CORE.status-during-save",
+        "CORE.packed-feedback",
+        "VISUAL.native-background",
+        "CORE.suite-step-entries",
+        "CORE.history-store",
+        "CORE.history-guidance-and-reset",
+        "CORE.history-failure-actions",
+        "CORE.radio-model-preparation",
+        "CORE.status-wait-and-retry",
+        "CORE.loading-scene",
+        "REVIEW.pitch-discard",
+        "REVIEW.back-preserves-commit",
+        "REVIEW.fresh-blade-confirmation",
+        "REVIEW.cleanup-before-unlock",
+        "REVIEW.abnormal-close",
+        "REVIEW.independent-timeout-probes",
+        "VISUAL.retained-scene-transitions",
+        "CORE.completed-transport-retention",
+        "CORE.history-lua-record",
+        "CORE.esc-before-spin"
+      ],
+      "adaptation": "The complete path keeps all 19 source steps. Suite entries share one lazy page and load only the selected step, with preparation before holds, save/discard, and return to the Suite. Informational per-FC history has explicit reset and advisory prerequisites; no saved bit replaces fresh physical answers. Telemetry-sized indexed startup replaces USB bulk reads. Cached packed-state hints never replace MSP acknowledgements or lock readbacks. Native light palette and responsive diagrams replace browser scenes. An unnumbered current-radio-model confirmation precedes new setup visits; template use alone does not pass it and history cannot retain it. Deliberate deviation from PR 491: ESC telemetry is step 11 and the spin test is step 12, so the ESC link and live values are established before motor spin. Menu IDs and stored history bits remain positional; no history migration is performed."
+    },
+    {
+      "source": "tabs/setup_wizard/StepConnect.svelte",
+      "sha256": "f5ccc871df06892f3688291aaf14886b5ccbfbfac9e78a35bf3aa4026b09560a",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua"
+      ],
+      "contracts": [
+        "S10.connection-gate"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepDirection.svelte",
+      "sha256": "fe1bf1635390137cadc37151287d35b183834f3412e3a397b34bf5ffa010174e",
+      "functions": [
+        "poll",
+        "reversed",
+        "reverse"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua"
+      ],
+      "contracts": [
+        "S14-S15.axis-direction-and-trims"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepEscTelemetry.svelte",
+      "sha256": "8dda55763dcf1e87951becaeef15bcd347eb1826b34a4c83b24bab28d7947d10",
+      "functions": [
+        "poll",
+        "markChanged",
+        "setInUse",
+        "setProtocol",
+        "maskOf",
+        "setMask",
+        "portName",
+        "usedFor",
+        "choosePort",
+        "closeDetect",
+        "detectWiring"
+      ],
+      "props": [],
+      "events": [
+        "onchange",
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua"
+      ],
+      "contracts": [
+        "S09-S12.versioned-esc-and-ports",
+        "S11.card-order-and-save"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. Deliberate deviation: moved before the spin test to step 11, starting with a flight-battery connection card while main and tail blades remain removed."
+    },
+    {
+      "source": "tabs/setup_wizard/StepFinish.svelte",
+      "sha256": "11865ed722a6fd7d69579093bf463b5354fc2112821d99c0c2bed74ecb603dd9",
+      "functions": [
+        "finish"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua"
+      ],
+      "contracts": [
+        "S18-S19.physical-check-and-summary"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepGovernor.svelte",
+      "sha256": "c72a14dc6dad1a939fbc354013ba5def0a1a8b2f5f6c241c19cdba18d4729b2f",
+      "functions": [
+        "markChanged",
+        "setMode",
+        "setType"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua"
+      ],
+      "contracts": [
+        "S08.governor-feature-and-rpm",
+        "S08.headspeed-and-ramps",
+        "S08.headspeed-scope-and-help",
+        "S08.rpm-filter-signal"
+      ],
+      "adaptation": "Retains mode/type behavior and adds Suite headspeed targets, ramp times and a read-only filter-signal warning beyond this Configurator snapshot. See the additions inventory for every new writable MSP field."
+    },
+    {
+      "source": "tabs/setup_wizard/StepGyro.svelte",
+      "sha256": "77237f67df887c409ef9271aed6c7ddaba9f224c199817abcfa999f647ea8060",
+      "functions": [],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/gyro.lua"
+      ],
+      "contracts": [
+        "S18-S19.physical-check-and-summary"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepLevel.svelte",
+      "sha256": "af663b51f8a0151929038b2d3f9e67266f362f28984a8673f0b0b074889df4ee",
+      "functions": [
+        "nudge",
+        "reset"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/level.lua"
+      ],
+      "contracts": [
+        "S14-S15.axis-direction-and-trims"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepModes.svelte",
+      "sha256": "0568f417171e2379f8b2a8d2b4f78a8e87f19c731dc981830180e9ad771698ef",
+      "functions": [
+        "poll",
+        "auxValue",
+        "auxValues",
+        "rangeIndex",
+        "assignment",
+        "switchInRange",
+        "isOn",
+        "listen",
+        "cancel",
+        "detect",
+        "writeSlot",
+        "save",
+        "remove"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/modes.lua"
+      ],
+      "contracts": [
+        "S03.mode-status-versus-switch",
+        "S03.switch-settle",
+        "VISUAL.mode-switch-feedback",
+        "REVIEW.mode-first-flick"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. The drawing follows the assigned ARM channel or actual Rescue/Trainer mode flag; it does not demonstrate arming. Learning snapshots current mapped FC channels on click, preserving immediate switch movement."
+    },
+    {
+      "source": "tabs/setup_wizard/StepMotor.svelte",
+      "sha256": "96dd31ddb83d6e22e69252b2d1529f9878ec9d84158fcab59d3e4d155e234951",
+      "functions": [
+        "markChanged",
+        "setProtocol"
+      ],
+      "props": [],
+      "events": [
+        "onchange",
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua"
+      ],
+      "contracts": [
+        "S09-S12.versioned-esc-and-ports"
+      ],
+      "adaptation": "Behavior follows the source; the protocol tiles PWM, DShot 150 and DShot 300 become the first three entries of the one protocol list, with DShot 600 and the rest after them. Choosing DShot 150 turns bidirectional DShot off. Resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepPitch.svelte",
+      "sha256": "ff91eec63ebb1dceafb0df3e326d9b1ec93d75027344f6d62233d74d9035d07b",
+      "functions": [
+        "holdOnly",
+        "toggleHold",
+        "percent",
+        "setRates",
+        "applyMeasured",
+        "nudge",
+        "label",
+        "applyCyclicLimit",
+        "applyCollectiveLimit",
+        "applyTotalLimit",
+        "changeFullStick"
+      ],
+      "props": [],
+      "events": [
+        "onchange",
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua"
+      ],
+      "contracts": [
+        "S16.pitch-calibration-limits-fullstick"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepProfiles.svelte",
+      "sha256": "494387f349fc615dcf625dc9c68792d85a6d1fffad9b9b13dc07a66b8a85d9ed",
+      "functions": [
+        "auxValues",
+        "auxValue",
+        "poll",
+        "listen",
+        "cancel",
+        "detect",
+        "record",
+        "sendSlot",
+        "writeRange",
+        "removeFunction",
+        "chooseProfiles",
+        "useSwitch",
+        "writeGain",
+        "chooseGain"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua"
+      ],
+      "contracts": [
+        "S04.readback-paired-capacity",
+        "S04.switch-recording-gain-feedback",
+        "REVIEW.mode-first-flick"
+      ],
+      "adaptation": "EdgeTX trim-mix instructions replace Ethos screenshots. Paired slot reservations avoid partial assignments when the table is full. Channel plans paginate to four rows. Learning snapshots current mapped FC channels on click, preserving immediate switch movement."
+    },
+    {
+      "source": "tabs/setup_wizard/StepRates.svelte",
+      "sha256": "c01937ea29ccbfc82bda9f89fe068606309c69e079e38ebd3809eff549b30144",
+      "functions": [
+        "select",
+        "forEachProfile",
+        "styleOf",
+        "choose",
+        "suggest"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua"
+      ],
+      "contracts": [
+        "S05.scoped-rates-and-readback"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepReceiver.svelte",
+      "sha256": "97c49c5164f06bee03e341e444a6f26d77a90a50cbfc09250bbef7ec9cd39349",
+      "functions": [
+        "poll",
+        "send",
+        "maskOf",
+        "setMask",
+        "portName",
+        "usedFor",
+        "choosePort",
+        "chooseProtocol",
+        "changeConnection",
+        "closeDetect",
+        "detectWiring",
+        "choosePreset",
+        "setMap",
+        "channelsNow",
+        "startOrderDetect",
+        "orderDetectTick",
+        "reading",
+        "startMeasure",
+        "useMeasured",
+        "useDefault"
+      ],
+      "props": [],
+      "events": [
+        "onchange",
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua"
+      ],
+      "contracts": [
+        "S02.order-detection-and-throttle",
+        "S02.port-selection",
+        "S02.protocol-ids-presets-feature-group",
+        "CORE.receiver-trial-radio-guard",
+        "REVIEW.fc-input-learning"
+      ],
+      "adaptation": "Receiver wiring detection is directed to USB Configurator: the trial reinitializes the receiver UART carrying radio MSP. A radio-side guard sends no START. Mapping, protocol/port configuration, live inputs and throttle setup stay in this step. The radio requires an established receiver/MSP link, so receiver UART selection is omitted. Protocol configuration and USB guidance remain. Learning snapshots current raw FC input on click; throttle-switch instructions include OFF/ON endpoints."
+    },
+    {
+      "source": "tabs/setup_wizard/StepSensors.svelte",
+      "sha256": "32ca21d3ff75d8d75a65ef48c76f2f3c2889a50cb284c602e811cdc78d4c89f8",
+      "functions": [
+        "calibrateAccel",
+        "closeDialog",
+        "openAutoAlign"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
+        "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua"
+      ],
+      "contracts": [
+        "S01.calibration-alignment",
+        "S01.manual-alignment-fallback",
+        "VISUAL.live-orientation-model"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. The final orientation check uses a cached wireframe driven by fresh MSP attitude, with manual confirmation and separate compact/large layouts."
+    },
+    {
+      "source": "tabs/setup_wizard/StepServoType.svelte",
+      "sha256": "98e78949a11ab93d626f2fcab66cc83cf6e0fbedabefd2f8839851f6bec77e50",
+      "functions": [
+        "bandOf",
+        "groupServos",
+        "currentType",
+        "apply"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua"
+      ],
+      "contracts": [
+        "S07.servo-bands-and-reboot",
+        "REVIEW.servo-types-per-group"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. Separate cyclic/tail cards offer their own servo types (cyclic: Analog 50, Digital 165, Hi-end digital 333 Hz at 1520 us, Narrow band 560 Hz at 760 us; tail: Digital 200 Hz at 1520 us, Specific digital 333 and Hi-end specific digital 560 Hz at 760 us) instead of one list of three; a trimmed centre keeps its type, servos matching no type read Custom, which is shown and not chosen. The waveform uses stable cached points refreshed on edits."
+    },
+    {
+      "source": "tabs/setup_wizard/StepServos.svelte",
+      "sha256": "4ecb8520ac25514b0ecf19b83211510ae6989460f9ed6ec96aa04374a949db57",
+      "functions": [
+        "bandCentre",
+        "test",
+        "answer",
+        "nudge",
+        "signed"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/servos.lua",
+        "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua",
+        "src/rfsuite/app/pages/helicopter_setup/page.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "S13.servo-direction-centre",
+        "S13.intro-hold-lifecycle",
+        "S13.servo-cards-controls-and-warnings",
+        "S13.named-validation",
+        "CORE.suite-step-entries"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepSwash.svelte",
+      "sha256": "86f0c7f697af39e6d795db7c4e66a887c50398fdcaa544a53080d7f6af524733",
+      "functions": [
+        "needReboot",
+        "tailPinMovable",
+        "swashLabel",
+        "setSwashType",
+        "setRotorDirection",
+        "setTailMode"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/swash.lua"
+      ],
+      "contracts": [
+        "S06.tail-transition-and-pin"
+      ],
+      "adaptation": "Front/rear reference selection replaces two simultaneous drawings; it changes no FC setting. Explicit refusal blocks advance until retried."
+    },
+    {
+      "source": "tabs/setup_wizard/StepTail.svelte",
+      "sha256": "208bba285457d25a63875088020d98bb18e5a933592da3ce07ef272274482387",
+      "functions": [
+        "poll",
+        "setHold",
+        "toggleHold",
+        "nudgeTrim",
+        "reverse",
+        "nudgeCal",
+        "applyLimits"
+      ],
+      "props": [],
+      "events": [
+        "onchange",
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua"
+      ],
+      "contracts": [
+        "S17.tail-servo-and-motor-variants"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/StepThrottle.svelte",
+      "sha256": "e9f31d5a7c12d1d8c760bb51397b2321be383a27201fce0f4ca4b90ed23d889a",
+      "functions": [
+        "setOverride",
+        "release",
+        "fullThrottle",
+        "lowThrottle",
+        "cancel",
+        "poll"
+      ],
+      "props": [],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/steps/throttle.lua"
+      ],
+      "contracts": [
+        "S12.motor-hold-and-calibration",
+        "S12.card-order-save-and-calibration-navigation"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. Deliberate deviation: moved after ESC telemetry to step 12. PWM calibration first instructs unplugging the battery before full throttle; other protocols keep it connected for the spin test."
+    },
+    {
+      "source": "tabs/setup_wizard/StickIcon.svelte",
+      "sha256": "40ab2449e83b28bab1aaaa7bdb930892ef22bacb734065dc805d304942c87356",
+      "functions": [],
+      "props": [
+        "x = 0, y = 0"
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua"
+      ],
+      "contracts": [
+        "VISUAL.wizard-intro-pictures"
+      ],
+      "adaptation": "The channel-order card shows the active detection function with the Configurator x/y stick pose; idle and ARM detection use the centred pose."
+    },
+    {
+      "source": "tabs/setup_wizard/SwashArt.svelte",
+      "sha256": "a0c026b87048c46fb5d771e6b9997221549b40577fb029655ef6ed012cec4db4",
+      "functions": [],
+      "props": [
+        "scene = \"level\""
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.configurator-pictures"
+      ],
+      "adaptation": "Packaged Configurator roll, pitch, collective and level swash-motion pictures replace the mechanical sketches; live input meters remain."
+    },
+    {
+      "source": "tabs/setup_wizard/SwitchFlick.svelte",
+      "sha256": "1a264cef0e9b73344d575b11870ea4545ab9ccb6c2e034fc649a029e35273118",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.configurator-pictures",
+        "VISUAL.mode-switch-feedback"
+      ],
+      "adaptation": "Left/right Configurator pictures follow the existing live mode state. Unavailable input hides the directional picture and retains its status text; the profile card remains a labelled example."
+    },
+    {
+      "source": "tabs/setup_wizard/TabButton.svelte",
+      "sha256": "2b426cded74df3ecf8c272ca214bc115df12ae605d61b32574ee29a9056c69ac",
+      "functions": [],
+      "props": [
+        "tab, children"
+      ],
+      "events": [
+        "onclick"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/view.lua",
+        "docs/pages/helicopter_setup.md"
+      ],
+      "contracts": [
+        "VISUAL.cached-reactivity"
+      ],
+      "adaptation": "Advanced-tab shortcuts become task help and documented Suite menu routes; they do not leave an active bench test."
+    },
+    {
+      "source": "tabs/setup_wizard/TailArt.svelte",
+      "sha256": "896d820ae9fe57a279c7aa6fd732203552cb0f836d6489303e8d4ea6cbf6e6eb",
+      "functions": [],
+      "props": [
+        "kind = \"servo\", move = false"
+      ],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua",
+        "src/rfsuite/app/pages/helicopter_setup/view.lua"
+      ],
+      "contracts": [
+        "VISUAL.configurator-pictures"
+      ],
+      "adaptation": "Packaged Configurator servo-centre, servo-direction, motor and bidirectional pictures replace the mechanical sketches. The direction meter remains; the calibration card draws TailFoldArt's end-on blades instead of a sketch."
+    },
+    {
+      "source": "tabs/setup_wizard/TailFoldArt.svelte",
+      "sha256": "6e55ee623542c229d59614e013411a12a1d14ea466a86bb6983f27b6fc7ab9ed",
+      "functions": [],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/diagrams.lua"
+      ],
+      "contracts": [
+        "S17.tail-servo-and-motor-variants"
+      ],
+      "adaptation": "The end-on tail blades at 22.5 degrees each way with the 45-degree paper fold between them are drawn as Lua line art on the calibration card; the fold text is the card's hint."
+    },
+    {
+      "source": "tabs/setup_wizard/TailMotorTest.svelte",
+      "sha256": "24b88978b17ac1fc5273405e52febc02538cc741353ddf2aee88ab64632dce13",
+      "functions": [
+        "overrideValue",
+        "send",
+        "start",
+        "stop",
+        "nudge",
+        "useIdle"
+      ],
+      "props": [],
+      "events": [
+        "onblur",
+        "onclick",
+        "onkeydown",
+        "onkeyup",
+        "onpointercancel",
+        "onpointerdown",
+        "onpointerleave",
+        "onpointerup"
+      ],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "CORE.prepared-api-roundtrip",
+        "CORE.second-pass-edges",
+        "CORE.status-expiry-during-pending-request",
+        "CORE.trial-state-and-diagnostics",
+        "CORE.wiring-success-polling-and-teardown",
+        "S10.connection-gate",
+        "S12.motor-hold-and-calibration",
+        "S17.tail-servo-and-motor-variants"
+      ],
+      "adaptation": "Idle is limited to the actual U8 wire ceiling, 25.5%, and each motor hold has a 15-second local maximum."
+    },
+    {
+      "source": "tabs/setup_wizard/adjust.js",
+      "sha256": "781fc65aa66f91e1591f8fab2f726a80c21bbc95ce093f710aca582146ae6198",
+      "functions": [
+        "channelNumber",
+        "toStep",
+        "mappedRange",
+        "switchPositions",
+        "profileRange",
+        "knobRange",
+        "buttonValue",
+        "buttonWindow",
+        "buttonAt",
+        "steppedGainRange",
+        "slotFor",
+        "rangeOf",
+        "channelOf",
+        "mappedValue",
+        "profileMode",
+        "gainMode"
+      ],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/math.lua"
+      ],
+      "contracts": [
+        "SOURCE.pure-helper-golden-vectors"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/governor.js",
+      "sha256": "1cdfc451b26dd5236772a13e6964d839b27d7afde9e7fa4cd5c901f2be9151aa",
+      "functions": [
+        "hasFastRpm"
+      ],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/workflow.lua"
+      ],
+      "contracts": [
+        "S08.governor-feature-and-rpm"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/heli.js",
+      "sha256": "5b1ee77e3600f68bf9b8362957a37459cfe7a5c649159aef9145a62750688110",
+      "functions": [
+        "swashRaw",
+        "tailRaw",
+        "servoRaw",
+        "limitDegrees",
+        "limitRaw",
+        "wizardServos",
+        "missingServos",
+        "calibratedRate",
+        "mapFromDetected",
+        "movedChannel",
+        "rangeForSwitch",
+        "collectiveAtFullStick",
+        "setCollectiveAtFullStick",
+        "round1",
+        "round2"
+      ],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/math.lua"
+      ],
+      "contracts": [
+        "SOURCE.pure-helper-golden-vectors"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    },
+    {
+      "source": "tabs/setup_wizard/rates.js",
+      "sha256": "4bfce823b82af5940ade4684018f97d7b3419dbcc95b68bf915940e1ec52c203",
+      "functions": [
+        "wizardRatesType",
+        "curveShape",
+        "applyStyle",
+        "matchingStyle",
+        "round2"
+      ],
+      "props": [],
+      "events": [],
+      "targets": [
+        "src/rfsuite/app/pages/helicopter_setup/math.lua"
+      ],
+      "contracts": [
+        "SOURCE.pure-helper-golden-vectors"
+      ],
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises."
+    }
+  ]
+}

@@ -32,4 +32,10 @@ function M.modeOptions(i18n)
   }
 end
 function M.capacityText(value) return tostring(value) .. " mAh" end
+function M.reading(value, divisor, unit) return string.format("%.2f %s", value / divisor, unit) end
+function M.needsVoltage(mode) return mode == 1 or mode == 3 end
+-- Matches the SmartFuel entry in app/manifest.lua; Battery has no version gate.
+function M.supportsSmartFuel(version, ApiVersion)
+  return ApiVersion.isAtLeast(version, {12, 0, 9})
+end
 return M

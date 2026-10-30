@@ -1,5 +1,13 @@
 -- Ported ELRS link task for EdgeTX
 local M = {}
+local ownerClient, ownerAllowed, ownerQueue
+local generation = 0
+
+-- Optional visit ownership for callers that must cancel in-flight FC writes on leave.
+function M.setOwner(client, allowed)
+    M.reset()
+    ownerClient, ownerAllowed = client, allowed
+end
 
 local math_floor = math.floor
 local string_find = string.find
@@ -564,11 +572,16 @@ local function syncElrsToRotorflight(fcConfig, moduleRate, moduleRatioLabel, rat
     end
 
     local api = loadModule("tasks/msp/api/telemetry_config.lua")
+    ownerQueue = mspState.queue
+    local epoch = generation
     mspState.queue:add({
+        client = ownerClient,
         command = api.writeCommand,
         payload = writeBuffer,
         isWrite = true,
         processReply = function()
+            if ownerClient and epoch ~= generation then return end
+            if ownerAllowed and not ownerAllowed() then M.reset(); return end
             -- The commit is a second write and is asked for only now, so it is held to the same
             -- rule: an arming between the write and its answer ends the sync here.
             if writeRefusal() then
@@ -579,10 +592,13 @@ local function syncElrsToRotorflight(fcConfig, moduleRate, moduleRatioLabel, rat
             setStatus("status_saving_rotorflight")
             local eepromApi = loadModule("tasks/msp/api/eeprom_write.lua")
             mspState.queue:add({
+                client = ownerClient,
                 command = eepromApi.writeCommand,
                 payload = {},
                 isWrite = true,
                 processReply = function()
+                    if ownerClient and epoch ~= generation then return end
+                    if ownerAllowed and not ownerAllowed() then M.reset(); return end
                     if session then
                         session.crsfTelemetryConfig = session.crsfTelemetryConfig or {}
                         session.crsfTelemetryConfig.mode = 1
@@ -595,12 +611,14 @@ local function syncElrsToRotorflight(fcConfig, moduleRate, moduleRatioLabel, rat
                     completeTask()
                 end,
                 errorHandler = function()
+                    if ownerClient and epoch ~= generation then return end
                     logMsg("syncElrsToRotorflight: eeprom save failed", "warn")
                     failWrite("status_rotorflight_save_failed")
                 end
             })
         end,
         errorHandler = function()
+            if ownerClient and epoch ~= generation then return end
             logMsg("syncElrsToRotorflight: MSP write failed", "warn")
             failWrite("status_rotorflight_write_failed")
         end
@@ -656,6 +674,16 @@ local function finalize()
 end
 
 function M.reset()
+    -- Only an owner (a caller that set one) retires replies on reset; for every other caller a
+    -- sync already sent runs to its end as before, the EEPROM commit included. ownerQueue is set
+    -- exactly when a sync write was queued, so without it there is no reply left to retire.
+    local queue = ownerQueue
+    if queue then
+        ownerQueue = nil
+        -- Invalidate reply handlers before clearing: clear can synchronously call errorHandler.
+        generation = generation + 1
+        if ownerClient then queue:clear(ownerClient) end
+    end
     -- A page build resets an unstarted task. Do not load the provider just to release a lease this
     -- task cannot yet own; start/wakeup loads it when a parameter conversation can actually run.
     local rf = _G.rfsuite
@@ -867,6 +895,7 @@ failWrite = function(key)
 end
 
 function M.wakeup()
+    if ownerAllowed and not ownerAllowed() then M.reset(); taskComplete = true; return end
     if taskComplete then return end
     local now = nowSeconds()
     local session = getSession()
