@@ -31,7 +31,6 @@ local state = {
   refreshIntervalSec = 0.5,
   i18n = nil,
   taskRunning = false,
-  armedRefusal = false,
   fetchingConfig = false
 }
 
@@ -345,9 +344,7 @@ local function rebuildRows(i18n)
   if refusesProbe and ElrsTask.getMode() == ElrsTask.MODE_PROBE and ElrsTask.isRunning() then
     ElrsTask.cancel()
   end
-  if state.armedRefusal and not refusesProbe then state.notice = nil end
-  state.armedRefusal = refusesProbe
-  
+
   local status = ElrsTask.getStatusText(i18n or state.i18n)
   local isRunning = ElrsTask.isRunning()
   state.taskRunning = isRunning
@@ -400,9 +397,13 @@ function M.isPageOpen()
 end
 
 function M.onReload()
+  -- The tool refuses Reload while armed before it asks the page, but a Reload confirmation
+  -- answered after the arming still lands here. Nothing is read then and the row keeps what it
+  -- has; the rebuild shows the armed text.
+  if armedRefusesTheWrite() then return true end
   state.notice = nil
   requestTelemetryConfig(true)
-  if ElrsTask and not armedRefusesTheWrite() then
+  if ElrsTask then
     ElrsTask.start(ElrsTask.MODE_PROBE)
   end
   return true
@@ -586,7 +587,6 @@ function M.closePage()
   state.answered = false
   state.notice = nil
   state.taskRunning = false
-  state.armedRefusal = false
   LoadingOverlay = nil
   Common = nil
   ElrsTask = nil

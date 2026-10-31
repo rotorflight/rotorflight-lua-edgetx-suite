@@ -21,6 +21,7 @@ local function newHost()
     ticks = 0, armed = false, previousArmed = false, armChanges = 0,
     rebuild = true, children = {}, pushes = {}, configRequests = 0,
     invalidations = 0, releases = 0, publishes = 0, wakeups = 0, owner = nil,
+    fcLinkRate = 500, allowMspWrites = false, mspWritesDelivered = 0, cancels = 0,
   }
   local armed = {
     isArmed = function() return host.armed end,
@@ -42,16 +43,42 @@ local function newHost()
   }
   local telemetryApi = {
     command = 73,
+    writeCommand = 74,
     parse = function()
-      return { crsf_telemetry_mode = 1, crsf_telemetry_link_rate = 500,
+      return { crsf_telemetry_mode = 1, crsf_telemetry_link_rate = host.fcLinkRate,
         crsf_telemetry_link_ratio = 4, buffer = {} }
     end,
   }
-  local queue = { add = function(_, item)
-    assert(item.command == 73 and not item.isWrite, "unexpected MSP write or command")
+  -- Board reads are answered at once. Writes wait in the queue, one sent per disarmed frame, so
+  -- an arming can find one still queued.
+  local queue = { pending = {} }
+  function queue.add(self, item)
+    if item.isWrite then
+      assert(host.allowMspWrites, "unexpected MSP write")
+      self.pending[#self.pending + 1] = item
+      return true
+    end
+    assert(item.command == 73, "unexpected MSP command")
     host.configRequests = host.configRequests + 1
     item.processReply(nil, {})
-  end }
+    return true
+  end
+  -- As tasks/msp/queue.lua Queue:clear() without a client: every queued message is dropped and
+  -- its errorHandler is told so. The tool clears the queue on the arming edge and every armed tick.
+  function queue.clear(self)
+    local dropped = self.pending
+    self.pending = {}
+    for _, item in ipairs(dropped) do
+      if type(item.errorHandler) == "function" then item.errorHandler(item, "cleared") end
+    end
+  end
+  function queue.send(self)
+    local item = table.remove(self.pending, 1)
+    if not item then return end
+    host.mspWritesDelivered = host.mspWritesDelivered + 1
+    item.processReply(item, {})
+  end
+  host.queue = queue
   local modules = {
     ["lib/armed.lua"] = armed,
     ["lib/elrs_config.lua"] = provider,
@@ -61,11 +88,13 @@ local function newHost()
       pageT = function() return function(_, _, fallback) return fallback end end,
     },
     ["ui/loading_overlay.lua"] = { append = function() error("unexpected loading overlay") end },
-    ["ui/confirm_dialog.lua"] = { show = function()
+    ["ui/confirm_dialog.lua"] = { show = function(opts)
       host.dialogs = (host.dialogs or 0) + 1
+      host.dialog = opts
       return true
     end },
     ["tasks/msp/api/telemetry_config.lua"] = telemetryApi,
+    ["tasks/msp/api/eeprom_write.lua"] = { writeCommand = 250 },
     ["tasks/msp/runtime.lua"] = { getState = function() return { queue = queue } end },
   }
   getTime = function() return host.ticks end
@@ -90,6 +119,12 @@ local function newHost()
       return function()
         assert(not host.task, "task loaded twice")
         host.task = assert(loadfile(pageDir .. "/elrslink_task.lua"))()
+        -- Count the page's cancels: arming may stop a probe, never a sync.
+        local cancel = host.task.cancel
+        host.task.cancel = function()
+          host.cancels = host.cancels + 1
+          return cancel()
+        end
         return host.task
       end
     end
@@ -115,7 +150,10 @@ local function newHost()
       self.previousArmed = self.armed
       self.rebuild = true
     end
-    if not armed.isArmed() then
+    if armed.isArmed() then
+      self.queue:clear()
+    else
+      self.queue:send()
       self.wakeups = self.wakeups + 1
       self.page.wakeup()
     end
@@ -124,6 +162,21 @@ local function newHost()
 
   function host:run(seconds)
     for _ = 1, math.floor(seconds * 10) do self:frame() end
+  end
+
+  function host:runUntil(done, seconds)
+    for _ = 1, math.floor(seconds * 10) do
+      if done() then return true end
+      self:frame()
+    end
+    return done()
+  end
+
+  function host:answer(choice)
+    local dialog = assert(self.dialog, "no confirmation shown")
+    self.dialog = nil
+    if choice == "yes" then dialog.onConfirm() else dialog.onCancel() end
+    self:buildIfAsked()
   end
 
   function host:arm(value)
@@ -246,6 +299,7 @@ for _, trigger in ipairs({ "Probe", "Reload" }) do
     local published = host.publishes
     host:arm(true)
     armedRow(host, trigger .. " running, then armed")
+    equal(host.cancels, 1, trigger .. ": the page cancelled the probe once")
     equal(host.owner == nil and host.lastReleaseDirty, true, trigger .. ": cancelled reader released dirty")
     host:run(20)
     host:arm(false)
@@ -257,8 +311,9 @@ for _, trigger in ipairs({ "Probe", "Reload" }) do
   end)
 end
 
--- The header refuses armed Reload before calling the page. Exercise the hook directly
--- so deferred/other callers still request board config without starting an armed probe.
+-- ui/home.lua refuses Reload while armed before it asks the page. The page is still reached
+-- armed when Reload was pressed disarmed with "Confirm on Reload" on and the model was armed
+-- before the question was answered: the answer calls the page's onReload directly.
 scenario("armed Reload", function()
   local host = newHost()
   host:run(2)
@@ -267,7 +322,7 @@ scenario("armed Reload", function()
   equal(host.page.onReload(), true, "armed Reload keeps requesting a rebuild")
   host.rebuild = true
   host:buildIfAsked()
-  equal(host.configRequests, requests + 1, "armed Reload preserves its board config request")
+  equal(host.configRequests, requests, "armed Reload sends no board config request")
   equal(host.invalidations, invalidations, "armed Reload does not start a probe before cancelling it")
   armedRow(host, "Reload requested while armed")
   host:arm(false)
@@ -275,6 +330,87 @@ scenario("armed Reload", function()
   host:finished("armed Reload after disarm")
   host:freshProbe("after refused Reload")
   host:noWrites("armed Reload")
+end)
+
+-- A declined sync says so on the Status row. Arming covers that with the armed text; once
+-- disarmed the row shows it again, also after a Reload answered while armed.
+scenario("notice across arming", function()
+  local host = newHost()
+  host:run(2)
+  equal(host:press(3), true, "ELRS->RF available for the notice")
+  host:answer("no")
+  equal(host:snapshot().status, "Nothing was written", "declined sync notice positive control")
+  host:arm(true)
+  equal(host:snapshot().status, "Unavailable while armed", "notice covered while armed")
+  host:arm(false)
+  host:run(1)
+  equal(host:snapshot().status, "Nothing was written", "notice shown again after disarm")
+  host:arm(true)
+  local requests = host.configRequests
+  equal(host.page.onReload(), true, "armed Reload under the notice requests a rebuild")
+  host.rebuild = true
+  host:buildIfAsked()
+  equal(host.configRequests, requests, "armed Reload under the notice sends no request")
+  host:arm(false)
+  host:run(1)
+  equal(host:snapshot().status, "Nothing was written", "notice survives a Reload refused while armed")
+  equal(host.task.isRunning(), false, "no probe started by the refused Reload")
+end)
+
+-- Arming stops a probe only. A sync keeps its own guards: the walk stops on the next wakeup
+-- after disarm, a queued board write ends through its errorHandler when arming clears the queue.
+scenario("RF->ELRS sync running at arming is left alone", function()
+  local host = newHost()
+  host.fcLinkRate = 250
+  host:run(2)
+  equal(host:press(2), true, "RF->ELRS available")
+  host:answer("yes")
+  host:run(0.1)
+  equal(host.task.isRunning() and host.task.getMode() == host.task.MODE_ROTORFLIGHT_TO_ELRS, true,
+    "RF->ELRS walk running before arming")
+  host:arm(true)
+  equal(host.cancels, 0, "RF->ELRS: the page does not cancel a sync")
+  equal(host.task.isRunning(), true, "RF->ELRS: sync still running on the armed build")
+  equal(host:snapshot().status, "Unavailable while armed", "RF->ELRS: armed text while armed")
+  host:run(20)
+  host:arm(false)
+  host:run(1)
+  equal(host:snapshot().status, "Stopped: model was armed", "RF->ELRS: the task's own guard stopped it")
+  host:finished("RF->ELRS after disarm")
+  for _, frame in ipairs(host.pushes) do
+    equal(frame.kind ~= 0x2D, true, "RF->ELRS: no ELRS write")
+  end
+end)
+
+scenario("ELRS->RF sync with a board write queued at arming is left alone", function()
+  local host = newHost()
+  host.fcLinkRate = 250
+  host.allowMspWrites = true
+  host:run(2)
+  local function writeQueued() return #host.queue.pending > 0 end
+  -- Positive control: disarmed, the stub sends the write and the commit and the sync completes.
+  equal(host:press(3), true, "ELRS->RF control available")
+  host:answer("yes")
+  equal(host:runUntil(writeQueued, 5), true, "ELRS->RF control queues its board write")
+  host:run(1)
+  equal(host.mspWritesDelivered, 2, "ELRS->RF control sends write and commit")
+  equal(host:snapshot().status, "RF updated", "ELRS->RF control completes")
+  host:finished("ELRS->RF control")
+
+  equal(host:press(3), true, "ELRS->RF available")
+  host:answer("yes")
+  equal(host:runUntil(writeQueued, 5), true, "ELRS->RF queues its board write")
+  local delivered = host.mspWritesDelivered
+  host:arm(true)
+  equal(host.cancels, 0, "ELRS->RF: the page does not cancel a sync")
+  equal(#host.queue.pending, 0, "ELRS->RF: arming cleared the queued write")
+  equal(host.mspWritesDelivered, delivered, "ELRS->RF: the queued write was never sent")
+  equal(host.task.isRunning(), false, "ELRS->RF: the write's errorHandler ended the sync")
+  equal(host:snapshot().status, "Unavailable while armed", "ELRS->RF: armed text while armed")
+  host:arm(false)
+  host:run(1)
+  equal(host:snapshot().status, "Stopped: model was armed", "ELRS->RF: the row names the arming")
+  host:finished("ELRS->RF after disarm")
 end)
 
 print(string.format("ELRS probe while armed: %d checks, %d failures", checks, failures))
