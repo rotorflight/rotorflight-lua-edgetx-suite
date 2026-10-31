@@ -850,7 +850,7 @@ end
 -- Answers { build, builds, worst, total, passes, served, empty } for a page that was priced, and
 -- { skipped = reason } for one that cannot be opened in this world. A page that should have opened
 -- and did not is an error, never a skip.
-local function openToolPageActual(theme, menuId, pagePath, pad, counted, fault, escPage)
+local function openToolPageActual(theme, menuId, pagePath, pad, counted, fault, escPage, prepare)
   World.reset()
   Stubs.installTool()
   -- A link that never delivers what the flight controller answers, as a link left over from an
@@ -910,6 +910,7 @@ local function openToolPageActual(theme, menuId, pagePath, pad, counted, fault, 
     error("accounting: the dashboard settled without a connected flight controller (isConnected="
       .. tostring(session.isConnected) .. ", mcu_id=" .. tostring(session.mcu_id) .. ")")
   end
+  if prepare then prepare(session) end
   installDeferredLink()
 
   local ToolHost = World.require("widgets/dashboard/tool_host.lua")
@@ -1101,9 +1102,71 @@ local function openToolPageActual(theme, menuId, pagePath, pad, counted, fault, 
   }
 end
 
+-- The Tune Advisor's tile needs MSP API 12.10, and the simulator replies report 12.9, so the page
+-- has a world of its own: the same replies with the API version at 12.10, and five flights saved
+-- for the connected flight controller, which is the most the page reads and combines on its open.
+-- The flights are the Tune Advisor's simulator reply, saved through the page's own history module
+-- with the profiles and settings the other simulator replies describe. They are written to a card
+-- of this world's own, so no later page can find them.
+local TUNE_ADVISOR_PAGE = "flight_tuning/tune_advisor/page.lua"
+local TUNE_ADVISOR_FLIGHTS = 5
+
+local function openTuneAdvisorPage(theme, menuId, pagePath, pad, counted, fault)
+  local versionApi = assert(loadfile(API_DIR .. "/api_version.lua"))()
+  local replies, cardRoot = FC.replies, Stubs.cardRoot
+  FC.replies = {}
+  for command, reply in pairs(replies) do FC.replies[command] = reply end
+  FC.replies[versionApi.command] = { 0, 12, 10 }
+
+  local function seedFlights(session)
+    local History = World.require("lib/tune_history.lua")
+    local Advisor = World.require("tasks/msp/api/tune_advisor.lua")
+    local Profile = World.require("lib/profile.lua")
+    local rcApi = assert(loadfile(API_DIR .. "/rc_tuning.lua"))()
+    local profileApi = assert(loadfile(API_DIR .. "/pid_profile.lua"))()
+    local rc = assert(rcApi.parse(FC.replies[rcApi.command]))
+    local pid = assert(profileApi.parse(FC.replies[profileApi.command]))
+    local context = {
+      pidProfile = Profile.getActivePidProfile(1), rateProfile = Profile.getActiveRateProfile(1),
+      cyclicPolarity = rc.cyclic_polarity, cyclicRing = rc.cyclic_ring, relaxType = pid.iterm_relax_type,
+    }
+    -- The stubs' fstat answers for the preference files only; the history checks each file it
+    -- writes by its size, so the seeding has a stat of the card for as long as it writes.
+    local stubStat = _G.fstat
+    _G.fstat = function(path)
+      local f = io.open(path, "rb")
+      if not f then return nil end
+      local size = f:seek("end")
+      f:close()
+      return { size = size }
+    end
+    for flight = 1, TUNE_ADVISOR_FLIGHTS do
+      local axes = {}
+      for axis = 1, 3 do axes[axis] = assert(Advisor.parse(Advisor.simulatorResponseFor(axis))) end
+      local saved, why = History.save(session.mcu_id, axes, context, 1761800000 + flight * 600)
+      if saved ~= true then
+        _G.fstat = stubStat
+        error("accounting: the Tune Advisor's flights could not be saved on this world's card: " .. tostring(why))
+      end
+    end
+    _G.fstat = stubStat
+  end
+
+  Stubs.cardRoot = cardRoot .. "/tune-advisor-page"
+  local ok, page = pcall(openToolPageActual, theme, menuId, pagePath, pad, counted, fault, nil, seedFlights)
+  -- Restore the shared replies and card even when opening the page fails.
+  FC.replies = replies
+  Stubs.releaseCard()
+  Stubs.cardRoot = cardRoot
+  if not ok then error(page, 0) end
+  return page
+end
+
 local function openToolPage(theme, menuId, pagePath, pad, counted, fault)
   local protocol, apiName
-  if pagePath == "setup/esc_motors/esc_tools/escmfg/flrtr/page.lua" then
+  if pagePath == TUNE_ADVISOR_PAGE then
+    return openTuneAdvisorPage(theme, menuId, pagePath, pad, counted, fault)
+  elseif pagePath == "setup/esc_motors/esc_tools/escmfg/flrtr/page.lua" then
     protocol, apiName = 10, "esc_parameters_flyrotor"
   elseif pagePath == "setup/esc_motors/esc_tools/escmfg/yge/page.lua" then
     protocol, apiName = 9, "esc_parameters_yge"

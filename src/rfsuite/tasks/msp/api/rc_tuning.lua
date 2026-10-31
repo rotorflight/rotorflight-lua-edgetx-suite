@@ -18,12 +18,14 @@ local FIELD_SPEC = {
     {"cyclic_ring", "U8"}, {"cyclic_polarity", "U8"}
 }
 
+-- Actual rates without polar cyclic: the rate profile the Tune Advisor's simulator reply
+-- (tune_advisor.lua) was flown on, so the two describe one helicopter.
 local SIM_RESPONSE = {
-    6,18,25,32,20,0,0,
-    18,25,32,20,0,0,
-    32,50,45,10,0,0,
+    4,18,25,24,20,0,0,
+    18,25,24,20,0,0,
+    18,50,40,10,0,0,
     56,0,56,20,0,0,
-    0,15,0,90,0,15,0,15,30,30,60,150,1
+    0,15,0,90,0,15,0,15,30,30,60,150,0
 }
 
 local function to_u16(lo, hi)
