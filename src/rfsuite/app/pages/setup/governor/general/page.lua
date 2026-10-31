@@ -389,6 +389,12 @@ function M.build(ctx)
   }
 
   -- 1. Mode
+  -- A row's ? opens its line in the tool's help view, titled with the row's label.
+  local openHelp = ctx and ctx.openHelp
+  local function onRowHelp(text, label)
+    if type(openHelp) == "function" and type(text) == "string" and text ~= "" then openHelp(text, label) end
+  end
+
   cursorY = cursorY + Controls.appendComboSelect(
     children, x, cursorY, w,
     pageText(i18n, "mode", "Mode"),
@@ -404,7 +410,13 @@ function M.build(ctx)
           ui.runtime.requestRebuild()
         end
       end
-    end
+    end,
+    {
+      helpText = pageText(i18n, "help_mode",
+        "OFF passes throttle through, LIMIT applies the throttle limits, DIRECT only spools up and recovers, ELECTRIC and NITRO govern fully; OFF while the feature is off, and a change restarts the board."),
+      helpTitle = pageText(i18n, "mode", "Mode"),
+      onHelp = onRowHelp
+    }
   )
 
   -- 2. Throttle type
@@ -422,7 +434,13 @@ function M.build(ctx)
           ui.runtime.requestRebuild()
         end
       end
-    end
+    end,
+    {
+      helpText = pageText(i18n, "help_throttle_type",
+        "NORMAL hands control to the governor once headspeed is reached, SWITCH above the handover level (ELECTRIC and NITRO only), and FUNCTION selects the governor mode from the throttle input."),
+      helpTitle = pageText(i18n, "throttle_type", "Throttle type"),
+      onHelp = onRowHelp
+    }
   )
 
   -- 3. Idle throttle (stored in 0.1%, e.g. 10 = 1.0%)
@@ -430,6 +448,10 @@ function M.build(ctx)
     children, x, cursorY, w,
     pageText(i18n, "idle_throttle", "Idle throttle"),
     {
+      helpText = pageText(i18n, "help_idle_throttle",
+        "Minimum throttle output while the governor is not actively controlling the headspeed."),
+      helpTitle = pageText(i18n, "idle_throttle", "Idle throttle"),
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -449,6 +471,10 @@ function M.build(ctx)
     children, x, cursorY, w,
     pageText(i18n, "auto_throttle", "Auto throttle"),
     {
+      helpText = pageText(i18n, "help_auto_throttle",
+        "With NORMAL or SWITCH, throttle below this cancels autorotation and prevents a bailout; with FUNCTION it is the throttle output in autorotation."),
+      helpTitle = pageText(i18n, "auto_throttle", "Auto throttle"),
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -468,6 +494,10 @@ function M.build(ctx)
     children, x, cursorY, w,
     pageText(i18n, "handover_throttle", "Handover throttle%"),
     {
+      helpText = pageText(i18n, "help_handover_throttle",
+        "Above this throttle input the governor controls the motor, below it the input goes straight to the motor; the motor must be able to start below it."),
+      helpTitle = pageText(i18n, "handover_throttle", "Handover throttle%"),
+      onHelp = onRowHelp,
       min = 0,
       max = 100,
       step = 1,
@@ -488,6 +518,10 @@ function M.build(ctx)
     children, x, cursorY, w,
     pageText(i18n, "throttle_hold_timeout", "Throttle hold timeout"),
     {
+      helpText = pageText(i18n, "help_hold_timeout",
+        "Grace period after throttle hold while governing: throttle restored within it gives a recovery spoolup, guarding against an accidental cut."),
+      helpTitle = pageText(i18n, "throttle_hold_timeout", "Throttle hold timeout"),
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,

@@ -12,17 +12,8 @@ return function(ctx)
   local t = Common and Common.pageT("setup_governor") or function(_, k) return k end
   local i18n = ctx and ctx.i18n
 
-  local parts = {
-    t(i18n, "help_p1"),
-    t(i18n, "help_p2"),
-    t(i18n, "help_p3"),
-    t(i18n, "help_p4"),
-    t(i18n, "help_p5"),
-    t(i18n, "help_p6")
-  }
-
   return {
     title = t(i18n, "help_title"),
-    message = table.concat(parts, "\n")
+    message = t(i18n, "help_message")
   }
 end

@@ -22,12 +22,12 @@ before that read, not firmware reset defaults.
 
 | Setting | What it does |
 | --- | --- |
-| Mode | Select the governor operating mode: OFF, LIMIT, DIRECT, ELECTRIC or NITRO. Initial value: OFF. |
-| Throttle type | Select the throttle input type: NORMAL, SWITCH or FUNCTION. Initial value: NORMAL. |
-| Idle throttle | Minimum throttle output while armed. 0.0–25.0 %, in 0.1 % steps; initial value: 1.0 %. |
-| Auto throttle | Throttle output during autorotation bailout. 0.0–25.0 %, in 0.1 % steps; initial value: 1.0 %. |
-| Handover throttle% | Throttle threshold for handing over to governor control. 0–100 %, in 1 % steps; initial value: 20 %. |
-| Throttle hold timeout | Timeout before disarming from throttle hold. 0.0–25.0 s, in 0.1 s steps; initial value: 5.0 s. |
+| Mode | OFF passes the throttle input straight to the motor; LIMIT applies the global idle throttle and the profile's minimum and maximum throttle; DIRECT handles slow spoolup and bailout recovery and leaves headspeed to an external governor or throttle curve; ELECTRIC and NITRO are complete governors for electric motors and combustion engines. Initial value: OFF. |
+| Throttle type | NORMAL: the throttle input drives the motor until the target headspeed is reached, then the governor takes over until the input falls below handover. SWITCH: below handover the input drives the motor, above it the governor engages and the input sets the headspeed target (ELECTRIC and NITRO only). FUNCTION: the throttle input selects each governor mode. Initial value: NORMAL. |
+| Idle throttle | Minimum throttle output while the governor is not actively controlling the headspeed. 0.0–25.0 %, in 0.1 % steps; initial value: 1.0 %. |
+| Auto throttle | With NORMAL or SWITCH throttle type, a throttle input below this value cancels autorotation mode and so prevents a bailout; with FUNCTION it is the throttle output in autorotation mode. 0.0–25.0 %, in 0.1 % steps; initial value: 1.0 %. |
+| Handover throttle% | Above this throttle input the governor controls the motor; below it the input is sent straight to the motor. The motor must be able to start below this level. 0–100 %, in 1 % steps; initial value: 20 %. |
+| Throttle hold timeout | The grace period after throttle hold is activated while the governor is active: if the throttle input returns within it, the governor performs a recovery spoolup, which guards against an accidental throttle cut. 0.0–25.0 s, in 0.1 s steps; initial value: 5.0 s. |
 
 ## Notes
 
