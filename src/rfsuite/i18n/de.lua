@@ -3222,7 +3222,7 @@ return {
         help_p7 = "Flugbuch schreiben: das Dashboard fragt nach dem Verbinden nach dem Akku.",
         help_p8 = "Akkuprofil des Akkus setzen: die Akkuwahl im Dashboard kann auch das Akkuprofil im Flugcontroller setzen, nie im scharfen Zustand.",
         help_p9 = "Zellen: hat der Flugcontroller eine Zellenzahl je Profil, muss sie auch passen; 0 laesst sie weg. Bei Gleichstand wird kein Profil gesetzt.",
-        help_id = "Kennung: Vorschlaege ueberspringen Kennungen mit Fluegen; eine von Hand vergebene nennt beim Speichern, wie viele Fluege nun fuer diesen Akku zaehlen."
+        help_id = "Kennung: Vorschlag ohne Fluege, Handeingabe erlaubt; Speichern nennt, wie viele Fluege nun fuer diesen Akku zaehlen."
       },
       logs = {
         title = "Protokolle",
