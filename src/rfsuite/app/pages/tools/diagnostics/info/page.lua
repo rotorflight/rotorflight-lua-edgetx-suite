@@ -268,6 +268,15 @@ local function readLiveRfInfo()
     if value ~= nil then
       if not LinkRates then LinkRates = loadModule("lib/link_rates.lua") end
       if not Crsf then Crsf = loadModule("lib/crsf.lua") end
+      -- lib/crsf.lua keeps device-information answers queued once any consumer has asked for
+      -- them, so one left from an earlier visit may name a module that is no longer fitted.
+      -- Dropping them before this visit's ping makes the answer that decides the generation
+      -- one that came after it.
+      if state.linkPingSent == nil and state.linkGeneration == nil then
+        for _ = 1, 16 do
+          if Crsf.popFrame(LinkRates.FRAME_DEVICE_INFO) == nil then break end
+        end
+      end
       local generation = LinkRates.resolveGeneration(state, Crsf, _G.crossfireTelemetryPush)
       local info = LinkRates.forMode(value, generation)
       return info and info.rate or "-", rfBandForMode(value, generation, info)
@@ -692,6 +701,15 @@ function M.build(ctx)
 end
 
 function M.wakeup()
+  -- The module answers the ping some time after the build that sent it, and nothing else
+  -- rebuilds the page then: collect the answer here and rebuild once it has decided the
+  -- generation, which also ends this check.
+  if state.linkPingSent and state.linkGeneration == nil and LinkRates and Crsf then
+    if LinkRates.resolveGeneration(state, Crsf, _G.crossfireTelemetryPush) ~= nil then
+      requestRebuild()
+    end
+  end
+
   local now = nowSeconds()
   if state.loading then
     if not isFblConnected() then
@@ -763,6 +781,8 @@ function M.closePage()
   BuildInfoApi = nil
   TelemetryConfigApi = nil
   LoadingOverlay = nil
+  LinkRates = nil
+  Crsf = nil
 end
 
 return M
