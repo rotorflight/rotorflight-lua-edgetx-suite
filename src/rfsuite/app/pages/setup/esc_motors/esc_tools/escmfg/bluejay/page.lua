@@ -134,6 +134,7 @@ local function queueBluejayReadActual(queue)
     timeout = 15,
     simulatorResponse = EscParametersBluejayApi.simulatorResponse,
     processReply = function(self, buf)
+      if escTarget ~= (ui.escTarget or 0) then return end
       local parsed = EscParametersBluejayApi.parse(buf)
       if parsed then
         for k, v in pairs(ui.config) do
@@ -186,6 +187,7 @@ local function queueBluejayReadActual(queue)
       end
     end,
     errorHandler = function()
+      if escTarget ~= (ui.escTarget or 0) then return end
       ui.runtime.readPending = false
       ui.loading = false
       if type(ui.runtime.requestRebuild) == "function" then

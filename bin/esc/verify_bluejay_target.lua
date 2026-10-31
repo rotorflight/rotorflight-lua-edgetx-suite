@@ -24,6 +24,7 @@ local header = nil
 local firmware = nil
 local version = nil
 local notice = nil
+local overlay = nil
 
 local queue = {}
 function queue:add(message)
@@ -94,7 +95,7 @@ local modules = {
     supportsLedControl = function() return false end
   },
   ["ui/loading_overlay.lua"] = {
-    append = function() end,
+    append = function(_, options) overlay = options end,
     appendNotice = function(_, options) notice = options.press end
   },
   ["ui/confirm_dialog.lua"] = {}
@@ -117,6 +118,7 @@ local ctx = {
 
 local function render(page)
   rows, header, firmware, version, notice = {}, nil, nil, nil, nil
+  overlay = nil
   ctx.children = {}
   page.build(ctx)
   if notice then
@@ -201,22 +203,117 @@ scenario("switch to ESC 2", function()
   assertSaveRefused(page, "ESC 2")
 end)
 
-scenario("reopen ESC 1", function()
-  -- Keep the session cache when loading a fresh page. onClose deliberately removes
-  -- it, so calling onClose here would not exercise session restoration itself.
-  assert(#pending == 0, "reopen requires a drained queue")
-  page = assert(loadfile(pagePath))()
+scenario("switch back to ESC 1", function()
+  -- Restore the same target within one visit; leaving the page clears its cache.
+  assert(#pending == 0, "switch-back requires a drained queue")
+  selectTarget(0)
   render(page)
   deliverRead(page, refused)
-  equal(rowValue("ESC Target"), 0, "reopened page selects ESC 1")
+  equal(rowValue("ESC Target"), 0, "target control switches back to ESC 1")
   equal(header, "Bluejay Configurator - ESC1-MODEL", "same-target model is restored")
   equal(firmware, "ESC1-FIRMWARE", "same-target firmware is restored")
   equal(version, "ESC1-VERSION", "same-target version is restored")
   equal(rowValue("Motor Direction"), 2, "same-target direction is restored")
   equal(rowValue("Min Startup Power"), 1110, "same-target numeric config is restored")
-  assertSaveRefused(page, "reopened ESC 1")
+  equal(rowValue("Max Startup Power"), 1200, "same-target maximum startup power is restored")
+  equal(rowValue("PWM Frequency"), 48, "same-target PWM frequency is restored")
+  assertSaveRefused(page, "restored ESC 1")
   equal(readReplies, 3, "one good read and two refused reads are delivered")
   equal(refusedReplies, 2, "two replies are refused by the parser")
+end)
+
+-- Advance reset/select and post-save writes, but leave the parameter read pending.
+local function waitForRead(page)
+  for _ = 1, 40 do
+    while #pending > 0 do
+      local message = pending[1]
+      if message.command == 217 then return message end
+      assert(message.command == 218 or message.command == 245, "unexpected queued command")
+      table.remove(pending, 1)
+      message.processReply(message, {})
+    end
+    page.wakeup(ctx)
+    ticks = ticks + 50
+  end
+  error("no parameter read was queued")
+end
+
+local function switchWithReadPending()
+  -- Each route starts independently, including when a previous assertion failed.
+  pending = {}
+  _G.rfsuite.session = { esc4WayMotorCount = 2 }
+  local activePage = assert(loadfile(pagePath))()
+  render(activePage)
+  deliverRead(activePage, good)
+  equal(rowValue("Motor Direction"), 2, "in-flight route starts with ESC 1's good read")
+  rows["Motor Direction"].set(1)
+  equal(activePage.onSave(ctx), true, "ESC 1 save starts the post-save read cycle")
+  local lateRead = waitForRead(activePage)
+  render(activePage)
+  equal(rowValue("ESC Target"), 0, "target control is available during the auto read")
+  selectTarget(1)
+  render(activePage)
+  equal(table.remove(pending, 1), lateRead, "ESC 1 read is still pending at the switch")
+  return activePage, lateRead
+end
+
+local function assertEsc2Defaults(label)
+  equal(overlay, nil, label .. " finishes loading")
+  equal(rowValue("ESC Target"), 1, label .. " keeps ESC 2 selected")
+  equal(header, "Bluejay Configurator", label .. " has no ESC 1 model")
+  equal(firmware, nil, label .. " has no ESC 1 firmware")
+  equal(version, nil, label .. " has no ESC 1 version")
+  equal(rowValue("Motor Direction"), 0, label .. " keeps the initial direction")
+  equal(rowValue("Rampup Start Power"), 0, label .. " keeps the initial layout and rampup power")
+  equal(rowValue("Min Startup Power"), 1000, label .. " keeps the initial startup power")
+  equal(rowValue("Max Startup Power"), 1300, label .. " keeps the initial maximum startup power")
+  equal(rowValue("PWM Frequency"), 0, label .. " keeps the initial PWM frequency")
+end
+
+scenario("late ESC 1 reply before ESC 2 read", function()
+  local activePage, lateRead = switchWithReadPending()
+  local cached = _G.rfsuite.session.setup_esc_motors_esc_tools_bluejay
+  lateRead.processReply(lateRead, good)
+  render(activePage)
+  equal(overlay and overlay.title, "Loading", "late reply keeps ESC 2 loading")
+  equal(overlay and overlay.progress, 0, "late reply preserves ESC 2 progress")
+  equal(header, nil, "late reply does not display ESC 1's model in the window")
+  equal(firmware, nil, "late reply does not display ESC 1's firmware in the window")
+  equal(version, nil, "late reply does not display ESC 1's version in the window")
+  equal(rows["Motor Direction"], nil, "late reply does not display ESC 1's values in the window")
+  equal(_G.rfsuite.session.setup_esc_motors_esc_tools_bluejay, cached,
+    "late reply leaves the session cache untouched")
+  assertSaveRefused(activePage, "ESC 2 in the late-reply window")
+end)
+
+scenario("ESC 2 refuses its read after a late ESC 1 reply", function()
+  local activePage, lateRead = switchWithReadPending()
+  lateRead.processReply(lateRead, good)
+  local before = refusedReplies
+  deliverRead(activePage, refused)
+  equal(refusedReplies, before + 1, "ESC 2's own reply reaches the parser and is refused")
+  assertEsc2Defaults("ESC 2 after the refused read")
+  assertSaveRefused(activePage, "ESC 2 after the refused read")
+end)
+
+scenario("stale handlers preserve ESC 2's pending read", function()
+  -- Exercise both stale handlers with the new target's actual read already queued.
+  for _, handler in ipairs({ "processReply", "errorHandler" }) do
+    local activePage, lateRead = switchWithReadPending()
+    local currentRead = waitForRead(activePage)
+    lateRead[handler](lateRead, good)
+    render(activePage)
+    equal(overlay and overlay.title, "Loading", handler .. " keeps the current read loading")
+    equal(overlay and overlay.progress, 0, handler .. " keeps the current progress")
+    local queued = #pending
+    activePage.onReload(ctx)
+    equal(#pending, queued, handler .. " keeps readPending so reload queues no duplicate")
+    equal(table.remove(pending, 1), currentRead, handler .. " leaves the current read queued")
+    currentRead.processReply(currentRead, refused)
+    render(activePage)
+    assertEsc2Defaults(handler .. " followed by the current reply")
+    assertSaveRefused(activePage, handler .. " followed by the current reply")
+  end
 end)
 
 print("Bluejay target: " .. checks .. " checks, " .. failures .. " failures")
