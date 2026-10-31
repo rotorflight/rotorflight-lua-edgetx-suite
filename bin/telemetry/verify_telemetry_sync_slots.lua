@@ -103,7 +103,7 @@ local function runCase(closeBeforeSaved, eq)
   assert(descriptor, "save did not start the save pipeline")
   eq(#descriptor.steps, 1, "single telemetry save step")
   eq(descriptor.steps[1].command, 74, "save queues MSP_SET_TELEMETRY_CONFIG")
-  eq(descriptor.reboot, false, "telemetry save does not reboot")
+  eq(descriptor.reboot, true, "telemetry save restarts the flight controller")
   local payload = descriptor.steps[1].payload
   for i = 1, 40 do
     eq(payload[12 + i], i <= 4 and i or 0, "saved sensor slot " .. i)
