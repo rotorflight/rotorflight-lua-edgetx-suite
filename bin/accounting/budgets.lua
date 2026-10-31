@@ -369,6 +369,8 @@ return {
     ["page.flight_tuning_governor_page.build"] = { target = 8650, measured = 6907 },
     ["page.flight_tuning_pids_page.build"] = { target = 6300, measured = 5013 },
     ["page.flight_tuning_rates_page.build"] = { target = 5000, measured = 3998 },
+    -- Opened in a world of its own at MSP API 12.10, on five saved flights (measure.lua, openTuneAdvisorPage).
+    ["page.flight_tuning_tune_advisor_page.build"] = { target = 13300, measured = 10612 },
     ["page.logs_page.build"] = { target = 3600, measured = 2875 },
     ["page.settings_audio_events_adjustment_page.build"] = { target = 2300, measured = 2009 },
     ["page.settings_audio_events_arming_page.build"] = { target = 2300, measured = 2006 },

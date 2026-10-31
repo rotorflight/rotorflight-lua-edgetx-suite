@@ -1,0 +1,3 @@
+- **Info bar on full-screen box dashboards (`widgets/dashboard`, `app/pages/settings/dashboard`)**:
+  - Box themes in full screen are now laid out below an info bar in place of the radio's hidden top bar, with the tool, quick menu and close controls inside the bar instead of over the tiles.
+  - A shared Info bar settings page puts the buttons at the left or the right end and chooses what six positions show from the other end inwards: clock, radio battery as a symbol, percentage or voltage, and link quality as bars or a value. As it comes: buttons left, battery symbol, clock and link bars. Per-Model Settings can override it.

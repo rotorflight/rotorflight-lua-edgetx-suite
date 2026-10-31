@@ -676,6 +676,12 @@ function Queue:processQueue(now)
     end
     if type(msg.processReply) == "function" then
       msg.__retryCount = self.retryCount
+      -- Whether these bytes are the board's error reply, which completeOnErrorReplyAttempt lets
+      -- through to processReply. The bytes alone cannot say it: an error reply carries the
+      -- command's own number, and its payload can be any length, so a reader that has to tell
+      -- "this firmware has no such command" from "an answer in a layout I do not know" reads it
+      -- here. Every other success path completes on a reply without the error flag.
+      msg.__errorReply = err and true or false
       local ok, herr = pcall(msg.processReply, msg, msg.buf)
       if not ok then
         if isCpuLimitError(herr) then error(herr, 0) end

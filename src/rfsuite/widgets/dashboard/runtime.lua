@@ -1666,13 +1666,23 @@ end
 --- The chunking and the swap are sceneJobStep's, reached through it unchanged; this step adds what
 --- only the fullscreen build has, so the dashboard's own scene build carries no test for it. A
 --- free-form theme gets the views' `ctx` as the third argument of `build(zone, state, ctx)`,
---- through which it binds its own controls. A tree that binds no press anywhere -- always the
---- case for a declarative theme, whose boxes cannot take a tap -- gets the widget's two controls
---- appended after the theme's nodes, so no fullscreen is without the menu and a way out.
+--- through which it binds its own controls. A free-form tree that binds no press anywhere gets
+--- the widget's controls appended after the theme's nodes, so no fullscreen is without the menu
+--- and a way out. A declarative theme, whose boxes cannot take a tap, is laid out below an info
+--- bar that carries those controls (fullscreen_controls.lua `appendBar`).
 local function fsThemeJobStep(self)
   local job = self._job
   if job.swap then
-    appendFullscreenControls(self, job.build.nodes)
+    -- The info bar with the controls in it, for a declarative theme; the controls alone where the
+    -- bar cannot be drawn. Kept inside this step: the chunk is at its limit of top-level locals.
+    local Controls = requireModule("widgets/dashboard/fullscreen_controls.lua")
+    if type(Controls) == "table" and type(Controls.appendThemeBar) == "function" then
+      Controls.appendThemeBar(job.build.nodes, self, job.build, self.dashboardEngine)
+      -- What the widget's refresh takes the bar's readings with while the bar is up.
+      self._fullscreenBarControls = Controls
+    else
+      appendFullscreenControls(self, job.build.nodes)
+    end
     return sceneJobStep(self)
   end
   if job.build then return sceneJobStep(self) end
@@ -1680,6 +1690,7 @@ local function fsThemeJobStep(self)
   if not self.theme then return true end
 
   if type(self.theme.build) == "function" then
+    self._fullscreenBarControls = nil
     local children = self.theme.build(self.zone, self.state, viewCtx(self))
     checkNodeList(self, children)
     if not bindsPress(children) then
@@ -1701,7 +1712,11 @@ local function fsThemeJobStep(self)
   local theme = self.theme
   if self.dashboardEngine
     and (type(theme.layout) == "table" or type(theme.boxes) == "table" or type(theme.boxes) == "function") then
-    job.build = self.dashboardEngine.beginBuild(self.zone, self.state, theme)
+    -- Laid out below the info bar, in the place the radio's top bar leaves on a normal screen.
+    local Controls = requireModule("widgets/dashboard/fullscreen_controls.lua")
+    local zone = (type(Controls) == "table" and type(Controls.bodyZone) == "function")
+      and Controls.bodyZone(self) or self.zone
+    job.build = self.dashboardEngine.beginBuild(zone, self.state, theme)
     return false
   end
 
@@ -4819,6 +4834,7 @@ function Runtime.new(zone, options)
       cleanupInflight(self)
       self._viewStack = nil
       self._cachedFullscreenKey = nil
+      self._fullscreenBarControls = nil
       local job = self._job
       if job and (job.fullscreen or job.fullscreenSplash) then
         self._job = nil
@@ -4890,6 +4906,13 @@ function Runtime.new(zone, options)
       -- views and take an open one off the stack. The mode is taken once the theme is back.
       if self.theme ~= nil and (modeOf == nil or modeOf[1] ~= self.theme or modeOf.ready ~= ready) then
         takeFullscreenMode(self)
+      end
+      -- The full-screen info bar's readings (fullscreen_controls.lua `refresh`), taken here in the
+      -- widget's own call so that the bar's getters in the reactive sweep only read them. At most
+      -- once a second, and nothing while no bar is up.
+      local barControls = self._fullscreenBarControls
+      if barControls ~= nil and self._fullscreenBarValues ~= nil then
+        barControls.refresh(self, self._fullscreenBarValues)
       end
       local Views = viewsModule()
       local handled, exited
@@ -5157,6 +5180,9 @@ function Runtime.new(zone, options)
       -- A splash that keeps raising falls back to the bare label, not to the failure surface,
       -- which is drawn by the same builder.
       if not self.built then
+        -- The splash or standby replaces whatever stood, a full-screen info bar included, whose
+        -- readings stop with it (fullscreen_controls.lua `refresh`).
+        self._fullscreenBarControls = nil
         if useStandby and not jobCapped(self, "standby") then
           self._job = { kind = "standby", step = standbyJobStep, fullscreen = fullscreenSplash }
         elseif not useStandby and not jobCapped(self, "splash") then
@@ -5331,6 +5357,9 @@ function Runtime.new(zone, options)
       -- it is drawn by the same builder: see failedJobStep.
       self._job = { kind = jobKind, step = jobStep, fullscreen = jobFullscreen or (isInteractive and self._viewId ~= nil),
         fullscreenSplash = jobKind == "failed" and isInteractive or nil }
+      -- Any build but the full-screen theme's replaces the info bar, a view over the theme
+      -- included; the theme's own build sets it again when it draws one.
+      if jobKind ~= "fs_theme" then self._fullscreenBarControls = nil end
     end
 
     -- The battery prompt's own work, last and only into a free slot: the registry read and the

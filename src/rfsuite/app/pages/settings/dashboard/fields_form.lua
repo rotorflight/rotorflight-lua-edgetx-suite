@@ -1,7 +1,9 @@
 --[[
   The settings pages every theme that declares boxes shares: one page per flight phase, listing
-  the tiles whose value the pilot can choose (widgets/dashboard/fields.lua), and a Keys page
-  binding the full-screen keys to the host's actions (widgets/dashboard/keys.lua).
+  the tiles whose value the pilot can choose (widgets/dashboard/fields.lua), a Keys page
+  binding the full-screen keys to the host's actions (widgets/dashboard/keys.lua), and an Info
+  bar page choosing what the bar across the top of the full screen shows
+  (widgets/dashboard/fullscreen_controls.lua `appendBar`).
 
   A theme's configure.lua makes one form, hands it the page the settings page opened, and lets
   it build and save that page; the theme's own settings stay its own. The form reads a phase
@@ -20,6 +22,32 @@ local GlobalKeys = loadModule("widgets/dashboard/keys.lua")
 local M = {}
 
 local KEY_NAMES = { pageDown = "PAGE >", pageUp = "PAGE <", mdl = "MDL", sys = "SYS", tele = "TELE" }
+
+-- The Info bar page: the side the buttons sit on, then what each position of the bar shows. The
+-- keys, the choices and their defaults are the ones the runtime reads
+-- (widgets/dashboard/fullscreen_controls.lua `M.layout`).
+local BAR_SIDES = {
+  { value = "left", label = "@i18n(app.pages.settings_dashboard_settings.bar_buttons_left)@" },
+  { value = "right", label = "@i18n(app.pages.settings_dashboard_settings.bar_buttons_right)@" },
+}
+local BAR_CHOICES = {
+  { value = "none", label = "@i18n(app.pages.settings_dashboard_settings.bar_item_none)@" },
+  { value = "clock", label = "@i18n(app.pages.settings_dashboard_settings.bar_item_clock)@" },
+  { value = "battery_icon", label = "@i18n(app.pages.settings_dashboard_settings.bar_item_battery_icon)@" },
+  { value = "battery_percent", label = "@i18n(app.pages.settings_dashboard_settings.bar_item_battery_percent)@" },
+  { value = "battery_volts", label = "@i18n(app.pages.settings_dashboard_settings.bar_item_battery_volts)@" },
+  { value = "link_bars", label = "@i18n(app.pages.settings_dashboard_settings.bar_item_link_bars)@" },
+  { value = "link_value", label = "@i18n(app.pages.settings_dashboard_settings.bar_item_link_value)@" },
+}
+local BAR_SIDE_PREF = "bar_buttons"
+local BAR_SLOT_DEFAULTS = { "battery_icon", "clock", "link_bars", "none", "none", "none" }
+
+local function barValue(value, choices, default)
+  for i = 1, #choices do
+    if choices[i].value == value then return value end
+  end
+  return default
+end
 
 -- One option list per catalogue, made once: the page builds a combo per tile from the same list.
 local OPTIONS = {}
@@ -73,6 +101,9 @@ function M.new(folder, phases)
     into = into or {}
     if page == "keys" then
       for i = 1, #GlobalKeys.THEME_KEYS do into[GlobalKeys.THEME_KEYS[i].pref] = "none" end
+    elseif page == "bar" then
+      into[BAR_SIDE_PREF] = "left"
+      for i = 1, #BAR_SLOT_DEFAULTS do into["bar_slot" .. i] = BAR_SLOT_DEFAULTS[i] end
     elseif form.phases[page] then
       local rows = form.rowsFor(page, config)
       for i = 1, #rows do
@@ -91,6 +122,12 @@ function M.new(folder, phases)
         local pref = GlobalKeys.THEME_KEYS[i].pref
         form.values[pref] = config[pref] or "none"
       end
+    elseif page == "bar" then
+      form.values[BAR_SIDE_PREF] = barValue(config[BAR_SIDE_PREF], BAR_SIDES, "left")
+      for i = 1, #BAR_SLOT_DEFAULTS do
+        local pref = "bar_slot" .. i
+        form.values[pref] = barValue(config[pref], BAR_CHOICES, BAR_SLOT_DEFAULTS[i])
+      end
     elseif form.phases[page] then
       local rows = form.rowsFor(page, config)
       for i = 1, #rows do form.values[rows[i].key] = config[rows[i].key] or rows[i].default end
@@ -104,7 +141,7 @@ function M.new(folder, phases)
 
   --- Whether `page` is one of the form's.
   function form.owns(page)
-    return page == "keys" or form.phases[page] ~= nil
+    return page == "keys" or page == "bar" or form.phases[page] ~= nil
   end
 
   --- Build `page` into `children` from `cursorY`; answers the cursor after it.
@@ -124,6 +161,23 @@ function M.new(folder, phases)
           GlobalKeys.THEME_OPTIONS, form.values[pref] or "none",
           function(value) if type(value) == "string" then form.values[pref] = value end end,
           opts)
+      end
+      return cursorY
+    end
+
+    if page == "bar" then
+      cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+        "@i18n(app.pages.settings_dashboard_settings.bar_buttons)@",
+        BAR_SIDES, form.values[BAR_SIDE_PREF] or "left",
+        function(value) if type(value) == "string" then form.values[BAR_SIDE_PREF] = value end end,
+        { helpText = "@i18n(app.pages.settings_dashboard_settings.bar_buttons_help)@" })
+      for i = 1, #BAR_SLOT_DEFAULTS do
+        local pref = "bar_slot" .. i
+        local label = "@i18n(app.pages.settings_dashboard_settings.bar_slot)@ " .. i
+        cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w, label,
+          BAR_CHOICES, form.values[pref] or BAR_SLOT_DEFAULTS[i],
+          function(value) if type(value) == "string" then form.values[pref] = value end end,
+          { helpText = "@i18n(app.pages.settings_dashboard_settings.bar_slot_help)@" })
       end
       return cursorY
     end

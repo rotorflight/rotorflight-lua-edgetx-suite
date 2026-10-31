@@ -250,6 +250,30 @@ check(prefs.dashboard[PREFIX .. "theme_key_mdl"] == "flight_log", "the Keys page
 cfg = DashboardLib.getThemeConfig(prefs, "system/default", {}, nil)
 check(Keys.themeBindings(cfg, nil).mdl == "openTool:tools_flight_log_page", "the stored binding binds its action")
 
+-- The Info bar page: the buttons' end, then six positions, each starting on the bar's own default
+-- (widgets/dashboard/fullscreen_controls.lua `M.layout`, which states the same defaults).
+local BarControls = assert(loadfile(SRC .. "widgets/dashboard/fullscreen_controls.lua"))()
+local barPage = openPage("bar", prefs)
+check(#combos == 7, "the Info bar page lists the buttons' end and six positions (" .. #combos .. ")")
+local defaultSide, defaultItems = BarControls.layout({})
+check(combos[1].selected == defaultSide, "Buttons starts on the bar's default end")
+local shown = {}
+for i = 2, 7 do
+  check(type(combos[i].opts) == "table" and type(combos[i].opts.helpText) == "string", "a position carries its help (" .. (i - 1) .. ")")
+  if combos[i].selected ~= "none" then shown[#shown + 1] = combos[i].selected end
+end
+check(table.concat(shown, ",") == table.concat(defaultItems, ","), "the positions start on the bar's defaults")
+combos[1].onSelect("right")
+combos[2].onSelect("link_value")
+combos[3].onSelect("none")
+save(barPage, prefs)
+check(prefs.dashboard[PREFIX .. "bar_buttons"] == "right", "the Info bar page stores the buttons' end")
+check(prefs.dashboard[PREFIX .. "bar_slot1"] == "link_value", "the Info bar page stores a position")
+cfg = DashboardLib.getThemeConfig(prefs, "system/default", {}, nil)
+local side, items = BarControls.layout(cfg)
+check(side == "right" and items[1] == "link_value" and items[2] == "link_bars",
+  "the bar draws what the page stored, an emptied position left out")
+
 -- 4b. Every other box theme that declares the shared pages: each phase page lists exactly its
 --     phase's reassignable tiles, and its Keys page every key, through the theme's own configure
 --     module. A theme declaring the pages has to take the full screen as well.
@@ -288,7 +312,7 @@ for _, folder in ipairs(MIGRATED) do
   check(built, folder .. " Look builds")
   local init = assert(loadfile(THEMES .. folder .. "/init.lua"))()
   check(init.fullscreen == "theme", folder .. " takes the full screen")
-  check(type(init.pages) == "table" and #init.pages == 5, folder .. " declares its five pages")
+  check(type(init.pages) == "table" and #init.pages == 6, folder .. " declares its six pages")
 end
 
 -- 5. Per-Model Settings describes such a setting as the pages show it, not by its stored name.

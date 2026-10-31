@@ -499,46 +499,28 @@ end
 -- Registry writes
 -- ---------------------------------------------------------------------------
 
--- Writes `content` over `path` without ever leaving the original truncated: the new file is
--- written beside it, its size is verified, the original is parked as `.bak` and only then is
--- the new one renamed into place. Every failure exit leaves the original where it was, and a
--- failure of the final rename leaves the data in the `.bak`.
---
--- del and rename answer an FRESULT, 0 being success. FatFS refuses a rename onto an existing
--- name, which is why the stale `.bak` is removed first.
+-- Writes `content` over `path` without ever leaving the original truncated: lib/atomic_file.lua
+-- writes `.new`, verifies its size, parks the original as `.bak` and renames. Every failure exit
+-- leaves the original where it was.
 --
 -- `allowCreate` lets a missing original through: the file is then created with its first line
 -- rather than the write being refused.
+local AtomicFile = nil
+
 local function atomicReplace(path, content, allowCreate)
-  local newPath = path .. ".new"
-  local bakPath = path .. ".bak"
-
+  if AtomicFile == nil then
+    local req = _G.rfsuite and _G.rfsuite.require
+    if type(req) == "function" then
+      AtomicFile = req("lib/atomic_file.lua") or false
+    else
+      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/atomic_file.lua", (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
+      local ok, mod = pcall(chunk)
+      AtomicFile = (ok and type(mod) == "table") and mod or false
+    end
+  end
+  if not AtomicFile then return false end
   ensureDir()
-  local f = io.open(newPath, "w")
-  if not f then return false end
-  io.write(f, content)
-  io.close(f)
-
-  -- Verified before the original is touched. io.write does report a short write, but what has
-  -- to hold here is that the replacement is complete on the card, and the file's size is the
-  -- only thing that says so -- so it is checked whatever the write answered.
-  local written = fileSize(newPath)
-  if written == nil or written ~= #content then return false end
-  if type(rename) ~= "function" then return false end
-
-  local parked = not (allowCreate and fileSize(path) == nil)
-  if parked then
-    if type(del) == "function" then pcall(del, bakPath) end
-    local ok, res = pcall(rename, path, bakPath)
-    if not ok or res ~= 0 then return false end
-  end
-
-  local ok, res = pcall(rename, newPath, path)
-  if not ok or res ~= 0 then
-    if parked then pcall(rename, bakPath, path) end
-    return false
-  end
-  return true
+  return AtomicFile.replace(path, content, allowCreate)
 end
 
 -- Reads the registry for a rewrite. The second return is the distinct refusal a caller has to

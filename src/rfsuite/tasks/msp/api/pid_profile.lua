@@ -68,9 +68,10 @@ local ERROR_DECAY_GAIN_CYCLIC = "error_decay_gain_cyclic"
 local CYCLIC_MASTER_GAIN = "cyclic_master_gain"
 local YAW_MASTER_GAIN = "yaw_master_gain"
 
--- The simulator answers MSP_API_VERSION with 12.9, so its reply ends before the 12.10 field.
+-- The simulator answers MSP_API_VERSION with 12.9, so its reply ends before the 12.10 field. The
+-- I-term relax cut-offs are the ones the Tune Advisor's simulator reply (tune_advisor.lua) carries.
 local SIM_RESPONSE = {
-    3,25,250,0,12,0,1,45,45,60,50,50,100,15,15,20,2,10,10,15,100,100,6,0,30,0,0,0,40,55,0,75,20,25,0,15,90,90,15,15,20,10,20
+    3,25,250,0,12,0,1,45,45,60,50,50,100,15,15,20,2,10,10,10,100,100,6,0,30,0,0,0,40,55,0,75,20,25,0,15,90,90,15,15,20,10,20
 }
 
 -- lib/api_version.lua decides the write gate, as it decides the page's row and its help line, so

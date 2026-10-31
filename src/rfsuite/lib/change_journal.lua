@@ -74,6 +74,10 @@ local function timestamp()
   return base + seconds
 end
 
+-- The radio clock in seconds, 0 without one. The Tune Advisor's flight capture stamps each saved
+-- flight with it, so a flight and a change applied after it carry times from the same clock.
+M.timestamp = timestamp
+
 local function validName(value)
   return type(value) == "string" and string.match(value, "^[%w_%.]+$") ~= nil
 end
@@ -115,39 +119,103 @@ function M.append(mcuId, entries)
   return true
 end
 
-function M.read(mcuId)
-  local path = M.path(mcuId)
-  if not path then return nil, "mcu id" end
-  local size = fileSize(path)
-  if size and size > READ_CAP then return nil, "too big" end
-  local f = io.open(path, "r")
-  if not f then
-    if size ~= nil then return nil, "open" end
-    return {}
-  end
-  local parts, total = {}, 0
-  while true do
-    local ok, chunk = pcall(io.read, f, math.min(READ_CHUNK, READ_CAP + 1 - total))
-    if not ok then io.close(f); return nil, tostring(chunk) end
-    if chunk == nil or chunk == "" then break end
-    total = total + #chunk
-    if total > READ_CAP then io.close(f); return nil, "too big" end
-    parts[#parts + 1] = chunk
-  end
-  io.close(f)
-  if size ~= nil and total ~= size then return nil, "short read" end
-  local entries = {}
-  local function collector(time, source, profile, field, old, new)
+-- The journal grows with every save and may be read up to READ_CAP. Parsed in one go, a
+-- journal of a thousand entries cost over a hundred thousand Lua instructions, far more than a
+-- page's wakeup may take, so it is read as a job: the file on one step, then LINES_PER_STEP lines
+-- per step. Each group of lines is loaded in one go; when that fails anywhere -- a line torn by a
+-- write that was cut short, or one broken by hand -- the group is run again line by line and only
+-- the lines that do not read are skipped.
+local LINES_PER_STEP = 16
+
+local function newCollector(job)
+  local entries, fields = job.entries, job.fields
+  return function(time, source, profile, field, old, new)
+    -- Not asked for: dropped before anything else is looked at
+    if fields and not fields[field] then return end
     if not integer(time) or not validName(source) or not integer(profile) or profile < 1
         or not validName(field) or not integer(old) or not integer(new) then error("invalid entry") end
     entries[#entries + 1] = { time = time, source = source, profile = profile, field = field, old = old, new = new }
   end
-  -- loadScript discards the environment and can create stale bytecode beside the journal.
-  local chunk, err = load(table.concat(parts), "=change_journal", "t", { e = collector })
-  if not chunk then return nil, err end
-  local ok, result = pcall(chunk)
-  if not ok then return nil, tostring(result) end
-  return entries
+end
+
+--- A read of one flight controller's journal in steps (see M.readStep). `fields`, when given, is a
+--- set of field names: only their entries are kept.
+function M.readJob(mcuId, fields)
+  return { phase = "read", mcuId = mcuId, fields = fields }
+end
+
+--- One step of a job from readJob(): nothing while there is more to do, then what read() answers.
+--- The first value is false while the job runs, so a caller can tell "more to do" (false) from
+--- a failure (nil, reason) and from the entries (a table).
+function M.readStep(job)
+  if job.phase == "read" then
+    job.phase = "done"
+    local path = M.path(job.mcuId)
+    if not path then return nil, "mcu id" end
+    local size = fileSize(path)
+    if size and size > READ_CAP then return nil, "too big" end
+    local f = io.open(path, "r")
+    if not f then
+      if size ~= nil then return nil, "open" end
+      return {}
+    end
+    local parts, total = {}, 0
+    while true do
+      local ok, chunk = pcall(io.read, f, math.min(READ_CHUNK, READ_CAP + 1 - total))
+      if not ok then io.close(f); return nil, tostring(chunk) end
+      if chunk == nil or chunk == "" then break end
+      total = total + #chunk
+      if total > READ_CAP then io.close(f); return nil, "too big" end
+      parts[#parts + 1] = chunk
+    end
+    io.close(f)
+    if size ~= nil and total ~= size then return nil, "short read" end
+    job.text, job.pos, job.entries = table.concat(parts), 1, {}
+    -- loadScript discards the environment and can create stale bytecode beside the journal.
+    job.env = { e = newCollector(job) }
+    job.phase = "parse"
+    return false
+  elseif job.phase == "parse" then
+    local text, pos = job.text, job.pos
+    local last = pos - 1
+    for _ = 1, LINES_PER_STEP do
+      local nextEnd = string.find(text, "\n", last + 1, true)
+      if not nextEnd then last = #text; break end
+      last = nextEnd
+    end
+    if last >= pos then
+      local entries, env = job.entries, job.env
+      local count = #entries
+      local group = string.sub(text, pos, last)
+      local chunk = load(group, "=change_journal", "t", env)
+      if not (chunk and pcall(chunk)) then
+        for i = #entries, count + 1, -1 do entries[i] = nil end
+        for line in string.gmatch(group, "[^\r\n]+") do
+          local before = #entries
+          local lineChunk = load(line, "=change_journal", "t", env)
+          if not lineChunk or not pcall(lineChunk) then
+            for i = #entries, before + 1, -1 do entries[i] = nil end
+          end
+        end
+      end
+    end
+    job.pos = last + 1
+    if job.pos <= #text then return false end
+    local entries = job.entries
+    job.phase, job.text, job.env, job.entries = "done", nil, nil, nil
+    return entries
+  end
+  return nil, "done"
+end
+
+--- The whole journal, oldest first: a table of entries ({} when there is no journal), or nil and
+--- a reason when it is there but cannot be read ("too big", "open", "short read", ...).
+function M.read(mcuId)
+  local job = M.readJob(mcuId)
+  while true do
+    local entries, reason = M.readStep(job)
+    if entries ~= false then return entries, reason end
+  end
 end
 
 return M

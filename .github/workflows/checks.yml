@@ -476,6 +476,38 @@ jobs:
       - run: lua5.3 bin/logs/verify_graph_stop.lua
       - run: lua5.3 bin/logs/verify_logs_page.lua
 
+  tune-advisor-payload:
+    name: Tune Advisor reply decode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_tuning/verify_tune_advisor_payload.lua
+
+  tune-history:
+    name: Tune Advisor flight history
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_tuning/verify_tune_history.lua
+
+  tune-advisor-gate:
+    name: Tune Advisor requests are sent only to firmware that has the command
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_tuning/verify_tune_advisor_gate.lua
+
+  tune-advisor-apply:
+    name: Tune Advisor Apply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_tuning/verify_tune_advisor_apply.lua
+
   flight-log-free-id:
     name: Flight log pack ids
     runs-on: ubuntu-latest

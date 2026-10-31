@@ -13,7 +13,7 @@ directly when a theme leaves fullscreen to the menu.
 
 Put the *RFSuite* widget full screen the way EdgeTX puts any widget full screen — the widget's
 own context menu on the screen it sits on, then *Full screen*. With Default, fullscreen
-shows the dashboard; press its menu control at the top right, TELE or a page key (the default
+shows the dashboard; press the menu control in its info bar (at the top left as it comes), TELE or a page key (the default
 global shortcuts) to open the quick menu. Default binds no keys: a key put on **Theme** does
 nothing while the dashboard itself is showing.
 Closing the menu returns to the dashboard.

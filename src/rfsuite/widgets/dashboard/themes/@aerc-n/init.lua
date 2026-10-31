@@ -17,6 +17,7 @@ local init = {
 		{ id = "preflight", title = "@i18n(app.pages.settings_dashboard_settings.page_preflight)@", icon = "icons/preflight.png" },
 		{ id = "inflight", title = "@i18n(app.pages.settings_dashboard_settings.page_inflight)@", icon = "icons/inflight.png" },
 		{ id = "postflight", title = "@i18n(app.pages.settings_dashboard_settings.page_postflight)@", icon = "icons/postflight.png" },
+		{ id = "bar", title = "@i18n(app.pages.settings_dashboard_settings.page_bar)@", icon = "icons/bar.png" },
 		{ id = "keys", title = "@i18n(app.pages.settings_dashboard_settings.urban_page_keys)@", icon = "icons/keys.png" },
 	},
 }
