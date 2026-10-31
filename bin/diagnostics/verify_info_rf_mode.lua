@@ -27,6 +27,7 @@ local function resetLink(mode)
   link.pings = 0
   link.rebuilds = 0
   link.rateLoads = 0
+  link.refusePush = false
 end
 
 -- Device-information payload: destination, transmitter origin, name + NUL, serial, hardware
@@ -72,6 +73,7 @@ _G.crossfireTelemetryPush = function(frameType, payload)
   assert(frameType == FRAME_DEVICE_PING, "unexpected CRSF frame sent")
   assert(payload[1] == 0xEE and payload[2] == 0xEA, "unexpected ping addresses")
   link.pings = link.pings + 1
+  if link.refusePush then return false end
   return true
 end
 _G.loadScript = function(path)
@@ -182,12 +184,25 @@ scenario("stale sensor", function()
   equal(link.pings, 0, "stale sensor sends no ping")
 end)
 
--- An answer left queued from an earlier visit names a 4.x module; the module now fitted runs
--- 3.x. Byte 10 is D50Hz on 4.x and D250 on 3.x, so a stale answer shows as the wrong rate.
-scenario("stale answer", function()
+-- The radio's CRSF output buffer is full when the first build pings, so the ping is not taken.
+-- Wakeup sends it again once the radio takes it, and then collects the answer.
+scenario("ping not taken at first", function()
   resetLink(10)
+  link.refusePush = true
+  local page = loadPage()
+  local m, b = readRows(page)
+  equal(m, "-", "refused ping RF Mode before the answer")
+  equal(b, "-", "refused ping RF Band before the answer")
+  link.refusePush = false
+  local before = link.pings
+  page.wakeup()
+  equal(link.pings, before + 1, "wakeup sends the ping the radio did not take")
   answer(4)
-  lateAnswer(loadPage(), "stale answer", 3, "D250", "-")
+  page.wakeup()
+  equal(link.rebuilds > 0, true, "wakeup requests a rebuild once the retried ping is answered")
+  m, b = readRows(page)
+  equal(m, "D50Hz", "retried ping RF Mode")
+  equal(b, "900MHz", "retried ping RF Band")
 end)
 
 -- The page module survives being left. Closing drops the generation and the modules, and the
