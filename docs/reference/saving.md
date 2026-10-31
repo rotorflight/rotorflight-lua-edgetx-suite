@@ -375,23 +375,28 @@ save: one write, built when Save is pressed, then one EEPROM write. The page is 
 once the flight controller has stored the values. A write the flight controller refuses or does
 not answer is shown as *Not saved*. Save pressed while their save is still running is ignored.
 After a save that worked, the page reads the values back from the flight controller if it is still
+open; if it was closed, its next visit reads.
+
 PIDs and Governor under Flight Tuning send their save through the tool's shared save: each writes
 its profile settings, built when Save is pressed, then one EEPROM write. The page is marked clean
 only once the flight controller confirms that the values are stored; a refused write or a lost
 reply is shown as a failed save and leaves the edits unsaved. A Save pressed while their save is
 still running is ignored. After a successful save, each page reads the values back if it is still
 open; if it was closed, its next visit reads.
+
 Rescue and Filters under Flight Tuning > Advanced save through the tool's shared save: Rescue
 writes the rescue profile, Filters the filter configuration, then one EEPROM commit. The page is
 marked clean only once the flight controller has stored the values; a refused write or one that
 gets no reply is reported. Save pressed while their save is still running is ignored. After a
 successful save, each page reads its values back from the flight controller if it is still open;
 otherwise its next visit reads them.
+
 Rates and the Table, Dynamics and Cyclic Behaviour pages under Rates (Advanced) send their save
 through the tool's shared save: each writes the active rate profile, then one EEPROM write. The
 page is marked clean only once the flight controller has stored the values; a refused write or
 one that receives no reply is shown as a failed save. A Save pressed while the save is still
 running is ignored. After a successful save, each page reads the values back if it is still open.
+
 Tail Rotor under Flight Tuning > Advanced sends its save through the tool's shared save: the PID
 profile write and, when available, the governor profile write, then one EEPROM commit. The page is
 marked clean only once the flight controller has stored the values; a refused or unanswered write
