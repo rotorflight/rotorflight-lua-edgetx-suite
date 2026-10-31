@@ -407,9 +407,9 @@ as a failed save. Save pressed while the save is still running is ignored.
 
 Battery, Sources and SmartFuel under Setup > Power send their save through the tool's shared save.
 Battery writes the battery profile when it was selected on the page, then the battery
-configuration, and then, on firmware with SmartFuel, the SmartFuel configuration it read on this
-visit, unchanged: the flight controller applies the minimum and full cell voltage to its own
-SmartFuel estimate only when that configuration is written. Sources writes the battery
+configuration, and then, on firmware with SmartFuel and when the page could read it on this
+visit, the SmartFuel configuration, unchanged: the flight controller applies the minimum and full
+cell voltage to its own SmartFuel estimate only when that configuration is written. Sources writes the battery
 configuration and SmartFuel its own configuration. One EEPROM write follows; none of the three
 restarts the flight controller. The page is marked clean only once the flight controller has
 stored the values; a refused or unanswered write is shown as *Not saved*. A Save pressed while

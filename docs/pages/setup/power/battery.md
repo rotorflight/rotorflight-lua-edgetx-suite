@@ -55,9 +55,11 @@ values for every profile.
 - **When the flight controller uses a saved value.** Capacity, maximum cell voltage and the
   profile apply at once. The cell count and the warning and minimum cell voltage are taken when
   the flight controller detects a pack, so with a pack connected they apply at the next plug-in
-  or restart. On firmware with SmartFuel the save also sends the SmartFuel configuration back
-  unchanged, so the flight controller's SmartFuel estimate uses the new minimum and full cell
-  voltage at once, as a save from Rotorflight Configurator does.
+  or restart. On firmware with SmartFuel the page also reads the SmartFuel configuration after it
+  has loaded and sends it back unchanged with the save, so the flight controller's SmartFuel
+  estimate uses the new minimum and full cell voltage at once, as a save from Rotorflight
+  Configurator does. If that read was not answered, the save goes ahead without it and the
+  estimate picks up the new voltages at the next restart.
 - **Per profile, each cell voltage stays between its neighbours.** On firmware with per-profile
   cells the flight controller keeps every profile ordered — Min below Max, and Min ≤ Warn ≤ Full ≤
   Max — and changes a profile that is out of that order itself when it stores it. So a voltage
