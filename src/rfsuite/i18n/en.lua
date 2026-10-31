@@ -3223,7 +3223,7 @@ return {
         help_p2 = "Minimum flight length: a flight runs from arming to disarming; a shorter arm is not logged.",
         help_p3 = "Batteries: pick on the dashboard; the flight's line names the pack; its first flight counts one cycle.",
         help_p4 = "All models: offer the pack for every model, else only those switched on.",
-        help_p6 = "New battery: full-screen form, also opened by Edit, until Save or Cancel. Save rewrites only this pack's plain-text registry line; all other lines stay unchanged.",
+        help_p6 = "New battery: opens the full-screen form, as Edit does, until Save or Cancel; Save rewrites only this pack's line in the plain-text registry.",
         help_p7 = "Write a flight log: after connecting, the dashboard asks for this model's pack.",
         help_p8 = "Set the pack's battery profile: a dashboard choice can also set the flight controller's battery profile, never while armed.",
         help_p9 = "Cells: where the flight controller keeps a cell count per profile, it must match too; 0 leaves it out and a tie sets no profile.",

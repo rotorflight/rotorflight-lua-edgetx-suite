@@ -102,7 +102,8 @@ and *Delete*. Deleting asks first.
 | Cycles | How many charges the pack has seen. It is counted up by flying, and is editable here for a pack that was already in use before it was entered. |
 | Models | The craft this pack is offered for. The models are listed at the end of the form, below *Cycles*. *All models* (the default) offers it for every model; otherwise only for the models switched on. The list holds every model the radio knows of: those with logged flights, the connected craft, and every flight controller [whose name is recorded on the card](../../reference/configuration-files.md). A model never connected or flown here is not listed yet. A name containing a comma or a semicolon is not listed because the file uses both as separators. An older entry naming a model the radio does not know is kept and shown switched on. |
 
-A new pack's suggested id never reuses a deleted pack's id while logged flights still name it.
+A new pack's suggested id skips every id that a flight read from the log still names, so it does
+not reuse a deleted pack's id; a flight in a part of the log the card fails to read is not counted.
 The editor becomes available once the flight log has finished loading. Typing a deleted pack's
 id by hand is allowed when creating a pack or changing its id: saving shows a notice with the
 number of its logged flights that now count under this pack, including in the flight list and
