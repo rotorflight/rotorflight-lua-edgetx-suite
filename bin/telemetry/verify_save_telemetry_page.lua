@@ -38,6 +38,8 @@ local function newPage()
   local api = assert(loadfile("src/rfsuite/tasks/msp/api/telemetry_config.lua"))()
   local rx = assert(loadfile("src/rfsuite/tasks/msp/api/rx_config.lua"))()
   local eeprom = assert(loadfile("src/rfsuite/tasks/msp/api/eeprom_write.lua"))()
+  local reboot = assert(loadfile("src/rfsuite/tasks/msp/api/reboot.lua"))()
+  local txInfo = assert(loadfile("src/rfsuite/tasks/msp/api/tx_info.lua"))()
   local queue = { entries = {} }
   function queue:add(entry) self.entries[#self.entries + 1] = entry end
   local mspState = { queue = queue, lastArmed = false }
@@ -65,8 +67,8 @@ local function newPage()
     ["tasks/msp/api/telemetry_config.lua"] = api,
     ["tasks/msp/api/rx_config.lua"] = rx,
     ["tasks/msp/api/eeprom_write.lua"] = eeprom,
-    ["tasks/msp/api/reboot.lua"] = {},
-    ["tasks/msp/api/tx_info.lua"] = {}
+    ["tasks/msp/api/reboot.lua"] = reboot,
+    ["tasks/msp/api/tx_info.lua"] = txInfo
   }
   function loadScript(path)
     local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
@@ -97,7 +99,8 @@ local function newPage()
     ticks = ticks + 1
     pipeline.wakeup()
   end
-  return { page = page, ui = ui, api = api, rx = rx, eeprom = eeprom, queue = queue,
+  return { page = page, ui = ui, api = api, rx = rx, eeprom = eeprom, reboot = reboot,
+    txInfo = txInfo, queue = queue,
     pipeline = pipeline, ctx = ctx, reports = reports, wakeup = wakeup,
     session = _G.rfsuite.session }
 end
@@ -193,7 +196,7 @@ local function expectOutcome(h, status, saved, eq)
   local result = progress.result or {}
   eq(result.status, status, "result status")
   eq(result.saved, saved, "result saved flag")
-  eq(result.reboot, false, "save requires no reboot")
+  eq(result.reboot, true, "a telemetry save restarts the flight controller")
   return result
 end
 
@@ -221,10 +224,35 @@ local function awaitCommit(h, eq)
   return commit
 end
 
+local function acceptReboot(h, eq)
+  -- After the EEPROM write the pipeline checks the RTC flag, restarts the board and waits
+  -- for it to answer again; only then is the save done.
+  eq(h.pipeline.hasOutcome(), false, "EEPROM reply waits for the restart")
+  local progress = h.pipeline.getProgress() or {}
+  eq(progress.phase, "preflight", "the restart starts with an RTC check")
+  eq(progress.saved, true, "the restart starts only after the settings are stored")
+  local preflight = assert(h.queue.entries[5], "preflight read missing")
+  eq(preflight.command, h.txInfo.command, "preflight reads TX_INFO")
+  answer(h, preflight, { 0, 1 })
+  local reboot = assert(h.queue.entries[6], "reboot missing")
+  eq(reboot.command, h.reboot.writeCommand, "MSP_REBOOT follows EEPROM and preflight")
+  eq(countCommand(h, h.reboot.writeCommand), 1, "exactly one reboot queued")
+  answer(h, reboot, {})
+  eq((h.pipeline.getProgress() or {}).phase, "probe", "pipeline waits for reconnect")
+  local probe = assert(h.queue.entries[7], "reconnect probe missing")
+  eq(probe.command, h.txInfo.command, "reconnect reads TX_INFO")
+  answer(h, probe, { 0, 0 })
+  local verify = assert(h.queue.entries[8], "RTC verification missing")
+  eq(verify.command, h.txInfo.command, "connect completion verifies TX_INFO")
+  answer(h, verify, { 0, 1 })
+end
+
 local function accept(h, eq)
   local commit = awaitCommit(h, eq)
   answer(h, commit, {})
-  expectOutcome(h, "done", true, eq)
+  acceptReboot(h, eq)
+  local result = expectOutcome(h, "done", true, eq)
+  eq(result.rebootProven, true, "the RTC reset proves the restart")
   eq(h.session.telemetry_config ~= h.originalConfig, true, "EEPROM success replaces session copy")
   equalTable(h.session.telemetry_config, h.expectedConfig, eq, "session holds written values")
   equalTable(h.session.rx_config, h.initialRx, eq, "save preserves receiver config")
@@ -244,7 +272,7 @@ local function accept(h, eq)
   end
   eq(countCommand(h, h.api.writeCommand), 1, "exactly one telemetry write")
   eq(countCommand(h, h.eeprom.command), 1, "exactly one EEPROM write")
-  eq(#h.queue.entries, 4, "success queues no further work")
+  eq(#h.queue.entries, 8, "success queues nothing after the restart's checks")
   eq(#h.reports, 0, "success uses pipeline outcome rather than reportSave")
   expectNoReadback(h, eq)
 end

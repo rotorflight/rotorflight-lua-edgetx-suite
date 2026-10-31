@@ -127,8 +127,8 @@ whole configuration from that memory.
 
 ## A save that restarts the flight controller
 
-A save on Configuration, Alignment, GPS, Ports, Radio Config, and ESC/Motors RPM, Telemetry and
-Throttle restarts the flight controller after writing; on Swash and Tail it does so when the swash
+A save on Configuration, Alignment, GPS, Ports, Radio Config, Setup > Telemetry, and ESC/Motors
+RPM, Telemetry and Throttle restarts the flight controller after writing; on Swash and Tail it does so when the swash
 type or the tail mode differs from what the page read; on Governor General it does so when Mode or
 the governor feature changes. A Save that was refused or did not finish
 leaves that comparison as it was, so the next Save restarts the flight controller too; the page
@@ -400,10 +400,10 @@ After a successful save, the page reads the values back from the flight controll
 open.
 
 Setup > Telemetry sends its save through the tool's shared save: the telemetry configuration
-write, then one EEPROM write. The page is marked clean only once the flight controller has stored
-the values; a write the flight controller refuses or does not answer is shown as a failed save.
-Save pressed while the save is still running is ignored. After a successful save, the page and
-session keep the written values without reading them back from the flight controller.
+write, then one EEPROM write, then a restart, because the flight controller sets up its telemetry
+sensors and the CRSF telemetry mode only at start-up. The page is marked clean only once the flight
+controller has stored the values; a write the flight controller refuses or does not answer is shown
+as a failed save. Save pressed while the save is still running is ignored.
 
 ## ESC Configurator pages
 

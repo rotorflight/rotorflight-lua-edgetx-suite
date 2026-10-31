@@ -618,7 +618,11 @@ local function queueTelemetryWrite(payload)
         payload = payload
       }
     },
-    reboot = false,
+    -- The flight controller builds its telemetry sensor schedule (CRSF custom and native,
+    -- S.Port, legacy sensors) and picks the CRSF telemetry mode only at start-up, so a
+    -- telemetry write takes effect after a restart, as Rotorflight Configurator's Receiver
+    -- tab does it.
+    reboot = true,
     onSaved = function()
       -- The pipeline can finish after the page closes, so update the session first.
       if type(session) == "table" and type(telemetryApi.parse) == "function" then
