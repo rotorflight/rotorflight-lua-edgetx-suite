@@ -219,11 +219,14 @@ function M.findById(registry, id)
 end
 
 -- The smallest free positive integer, which is the style a hand-maintained registry is
--- numbered in.
-function M.freeId(registry)
+-- numbered in. Optional logged ids stay reserved even after their pack is deleted.
+function M.freeId(registry, alsoUsed)
   local used = {}
   for i = 1, #(registry or {}) do
     used[trim(registry[i].id)] = true
+  end
+  for id, count in pairs(alsoUsed or {}) do
+    if count then used[trim(id)] = true end
   end
   local n = 1
   while used[tostring(n)] do n = n + 1 end
