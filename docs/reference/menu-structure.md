@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**119 entries, 98 of them open a page, 62 of those pages are documented.**
+**119 entries, 98 of them open a page, 63 of those pages are documented.**
 
 ## Diagrams
 
@@ -143,7 +143,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   n0["Setup"]:::menu
-  n1["Configuration"]:::undocumented
+  n1["Configuration"]:::documented
   n0 --> n1
   n2["Radio Config"]:::undocumented
   n0 --> n2
@@ -414,7 +414,7 @@ Section `configuration`.
 | Flight Tuning &rsaquo; Advanced &rsaquo; Rates (Advanced) &rsaquo; Cyclic Behaviour | `cyclic_behaviour` | `flight_tuning_advanced_rates_advanced_cyclic_behaviour_page` | `flight_tuning/advanced/rates_advanced/cyclic_behaviour` | [flight_tuning/advanced/rates_advanced/cyclic_behaviour.md](../pages/flight_tuning/advanced/rates_advanced/cyclic_behaviour.md) | `lockedWhileArmed = true` |
 | Flight Tuning &rsaquo; Advanced &rsaquo; Rates (Advanced) &rsaquo; Rate Table | `table` | `flight_tuning_advanced_rates_advanced_table_page` | `flight_tuning/advanced/rates_advanced/table` | [flight_tuning/advanced/rates_advanced/table.md](../pages/flight_tuning/advanced/rates_advanced/table.md) | `lockedWhileArmed = true` |
 | Setup | `setup` | `setup_menu` | menu, 14 entries | &mdash; | `enabledWhen = "fblConnected"`, `lockedWhileArmed = true` |
-| Setup &rsaquo; Configuration | `configuration` | `setup_configuration_page` | `setup/configuration` | **none** | `lockedWhileArmed = true` |
+| Setup &rsaquo; Configuration | `configuration` | `setup_configuration_page` | `setup/configuration` | [setup/configuration.md](../pages/setup/configuration.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Radio Config | `radio_config` | `setup_radio_config_page` | `setup/radio_config` | **none** | `lockedWhileArmed = true` |
 | Setup &rsaquo; Telemetry | `telemetry` | `setup_telemetry_page` | `setup/telemetry` | [setup/telemetry.md](../pages/setup/telemetry.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Accelerometer | `accelerometer` | `setup_accelerometer_page` | `setup/accelerometer` | [setup/accelerometer.md](../pages/setup/accelerometer.md) | `lockedWhileArmed = true` |
