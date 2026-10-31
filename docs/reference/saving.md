@@ -223,9 +223,7 @@ profile switch while the page is open leaves every profile's values where they w
 
 A chained load must finish successfully even if an earlier error allowed the page to continue
 reading other records. Previously read session values alone do not grant permission to save.
-The page's existing reboot policy is otherwise unchanged; Battery, Sources and SmartFuel
-now report the confirmed outcome through the shared save, which sends their writes and one EEPROM commit.
-A Save pressed while their save is still running is ignored.
+The page's existing parameter help and save/reboot sequence are otherwise unchanged.
 
 Configuration, Radio Config, Accelerometer and SmartFuel write whole records from what the page
 holds, and before a read has succeeded that is the page's own starting values rather than the
@@ -406,6 +404,17 @@ write, then one EEPROM write, then a restart, because the flight controller sets
 sensors and the CRSF telemetry mode only at start-up. The page is marked clean only once the flight
 controller has stored the values; a write the flight controller refuses or does not answer is shown
 as a failed save. Save pressed while the save is still running is ignored.
+
+Battery, Sources and SmartFuel under Setup > Power send their save through the tool's shared save.
+Battery writes the battery profile when it was selected on the page, then the battery
+configuration, and then, on firmware with SmartFuel, the SmartFuel configuration it read on this
+visit, unchanged: the flight controller applies the minimum and full cell voltage to its own
+SmartFuel estimate only when that configuration is written. Sources writes the battery
+configuration and SmartFuel its own configuration. One EEPROM write follows; none of the three
+restarts the flight controller. The page is marked clean only once the flight controller has
+stored the values; a refused or unanswered write is shown as *Not saved*. A Save pressed while
+their save is still running is ignored. After a successful save, the page reads its values back
+if it is still open.
 
 ## ESC Configurator pages
 

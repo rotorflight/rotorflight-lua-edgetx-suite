@@ -18,6 +18,8 @@ local BatteryProfileApi = nil
 local SavePipeline = nil
 local Sensors = nil
 local SmartFuelReserve = nil
+local SmartfuelApi = nil
+local ApiVersion = nil
 local t = nil
 local PowerFields = nil
 
@@ -307,6 +309,41 @@ local function loadFromSession()
 	ui.config.consumption_warning_percentage = clampInt(reserve, RESERVE_MIN, RESERVE_MAX, 35)
 end
 
+-- The flight controller applies the minimum and full cell voltage to its SmartFuel estimate only
+-- when its SmartFuel configuration is written (smartFuelInit), not on MSP_SET_BATTERY_CONFIG.
+-- So the page reads that configuration after its own load and sends it back unchanged with each
+-- save, as Rotorflight Configurator's Power tab does. Optional: without the reply the save
+-- proceeds without the extra write.
+local function smartfuelSupported()
+	local session = getSession()
+	local rawApiVersion = session and session.apiVersion
+	if not rawApiVersion or rawApiVersion == "" or tostring(rawApiVersion) == "0" then
+		return true
+	end
+	if not ApiVersion then ApiVersion = loadModule("lib/api_version.lua") end
+	return ApiVersion ~= nil and ApiVersion.isAtLeast ~= nil and ApiVersion.isAtLeast(rawApiVersion, { 12, 0, 9 }) == true
+end
+
+local function queueSmartfuelRead()
+	local runtime = ui.runtime
+	runtime.smartfuel = nil
+	if not smartfuelSupported() or not MspRuntime or type(MspRuntime.getState) ~= "function" then return end
+	if not SmartfuelApi then SmartfuelApi = loadModule("tasks/msp/api/smartfuel_config.lua") end
+	if not SmartfuelApi then return end
+	local mspState = MspRuntime.getState()
+	local queue = mspState and mspState.queue
+	if not queue or type(queue.add) ~= "function" then return end
+	queue:add({
+		command = SmartfuelApi.command,
+		simulatorResponse = SmartfuelApi.simulatorResponse,
+		processReply = function(_, buf)
+			if ui.runtime ~= runtime or not SmartfuelApi then return end
+			runtime.smartfuel = SmartfuelApi.parse(buf)
+		end,
+		errorHandler = function() end
+	})
+end
+
 local function queueBatteryRead()
 	ensureRuntime()
 	if ui.runtime.readPending then
@@ -351,6 +388,7 @@ local function queueBatteryRead()
 			if type(ui.runtime.requestRebuild) == "function" then
 				ui.runtime.requestRebuild()
 			end
+			if readValid then queueSmartfuelRead() end
 		end,
 		errorHandler = function()
 			readValid = false
@@ -571,6 +609,14 @@ local function queueBatteryWrite(batteryConfig, activeProfile)
 		command = BatteryConfigApi.writeCommand,
 		payload = buildBatteryPayload(batteryConfig)
 	}
+	local smartfuel = ui.runtime and ui.runtime.smartfuel
+	if type(smartfuel) == "table" and SmartfuelApi then
+		steps[#steps + 1] = {
+			label = "MSP2_SET_SMARTFUEL_CONFIG",
+			command = SmartfuelApi.writeCommand,
+			payload = SmartfuelApi.buildWritePayload(smartfuel)
+		}
+	end
 
 	return SavePipeline.start({
 		pageId = "setup_power_battery",
@@ -925,6 +971,8 @@ function M.onClose()
 	SavePipeline = nil
 	Sensors = nil
 	SmartFuelReserve = nil
+	SmartfuelApi = nil
+	ApiVersion = nil
 	PowerFields = nil
 	t = nil
 end

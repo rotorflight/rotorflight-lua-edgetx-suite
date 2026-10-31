@@ -1194,15 +1194,14 @@ return {
         help_voltage_drop_rate = "Limits how quickly filtered voltage may fall in voltage mode to reduce brief load-sag spikes affecting SmartFuel.",
         help_charge_drop_rate = "Limits how quickly the reported SmartFuel value may drop in voltage mode once the model has been armed.",
         help_sag_gain = "Strength of load-sag compensation in voltage mode. Higher values compensate more aggressively.",
-        help_message = "How the remaining fuel of the pack is estimated.\nFirmware Source: Off disables SmartFuel; Voltage uses pack voltage, Current consumed mAh and capacity, Combined the lower estimate; enabled modes need a battery voltage sensor.\nVoltage drop rate: limits how fast the voltage track falls in VOLTAGE and COMBINED.\nCharge drop rate: limits how fast the voltage track's charge percentage falls once armed or previously armed, in VOLTAGE and COMBINED.\nSag gain: compensates voltage sag in VOLTAGE and COMBINED; increase if SmartFuel reads too low under load, decrease if too high.",
+        help_message = "How the remaining fuel of the pack is estimated.\nFirmware Source: OFF (LOCAL) leaves the estimate to the radio; Voltage uses pack voltage, Current consumed mAh and capacity, Combined the lower estimate; enabled modes need a battery voltage sensor.\nVoltage drop rate: limits how fast the voltage track falls in VOLTAGE and COMBINED.\nCharge drop rate: limits how fast the voltage track's charge percentage falls once armed or previously armed, in VOLTAGE and COMBINED.\nSag gain: compensates voltage sag in VOLTAGE and COMBINED; increase if SmartFuel reads too low under load, decrease if too high.",
         loading_title = "Loading",
         loading_message = "Reading SmartFuel config",
         saved_title = "Saved",
         saved_message = "SmartFuel settings saved",
         save_error_title = "Error",
         warning_title = "Warning",
-        model_prefs_failed_message = "Model settings not saved",
-        pending_model_prefs_failed_message = "FC write pending; model settings not saved"
+        model_prefs_failed_message = "Model settings not saved"
       },
       flight_tuning_pids = {
         title = "PIDs",
@@ -1256,9 +1255,7 @@ return {
         saved_message = "Battery settings saved",
         save_error_title = "Error",
         warning_title = "Warning",
-        saved_local_only_message = "Saved locally; FC write pending",
-        model_prefs_failed_message = "Model settings not saved",
-        pending_model_prefs_failed_message = "FC write pending; model settings not saved"
+        model_prefs_failed_message = "Model settings not saved"
       },
       setup_power_sources = {
         section_sources = "Sources",
@@ -1278,8 +1275,7 @@ return {
         saved_title = "Saved",
         saved_message = "Power sources saved",
         save_error_title = "Error",
-        warning_title = "Warning",
-        saved_local_only_message = "Saved locally; FC write pending"
+        warning_title = "Warning"
       },
       setup_power_alerts = {
         section_alerts = "Alerts",

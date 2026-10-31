@@ -44,8 +44,9 @@ local function newPage(name)
     ["ui/loading_overlay.lua"] = {},
     -- No active-profile sensor: an untouched Battery combo must not select a profile.
     ["lib/sensors.lua"] = {},
+    ["lib/power_fields.lua"] = assert(loadfile("src/rfsuite/lib/power_fields.lua"))(),
     ["lib/smartfuel_reserve.lua"] = assert(loadfile("src/rfsuite/lib/smartfuel_reserve.lua"))(),
-    ["lib/api_version.lua"] = {},
+    ["lib/api_version.lua"] = assert(loadfile("src/rfsuite/lib/api_version.lua"))(),
     ["lib/log.lua"] = {},
     ["tasks/msp/runtime.lua"] = { getState = function() return mspState end },
     ["tasks/events/runtime.lua"] = {},
@@ -85,7 +86,7 @@ local function newPage(name)
     pipeline.wakeup()
   end
   return { page = page, ui = ui, api = name == "smartfuel" and smartfuel or battery,
-    profile = profile, eeprom = eeprom, reboot = reboot, queue = queue,
+    profile = profile, smartfuel = smartfuel, eeprom = eeprom, reboot = reboot, queue = queue,
     pipeline = pipeline, ctx = ctx, reports = reports, preferences = preferences, wakeup = wakeup }
 end
 
@@ -135,6 +136,20 @@ local function prepare(h, spec, eq)
   eq(h.page.canSave(), true, "initial reply permits save")
   eq(h.ui.runtime.readPending, false, "initial read completes")
   eq(h.page.hasUnsavedChanges(), false, "initial read is clean")
+  if spec.name == "battery" then
+    -- After its own load Battery reads the SmartFuel configuration, to send it back with the save.
+    local sf = h.queue.entries[2]
+    if spec.smartfuel == "unsupported" then
+      eq(sf, nil, "no SmartFuel read below MSP API 12.09")
+    else
+      eq(sf and sf.command, h.smartfuel.command, "SmartFuel read follows the battery load")
+      table.remove(h.queue.entries, 2)
+      if spec.smartfuel == "refused" then sf.errorHandler(sf, "refused") else
+        sf.processReply(sf, h.smartfuel.simulatorResponse) end
+      h.wakeup()
+    end
+    eq(#h.queue.entries, 1, "the SmartFuel read is the only follow-up of the load")
+  end
 
   -- Mirror the setters' raw config changes and dirty flags without building an LVGL tree.
   -- Parse a separate expected record so onSave's session mutations cannot change the oracle.
@@ -166,6 +181,11 @@ local function prepare(h, spec, eq)
   end
   h.steps[#h.steps + 1] = { api = h.api, values = expected,
     label = spec.name == "smartfuel" and "MSP_SET_SMARTFUEL_CONFIG" or "MSP_SET_BATTERY_CONFIG" }
+  if spec.name == "battery" and spec.smartfuel == nil then
+    -- Sent back unchanged so the flight controller re-initialises SmartFuel with the new cells.
+    h.steps[#h.steps + 1] = { api = h.smartfuel, label = "MSP2_SET_SMARTFUEL_CONFIG",
+      values = assert(h.smartfuel.parse(h.smartfuel.simulatorResponse)) }
+  end
   h.ui.dirty = true
   expectDirty(h, true, eq)
   eq(h.page.onSave(h.ctx), true, "save accepted")
@@ -246,7 +266,13 @@ local function accept(h, eq)
   eq(h.ui.runtime.readPending, false, "read-back completes")
   eq(h.page.canSave(), true, "read-back permits save")
   expectDirty(h, false, eq)
-  eq(#h.queue.entries, #h.steps + 3, "read-back queues no further work")
+  local followUp = (h.spec.name == "battery" and h.spec.smartfuel ~= "unsupported") and 1 or 0
+  eq(#h.queue.entries, #h.steps + 3 + followUp, "read-back queues no further work but the SmartFuel read")
+  if followUp == 1 then
+    eq(h.queue.entries[#h.steps + 4].command, h.smartfuel.command, "read-back reads SmartFuel again")
+  end
+  eq(countCommand(h, h.smartfuel.writeCommand), (h.spec.name == "smartfuel" or
+    (h.spec.name == "battery" and h.spec.smartfuel == nil)) and 1 or 0, "SmartFuel written only with a read")
   eq(#h.reports, 0, "success is reported through the pipeline")
 end
 
@@ -310,6 +336,7 @@ local function run(spec, scenario)
   -- Missing entry points or callback errors count as failures without aborting other pages.
   local ok, err = pcall(function()
     local h = newPage(spec.name)
+    if spec.apiVersion then _G.rfsuite.session.apiVersion = spec.apiVersion end
     prepare(h, spec, eq)
     scenario[2](h, eq)
   end)
@@ -319,6 +346,9 @@ end
 for _, spec in ipairs({
   { name = "battery", label = "battery unchanged profile", profile = false },
   { name = "battery", label = "battery changed profile", profile = true },
+  { name = "battery", label = "battery SmartFuel read refused", profile = false, smartfuel = "refused" },
+  { name = "battery", label = "battery MSP API 12.08", profile = false, smartfuel = "unsupported",
+    apiVersion = "12.08" },
   { name = "sources", label = "sources changed meters" },
   { name = "smartfuel", label = "smartfuel" }
 }) do
