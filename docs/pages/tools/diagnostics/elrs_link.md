@@ -78,9 +78,8 @@ sync again.
 
 *Probe* only reads, but is refused while the model is armed. Arming cancels a running probe,
 including the opening probe and one started by Reload, instead of leaving the buttons greyed out
-until disarm. Reload still requests the flight controller's configuration, but refuses its probe
-while armed. After disarm the refusal clears and the buttons are available; press *Probe* to
-start a fresh read.
+until disarm. Reload is refused while armed, as on every page. After disarm the refusal clears
+and the buttons are available; press *Probe* to start a fresh read.
 
 The Status row reads *Unavailable while armed* for as long as the model is armed, and shows what
 the page last did again once it is disarmed.
