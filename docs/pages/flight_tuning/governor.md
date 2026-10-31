@@ -7,7 +7,8 @@ sidebar_position: 40
 # Governor
 
 Tune headspeed, throttle limits, governor gains, precompensation and Tail Torque Assist in
-the active PID profile. The heading shows the profile number and stored governor mode.
+the active PID profile. The heading shows the profile number and the governor mode the flight
+controller runs: OFF while the GOVERNOR feature is off, whatever mode is stored.
 
 ## Where to find it
 

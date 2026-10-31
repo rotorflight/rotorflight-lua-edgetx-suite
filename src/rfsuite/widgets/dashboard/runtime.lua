@@ -56,7 +56,6 @@ local Log = requireModule("lib/log.lua")
 local PreferencesModule = requireModule("lib/preferences.lua")
 local ModelPreferences = requireModule("lib/model_preferences.lua")
 local DashboardAudio = requireModule("lib/audio.lua")
-local Governor = requireModule("lib/governor.lua")
 local DashboardSplash = requireModule("widgets/dashboard/splash.lua")
 -- Set while the ELRS provider is due to be unloaded but is not idle yet; see releaseElrsProvider.
 local elrsReleasePending = false
@@ -3675,7 +3674,11 @@ local function readTelemetry(state, audioState)
   -- on this field ahead of the live value, so a stale mode has them say a governor state the model
   -- is not in -- the same treatment the battery configuration gets below.
   local rfRoot = type(_G) == "table" and _G.rfsuite or nil
-  local governorMode = Governor.getEffectiveMode(rfRoot and rfRoot.session)
+  -- The rule of lib/governor.lua getEffectiveMode, inline: this chunk sits at Lua's limit of 200
+  -- top-level locals, so it takes no module handle for two lines.
+  local govSession = rfRoot and rfRoot.session
+  local governorMode = govSession and govSession.governorMode
+  if govSession and govSession.governorFeature == false then governorMode = 0 end
   if governorMode ~= state.governorMode then
     state.governorMode = governorMode
     telemetryChanged = true
