@@ -2581,7 +2581,7 @@ return {
         msp_transport = "MSP-Transport",
         supported_versions = "Unterstuetzte MSP-API",
         simulation = "Simulation",
-        help_message = "Zeigt Firmware-, Board-, Transport- und Link-Informationen aus Flugcontroller und Laufzeit an.\nRF-Modus: fuer die ExpressLRS-Generation des Moduls dekodiert, sobald es sich identifiziert hat; bis dahin -.\nRF-Band: fuer ExpressLRS-4.x-Module angezeigt, deren Rate das Band benennt; bei 3.x -.",
+        help_message = "Zeigt Firmware-, Board-, Transport- und Link-Informationen aus Flugcontroller und Laufzeit an.\nRF-Modus: fuer die ExpressLRS-Generation des Moduls dekodiert, sobald es sich identifiziert hat; bis dahin und bei einem Modul, das nicht ExpressLRS 3.x oder 4.x ist, -.\nRF-Band: fuer ExpressLRS-4.x-Module angezeigt, deren RF-Modus-Wert das Band traegt; bei 3.x -.",
         loading_title = "Laden",
         loading_message = "Live-Daten werden gelesen",
         loading_failed = "Laden fehlgeschlagen",

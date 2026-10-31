@@ -31,7 +31,7 @@ the flight controller over MSP.
 | Board Info | Read over MSP when the page opens. |
 | Build Info | Read over MSP when the page opens. |
 | RF Mode | The `RFMD` telemetry sensor, where the RF module publishes one. |
-| RF Band | Shown for ExpressLRS 4.x modules, whose rate names the band; `-` for 3.x. |
+| RF Band | Shown for ExpressLRS 4.x modules, whose RF Mode value carries the band; `-` for 3.x. |
 | Packet Ratio | The telemetry link ratio set on the flight controller, read over MSP when the page opens and again every 45 seconds while it stays open. It is a setting, not a measurement of the link. |
 | MSP Version | The API version the flight controller reports. |
 | MSP Transport | The transport MSP is running over, or `SIMULATOR`. |
@@ -49,7 +49,8 @@ the flight controller over MSP.
   an RF module that publishes an `RFMD` telemetry sensor and a link that is currently delivering
   it. RF Mode is decoded for the module's ExpressLRS generation (3.x or 4.x) once the module has
   identified itself; until then, or with the sensor or live link missing, both rows read `-`.
-  RF Band is shown for ExpressLRS 4.x modules, whose rate names the band; it reads `-` for 3.x.
+  A module that is not ExpressLRS 3.x or 4.x reads `-` in both rows. RF Band is shown for
+  ExpressLRS 4.x modules, whose RF Mode value carries the band; it reads `-` for 3.x.
 - **The three MSP rows are re-read each time the page is opened.** Variant, Board Info and Build
   Info are the flight controller's, so they are dropped when the page is left and fetched again
   on the next visit — which is what makes them right after a model change rather than the
