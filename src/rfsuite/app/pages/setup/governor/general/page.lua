@@ -141,6 +141,7 @@ local function queueGovRead(isAutoReload)
     if session then
       session.governor_config = governorData
       session.governorMode = governorData.gov_mode
+      session.governorFeature = (featureData.enabledFeatures & (1 << 26)) ~= 0
     end
 
     ui.runtime.readPending = false
