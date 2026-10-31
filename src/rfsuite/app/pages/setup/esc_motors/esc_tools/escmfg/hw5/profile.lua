@@ -70,7 +70,7 @@ local OPTO_LAYOUT = {
 
 local TABLES = {
     rotation = {"@i18n(app.pages.setup_esc_motors.esc_tbl_cw)@", "@i18n(app.pages.setup_esc_motors.esc_tbl_ccw)@"},
-    rotation_hw1128 = {"Forward", "@i18n(app.pages.setup_esc_motors.esc_tbl_reverse)@", "4D", "4D Reverse"},
+    rotation_hw1128 = {"@i18n(app.pages.setup_esc_motors.esc_tbl_forward)@", "@i18n(app.pages.setup_esc_motors.esc_tbl_reverse)@", "4D", "@i18n(app.pages.setup_esc_motors.esc_tbl_4d_reverse)@"},
     lipo_3_to_14 = {"@i18n(app.pages.setup_esc_motors.esc_tbl_autocalculate)@", "3S", "4S", "5S", "6S", "7S", "8S", "9S", "10S", "11S", "12S", "13S", "14S"},
     lipo_3_to_8 = {"@i18n(app.pages.setup_esc_motors.esc_tbl_autocalculate)@", "3S", "4S", "5S", "6S", "7S", "8S"},
     lipo_even_6_to_14 = {"@i18n(app.pages.setup_esc_motors.esc_tbl_autocalculate)@", "6S", "8S", "10S", "12S", "14S"},

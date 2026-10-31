@@ -1412,6 +1412,7 @@ return {
       },
       setup_esc_motors = {
         configurator_title = "%s Configurator",
+        run_work_in_progress = "%s - Work in progress...",
         help_run = "Placeholder for the selected maker's ESC configurator; it offers no ESC settings yet.",
         section_basic = "Basic",
         section_advanced = "Advanced",
@@ -1680,6 +1681,8 @@ return {
         esc_tbl_autocalculate = "Auto-Calculate",
         esc_tbl_normal = "Normal",
         esc_tbl_reverse = "Reverse",
+        esc_tbl_forward = "Forward",
+        esc_tbl_4d_reverse = "4D Reverse",
         esc_tbl_cw = "CW",
         esc_tbl_ccw = "CCW",
         esc_tbl_proportional = "Proportional",
