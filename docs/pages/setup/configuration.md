@@ -33,7 +33,7 @@ briefly. Save waits for the page's complete configuration read to succeed; use R
 the read fails. See [Saving configuration](../../reference/saving.md).
 
 The gyro sample rate is asked for after the settings are shown, so the PID loop labels may
-change once, shortly after the page opens. Saving does not wait for it.
+change once, shortly after the page opens.
 
 ## Related
 
