@@ -3,9 +3,7 @@ local M = {}
 
 local done = false
 local requestSent = false
-local governorReadDone = false
 local governorConfigApi = nil
-local featureConfigApi = nil
 local Log = nil
 local MspRuntime = nil
 
@@ -46,24 +44,19 @@ function M.wakeup(args)
   -- else clears it between two boards: the runner drops this module without its reset() once the
   -- task is complete. It goes as this board's read starts, so a read that fails leaves no stale
   -- governor configuration or mode behind.
-  if not governorReadDone then
-    session.governor_config = nil
-    session.governorMode = nil
-    session.governorFeature = nil
-  end
+  session.governor_config = nil
+  session.governorMode = nil
+  session.governorFeature = nil
 
   -- MSP governor_config API laden
   if not governorConfigApi then
     governorConfigApi = loadModule("tasks/msp/api/governor_config.lua")
   end
-  if not featureConfigApi then
-    featureConfigApi = loadModule("tasks/msp/api/feature_config.lua")
-  end
   if MspRuntime == nil then
     MspRuntime = loadShared("tasks/msp/runtime.lua") or false
   end
   local msp = MspRuntime or nil
-  if not msp or not governorConfigApi or not featureConfigApi then
+  if not msp or not governorConfigApi then
     done = true
     return
   end
@@ -75,44 +68,49 @@ function M.wakeup(args)
   end
 
   requestSent = true
-  local readingFeature = governorReadDone
-  local api = readingFeature and featureConfigApi or governorConfigApi
-  local readName = readingFeature and "feature_config" or "governor_config"
-
-  local function finishRead()
-    if readingFeature then
-      done = true
-    else
-      governorReadDone = true
-      requestSent = false
-    end
-  end
 
   if type(Log) == "table" and type(Log.emit) == "function" then
-    pcall(Log.emit, "rfsuite.tasks.governor", "MSP request for " .. readName .. " (cmd=" .. tostring(api.command) .. ") via queue", "debug")
+    pcall(Log.emit, "rfsuite.tasks.governor", "MSP request for governor_config (cmd=" .. tostring(governorConfigApi.command) .. ") via queue", "debug")
   end
 
-  mspState.queue:add({
-    command = api.command,
-    simulatorResponse = api.simulatorResponse,
+  local queue = mspState.queue
+  queue:add({
+    command = governorConfigApi.command,
+    simulatorResponse = governorConfigApi.simulatorResponse,
     timeout = 5.0,
-    -- Allow 15 s for the governor read and 5 s for the feature read, together below
-    -- the 25 s task timeout in tasks/events/common/runner.lua.
-    maxRetries = readingFeature and 0 or 2,
+    -- Bounded below the task timeout in tasks/events/common/runner.lua, so this read
+    -- is given up by the queue before the runner re-queues the task that owns it.
+    maxRetries = 2,
     processReply = function(self, buf)
-      local data = api.parse(buf)
+      local data = governorConfigApi.parse(buf)
       if data then
-        if readingFeature then
-          session.governorFeature = (data.enabledFeatures & (1 << 26)) ~= 0
-        else
-          session.governor_config = data
-          session.governorMode = data.gov_mode
-        end
+        session.governor_config = data
+        session.governorMode = data.gov_mode
       end
-      finishRead()
+      done = true
       if type(Log) == "table" and type(Log.emit) == "function" then
-        local value = readingFeature and tostring(session.governorFeature) or tostring(data and data.gov_mode or "?")
-        pcall(Log.emit, "rfsuite.tasks.governor", readName .. " received (" .. (readingFeature and "enabled=" or "mode=") .. value .. ")", "debug")
+        pcall(Log.emit, "rfsuite.tasks.governor", "governor_config received (mode=" .. tostring(data and data.gov_mode or "?") .. ")", "debug")
+      end
+      -- The GOVERNOR feature bit trails the configuration instead of lengthening the connect chain:
+      -- the task is complete with the stored mode, and the readers show OFF once this reply says the
+      -- feature is off. Until then, or if it fails, they keep the stored mode.
+      local featureConfigApi = loadModule("tasks/msp/api/feature_config.lua")
+      if featureConfigApi then
+        queue:add({
+          command = featureConfigApi.command,
+          simulatorResponse = featureConfigApi.simulatorResponse,
+          timeout = 5.0,
+          maxRetries = 0,
+          processReply = function(_, featureBuf)
+            local features = featureConfigApi.parse(featureBuf)
+            if features and session == (_G.rfsuite and _G.rfsuite.session) then
+              session.governorFeature = (features.enabledFeatures & (1 << 26)) ~= 0
+            end
+          end,
+          errorHandler = function()
+            if type(Log) == "table" and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks.governor", "feature_config read failed", "warn") end
+          end
+        })
       end
     end,
     errorHandler = function(msg, reason)
@@ -123,8 +121,8 @@ function M.wakeup(args)
         requestSent = false
         return
       end
-      finishRead()
-      if type(Log) == "table" and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks.governor", readName .. " read failed", "warn") end
+      done = true
+      if type(Log) == "table" and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks.governor", "governor_config read failed", "warn") end
     end
   })
 end
@@ -136,7 +134,6 @@ end
 function M.reset()
   done = false
   requestSent = false
-  governorReadDone = false
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
   if type(session) == "table" then
     session.governor_config = nil

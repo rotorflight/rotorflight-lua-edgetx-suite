@@ -76,32 +76,21 @@ for _, enabled in ipairs({ false, true }) do
   scenario("connect feature " .. (enabled and "on" or "off"), function(eq)
     local h = beginConnect(eq)
     local task, session = h.task, h.session
+    eq(h.message.timeout * (h.message.maxRetries + 1) < 25, true, "governor read budget stays below task timeout")
     h.governorReply(h.message, 2) -- DIRECT; ELECTRO is mode 3.
     eq(session.governorMode, 2, "governor reply stores mode")
+    eq(task.isComplete(), true, "governor reply completes the task, as before")
     eq(session.governorFeature, nil, "feature is unknown before its reply")
     eq(h.governor.getEffectiveMode(session), 2, "unknown feature keeps stored mode")
-    eq(task.isComplete(), false, "governor reply alone does not complete task")
-    task.wakeup()
+    -- The feature read trails the completed task instead of lengthening the connect chain.
     local featureMessage = h.pop(h.featureApi.command)
-    local readBudget = h.message.timeout * (h.message.maxRetries + 1)
-      + featureMessage.timeout * (featureMessage.maxRetries + 1)
-    eq(readBudget < 25, true, "read budget stays below task timeout")
     task.wakeup()
-    eq(#h.pending, 0, "pending feature read is not duplicated")
-    -- Queue clearing retries the feature stage without discarding the stored mode.
-    featureMessage.errorHandler(featureMessage, "cleared")
-    eq(task.isComplete(), false, "cleared feature read leaves task incomplete")
-    task.wakeup()
-    featureMessage = h.pop(h.featureApi.command)
-    eq(session.governorMode, 2, "feature retry preserves stored mode")
+    eq(#h.pending, 0, "completed task queues nothing more")
     featureMessage.processReply(featureMessage,
       h.featureApi.buildWritePayload({ enabledFeatures = enabled and (1 << 26) or 0 }))
-    eq(task.isComplete(), true, "feature reply completes task")
     eq(session.governorMode, 2, "feature reply preserves stored mode")
     eq(session.governorFeature, enabled, "feature reply stores feature flag")
     eq(h.governor.getEffectiveMode(session), enabled and 2 or 0, "effective mode")
-    task.wakeup()
-    eq(#h.pending, 0, "completed task queues nothing")
     task.reset()
     eq(task.isComplete(), false, "reset clears completion")
     eq(session.governorMode, nil, "reset clears stored mode")
@@ -110,24 +99,44 @@ for _, enabled in ipairs({ false, true }) do
   end)
 end
 
--- Failed or malformed feature reads preserve the stored mode with an unknown feature.
-for _, failure in ipairs({ "timeout", "malformed" }) do
+-- Failed, malformed or dropped feature reads preserve the stored mode with an unknown feature.
+for _, failure in ipairs({ "timeout", "cleared", "malformed" }) do
   scenario("feature read " .. failure, function(eq)
     local h = beginConnect(eq)
     h.governorReply(h.message, 2)
-    h.task.wakeup()
     local message = h.pop(h.featureApi.command)
-    if failure == "timeout" then
-      message.errorHandler(message, "timeout")
-    else
+    if failure == "malformed" then
       message.processReply(message, {})
+    else
+      message.errorHandler(message, failure)
     end
-    eq(h.task.isComplete(), true, "failed feature read completes task")
+    eq(h.task.isComplete(), true, "task stays complete")
     eq(h.session.governorMode, 2, "failed feature read preserves stored mode")
     eq(h.session.governorFeature, nil, "failed feature read leaves feature unknown")
     eq(h.governor.getEffectiveMode(h.session), 2, "unknown feature keeps stored mode")
+    h.task.wakeup()
+    eq(#h.pending, 0, "a failed feature read is not repeated by the task")
   end)
 end
+
+scenario("governor read failure", function(eq)
+  local h = beginConnect(eq)
+  h.message.errorHandler(h.message, "timeout")
+  eq(h.task.isComplete(), true, "failed governor read completes task")
+  eq(#h.pending, 0, "no feature read without a governor reply")
+  eq(h.session.governorMode, nil, "no stored mode")
+end)
+
+scenario("feature reply after the session was replaced", function(eq)
+  local h = beginConnect(eq)
+  h.governorReply(h.message, 3)
+  local message = h.pop(h.featureApi.command)
+  local oldSession = h.session
+  _G.rfsuite.session = { governorMode = 1 }
+  message.processReply(message, h.featureApi.buildWritePayload({ enabledFeatures = 0 }))
+  eq(_G.rfsuite.session.governorFeature, nil, "a late reply does not reach the new session")
+  eq(oldSession.governorFeature, nil, "nor the session it was asked for")
+end)
 
 for _, spec in ipairs({
   { label = "missing session", expected = nil },
