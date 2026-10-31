@@ -129,12 +129,15 @@ end
 
 local function queueBluejayReadActual(queue)
   local escTarget = ui.escTarget or 0
+  -- A page close releases ui.runtime and the next visit builds a new one, so a reply queued
+  -- by an earlier visit is told apart by its runtime, and one for another target by escTarget.
+  local runtime = ui.runtime
   queue:add({
     command = EscParametersBluejayApi.command,
     timeout = 15,
     simulatorResponse = EscParametersBluejayApi.simulatorResponse,
     processReply = function(self, buf)
-      if escTarget ~= (ui.escTarget or 0) then return end
+      if ui.runtime ~= runtime or escTarget ~= (ui.escTarget or 0) then return end
       local parsed = EscParametersBluejayApi.parse(buf)
       if parsed then
         for k, v in pairs(ui.config) do
@@ -187,7 +190,7 @@ local function queueBluejayReadActual(queue)
       end
     end,
     errorHandler = function()
-      if escTarget ~= (ui.escTarget or 0) then return end
+      if ui.runtime ~= runtime or escTarget ~= (ui.escTarget or 0) then return end
       ui.runtime.readPending = false
       ui.loading = false
       if type(ui.runtime.requestRebuild) == "function" then
@@ -198,6 +201,7 @@ local function queueBluejayReadActual(queue)
 end
 
 local function queueBluejayRead(isAutoReload)
+  local runtime = ui.runtime
   if not MspRuntime or not EscParametersBluejayApi or type(MspRuntime.getState) ~= "function" then
     return false, "msp_runtime_unavailable"
   end
@@ -234,7 +238,7 @@ local function queueBluejayRead(isAutoReload)
         isWrite = true,
         simulatorResponse = {},
         processReply = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 2
           ui.connTimer = nowSeconds()
           ui.runtime.readPending = false
@@ -243,7 +247,7 @@ local function queueBluejayRead(isAutoReload)
           end
         end,
         errorHandler = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 0
           ui.loading = false
           ui.runtime.readPending = false
@@ -260,7 +264,7 @@ local function queueBluejayRead(isAutoReload)
         isWrite = true,
         simulatorResponse = {},
         processReply = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 4
           ui.connTimer = nowSeconds()
           ui.runtime.readPending = false
@@ -269,7 +273,7 @@ local function queueBluejayRead(isAutoReload)
           end
         end,
         errorHandler = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 0
           ui.loading = false
           ui.runtime.readPending = false
@@ -291,6 +295,7 @@ local function queueBluejayRead(isAutoReload)
 end
 
 local function queuePostSaveReset(target, nextState)
+  local runtime = ui.runtime
   local FwdProgApi = loadModule("tasks/msp/api/4wif_esc_fwd_prog.lua")
   if not FwdProgApi or not MspRuntime or type(MspRuntime.getState) ~= "function" then
     return
@@ -307,7 +312,7 @@ local function queuePostSaveReset(target, nextState)
     isWrite = true,
     simulatorResponse = {},
     processReply = function()
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.connState = nextState
       ui.connTimer = nowSeconds()
       if ui.runtime and type(ui.runtime.requestRebuild) == "function" then
@@ -315,7 +320,7 @@ local function queuePostSaveReset(target, nextState)
       end
     end,
     errorHandler = function()
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.connState = 5
       ui.saving = false
       ui.notice = {
@@ -343,6 +348,7 @@ local MESSAGE_KEYS = {
 }
 
 local function queueBluejayWrite(requestRebuild)
+  local runtime = ui.runtime
   if not MspRuntime or not EscParametersBluejayApi or type(MspRuntime.getState) ~= "function" then
     return false, "msp_runtime_unavailable"
   end
@@ -383,7 +389,7 @@ local function queueBluejayWrite(requestRebuild)
     payload = EscParametersBluejayApi.buildWritePayload(writeData),
     isWrite = true,
     processReply = function(self, buf)
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.dirty = false
       ui.connState = 6
       ui.connTimer = nowSeconds()
@@ -392,7 +398,7 @@ local function queueBluejayWrite(requestRebuild)
       end
     end,
     errorHandler = function()
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.saving = false
       ui.notice = {
         title = pageText(ui.i18n, "save_failed_title", "Save Failed"),

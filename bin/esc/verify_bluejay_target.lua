@@ -70,6 +70,11 @@ local modules = {
   ["app/pages/settings/common.lua"] = {
     pageT = function()
       return function(_, _, fallback) return fallback end
+    end,
+    -- The real close hook: it releases ui.runtime, which is how a later visit tells its
+    -- own replies from an earlier one's.
+    resetPageState = function(...)
+      return assert(loadfile("src/rfsuite/app/pages/settings/common.lua"))().resetPageState(...)
     end
   },
   ["ui/controls.lua"] = controls,
@@ -314,6 +319,33 @@ scenario("stale handlers preserve ESC 2's pending read", function()
     assertEsc2Defaults(handler .. " followed by the current reply")
     assertSaveRefused(activePage, handler .. " followed by the current reply")
   end
+end)
+
+scenario("a read reply from before the page closed is ignored by the next visit", function()
+  -- The host closes the page while its read is still queued, then opens it again. The page
+  -- module survives its close, so the old reply finds the new visit's state.
+  pending = {}
+  _G.rfsuite.session = { esc4WayMotorCount = 2 }
+  local activePage = assert(loadfile(pagePath))()
+  render(activePage)
+  local oldRead = waitForRead(activePage)
+  table.remove(pending, 1)
+  activePage.onClose()
+  pending = {}
+  render(activePage)
+  activePage.wakeup(ctx)
+  oldRead.processReply(oldRead, good)
+  render(activePage)
+  equal(header, nil, "the old reply does not show its model in the new visit")
+  equal(rows["Motor Direction"], nil, "the old reply does not show its values in the new visit")
+  equal(_G.rfsuite.session.setup_esc_motors_esc_tools_bluejay, nil,
+    "the old reply does not fill the new visit's session cache")
+  oldRead.errorHandler(oldRead, "late")
+  render(activePage)
+  equal(overlay and overlay.title, "Loading", "the old error leaves the new visit loading")
+  deliverRead(activePage, refused)
+  equal(header, "Bluejay Configurator", "the new visit's own refused read shows no model")
+  assertSaveRefused(activePage, "new visit after a late reply")
 end)
 
 print("Bluejay target: " .. checks .. " checks, " .. failures .. " failures")

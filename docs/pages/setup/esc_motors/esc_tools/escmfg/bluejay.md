@@ -26,7 +26,7 @@ is read and written.
 
 | Setting | What it does |
 | --- | --- |
-| ESC Target | Which ESC of the model is read and written. Only shown where the flight controller reports more than one. |
+| ESC Target | Which ESC of the model is read and written. Shown where the flight controller reports more than one ESC, or where its motor count could not be read. |
 | Section | *General*, *Brake*, *Beacon* or *Other*. Switching it rebuilds the list below; nothing is read from the ESC again. |
 
 ### General
@@ -74,7 +74,8 @@ is read and written.
 
 - Saving writes the whole parameter block to the ESC, not only the settings that were
   changed. A setting the page leaves alone is written back as the byte it was read from, so
-  a Save with nothing edited changes nothing in the ESC.
+  a Save with nothing edited changes nothing in the ESC, except that *Threshold 96to48* is
+  held at or below *Threshold 48to24* (see below).
 - The choices of *Motor Direction*, *Motor Timing*, *Demag Compensation*, *Beacon Delay* and
   *Power Rating* stand for the numbers Bluejay itself stores them as, which start at 1, and
   the chosen number is what the ESC receives. A number the ESC answers with that has no entry
