@@ -1339,7 +1339,7 @@ return {
         save_error_title = "Error",
         help_title = "Configuration Help",
         help_p1 = "Set a craft name of up to 16 characters, PID loop speed and features here; Save stores them in EEPROM and restarts the flight controller.",
-        help_pid_loop_speed = "Sets the control-loop frequency, labelled from the board's reported gyro rate; 1 to 2 kHz is recommended.",
+        help_pid_loop_speed = "Sets how often the PID loop runs; 1 to 2 kHz is recommended, and Realtime Load should stay at or below 70%.",
         help_feature_gps = "Enables GPS telemetry; assign a GPS port under Ports first.",
         help_feature_led_strip = "Enables support for WS2811/2812 RGB LED strips.",
         help_feature_cms = "Enables the firmware's Configuration Menu System (CMS)."
