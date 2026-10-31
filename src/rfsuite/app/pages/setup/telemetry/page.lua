@@ -490,6 +490,12 @@ end
 local function ensureLoaded()
   ensureRuntime()
   if ui.loaded then return end
+  -- A save whose overlay was dismissed finished without a screen (the restart can outlast the
+  -- page). Its outcome was held back rather than raised over another page; claim it now.
+  if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
+  if SavePipeline and type(SavePipeline.takeResult) == "function" then
+    SavePipeline.takeResult("setup_telemetry")
+  end
   loadFromSession()
   ui.loaded = true
   ui.dirty = false
