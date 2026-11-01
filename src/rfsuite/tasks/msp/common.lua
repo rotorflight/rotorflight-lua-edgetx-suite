@@ -55,6 +55,9 @@ local function new(protocol)
   local mspRxReq = 0
   local mspStarted = false
   local mspLastReq = 0
+  -- Replies of ours that broke off: a continuation chunk out of sequence while one was being
+  -- assembled. Stale chunks of a reply already abandoned do not count (mspStarted is false).
+  local mspRxBreaks = 0
   local mspTxBuf = {}
   local mspTxIdx = 1
   local mspTxCRC = 0
@@ -261,6 +264,7 @@ local function new(protocol)
     elseif not mspStarted then
       return nil
     elseif bit32.band(mspRemoteSeq + 1, 0x0F) ~= seq then
+      mspRxBreaks = mspRxBreaks + 1
       clearArray(mspRxBuf)
       mspRxSize = 0
       mspRxCRC = 0
@@ -393,6 +397,9 @@ local function new(protocol)
     end,
     getProtocolVersion = function()
       return mspVersion
+    end,
+    rxBreaks = function()
+      return mspRxBreaks
     end,
   }
 end

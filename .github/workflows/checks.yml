@@ -451,6 +451,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_armed_state.lua
 
+  msp-resend-on-break:
+    name: MSP resend on a broken reply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/msp/verify_msp_resend_on_break.lua
+
   diagnostic-logs:
     name: Diagnostic logs
     runs-on: ubuntu-latest
