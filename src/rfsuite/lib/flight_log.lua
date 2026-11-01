@@ -539,13 +539,13 @@ end
 -- written back under the name the same way, whichever edit comes first: no file stands under the
 -- name to be replaced, and the content was built on the pilot's whole registry.
 local function atomicReplace(path, content, allowCreate)
-  local AtomicFile = atomicFile()
-  if not AtomicFile then return false end
-  if not allowCreate and type(AtomicFile.readablePath) == "function" then
-    allowCreate = AtomicFile.readablePath(path) ~= path
+  local AF = atomicFile()
+  if not AF then return false end
+  if not allowCreate and type(AF.readablePath) == "function" then
+    allowCreate = AF.readablePath(path) ~= path
   end
   ensureDir()
-  return AtomicFile.replace(path, content, allowCreate)
+  return AF.replace(path, content, allowCreate)
 end
 
 -- Reads the registry for a rewrite. The second return is the distinct refusal a caller has to

@@ -175,7 +175,8 @@ do
   local marked = call(FlightLog.markUsed, "2", DT)
   check("markUsed succeeds", marked == true, marked)
   check("the registry stands under the name, the pack stamped",
-    files[REG] ~= nil and string.find(files[REG], "id=2;name=Blue 6S;cap=4500;cells=6;models=goblin;cycles=4;note=new;last=2026-11-01\n", 1, true) ~= nil
+    files[REG] ~= nil and string.find(files[REG],
+      "id=2;name=Blue 6S;cap=4500;cells=6;models=goblin;cycles=4;note=new;last=2026-11-01\n", 1, true) ~= nil
       and ids(FlightLog.loadRegistry()) == "1,2,3", files[REG])
 
   -- The disarm task reads with readRegistry and hands the text to markUsed
