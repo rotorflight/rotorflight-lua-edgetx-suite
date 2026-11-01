@@ -1457,12 +1457,15 @@ function M.buildPost(children, widget, m, w, h, t, p)
         formatValue(entry.old) .. " -> " .. formatValue(entry.new) .. "  " .. string.format("%+d", entry.new - entry.old), p.accent, rowFont, RIGHT, m)
     end
   end
-  local expired = drive ~= nil and drive.sessionExpired == true
-  local note = expired and fitText(t("widgets.dashboard.inflight_session_expired",
-      "Battery changed: new session at next read"), lineW, m.small)
-    or target.scope == "rate" and t("widgets.dashboard.inflight_rate_restore_note", "PID restore does not cover rate profiles")
+  -- The list stays up while the link is gone (the pack is out), and the session's end becomes
+  -- pending during that gap with no rebuild, so the note reads the drive on every frame.
+  local note = target.scope == "rate" and t("widgets.dashboard.inflight_rate_restore_note", "PID restore does not cover rate profiles")
     or t("widgets.dashboard.inflight_delta_title", "CHANGED THIS SESSION")
-  appendLabel(children, m.pad, noteY, lineW, note, expired and p.warn or p.dim, m.small, LEFT)
+  local expiredNote = fitText(t("widgets.dashboard.inflight_session_expired",
+    "Battery changed: new session at next read"), lineW, m.small)
+  local function expired() return drive ~= nil and drive.sessionExpired == true end
+  appendLabel(children, m.pad, noteY, lineW, function() return expired() and expiredNote or note end,
+    function() return expired() and p.warn or p.dim end, m.small, LEFT)
   if not drive or not Prime then return end
   local arrowW = m.large and 72 or 48
   local buttonW = lineW - arrowW * 2 - m.pad * 2
