@@ -236,7 +236,9 @@ model's preferences stay in hand until the next board connects -- a board whose 
 refused does not, so they also stay behind its refusal screen -- so its theme stays loaded across a
 disconnect on the ground as it does after a flight, and a reload for a radio setting saved while the
 link is down reads the radio's file alone. A change found while its reload waits (armed, offline
-after a flight, off screen, or for the UID) is not looked for again until the reload has run.
+after a flight, off screen, or for the UID) is not looked for again until the reload has run; the
+reload then checks the files once and reads only the one that moved since the last reload, as an
+undeferred reload does; both where both moved or the check cannot tell which.
 
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be
