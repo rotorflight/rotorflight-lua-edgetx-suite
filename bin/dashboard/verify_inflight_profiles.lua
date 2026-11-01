@@ -836,9 +836,9 @@ do
   check(instance.profileJob and instance.profileJob.mode == "new" and instance.transfer == nil,
     "the restore becomes the read of a new session, not a transfer")
   finish(instance)
-  local writes = 0
-  for _, r in ipairs(sent) do if setters[r.command] or r.command == 250 then writes = writes + 1 end end
-  check(writes == 0, "the stale session's start values are not written back to the board")
+  local staleWrites = 0
+  for _, r in ipairs(sent) do if setters[r.command] or r.command == 250 then staleWrites = staleWrites + 1 end end
+  check(staleWrites == 0, "the stale session's start values are not written back to the board")
   check(instance.sessionMode == "new" and instance.baseline ~= stale and instance.sessionExpired == nil,
     "after the restore press the board's values are the new session's start values")
   check(instance.baseline.pid3["14"] == stepped + 7 and files[path] ~= card,
