@@ -578,9 +578,12 @@ end
 for _, locale in ipairs({"en", "de"}) do
   local translations = assert(loadfile("src/rfsuite/i18n/" .. locale .. ".lua"))().widgets.dashboard
   for _, size in ipairs({{480, 272}, {480, 320}, {800, 480}}) do
-    for _, variant in ipairs({"ready", "warnings", "empty", "reading", "failed", "crowded"}) do
+    for _, variant in ipairs({"ready", "warnings", "empty", "reading", "failed", "crowded", "expired"}) do
       scenario("ground panel and grid " .. locale .. " " .. size[1] .. "x" .. size[2] .. " " .. variant, function()
         local widget, d = fixture(false)
+        -- "expired": the crowded panel with a session end pending on top (a link gap on the ground).
+        local crowded = variant == "crowded" or variant == "expired"
+        d.sessionExpired = variant == "expired" or nil
         local Screen = rfsuite.require("widgets/dashboard/inflight/screen.lua")
         local savedPrefs = rfsuite.preferences
         local announcementsOn = variant == "ready" or variant == "reading"
@@ -590,11 +593,11 @@ for _, locale in ipairs({"en", "de"}) do
           return translations[string.gsub(key, "^widgets%.dashboard%.", "")] or fallback
         end}
         widget.state.inflight = {phase = "ground", setupVerdict = "ok", setSource = variant == "empty" and "unavailable" or "board",
-          cellCount = variant == "empty" and 0 or 36, boundsCount = (variant == "warnings" or variant == "crowded") and 2 or 0,
+          cellCount = variant == "empty" and 0 or 36, boundsCount = (variant == "warnings" or crowded) and 2 or 0,
           prime = {phase = "done", skipped = variant == "empty" and 0 or 3},
           baseline = {timestamp = "2026-10-25 12:34:56"}}
-        if variant == "warnings" or variant == "empty" or variant == "crowded" then d.saveResult, d.announcementsSaveFailed = "unavailable", true end
-        if variant == "failed" or variant == "crowded" then
+        if variant == "warnings" or variant == "empty" or crowded then d.saveResult, d.announcementsSaveFailed = "unavailable", true end
+        if variant == "failed" or crowded then
           -- The longest texts the panel shows: a three-part verdict and a refused restore; "crowded" adds
           -- every warning row and the announcements button on top.
           widget.state.inflight.setupVerdict = {"mix_missing", "gvar_range", "same_gvar"}
@@ -663,7 +666,7 @@ for _, locale in ipairs({"en", "de"}) do
           "ground footer shows the controls, the announcements warning, or a failed attempt to turn them on")
         local color = modelValue.color()
         widget.state.inflight.setupVerdict = {"mix_missing"}
-        check(variant == "failed" or variant == "crowded" or (color ~= modelLabel.color and modelValue.color() ~= color), "model verdict colour follows its meaning")
+        check(variant == "failed" or crowded or (color ~= modelLabel.color and modelValue.color() ~= color), "model verdict colour follows its meaning")
         local expected = {}
         if variant == "reading" then
           expected[1], expected[2] = translations.inflight_read_again, translations.inflight_restore_cancel
@@ -705,6 +708,24 @@ for _, locale in ipairs({"en", "de"}) do
         check(primary.w == size[1] - primary.x * 2 and primary.w == restore.w
           and restore.h == first.h and restore.y + restore.h < footer.y and restore.color ~= first.color,
           "primary and restore are full width with restore above the footer")
+        if variant == "expired" then
+          local said = false
+          for _, label in ipairs(labels) do
+            local text = type(label.text) == "function" and label.text() or label.text
+            if text == translations.inflight_session_expired then said = true end
+          end
+          check(said, "a pending session end is said on the ground surface")
+          check(not restore.active(), "Restore all is shown disabled while the session end is pending")
+          local readAgain
+          for index, caption in ipairs(captions) do
+            if caption == translations.inflight_read_again then readAgain = buttons[index] end
+          end
+          check(readAgain ~= nil and readAgain.active(), "Read again stays usable: it begins the new session")
+          restore.press()
+          check(d.restoreConfirm == nil, "a press on the disabled Restore all opens nothing")
+        elseif variant ~= "reading" then
+          check(restore.active(), "positive control: Restore all is usable with no session end pending")
+        end
         local lastSecondary = buttons[#buttons - 2]
         check(restore.y - lastSecondary.y - lastSecondary.h <= (size[2] > 350 and 10 or 6),
           "ground grid uses the available space above Restore all")
@@ -720,6 +741,66 @@ for _, locale in ipairs({"en", "de"}) do
     end
   end
 end
+
+-- The button whose caption is `caption`: captions are the labels appended right after their button.
+local function buttonFor(nodes, caption)
+  local button
+  for _, node in ipairs(nodes) do
+    if node.type == "button" then button = node end
+    local text = type(node.text) == "function" and node.text() or node.text
+    if node.type == "label" and text == caption and button then return button end
+  end
+end
+
+scenario("post-flight surface: a pending session end is said and the restores are disabled", function()
+  for _, expired in ipairs({false, true}) do
+    local widget, d = fixture(false)
+    local Screen = rfsuite.require("widgets/dashboard/inflight/screen.lua")
+    widget.zone = {w = 480, h = 320}
+    d.phase, d.sessionExpired = "post", expired or nil
+    widget.state.inflight = {phase = "post", setupVerdict = "ok", setSource = "board", cellCount = 36}
+    local nodes = {}; Screen.buildFullscreen(nodes, widget)
+    local said = false
+    for _, node in ipairs(nodes) do
+      if node.text == "Battery changed: new session at next read" then said = true end
+    end
+    check(said == expired, "the post-flight list says the session end is pending, and only then")
+    d.postActionsOpen = {kind = "pid", index = 1}
+    nodes = {}; Screen.buildFullscreen(nodes, widget)
+    local all, profile = buttonFor(nodes, "Restore all"), buttonFor(nodes, "Restore profile PID 1")
+    check(all and profile and buttonFor(nodes, "Read again"), "positive control: the restore menu is built")
+    local function usable(button) return button.active == nil or button.active() end
+    check(usable(all) == not expired and usable(profile) == not expired,
+      "the restores are disabled while the session end is pending, and usable otherwise")
+    profile.press()
+    check((d.restoreConfirm ~= nil) == not expired, "a press on a disabled restore opens nothing")
+    if d.restoreConfirm then
+      nodes = {}; Screen.buildFullscreen(nodes, widget)
+      d.sessionExpired = true
+      local yes = buttonFor(nodes, "Restore")
+      check(yes and yes.active and not yes.active(), "the confirmation's Restore is disabled once a session end is pending")
+    end
+  end
+end)
+
+scenario("Read again on a board without a set starts the read every pending request asked for", function()
+  local widget, d = fixture(false)
+  local Screen = rfsuite.require("widgets/dashboard/inflight/screen.lua")
+  local state = rfsuite.require("tasks/msp/runtime.lua").getState()
+  local savedQueue, queued = state.queue, {}
+  state.queue = {add = function(_, request) queued[#queued + 1] = request; return true end, clear = function() end}
+  widget.zone = {w = 480, h = 320}
+  d.setSource, d.readRequired, d._primeAutoDone, d.readAgain, d.prime = nil, true, false, true, nil
+  widget.state.inflight = {phase = "ground", setupVerdict = "ok", setSource = nil, readRequired = true}
+  local nodes = {}; Screen.buildFullscreen(nodes, widget)
+  local button = buttonFor(nodes, "Read again")
+  check(button and button.active(), "positive control: Read again is usable")
+  button.press()
+  state.queue = savedQueue
+  check(#queued == 1 and d.prime and d.prime.phase == "rxmap", "positive control: the press started the full read")
+  check(d._primeAutoDone == true and d.readAgain == nil,
+    "the read the press started answers the automatic read and the ended session's request, so neither starts another")
+end)
 
 scenario("ground label column is as wide as its widest caption", function()
   local widget = fixture(false)
