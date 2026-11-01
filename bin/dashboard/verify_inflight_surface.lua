@@ -762,7 +762,8 @@ scenario("post-flight surface: a pending session end is said and the restores ar
     local nodes = {}; Screen.buildFullscreen(nodes, widget)
     local said = false
     for _, node in ipairs(nodes) do
-      if node.text == "Battery changed: new session at next read" then said = true end
+      local text = type(node.text) == "function" and node.text() or node.text
+      if text == "Battery changed: new session at next read" then said = true end
     end
     check(said == expired, "the post-flight list says the session end is pending, and only then")
     d.postActionsOpen = {kind = "pid", index = 1}
@@ -781,6 +782,36 @@ scenario("post-flight surface: a pending session end is said and the restores ar
       check(yes and yes.active and not yes.active(), "the confirmation's Restore is disabled once a session end is pending")
     end
   end
+end)
+
+-- The post-flight list stays up while the pack is out (no link), under one render key for the whole
+-- gap, and the session's end becomes pending during that gap: the note has to follow without a rebuild.
+scenario("post-flight list with the link gone: the note follows a session end the runtime notes during the gap", function()
+  local widget, d = fixture(false)
+  local Screen = rfsuite.require("widgets/dashboard/inflight/screen.lua")
+  widget.zone = {w = 480, h = 320}
+  d.phase, d.post = "post", true
+  widget.state.inflight = {phase = "post", linkLost = true, setupVerdict = "ok", setSource = "board", cellCount = 36}
+  local nodes = {}; Screen.buildFullscreen(nodes, widget)
+  local note
+  for _, node in ipairs(nodes) do
+    local text = type(node.text) == "function" and node.text() or node.text
+    if text == "CHANGED THIS SESSION" then note = node end
+  end
+  check(note ~= nil and not d.sessionExpired, "positive control: the list is built with the link gone and no end pending")
+  -- The runtime's own link watch notes the end after five seconds without a link on the ground.
+  local realGetTime, offset = getTime, 0
+  _G.getTime = function() return realGetTime() + offset end
+  widget.state.fblConnected = false
+  for _ = 1, 2 do job(widget); widget:refresh(0, nil) end
+  offset = offset + 600
+  job(widget); widget:refresh(0, nil)
+  _G.getTime = realGetTime
+  check(d.sessionExpired == true, "positive control: the runtime noted the session end during the gap")
+  local text = type(note.text) == "function" and note.text() or note.text
+  local color = type(note.color) == "function" and note.color() or note.color
+  check(text == "Battery changed: new session at next read" and color ~= nil,
+    "the note already built says the session end is pending, without a rebuild")
 end)
 
 scenario("Read again on a board without a set starts the read every pending request asked for", function()
