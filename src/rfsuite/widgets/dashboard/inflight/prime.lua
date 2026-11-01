@@ -1158,7 +1158,13 @@ function M.refreshValues(widget, drive)
   if type(widget.state) ~= "table" then return false, "armed" end
   if isArmed(widget) then return false, "armed" end
   if M.isRunning(drive) then return false, "reading" end
-  if drive.readRequired then return M.start(widget, drive, true) end
+  if drive.readRequired then
+    -- This is the link's automatic read, started early: the automatic start below then has nothing
+    -- left to start, and a failed run is retried through it as before.
+    local ok, reason = M.start(widget, drive, true)
+    if ok then drive._primeAutoDone = true end
+    return ok, reason
+  end
   local previous = drive.prime
   if type(previous) ~= "table" or type(previous.records) ~= "table" then
     return M.start(widget, drive)
