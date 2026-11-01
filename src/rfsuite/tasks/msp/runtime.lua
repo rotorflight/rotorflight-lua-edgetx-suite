@@ -562,6 +562,19 @@ local function applyModelPreferencesForMcu(mcuId)
   end
 end
 
+-- The compact MSP-over-telemetry framing (version 3 in the status byte) is used with a board
+-- whose API version is 12.10 or later (Rotorflight 4.7); every link starts in MSPv2, so the
+-- version read itself works on any firmware. `nil` returns to MSPv2.
+local COMPACT_FRAMING_API = { 12, 0, 10 }
+
+local function setFraming(apiVersion)
+  local common = state.common
+  if type(common) ~= "table" or type(common.setProtocolVersion) ~= "function" then return end
+  local compact = apiVersion ~= nil and ApiVersion ~= nil
+    and ApiVersion.isAtLeast(apiVersion, COMPACT_FRAMING_API) == true
+  common.setProtocolVersion(compact and 3 or 2)
+end
+
 local function enqueueVersionReads(now)
   if not state.pendingVersionRead then
     return true
@@ -598,6 +611,7 @@ local function enqueueVersionReads(now)
         state.refusedApiVersion = state.unsupportedApi and parsed.version or nil
         setResendOnBreak(parsed.version)
         state.limitedApi = limitedCompatible
+        setFraming(parsed.version)
         if limitedCompatible then
           log("MSP API version " .. tostring(parsed.version) .. " accepted in limited compatibility mode", "warn")
         end
@@ -779,6 +793,7 @@ local function doDisconnect(now, reason, keepLink)
   if type(root) == "table" and type(root.session) == "table" then
     root.session.hasMasterGain = nil
   end
+  setFraming(nil)
   state.pendingVersionRead = true
   state.pendingUidRead = true
   -- A refusal (`keepLink`) is an outcome for the UID read as well: tick() stops at the
@@ -821,6 +836,8 @@ local function initIfNeeded()
     log("MSP transport unavailable (no CRSF/GHST/SP)", "warn")
     return false
   end
+
+  state.common = common
 
   if not common then
     common = {
