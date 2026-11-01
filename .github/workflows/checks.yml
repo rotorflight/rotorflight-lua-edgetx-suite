@@ -59,14 +59,14 @@ jobs:
       - name: Silent ground profile selections
         run: lua5.3 bin/dashboard/verify_inflight_audio.lua
 
+      - name: In-flight settings adopted after a landing are checked first
+        run: lua5.3 bin/dashboard/verify_inflight_landing_resettle.lua
+
       - name: In-flight list picker and help limits
         run: lua5.3 bin/dashboard/verify_inflight_flightlist.lua
 
       - name: In-flight session and view lifetimes
         run: lua5.3 bin/dashboard/verify_inflight_lifetimes.lua
-
-      - name: In-flight settings adopted after a landing are checked first
-        run: lua5.3 bin/dashboard/verify_inflight_landing_resettle.lua
 
   startup-compile:
     # The configuration tool compiles the installed suite at start (src/rfsuite/lib/precompile.lua).
