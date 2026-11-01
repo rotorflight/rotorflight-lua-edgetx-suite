@@ -32,4 +32,5 @@ as is a file that failed to load, so a module whose body must run only once ends
 - `rfsuite.require(path, true)` runs the file again even when it is cached. If it now returns
   nothing, the cached value is dropped; if it fails to load or raises, the cached value stays.
 - `rfsuite.clearModule(path)` drops one entry and `rfsuite.clearAllModules()` drops all of them;
-  the next `rfsuite.require` reads the file from the card again.
+  the next `rfsuite.require` runs the module again. In the tool, `loadScript` keeps the compiled
+  chunk of most files (`src/main.lua`), so that run need not read the card.
