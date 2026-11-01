@@ -773,21 +773,21 @@ do
     instance.baseline = {meta = {}, identity = "stale"}
     instance.sessionExpired = expired
     rfsuite.inflightSession = fc.uid
-    local loads, oldLoad = 0, Store.load
-    Store.load = function(...) loads = loads + 1; return oldLoad(...) end
+    local reads, realLoad = 0, Store.load
+    Store.load = function(...) reads = reads + 1; return realLoad(...) end
     -- Started the way the ground half starts it on its own, once the link has settled.
     instance.prime = nil
     for _ = 1, 300 do pass(instance); if Prime.isRunning(instance) then break end end
     check(Prime.isRunning(instance), "the automatic read starts")
     for _ = 1, 3000 do pass(instance); if not Prime.isRunning(instance) then break end end
-    Store.load = oldLoad
-    return instance, loads
+    Store.load = realLoad
+    return instance, reads
   end
   local control, controlLoads = started(nil)
   check(control.prime.phase == "done" and control.sessionMode == "resume" and controlLoads > 0,
     "control: a read within the session continues it from the card")
-  local instance, loads = started(true)
-  check(instance.prime.phase == "done" and instance.sessionMode == "new" and loads == 0,
+  local instance, expiredLoads = started(true)
+  check(instance.prime.phase == "done" and instance.sessionMode == "new" and expiredLoads == 0,
     "a pending expiry makes the read begin a new session: the stale start values are not loaded")
   check(instance.sessionExpired == nil and instance.baseline ~= nil and instance.baseline.identity ~= "stale",
     "the expiry is cleared and the new session holds its own start values")
