@@ -23,6 +23,8 @@ end
 
 local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
 
+local DisplayProfile = nil
+
 local function getDisplayProfile()
   if not DisplayProfile then
     DisplayProfile = loadModule("core/display_profile.lua")

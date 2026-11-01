@@ -581,8 +581,7 @@ function M.build(ctx)
       y = cursorY,
       w = w,
       text = t(i18n, "running", "Running") .. " " .. tostring(done) .. "s/" .. tostring(total) .. "s",
-      color = Palette.text,
-      font = XXSMLSIZE
+      color = Palette.text
     }
 
     children[#children + 1] = {
