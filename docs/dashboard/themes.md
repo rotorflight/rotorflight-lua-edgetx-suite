@@ -57,7 +57,8 @@ electric helicopter, left to right before, during and after the flight; for the 
 during and after it. Some values in them come
 from the simulation rather than from a model in the air: the head speed reads 0 throughout, and
 *Total time* is the flight controller's own lifetime counter, which is why it differs between the
-pictures.
+pictures. The pictures of @KSE4, @KSE5 and @Kevd come from a later simulated flight that feeds
+head speed, current and throttle as well, so those read values there.
 
 ### Default
 
@@ -216,6 +217,8 @@ lowest voltage per cell, the lowest BEC voltage and the lowest link quality.
 levels its fuel readings turn amber and red at, 45 % and 25 % unless set), **Before flight**,
 **In flight**, **Statistics**, **Info bar** and **Keys**, as described for [Default](#default).
 
+![@KSE4 before, during and after the flight](../images/dashboard/themes/kse4.png)
+
 ### @KSE5
 
 After Kyle Stacy's KSE5 widget: @KSE4's tiles, with rings. Before the flight: rings for the fuel,
@@ -230,6 +233,8 @@ quality.
 @KSE5 takes the full screen like Default, and its settings open six pages: **Look** (the full
 scale of its head speed, current and ESC temperature rings), **Before flight**, **In flight**,
 **Statistics**, **Info bar** and **Keys**, as described for [Default](#default).
+
+![@KSE5 before, during and after the flight](../images/dashboard/themes/kse5.png)
 
 ### @Kevd
 
@@ -247,6 +252,8 @@ current, altitude and power and the lowest link quality, beside the same column.
 @Kevd takes the full screen like Default, and its settings open six pages: **Look** (its head
 speed, BEC voltage and ESC temperature ranges), **Before flight**, **In flight**, **Statistics**,
 **Info bar** and **Keys**, as described for [Default](#default).
+
+![@Kevd before, during and after the flight](../images/dashboard/themes/kevd.png)
 
 ### Urban
 
