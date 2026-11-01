@@ -224,7 +224,7 @@ included. A module loaded with `loadScript` alone has no cache entry, so its glo
 released with the rest, and the next load of the theme would pair it with fresh copies of the
 modules it requires. A module loaded this way returns its table: one that returns nothing gets
 no cache entry either, `rfsuite.require` hands out `nil` for it as for a file that did not load,
-and every load runs it again.
+and every load runs it again ([the module loader](../reference/module-loader.md)).
 
 ## What a phase module returns
 
