@@ -13,7 +13,8 @@
 -- board's id, which is not a preferences change, so no reload runs in the disconnected stretch and
 -- the model's theme is neither released at the disconnect nor read from the card again at the
 -- reconnect; a radio setting saved while the link is down is still picked up. A change found while
--- its reload is deferred is found once, not again on every stat interval of the deferral.
+-- its reload is deferred is found once, not again on every stat interval of the deferral, and when
+-- the reload runs it reads only the file that moved -- both where both moved while it waited.
 --
 -- And the two ends of that wait: armed before the UID read has an answer, the theme waits no longer
 -- than the splash for a read that is not sent before the disarm; a board whose API version is
@@ -86,8 +87,11 @@ local function instrument(world, w)
   end)
   -- Every preferences reload that runs (it answers true), counted the same way.
   local reloadPreferencesIfNeeded, pIndex = upvalue(work, "reloadPreferencesIfNeeded")
+  world.prefsFn = reloadPreferencesIfNeeded
   debug.setupvalue(work, pIndex, function(self, ...)
+    world.inPrefs = true
     local r = reloadPreferencesIfNeeded(self, ...)
+    world.inPrefs = false
     if r == true then
       world.prefReloads = world.prefReloads + 1
       if trace then print("    preferences reload at pass " .. world.pass) end
@@ -696,6 +700,64 @@ for _, returned in ipairs({ "system/urban", "system/grid" }) do
     expect(modelThemeModules() == 0, tag .. ": the theme the replaced widget held is released",
       modelThemeModules() .. " module(s) of it still loaded")
   end
+end
+
+-- 10. A change found while its reload waits reads only the file that moved. A setting saved from
+-- the settings screen while the helicopter is armed touches the model's file alone; its reload
+-- waits for the disarm and then reads that file, not the radio's as well. A change in the radio's
+-- file while it waits is read too: both files then differ from the stamp last adopted.
+for _, case in ipairs({ "model", "both" }) do
+  local tag = case == "model" and "deferred model-only change" or "deferred change in both files"
+  if trace then print("scenario: " .. tag) end
+  local world = newWorld()
+  saveRadioSetting(world, 0)
+  connectAndSettle(world)
+  local modelPath = _G.rfsuite.session.modelPreferencesFile
+  expect(type(modelPath) == "string", "control: the model's preferences file is known (" .. tag .. ")",
+    tostring(modelPath))
+  local function saveModelSetting(second)
+    world.stats[modelPath] = { size = 2, time = { year = 2026, mon = 11, day = 1, hour = 12, min = 0,
+      sec = second } }
+  end
+  saveModelSetting(0)
+  passes(world, 30, "settle")
+  -- Every read of either file made by the preferences reload, counted where the reload makes it.
+  local loads = { global = 0, model = 0 }
+  local loadPreferences, gi = upvalue(world.prefsFn, "loadPreferences")
+  debug.setupvalue(world.prefsFn, gi, function(...)
+    if world.inPrefs then loads.global = loads.global + 1 end
+    return loadPreferences(...)
+  end)
+  local MP, mi = upvalue(world.prefsFn, "ModelPreferences")
+  debug.setupvalue(world.prefsFn, mi, setmetatable({ loadByMcuId = function(...)
+    if world.inPrefs then loads.model = loads.model + 1 end
+    return MP.loadByMcuId(...)
+  end }, { __index = MP }))
+  Stubs.sensors["ARM"], Stubs.sensors["Gov"] = 1, 2
+  passes(world, 20, "armed")
+  world.prefReloads = 0
+  saveModelSetting(30)
+  passes(world, 15, "armed")
+  expect(world.w._reloadPending == true and world.prefReloads == 0,
+    "control: the change was found and its reload waits for the disarm (" .. tag .. ")",
+    "pending=" .. tostring(world.w._reloadPending) .. ", " .. world.prefReloads .. " reload(s)")
+  if case == "both" then saveRadioSetting(world, 45) end
+  passes(world, 15, "armed")
+  loads.global, loads.model = 0, 0
+  Stubs.sensors["ARM"], Stubs.sensors["Gov"] = 0, 0
+  passes(world, 60, "disarmed")
+  expect(world.prefReloads == 1, tag .. ": the reload runs once after the disarm", world.prefReloads .. " reload(s)")
+  if case == "model" then
+    expect(loads.model == 1 and loads.global == 0, tag .. ": only the model's file is read",
+      "model " .. loads.model .. ", radio " .. loads.global)
+  else
+    expect(loads.model == 1 and loads.global == 1, tag .. ": both files are read",
+      "model " .. loads.model .. ", radio " .. loads.global)
+  end
+  local session = _G.rfsuite.session
+  expect(world.w._lastPrefsStamp ~= nil
+    and world.w._lastPrefsStamp == upvalue(world.prefsFn, "preferencesStamp")(session.modelPreferencesFile, nil),
+    tag .. ": the stamp adopted is the files' stamp as they stand", tostring(world.w._lastPrefsStamp))
 end
 
 -- The memory probe's own control: an allocation it must see.

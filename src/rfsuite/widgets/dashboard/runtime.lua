@@ -2153,8 +2153,8 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- that is not a stamp difference -- the sequence file, a forced caller -- leaves it nil and
   -- both files are read, because those signals do not name a file.
   local halves = nil
-  -- A change already found and waiting for its reload is not looked for again: the reload reads
-  -- the files as they are when it runs and adopts the stamp then, so a stat and a log line every
+  -- A change already found and waiting for its reload is not looked for again: the reload stats
+  -- the files once when it runs (below) and adopts that stamp, so a stat and a log line every
   -- second of a deferral would only find the same difference again.
   if not force and not self._reloadPending and (now - (self._lastPrefsStatAt or 0)) >= PREFS_STAT_INTERVAL then
     self._lastPrefsStatAt = now
@@ -2258,6 +2258,21 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     return
   end
 
+  -- A change found on an earlier pass and deferred since: this pass did not stat, so which files
+  -- moved is taken now, once, against the stamp last adopted -- never against the one seen when
+  -- the change was found, because a second change in the other file while it waited must be
+  -- read too (both halves then differ and both are read). Taken before the reads, the stamp
+  -- adopted below cannot cover a write that lands during them; such a write is found again on
+  -- the next stat.
+  if not force and currentStamp == nil and self._reloadPending then
+    local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+    local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
+    if stamp then
+      currentStamp = stamp
+      halves = changedHalves(self._lastPrefsStamp, stamp)
+    end
+  end
+
   logGv("reloadPreferencesIfNeeded executing (force=%s signal=%s pending=%s armed=%s)", tostring(force), tostring(signalReload), tostring(self._reloadPending), tostring(self.state and self.state.armed))
 
   -- Invalidate current theme and memoization state BEFORE heavy disk reads.
@@ -2282,7 +2297,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- writers, and a save made from the settings screen touches the per-model one alone -- so
   -- re-reading the global file with it is a parse of bytes that have not changed, and that parse
   -- is the expensive half by a wide margin. Where the signal does not name a file -- a forced
-  -- caller, the sequence file, a shape change in the stamp -- `halves` is nil and both are read,
+  -- caller, the sequence file alone, a shape change in the stamp -- `halves` is nil and both are read,
   -- which is what this function always did.
   local doGlobal = (halves == nil) or halves.global
   local doModel = (halves == nil) or halves.model
