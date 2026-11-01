@@ -63,6 +63,10 @@ end
 -- arc with no range or a colour step that never fires, so the whole chain falls back to its
 -- defaults.
 local ORDERED = { { "bec_min", "bec_warn", "bec_max" }, { "esctemp_warn", "esctemp_max" } }
+-- The step the settings page edits each in (configure.lua's `scale`): the order is tested on the
+-- values rounded to it, as the page tests it, so the page and the dashboard never disagree about
+-- whether a stored chain is in order.
+local STEP = { bec_min = 10, bec_warn = 10, bec_max = 10, esctemp_warn = 1, esctemp_max = 1 }
 local CHAIN_OF = {}
 for _, chain in ipairs(ORDERED) do
   for _, key in ipairs(chain) do CHAIN_OF[key] = chain end
@@ -72,7 +76,10 @@ local function cfgValue(state, key)
   local chain = CHAIN_OF[key]
   if chain then
     for i = 2, #chain do
-      if rawValue(state, chain[i]) <= rawValue(state, chain[i - 1]) then return Layout.DEFAULTS[key] end
+      local hi, lo = chain[i], chain[i - 1]
+      if math.floor(rawValue(state, hi) * STEP[hi] + 0.5) <= math.floor(rawValue(state, lo) * STEP[lo] + 0.5) then
+        return Layout.DEFAULTS[key]
+      end
     end
   end
   return rawValue(state, key)
@@ -244,6 +251,15 @@ end
 local function postflight(state)
   local grid = C.grid(state, FLIGHT.cols, FLIGHT.rows, FLIGHT.padding)
 
+  -- The highest current against the ESC's current limit where one is on file (Setup > Power >
+  -- Preferences, or read off the ESC), amber from 80 % and red from 95 % of it; otherwise the
+  -- Ethos theme's fixed 300 A scale with its steps at 160 and 199 A.
+  local limit = tonumber(state and state.escCurrentLimit)
+  local currentMax, currentWarn, currentCrit = 300, 160, 199
+  if limit and limit > 0 then
+    currentMax, currentWarn, currentCrit = limit, limit * 0.8, limit * 0.95
+  end
+
   local function header(col, box)
     box.bgcolor = C.BG
     box.titlepos = "top"
@@ -299,9 +315,9 @@ local function postflight(state)
     bar(1, 10, 5, { source = "link", stattype = "min", unit = "%", min = 0, max = 100,
       title = "@i18n(widgets.dashboard.link_min):upper()@",
       thresholds = { { value = 59, fillcolor = C.CRIT }, { value = 74, fillcolor = C.WARN }, { value = 100000, fillcolor = C.OK } } }),
-    bar(10, 10, 5, { source = "current", stattype = "max", unit = "A", min = 0, max = 300,
+    bar(10, 10, 5, { source = "current", stattype = "max", unit = "A", min = 0, max = currentMax,
       title = "@i18n(widgets.dashboard.current_max):upper()@",
-      thresholds = { { value = 160, fillcolor = C.OK }, { value = 199, fillcolor = C.WARN }, { value = 100000, fillcolor = C.CRIT } } }),
+      thresholds = { { value = currentWarn, fillcolor = C.OK }, { value = currentCrit, fillcolor = C.WARN }, { value = 100000, fillcolor = C.CRIT } } }),
     bar(1, 15, 6, { source = "altitude", stattype = "max", unit = "m", min = 0, max = 150,
       title = "@i18n(widgets.dashboard.altitude_max):upper()@",
       thresholds = { { value = 60, fillcolor = C.OK }, { value = 105, fillcolor = C.WARN }, { value = 100000, fillcolor = C.CRIT } } }),
@@ -312,10 +328,25 @@ local function postflight(state)
   return rightColumn(grid, boxes)
 end
 
+
+-- The ESC current limit sets the scale of a current gauge, so a phase that draws one is rebuilt
+-- when the limit moves: the engine's own key with the limit appended. A limit arrives with the
+-- model's preferences, normally before the first build; this covers one that comes later.
+local engineRenderKey = nil
+local function currentScaleKey(_, state)
+  if engineRenderKey == nil then
+    local rf = _G.rfsuite
+    local Engine = rf and type(rf.require) == "function" and rf.require("widgets/dashboard/engine.lua") or nil
+    engineRenderKey = (type(Engine) == "table" and type(Engine.renderKey) == "function") and Engine.renderKey or false
+  end
+  local key = engineRenderKey and engineRenderKey(state) or ""
+  return key .. "|" .. tostring(state and state.escCurrentLimit)
+end
+
 local PHASES = {
   preflight = { layout = PREFLIGHT, boxes = preflight },
   inflight = { layout = FLIGHT, boxes = inflight },
-  postflight = { layout = FLIGHT, boxes = postflight },
+  postflight = { layout = FLIGHT, boxes = postflight, renderKey = currentScaleKey },
 }
 
 --- The phase module for `phase`: the grid, and the boxes resolved for the size it is drawn at.
@@ -324,6 +355,7 @@ function Layout.phase(phase)
   return {
     layout = p.layout,
     boxes = function(_, state) return p.boxes(state) end,
+    renderKey = p.renderKey,
   }
 end
 

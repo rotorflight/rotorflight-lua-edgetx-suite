@@ -72,7 +72,9 @@ A box without these fields draws the plain filled rectangle it always did.
 
 A gauge shows the live reading by default. Given `stattype = "max"` or `stattype = "min"` it
 shows that extreme of the flight instead — the same figure a `stats` text box shows for that
-source — which is how a post-flight screen draws the highest head speed as a bar.
+source — which is how a post-flight screen draws the highest head speed as a bar. Only the
+sources the flight record keeps an extreme of have one
+([flight statistics](../reference/flight-statistics.md)); for any other the gauge shows no value.
 
 A horizontal bar is half its panel high, centred, and 4 px in from each side. The paddings change
 that one direction at a time: given `gaugepaddingtop` or `gaugepaddingbottom` the bar spans the

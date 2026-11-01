@@ -2,3 +2,5 @@
   - @KSE4: a grid of framed tiles over a fuel bar; @KSE5: the same tiles with rings for fuel, head speed, current and ESC temperature; @Kevd: gauges on the page with their highest value of the flight, framed tiles and a column of flight time, battery and governor.
   - All three take the full screen and open Look, Before flight, In flight, Statistics, Info bar and Keys; the values size themselves to the zone they are drawn in.
   - Theme boxes can draw a frame (`bordercolor`, `borderwidth`), round their corners (`rounded`) and leave their fill out (`bgcolor = false`); a gauge can show the flight's minimum or maximum (`stattype`), and a horizontal bar honours its gauge paddings (`docs/dashboard/user-themes.md`).
+  - @KSE5's current ring and @Kevd's highest-current bar run up to the speed controller's current limit where the model has one on file (`docs/dashboard/themes.md`).
+  - Voltage per cell is a choice for any statistics tile on a theme's Before flight, In flight and Statistics pages (`widgets/dashboard/fields.lua`).

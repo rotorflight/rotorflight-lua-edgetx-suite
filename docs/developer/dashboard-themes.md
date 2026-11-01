@@ -583,7 +583,10 @@ fixed when the box is built, so none of them costs anything per frame.
 A `gauge` reads the live value of its `source` unless it carries `stattype` `"min"` or `"max"`:
 then every getter reads that extreme of the flight out of the flight record, with the key
 `Utils.statFields` resolves once at render — the same record, and the same rule for which flight
-it answers for, as a `stats` text box. A horizontal `bar` is half its panel high, centred, and 4 px
+it answers for, as a `stats` text box. Only a source with a recorded extreme has one (see
+[flight statistics](../reference/flight-statistics.md)); for any other pair — `esc_temp` with
+`"min"`, say — the gauge draws no value, the `--` a `stats` box draws for it, and not the live
+reading under a caption that names an extreme. A horizontal `bar` is half its panel high, centred, and 4 px
 in from each side; its paddings act per axis. Given `gaugepaddingtop` or `gaugepaddingbottom` it
 spans the panel's height less them (an absent one of the two counts 0), given `gaugepaddingleft`
 or `gaugepaddingright` its width (an absent one counts 4), and an axis given neither keeps the

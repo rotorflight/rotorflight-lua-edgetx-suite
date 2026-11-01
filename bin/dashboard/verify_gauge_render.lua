@@ -118,6 +118,25 @@ do
     end
   end
   check(inside, "a bar with oversized paddings stays inside its tile")
+  local labelsInside = true
+  for _, n in ipairs(nodes) do
+    if n.type == "label" and (n.x < RECT.x or n.w < 1 or n.x + n.w > RECT.x + RECT.w) then
+      labelsInside = false
+    end
+  end
+  check(labelsInside, "its value label stays inside the tile too")
+end
+
+-- 4b. A min or max the source keeps no record of draws no value, as a stats box does, and not
+--     the live reading.
+do
+  local box = { type = "gauge", subtype = "bar", source = "esc_temp", stattype = "min", min = 0, max = 150,
+    gaugepaddingleft = 0, gaugepaddingright = 0 }
+  local nodes = render(box, flightState(40, 100))
+  check(fillSize(nodes) == 0, "an unrecorded min leaves the bar empty (" .. tostring(fillSize(nodes)) .. ")")
+  local text = valueText(nodes)
+  check(type(text) == "string" and string.find(text, "--", 1, true) == 1,
+    "an unrecorded min is labelled as no value (" .. tostring(text) .. ")")
 end
 
 -- 5. The tile frame: named colours, and fields given as functions of the box and the state.

@@ -230,8 +230,12 @@ the fuel left and the highest head speed, current and ESC temperature, then the 
 capacity used, the lowest voltage per cell and BEC voltage, the highest power and the lowest link
 quality.
 
+The current ring runs up to the speed controller's current limit where the model has one on file
+(*Setup* → *Power* → *Preferences*, or read off an AM32, Scorpion or YGE controller).
+
 @KSE5 takes the full screen like Default, and its settings open six pages: **Look** (the full
-scale of its head speed, current and ESC temperature rings), **Before flight**, **In flight**,
+scale of its head speed, current and ESC temperature rings; the current figure applies where no
+limit is on file), **Before flight**, **In flight**,
 **Statistics**, **Info bar** and **Keys**, as described for [Default](#default).
 
 ![@KSE5 before, during and after the flight](../images/dashboard/themes/kse5.png)
@@ -247,7 +251,9 @@ speed as gauges in a framed panel, each with its highest value of the flight, be
 the flight time, the battery as a vertical bar with the pack voltage, the voltage per cell and
 the capacity used over it, and the governor state. After the flight the gauges give way to the
 flight count, the total flight time and bars for the highest head speed, ESC temperature,
-current, altitude and power and the lowest link quality, beside the same column.
+current, altitude and power and the lowest link quality, beside the same column. The current bar
+runs up to the speed controller's current limit where the model has one on file, amber from 80 %
+and red from 95 % of it; without one it runs to 300 A.
 
 @Kevd takes the full screen like Default, and its settings open six pages: **Look** (its head
 speed, BEC voltage and ESC temperature ranges), **Before flight**, **In flight**, **Statistics**,

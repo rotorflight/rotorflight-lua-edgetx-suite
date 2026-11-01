@@ -186,7 +186,7 @@ return {
     -- rings, each with a fill colour that follows its value, and its percentage ring a value colour
     -- as well.
     ["theme.@kse4"] = { target = 16200, measured = 15260 },
-    ["theme.@kse5"] = { target = 16200, measured = 15915 },
+    ["theme.@kse5"] = { target = 16200, measured = 15928 },
     ["theme.@kevd"] = { target = 16200, measured = 15729 },
     ["theme.default"] = { target = 16200, measured = 10095, proposed = 14000 },
     ["theme.rfstatus"] = { target = 16200, measured = 10217, proposed = 14000 },
@@ -264,7 +264,9 @@ return {
     -- box: its V/CELL readout, stattype `cell`, divides the pack voltage by the cell count, where
     -- the fixture before was a recorded extreme read straight off the flight record. No `theme.*`
     -- row moves. The margin is held at ~15%.
-    ["box.text/stats"] = { target = 750, measured = 647, proposed = 300 },
+    -- Raised again from 750 when this branch took master up to #1018 (647 to 681 on the same
+    -- fixture; objects/text/stats.lua itself did not change); the margin is held at ~15%.
+    ["box.text/stats"] = { target = 790, measured = 681, proposed = 300 },
     ["sweep.text/stats"] = { target = 300, measured = 109 },
     ["box.text/telemetry"] = { target = 740, measured = 570, proposed = 600 },
     ["sweep.text/telemetry"] = { target = 450, measured = 301 },

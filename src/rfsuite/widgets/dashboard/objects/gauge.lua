@@ -66,9 +66,11 @@ end
 --
 -- A gauge with a `stattype` of "min" or "max" shows that extreme of the flight instead, read out
 -- of the flight record with `statKey` (statKeyFor, resolved where the gauge is rendered) -- the
--- record the stats text object reads, with the same rule for which flight it answers for.
+-- record the stats text object reads, with the same rule for which flight it answers for. A
+-- `statKey` of false is an extreme the source has no record of, and reads as no value.
 local function readDerived(state, source, statKey)
   if statKey ~= nil then
+    if statKey == false then return nil end
     local flight = type(state) == "table" and state.flight or nil
     if type(flight) ~= "table" then return nil end
     local record = flight.current
@@ -82,10 +84,13 @@ local function readDerived(state, source, statKey)
   return derived[source]
 end
 
+-- nil where the box asks for no extreme; false where it asks for one its source has no record
+-- of, which reads as no value -- the "--" a stats text box draws for the same pair -- rather than
+-- as the live reading under a caption that says otherwise.
 local function statKeyFor(box, state, source, utils)
   local stattype = utils.resolveValue(box.stattype, box, state)
   if stattype ~= "min" and stattype ~= "max" then return nil end
-  return utils.statFields(source, stattype)
+  return utils.statFields(source, stattype) or false
 end
 
 local function resolveThresholdColor(value, thresholds, defaultColor, isFahrenheit, box, state, utils, compiled)
@@ -635,11 +640,13 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
       end
     end
 
+    -- Kept inside the tile when paddings have squeezed the bar to nothing.
+    local labelX = utils.clamp(barX + valuePaddingLeft, rect.x, rect.x + rect.w - 1)
     utils.pushLabel(
       nodes,
-      barX + valuePaddingLeft,
+      labelX,
       barY + math.floor((barHeight - 8) / 2) + valuePaddingTop,
-      barW - valuePaddingLeft - 4,
+      utils.clamp(barW - valuePaddingLeft - 4, 1, rect.x + rect.w - labelX),
       valueTextGetter,
       colorRef,
       valueAlign,
@@ -731,7 +738,7 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
         nodes,
         rect.x + 4,
         barY + battAdvPaddingTop,
-        barW - battAdvPaddingRight - 4,
+        utils.clamp(barW - battAdvPaddingRight - 4, 1, math.max(1, rect.w - 4)),
         battAdvTextGetter,
         box.battadvtextcolor or WHITE,
         battAdvAlign,

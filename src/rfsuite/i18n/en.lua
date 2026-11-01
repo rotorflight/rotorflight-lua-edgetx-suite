@@ -3505,6 +3505,8 @@ return {
         gps_sats_title = "GPS SATS",
         gps_speed = "GPS speed",
         gps_speed_title = "GPS SPEED",
+        cell_voltage = "Cell voltage",
+        cell_voltage_title = "V/CELL",
         landing_cell = "Cell voltage at landing",
         landing_cell_title = "V/CELL",
         landing_voltage = "Pack voltage at landing",

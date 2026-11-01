@@ -3499,6 +3499,8 @@ return {
         gps_sats_title = "GPS-SATELLITEN",
         gps_speed = "GPS-Geschwindigkeit",
         gps_speed_title = "GPS-TEMPO",
+        cell_voltage = "Zellspannung",
+        cell_voltage_title = "V/ZELLE",
         landing_cell = "Zellspannung bei Landung",
         landing_cell_title = "V/ZELLE",
         landing_voltage = "Akkuspannung bei Landung",

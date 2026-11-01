@@ -14,8 +14,10 @@ local FieldsForm = loadModule("app/pages/settings/dashboard/fields_form.lua")
 local THEME_PATH = "system/@kse5"
 local THEME_NAME = "@KSE5"
 
--- The Look page: the full scale of each ring, one section per ring. `scale` is what a stored
--- value is multiplied by to give the integer the number field edits (10 for one decimal).
+-- The Look page: the full scale of each ring, one section per ring. The current ring's figure is
+-- the fallback: where the model has an ESC current limit on file (Setup > Power > Preferences)
+-- the ring is scaled to that instead. `scale` is what a stored value is multiplied by to give the
+-- integer the number field edits (10 for one decimal).
 local SETTINGS = {
   { key = "rpm_max", group = "widgets.dashboard.headspeed", groupFallback = "Headspeed", label = "widgets.dashboard.max", fallback = "Max",
     default = 3000, min = 500, max = 6000, step = 50, fmt = "%d rpm" },

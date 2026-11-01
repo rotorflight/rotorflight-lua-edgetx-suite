@@ -68,12 +68,16 @@ end
 -- Keep in step with @kse4/configure.lua.
 Common.FUEL_DEFAULTS = { fuel_warn = 45, fuel_crit = 25 }
 
---- The fuel levels the fuel readings turn amber and red at, from the theme's settings.
+--- The fuel levels the fuel readings turn amber and red at, from the theme's settings. A pair
+--- out of order -- the critical level not below the warning one, compared in whole percent as the
+--- settings page edits them -- falls back to the defaults, as the page resets it.
 function Common.fuelLevels(grid)
   local cfg = grid and grid.cfg or {}
   local warn = tonumber(cfg.fuel_warn) or Common.FUEL_DEFAULTS.fuel_warn
   local crit = tonumber(cfg.fuel_crit) or Common.FUEL_DEFAULTS.fuel_crit
-  if crit > warn then crit, warn = warn, crit end
+  if math.floor(crit + 0.5) >= math.floor(warn + 0.5) then
+    return Common.FUEL_DEFAULTS.fuel_warn, Common.FUEL_DEFAULTS.fuel_crit
+  end
   return warn, crit
 end
 

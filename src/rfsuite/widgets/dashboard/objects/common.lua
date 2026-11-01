@@ -38,8 +38,8 @@ local COLOR_NAME_MAP = {
   gray = COLOR_THEME_SECONDARY2,
   orange = rgb(0xFF8000, 0xFF8000),
   blue = rgb(0x3399FF, 0x3399FF),
-  cyan = rgb(0x00FFFF, 0x07FF),
-  magenta = rgb(0xFF00FF, 0xF81F)
+  cyan = rgb(0x00FFFF, 0x00FFFF),
+  magenta = rgb(0xFF00FF, 0xFF00FF)
 }
 
 local function detectSimulator()
