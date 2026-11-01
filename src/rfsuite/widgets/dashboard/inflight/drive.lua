@@ -949,6 +949,9 @@ function Drive:endSession()
   -- ground -- never while the feature is closed, which is what surface ownership requires.
   self.readAgain = true
   self.valueEpoch = self.valueEpoch + 1
+  -- An expiry noted on the ground (widgets/dashboard/runtime.lua, inflightLinkWatch) belongs to the
+  -- session ending here; left set, it would end the next session as well.
+  self.sessionExpired = nil
   if _G.rfsuite then _G.rfsuite.inflightSession = nil end
   logDrive("tuning session ended: the undo, the values and the comparison go with it")
 end

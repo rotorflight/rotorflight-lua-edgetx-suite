@@ -961,8 +961,12 @@ local function inflightLinkWatch(self, drive)
     return gone
   end
   drive.linkGoneAt = nil
-  if drive.sessionExpired and not inflightOutstanding(drive) then
-    drive.sessionExpired = nil
+  -- The expiry is taken on the ground only. Output still held when the link came back keeps it
+  -- waiting, and the pilot may arm before that output is released: the expiry then waits for the
+  -- landing, and arm state not yet read on this link counts as not on the ground. Drive:endSession
+  -- clears the mark.
+  if drive.sessionExpired and drive.phase ~= "live" and self.state.armed ~= true
+      and self.state.armedSeen == true and not inflightOutstanding(drive) then
     drive:endSession()
     drive:setPhase("ground")
   end

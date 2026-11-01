@@ -157,6 +157,15 @@ function M.begin(widget, drive, env, mode, target)
   -- is the board's, not the widget's: while another dashboard in this Lua state holds one for this
   -- board (rfsuite.inflightSession), a drive without one joins it rather than replacing its file.
   if mode == "auto" then
+    -- An expiry still pending (the link was gone for the gap on the ground, and output held when it
+    -- came back kept the session from ending) means the board is in a new state: that session ends
+    -- here and this read begins a new one, never a continuation of it. This read is the one
+    -- Drive:endSession asks for, so no second one is requested.
+    if drive.sessionExpired then
+      drive:endSession()
+      drive.readAgain = nil
+      if drive.phase == "post" then drive:setPhase("ground") end
+    end
     local root = _G.rfsuite
     if drive.baseline == nil and not (type(root) == "table" and root.inflightSession == uid) then
       mode = "new"
