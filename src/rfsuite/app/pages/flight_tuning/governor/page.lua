@@ -642,6 +642,15 @@ function M.wakeup(ctx)
 	if type(ui.runtime) == "table" and type(ui.runtime.syncHeaderTitle) == "function" then
 		ui.runtime.syncHeaderTitle(ui.baseTitle or getBaseTitle(), ctx and ctx.navButtons or nil)
 	end
+	-- The GOVERNOR feature bit is read after the governor configuration and may land after this
+	-- page was built; a change of it changes the effective mode, so it is a rebuild, not a re-read.
+	local session = getSession()
+	local feature = session and session.governorFeature
+	if feature ~= ui.runtime.builtFeature and type(ui.runtime.requestRebuild) == "function" then
+		ui.runtime.builtFeature = feature
+		ui.runtime.requestRebuild()
+	end
+
 	-- A switch is not read over a pending edit; M.canSave refuses until Reload reads the new profile.
 	if ui.dirty then return end
 
@@ -675,6 +684,7 @@ function M.build(ctx)
 	end
 
 	local session = getSession()
+	ui.runtime.builtFeature = session and session.governorFeature
 	local govMode = tonumber(Governor.getEffectiveMode(session)) or 0
 	local govModeName = GOV_MODES[govMode] or "OFF"
 

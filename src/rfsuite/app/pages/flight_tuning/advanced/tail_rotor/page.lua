@@ -476,6 +476,15 @@ function M.wakeup(ctx)
     ui.runtime.requestRebuild = ctx.requestRebuild
   end
 
+  -- The GOVERNOR feature bit is read after the governor configuration and may land after this
+  -- page was built; a change of it shows or hides Tail Torque Assist, so it is a rebuild, not a re-read.
+  local session = getSession()
+  local feature = session and session.governorFeature
+  if feature ~= ui.runtime.builtFeature and type(ui.runtime.requestRebuild) == "function" then
+    ui.runtime.builtFeature = feature
+    ui.runtime.requestRebuild()
+  end
+
   -- A switch is not read over a pending edit; M.canSave refuses until Reload reads the new profile.
   -- The signature is taken over only with a read sent under it.
   local signature = buildSessionSignature()
@@ -537,6 +546,7 @@ function M.build(ctx)
   local specLimit   = { scale=1, mult=1, min=0, max=100, suffix="%", decimals=0 }
 
   local session = getSession()
+  ui.runtime.builtFeature = session and session.governorFeature
   local govMode = tonumber(Governor.getEffectiveMode(session)) or 0
   local isTtaActive = (govMode >= 1) and (ui.runtime and ui.runtime.governorReadComplete == true)
 

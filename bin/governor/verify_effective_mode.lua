@@ -100,7 +100,7 @@ for _, enabled in ipairs({ false, true }) do
 end
 
 -- Failed, malformed or dropped feature reads preserve the stored mode with an unknown feature.
-for _, failure in ipairs({ "timeout", "cleared", "malformed" }) do
+for _, failure in ipairs({ "max_retries", "refused", "cleared", "malformed" }) do
   scenario("feature read " .. failure, function(eq)
     local h = beginConnect(eq)
     h.governorReply(h.message, 2)
@@ -121,21 +121,22 @@ end
 
 scenario("governor read failure", function(eq)
   local h = beginConnect(eq)
-  h.message.errorHandler(h.message, "timeout")
+  h.message.errorHandler(h.message, "max_retries")
   eq(h.task.isComplete(), true, "failed governor read completes task")
   eq(#h.pending, 0, "no feature read without a governor reply")
   eq(h.session.governorMode, nil, "no stored mode")
 end)
 
-scenario("feature reply after the session was replaced", function(eq)
+scenario("reconnect drops the trailing feature read", function(eq)
+  -- The session table is kept and reset in place across a reconnect; what stops the previous
+  -- board's answer is the queue clear on disconnect, which reports "cleared" and sets nothing.
   local h = beginConnect(eq)
   h.governorReply(h.message, 3)
   local message = h.pop(h.featureApi.command)
-  local oldSession = h.session
-  _G.rfsuite.session = { governorMode = 1 }
-  message.processReply(message, h.featureApi.buildWritePayload({ enabledFeatures = 0 }))
-  eq(_G.rfsuite.session.governorFeature, nil, "a late reply does not reach the new session")
-  eq(oldSession.governorFeature, nil, "nor the session it was asked for")
+  h.task.reset()
+  message.errorHandler(message, "cleared")
+  eq(h.session.governorFeature, nil, "a cleared feature read sets nothing")
+  eq(h.session.governorMode, nil, "reset cleared the stored mode")
 end)
 
 for _, spec in ipairs({
@@ -249,6 +250,28 @@ for mode = 0, 4 do
       end)
     end
   end
+end
+
+for _, spec in ipairs({
+  { path = "app/pages/flight_tuning/governor/page.lua", label = "Governor" },
+  { path = "app/pages/flight_tuning/advanced/tail_rotor/page.lua", label = "Tail Rotor" }
+}) do
+  scenario(spec.label .. " rebuilds when the feature arrives after its build", function(eq)
+    local page, ctx = newPage(spec.path, 3, nil)
+    local rebuilds = 0
+    ctx.requestRebuild = function() rebuilds = rebuilds + 1 end
+    page.build(ctx)
+    page.wakeup(ctx)
+    eq(rebuilds, 0, "no rebuild while the feature is unchanged")
+    _G.rfsuite.session.governorFeature = false
+    page.wakeup(ctx)
+    eq(rebuilds, 1, "a late feature reply asks for one rebuild")
+    page.wakeup(ctx)
+    eq(rebuilds, 1, "and only once")
+    _G.rfsuite.session.governorFeature = true
+    page.wakeup(ctx)
+    eq(rebuilds, 2, "a later change asks again")
+  end)
 end
 
 print("Governor effective mode: " .. checks .. " checks, " .. failures .. " failures")
