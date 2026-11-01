@@ -1119,6 +1119,15 @@ function M.start(widget, drive, automatic)
   if isArmed(widget) then return false, "armed" end
   if M.isRunning(drive) then return false, "reading" end
   if queueOf() == nil then return false, "no_link" end
+  -- A session whose end is still pending ends as this read begins, so the read begins a new one --
+  -- also when it is interrupted before its values (Drive:takeExpiry). A profile job still running
+  -- belongs to that session and finishes first, as profiles.begin requires. Without a link nothing is
+  -- read, and the session is kept for the list on screen until the link is back.
+  if drive.sessionExpired then
+    if widget.state.fblConnected ~= true then return false, "no_link" end
+    if drive.profileJob ~= nil then return false, "reading" end
+    drive:takeExpiry()
+  end
 
   local prime = {
     phase = M.PHASE_RXMAP,
@@ -1148,7 +1157,15 @@ function M.start(widget, drive, automatic)
   drive.primeInterrupted = nil
   bump(drive)
   logPrime("prime started")
-  return sendRxMap(widget, drive, prime)
+  local ok = sendRxMap(widget, drive, prime)
+  if ok then
+    -- A full read, whoever asked for it, answers every read still asked for: the link's automatic
+    -- read and the one an ended session asks for. A run that fails or is armed into is offered
+    -- again by M.tick's retry, as before.
+    drive.readAgain = nil
+    drive._primeAutoDone = true
+  end
+  return ok
 end
 
 -- Refresh uses the completed slot table and existing session membership. Each transaction
@@ -1206,9 +1223,13 @@ function M.transferRefusal(widget, drive)
 end
 
 function M.restore(widget, drive, target)
-  local refusal = M.transferRefusal(widget, drive)
+  -- A session whose end is still pending (a link gap on the ground) has stale start values: they are
+  -- not written back. The board is read again instead, and that read begins a new session.
+  local expired = type(drive) == "table" and drive.sessionExpired
+  local refusal = not expired and M.transferRefusal(widget, drive) or nil
   local ok, reason = false, refusal
-  if not refusal then ok, reason = profileModule().begin(widget, drive, profileEnvironment(), "restore", target) end
+  if expired then ok, reason = M.refreshValues(widget, drive)
+  elseif not refusal then ok, reason = profileModule().begin(widget, drive, profileEnvironment(), "restore", target) end
   if not ok then
     drive.transfer = {kind = "restore", state = "refused", reason = reason}
     bump(drive)

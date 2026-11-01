@@ -3892,6 +3892,7 @@ return {
       inflight_board_no_slots = "Keine nutzbaren Plätze auf dem Flugcontroller",
       inflight_bounds_warning = "%d außerhalb der FC-Grenzen: FC erneut einrichten",
       inflight_session_start = "Startwerte %s",
+      inflight_session_expired = "Neuer Akku: neue Sitzung beim Lesen",
       inflight_choose_parameters = "Parameter wählen",
       inflight_pick_cancel = "Abbrechen",
       inflight_pick_apply = "Übernehmen",

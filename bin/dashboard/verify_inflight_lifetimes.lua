@@ -310,6 +310,98 @@ scenario("a battery change during a profile job ends the session once the job is
   end
 end)
 
+-- The expiry a ground gap notes is taken on the ground only. Work still outstanding when the link
+-- comes back (here a profile job) keeps it waiting, and the open surface then asserts its bank
+-- selection (drive.lua, Drive:tick), which goes on keeping it waiting after the job is done. If the
+-- pilot arms then, the bank is still held in the air; when it is released in flight (a profile
+-- switch cleans it up), the session must not end.
+local function expiredWithWorkOutstanding(widget, d)
+  d.profileJob = {}
+  widget.state.fblConnected = false
+  Stubs.tick(); widget:refresh(0, nil)
+  offset = offset + 600
+  Stubs.tick(); widget:refresh(0, nil)
+  widget.state.fblConnected = true
+  Stubs.tick(); widget:refresh(0, nil)
+  check(d.sessionExpired == true, "positive control: the gap was long enough to end the session")
+  check(widget._inflight == d and d.baseline ~= nil, "the outstanding job keeps the session on the ground")
+end
+
+-- This fixture has no tuning setup, so the surface's own pass does not assert a bank: the holder is
+-- handed over at the arming, and the profile switch's cleanup is the bank going back to 0.
+scenario("an expiry noted on the ground is not taken in the air, and is taken on the ground after the landing", function()
+  local widget = newWidget()
+  open(widget)
+  local d = withSession(widget, nil)
+  expiredWithWorkOutstanding(widget, d)
+  widget.state.armed, d.phase, d.live = true, "live", true
+  d.profileJob, d.bankWritten = nil, 1
+  widget.state.fblConnected = true
+  Stubs.tick(); widget:refresh(0, nil)
+  d.bankWritten = 0
+  for _ = 1, 3 do widget.state.fblConnected = true; Stubs.tick(); widget:refresh(0, nil) end
+  check(widget._inflight == d and d.baseline ~= nil and d.baseline.identity == "kept",
+    "armed: the bank released in the air does not end the session")
+  check(d.sessionExpired == true, "armed: the expiry is kept for the ground")
+  widget.state.armed = false
+  for _ = 1, 3 do widget.state.fblConnected = true; Stubs.tick(); widget:refresh(0, nil) end
+  check(d.phase ~= "live", "positive control: the landing was observed")
+  check(widget._inflight == d and d.baseline == nil and d.readAgain and d.sessionExpired == nil,
+    "the first ground pass with nothing holding it ends the session and asks for a new read")
+  close(widget)
+  forget(widget)
+end)
+
+scenario("an expiry on the ground waits for this link's arm state, then ends the session as before", function()
+  local widget = newWidget()
+  open(widget)
+  local d = withSession(widget, nil)
+  expiredWithWorkOutstanding(widget, d)
+  d.profileJob = nil
+  widget.state.armedSeen = false
+  for _ = 1, 2 do widget.state.fblConnected = true; Stubs.tick(); widget:refresh(0, nil) end
+  check(d.baseline ~= nil and d.sessionExpired == true, "arm state not yet read on this link: the session is kept")
+  widget.state.armedSeen = true
+  widget.state.fblConnected = true
+  Stubs.tick(); widget:refresh(0, nil)
+  check(d.baseline == nil and d.readAgain and d.phase == "ground" and d.sessionExpired == nil,
+    "on the ground, with the job done, the session ends and a new read is asked for")
+  close(widget)
+  forget(widget)
+end)
+
+scenario("closing tuning with an expiry pending releases the session only once this link has read the arm state", function()
+  local widget = newWidget()
+  open(widget)
+  local d = withSession(widget, nil)
+  expiredWithWorkOutstanding(widget, d)
+  d.profileJob = nil
+  widget.state.armedSeen = false
+  local weak = weakModules()
+  close(widget)
+  collect()
+  check(widget._inflight == d and d.baseline ~= nil and d.sessionExpired == true,
+    "arm state not yet read on this link: the closed session is kept")
+  check(weak["screen.lua"] == nil and weak["input.lua"] == nil, "the view leaves while the session waits")
+  widget.state.armedSeen = true
+  for _ = 1, 2 do Stubs.tick(); widget:refresh(0, nil) end
+  check(widget._inflight ~= d, "the arm state read on the ground: the closed session is released")
+  forget(widget)
+end)
+
+scenario("a closed drive with no session and an expiry pending is released without waiting for the arm state", function()
+  local widget = newWidget()
+  open(widget)
+  local d = widget._inflight
+  d.baseline, d.sessionProfiles, d.phase = nil, nil, "ground"
+  d.sessionExpired = true
+  widget.state.armedSeen = false
+  close(widget)
+  check(widget._inflight ~= d, "nothing to keep: the drive is released")
+  widget.state.armedSeen = true
+  forget(widget)
+end)
+
 scenario("closing during the first read releases it and its late replies answer into nothing", function()
   local widget = newWidget()
   open(widget)

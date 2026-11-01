@@ -949,8 +949,27 @@ function Drive:endSession()
   -- ground -- never while the feature is closed, which is what surface ownership requires.
   self.readAgain = true
   self.valueEpoch = self.valueEpoch + 1
+  -- An expiry noted on the ground (widgets/dashboard/runtime.lua, inflightLinkWatch) belongs to the
+  -- session ending here; left set, it would end the next session as well.
+  self.sessionExpired = nil
   if _G.rfsuite then _G.rfsuite.inflightSession = nil end
   logDrive("tuning session ended: the undo, the values and the comparison go with it")
+end
+
+--- A read that begins while an expiry is still pending (the link was gone for the gap on the
+-- ground, and work held when it came back kept the session from ending) ends that session first,
+-- so the read begins a new one. The read is the one Drive:endSession asks for, so that request is
+-- withdrawn again. A parameter choice of the ended session may already have filtered the groups,
+-- so they are filtered again without it. A model-default save still waiting is the model's, not the
+-- session's: it is kept and written once the read is done. Answers whether a session was ended.
+function Drive:takeExpiry()
+  if not self.sessionExpired then return false end
+  local chosen, save = self.sessionList, self.pendingSave
+  self:endSession()
+  self.readAgain, self.pendingSave = nil, save
+  if chosen ~= nil then self:applyFilter() end
+  if self.phase == M.PHASE_POST then self:setPhase(M.PHASE_GROUND) end
+  return true
 end
 
 --- Fullscreen foreground ownership is the release, with no seed or delay in either direction.

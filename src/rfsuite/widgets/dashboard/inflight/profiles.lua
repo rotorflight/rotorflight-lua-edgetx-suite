@@ -156,6 +156,12 @@ function M.begin(widget, drive, env, mode, target)
   -- battery change -- begins a new one, whatever an earlier session left on the card. The session
   -- is the board's, not the widget's: while another dashboard in this Lua state holds one for this
   -- board (rfsuite.inflightSession), a drive without one joins it rather than replacing its file.
+  -- An expiry still pending (the link was gone for the gap on the ground) means the board is in a
+  -- new state: the session ends and this read begins a new one, never a continuation of it. A full
+  -- read has already ended it where it started (prime.lua, M.start); a values-only Read again ends
+  -- it here (a restore asked for meanwhile is turned into that read by prime.lua, M.restore, so the
+  -- stale start values are not written back). See Drive:takeExpiry.
+  if (mode == "auto" or mode == "refresh") and drive:takeExpiry() and mode == "refresh" then mode = "new" end
   if mode == "auto" then
     local root = _G.rfsuite
     if drive.baseline == nil and not (type(root) == "table" and root.inflightSession == uid) then
