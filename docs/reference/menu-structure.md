@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**119 entries, 98 of them open a page, 63 of those pages are documented.**
+**119 entries, 98 of them open a page, 64 of those pages are documented.**
 
 ## Diagrams
 
