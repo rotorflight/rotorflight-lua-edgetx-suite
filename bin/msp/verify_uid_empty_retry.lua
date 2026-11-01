@@ -23,7 +23,7 @@ local EMPTY_WARN = "^UID read answered without a UID %(cmd=160%); backoff (%d+)s
 local FAILED_WARN = "^UID read failed %(cmd=160%); backoff (%d+)s$"
 
 local function newRuntime()
-  local h = { armflags = 0, rssi = 100, time = 1000, messages = {}, loads = {} }
+  local h = { armflags = 0, rssi = 100, time = 1000, messages = {}, loads = {}, hold = {} }
   h.replies = {
     [1] = { 0, 12, 9 },
     [3] = { 4, 6, 0 },
@@ -48,6 +48,10 @@ local function newRuntime()
   function queue:processQueue()
     -- Replies arrive during processing, never inside add(), as with the real queue. A reply with
     -- the command's number and no error flag completes the entry, whatever its length.
+    local head = self.entries[1]
+    -- A request held unanswered stays on the queue across ticks, as one the real queue is still
+    -- waiting on.
+    if head and h.hold[head.command] then return end
     local entry = table.remove(self.entries, 1)
     if not entry then return end
     local reply = h.replies[entry.command]
@@ -132,6 +136,13 @@ local function newRuntime()
   function h:untilUidSent(n, limit)
     for _ = 1, limit or 400 do
       if (self.queue.sent[UID] or 0) >= n and self.queue:isProcessed() then return end
+      self:tick()
+    end
+  end
+  -- Ticks until the n-th UID request is on the queue (held or not).
+  function h:untilUidQueued(n, limit)
+    for _ = 1, limit or 400 do
+      if (self.queue.sent[UID] or 0) >= n then return end
       self:tick()
     end
   end
@@ -257,6 +268,53 @@ scenario("armed_during_backoff", function(eq)
   eq(h:sent(1), 1, "disarmed: the API version read is still not sent again")
   expectIdentified(h, eq, "after the landing")
   eq(h.unsettledAfterSettle, 0, "armed: never back to unsettled")
+end)
+
+-- The retry stays unanswered across ticks: the read must stay settled the whole time it is on the
+-- queue, not only once its answer has come back.
+scenario("retry_held_stays_settled", function(eq)
+  local h = newRuntime()
+  h.replies[UID] = {}
+  h:untilUidSent(1)
+  h.replies[UID] = UID_REPLY
+  h.hold[UID] = true
+  h:untilUidQueued(2)
+  eq(h:sent(UID), 2, "control: the retry is on the queue")
+  h:tick(20)
+  eq(h.queue:isProcessed(), false, "control: the retry is still unanswered")
+  eq(h.state.uidReadSettled, true, "retry unanswered: still settled")
+  eq(h.unsettledAfterSettle, 0, "retry unanswered: never back to unsettled on any tick")
+  eq(h:sent(UID), 2, "retry unanswered: not queued a second time")
+  h.hold[UID] = nil
+  h:untilUidSent(2)
+  expectIdentified(h, eq, "held retry answered")
+end)
+
+-- Armed while the retry is on the queue: the armed gate clears it, the read stays owed and settled,
+-- the clear is not counted as a failure, and the read goes out again after disarm.
+scenario("retry_cleared_by_arming", function(eq)
+  local h = newRuntime()
+  h.replies[UID] = {}
+  h:untilUidSent(1)
+  h.replies[UID] = UID_REPLY
+  h.hold[UID] = true
+  h:untilUidQueued(2)
+  eq(h.queue:isProcessed(), false, "control: the retry is on the queue when the craft arms")
+  local failuresBefore = h.state.consecutiveUidFailures
+  h.armflags = 1
+  h:tick(20)
+  eq(h.state.lastArmed, true, "control: armed")
+  eq(h.queue:isProcessed(), true, "armed: the retry was cleared from the queue")
+  eq(h.state.pendingUidRead, true, "armed: the cleared read is owed again")
+  eq(h.state.uidReadSettled, true, "armed: still settled")
+  eq(h.state.consecutiveUidFailures, failuresBefore, "armed: the clear is not counted as a failure")
+  eq(h:sent(UID), 2, "armed: no UID request while armed")
+  h.hold[UID] = nil
+  h.armflags = 0
+  h:untilUidSent(3)
+  eq(h:sent(UID), 3, "disarmed: the owed read goes out again")
+  expectIdentified(h, eq, "cleared retry, then answered")
+  eq(h.unsettledAfterSettle, 0, "cleared retry: never back to unsettled")
 end)
 
 if failures > 0 then
