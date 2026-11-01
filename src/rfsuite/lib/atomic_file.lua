@@ -4,7 +4,8 @@
 -- parked as `.bak`, and only then is the new file renamed into place. Every failure exit leaves
 -- the original where it was, and a failure of the final rename leaves the data in the `.bak`.
 -- A write cut short between the two renames leaves only the `.bak`; a reader that finds no file
--- under the name may read that instead (lib/tune_history.lua does).
+-- under the name may read that instead: readablePath below answers which of the two to read
+-- (lib/flight_log.lua reads its registry through it; lib/tune_history.lua does the same itself).
 --
 -- A module of its own so that a caller replacing one small file does not have to load the
 -- module of another feature to do it: lib/flight_log.lua and lib/tune_history.lua both write
@@ -20,6 +21,25 @@ local function fileSize(path)
   local ok, st = pcall(fstat, path)
   if not ok or type(st) ~= "table" then return nil end
   return tonumber(st.size)
+end
+
+local function opens(path)
+  local f = io.open(path, "r")
+  if not f then return false end
+  io.close(f)
+  return true
+end
+
+--- The path to read a file written through here from: the file itself or, when no file stands
+--- under the name, the `.bak` a replace cut short between its two renames left behind. With
+--- neither there it answers the name, so a missing file still reads as missing. The `.bak` is
+--- left where it is; the next replace built on what was read from it writes it back under the
+--- name, and only the replace after that removes it.
+function M.readablePath(path)
+  if opens(path) then return path end
+  local bakPath = path .. ".bak"
+  if opens(bakPath) then return bakPath end
+  return path
 end
 
 --- Writes `content` over `path`. `allowCreate` lets a missing original through: the file is then

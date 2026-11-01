@@ -1,0 +1,2 @@
+- **The battery registry survives a save cut short by a power loss (`tools/flight_log`)**:
+  - When the radio loses power between the two renames of a registry save, `batteries.cfg` is missing and the registry sits in `batteries.cfg.bak`. Every reader now reads the `.bak` then, and the next edit or counted flight writes it back under the name, instead of the next new pack starting a one-line registry that the edit after it would park over the `.bak` (#992).

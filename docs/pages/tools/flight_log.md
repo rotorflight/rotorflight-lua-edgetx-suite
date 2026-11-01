@@ -234,6 +234,14 @@ The battery registry beside it is the same kind of file, one pack per line, and 
 kept by hand as readily as from the editor: an edit made here rewrites the one line it changes and
 leaves comments, unknown fields and the rest of the file exactly as they were.
 
+Every edit writes the new file beside the old one first and keeps the previous version as
+`batteries.cfg.bak`. Where the radio loses power in the middle of a save, the registry can be left
+only as `batteries.cfg.bak`: it is then read from there, so the Batteries list, the prompt on
+connect and the disarm all still see every pack, and the next edit or counted flight writes it back
+as `batteries.cfg`. The edit that was being saved when the power went is not kept. This also means
+that deleting `batteries.cfg` on a computer to start an empty registry brings back the packs in
+`batteries.cfg.bak`: delete both files for that.
+
 A pack can leave the registry without this page knowing which models had it chosen: deleted or
 given a new id in the file itself, or on this page while another model is connected. So the pack a
 flight is about to be logged against is looked up in the registry at the disarm first. Where no

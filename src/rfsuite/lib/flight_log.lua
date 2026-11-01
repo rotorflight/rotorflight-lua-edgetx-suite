@@ -18,7 +18,9 @@
 -- changes and comments, unknown fields and the file's own line endings survive byte for byte.
 -- The replace is atomic (write `.new`, verify its size, park the original as `.bak`, rename),
 -- because this is a file the pilot maintains by hand and a truncating in-place rewrite that is
--- interrupted loses all of it.
+-- interrupted loses all of it. A replace cut short between its two renames leaves the registry
+-- only as `batteries.cfg.bak`; every reader here reads it from there, and the next edit writes it
+-- back under the name.
 --
 -- io.write answers the file handle on success and nil plus a message on a short write, so a
 -- failing write is not silent. Every write here is verified through fstat all the same, by the
@@ -125,6 +127,34 @@ local function readAll(path, cap)
   return table.concat(parts)
 end
 
+-- lib/atomic_file.lua, loaded on first use: the registry is replaced through it, and read through
+-- it as well, since it knows where a replace cut short left the registry.
+local AtomicFile = nil
+
+local function atomicFile()
+  if AtomicFile == nil then
+    local req = _G.rfsuite and _G.rfsuite.require
+    if type(req) == "function" then
+      AtomicFile = req("lib/atomic_file.lua") or false
+    else
+      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/atomic_file.lua", (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
+      local ok, mod = pcall(chunk)
+      AtomicFile = (ok and type(mod) == "table") and mod or false
+    end
+  end
+  return AtomicFile
+end
+
+-- The file the registry is read from. A replace cut short between its two renames leaves no
+-- batteries.cfg, only batteries.cfg.bak, which holds the registry as it stood before that edit:
+-- that is read instead, rather than an empty registry that the next new pack would start a file
+-- of one line from and the edit after it would then park over the `.bak`.
+local function readPathFor(path)
+  local AF = atomicFile()
+  if AF and type(AF.readablePath) == "function" then return AF.readablePath(path) end
+  return path
+end
+
 function M.formatDate(dt)
   if type(dt) ~= "table" then return "" end
   return string.format("%04d-%02d-%02d", dt.year or 0, dt.mon or 0, dt.day or 0)
@@ -140,13 +170,14 @@ end
 -- ---------------------------------------------------------------------------
 
 -- Returns an array of { id, name, cap, cells, models (lower case), profile, cycles, last }. A missing
--- file is an empty registry, not an error. Duplicate ids: the first line wins, because the
+-- file is an empty registry, not an error; one a replace cut short left only as `.bak` is read
+-- from there (readPathFor). Duplicate ids: the first line wins, because the
 -- format declares the id unique and keeping both would show two packs of which only one is
 -- ever stamped.
 function M.loadRegistry()
   local list = {}
   local seen = {}
-  local data = readAll(M.registryPath(), READ_CAP) or ""
+  local data = readAll(readPathFor(M.registryPath()), READ_CAP) or ""
   for line in string.gmatch(data, "[^\r\n]+") do
     if string.match(line, "^%s*#") == nil and string.find(line, "=", 1, true) ~= nil then
       local entry = {}
@@ -504,21 +535,15 @@ end
 -- leaves the original where it was.
 --
 -- `allowCreate` lets a missing original through: the file is then created with its first line
--- rather than the write being refused.
-local AtomicFile = nil
-
+-- rather than the write being refused. A registry read from the `.bak` (readPathFor) is
+-- written back under the name the same way, whichever edit comes first: no file stands under the
+-- name to be replaced, and the content was built on the pilot's whole registry.
 local function atomicReplace(path, content, allowCreate)
-  if AtomicFile == nil then
-    local req = _G.rfsuite and _G.rfsuite.require
-    if type(req) == "function" then
-      AtomicFile = req("lib/atomic_file.lua") or false
-    else
-      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/atomic_file.lua", (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
-      local ok, mod = pcall(chunk)
-      AtomicFile = (ok and type(mod) == "table") and mod or false
-    end
-  end
+  local AtomicFile = atomicFile()
   if not AtomicFile then return false end
+  if not allowCreate and type(AtomicFile.readablePath) == "function" then
+    allowCreate = AtomicFile.readablePath(path) ~= path
+  end
   ensureDir()
   return AtomicFile.replace(path, content, allowCreate)
 end
@@ -535,6 +560,7 @@ end
 -- ended early on a card error: this interpreter returns the same empty string for that as for
 -- the end of the file.
 local function guardedRead(path)
+  path = readPathFor(path)
   local size = fileSize(path)
   if size ~= nil and size > READ_CAP then return nil, "toobig" end
   local data = readAll(path, READ_CAP)
@@ -572,7 +598,7 @@ end
 -- Reads registry text with the rewrite size cap; a known size must match the bytes read.
 -- A failed or incomplete read of a non-empty file answers "unreadable".
 function M.readRegistry()
-  local path = M.registryPath()
+  local path = readPathFor(M.registryPath())
   local size = fileSize(path)
   if size ~= nil and size > READ_CAP then return nil, "toobig" end
   local data = readAll(path, READ_CAP)
