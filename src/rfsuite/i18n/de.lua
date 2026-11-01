@@ -1684,8 +1684,7 @@ return {
         saved_message = "Fernsteuerungskonfiguration gespeichert",
         save_error_title = "Fehler",
         help_title = "Fernsteuerung-Hilfe",
-        help_p1 = "Konfigurieren Sie Ihre Fernsteuerungseinstellungen: Knueppelzentrum, Ausschlag, Scharfschaltschwelle, Gasgrenzen und Totzonen.",
-        help_p2 = "Speichern schreibt diese Werte in das EEPROM."
+        help_p1 = "Diese Knueppel- und Gaseinstellungen werden im Flugcontroller gespeichert; Speichern startet ihn neu.\nMitte: Kanalwert bei zentrierten Roll-, Nick- und Gierknueppeln (0%).\nAusschlag: Maximaler Weg von der Mitte bis 100% Knueppelausschlag.\nZyklisch: Ignoriert Roll- und Nickeingaben innerhalb der Totzone um die Mitte.\nGier: Ignoriert Giereingaben innerhalb der Totzone um die Mitte.\nMin: Kanalwert fuer 0% Gas; Gas muss zum Scharfschalten mindestens 10 us darunter liegen.\nMax: Kanalwert fuer 100% Gas."
       },
       setup_telemetry = {
         set_defaults_title = "Telemetrie-Sensoren",
