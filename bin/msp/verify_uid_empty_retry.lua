@@ -58,7 +58,7 @@ local function newRuntime()
     assert(reply ~= nil, "unexpected command: " .. tostring(entry.command))
     if reply == "no_reply" then
       -- What the real queue does once its retries for an unanswered read are spent.
-      if entry.errorHandler then entry.errorHandler(entry, "timeout") end
+      if entry.errorHandler then entry.errorHandler(entry, "max_retries") end
       return
     end
     if entry.processReply then entry.processReply(entry, reply) end
@@ -199,6 +199,9 @@ local function emptyThenAnswered(emptyReply)
     warns, backoff = h:warned(EMPTY_WARN)
     eq(warns, 2, "second empty answer: warned again")
     eq(backoff, 6, "second empty answer: the backoff grows")
+    -- The grown backoff is the one waited out, not only the one logged.
+    h:tick(55)
+    eq(h:sent(UID), 2, "inside the grown backoff: no third request")
 
     -- Now the board answers with its UID.
     h.replies[UID] = UID_REPLY
@@ -218,6 +221,22 @@ end
 
 scenario("empty_answer_retried", emptyThenAnswered({}))
 scenario("short_answer_retried", emptyThenAnswered({ 43, 0, 34, 0 }))
+
+-- A board that keeps answering without a UID is asked at most every 30 seconds.
+scenario("backoff_capped", function(eq)
+  local h = newRuntime()
+  h.replies[UID] = {}
+  local requests = 16
+  for n = 1, requests do h:untilUidSent(n) end
+  eq(h:sent(UID), requests, "control: every retry went out")
+  local _, backoff = h:warned(EMPTY_WARN)
+  eq(backoff, 30, "the backoff stops growing at 30 s")
+  h:tick(290)
+  eq(h:sent(UID), requests, "inside the capped backoff: no further request")
+  h:untilUidSent(requests + 1, 20)
+  eq(h:sent(UID), requests + 1, "after the capped backoff: asked again")
+  eq(h.unsettledAfterSettle, 0, "capped: never back to unsettled")
+end)
 
 scenario("first_answer_unchanged", function(eq)
   local h = newRuntime()
