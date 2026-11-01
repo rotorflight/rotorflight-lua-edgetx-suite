@@ -626,9 +626,13 @@ end
 -- widget again when it loads the screens' layout again (a model selected, the screens edited); the
 -- widgets share one Lua state, so the new instance -- a fresh copy of the runtime, as the widget's
 -- create loads it -- meets the same MSP runtime mid-read. It resolves nothing before the UID
--- arrives, draws the splash meanwhile, and then the model's theme from the module cache.
-do
-  if trace then print("scenario: built during an unsettled connection") end
+-- arrives, draws the splash meanwhile, and then the model's theme from the module cache. Where the
+-- board turns out to carry another theme, the one the replaced widget held is released once no
+-- widget uses it, as the constructor's own load would have led to.
+for _, returned in ipairs({ "system/urban", "system/grid" }) do
+  local tag = returned == "system/urban" and "built during an unsettled connection"
+    or "built during an unsettled connection, another theme"
+  if trace then print("scenario: " .. tag) end
   local world = newWorld()
   connectAndSettle(world)
   world.linkUp = false
@@ -642,7 +646,7 @@ do
   local Msp = _G.rfsuite.require("tasks/msp/runtime.lua")
   local st = Msp.getState()
   expect(#world.heldUid > 0 and Msp.isFblConnected() == true and st.uidReadSettled == false,
-    "control: the link is up and its UID read has no answer when the dashboard is built again")
+    "control: the link is up and its UID read has no answer when the dashboard is built again (" .. tag .. ")")
   -- The old instance goes, as the firmware deletes it, and a new one is built from a fresh copy.
   _G.rfsuite.dashboardWidgets[world.w] = nil
   world.reloads, world.cachedReloads = {}, 0
@@ -656,33 +660,42 @@ do
     return loadTheme(...)
   end)
   local b = RuntimeB.new({ x = 0, y = 0, w = 800, h = 480 }, {})
-  expect(loads == 0 and b.theme == nil, "built during an unsettled connection: the constructor resolves no theme",
+  expect(loads == 0 and b.theme == nil, tag .. ": the constructor resolves no theme",
     loads .. " theme load(s), theme " .. tostring(b.theme ~= nil) .. ", " .. tostring(b.themePath))
   instrument(world, b)
   local treesBefore = #world.trees
   passes(world, 30, "held")
-  expect(#world.reloads == 0 and b.theme == nil, "built during an unsettled connection: no theme is resolved before the UID",
+  expect(#world.reloads == 0 and b.theme == nil, tag .. ": no theme is resolved before the UID",
     #world.reloads .. " resolve(s)")
   local splash = false
   for i = treesBefore + 1, #world.trees do
     if world.trees[i].kind == "splash" then splash = true end
   end
-  expect(splash and b.connectionReady ~= true, "built during an unsettled connection: the splash is drawn while it waits")
+  expect(splash and b.connectionReady ~= true, tag .. ": the splash is drawn while it waits")
+  if returned ~= "system/urban" then
+    world.modelPrefs.dashboard.model_theme_preflight = returned
+    assert(world.MP.saveByMcuId(world.mcuId, world.modelPrefs), "model store write while held")
+  end
   world.releaseUid()
   passes(world, 60, "uid")
-  expect(_G.rfsuite.session.mcu_id == world.mcuId, "control: the board identified itself (built during an unsettled connection)",
+  expect(_G.rfsuite.session.mcu_id == world.mcuId, "control: the board identified itself (" .. tag .. ")",
     tostring(_G.rfsuite.session.mcu_id))
-  expect(b.themePath == "system/urban" and b.theme ~= nil, "built during an unsettled connection: the model's theme after the UID",
+  expect(b.themePath == returned and b.theme ~= nil, tag .. ": the model's theme after the UID",
     tostring(b.themePath))
   local foreign = 0
   for _, r in ipairs(world.reloads) do
-    if r.theme ~= "system/urban" then foreign = foreign + 1 end
+    if r.theme ~= returned then foreign = foreign + 1 end
   end
-  expect(foreign == 0, "built during an unsettled connection: no other theme is resolved on the way",
+  expect(foreign == 0, tag .. ": no other theme is resolved on the way",
     foreign .. " foreign resolve(s)")
-  expect(world.cachedReloads == 0,
-    "built during an unsettled connection: the model's cached theme modules are not read from the card again",
-    world.cachedReloads .. " re-read(s)")
+  if returned == "system/urban" then
+    expect(world.cachedReloads == 0,
+      tag .. ": the model's cached theme modules are not read from the card again",
+      world.cachedReloads .. " re-read(s)")
+  else
+    expect(modelThemeModules() == 0, tag .. ": the theme the replaced widget held is released",
+      modelThemeModules() .. " module(s) of it still loaded")
+  end
 end
 
 -- The memory probe's own control: an allocation it must see.

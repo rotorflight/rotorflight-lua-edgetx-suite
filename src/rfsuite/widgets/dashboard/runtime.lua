@@ -4362,16 +4362,20 @@ function Runtime.new(zone, options)
     -- it. Cleared first, so a load that raises is retried by the same tests as it was before.
     self._themeReloadPending = nil
     -- The wait for this link's UID read (see the pass below) holds for every caller, the
-    -- constructor at the end of Runtime.new included: EdgeTX builds every dashboard again when it loads the screens' layout
-    -- again -- a model selected, the screens edited -- and the link and the MSP runtime, which all
-    -- dashboards on the radio share, carry on through that. An instance built while the read has
-    -- no outcome resolves nothing; it has no theme, and its first pass takes the reload through
-    -- the same wait. Below the line above, so a carried reload does not hold the splash back.
+    -- constructor at the end of Runtime.new included: EdgeTX builds every dashboard again when it
+    -- loads the screens' layout again -- a model selected, the screens edited -- and the link and
+    -- the MSP runtime, which all dashboards on the radio share, carry on through that. An instance
+    -- built while the read has no outcome resolves nothing; it has no theme, and its first pass
+    -- takes the reload through the same wait. Below the line above, so a carried reload does not
+    -- hold the splash back. Such an instance has not loaded a theme yet, so its first load is
+    -- marked as a change of folder (`false`): the release below then drops what the widget it
+    -- replaced held and no widget uses any more, as the constructor's own load would have led to.
     if self.connectionReady ~= true and MspRuntime and type(MspRuntime.isFblConnected) == "function"
       and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
       local msp = MspRuntime.getState()
       if type(msp) == "table" and msp.uidReadSettled == false then
         self.theme = nil
+        if self._themeFolder == nil then self._themeFolder = false end
         return
       end
     end
