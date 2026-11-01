@@ -844,6 +844,21 @@ do
   check(instance.baseline.pid3["14"] == stepped + 7 and files[path] ~= card,
     "the new start values are the board's as it stands, on the card")
   fc.data.pid3[112].pid_1_P = stepped
+
+  -- After a real gap the link owes its automatic read. A restore pressed before it begins (or Read
+  -- again) is that read, started early: it begins the new session, and no second read follows it.
+  instance = session()
+  instance:invalidateRead()
+  instance.sessionExpired = true
+  check(instance.readRequired and instance._primeAutoDone == false, "positive control: the gap left the automatic read owed")
+  check(Prime.restore(widget, instance, {kind = "pid", index = 3}), "a restore after the gap starts the owed read")
+  local first = instance.prime
+  for _ = 1, 3000 do pass(instance); if not Prime.isRunning(instance) and not instance.profileJob then break end end
+  check(first.phase == "done" and instance.sessionMode == "new" and instance.sessionExpired == nil and not instance.readRequired,
+    "the owed read begins the new session")
+  for _ = 1, 300 do pass(instance) end
+  check(instance.prime == first and not Prime.isRunning(instance) and #pending == 0,
+    "no second automatic read follows the one the restore started")
   files[path] = savedFile
 end
 

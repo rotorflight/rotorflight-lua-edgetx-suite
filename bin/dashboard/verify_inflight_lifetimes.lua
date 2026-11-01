@@ -377,12 +377,28 @@ scenario("closing tuning with an expiry pending releases the session only once t
   expiredWithWorkOutstanding(widget, d)
   d.profileJob = nil
   widget.state.armedSeen = false
+  local weak = weakModules()
   close(widget)
+  collect()
   check(widget._inflight == d and d.baseline ~= nil and d.sessionExpired == true,
     "arm state not yet read on this link: the closed session is kept")
+  check(weak["screen.lua"] == nil and weak["input.lua"] == nil, "the view leaves while the session waits")
   widget.state.armedSeen = true
   for _ = 1, 2 do Stubs.tick(); widget:refresh(0, nil) end
   check(widget._inflight ~= d, "the arm state read on the ground: the closed session is released")
+  forget(widget)
+end)
+
+scenario("a closed drive with no session and an expiry pending is released without waiting for the arm state", function()
+  local widget = newWidget()
+  open(widget)
+  local d = widget._inflight
+  d.baseline, d.sessionProfiles, d.phase = nil, nil, "ground"
+  d.sessionExpired = true
+  widget.state.armedSeen = false
+  close(widget)
+  check(widget._inflight ~= d, "nothing to keep: the drive is released")
+  widget.state.armedSeen = true
   forget(widget)
 end)
 
