@@ -64,7 +64,7 @@ written.
 
 | Setting | What it does |
 | --- | --- |
-| Write a flight log | Off by default. While it is off nothing is written, and this page stays empty. While it is on, the dashboard widget also asks which pack is on the craft after connecting (see *The prompt on connect* below). |
+| Write a flight log | Off by default. While it is off no flight is written; the flights already in the log are still listed. While it is on, the dashboard widget also asks which pack is on the craft after connecting (see *The prompt on connect* below). |
 | Minimum flight length | An arm shorter than this is a spool-up check rather than a flight, and is not logged. 30 s by default; 0 logs every arm. |
 | Set the pack's battery profile | Off by default. A pack picked on the dashboard — in the prompt after connecting or under *BATTERY* in its quick menu — also moves the flight controller onto that pack's battery profile. Never writes while the model is armed. |
 
