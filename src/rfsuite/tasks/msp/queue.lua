@@ -243,6 +243,9 @@ function Queue.new(common, opts)
   self.retryBackoff = tonumber(opts.retryBackoff) or DEFAULT_RETRY_BACKOFF_SECONDS
   self.commandInterval = tonumber(opts.commandInterval) or DEFAULT_COMMAND_INTERVAL_SECONDS
   self.interMessageDelay = tonumber(opts.interMessageDelay) or 0
+  -- Off until setResendOnBreak(true): see there.
+  self.resendOnBreak = false
+  self.rxBreaksSeen = nil
 
   self.drainAfterReplySeconds = tonumber(opts.drainAfterReplySeconds) or DEFAULT_DRAIN_AFTER_REPLY_SECONDS
   self.drainMaxPolls = tonumber(opts.drainMaxPolls) or DEFAULT_DRAIN_MAX_POLLS
@@ -255,6 +258,17 @@ function Queue.new(common, opts)
   self.defaultClient = opts.client or "default"
 
   return self
+end
+
+-- With this on, a reply that broke off (common.rxBreaks moved) is asked for again on the next
+-- pass instead of after the retry window. That is safe only where the flight controller answers
+-- a request that replaces a reply in progress with a reply of its own from the start: firmware
+-- with MSP API 12.10 or later. Older firmware sends the rest of the replaced reply without its
+-- START frame, which is discarded, so the early request would only spend an attempt. Over CRSF
+-- the request waits in the flight controller until the broken reply has gone out either way.
+-- The resend counts as an attempt, so a link that keeps breaking still ends in max_retries.
+function Queue:setResendOnBreak(enabled)
+  self.resendOnBreak = enabled == true
 end
 
 function Queue:isProcessed()
@@ -704,8 +718,16 @@ function Queue:processQueue(now)
 
 
   -- Patch: Ein neuer Request (Retry) darf erst nach Ablauf von timeout gesendet werden
-  local canSendByInterval = not self.lastTimeCommandSent or (self.lastTimeCommandSent + commandInterval < now)
-  local canSendByTimeout = (self.currentMessageStartTime == nil) or ((now - self.currentMessageStartTime) >= timeoutSeconds)
+  local resendNow = false
+  if self.common and type(self.common.rxBreaks) == "function" then
+    local breaks = self.common.rxBreaks()
+    if breaks ~= self.rxBreaksSeen then
+      resendNow = self.resendOnBreak and self.rxBreaksSeen ~= nil and self.retryCount > 0
+      self.rxBreaksSeen = breaks
+    end
+  end
+  local canSendByInterval = resendNow or not self.lastTimeCommandSent or (self.lastTimeCommandSent + commandInterval < now)
+  local canSendByTimeout = resendNow or (self.currentMessageStartTime == nil) or ((now - self.currentMessageStartTime) >= timeoutSeconds)
 
   if canSendByInterval and canSendByTimeout and self.retryCount <= maxRetries and not self.writeHeld then
     local payload = msg.payload or EMPTY_PAYLOAD
