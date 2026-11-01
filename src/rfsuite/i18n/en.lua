@@ -3895,6 +3895,7 @@ return {
       inflight_board_no_slots = "No usable slots on the board",
       inflight_bounds_warning = "%d beyond the FC limits: set up the FC again",
       inflight_session_start = "Start values %s",
+      inflight_session_expired = "Battery changed: new session at next read",
       inflight_choose_parameters = "Choose parameters",
       inflight_pick_cancel = "Cancel",
       inflight_pick_apply = "Apply",

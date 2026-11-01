@@ -867,7 +867,7 @@ local function displayTimestamp(stamp)
   return stamp or ""
 end
 
-local function describeBackup(snapshot, t)
+local function describeBackup(snapshot, t, expired)
   -- While the slot table is read the session line is the read's progress.
   local status = snapshot.prime
   local phase = type(status) == "table" and status.phase or nil
@@ -877,6 +877,11 @@ local function describeBackup(snapshot, t)
   end
   if snapshot.restorePending then
     return t("widgets.dashboard.inflight_return_pending", "Original profiles: return pending; disarm/reconnect")
+  end
+  -- A session whose end is pending (the link was gone for five seconds on the ground: a battery
+  -- change) is not shown as current. The read that begins next ends it and begins a new one.
+  if expired then
+    return t("widgets.dashboard.inflight_session_expired", "Battery changed: new session at next read")
   end
   if snapshot.readRequired then
     if status and status.phase == "error" then
@@ -1041,7 +1046,7 @@ function M.buildGround(children, widget, m, w, h, t, p)
   local firstVerdict = not first.readRequired and first.setupVerdict or nil
   local modelLines = textFits(M.describeCheck(firstVerdict, t), valueW, lineFont) and 1 or 2
   local slotsLines = textFits(describeSet(first, t), valueW, lineFont) and 1 or 2
-  local sessionLines = (job or textFits(describeBackup(first, t), valueW, lineFont)) and 1 or 2
+  local sessionLines = (job or textFits(describeBackup(first, t, drive and drive.sessionExpired), valueW, lineFont)) and 1 or 2
   local extraRows = (job and 1 or 0) + (boundsRow and 1 or 0) + (saveRow and 1 or 0)
   -- From 320 px up an action keeps a comfortable height and the primary a little more; below, a
   -- line of text and its margin.
@@ -1105,8 +1110,10 @@ function M.buildGround(children, widget, m, w, h, t, p)
     end, p.accent)
   else
     local lastPending, lastTransfer, lastReason, lastSummary, lastPhase, lastError, lastDone, lastSessionRead, lastStamp, sessionText
+    local lastExpired
     row(sessionLabel, sessionLines, function()
       local snap = state.inflight or empty
+      local expired = drive ~= nil and drive.sessionExpired == true
       local timestamp = snap.baseline and snap.baseline.timestamp
       local transfer, status = snap.transfer, snap.prime
       local transferState, reason = transfer and transfer.state, transfer and transfer.reason
@@ -1114,14 +1121,14 @@ function M.buildGround(children, widget, m, w, h, t, p)
       if sessionText == nil or timestamp ~= lastStamp
         or snap.restorePending ~= lastPending or transferState ~= lastTransfer or reason ~= lastReason
         or snap.restoreSummary ~= lastSummary or phase ~= lastPhase or err ~= lastError or done ~= lastDone
-        or snap.readRequired ~= lastSessionRead then
-        lastSessionRead, lastStamp, lastPending = snap.readRequired, timestamp, snap.restorePending
+        or snap.readRequired ~= lastSessionRead or expired ~= lastExpired then
+        lastSessionRead, lastStamp, lastPending, lastExpired = snap.readRequired, timestamp, snap.restorePending, expired
         lastTransfer, lastReason, lastSummary = transferState, reason, snap.restoreSummary
         lastPhase, lastError, lastDone = phase, err, done
-        sessionText = fit(describeBackup(snap, t), sessionLines)
+        sessionText = fit(describeBackup(snap, t, expired), sessionLines)
       end
       return sessionText
-    end, p.text)
+    end, function() return drive ~= nil and drive.sessionExpired == true and p.warn or p.text end)
   end
 
   if busy then
@@ -1336,12 +1343,12 @@ function M.buildGround(children, widget, m, w, h, t, p)
 
   appendAction(children, action, m.pad, footerY - gap - secondaryH, lineW,
     t("widgets.dashboard.inflight_restore_all", "Restore all"), p, function()
-      if not available or drive.fcSetupOpen then return end
+      if not available or drive.fcSetupOpen or drive.sessionExpired then return end
       drive.restoreConfirm = {all = true}
       changed()
     end)
   children[#children - 1].color = p.error
-  children[#children - 1].active = isAvailable
+  children[#children - 1].active = function() return available and not drive.sessionExpired end
 end
 
 -- ---------------------------------------------------------------------------
@@ -1369,12 +1376,16 @@ function M.buildPost(children, widget, m, w, h, t, p)
     appendLabel(children, m.pad, y, lineW, t("widgets.dashboard.inflight_post_actions", "Restore / read values"), p.accent, rowFont, LEFT)
     y = y + rowH
     local menuGap = math.max(4, math.floor(m.pad / 2))
+    -- The restores are shown disabled while the session's end is pending (see describeBackup).
+    local restorable = function() return not drive.sessionExpired end
+    local restoreAt = #children + 1
     appendAction(children, m, m.pad, y, bw, t("widgets.dashboard.inflight_restore_all", "Restore all"), p, function()
-      if Prime.isRunning(drive) then return end
+      if Prime.isRunning(drive) or drive.sessionExpired then return end
       drive.postActionsOpen = nil
       drive.restoreConfirm = {all = true}; drive.valueEpoch = drive.valueEpoch + 1
       widget._tuningKeyDirty = true
     end)
+    children[restoreAt].active = restorable
     appendAction(children, m, m.pad * 2 + bw, y, bw, t("widgets.dashboard.inflight_read_again", "Read again"), p, function()
       drive.postActionsOpen = nil
       if drive.restorePending then Prime.retryReturn(drive) else Prime.refreshValues(widget, drive) end
@@ -1384,12 +1395,14 @@ function M.buildPost(children, widget, m, w, h, t, p)
     local label = target.kind == "global" and t("widgets.dashboard.inflight_restore_global", "Restore global")
       or t("widgets.dashboard.inflight_restore_profile", "Restore profile") .. " "
         .. (target.kind == "pid" and "PID " or "RTE ") .. tostring(target.index)
+    restoreAt = #children + 1
     appendAction(children, m, m.pad, y, lineW, label, p, function()
-      if Prime.isRunning(drive) then return end
+      if Prime.isRunning(drive) or drive.sessionExpired then return end
       drive.postActionsOpen = nil
       drive.restoreConfirm = target; drive.valueEpoch = drive.valueEpoch + 1
       widget._tuningKeyDirty = true
     end)
+    children[restoreAt].active = restorable
     y = y + m.actionH + menuGap
     appendAction(children, m, m.pad, y, lineW, t("widgets.dashboard.inflight_post_back", "Back to changes"), p, function()
       drive.postActionsOpen = nil; drive.valueEpoch = drive.valueEpoch + 1
@@ -1444,9 +1457,12 @@ function M.buildPost(children, widget, m, w, h, t, p)
         formatValue(entry.old) .. " -> " .. formatValue(entry.new) .. "  " .. string.format("%+d", entry.new - entry.old), p.accent, rowFont, RIGHT, m)
     end
   end
-  local note = target.scope == "rate" and t("widgets.dashboard.inflight_rate_restore_note", "PID restore does not cover rate profiles")
+  local expired = drive ~= nil and drive.sessionExpired == true
+  local note = expired and fitText(t("widgets.dashboard.inflight_session_expired",
+      "Battery changed: new session at next read"), lineW, m.small)
+    or target.scope == "rate" and t("widgets.dashboard.inflight_rate_restore_note", "PID restore does not cover rate profiles")
     or t("widgets.dashboard.inflight_delta_title", "CHANGED THIS SESSION")
-  appendLabel(children, m.pad, noteY, lineW, note, p.dim, m.small, LEFT)
+  appendLabel(children, m.pad, noteY, lineW, note, expired and p.warn or p.dim, m.small, LEFT)
   if not drive or not Prime then return end
   local arrowW = m.large and 72 or 48
   local buttonW = lineW - arrowW * 2 - m.pad * 2
@@ -1505,14 +1521,17 @@ local function appendRestoreConfirmation(children, widget, m, w, t, p)
   end
   y = y + m.pad
   local bw = math.floor((width - m.pad) / 2)
+  local restoreAt = #children + 1
   appendAction(children, m, m.pad, y, bw, t("widgets.dashboard.inflight_restore_yes", "Restore"), p, function()
-    if drive.restoreConfirm ~= request then return end
+    if drive.restoreConfirm ~= request or drive.sessionExpired then return end
     drive.restoreConfirm = nil
     local target
     if not request.all then target = request end
     Prime.restore(widget, drive, target)
     drive.valueEpoch = drive.valueEpoch + 1; widget._tuningKeyDirty = true
   end)
+  -- Disabled while the session's end is pending (see describeBackup).
+  children[restoreAt].active = function() return not drive.sessionExpired end
   appendAction(children, m, m.pad * 2 + bw, y, bw, t("widgets.dashboard.inflight_restore_cancel", "Cancel"), p, function()
     drive.restoreConfirm = nil
     drive.valueEpoch = drive.valueEpoch + 1; widget._tuningKeyDirty = true
