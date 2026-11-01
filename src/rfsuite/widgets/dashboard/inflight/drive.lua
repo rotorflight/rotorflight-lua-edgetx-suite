@@ -956,6 +956,21 @@ function Drive:endSession()
   logDrive("tuning session ended: the undo, the values and the comparison go with it")
 end
 
+--- A read that begins while an expiry is still pending (the link was gone for the gap on the
+-- ground, and work held when it came back kept the session from ending) ends that session first,
+-- so the read begins a new one. The read is the one Drive:endSession asks for, so that request is
+-- withdrawn again. A parameter choice of the ended session may already have filtered the groups,
+-- so they are filtered again without it. Answers whether a session was ended.
+function Drive:takeExpiry()
+  if not self.sessionExpired then return false end
+  local chosen = self.sessionList
+  self:endSession()
+  self.readAgain = nil
+  if chosen ~= nil then self:applyFilter() end
+  if self.phase == M.PHASE_POST then self:setPhase(M.PHASE_GROUND) end
+  return true
+end
+
 --- Fullscreen foreground ownership is the release, with no seed or delay in either direction.
 -- A closed surface keeps the flight phase and session, but owns no output or pending input.
 function Drive:evaluateInterlock(now, open)

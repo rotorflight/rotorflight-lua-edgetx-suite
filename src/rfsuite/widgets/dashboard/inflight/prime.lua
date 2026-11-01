@@ -1119,6 +1119,13 @@ function M.start(widget, drive, automatic)
   if isArmed(widget) then return false, "armed" end
   if M.isRunning(drive) then return false, "reading" end
   if queueOf() == nil then return false, "no_link" end
+  -- A session whose end is still pending ends as this read begins, so the read begins a new one --
+  -- also when it is interrupted before its values (Drive:takeExpiry). A profile job still running
+  -- belongs to that session and finishes first, as profiles.begin requires.
+  if drive.sessionExpired then
+    if drive.profileJob ~= nil then return false, "reading" end
+    drive:takeExpiry()
+  end
 
   local prime = {
     phase = M.PHASE_RXMAP,
@@ -1148,7 +1155,15 @@ function M.start(widget, drive, automatic)
   drive.primeInterrupted = nil
   bump(drive)
   logPrime("prime started")
-  return sendRxMap(widget, drive, prime)
+  local ok = sendRxMap(widget, drive, prime)
+  if ok then
+    -- A full read, whoever asked for it, answers every read still asked for: the link's automatic
+    -- read and the one an ended session asks for. A run that fails or is armed into is offered
+    -- again by M.tick's retry, as before.
+    drive.readAgain = nil
+    drive._primeAutoDone = true
+  end
+  return ok
 end
 
 -- Refresh uses the completed slot table and existing session membership. Each transaction
@@ -1158,13 +1173,7 @@ function M.refreshValues(widget, drive)
   if type(widget.state) ~= "table" then return false, "armed" end
   if isArmed(widget) then return false, "armed" end
   if M.isRunning(drive) then return false, "reading" end
-  if drive.readRequired then
-    -- This is the link's automatic read, started early: the automatic start below then has nothing
-    -- left to start, and a failed run is retried through it as before.
-    local ok, reason = M.start(widget, drive, true)
-    if ok then drive._primeAutoDone = true end
-    return ok, reason
-  end
+  if drive.readRequired then return M.start(widget, drive, true) end
   local previous = drive.prime
   if type(previous) ~= "table" or type(previous.records) ~= "table" then
     return M.start(widget, drive)
