@@ -627,7 +627,7 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = "AM32 Configurator"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "AM32")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -702,9 +702,9 @@ function M.build(ctx)
   end
 
   local sectionOptions = {
-    { value = 1, label = "Basic" },
-    { value = 2, label = "Advanced" },
-    { value = 3, label = "Limits" }
+    { value = 1, label = pageText(i18n, "section_basic", "Basic") },
+    { value = 2, label = pageText(i18n, "section_advanced", "Advanced") },
+    { value = 3, label = pageText(i18n, "section_limits", "Limits") }
   }
   local sectionLabel = pageText(i18n, "esc_section", "Section")
   rowH = Controls.appendComboSelect(children, x, cursorY, w, sectionLabel, sectionOptions, ui.currentSection, function(val)
@@ -726,8 +726,8 @@ function M.build(ctx)
   if ui.currentSection == 1 then
     -- Basic Settings
     local dirOpts = {
-      { value = 0, label = "Normal" },
-      { value = 1, label = "Reversed" }
+      { value = 0, label = pageText(i18n, "opt_normal", "Normal") },
+      { value = 1, label = pageText(i18n, "opt_reversed", "Reversed") }
     }
     local motorDirectionLabel = pageText(i18n, "esc_motor_direction", "Motor Direction")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, motorDirectionLabel, dirOpts, ui.config.motor_direction, function(val)
@@ -767,9 +767,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local brakeOpts = {
-      { value = 0, label = "Off" },
-      { value = 1, label = "Brake" },
-      { value = 2, label = "Active" }
+      { value = 0, label = pageText(i18n, "opt_off", "Off") },
+      { value = 1, label = pageText(i18n, "opt_brake", "Brake") },
+      { value = 2, label = pageText(i18n, "am32_opt_active", "Active") }
     }
     local brakeOnStopLabel = pageText(i18n, "esc_brake_on_stop", "Brake on Stop")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, brakeOnStopLabel, brakeOpts, ui.config.brake_on_stop, function(val)
@@ -811,8 +811,8 @@ function M.build(ctx)
   elseif ui.currentSection == 2 then
     -- Advanced Settings
     local offOnOpts = {
-      { value = 0, label = "Off" },
-      { value = 1, label = "On" }
+      { value = 0, label = pageText(i18n, "opt_off", "Off") },
+      { value = 1, label = pageText(i18n, "opt_on", "On") }
     }
     
     local bidirectionalMode = pageText(i18n, "esc_bidirectional_mode", "Bidirectional Mode")
@@ -837,8 +837,8 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local varPwmOpts = {
-      { value = 0, label = "Fixed" },
-      { value = 1, label = "Variable" },
+      { value = 0, label = pageText(i18n, "am32_opt_fixed", "Fixed") },
+      { value = 1, label = pageText(i18n, "am32_opt_variable", "Variable") },
       { value = 2, label = "RPM" }
     }
     rowH = Controls.appendComboSelect(children, x, cursorY, w, pageText(i18n, "esc_variable_pwm_frequency", "Variable PWM Frequency"), varPwmOpts, ui.config.variable_pwm_frequency, function(val)
@@ -974,9 +974,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local lvcOpts = {
-      { value = 0, label = "Off" },
-      { value = 1, label = "Cell" },
-      { value = 2, label = "Absolute" }
+      { value = 0, label = pageText(i18n, "opt_off", "Off") },
+      { value = 1, label = pageText(i18n, "am32_opt_cell", "Cell") },
+      { value = 2, label = pageText(i18n, "am32_opt_absolute", "Absolute") }
     }
     local lowVoltageCutoffLabel = pageText(i18n, "esc_low_voltage_cutoff", "Low Voltage Cutoff")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, lowVoltageCutoffLabel, lvcOpts, ui.config.low_voltage_cutoff, function(val)
@@ -1016,7 +1016,7 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local protoOpts = {
-      { value = 0, label = "Auto" },
+      { value = 0, label = pageText(i18n, "opt_auto", "Auto") },
       { value = 1, label = "Dshot 300-600" },
       { value = 2, label = "Servo 1-2ms" },
       { value = 3, label = "Serial" },

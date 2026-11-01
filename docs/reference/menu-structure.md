@@ -536,7 +536,7 @@ outside the menus opens one of them is not read here.
 | `settings_activelook_page` | ActiveLook | manifest | &mdash; | &mdash; |
 | `diagnostics_fblsensors_page` | FBL Sensors | manifest | &mdash; | &mdash; |
 | `setup_esc_motors_esc_tools_page` | ESC Tools | manifest + page registry | `setup/esc_motors/esc_tools` | **none** |
-| `setup_esc_motors_esc_tool_run_page` | ESC Configurator | manifest + page registry | `setup/esc_motors/esc_tools/run` | **none** |
+| `setup_esc_motors_esc_tool_run_page` | ESC Configurator | manifest + page registry | `setup/esc_motors/esc_tools/run` | [setup/esc_motors/esc_tools/run.md](../pages/setup/esc_motors/esc_tools/run.md) |
 | `settings_dashboard_overrides_page` | &mdash; | page registry | `settings/dashboard/overrides` | [settings/dashboard/overrides.md](../pages/settings/dashboard/overrides.md) |
 | `setup_controls_beepers_page` | &mdash; | page registry | `setup/controls/beepers` | **none** |
 | `setup_controls_blackbox_page` | &mdash; | page registry | `setup/controls/blackbox` | **none** |

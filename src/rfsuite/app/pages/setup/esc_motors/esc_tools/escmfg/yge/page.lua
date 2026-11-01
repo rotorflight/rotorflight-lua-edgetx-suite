@@ -463,7 +463,7 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = "YGE Configurator"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "YGE")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -517,9 +517,9 @@ function M.build(ctx)
 
   local rowH
   local sectionOptions = {
-    { value = 1, label = "Basic" },
-    { value = 2, label = "Advanced" },
-    { value = 3, label = "Other" }
+    { value = 1, label = pageText(i18n, "section_basic", "Basic") },
+    { value = 2, label = pageText(i18n, "section_advanced", "Advanced") },
+    { value = 3, label = pageText(i18n, "section_other", "Other") }
   }
   local sectionLabel = pageText(i18n, "esc_section", "Section")
   rowH = Controls.appendComboSelect(children, x, cursorY, w, sectionLabel, sectionOptions, ui.currentSection, function(val)
@@ -541,13 +541,13 @@ function M.build(ctx)
   if ui.currentSection == 1 then
     -- Basic Settings
     local modeOpts = {
-      { value = 0, label = "Mode Free" },
-      { value = 1, label = "Mode Ext" },
-      { value = 2, label = "Mode Heli" },
-      { value = 3, label = "Mode Store" },
-      { value = 4, label = "Mode Glider" },
-      { value = 5, label = "Mode Air" },
-      { value = 6, label = "Mode F3A" }
+      { value = 0, label = pageText(i18n, "yge_opt_mode_free", "Mode Free") },
+      { value = 1, label = pageText(i18n, "yge_opt_mode_ext", "Mode Ext") },
+      { value = 2, label = pageText(i18n, "yge_opt_mode_heli", "Mode Heli") },
+      { value = 3, label = pageText(i18n, "yge_opt_mode_store", "Mode Store") },
+      { value = 4, label = pageText(i18n, "yge_opt_mode_glider", "Mode Glider") },
+      { value = 5, label = pageText(i18n, "yge_opt_mode_air", "Mode Air") },
+      { value = 6, label = pageText(i18n, "yge_opt_mode_f3a", "Mode F3A") }
     }
     local governorModeLabel = pageText(i18n, "esc_governor_mode", "Governor Mode")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, governorModeLabel, modeOpts, ui.config.governor, function(val)
@@ -561,8 +561,8 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local rotOpts = {
-      { value = 0, label = "Normal" },
-      { value = 1, label = "Reverse" }
+      { value = 0, label = pageText(i18n, "opt_normal", "Normal") },
+      { value = 1, label = pageText(i18n, "opt_reverse", "Reverse") }
     }
     local directionLabel = pageText(i18n, "esc_direction", "Direction")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, directionLabel, rotOpts, ui.config.flags_direction, function(val)
@@ -595,9 +595,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local autoRestartOpts = {
-      { value = 0, label = "Off" },
-      { value = 1, label = "Slowdown" },
-      { value = 2, label = "Cutoff" }
+      { value = 0, label = pageText(i18n, "opt_off", "Off") },
+      { value = 1, label = pageText(i18n, "yge_opt_slowdown", "Slowdown") },
+      { value = 2, label = pageText(i18n, "yge_opt_cutoff", "Cutoff") }
     }
     rowH = Controls.appendComboSelect(children, x, cursorY, w, pageText(i18n, "esc_auto_restart_type", "Auto Restart Type"), autoRestartOpts, ui.config.auto_restart_time, function(val)
       ui.config.auto_restart_time = val
@@ -645,8 +645,8 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local f3cOpts = {
-      { value = 0, label = "Off" },
-      { value = 1, label = "On" }
+      { value = 0, label = pageText(i18n, "opt_off", "Off") },
+      { value = 1, label = pageText(i18n, "opt_on", "On") }
     }
     local f3cAutoLabel = pageText(i18n, "esc_f3c_auto", "F3C Auto")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, f3cAutoLabel, f3cOpts, ui.config.flags_f3cauto, function(val)
@@ -663,8 +663,8 @@ function M.build(ctx)
     -- had no row. Without one the bit is read off the ESC and written straight back, so the
     -- setting could be seen in the ESC's own tool and not here.
     local keepMahOpts = {
-      { value = 0, label = "Off" },
-      { value = 1, label = "On" }
+      { value = 0, label = pageText(i18n, "opt_off", "Off") },
+      { value = 1, label = pageText(i18n, "opt_on", "On") }
     }
     local keepMahLabel = pageText(i18n, "esc_keep_mah", "Keep mAh")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, keepMahLabel, keepMahOpts, ui.config.flags_keepmah, function(val)
@@ -709,8 +709,8 @@ function M.build(ctx)
     -- older Lua suite draws as `Startup Response` -- it sits between max start power and
     -- throttle response there too. The ESC takes two values.
     local startupOpts = {
-      { value = 0, label = "Normal" },
-      { value = 1, label = "Smooth" }
+      { value = 0, label = pageText(i18n, "opt_normal", "Normal") },
+      { value = 1, label = pageText(i18n, "yge_opt_smooth", "Smooth") }
     }
     local startupResponseLabel = pageText(i18n, "esc_startup_response", "Startup Response")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, startupResponseLabel, startupOpts, ui.config.acceleration, function(val)
@@ -724,10 +724,10 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local respOpts = {
-      { value = 0, label = "Slow" },
-      { value = 1, label = "Medium" },
-      { value = 2, label = "Fast" },
-      { value = 3, label = "Custom" }
+      { value = 0, label = pageText(i18n, "opt_slow", "Slow") },
+      { value = 1, label = pageText(i18n, "opt_medium", "Medium") },
+      { value = 2, label = pageText(i18n, "opt_fast", "Fast") },
+      { value = 3, label = pageText(i18n, "opt_custom", "Custom") }
     }
     local throttleResponseLabel = pageText(i18n, "esc_throttle_response", "Throttle Response")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, throttleResponseLabel, respOpts, ui.config.throttle_response, function(val)
@@ -741,10 +741,10 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local timingOpts = {
-      { value = 0, label = "Auto Normal" },
-      { value = 1, label = "Auto Efficient" },
-      { value = 2, label = "Auto Power" },
-      { value = 3, label = "Auto Extreme" },
+      { value = 0, label = pageText(i18n, "yge_opt_auto_normal", "Auto Normal") },
+      { value = 1, label = pageText(i18n, "yge_opt_auto_efficient", "Auto Efficient") },
+      { value = 2, label = pageText(i18n, "yge_opt_auto_power", "Auto Power") },
+      { value = 3, label = pageText(i18n, "yge_opt_auto_extreme", "Auto Extreme") },
       { value = 4, label = "0 deg" },
       { value = 5, label = "6 deg" },
       { value = 6, label = "12 deg" },
@@ -764,10 +764,10 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local fwOpts = {
-      { value = 0, label = "Off" },
-      { value = 1, label = "Auto" },
-      { value = 2, label = "Unused" },
-      { value = 3, label = "Always On" }
+      { value = 0, label = pageText(i18n, "opt_off", "Off") },
+      { value = 1, label = pageText(i18n, "opt_auto", "Auto") },
+      { value = 2, label = pageText(i18n, "yge_opt_unused", "Unused") },
+      { value = 3, label = pageText(i18n, "opt_always_on", "Always On") }
     }
     local activeFreewheelLabel = pageText(i18n, "esc_active_freewheel", "Active Freewheel")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, activeFreewheelLabel, fwOpts, ui.config.active_freewheel, function(val)
