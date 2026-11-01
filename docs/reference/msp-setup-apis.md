@@ -40,3 +40,20 @@ the whole table cannot fit. This change does not add a bulk-read retry fallback.
 Run `lua5.3 bin/msp/verify_msp_setup_apis.lua` for byte vectors, signs, record order,
 truncated replies and complete servo write/read round trips. These are offline
 protocol checks; no physical flight controller or actuator was tested.
+
+## Simulator replies
+
+Without a flight controller the MSP queue answers a message with its `simulatorResponse`,
+so every module under `tasks/msp/api/` that has a fixture and a `parse` must carry a
+fixture its own parser reads to the end. Run
+`lua5.3 bin/msp/verify_simulator_fixture_lengths.lua`: it runs each module's `parse` on
+its own fixture and fails when the parser refuses it, reads past its end or leaves
+trailing bytes unread, when the fixture is empty or shorter than the module's `Api.fields`,
+or when the parser, given a longer reply, would go on into an optional section the fixture
+leaves out.
+
+Where a module needs an exception, the check names it in a list with the reason: a
+write-only module, a parser with no fixture on purpose, an empty reply that is valid, a
+parser that scans a string to its terminator, a reply whose parser accepts more than one
+length (its length is listed), an optional section left out on purpose, and a read no page
+sends. A module without a parser or without a fixture fails unless it is listed.

@@ -26,7 +26,7 @@ local FIELD_SPEC = {
   {"gyro_detection_flags", "U8"}
 }
 
-local SIM_RESPONSE = {252,1, 127,0, 35,0, 0,0,0,0, 0, 122,1, 182,0, 0, 0, 0,0,0,0,0, 2, 0, 5, 6, 1, 4, 1, 4, 1}
+local SIM_RESPONSE = {252,1, 127,0, 35,0, 0,0,0,0, 0, 122,1, 182,0, 0, 0, 0,0,0,0, 2, 0, 5, 6, 1, 6, 1, 4, 1}
 
 Api.fields = FIELD_SPEC
 Api.simulatorResponse = SIM_RESPONSE
