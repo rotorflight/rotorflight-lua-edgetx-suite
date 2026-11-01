@@ -18,6 +18,7 @@ local PidProfileApi = nil
 local GovernorProfileApi = nil
 local GovernorConfigApi = nil
 local SavePipeline = nil
+local Governor = nil
 local LoadingOverlay = nil
 local Sensors = nil
 local Profile = nil
@@ -55,6 +56,7 @@ local function ensureDeps()
   if not PidProfileApi then PidProfileApi = loadModule("tasks/msp/api/pid_profile.lua") end
   if not GovernorProfileApi then GovernorProfileApi = loadModule("tasks/msp/api/governor_profile.lua") end
   if not GovernorConfigApi then GovernorConfigApi = loadModule("tasks/msp/api/governor_config.lua") end
+  if not Governor then Governor = loadModule("lib/governor.lua") end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
   if not Sensors then Sensors = loadModule("lib/sensors.lua") end
   if not Profile then Profile = loadModule("lib/profile.lua") end
@@ -474,6 +476,15 @@ function M.wakeup(ctx)
     ui.runtime.requestRebuild = ctx.requestRebuild
   end
 
+  -- The GOVERNOR feature bit is read after the governor configuration and may land after this
+  -- page was built; a change of it shows or hides Tail Torque Assist, so it is a rebuild, not a re-read.
+  local session = getSession()
+  local feature = session and session.governorFeature
+  if feature ~= ui.runtime.builtFeature and type(ui.runtime.requestRebuild) == "function" then
+    ui.runtime.builtFeature = feature
+    ui.runtime.requestRebuild()
+  end
+
   -- A switch is not read over a pending edit; M.canSave refuses until Reload reads the new profile.
   -- The signature is taken over only with a read sent under it.
   local signature = buildSessionSignature()
@@ -535,7 +546,8 @@ function M.build(ctx)
   local specLimit   = { scale=1, mult=1, min=0, max=100, suffix="%", decimals=0 }
 
   local session = getSession()
-  local govMode = tonumber(session and session.governorMode or 0) or 0
+  ui.runtime.builtFeature = session and session.governorFeature
+  local govMode = tonumber(Governor.getEffectiveMode(session)) or 0
   local isTtaActive = (govMode >= 1) and (ui.runtime and ui.runtime.governorReadComplete == true)
 
   -- 1) Yaw stop gain (CW & CCW)
@@ -582,7 +594,7 @@ function M.build(ctx)
   end
 
   -- 6) Tail Torque Assist (12.0.9+)
-  if isAtLeastVersion({12, 0, 9}) then
+  if isAtLeastVersion({12, 0, 9}) and govMode >= 1 then
     local specTtaGain = { scale=1, mult=1, min=0, max=250, suffix="", decimals=0, active = isTtaActive }
     local specTtaLimit = { scale=1, mult=1, min=0, max=100, suffix="%", decimals=0, active = isTtaActive }
 
@@ -673,6 +685,7 @@ function M.onClose()
   MspRuntime = nil
   PidProfileApi = nil
   GovernorProfileApi = nil
+  Governor = nil
   GovernorConfigApi = nil
   SavePipeline = nil
   LoadingOverlay = nil

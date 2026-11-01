@@ -141,6 +141,7 @@ local function queueGovRead(isAutoReload)
     if session then
       session.governor_config = governorData
       session.governorMode = governorData.gov_mode
+      session.governorFeature = (featureData.enabledFeatures & (1 << 26)) ~= 0
     end
 
     ui.runtime.readPending = false
@@ -243,6 +244,7 @@ local function queueGovWrite(requestRebuild)
         if session then
           session.governor_config = writeData
           session.governorMode = writeData.gov_mode
+          session.governorFeature = (writeFeatures.enabledFeatures & (1 << 26)) ~= 0
         end
       end
       if ui.runtime ~= visit then return end
@@ -387,9 +389,16 @@ function M.build(ctx)
   }
 
   -- 1. Mode
+  -- A row's ? opens its line in the tool's help view, titled with the row's label.
+  local openHelp = ctx and ctx.openHelp
+  local function onRowHelp(text, label)
+    if type(openHelp) == "function" and type(text) == "string" and text ~= "" then openHelp(text, label) end
+  end
+
+  local modeLabel = pageText(i18n, "mode", "Mode")
   cursorY = cursorY + Controls.appendComboSelect(
     children, x, cursorY, w,
-    pageText(i18n, "mode", "Mode"),
+    modeLabel,
     modeOptions,
     ui.config.gov_mode,
     function(newVal)
@@ -402,13 +411,20 @@ function M.build(ctx)
           ui.runtime.requestRebuild()
         end
       end
-    end
+    end,
+    {
+      helpText = pageText(i18n, "help_mode",
+        "OFF passes throttle through, LIMIT applies the throttle limits, DIRECT only spools up and recovers, ELECTRIC and NITRO govern fully; OFF while the feature is off, and a change restarts the board."),
+      helpTitle = modeLabel,
+      onHelp = onRowHelp
+    }
   )
 
   -- 2. Throttle type
+  local throttleTypeLabel = pageText(i18n, "throttle_type", "Throttle type")
   cursorY = cursorY + Controls.appendComboSelect(
     children, x, cursorY, w,
-    pageText(i18n, "throttle_type", "Throttle type"),
+    throttleTypeLabel,
     throttleTypeOptions,
     ui.config.gov_throttle_type,
     function(newVal)
@@ -420,14 +436,25 @@ function M.build(ctx)
           ui.runtime.requestRebuild()
         end
       end
-    end
+    end,
+    {
+      helpText = pageText(i18n, "help_throttle_type",
+        "NORMAL hands control to the governor once headspeed is reached, SWITCH above the handover level (ELECTRIC and NITRO only), and FUNCTION selects the governor mode from the throttle input."),
+      helpTitle = throttleTypeLabel,
+      onHelp = onRowHelp
+    }
   )
 
   -- 3. Idle throttle (stored in 0.1%, e.g. 10 = 1.0%)
+  local idleLabel = pageText(i18n, "idle_throttle", "Idle throttle")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "idle_throttle", "Idle throttle"),
+    idleLabel,
     {
+      helpText = pageText(i18n, "help_idle_throttle",
+        "Minimum throttle output while the governor is not actively controlling the headspeed."),
+      helpTitle = idleLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -443,10 +470,15 @@ function M.build(ctx)
   )
 
   -- 4. Auto throttle (stored in 0.1%, e.g. 10 = 1.0%)
+  local autoLabel = pageText(i18n, "auto_throttle", "Auto throttle")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "auto_throttle", "Auto throttle"),
+    autoLabel,
     {
+      helpText = pageText(i18n, "help_auto_throttle",
+        "With NORMAL or SWITCH, throttle below this cancels autorotation and prevents a bailout; with FUNCTION it is the throttle output in autorotation."),
+      helpTitle = autoLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -462,10 +494,15 @@ function M.build(ctx)
   )
 
   -- 5. Handover throttle%
+  local handoverLabel = pageText(i18n, "handover_throttle", "Handover throttle%")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "handover_throttle", "Handover throttle%"),
+    handoverLabel,
     {
+      helpText = pageText(i18n, "help_handover_throttle",
+        "Above this throttle input the governor controls the motor, below it the input goes straight to the motor; the motor must be able to start below it."),
+      helpTitle = handoverLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 100,
       step = 1,
@@ -482,10 +519,15 @@ function M.build(ctx)
   )
 
   -- 6. Throttle hold timeout (stored in 0.1s, e.g. 50 = 5.0s)
+  local holdLabel = pageText(i18n, "throttle_hold_timeout", "Throttle hold timeout")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "throttle_hold_timeout", "Throttle hold timeout"),
+    holdLabel,
     {
+      helpText = pageText(i18n, "help_hold_timeout",
+        "Grace period after throttle hold while governing: throttle restored within it gives a recovery spoolup, guarding against an accidental cut."),
+      helpTitle = holdLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,

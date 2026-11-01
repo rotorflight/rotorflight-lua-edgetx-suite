@@ -3662,8 +3662,8 @@ local function readTelemetry(state, audioState)
   else
     state.rescue = nil
   end
-  -- The governor MODE, which is configuration rather than telemetry: the connect chain reads it
-  -- once over MSP (tasks/events/common/governor_config.lua) and leaves it on the session. It is
+  -- The effective governor mode, which is configuration rather than telemetry: the connect chain
+  -- reads the stored mode and feature once over MSP (tasks/events/common/governor_config.lua). It is
   -- carried onto the state here so that an object needing it reads precomputed state, which is
   -- what the reactive sweep is allowed to do; reaching into the session from a render closure is
   -- not. Nil until the chain has answered, and a consumer has to cope with that.
@@ -3674,7 +3674,11 @@ local function readTelemetry(state, audioState)
   -- on this field ahead of the live value, so a stale mode has them say a governor state the model
   -- is not in -- the same treatment the battery configuration gets below.
   local rfRoot = type(_G) == "table" and _G.rfsuite or nil
-  local governorMode = rfRoot and rfRoot.session and rfRoot.session.governorMode
+  -- The rule of lib/governor.lua getEffectiveMode, inline: this chunk sits at Lua's limit of 200
+  -- top-level locals, so it takes no module handle for two lines.
+  local govSession = rfRoot and rfRoot.session
+  local governorMode = govSession and govSession.governorMode
+  if govSession and govSession.governorFeature == false then governorMode = 0 end
   if governorMode ~= state.governorMode then
     state.governorMode = governorMode
     telemetryChanged = true
@@ -4040,8 +4044,8 @@ function Runtime.new(zone, options)
       -- newBatteryPickState above.
       batteryPick = newBatteryPickState(),
       governor = 0,
-      -- The governor mode, carried over from the session in readTelemetry; nil until the
-      -- connect chain has read it.
+      -- The effective governor mode, computed from the session in readTelemetry; nil until
+      -- the connect chain has read the stored mode or found the governor feature off.
       governorMode = nil,
       throttlePercent = 0,
       mcuTemp = 0,
