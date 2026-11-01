@@ -3343,6 +3343,7 @@ return {
         error_toobig = "Die Akkuliste ist zu gross, um sicher neu geschrieben zu werden",
         error_notfound = "Dieser Akku steht nicht mehr in der Datei",
         error_io = "Die Karte hat den Schreibvorgang nicht angenommen",
+        error_unreadable = "Akkuliste nicht ganz gelesen; nichts wurde geaendert",
         error_id_required = "Ein Akku braucht eine Kennung",
         notice_inherited_flights = "Aufgezeichnete Fluege, die jetzt fuer diesen Akku zaehlen: %d",
         setting_enabled = "Flugbuch schreiben",

@@ -3349,6 +3349,7 @@ return {
         error_toobig = "The registry is too large to be rewritten safely",
         error_notfound = "That pack is no longer in the file",
         error_io = "The card did not take the write",
+        error_unreadable = "The registry was not read whole; nothing was changed",
         error_id_required = "A pack needs an id",
         notice_inherited_flights = "Logged flights now counted under this pack: %d",
         setting_enabled = "Write a flight log",

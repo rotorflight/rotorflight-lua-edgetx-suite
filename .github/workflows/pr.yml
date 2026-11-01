@@ -587,6 +587,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/flight_log/verify_free_id.lua
       - run: lua5.3 bin/flight_log/verify_registry_bak_fallback.lua
+      - run: lua5.3 bin/flight_log/verify_page_refusal_message.lua
 
   governor-effective-mode:
     name: Governor effective mode

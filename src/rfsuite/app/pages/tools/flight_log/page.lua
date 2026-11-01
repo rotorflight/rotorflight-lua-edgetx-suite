@@ -809,6 +809,11 @@ local function errorText(i18n, result)
   if result == "notfound" then
     return pageText(i18n, "error_notfound", "That pack is no longer in the file")
   end
+  -- Refused before anything was written: the registry stands but did not open, or the read did
+  -- not match its size. Nothing reached the card, so the write message would be wrong here.
+  if result == "unreadable" then
+    return pageText(i18n, "error_unreadable", "The registry was not read whole; nothing was changed")
+  end
   return pageText(i18n, "error_io", "The card did not take the write")
 end
 

@@ -35,6 +35,10 @@ naming what they show, the flight's date and time and the pack's name.
 Back steps out of whatever was opened before it leaves the page: an open pack editor, then a
 flight or a pack detail, then a filtered flight list, then the page itself.
 
+Every switch and number on the *Settings* tab and in the pack editor has its own `?` beside it
+with what that setting does; *Id* and *Name*, which are typed in, have none. The `?` in the page
+header says in one sentence what the page holds.
+
 ## Flights
 
 ![The Flights tab](../../images/tools/flight_log/flights.png)
@@ -256,8 +260,10 @@ A flight counts as logged only once the file on the card has grown by exactly th
 takes. Where the card will not say how large a file on it is, the flight is not written at all and
 the log says which step refused, rather than a line being appended to a file whose contents cannot
 be established. The registry is held to the same standard: a pack's cycle count and the edits made
-under *Batteries* are refused, with a message on the screen, rather than rewriting the file from a
-read that may have been cut short. A registry of the size a pilot keeps is unaffected either way.
+under *Batteries* are refused rather than rewriting the file from a read that may have been cut
+short. An edit refused this way says *The registry was not read whole; nothing was changed*, and
+the file on the card is as it was; *The card did not take the write* is the message for a save the
+card itself refused. A registry of the size a pilot keeps is unaffected either way.
 
 A line the card took only part of -- a write that came up short, or power lost during it -- is not
 repaired: it stays in the file as a line of its own, and the next flight's line starts on a new
