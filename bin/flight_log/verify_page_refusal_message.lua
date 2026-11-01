@@ -124,11 +124,13 @@ end
 
 local function open()
   local page = assert(loadfile("src/rfsuite/app/pages/tools/flight_log/page.lua"))()
-  local state = { children = {} }
+  -- `rebuilds` counts the page's own requests for a new build: the radio draws the message only
+  -- when one is asked for, so every action below also checks that it was.
+  local state = { children = {}, rebuilds = 0 }
   local ctx = {
     x = 0, y = 0, w = 480, h = 272,
     preferences = {},
-    requestRebuild = function() end
+    requestRebuild = function() state.rebuilds = state.rebuilds + 1 end
   }
   function state.build()
     state.children = {}
@@ -159,7 +161,9 @@ local function open()
   function state.press(text)
     local button = state.find("button", text)
     assert(button ~= nil, "no button " .. text)
+    state.rebuilds = 0
     button.press()
+    state.asked = state.rebuilds > 0
     state.build()
   end
   state.build()
@@ -247,7 +251,9 @@ local function deleteFirst(stage)
   state.press("Delete")
   check("Delete asks first, and nothing is written before the answer",
     confirmBox ~= nil and type(confirmBox.confirm) == "function" and files[REG] == REGISTRY)
+  state.rebuilds = 0
   if confirmBox ~= nil and type(confirmBox.confirm) == "function" then confirmBox.confirm() end
+  state.asked = state.rebuilds > 0
   state.build()
   return state
 end
@@ -265,6 +271,7 @@ do
   check("a read cut short: the page says the registry was not read whole and nothing changed",
     hasLabel(state, "The registry was not read whole; nothing was changed"), shown(state))
   check("a read cut short: the registry on the card is unchanged", files[REG] == REGISTRY, files[REG])
+  check("a read cut short: the refused Save asks for a new build, so the message is drawn", state.asked)
   check("a read cut short: the editor stays open with what was typed",
     state.find("button", "Save") ~= nil and typedKept(state), select(2, typedKept(state)))
 
@@ -283,6 +290,7 @@ do
   check("Edit on a read cut short: the not-read-whole message",
     hasLabel(state, "The registry was not read whole; nothing was changed"), shown(state))
   check("Edit on a read cut short: the registry on the card is unchanged", files[REG] == REGISTRY, files[REG])
+  check("Edit on a read cut short: the refused Save asks for a new build", state.asked)
   check("Edit on a read cut short: the editor stays open with what was typed",
     state.find("button", "Save") ~= nil and typedKept(state), select(2, typedKept(state)))
 
@@ -293,6 +301,7 @@ do
   check("Delete on a read cut short: the not-read-whole message on the pack's view",
     hasLabel(state, "The registry was not read whole; nothing was changed"), shown(state))
   check("Delete on a read cut short: the registry on the card is unchanged", files[REG] == REGISTRY, files[REG])
+  check("Delete on a read cut short: the refused delete asks for a new build", state.asked)
 end
 
 -- ---------------------------------------------------------------------------
