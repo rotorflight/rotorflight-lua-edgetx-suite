@@ -889,7 +889,8 @@ end
 -- one after which the real verdict is taken. A drive that is still live when its trims go back to
 -- unresolved -- the settings moved under an open surface on the ground -- answers what it has
 -- (nothing, after the forget that came with them) and takes nothing either: the new settings revoke
--- output themselves (M.get drops `live`), and the next evaluation waits for the walk.
+-- output themselves (M.get drops `live`), and on the ground Drive:evaluateInterlock drops it as well
+-- before it walks, whichever way the drive got there.
 function M.verdict(drive)
   if type(drive) ~= "table" then return nil end
   if drive.phase == M.PHASE_LIVE then return drive._checkResult end
@@ -985,8 +986,14 @@ function Drive:evaluateInterlock(now, open)
     return false
   end
 
-  -- Resolve trims on their own pass before the setup check can permit output.
-  if not self.live and self.phase ~= M.PHASE_LIVE and trimsPending(self) then
+  -- Resolve trims on their own pass before the setup check can permit output. On the ground a drive
+  -- that is still live gives its output up for the walk as well: settings adopted after a landing
+  -- forgot the trims and the verdict, and nothing may stand on the wire until both are taken again.
+  if self.phase ~= M.PHASE_LIVE and trimsPending(self) then
+    if self.live then
+      self.live = false
+      self:cleanup(false)
+    end
     self:ensureTrims()
     return false
   end
@@ -1464,6 +1471,12 @@ end
 function Drive:tick(armed)
   local now = self.radio.now()
   local wasLive = self.live
+  -- A landing found while output was revoked (the link was lost in the air) with the trim block to
+  -- walk again (settings adopted when the link came back) leaves the flight here, before the
+  -- interlock runs: from the live phase the interlock would go live on a verdict that is gone.
+  if armed ~= true and self.phase == M.PHASE_LIVE and self.live ~= true and trimsPending(self) then
+    self:setPhase((self.fired > 0) and M.PHASE_POST or M.PHASE_GROUND)
+  end
   self:evaluateInterlock(now)
   if not self.live then
     if wasLive then self.valueEpoch = self.valueEpoch + 1 end

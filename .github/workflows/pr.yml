@@ -88,6 +88,9 @@ jobs:
       - name: In-flight session and view lifetimes
         run: lua5.3 bin/dashboard/verify_inflight_lifetimes.lua
 
+      - name: In-flight settings adopted after a landing are checked first
+        run: lua5.3 bin/dashboard/verify_inflight_landing_resettle.lua
+
   startup-compile:
     # The configuration tool compiles the installed suite at start (src/rfsuite/lib/precompile.lua).
     # This runs the real module on an in-memory card across consecutive starts: a fresh install
