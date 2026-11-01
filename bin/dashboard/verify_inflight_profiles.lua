@@ -799,6 +799,54 @@ do
   files[path] = savedFile
 end
 
+-- Read again and a restore asked for while an expiry is still pending begin a new session too: the
+-- stale session is neither continued nor written back to the board, and its parameter choice goes.
+do
+  local path = Store.path(fc.uid)
+  local function session()
+    files[path] = savedFile
+    local instance = makeDrive(slots)
+    check(Prime.refreshValues(widget, instance), "a session's read starts")
+    finish(instance)
+    -- The link's automatic read is done; any later read is one this test asks for or a defect.
+    instance._primeAutoDone = true
+    check(instance.sessionProfiles ~= nil and instance.baseline ~= nil and not instance.readRequired,
+      "positive control: the session holds its start values and needs no read")
+    instance.sessionExpired, instance.sessionList, instance.groupWork = true, "stale-choice", nil
+    return instance, instance.baseline, files[path]
+  end
+
+  local instance, stale, card = session()
+  check(Prime.refreshValues(widget, instance) and instance.profileJob and instance.profileJob.mode == "new",
+    "Read again with an expiry pending begins a new session rather than refreshing the stale one")
+  check(instance.sessionExpired == nil and instance.sessionList == nil and instance.groupWork ~= nil,
+    "the expiry is cleared and the groups are filtered again without the ended session's choice")
+  finish(instance)
+  check(instance.sessionMode == "new" and instance.baseline ~= stale and files[path] ~= card,
+    "the new session holds its own start values and they replace the stale ones on the card")
+  for _ = 1, 20 do pass(instance) end
+  check(not Prime.isRunning(instance) and not instance.readAgain and #pending == 0, "Read again asks for no second read")
+
+  instance, stale, card = session()
+  -- The board moved away from the stale start values (a step in the air), so a restore of them would write.
+  local stepped = fc.data.pid3[112].pid_1_P
+  fc.data.pid3[112].pid_1_P = stepped + 7
+  sent = {}
+  check(Prime.restore(widget, instance, {kind = "pid", index = 3}), "a restore with an expiry pending starts a read")
+  check(instance.profileJob and instance.profileJob.mode == "new" and instance.transfer == nil,
+    "the restore becomes the read of a new session, not a transfer")
+  finish(instance)
+  local writes = 0
+  for _, r in ipairs(sent) do if setters[r.command] or r.command == 250 then writes = writes + 1 end end
+  check(writes == 0, "the stale session's start values are not written back to the board")
+  check(instance.sessionMode == "new" and instance.baseline ~= stale and instance.sessionExpired == nil,
+    "after the restore press the board's values are the new session's start values")
+  check(instance.baseline.pid3["14"] == stepped + 7 and files[path] ~= card,
+    "the new start values are the board's as it stands, on the card")
+  fc.data.pid3[112].pid_1_P = stepped
+  files[path] = savedFile
+end
+
 -- A suspended return belongs to its identified board, never the next one on the link.
 do
   local instance = makeDrive(slots)

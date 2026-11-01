@@ -311,9 +311,10 @@ scenario("a battery change during a profile job ends the session once the job is
 end)
 
 -- The expiry a ground gap notes is taken on the ground only. Work still outstanding when the link
--- comes back (here a profile job) keeps it waiting. If the pilot arms first, the job is cancelled and
--- the live phase arms the bank variable, which keeps it waiting in the air; when the bank is then
--- released in flight (a profile switch cleans it up), the session must not end.
+-- comes back (here a profile job) keeps it waiting, and the open surface then asserts its bank
+-- selection (drive.lua, Drive:tick), which goes on keeping it waiting after the job is done. If the
+-- pilot arms then, the bank is still held in the air; when it is released in flight (a profile
+-- switch cleans it up), the session must not end.
 local function expiredWithWorkOutstanding(widget, d)
   d.profileJob = {}
   widget.state.fblConnected = false
@@ -326,7 +327,9 @@ local function expiredWithWorkOutstanding(widget, d)
   check(widget._inflight == d and d.baseline ~= nil, "the outstanding job keeps the session on the ground")
 end
 
-scenario("an expiry noted on the ground is not taken in the air, and is taken at the landing", function()
+-- This fixture has no tuning setup, so the surface's own pass does not assert a bank: the holder is
+-- handed over at the arming, and the profile switch's cleanup is the bank going back to 0.
+scenario("an expiry noted on the ground is not taken in the air, and is taken on the ground after the landing", function()
   local widget = newWidget()
   open(widget)
   local d = withSession(widget, nil)
@@ -339,12 +342,12 @@ scenario("an expiry noted on the ground is not taken in the air, and is taken at
   for _ = 1, 3 do widget.state.fblConnected = true; Stubs.tick(); widget:refresh(0, nil) end
   check(widget._inflight == d and d.baseline ~= nil and d.baseline.identity == "kept",
     "armed: the bank released in the air does not end the session")
-  check(d.sessionExpired == true, "armed: the expiry is kept for the landing")
+  check(d.sessionExpired == true, "armed: the expiry is kept for the ground")
   widget.state.armed = false
   for _ = 1, 3 do widget.state.fblConnected = true; Stubs.tick(); widget:refresh(0, nil) end
   check(d.phase ~= "live", "positive control: the landing was observed")
   check(widget._inflight == d and d.baseline == nil and d.readAgain and d.sessionExpired == nil,
-    "the first ground pass after the landing ends the session and asks for a new read")
+    "the first ground pass with nothing holding it ends the session and asks for a new read")
   close(widget)
   forget(widget)
 end)
