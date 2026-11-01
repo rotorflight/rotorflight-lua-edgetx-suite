@@ -551,10 +551,9 @@ local function applyModelPreferencesForMcu(mcuId)
   end
 end
 
--- The compact MSP-over-telemetry framing (version 3 in the status byte) is offered to a board
--- whose API version is 12.10 or later; every link starts in MSPv2, so the version read itself
--- works on any firmware. A 12.10 board without version 3 refuses it once and stays on MSPv2
--- (tasks/msp/common.lua). `nil` returns to MSPv2.
+-- The compact MSP-over-telemetry framing (version 3 in the status byte) is used with a board
+-- whose API version is 12.10 or later (Rotorflight 4.7); every link starts in MSPv2, so the
+-- version read itself works on any firmware. `nil` returns to MSPv2.
 local COMPACT_FRAMING_API = { 12, 0, 10 }
 
 local function setFraming(apiVersion)

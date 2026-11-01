@@ -239,29 +239,10 @@ do
   equal(poll(c), nil, "a reply in version 1 answers nothing")
 end
 
--- Refusal by firmware without version 3 -------------------------------------------------------
+-- Errors in version 3 ------------------------------------------------------------------------
 do
+  -- A compact error reply that names its command is that command's answer.
   local c = newCommon()
-  c.setProtocolVersion(3)
-  c.sendRequest(1, {})
-  c.processTxQ()
-  h.inbox = mismatchReply()
-  equal(poll(c), nil, "the refusal is not delivered as a reply")
-  equal(c.getProtocolVersion(), 2, "the refusal falls back to MSPv2")
-  h.sent = {}
-  c.sendRequest(1, {})
-  c.processTxQ()
-  equal(bytes(h.sent[1], 1, 3), "51 00 01", "the next request goes out in MSPv2")
-  h.inbox = reply(2, 1, { 0, 12, 10 })
-  equal(poll(c), 1, "and its MSPv2 reply is delivered")
-  c.setProtocolVersion(3)
-  equal(c.getProtocolVersion(), 2, "version 3 is not offered again on the same link")
-  c.setProtocolVersion(2)
-  c.setProtocolVersion(3)
-  equal(c.getProtocolVersion(), 3, "asking for MSPv2 forgets the refusal")
-
-  -- A compact error reply that names its command is an answer, not a refusal.
-  c = newCommon()
   c.setProtocolVersion(3)
   c.sendRequest(217, {})
   c.processTxQ()
@@ -269,35 +250,20 @@ do
   local cmd, _, err = poll(c)
   equal(cmd, 217, "a compact error reply keeps its command")
   equal(err, true, "a compact error reply carries the error flag")
-  equal(c.getProtocolVersion(), 3, "a compact error reply does not fall back")
-end
+  equal(c.getProtocolVersion(), 3, "a compact error reply leaves the framing as it is")
 
--- The real queue sends the refused request again, in MSPv2 ---------------------------------------
-do
-  local Queue = assert(loadfile(core .. "tasks/msp/queue.lua"))()
-  local c = newCommon()
+  -- Firmware without version 3 refuses it with an error frame for command 0. Version 3 is used
+  -- only from API 12.10 (Rotorflight 4.7) on, which carries it, so that frame answers nothing of
+  -- ours and the framing stays.
+  c = newCommon()
   c.setProtocolVersion(3)
-  local q = Queue.new(c, { isSimulator = false, maxRetries = 3 })
-  local got = {}
-  q:add({ command = 1, processReply = function(_, buf) got[#got + 1] = buf end, errorHandler = function() end })
-  local now = 0
-  local function step(seconds)
-    now = now + (seconds or 0.01)
-    q:processQueue(now)
-  end
-  step()
-  equal(#h.sent, 1, "real queue: the request went out")
-  equal(h.sent[1] and h.sent[1][1] & 0x60, 0x60, "real queue: the first attempt is version 3")
+  c.sendRequest(1, {})
+  c.processTxQ()
   h.inbox = mismatchReply()
-  step()
-  equal(c.getProtocolVersion(), 2, "real queue: the refusal falls back to MSPv2")
-  step(2.5)
-  equal(#h.sent, 2, "real queue: the request is sent again after the retry window")
-  equal(h.sent[2] and h.sent[2][1] & 0x60, 0x40, "real queue: the second attempt is MSPv2")
-  h.inbox = reply(2, 1, { 0, 12, 10 })
-  step()
-  step()
-  equal(#got, 1, "real queue: the MSPv2 reply is delivered")
+  equal(poll(c), nil, "a refusal for command 0 is not delivered as a reply")
+  equal(c.getProtocolVersion(), 3, "the framing does not change on its own")
+  c.setProtocolVersion(2)
+  equal(c.getProtocolVersion(), 2, "asking for MSPv2 returns to MSPv2")
 end
 
 -- The runtime chooses the framing from the API version ------------------------------------------

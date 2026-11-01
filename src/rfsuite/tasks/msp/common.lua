@@ -60,8 +60,6 @@ local function new(protocol)
   -- five header bytes); 3 is the compact form (command and an 8-bit length, three header bytes,
   -- a 0xFF length announcing a 16-bit one). The firmware answers in the version it was asked in.
   local mspVersion = 2
-  -- Set once a board has refused version 3, so it is not offered again on this link.
-  local compactRefused = false
 
   local maxTxBufferSize = transport.maxTxBufferSize or 8
   local maxRxBufferSize = transport.maxRxBufferSize or 58
@@ -219,16 +217,6 @@ local function new(protocol)
         end
         mspRxReq = bit32.bor(bit32.band(cmdLow, 0xFF), bit32.lshift(bit32.band(cmdHigh, 0xFF), 8))
         mspRxSize = len
-        -- A board without version 3 refuses it with an error frame that keeps the version bits
-        -- of the request but carries an MSPv2 header for command 0, which reads here as command
-        -- 0. Fall back to version 2 for this link; the queue's retry sends the request again,
-        -- in version 2.
-        if mspRxError and mspRxReq == 0 and mspVersion == 3 then
-          mspVersion = 2
-          compactRefused = true
-          mspStarted = false
-          return nil
-        end
       elseif version == 2 then
         local cmdLow = payload[idx + 1] or 0
         local cmdHigh = payload[idx + 2] or 0
@@ -361,15 +349,9 @@ local function new(protocol)
     pollReply = mspPollReply,
     clearTxBuf = mspClearTxBuf,
     clearRxBuf = mspClearRxBuf,
-    -- 3 asks for the compact framing, anything else is MSPv2. Asking for version 2 also forgets
-    -- an earlier refusal, so the next link is offered version 3 again.
+    -- 3 asks for the compact framing, anything else is MSPv2.
     setProtocolVersion = function(v)
-      if tonumber(v) == 3 then
-        if not compactRefused then mspVersion = 3 end
-      else
-        mspVersion = 2
-        compactRefused = false
-      end
+      mspVersion = (tonumber(v) == 3) and 3 or 2
     end,
     getProtocolVersion = function()
       return mspVersion
