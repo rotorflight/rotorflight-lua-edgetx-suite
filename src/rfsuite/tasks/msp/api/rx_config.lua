@@ -17,7 +17,7 @@ local FIELD_SPEC = {
   {"pinSwap", "U8"}
 }
 
-local SIM_RESPONSE = { 0,0,0, 107,3, 77,8, 0,0,0,0, 0, 0 }
+local SIM_RESPONSE = { 0,0,0, 107,3, 77,8, 0, 0,0,0,0, 0, 0 }
 
 Api.fields = FIELD_SPEC
 Api.simulatorResponse = SIM_RESPONSE

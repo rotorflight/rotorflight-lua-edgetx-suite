@@ -26,6 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_setup_apis.lua
+      - run: lua5.3 bin/msp/verify_simulator_fixture_lengths.lua
 
   instruction-budget:
     name: Instruction budget

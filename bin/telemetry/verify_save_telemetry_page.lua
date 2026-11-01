@@ -139,10 +139,10 @@ local function prepare(h, eq)
   eq(rxRead.simulatorResponse, h.rx.simulatorResponse, "receiver read uses API fixture")
   eq(h.page.canSave(), false, "pending initial reads prevent save")
 
-  -- The telemetry simulator fixture has only 44 bytes; canSave requires all 40 slots
-  -- (52 bytes). Complete a private reply copy with empty slots, preserving the fixture.
+  -- canSave requires all 40 slots (52 bytes), and the telemetry simulator fixture carries
+  -- them; the page gets a private copy so the fixture itself stays untouched.
   h.initial = copyBuffer(h.api.simulatorResponse)
-  for i = #h.initial + 1, 52 do h.initial[i] = 0 end
+  eq(#h.initial, 52, "telemetry fixture carries every slot")
   h.initialConfig = assert(h.api.parse(h.initial))
   h.initialRx = assert(h.rx.parse(h.rx.simulatorResponse))
   answer(h, telemetryRead, h.initial)

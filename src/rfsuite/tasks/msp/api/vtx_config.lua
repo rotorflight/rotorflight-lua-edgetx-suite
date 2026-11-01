@@ -16,7 +16,8 @@ local WRITE_FIELD_SPEC = {
   {"vtxtable_bands", "U8"}, {"vtxtable_channels", "U8"}, {"vtxtable_power_levels", "U8"}, {"vtxtable_clear", "U8"}
 }
 
-local SIM_RESPONSE = {0,1,1,1,0,108,22,1,0,0,1,5}
+-- The whole reply: the nine bytes of FIELD_SPEC, then pit_mode_freq (U16) and the four VTX table bytes.
+local SIM_RESPONSE = {0,1,1,1,0,108,22,1,0, 0,0, 1,5,8,5}
 
 Api.fields = FIELD_SPEC
 Api.writeFields = WRITE_FIELD_SPEC
@@ -47,22 +48,18 @@ function Api.parse(buf)
   parsed.freq = read_u16_le(buf, pos); pos = pos + 2
   parsed.device_ready = tonumber(buf[pos]) or 0; pos = pos + 1
   parsed.low_power_disarm = tonumber(buf[pos]) or 0; pos = pos + 1
-  -- optional extras
-  if #buf >= pos + 2 then
-    parsed.pit_mode_freq = read_u16_le(buf, pos); pos = pos + 2
-  end
-  if #buf >= pos + 1 then
-    parsed.vtxtable_available = tonumber(buf[pos]) or 0; pos = pos + 1
-  end
-  if #buf >= pos + 1 then
-    parsed.vtxtable_bands = tonumber(buf[pos]) or 0; pos = pos + 1
-  end
-  if #buf >= pos + 1 then
-    parsed.vtxtable_channels = tonumber(buf[pos]) or 0; pos = pos + 1
-  end
-  if #buf >= pos + 1 then
-    parsed.vtxtable_power_levels = tonumber(buf[pos]) or 0; pos = pos + 1
-  end
+  -- optional extras, in order: each is read when the reply carries its last byte, and the first
+  -- one it does not carry ends the parse
+  if #buf < pos + 1 then return parsed end
+  parsed.pit_mode_freq = read_u16_le(buf, pos); pos = pos + 2
+  if #buf < pos then return parsed end
+  parsed.vtxtable_available = tonumber(buf[pos]) or 0; pos = pos + 1
+  if #buf < pos then return parsed end
+  parsed.vtxtable_bands = tonumber(buf[pos]) or 0; pos = pos + 1
+  if #buf < pos then return parsed end
+  parsed.vtxtable_channels = tonumber(buf[pos]) or 0; pos = pos + 1
+  if #buf < pos then return parsed end
+  parsed.vtxtable_power_levels = tonumber(buf[pos]) or 0
   return parsed
 end
 

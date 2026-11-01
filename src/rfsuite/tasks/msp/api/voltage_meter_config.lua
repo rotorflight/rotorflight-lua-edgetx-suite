@@ -19,7 +19,13 @@ local WRITE_FIELD_SPEC = {
   {"meter_id", "U8"}, {"scale", "U16"}, {"divider", "U16"}, {"divmul", "U8"}
 }
 
-local SIM_RESPONSE = {4, 7,0, 0,1, 0,0, 1,0, 7, 1,1,0,0,1,0, 7, 2,1,0,0,1,0, 7, 3,1,0,0,1}
+-- Four ADC meters (battery, BEC, bus, ext: ids 10, 20, 30, 40), each a frame of length 7, type ADC,
+-- scale 110, divider 10, divmul 1: the firmware's defaults.
+local SIM_RESPONSE = {4,
+  7, 10, 1, 110,0, 10,0, 1,
+  7, 20, 1, 110,0, 10,0, 1,
+  7, 30, 1, 110,0, 10,0, 1,
+  7, 40, 1, 110,0, 10,0, 1}
 
 Api.fields = FIELD_SPEC
 Api.writeFields = WRITE_FIELD_SPEC
