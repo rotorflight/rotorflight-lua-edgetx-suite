@@ -1121,8 +1121,10 @@ function M.start(widget, drive, automatic)
   if queueOf() == nil then return false, "no_link" end
   -- A session whose end is still pending ends as this read begins, so the read begins a new one --
   -- also when it is interrupted before its values (Drive:takeExpiry). A profile job still running
-  -- belongs to that session and finishes first, as profiles.begin requires.
+  -- belongs to that session and finishes first, as profiles.begin requires. Without a link nothing is
+  -- read, and the session is kept for the list on screen until the link is back.
   if drive.sessionExpired then
+    if widget.state.fblConnected ~= true then return false, "no_link" end
     if drive.profileJob ~= nil then return false, "reading" end
     drive:takeExpiry()
   end

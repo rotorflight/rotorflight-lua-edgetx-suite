@@ -960,12 +960,13 @@ end
 -- ground, and work held when it came back kept the session from ending) ends that session first,
 -- so the read begins a new one. The read is the one Drive:endSession asks for, so that request is
 -- withdrawn again. A parameter choice of the ended session may already have filtered the groups,
--- so they are filtered again without it. Answers whether a session was ended.
+-- so they are filtered again without it. A model-default save still waiting is the model's, not the
+-- session's: it is kept and written once the read is done. Answers whether a session was ended.
 function Drive:takeExpiry()
   if not self.sessionExpired then return false end
-  local chosen = self.sessionList
+  local chosen, save = self.sessionList, self.pendingSave
   self:endSession()
-  self.readAgain = nil
+  self.readAgain, self.pendingSave = nil, save
   if chosen ~= nil then self:applyFilter() end
   if self.phase == M.PHASE_POST then self:setPhase(M.PHASE_GROUND) end
   return true
