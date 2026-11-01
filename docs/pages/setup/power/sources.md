@@ -34,7 +34,8 @@ Read-only while the model is armed.
   from the sum of its cell voltages, as the flight controller's `crsf_sensors_battery_source`
   setting chooses. That setting and the other `crsf_sensors_` settings (timeout, barometer, RPM,
   pin swap) are set in the flight controller's CLI; this suite has no page for them.
-- Save writes the battery configuration and stores it on the flight controller. See
+- Save writes the battery configuration through the shared save, which reports success only after
+  the write and EEPROM commit succeed, or *Not saved* if a write fails. See
   [Saving configuration](../../../reference/saving.md).
 
 ## Related

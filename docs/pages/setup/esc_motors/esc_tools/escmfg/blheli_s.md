@@ -26,6 +26,8 @@ page, are described in [Saving configuration](../../../../../reference/saving.md
 
 ## Settings
 
+Option names are shown in the radio's language; maker abbreviations such as CW/CCW and BEC remain in English as in the maker's software.
+
 The page opens on a safety notice, and behind it on a summary of the ESC's model, firmware
 and version. *Section* switches between three groups of settings; every setting of the chosen
 group is always shown.

@@ -62,8 +62,8 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 
 | Page | File | In-app help | Conditions | Status |
 | --- | --- | --- | --- | --- |
-| Configuration | `setup/configuration.md` | yes | read-only while armed | to write |
-| Radio Config | `setup/radio_config.md` | yes | read-only while armed | to write |
+| Configuration | [setup/configuration.md](setup/configuration.md) | yes | read-only while armed | written |
+| Radio Config | [setup/radio_config.md](setup/radio_config.md) | yes | read-only while armed | written |
 | Telemetry | [setup/telemetry.md](setup/telemetry.md) | yes | read-only while armed | written |
 | Accelerometer | [setup/accelerometer.md](setup/accelerometer.md) | yes | read-only while armed | written |
 | Alignment | [setup/alignment.md](setup/alignment.md) | yes | read-only while armed | written |

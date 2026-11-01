@@ -691,6 +691,15 @@ function M.reset()
     setStatus("status_idle")
 end
 
+-- Reset alone schedules another probe. A cancelled page probe releases its reader and stays
+-- complete until the next explicit start, which resets all fields and time limits again.
+function M.cancel()
+    M.reset()
+    state = "done"
+    taskComplete = true
+    setStatus("status_stopped_armed")
+end
+
 local function handleDeviceInfo(data)
     -- data[1] = Dest (0xEA)
     -- data[2] = Source Address

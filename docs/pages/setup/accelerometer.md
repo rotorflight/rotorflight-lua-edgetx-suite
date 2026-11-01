@@ -21,14 +21,14 @@ arming status and accelerometer presence before sending the start command.
 
 | Setting | What it does |
 | --- | --- |
-| Roll | Roll trim, from -300 to 300; the flight controller counts it in tenths of a degree. Raise it to correct a drift to the left, lower it (or go negative) for a drift to the right. |
-| Pitch | Pitch trim, from -300 to 300; the flight controller counts it in tenths of a degree. Raise it to correct a drift to the rear, lower it (or go negative) for a drift to the front. |
+| Roll | Roll trim in tenths of a degree, from -300 to 300 (-30° to +30°), shown without a unit. Raise it to correct a drift to the left, lower it (or go negative) for a drift to the right. |
+| Pitch | Pitch trim in tenths of a degree, from -300 to 300 (-30° to +30°), shown without a unit. Raise it to correct a drift to the rear, lower it (or go negative) for a drift to the front. |
 | Save | Writes the edited trims to EEPROM. Held until the page has read the trims from the flight controller on this visit. |
 | Reload | Reads the trims from the flight controller again. |
 | Star (`*`) / Calibrate | Starts accelerometer calibration after confirmation. |
 
 The trims correct a drift in the self-leveling modes, such as Angle, Horizon and Rescue. The page
-shows the raw value, so the number beside its `°` is in tenths of a degree too: 300 is 30°.
+shows the raw trim values without a unit, as in the Rotorflight Configurator.
 
 ## Calibration
 

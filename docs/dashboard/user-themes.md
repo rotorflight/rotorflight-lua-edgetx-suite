@@ -131,6 +131,8 @@ The same holds for the named colour strings above: they are mapped to a colour n
 box is built, not on the first reading that arrives.
 
 #### Governor state thresholds
+With the GOVERNOR feature off, the governor mode reads OFF regardless of the stored mode, as on *Setup* → *Governor* → *General*, provided the flight controller reported its feature setting at connect.
+
 For governor status boxes (`type = "text"`, `source = "governor"`), thresholds can match against governor state labels:
 
 ```lua

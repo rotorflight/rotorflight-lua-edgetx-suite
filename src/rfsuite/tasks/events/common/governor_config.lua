@@ -46,6 +46,7 @@ function M.wakeup(args)
   -- governor configuration or mode behind.
   session.governor_config = nil
   session.governorMode = nil
+  session.governorFeature = nil
 
   -- MSP governor_config API laden
   if not governorConfigApi then
@@ -72,7 +73,8 @@ function M.wakeup(args)
     pcall(Log.emit, "rfsuite.tasks.governor", "MSP request for governor_config (cmd=" .. tostring(governorConfigApi.command) .. ") via queue", "debug")
   end
 
-  mspState.queue:add({
+  local queue = mspState.queue
+  queue:add({
     command = governorConfigApi.command,
     simulatorResponse = governorConfigApi.simulatorResponse,
     timeout = 5.0,
@@ -88,6 +90,27 @@ function M.wakeup(args)
       done = true
       if type(Log) == "table" and type(Log.emit) == "function" then
         pcall(Log.emit, "rfsuite.tasks.governor", "governor_config received (mode=" .. tostring(data and data.gov_mode or "?") .. ")", "debug")
+      end
+      -- The GOVERNOR feature bit trails the configuration instead of lengthening the connect chain:
+      -- the task is complete with the stored mode, and the readers show OFF once this reply says the
+      -- feature is off. Until then, or if it fails, they keep the stored mode.
+      local featureConfigApi = loadModule("tasks/msp/api/feature_config.lua")
+      if featureConfigApi then
+        queue:add({
+          command = featureConfigApi.command,
+          simulatorResponse = featureConfigApi.simulatorResponse,
+          timeout = 5.0,
+          maxRetries = 0,
+          processReply = function(_, featureBuf)
+            local features = featureConfigApi.parse(featureBuf)
+            if features and session == (_G.rfsuite and _G.rfsuite.session) then
+              session.governorFeature = (features.enabledFeatures & (1 << 26)) ~= 0
+            end
+          end,
+          errorHandler = function()
+            if type(Log) == "table" and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks.governor", "feature_config read failed", "warn") end
+          end
+        })
       end
     end,
     errorHandler = function(msg, reason)
@@ -115,6 +138,7 @@ function M.reset()
   if type(session) == "table" then
     session.governor_config = nil
     session.governorMode = nil
+    session.governorFeature = nil
   end
 end
 

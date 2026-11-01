@@ -16,6 +16,7 @@ local NameApi = nil
 local AdvancedConfigApi = nil
 local FeatureConfigApi = nil
 local StatusApi = nil
+local BoardInfoApi = nil
 local LoadingOverlay = nil
 local SavePipeline = nil
 local t = nil
@@ -27,6 +28,7 @@ local FEATURE_BIT_CMS = 19
 local function newRuntime()
   return {
     readPending = false,
+    readGeneration = 0,
     requestRebuild = nil,
     lastSessionSignature = nil
   }
@@ -112,6 +114,10 @@ local function queueRcRead(isAutoReload)
   end
 
   local readValid = true
+  ui.runtime.readGeneration = ui.runtime.readGeneration + 1
+  ui.runtime.boardInfoRequested = false
+  ui.runtime.choicesBuilt = false
+  ui.runtime.gyroSampleRateHz = nil
   ui.runtime.readPending = true
   if not isAutoReload then
     ui.loading = true
@@ -234,6 +240,37 @@ local function queueRcRead(isAutoReload)
   return true, nil
 end
 
+local function queueBoardInfoRead()
+  local runtime = ui.runtime
+  if not runtime.readComplete or not runtime.choicesBuilt or runtime.boardInfoRequested then return end
+  runtime.boardInfoRequested = true
+  if not BoardInfoApi then BoardInfoApi = loadModule("tasks/msp/api/board_info.lua") end
+  if not BoardInfoApi or not MspRuntime or type(MspRuntime.getState) ~= "function" then return end
+  local mspState = MspRuntime.getState()
+  local queue = mspState and mspState.queue
+  if not queue or type(queue.add) ~= "function" then return end
+
+  local generation = runtime.readGeneration
+  queue:add({
+    command = BoardInfoApi.command,
+    simulatorResponse = BoardInfoApi.simulatorResponse,
+    processReply = function(self, buf)
+      if ui.runtime ~= runtime or runtime.readGeneration ~= generation then return end
+      local parsed = BoardInfoApi.parse(buf)
+      local rate = parsed and tonumber(parsed.gyro_sample_rate_hz) or 0
+      if rate and rate > 0 then
+        runtime.gyroSampleRateHz = rate
+        if type(runtime.requestRebuild) == "function" then
+          runtime.requestRebuild()
+        end
+      end
+    end,
+    errorHandler = function()
+      -- Optional label data: retain the STATUS fallback if BOARD_INFO is refused.
+    end
+  })
+end
+
 local function queueRcWrite(_i18n)
   if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
   if not SavePipeline or not NameApi or not AdvancedConfigApi or not FeatureConfigApi then
@@ -350,10 +387,12 @@ end
 local function getPidLoopChoices(currentValue)
   local gyroDelta = ui.config.task_delta_time_gyro
   if not gyroDelta or gyroDelta <= 0 then gyroDelta = 250 end
+  local nominalGyroHz = ui.runtime.gyroSampleRateHz
   local rawGyroHz = 1000000 / gyroDelta
-  local gyroHz = math.floor((rawGyroHz / 1000) + 0.5) * 1000
+  local gyroHz = nominalGyroHz or math.floor((rawGyroHz / 1000) + 0.5) * 1000
 
   local function formatPidLoopKhz(valueKhz)
+    if nominalGyroHz then return string.format("%.2f kHz", valueKhz) end
     local rounded = math.floor((valueKhz * 100) + 0.5) / 100
     local text = string.format("%.2f", rounded)
     text = string.gsub(text, "0+$", "")
@@ -398,6 +437,8 @@ function M.wakeup(ctx)
     ui.runtime.lastSessionSignature = signature
     queueRcRead(false)
   end
+  -- The first form build uses STATUS; nominal labels arrive independently afterwards.
+  queueBoardInfoRead()
 end
 
 function M.getHeaderActions()
@@ -461,7 +502,7 @@ function M.build(ctx)
           ui.dirty = true
         end
       end,
-      length = 32
+      length = 16
     }
   )
 
@@ -476,29 +517,46 @@ function M.build(ctx)
         ui.config.pid_process_denom = newVal
         ui.dirty = true
       end
-    end
+    end,
+    {
+      helpText = pageText(i18n, "help_pid_loop_speed", "Sets how often the PID loop runs; 1 to 2 kHz is recommended, and Realtime Load should stay at or below 70%."),
+      helpTitle = pageText(i18n, "pid_loop_speed", "PID loop speed")
+    }
   )
 
   -- 3) GPS switch
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     pageText(i18n, "feature_gps", "GPS"),
     getBoolGetter(FEATURE_BIT_GPS),
-    getBoolSetter(FEATURE_BIT_GPS)
+    getBoolSetter(FEATURE_BIT_GPS),
+    {
+      helpText = pageText(i18n, "help_feature_gps", "Enables GPS telemetry; assign a GPS port under Ports first."),
+      helpTitle = pageText(i18n, "feature_gps", "GPS")
+    }
   )
 
   -- 4) LED_STRIP switch
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     pageText(i18n, "feature_led_strip", "LED_STRIP"),
     getBoolGetter(FEATURE_BIT_LED_STRIP),
-    getBoolSetter(FEATURE_BIT_LED_STRIP)
+    getBoolSetter(FEATURE_BIT_LED_STRIP),
+    {
+      helpText = pageText(i18n, "help_feature_led_strip", "Enables support for WS2811/2812 RGB LED strips."),
+      helpTitle = pageText(i18n, "feature_led_strip", "LED_STRIP")
+    }
   )
 
   -- 5) CMS switch
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     pageText(i18n, "feature_cms", "CMS"),
     getBoolGetter(FEATURE_BIT_CMS),
-    getBoolSetter(FEATURE_BIT_CMS)
+    getBoolSetter(FEATURE_BIT_CMS),
+    {
+      helpText = pageText(i18n, "help_feature_cms", "Enables the firmware's Configuration Menu System (CMS)."),
+      helpTitle = pageText(i18n, "feature_cms", "CMS")
+    }
   )
+  ui.runtime.choicesBuilt = true
 end
 
 -- The write replaces the whole feature word and the craft name and restarts the board, so it is
@@ -561,6 +619,7 @@ function M.onClose()
   AdvancedConfigApi = nil
   FeatureConfigApi = nil
   StatusApi = nil
+  BoardInfoApi = nil
   LoadingOverlay = nil
   t = nil
 end

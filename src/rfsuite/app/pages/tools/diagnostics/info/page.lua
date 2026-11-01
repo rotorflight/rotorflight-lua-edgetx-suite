@@ -16,42 +16,11 @@ local BuildInfoApi = nil
 local TelemetryConfigApi = nil
 local LoadingOverlay = nil
 local AsyncLoadUi = nil
+local LinkRates = nil
+local Crsf = nil
 local packetRateCacheKey = nil
 local packetRateCacheText = "-"
 local RFMD_SENSOR_CANDIDATES = { "RFMD", "Rfmd" }
-local RFMD_MAP = {
-  [0] = { mode = "25Hz", band = "900Mhz" },
-  [1] = { mode = "50Hz", band = "900Mhz" },
-  [2] = { mode = "100Hz", band = "900Mhz" },
-  [3] = { mode = "100Hz Full", band = "900Mhz" },
-  [4] = { mode = "150Hz", band = "900Mhz" },
-  [5] = { mode = "200Hz", band = "900Mhz" },
-  [6] = { mode = "200Hz Full", band = "900Mhz" },
-  [7] = { mode = "250Hz", band = "900Mhz" },
-  [8] = { mode = "333Hz Full", band = "900Mhz" },
-  [9] = { mode = "500Hz", band = "900Mhz" },
-  [10] = { mode = "D25", band = "900Mhz" },
-  [11] = { mode = "K500 Full", band = "900Mhz" },
-  [21] = { mode = "50Hz", band = "2.4GHz" },
-  [22] = { mode = "100Hz", band = "2.4GHz" },
-  [23] = { mode = "100Hz Full", band = "2.4GHz" },
-  [24] = { mode = "150Hz", band = "2.4GHz" },
-  [25] = { mode = "200Hz", band = "2.4GHz" },
-  [26] = { mode = "200Hz Full", band = "2.4GHz" },
-  [27] = { mode = "250Hz", band = "2.4GHz" },
-  [28] = { mode = "333Hz Full", band = "2.4GHz" },
-  [29] = { mode = "500Hz", band = "2.4GHz" },
-  [30] = { mode = "D250", band = "2.4GHz" },
-  [31] = { mode = "D500", band = "2.4GHz" },
-  [32] = { mode = "F500", band = "2.4GHz" },
-  [33] = { mode = "F1000", band = "2.4GHz" },
-  [34] = { mode = "DK250", band = "2.4GHz" },
-  [35] = { mode = "DK500", band = "2.4GHz" },
-  [36] = { mode = "K1000", band = "2.4GHz" },
-  [37] = { mode = "K1000", band = "2.4GHz" },
-  [101] = { mode = "X100 Full", band = "900MHz" },
-  [102] = { mode = "X150", band = "900MHz" }
-}
 
 -- The prefix every key on this page hangs under. It is spelled out here rather than built
 -- inside the lookup, because .vscode/scripts/precompile_i18n.py reads it off this assignment
@@ -255,11 +224,9 @@ local function formatPacketRate(value)
   return packetRateCacheText
 end
 
--- RFMD_MAP has an entry for 0, and getValue() answers integer 0 both for a name the model has no
--- sensor for and for a sensor the radio has stopped receiving. Either state therefore came out of
--- this function as a confident "25Hz / 900Mhz" -- on a page a pilot typically opens because
--- something is wrong. getSourceValue() answers nothing for the first state, and its second return
--- value is false for the second, so neither reaches the map.
+-- Both generations assign a rate to 0, which getValue() also returns for a missing or stale
+-- sensor. getSourceValue() answers nothing for a missing sensor, and its second return value
+-- is false for a stale one, so neither reaches the decoder.
 local function readLiveRfmd(name)
   local getSrcV = _G.getSourceValue
   if type(getSrcV) == "function" then
@@ -286,19 +253,29 @@ local function readLiveRfmd(name)
   return nil
 end
 
+-- The header of lib/link_rates.lua documents that only 4.x RFMD values carry the band.
+local function rfBandForMode(value, generation, info)
+  if generation ~= 4 or not info then return "-" end
+  if value >= 0 and value <= 11 then return "900MHz" end
+  if value >= 20 and value <= 36 then return "2.4GHz" end
+  if value >= 100 and value <= 101 then return "900MHz/2.4GHz" end
+  return "-"
+end
+
 local function readLiveRfInfo()
   for i = 1, #RFMD_SENSOR_CANDIDATES do
     local value = readLiveRfmd(RFMD_SENSOR_CANDIDATES[i])
     if value ~= nil then
-      local rfmd = math.floor(value + 0.5)
-      local info = RFMD_MAP[rfmd]
-      if info then
-        return info.mode or "-", info.band or "-"
-      end
-      break
+      if not LinkRates then LinkRates = loadModule("lib/link_rates.lua") end
+      if not Crsf then Crsf = loadModule("lib/crsf.lua") end
+      local generation = LinkRates.resolveGeneration(state, Crsf, _G.crossfireTelemetryPush)
+      local info = LinkRates.forMode(value, generation)
+      return info and info.rate or "-", rfBandForMode(value, generation, info)
     end
   end
 
+  state.linkGeneration = nil
+  state.linkPingSent = nil
   return "-", "-"
 end
 
@@ -715,6 +692,15 @@ function M.build(ctx)
 end
 
 function M.wakeup()
+  -- The module answers the ping some time after the build that sent it, and nothing else
+  -- rebuilds the page then: collect the answer here (or send the ping again if the radio did
+  -- not take it) and rebuild once it has decided the generation, which also ends this check.
+  if state.linkGeneration == nil and LinkRates and Crsf then
+    if LinkRates.resolveGeneration(state, Crsf, _G.crossfireTelemetryPush) ~= nil then
+      requestRebuild()
+    end
+  end
+
   local now = nowSeconds()
   if state.loading then
     if not isFblConnected() then
@@ -773,6 +759,8 @@ function M.closePage()
   state.values = {}
   packetRateCacheKey = nil
   packetRateCacheText = "-"
+  state.linkGeneration = nil
+  state.linkPingSent = nil
 
   if AsyncLoadUi and type(AsyncLoadUi.reset) == "function" then
     AsyncLoadUi.reset(state)
@@ -784,6 +772,8 @@ function M.closePage()
   BuildInfoApi = nil
   TelemetryConfigApi = nil
   LoadingOverlay = nil
+  LinkRates = nil
+  Crsf = nil
 end
 
 return M

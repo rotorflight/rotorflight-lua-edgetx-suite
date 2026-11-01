@@ -344,6 +344,7 @@ end
 
 function M.getHeaderActions()
   return {
+    help = true,
     save = true,
     reload = true,
     menu = true
@@ -397,7 +398,7 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = "ZTW Configurator"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "ZTW")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -451,9 +452,9 @@ function M.build(ctx)
 
   local rowH
   local sectionOptions = {
-    { value = 1, label = "Basic" },
-    { value = 2, label = "Advanced" },
-    { value = 3, label = "Governor" }
+    { value = 1, label = pageText(i18n, "section_basic", "Basic") },
+    { value = 2, label = pageText(i18n, "section_advanced", "Advanced") },
+    { value = 3, label = pageText(i18n, "section_governor", "Governor") }
   }
   local sectionLabel = pageText(i18n, "esc_section", "Section")
   rowH = Controls.appendComboSelect(children, x, cursorY, w, sectionLabel, sectionOptions, ui.currentSection, function(val)
@@ -525,9 +526,9 @@ function M.build(ctx)
 
     if isFieldActive(12) then
       local spOpts = {
-        { value = 0, label = "Low" },
-        { value = 1, label = "Medium" },
-        { value = 2, label = "High" }
+        { value = 0, label = pageText(i18n, "opt_low", "Low") },
+        { value = 1, label = pageText(i18n, "opt_medium", "Medium") },
+        { value = 2, label = pageText(i18n, "opt_high", "High") }
       }
       local startupPowerLabel = pageText(i18n, "esc_startup_power", "Startup Power")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, startupPowerLabel, spOpts, ui.config.startup_power, function(val)
@@ -539,16 +540,16 @@ function M.build(ctx)
 
     if isFieldActive(18) then
       local colorOpts = {
-        { value = 0, label = "Red" },
-        { value = 1, label = "Yellow" },
-        { value = 2, label = "Orange" },
-        { value = 3, label = "Green" },
-        { value = 4, label = "Jade Green" },
-        { value = 5, label = "Blue" },
-        { value = 6, label = "Cyan" },
-        { value = 7, label = "Purple" },
-        { value = 8, label = "Pink" },
-        { value = 9, label = "White" }
+        { value = 0, label = pageText(i18n, "opt_red", "Red") },
+        { value = 1, label = pageText(i18n, "opt_yellow", "Yellow") },
+        { value = 2, label = pageText(i18n, "opt_orange", "Orange") },
+        { value = 3, label = pageText(i18n, "opt_green", "Green") },
+        { value = 4, label = pageText(i18n, "opt_jade_green", "Jade Green") },
+        { value = 5, label = pageText(i18n, "opt_blue", "Blue") },
+        { value = 6, label = pageText(i18n, "opt_cyan", "Cyan") },
+        { value = 7, label = pageText(i18n, "opt_purple", "Purple") },
+        { value = 8, label = pageText(i18n, "opt_pink", "Pink") },
+        { value = 9, label = pageText(i18n, "opt_white", "White") }
       }
       local ledColorLabel = pageText(i18n, "esc_led_color", "LED Color")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, ledColorLabel, colorOpts, ui.config.led_color, function(val)
@@ -560,8 +561,8 @@ function M.build(ctx)
 
     if isFieldActive(19) then
       local fanOpts = {
-        { value = 0, label = "On" },
-        { value = 1, label = "Off" }
+        { value = 0, label = pageText(i18n, "opt_on", "On") },
+        { value = 1, label = pageText(i18n, "opt_off", "Off") }
       }
       local smartFanLabel = pageText(i18n, "esc_smart_fan", "Smart Fan")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, smartFanLabel, fanOpts, ui.config.smart_fan, function(val)
@@ -575,10 +576,10 @@ function M.build(ctx)
     -- Advanced Settings
     if isFieldActive(4) then
       local timingOpts = {
-        { value = 0, label = "Auto" },
-        { value = 1, label = "Low" },
-        { value = 2, label = "Medium" },
-        { value = 3, label = "High" }
+        { value = 0, label = pageText(i18n, "opt_auto", "Auto") },
+        { value = 1, label = pageText(i18n, "opt_low", "Low") },
+        { value = 2, label = pageText(i18n, "opt_medium", "Medium") },
+        { value = 3, label = pageText(i18n, "opt_high", "High") }
       }
       local motorTimingLabel = pageText(i18n, "esc_motor_timing", "Motor Timing")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, motorTimingLabel, timingOpts, ui.config.timing, function(val)
@@ -590,10 +591,10 @@ function M.build(ctx)
 
     if isFieldActive(9) then
       local accelOpts = {
-        { value = 0, label = "Fast" },
-        { value = 1, label = "Normal" },
-        { value = 2, label = "Slow" },
-        { value = 3, label = "Very Slow" }
+        { value = 0, label = pageText(i18n, "opt_fast", "Fast") },
+        { value = 1, label = pageText(i18n, "opt_normal", "Normal") },
+        { value = 2, label = pageText(i18n, "opt_slow", "Slow") },
+        { value = 3, label = pageText(i18n, "opt_very_slow", "Very Slow") }
       }
       local accelerationLabel = pageText(i18n, "esc_acceleration", "Acceleration")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, accelerationLabel, accelOpts, ui.config.acceleration, function(val)
@@ -617,8 +618,8 @@ function M.build(ctx)
 
     if isFieldActive(15) then
       local srOpts = {
-        { value = 0, label = "On" },
-        { value = 1, label = "Off" }
+        { value = 0, label = pageText(i18n, "opt_on", "On") },
+        { value = 1, label = pageText(i18n, "opt_off", "Off") }
       }
       local synchronousRectificationLabel = pageText(i18n, "esc_synchronous_rectification", "Synchronous Rectification")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, synchronousRectificationLabel, srOpts, ui.config.sr_function, function(val)
@@ -643,7 +644,7 @@ function M.build(ctx)
 
     if isFieldActive(10) then
       local restartOpts = {
-        { value = 0, label = "Off" },
+        { value = 0, label = pageText(i18n, "opt_off", "Off") },
         { value = 1, label = "90s" }
       }
       rowH = Controls.appendComboSelect(children, x, cursorY, w, pageText(i18n, "esc_auto_restart_time", "Auto Restart Time"), restartOpts, ui.config.auto_restart_time, function(val)
@@ -655,7 +656,7 @@ function M.build(ctx)
 
     if isFieldActive(3) or isFieldActive(11) then
       local cutoffOpts = {
-        { value = 0, label = "Off" },
+        { value = 0, label = pageText(i18n, "opt_off", "Off") },
         { value = 1, label = "2.7V" },
         { value = 2, label = "3.0V" },
         { value = 3, label = "3.2V" },
@@ -676,8 +677,8 @@ function M.build(ctx)
     if isFieldActive(2) then
       local govOpts = {
         { value = 0, label = "ESC Gov" },
-        { value = 1, label = "External Gov" },
-        { value = 2, label = "Flybarless Gov" }
+        { value = 1, label = pageText(i18n, "opt_external_gov", "External Gov") },
+        { value = 2, label = pageText(i18n, "opt_flybarless_gov", "Flybarless Gov") }
       }
       local governorModeLabel = pageText(i18n, "esc_governor_mode", "Governor Mode")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, governorModeLabel, govOpts, ui.config.governor, function(val)

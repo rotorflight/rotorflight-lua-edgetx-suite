@@ -437,14 +437,17 @@ return {
     ["page.setup_esc_motors_esc_tools_blheli_s_page.build"] = { target = 6350, measured = 5050 },
     ["page.setup_esc_motors_esc_tools_bluejay_page.build"] = { target = 6450, measured = 5126 },
     ["page.setup_esc_motors_esc_tools_flrtr_page.build"] = { target = 8850, measured = 7074 },
-    ["page.setup_esc_motors_esc_tools_yge_page.build"] = { target = 6350, measured = 5058 },
+    -- The option labels now go through pageText; this run reads the unprecompiled source, where each call is a
+    -- lookup, while the package carries them as literals. 5047 -> 7857 measured; target as --emit gives.
+    ["page.setup_esc_motors_esc_tools_yge_page.build"] = { target = 9850, measured = 7857, proposed = 6350 },
     ["page.setup_esc_motors_motor_override_page.build"] = { target = 3850, measured = 3047 },
     ["page.setup_esc_motors_rpm_page.build"] = { target = 4400, measured = 3510 },
     ["page.setup_esc_motors_telemetry_page.build"] = { target = 4000, measured = 3190 },
     ["page.setup_esc_motors_throttle_page.build"] = { target = 4250, measured = 3379 },
     ["page.setup_governor_curves_page.build"] = { target = 3850, measured = 3070 },
     ["page.setup_governor_filters_page.build"] = { target = 3550, measured = 2833 },
-    ["page.setup_governor_general_page.build"] = { target = 4000, measured = 3177 },
+    -- Six rows gained an inline ? (help text and title per row): 3522 -> 4231 measured; target as --emit gives.
+    ["page.setup_governor_general_page.build"] = { target = 5300, measured = 4231, proposed = 4000 },
     ["page.setup_governor_time_page.build"] = { target = 3550, measured = 2833 },
     ["page.setup_gps_page.build"] = { target = 3950, measured = 3158 },
     ["page.setup_mixer_swash_page.build"] = { target = 4500, measured = 3565 },

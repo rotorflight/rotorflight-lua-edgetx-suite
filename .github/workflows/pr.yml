@@ -577,3 +577,75 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/flight_tuning/verify_tune_advisor_apply.lua
+
+  flight-log-free-id:
+    name: Flight log pack ids
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_log/verify_free_id.lua
+
+  governor-effective-mode:
+    name: Governor effective mode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/governor/verify_effective_mode.lua
+
+  configuration-pid-loop:
+    name: Configuration PID loop and name
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/setup/verify_configuration_pid_loop.lua
+
+  bluejay-target:
+    name: Bluejay ESC target
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/esc/verify_bluejay_target.lua
+
+  telemetry-saves:
+    name: Telemetry page saves
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/telemetry/verify_save_telemetry_page.lua
+
+  info-rf-mode:
+    name: Info RF Mode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/diagnostics/verify_info_rf_mode.lua
+
+  elrs-probe-armed:
+    name: ELRS probe while armed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/diagnostics/verify_elrs_probe_armed.lua
+
+  telemetry-sync-slots:
+    name: Telemetry slots after a save
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/telemetry/verify_telemetry_sync_slots.lua
+
+  power-saves:
+    name: Power page saves
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/power/verify_save_power_pages.lua

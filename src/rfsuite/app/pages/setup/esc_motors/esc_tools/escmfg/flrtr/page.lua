@@ -446,7 +446,7 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = "Flyrotor Configurator"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "Flyrotor")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -500,9 +500,9 @@ function M.build(ctx)
 
   local rowH
   local sectionOptions = {
-    { value = 1, label = "Basic" },
-    { value = 2, label = "Advanced" },
-    { value = 3, label = "Governor" }
+    { value = 1, label = pageText(i18n, "section_basic", "Basic") },
+    { value = 2, label = pageText(i18n, "section_advanced", "Advanced") },
+    { value = 3, label = pageText(i18n, "section_governor", "Governor") }
   }
   local sectionLabel = pageText(i18n, "esc_section", "Section")
   rowH = Controls.appendComboSelect(children, x, cursorY, w, sectionLabel, sectionOptions, ui.currentSection, function(val)
@@ -564,7 +564,7 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local becOpts = {
-      { value = 0, label = "Disabled" },
+      { value = 0, label = pageText(i18n, "opt_disabled", "Disabled") },
       { value = 1, label = "7.5V" },
       { value = 2, label = "8.0V" },
       { value = 3, label = "8.5V" },
@@ -582,7 +582,7 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local angleOpts = {
-      { value = 0, label = "Auto" },
+      { value = 0, label = pageText(i18n, "opt_auto", "Auto") },
       { value = 1, label = "1 deg" },
       { value = 2, label = "2 deg" },
       { value = 3, label = "3 deg" },
@@ -674,9 +674,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local fanOpts = {
-      { value = 0, label = "Automatic" },
-      { value = 1, label = "Always On" },
-      { value = 2, label = "Always Off" }
+      { value = 0, label = pageText(i18n, "flrtr_opt_automatic", "Automatic") },
+      { value = 1, label = pageText(i18n, "opt_always_on", "Always On") },
+      { value = 2, label = pageText(i18n, "flrtr_opt_always_off", "Always Off") }
     }
     local fanControlLabel = pageText(i18n, "esc_fan_control", "Fan Control")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, fanControlLabel, fanOpts, ui.config.fan_control, function(val)
@@ -721,7 +721,7 @@ function M.build(ctx)
     -- Governor Settings
     local modeOpts = {
       { value = 0, label = "ESC Gov" },
-      { value = 1, label = "Linear Throttle" },
+      { value = 1, label = pageText(i18n, "flrtr_opt_linear_throttle", "Linear Throttle") },
       { value = 2, label = "RF Gov" }
     }
     local modeLabel = pageText(i18n, "esc_mode", "ESC Mode")

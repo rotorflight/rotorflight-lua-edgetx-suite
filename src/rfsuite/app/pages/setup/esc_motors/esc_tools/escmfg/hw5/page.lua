@@ -361,6 +361,7 @@ end
 
 function M.getHeaderActions()
   return {
+    help = true,
     save = true,
     reload = true,
     menu = true
@@ -434,7 +435,7 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = "Hobbywing V5 Configurator"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "Hobbywing V5")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -492,8 +493,8 @@ function M.build(ctx)
 
   local rowH
   local sectionOptions = {
-    { value = 1, label = "Basic" },
-    { value = 2, label = "Advanced" }
+    { value = 1, label = pageText(i18n, "section_basic", "Basic") },
+    { value = 2, label = pageText(i18n, "section_advanced", "Advanced") }
   }
   local sectionLabel = pageText(i18n, "esc_section", "Section")
   rowH = Controls.appendComboSelect(children, x, cursorY, w, sectionLabel, sectionOptions, ui.currentSection, function(val)
@@ -516,8 +517,8 @@ function M.build(ctx)
     -- Basic Settings
     if isFieldAllowed("flight_mode") then
       local fmOpts = {
-        { value = 0, label = "Fixed-wing" },
-        { value = 1, label = "Heli (Linear Throttle)" },
+        { value = 0, label = pageText(i18n, "hw5_opt_fixed_wing", "Fixed-wing") },
+        { value = 1, label = pageText(i18n, "hw5_opt_heli_linear_throttle", "Heli (Linear Throttle)") },
         { value = 2, label = "Heli (Elf Gov)" },
         { value = 3, label = "Heli (Store Gov)" }
       }
@@ -564,8 +565,8 @@ function M.build(ctx)
 
     if isFieldAllowed("cutoff_type") then
       local cutoffTypeOpts = {
-        { value = 0, label = "Soft Cutoff" },
-        { value = 1, label = "Hard Cutoff" }
+        { value = 0, label = pageText(i18n, "hw5_opt_soft_cutoff", "Soft Cutoff") },
+        { value = 1, label = pageText(i18n, "hw5_opt_hard_cutoff", "Hard Cutoff") }
       }
       rowH = Controls.appendComboSelect(children, x, cursorY, w, pageText(i18n, "esc_cutoff_type", "Cutoff Type"), cutoffTypeOpts, ui.config.cutoff_type or ui.config.volt_cutoff_type or 0, function(val)
         ui.config.cutoff_type = val
@@ -683,8 +684,8 @@ function M.build(ctx)
 
     if isFieldAllowed("active_freewheel") then
       local afOpts = {
-        { value = 0, label = "Enabled" },
-        { value = 1, label = "Disabled" }
+        { value = 0, label = pageText(i18n, "hw5_opt_enabled", "Enabled") },
+        { value = 1, label = pageText(i18n, "opt_disabled", "Disabled") }
       }
       local activeFreewheelLabel = pageText(i18n, "esc_active_freewheel", "Active Freewheel")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, activeFreewheelLabel, afOpts, ui.config.active_freewheel, function(val)
@@ -717,10 +718,10 @@ function M.build(ctx)
 
     if isFieldAllowed("brake_type") then
       local brakeOpts = getFieldOptions("brake_type", {
-        { value = 0, label = "Disabled" },
-        { value = 1, label = "Normal" },
-        { value = 2, label = "Proportional" },
-        { value = 3, label = "Reverse" }
+        { value = 0, label = pageText(i18n, "opt_disabled", "Disabled") },
+        { value = 1, label = pageText(i18n, "opt_normal", "Normal") },
+        { value = 2, label = pageText(i18n, "hw5_opt_proportional", "Proportional") },
+        { value = 3, label = pageText(i18n, "opt_reverse", "Reverse") }
       })
       local brakeTypeLabel = pageText(i18n, "esc_brake_type", "Brake Type")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, brakeTypeLabel, brakeOpts, ui.config.brake_type, function(val)

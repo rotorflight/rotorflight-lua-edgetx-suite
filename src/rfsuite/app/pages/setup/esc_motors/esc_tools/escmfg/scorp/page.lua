@@ -401,7 +401,7 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = "Scorpion Configurator"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "Scorpion")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -455,9 +455,9 @@ function M.build(ctx)
 
   local rowH
   local sectionOptions = {
-    { value = 1, label = "Basic" },
-    { value = 2, label = "Advanced" },
-    { value = 3, label = "Limits" }
+    { value = 1, label = pageText(i18n, "section_basic", "Basic") },
+    { value = 2, label = pageText(i18n, "section_advanced", "Advanced") },
+    { value = 3, label = pageText(i18n, "section_limits", "Limits") }
   }
   local sectionLabel = pageText(i18n, "esc_section", "Section")
   rowH = Controls.appendComboSelect(children, x, cursorY, w, sectionLabel, sectionOptions, ui.currentSection, function(val)
@@ -483,8 +483,8 @@ function M.build(ctx)
       { value = 1, label = "Heli Store" },
       { value = 2, label = "VBar Gov" },
       { value = 3, label = "Ext Gov" },
-      { value = 4, label = "Airplane" },
-      { value = 5, label = "Boat" },
+      { value = 4, label = pageText(i18n, "scorp_opt_airplane", "Airplane") },
+      { value = 5, label = pageText(i18n, "scorp_opt_boat", "Boat") },
       { value = 6, label = "Quad" }
     }
     local modeLabel = pageText(i18n, "esc_mode", "ESC Mode")
@@ -510,7 +510,7 @@ function M.build(ctx)
       { value = 1, label = "6.1 V" },
       { value = 2, label = "7.3 V" },
       { value = 3, label = "8.3 V" },
-      { value = 4, label = "Disabled" }
+      { value = 4, label = pageText(i18n, "opt_disabled", "Disabled") }
     }
     local becVoltageLabel = pageText(i18n, "esc_bec_voltage", "BEC Voltage")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, becVoltageLabel, becOpts, ui.config.bec_voltage, function(val)
@@ -593,8 +593,8 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local soundOpts = {
-      { value = 0, label = "On" },
-      { value = 1, label = "Off" }
+      { value = 0, label = pageText(i18n, "opt_on", "On") },
+      { value = 1, label = pageText(i18n, "opt_off", "Off") }
     }
     local startupSoundLabel = pageText(i18n, "esc_startup_sound", "Startup Sound")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, startupSoundLabel, soundOpts, ui.config.motor_startup_sound, function(val)

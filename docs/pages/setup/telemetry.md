@@ -60,7 +60,9 @@ same message as before. The line and the save check use the same count.
 ## Actions
 
 - **Save**: Writes the enabled telemetry sensors to the flight controller and saves to EEPROM.
+  Success is reported only after the telemetry write and EEPROM commit succeed; a refused or unanswered write or commit reports an error and keeps the selection unsaved. Once the values are stored, the save restarts the flight controller, because it sets up its telemetry sensors and the CRSF telemetry mode only at start-up; if that restart is not confirmed, the values are stored but may take effect only at the next power cycle (see Saving configuration).
   Save keeps every selected sensor in its existing slot. A switched-off sensor frees its slot without moving the others, and newly switched-on sensors fill the lowest free slots in catalogue order, which can be a slot freed in the same save.
+  A save on Setup > Telemetry updates the configuration ELRS -> RF writes from, so the sync keeps the saved sensor slots.
 - **Reload**: Re-reads the current telemetry configuration from the flight controller.
 - **Star (*)**: Loads default custom telemetry sensors into the selection.
 
