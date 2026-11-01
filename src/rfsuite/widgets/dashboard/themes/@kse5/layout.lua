@@ -223,27 +223,13 @@ local function boxesFor(phase, state)
 end
 
 
--- The ESC current limit sets the scale of a current gauge, so a phase that draws one is rebuilt
--- when the limit moves: the engine's own key with the limit appended. A limit arrives with the
--- model's preferences, normally before the first build; this covers one that comes later.
-local engineRenderKey = nil
-local function currentScaleKey(_, state)
-  if engineRenderKey == nil then
-    local rf = _G.rfsuite
-    local Engine = rf and type(rf.require) == "function" and rf.require("widgets/dashboard/engine.lua") or nil
-    engineRenderKey = (type(Engine) == "table" and type(Engine.renderKey) == "function") and Engine.renderKey or false
-  end
-  local key = engineRenderKey and engineRenderKey(state) or ""
-  return key .. "|" .. tostring(state and state.escCurrentLimit)
-end
-
 --- The phase module for `phase`: the grid, and the boxes resolved for the size it is drawn at.
---- The phases with a current ring are rebuilt when the ESC current limit moves.
+--- The engine's render key includes the ESC current limit, so the current ring is rebuilt to a
+--- limit that arrives after the first build.
 function Layout.phase(phase)
   return {
     layout = Layout.layout,
     boxes = function(_, state) return boxesFor(phase, state) end,
-    renderKey = (phase ~= "inflight") and currentScaleKey or nil,
   }
 end
 

@@ -82,7 +82,10 @@ local function cfgValue(state, key)
       end
     end
   end
-  return rawValue(state, key)
+  local v = rawValue(state, key)
+  -- A full scale of zero or below gives the head speed arc and bar no range.
+  if key == "rpm_max" and v <= 0 then return Layout.DEFAULTS.rpm_max end
+  return v
 end
 
 local function place(box, col, row, colspan, rowspan)
@@ -329,33 +332,20 @@ local function postflight(state)
 end
 
 
--- The ESC current limit sets the scale of a current gauge, so a phase that draws one is rebuilt
--- when the limit moves: the engine's own key with the limit appended. A limit arrives with the
--- model's preferences, normally before the first build; this covers one that comes later.
-local engineRenderKey = nil
-local function currentScaleKey(_, state)
-  if engineRenderKey == nil then
-    local rf = _G.rfsuite
-    local Engine = rf and type(rf.require) == "function" and rf.require("widgets/dashboard/engine.lua") or nil
-    engineRenderKey = (type(Engine) == "table" and type(Engine.renderKey) == "function") and Engine.renderKey or false
-  end
-  local key = engineRenderKey and engineRenderKey(state) or ""
-  return key .. "|" .. tostring(state and state.escCurrentLimit)
-end
-
 local PHASES = {
   preflight = { layout = PREFLIGHT, boxes = preflight },
   inflight = { layout = FLIGHT, boxes = inflight },
-  postflight = { layout = FLIGHT, boxes = postflight, renderKey = currentScaleKey },
+  postflight = { layout = FLIGHT, boxes = postflight },
 }
 
 --- The phase module for `phase`: the grid, and the boxes resolved for the size it is drawn at.
+--- The engine's render key includes the ESC current limit, so the postflight current bar is
+--- rebuilt to a limit that arrives after the first build.
 function Layout.phase(phase)
   local p = PHASES[phase] or PHASES.preflight
   return {
     layout = p.layout,
     boxes = function(_, state) return p.boxes(state) end,
-    renderKey = p.renderKey,
   }
 end
 

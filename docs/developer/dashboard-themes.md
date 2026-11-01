@@ -791,6 +791,10 @@ count, or were filled in for a different cell count. A move of those bounds rebu
 the render key is computed again in the pass that moves them, so the scene is queued under the key
 for the new bounds.
 
+The ESC current limit the model has on file, `state.escCurrentLimit` (nil without one), is part
+of the render key too, so a box that takes its `max` from it is rebuilt when the limit arrives
+after the first build or the stored figure changes.
+
 The cell count is the one the flight controller reports in telemetry. Until that reads a count --
 it reads 0 for the moment after a pack is plugged in, until the board has detected the pack -- and
 on a model without that sensor, the widget takes the cell count configured on the flight controller
