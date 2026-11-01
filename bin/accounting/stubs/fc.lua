@@ -27,7 +27,10 @@ FC.collisions = {}    -- command -> the other modules that claim it
 FC.unanswered = {}    -- command -> how often it was asked with no scripted payload
 FC.served = 0
 
-local rx = { active = false, cmd = 0, len = 0, data = {} }
+-- `version` is the framing version of the request being assembled; the reply goes out in it,
+-- as telemetry/msp_shared.c answers: 2 is MSPv2, 3 the compact header (command, 8-bit length,
+-- 0xFF announcing a 16-bit length).
+local rx = { active = false, cmd = 0, len = 0, data = {}, version = 2 }
 local pushFrame = nil
 
 --- Index every API definition that carries a canned payload.
@@ -60,23 +63,35 @@ function FC.loadReplies(apiDir, files)
 end
 
 function FC.reset()
-  rx = { active = false, cmd = 0, len = 0, data = {} }
+  rx = { active = false, cmd = 0, len = 0, data = {}, version = 2 }
   FC.unanswered = {}
   FC.served = 0
 end
 
-local function sendReply(cmd, data)
+local function sendReply(cmd, data, version)
   local len = #data
   local seq = 0
   local idx = 1
   local first = true
   repeat
     local frame = { ADDR_RADIO, ADDR_FC }
-    local status = 0x40 | (seq & 0x0F)
+    local status = (version << 5) | (seq & 0x0F)
     if first then status = status | 0x10 end
     frame[3] = status
     local n = 4
-    if first then
+    if first and version == 3 then
+      frame[4] = cmd & 0xFF
+      frame[5] = (cmd >> 8) & 0xFF
+      if len >= 0xFF then
+        frame[6] = 0xFF
+        frame[7] = len & 0xFF
+        frame[8] = (len >> 8) & 0xFF
+        n = 9
+      else
+        frame[6] = len
+        n = 7
+      end
+    elseif first then
       frame[4] = 0
       frame[5] = cmd & 0xFF
       frame[6] = (cmd >> 8) & 0xFF
@@ -107,10 +122,21 @@ local function onPush(frameType, payload)
 
   if (status & 0x10) ~= 0 then
     rx.data = {}
-    rx.cmd = (payload[i + 1] or 0) | ((payload[i + 2] or 0) << 8)
-    rx.len = (payload[i + 3] or 0) | ((payload[i + 4] or 0) << 8)
+    rx.version = (status >> 5) & 0x03
+    if rx.version == 3 then
+      rx.cmd = (payload[i] or 0) | ((payload[i + 1] or 0) << 8)
+      rx.len = payload[i + 2] or 0
+      i = i + 3
+      if rx.len == 0xFF then
+        rx.len = (payload[i] or 0) | ((payload[i + 1] or 0) << 8)
+        i = i + 2
+      end
+    else
+      rx.cmd = (payload[i + 1] or 0) | ((payload[i + 2] or 0) << 8)
+      rx.len = (payload[i + 3] or 0) | ((payload[i + 4] or 0) << 8)
+      i = i + 5
+    end
     rx.active = true
-    i = i + 5
   elseif not rx.active then
     return true
   end
@@ -133,7 +159,7 @@ local function onPush(frameType, payload)
       reply = {}
     end
     FC.served = FC.served + 1
-    sendReply(rx.cmd, reply)
+    sendReply(rx.cmd, reply, rx.version)
   end
 
   return true
