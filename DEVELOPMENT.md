@@ -210,9 +210,12 @@ difference without reading English.
 `.luacheckrc` is the style reference: `std = "lua54"`, `max_line_length = 140`,
 `unused_args = false`, plus the globals the EdgeTX Lua environment provides. CI runs
 `luacheck src --only 111 112 113` (the *Undeclared globals* job): a global that is neither in that
-list nor declared `local` fails the pull request. A name goes into the list only if EdgeTX really
-publishes it -- one that it does not is nil on the radio and is fixed where it is read. The style
-warnings (line length, unused values) are not enforced.
+list, nor in the `lua54` standard library, nor declared `local` fails the pull request. An EdgeTX name
+goes into the list only if EdgeTX really publishes it -- one that it does not is nil on the radio and
+is fixed where it is read. Two entries are not EdgeTX (`system`, `Rf2Runtime`, read only behind a type
+guard), and the `lua54` standard names libraries the radio does not load (`os`, `debug`, `coroutine`),
+so a pass is not proof that a name exists on the radio. The style warnings (line length, unused
+values) are not enforced.
 
 Follow the indentation of the file you are editing and avoid reformatting untouched lines — a
 whitespace-only diff buries the change a reviewer is looking for.
