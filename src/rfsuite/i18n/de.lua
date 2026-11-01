@@ -2851,7 +2851,7 @@ return {
         tx_power = "Sendeleistung",
         power_dynamic = "dynamisch",
         power_fixed = "fest",
-        help_message = "Vergleicht die Link-Einstellungen des ExpressLRS-Moduls mit denen des Flight Controllers.\nRotorflight: Telemetrie-Modus, Link-Rate und -Verhältnis auf dem Board.\nELRS-Modul: Paketrate und Telemetrie-Verhältnis des Moduls.\nSendeleistung: Max Power des Moduls und ob dynamische Leistung an ist; nur lesend.\nPrüfen: liest beide Seiten neu und schreibt nichts.\nRF -> ELRS: stellt das Modul auf Rate und Verhältnis des Flight Controllers; fragt vorher; nicht bei scharfem Modell.\nELRS -> RF: stellt den Flight Controller auf die des Moduls und speichert; fragt vorher; nicht bei scharfem Modell."
+        help_message = "Vergleicht die Link-Einstellungen des ExpressLRS-Moduls mit denen des Flight Controllers.\nRotorflight: Telemetrie-Modus, Link-Rate und -Verhältnis auf dem Board.\nELRS-Modul: Paketrate und Telemetrie-Verhältnis.\nSendeleistung: Max Power und dynamische Leistung; nur lesend.\nPrüfen: liest beide Seiten neu, schreibt nicht; bei scharfem Modell gesperrt, Scharfschalten stoppt jede laufende Prüfung.\nRF -> ELRS: gleicht Modulrate und -verhältnis ans Board an; fragt vorher; nur entschärft.\nELRS -> RF: gleicht das Board ans Modul an und speichert; fragt vorher; nur entschärft."
       },
       diagnostics_validate_sensors = {
         status_ok = "OK",
