@@ -1,0 +1,3 @@
+- **In-flight tuning keeps its session in the air when a link gap on the ground was still pending (`widgets/dashboard/runtime.lua`, `widgets/dashboard/inflight/profiles.lua`, `widgets/dashboard/inflight/drive.lua`)**:
+  - A session end noted after five seconds without a link on the ground is taken only on the ground: never while armed, in the live phase, or before this link has read the arm state, so releasing the bank variable in the air no longer drops the start values, the undo and the comparison (#993).
+  - A ground read that begins while that end is still pending begins a new session instead of continuing the old one, and the mark no longer carries into the next session.

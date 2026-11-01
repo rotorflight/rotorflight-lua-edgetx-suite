@@ -151,7 +151,10 @@ controller answers, or when the radio restarts. The next read then begins a new 
 start values replace the earlier ones on the card and every count starts at zero. In the air a
 session never ends, and a shorter link gap on the ground continues it. With tuning open, the
 session ends when the link comes back, so a post-flight list stays readable while the pack is out.
-Nothing ends while a profile job, a pending return to the original profiles or a save is outstanding.
+Nothing ends while a profile job, a pending return to the original profiles or a save is outstanding,
+or while tuning still holds its bank selection. Such a pending end is only taken on the ground: if
+the model is armed first, the session is kept through the flight. A read that begins while the end
+is still pending starts a new session instead of continuing the old one.
 
 ### On the ground, before the flight
 
