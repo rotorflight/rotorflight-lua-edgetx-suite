@@ -3602,6 +3602,7 @@ return {
       min = "MIN",
       max = "MAX",
       warning = "WARNING",
+      critical = "CRITICAL",
       altitude_max = "MAX ALTITUDE",
       bec_warning = "BEC Warning",
       esc_warning = "ESC Warning",

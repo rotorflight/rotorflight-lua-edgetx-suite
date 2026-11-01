@@ -3596,6 +3596,7 @@ return {
       min = "MIN",
       max = "MAX",
       warning = "WARNUNG",
+      critical = "KRITISCH",
       altitude_max = "MAX HÖHE",
       bec_warning = "BEC-Warnung",
       esc_warning = "ESC-Warnung",
