@@ -862,6 +862,69 @@ do
   files[path] = savedFile
 end
 
+-- A full read that begins while an expiry is pending ends the stale session as it starts, not only
+-- once it reaches the values: arming during the slot table read leaves no stale session behind,
+-- and the read retried on the ground begins the new one. And a read the runtime asked for by
+-- ending the session itself (Drive:endSession) is the same read as the one the gap owes: Read
+-- again pressed before either starts is that read, and none follows it.
+do
+  local path = Store.path(fc.uid)
+  local function gap()
+    files[path] = savedFile
+    local instance = makeDrive(slots)
+    check(Prime.refreshValues(widget, instance), "a session's read starts")
+    finish(instance)
+    instance._primeAutoDone = true
+    local stale = instance.baseline
+    instance.sessionList, instance.groupWork = "stale-choice", nil
+    instance:invalidateRead()
+    instance.sessionExpired = true
+    check(stale ~= nil and instance.sessionProfiles ~= nil and instance.readRequired and instance._primeAutoDone == false,
+      "positive control: a session is held and the gap left the automatic read owed")
+    return instance, stale
+  end
+  local function settle(instance, first)
+    for _ = 1, 3000 do
+      pass(instance)
+      if instance.prime ~= first and instance.prime.phase == "done" and not instance.profileJob then break end
+    end
+  end
+
+  local instance, stale = gap()
+  check(Prime.refreshValues(widget, instance) and Prime.isRunning(instance) and instance.profileJob == nil,
+    "Read again after the gap starts the full read")
+  check(instance.baseline == nil and instance.sessionProfiles == nil and instance.sessionExpired == nil
+      and instance.sessionList == nil and instance.groupWork ~= nil,
+    "the full read ends the stale session as it starts, and its parameter choice goes")
+  pass(instance); pass(instance)
+  local phase = instance.prime.phase
+  check(Prime.isRunning(instance) and phase ~= "values" and phase ~= "derive", "positive control: the read is before its values")
+  widget.state.armed = true; Prime.tick(widget, instance); widget.state.armed = false
+  check(not Prime.isRunning(instance) and instance.primeInterrupted == true, "positive control: arming abandoned the read")
+  check(instance.baseline == nil and instance.sessionProfiles == nil and instance.sessionExpired == nil,
+    "arming before the values leaves no stale session behind")
+  local abandoned = instance.prime
+  settle(instance, abandoned)
+  check(instance.prime ~= abandoned and instance.prime.phase == "done" and instance.sessionMode == "new"
+      and instance.baseline ~= nil and instance.baseline ~= stale and not instance.readRequired,
+    "the read retried on the ground begins the new session")
+
+  instance, stale = gap()
+  -- What the runtime does when nothing holds the expiry back (widgets/dashboard/runtime.lua, inflightLinkWatch).
+  instance:endSession()
+  instance:setPhase("ground")
+  check(instance.readAgain == true and instance.readRequired, "positive control: the ended session and the gap both ask for a read")
+  check(Prime.refreshValues(widget, instance), "Read again starts the read")
+  check(instance.readAgain == nil and instance._primeAutoDone == true, "the read that started answers both requests")
+  local first = instance.prime
+  for _ = 1, 3000 do pass(instance); if first.phase == "done" and not instance.profileJob then break end end
+  check(first.phase == "done" and instance.sessionMode == "new" and not instance.readRequired, "the read begins the new session")
+  for _ = 1, 300 do pass(instance) end
+  check(instance.prime == first and not Prime.isRunning(instance) and #pending == 0,
+    "no second read follows the one Read again started")
+  files[path] = savedFile
+end
+
 -- A suspended return belongs to its identified board, never the next one on the link.
 do
   local instance = makeDrive(slots)
