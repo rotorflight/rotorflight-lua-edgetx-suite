@@ -4361,6 +4361,20 @@ function Runtime.new(zone, options)
     -- A reload carried over from a telemetry read pass is answered by this one, whoever called
     -- it. Cleared first, so a load that raises is retried by the same tests as it was before.
     self._themeReloadPending = nil
+    -- The wait for this link's UID read (see the pass below) holds for every caller, the
+    -- constructor at the end of Runtime.new included: EdgeTX builds every dashboard again when it loads the screens' layout
+    -- again -- a model selected, the screens edited -- and the link and the MSP runtime, which all
+    -- dashboards on the radio share, carry on through that. An instance built while the read has
+    -- no outcome resolves nothing; it has no theme, and its first pass takes the reload through
+    -- the same wait. Below the line above, so a carried reload does not hold the splash back.
+    if self.connectionReady ~= true and MspRuntime and type(MspRuntime.isFblConnected) == "function"
+      and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+      local msp = MspRuntime.getState()
+      if type(msp) == "table" and msp.uidReadSettled == false then
+        self.theme = nil
+        return
+      end
+    end
     local modelPrefs = self.modelPreferences or (type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.session) == "table" and _G.rfsuite.session.modelPreferences) or nil
     local dashboardPrefs = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
     local selectedTheme = themePathFor(self, dashboardPrefs, modelPrefs, self.flightMode)

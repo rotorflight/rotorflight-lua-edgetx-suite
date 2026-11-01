@@ -227,6 +227,9 @@ answered or has given up after its retries; without a UID the radio's theme is r
 The wait ends with the connection screen: once the dashboard comes up without the read (its soft
 timeout), the radio's theme is resolved, and the model's after the read is answered. That covers a
 read that cannot go out, such as one taken off the queue by arming: MSP sends nothing while armed.
+A dashboard built during the wait waits as well: EdgeTX builds every widget again when it loads the
+screens' layout again (a model selected, the screens edited), and the link and the MSP runtime carry
+on through that, so the new widget starts without a theme and takes it through the same wait.
 Losing the link releases nothing either: the per-model file drops out of the widget's check of the
 preferences files when the board's id goes with the link, and that is not taken as a change. The
 model's preferences stay in hand until the next board connects -- a board whose API version is

@@ -18,7 +18,7 @@
 -- And the two ends of that wait: armed before the UID read has an answer, the theme waits no longer
 -- than the splash for a read that is not sent before the disarm; a board whose API version is
 -- refused never connects, so the model's theme stays in hand behind its refusal screen as while the
--- link is down.
+-- link is down. And a dashboard built again while the read has no answer waits as well.
 --
 --   lua5.3 bin/dashboard/verify_theme_reconnect.lua [runtime.lua] [--trace]
 local runtimePath = "src/rfsuite/widgets/dashboard/runtime.lua"
@@ -69,6 +69,31 @@ local function modelThemeModules()
     if string.find(path, MODEL_THEME, 1, true) then n = n + 1 end
   end
   return n
+end
+
+-- The widget the passes drive, with its theme resolves and preferences reloads counted where they
+-- happen (instrumentation only; the calls go through). A widget built later is instrumented the
+-- same way when it takes over.
+local function instrument(world, w)
+  world.w = w
+  local work = upvalue(w.background, "performBackgroundWork")
+  local reloadActiveTheme, index = upvalue(work, "reloadActiveTheme")
+  debug.setupvalue(work, index, function(self, ...)
+    local r = reloadActiveTheme(self, ...)
+    world.reloads[#world.reloads + 1] = { pass = world.pass, theme = self.themePath }
+    if trace then print("    resolve " .. tostring(self.themePath) .. " at pass " .. world.pass) end
+    return r
+  end)
+  -- Every preferences reload that runs (it answers true), counted the same way.
+  local reloadPreferencesIfNeeded, pIndex = upvalue(work, "reloadPreferencesIfNeeded")
+  debug.setupvalue(work, pIndex, function(self, ...)
+    local r = reloadPreferencesIfNeeded(self, ...)
+    if r == true then
+      world.prefReloads = world.prefReloads + 1
+      if trace then print("    preferences reload at pass " .. world.pass) end
+    end
+    return r
+  end)
 end
 
 -- One world per scenario: a fresh card, session, module cache and widget.
@@ -149,29 +174,20 @@ local function newWorld()
 
   local Runtime = assert(loadfile(runtimePath))()
   local w = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
-  world.w = w
+  instrument(world, w)
 
-  -- Every theme resolve, counted where it happens (instrumentation only; the call goes through).
-  local work = upvalue(w.background, "performBackgroundWork")
-  local reloadActiveTheme, index = upvalue(work, "reloadActiveTheme")
-  debug.setupvalue(work, index, function(self, ...)
-    local r = reloadActiveTheme(self, ...)
-    world.reloads[#world.reloads + 1] = { pass = world.pass, theme = self.themePath }
-    if trace then print("    resolve " .. tostring(self.themePath) .. " at pass " .. world.pass) end
-    return r
-  end)
-  -- Every preferences reload that runs (it answers true), counted the same way.
-  local reloadPreferencesIfNeeded, pIndex = upvalue(work, "reloadPreferencesIfNeeded")
-  debug.setupvalue(work, pIndex, function(self, ...)
-    local r = reloadPreferencesIfNeeded(self, ...)
-    if r == true then
-      world.prefReloads = world.prefReloads + 1
-      if trace then print("    preferences reload at pass " .. world.pass) end
-    end
-    return r
-  end)
+  -- Every scene the widget hands to LVGL, with the job that built it and the theme it was built for.
+  world.trees = {}
+  local build = _G.lvgl.build
+  _G.lvgl.build = function(children, ...)
+    local job = world.w and world.w._job
+    world.trees[#world.trees + 1] = { pass = world.pass, kind = job and job.kind, children = children,
+      theme = world.w and world.w.themePath, count = type(children) == "table" and #children or 0 }
+    return build(children, ...)
+  end
   return world
 end
+
 
 local function passes(world, n, label)
   for _ = 1, n do
@@ -514,9 +530,48 @@ do
   expect(world.w.connectionReady ~= true and #world.reloads == resolvesBefore,
     "armed before the UID: no theme is resolved while the splash waits",
     (#world.reloads - resolvesBefore) .. " resolve(s), ready=" .. tostring(world.w.connectionReady))
-  passes(world, 250, "armed")
-  expect(world.w.connectionReady == true, "control: the splash gave up waiting (soft timeout)",
-    tostring(world.w.connectionReady))
+  -- The first pass the splash gives up on: it is the soft timeout, 25 s after the wait began, and
+  -- not a later event; nothing was resolved before it.
+  local pendingSince = world.w.pendingSince
+  local readyAt, readyElapsed, resolvesBeforeReady = nil, nil, nil
+  for _ = 1, 400 do
+    local resolvesSoFar = #world.reloads
+    passes(world, 1, "armed")
+    if world.w.connectionReady == true then
+      readyAt, resolvesBeforeReady = world.pass, resolvesSoFar - resolvesBefore
+      readyElapsed = _G.getTime() / 100 - (pendingSince or 0)
+      break
+    end
+  end
+  expect(readyAt ~= nil and pendingSince ~= nil and world.w.pendingSince == pendingSince
+    and readyElapsed >= 25.0 and readyElapsed < 25.2,
+    "armed before the UID: the splash gives up at its soft timeout, 25 s after the wait began",
+    "ready at pass " .. tostring(readyAt) .. ", " .. tostring(readyElapsed) .. " s after the wait began")
+  expect(resolvesBeforeReady == 0, "armed before the UID: nothing is resolved before the splash gives up",
+    tostring(resolvesBeforeReady) .. " resolve(s)")
+  expect(st.lastArmed == true and st.uidReadSettled == false and _G.rfsuite.session.mcu_id == nil,
+    "control: still armed, the UID read unsettled and no board id when the splash gives up")
+  -- And the dashboard is drawn then: a completed scene build of the radio's theme replaces the
+  -- splash while the read is still owed and MSP is still paused.
+  local scene = nil
+  for _ = 1, 30 do
+    passes(world, 1, "armed")
+    for i = #world.trees, 1, -1 do
+      local t = world.trees[i]
+      if t.pass <= readyAt then break end
+      if t.kind == "scene" then scene = t end
+    end
+    if scene then break end
+  end
+  expect(scene ~= nil and scene.theme == "system/default" and scene.count > 0,
+    "armed before the UID: the radio's dashboard scene is built once the splash gives up",
+    scene and (tostring(scene.theme) .. ", " .. scene.count .. " node(s) at pass " .. scene.pass) or "no scene built")
+  expect(st.lastArmed == true and st.uidReadSettled == false and _G.rfsuite.session.mcu_id == nil,
+    "control: still armed and the UID read unsettled when the scene is built")
+  local onScreen = world.trees[#world.trees]
+  expect(world.w.built == true and onScreen ~= nil and onScreen.kind == "scene",
+    "armed before the UID: the scene is what LVGL holds, not the splash",
+    onScreen and tostring(onScreen.kind) or "nothing built")
   expect(world.w.theme ~= nil and world.w.themePath == "system/default",
     "armed before the UID: the radio's theme is drawn once the splash gives up, not only after the disarm",
     tostring(world.w.themePath) .. ", theme " .. tostring(world.w.theme ~= nil))
@@ -564,6 +619,69 @@ do
   expect(world.w.themePath == "system/urban", "refused board: the accepted board's model theme is on screen",
     tostring(world.w.themePath))
   expect(world.cachedReloads == 0, "refused board: the model's theme is not read from the card again",
+    world.cachedReloads .. " re-read(s)")
+end
+
+-- 9. A dashboard built while the link is up and its UID read has no answer. EdgeTX builds every
+-- widget again when it loads the screens' layout again (a model selected, the screens edited); the
+-- widgets share one Lua state, so the new instance -- a fresh copy of the runtime, as the widget's
+-- create loads it -- meets the same MSP runtime mid-read. It resolves nothing before the UID
+-- arrives, draws the splash meanwhile, and then the model's theme from the module cache.
+do
+  if trace then print("scenario: built during an unsettled connection") end
+  local world = newWorld()
+  connectAndSettle(world)
+  world.linkUp = false
+  passes(world, 30, "down")
+  world.holdUid = true
+  world.linkUp = true
+  for _ = 1, 60 do
+    passes(world, 1, "held")
+    if #world.heldUid > 0 and world.w.state.fblConnected == true then break end
+  end
+  local Msp = _G.rfsuite.require("tasks/msp/runtime.lua")
+  local st = Msp.getState()
+  expect(#world.heldUid > 0 and Msp.isFblConnected() == true and st.uidReadSettled == false,
+    "control: the link is up and its UID read has no answer when the dashboard is built again")
+  -- The old instance goes, as the firmware deletes it, and a new one is built from a fresh copy.
+  _G.rfsuite.dashboardWidgets[world.w] = nil
+  world.reloads, world.cachedReloads = {}, 0
+  world.cached = {}
+  for path in pairs(world.loadedBeforeDrop or {}) do world.cached[path] = true end
+  local RuntimeB = assert(loadfile(runtimePath))()
+  local loads = 0
+  local loadTheme, li = upvalue(RuntimeB.new, "loadThemeModuleForState")
+  debug.setupvalue(RuntimeB.new, li, function(...)
+    loads = loads + 1
+    return loadTheme(...)
+  end)
+  local b = RuntimeB.new({ x = 0, y = 0, w = 800, h = 480 }, {})
+  expect(loads == 0 and b.theme == nil, "built during an unsettled connection: the constructor resolves no theme",
+    loads .. " theme load(s), theme " .. tostring(b.theme ~= nil) .. ", " .. tostring(b.themePath))
+  instrument(world, b)
+  local treesBefore = #world.trees
+  passes(world, 30, "held")
+  expect(#world.reloads == 0 and b.theme == nil, "built during an unsettled connection: no theme is resolved before the UID",
+    #world.reloads .. " resolve(s)")
+  local splash = false
+  for i = treesBefore + 1, #world.trees do
+    if world.trees[i].kind == "splash" then splash = true end
+  end
+  expect(splash and b.connectionReady ~= true, "built during an unsettled connection: the splash is drawn while it waits")
+  world.releaseUid()
+  passes(world, 60, "uid")
+  expect(_G.rfsuite.session.mcu_id == world.mcuId, "control: the board identified itself (built during an unsettled connection)",
+    tostring(_G.rfsuite.session.mcu_id))
+  expect(b.themePath == "system/urban" and b.theme ~= nil, "built during an unsettled connection: the model's theme after the UID",
+    tostring(b.themePath))
+  local foreign = 0
+  for _, r in ipairs(world.reloads) do
+    if r.theme ~= "system/urban" then foreign = foreign + 1 end
+  end
+  expect(foreign == 0, "built during an unsettled connection: no other theme is resolved on the way",
+    foreign .. " foreign resolve(s)")
+  expect(world.cachedReloads == 0,
+    "built during an unsettled connection: the model's cached theme modules are not read from the card again",
     world.cachedReloads .. " re-read(s)")
 end
 
