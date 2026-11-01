@@ -9,6 +9,12 @@
 -- pending reload runs once; a UID read that settles without a UID (an empty answer, or given up
 -- after its retries) lets the radio's theme in without waiting for a retry to succeed.
 --
+-- And the link lost on the ground: the per-model half of the preferences stamp goes with the
+-- board's id, which is not a preferences change, so no reload runs in the disconnected stretch and
+-- the model's theme is neither released at the disconnect nor read from the card again at the
+-- reconnect; a radio setting saved while the link is down is still picked up. A change found while
+-- its reload is deferred is found once, not again on every stat interval of the deferral.
+--
 --   lua5.3 bin/dashboard/verify_theme_reconnect.lua [runtime.lua] [--trace]
 local runtimePath = "src/rfsuite/widgets/dashboard/runtime.lua"
 local trace = false
@@ -76,8 +82,19 @@ local function newWorld()
 
   local world = { linkUp = true, holdUid = false, emptyUid = false, heldUid = {},
     cardLoads = 0, reloads = {}, released = 0, pass = 0, builds = 0, peakKb = 0, baseKb = 0,
-    cached = {}, cachedReloads = 0, counting = false, instructions = 0, worstPass = 0 }
+    cached = {}, cachedReloads = 0, counting = false, instructions = 0, worstPass = 0,
+    stats = {}, statCalls = {}, prefReloads = 0 }
   _G.getRSSI = function() return world.linkUp and 100 or 0 end
+
+  -- The stub answers one stat for every file; a path given its own here answers that instead, so
+  -- the radio's preferences file can change without the model's file changing with it. Every
+  -- stat is counted per path.
+  local fstat = _G.fstat
+  _G.fstat = function(path, ...)
+    world.statCalls[path] = (world.statCalls[path] or 0) + 1
+    if world.stats[path] ~= nil then return world.stats[path] end
+    return fstat(path, ...)
+  end
 
   -- The board's UID answer, held back while `holdUid` is set: the request is kept and answered
   -- when the hold is lifted, as a board that answers late does. `emptyUid` answers with nothing.
@@ -121,6 +138,7 @@ local function newWorld()
   world.mcuId = Uid.parse(FC.replies[UID_COMMAND]).mcuId
   local MP = _G.rfsuite.require("lib/model_preferences.lua")
   world.MP = MP
+  world.globalPath = MP.preferencesPath()
   world.modelPrefs = { dashboard = { overrides = true, model_theme_preflight = "system/urban" } }
   assert(MP.saveByMcuId(world.mcuId, world.modelPrefs), "model store write")
 
@@ -135,6 +153,16 @@ local function newWorld()
     local r = reloadActiveTheme(self, ...)
     world.reloads[#world.reloads + 1] = { pass = world.pass, theme = self.themePath }
     if trace then print("    resolve " .. tostring(self.themePath) .. " at pass " .. world.pass) end
+    return r
+  end)
+  -- Every preferences reload that runs (it answers true), counted the same way.
+  local reloadPreferencesIfNeeded, pIndex = upvalue(work, "reloadPreferencesIfNeeded")
+  debug.setupvalue(work, pIndex, function(self, ...)
+    local r = reloadPreferencesIfNeeded(self, ...)
+    if r == true then
+      world.prefReloads = world.prefReloads + 1
+      if trace then print("    preferences reload at pass " .. world.pass) end
+    end
     return r
   end)
   return world
@@ -285,9 +313,9 @@ do
 end
 
 -- 1 and 2. A reconnect on the ground, with and without a setting saved while the link was down.
--- On the ground the model's theme does not survive the disconnect itself (a preferences reload in
--- the disconnected stretch has no board to load the model's half by), so only the window between
--- the link coming back and the UID is this check's; the figures are printed for the rest.
+-- This check covers the window between the link coming back and the UID; the disconnect itself is
+-- scenario 5's. The stub answers one stat for every file, so the save here moves the radio's file,
+-- the model's file and the reload request together.
 for _, pending in ipairs({ true, false }) do
   local tag = pending and "ground+pending" or "ground"
   if trace then print("scenario: " .. tag) end
@@ -357,6 +385,91 @@ do
   expect(_G.rfsuite.session.mcu_id == world.mcuId, "control: a later retry identified the board",
     tostring(_G.rfsuite.session.mcu_id))
   expect(world.w.themePath == "system/urban", "timed out: a later answer brings the model's theme back",
+    tostring(world.w.themePath))
+end
+
+-- A radio setting saved: only the radio's preferences file moves, with its time.
+-- Without a running clock (`second` nil) the time stays and only the size moves, so the stamp
+-- cannot say which file changed and the reload reads both.
+local function saveRadioSetting(world, second, size)
+  world.stats[world.globalPath] = { size = size or 2, time = { year = 2026, mon = 11, day = 1, hour = 12,
+    min = 0, sec = second or 0 } }
+end
+
+-- 5. The link lost on the ground, and back. Losing the link is not a preferences change: no reload
+-- runs while it is down, the model's theme is not released at the disconnect, and at the
+-- reconnect it comes back from the module cache. A radio setting saved while the link is down is
+-- still picked up, and still leaves the model's theme alone -- also on a radio whose clock does not
+-- run, where the reload cannot tell which file moved and reads both.
+for _, case in ipairs({ "none", "clock", "noclock" }) do
+  local radioSave = case ~= "none"
+  local tag = ({ none = "ground link loss", clock = "ground link loss, radio setting saved",
+    noclock = "ground link loss, radio setting saved without a clock" })[case]
+  if trace then print("scenario: " .. tag) end
+  local world = newWorld()
+  saveRadioSetting(world, 0)
+  connectAndSettle(world)
+  expect((world.statCalls[world.globalPath] or 0) > 0, "control: the radio's preferences file is watched ("
+    .. tag .. ")", world.globalPath)
+  world.released, world.prefReloads = 0, 0
+  world.linkUp = false
+  passes(world, 30, "down")
+  if case == "clock" then saveRadioSetting(world, 30) end
+  if case == "noclock" then saveRadioSetting(world, nil, 3) end
+  passes(world, 30, "down")
+  expect(world.w.state.fblConnected ~= true and _G.rfsuite.session.mcu_id == nil,
+    "control: the link is down and the board's id gone (" .. tag .. ")")
+  local downReloads, downReleased = world.prefReloads, world.released
+  expect(downReleased == 0, tag .. ": the model's theme is not released at the disconnect",
+    downReleased .. " module(s) released")
+  expect(world.w.themePath == "system/urban", tag .. ": the model's theme stands while the link is down",
+    tostring(world.w.themePath))
+  if radioSave then
+    expect(downReloads == 1, tag .. ": the radio setting saved while down is reloaded, once",
+      downReloads .. " reload(s)")
+  else
+    expect(downReloads == 0, tag .. ": losing the link runs no preferences reload", downReloads .. " reload(s)")
+  end
+  world.prefReloads = 0
+  reconnectWindow(world, 30)
+  world.releaseUid()
+  passes(world, 60, "uid")
+  expect(world.w.themePath == "system/urban", tag .. ": the model's theme is back after the UID",
+    tostring(world.w.themePath))
+  expect(world.cachedReloads == 0, tag .. ": the model's cached theme modules are not read from the card again",
+    world.cachedReloads .. " re-read(s)")
+  expect(world.prefReloads == 0, tag .. ": the reconnect runs no preferences reload", world.prefReloads .. " reload(s)")
+  cost(world, ({ none = "ground-loss", clock = "ground-loss+radio-save", noclock = "ground-loss+radio-save-noclock" })[case])
+end
+
+-- 6. A change found while its reload is deferred is found once. After a flight the reload waits
+-- for the link (the post-flight screen stays); the radio's preferences file is statted once for the
+-- change and not again until the reload has run, which it does once, on the reconnect.
+do
+  if trace then print("scenario: deferred reload, detected once") end
+  local world = newWorld()
+  saveRadioSetting(world, 0)
+  connectAndSettle(world)
+  fly(world)
+  world.linkUp = false
+  passes(world, 30, "offline")
+  world.prefReloads = 0
+  saveRadioSetting(world, 30)
+  passes(world, 15, "offline")
+  expect(world.w._reloadPending == true, "control: the change was found and its reload deferred",
+    tostring(world.w._reloadPending))
+  local statsBefore = world.statCalls[world.globalPath] or 0
+  passes(world, 60, "offline")
+  local again = (world.statCalls[world.globalPath] or 0) - statsBefore
+  expect(again == 0, "deferred: the pending change is not looked for again while it waits",
+    again .. " stat(s) of the preferences file in 6 s")
+  expect(world.prefReloads == 0, "control: the reload waited while the link was down", world.prefReloads .. " reload(s)")
+  world.linkUp = true
+  passes(world, 60, "back")
+  expect(world.prefReloads == 1, "deferred: the reload runs once after the link is back",
+    world.prefReloads .. " reload(s)")
+  expect(world.w._reloadPending ~= true, "deferred: nothing is left pending after the reload")
+  expect(world.w.themePath == "system/urban", "deferred: the model's theme is on screen after the reload",
     tostring(world.w.themePath))
 end
 

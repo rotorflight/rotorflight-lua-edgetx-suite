@@ -224,6 +224,12 @@ outcome yet, and a preferences reload that falls due in that window waits for it
 preferences are loaded by that UID, and a theme resolved without them would be the radio's, release
 the model's theme and read it from the card again seconds later. The read has an outcome once it is
 answered or has given up after its retries; without a UID the radio's theme is resolved then.
+Losing the link releases nothing either: the per-model file drops out of the widget's check of the
+preferences files when the board's id goes with the link, and that is not taken as a change. The
+model's preferences stay in hand until the next board connects, so its theme stays loaded across a
+disconnect on the ground as it does after a flight, and a reload for a radio setting saved while the
+link is down reads the radio's file alone. A change found while its reload waits (armed, offline
+after a flight, off screen, or for the UID) is not looked for again until the reload has run.
 
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be

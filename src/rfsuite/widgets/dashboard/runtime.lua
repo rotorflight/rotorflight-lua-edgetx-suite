@@ -2035,13 +2035,21 @@ local function stampOfEither(path)
   return ok and stampOf(info) or nil
 end
 
-local function preferencesStamp(modelPath)
+-- `keptStamp` is the stamp last adopted. The per-model half is the file of the board this session
+-- identified, and a link that goes takes the board's id with it: the half then has no file to
+-- stat, but nothing on the card changed. That half is unknown, not changed, so the kept one
+-- stands in for it and the global half is compared like with like until a model file can be
+-- addressed again.
+local function preferencesStamp(modelPath, keptStamp)
   if type(fstat) ~= "function" then return nil end
 
   local globalStamp = stampOfEither(preferencesFile())
   if not globalStamp then return nil end
 
-  if not modelPath then return globalStamp end
+  if not modelPath then
+    local kept = type(keptStamp) == "string" and string.match(keptStamp, "|(.+)$") or nil
+    return kept and (globalStamp .. "|" .. kept) or globalStamp
+  end
 
   local modelStamp = stampOfEither(modelPath)
   if not modelStamp then return nil end
@@ -2145,12 +2153,15 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- that is not a stamp difference -- the sequence file, a forced caller -- leaves it nil and
   -- both files are read, because those signals do not name a file.
   local halves = nil
-  if not force and (now - (self._lastPrefsStatAt or 0)) >= PREFS_STAT_INTERVAL then
+  -- A change already found and waiting for its reload is not looked for again: the reload reads
+  -- the files as they are when it runs and adopts the stamp then, so a stat and a log line every
+  -- second of a deferral would only find the same difference again.
+  if not force and not self._reloadPending and (now - (self._lastPrefsStatAt or 0)) >= PREFS_STAT_INTERVAL then
     self._lastPrefsStatAt = now
     -- The per-model file's path lives on the session rather than on `self` -- the same
     -- shape this file already uses to reach `modelPreferences` twice further down.
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-    local stamp = preferencesStamp(session and session.modelPreferencesFile)
+    local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
     if stamp then
       currentStamp = stamp
       if self._lastPrefsStamp == nil then
@@ -2279,6 +2290,18 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     logGv("reloadPreferencesIfNeeded: reading global=%s model=%s", tostring(doGlobal), tostring(doModel))
   end
 
+  -- Without a board id there is no per-model file to read: the link is down, or this link's board
+  -- has not identified itself. Clearing the model's preferences then would leave nothing in their
+  -- place, and the theme would fall back to the radio's and release the model's. The connect edge
+  -- drops them for a new board; a forced reload still reads both halves as before.
+  if doModel and not force then
+    local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+    if not (session and session.mcu_id) then
+      doModel = false
+      logGv("reloadPreferencesIfNeeded: no session.mcu_id, the model's preferences are kept")
+    end
+  end
+
   -- Cleared only where it is about to be re-read. reloadActiveTheme reads self.modelPreferences
   -- with priority over session.modelPreferences, so clearing it on a pass that is not going to
   -- reload it would drop a good value for no reason.
@@ -2348,7 +2371,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     self._lastPrefsStamp = currentStamp
   else
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-    local stamp = preferencesStamp(session and session.modelPreferencesFile)
+    local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
     if stamp then self._lastPrefsStamp = stamp end
   end
 
