@@ -13,12 +13,11 @@ local Controls = nil
 local Common = nil
 local MspRuntime = nil
 local BatteryConfigApi = nil
+local SavePipeline = nil
 local LoadingOverlay = nil
 local ApiVersion = nil
 local PowerFields = nil
 local t = nil
-
-M.eepromWrite = true
 
 local SOURCE_MIN = 0
 local SOURCE_MAX = 255
@@ -255,6 +254,37 @@ local function buildBatteryPayload(batteryConfig)
 	return BatteryConfigApi.buildWritePayload(data)
 end
 
+local function queueBatteryWrite(batteryConfig)
+	if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
+	if not SavePipeline or not BatteryConfigApi then
+		return false, "msp_runtime_unavailable"
+	end
+
+	return SavePipeline.start({
+		pageId = "setup_power_sources",
+		steps = {
+			{
+				label = "MSP_SET_BATTERY_CONFIG",
+				command = BatteryConfigApi.writeCommand,
+				payload = buildBatteryPayload(batteryConfig)
+			}
+		},
+		reboot = false,
+		onSaved = function()
+			if not ui.runtime then return end
+			ui.dirty = false
+			ui.runtime.lastSessionSignature = buildSessionSignature()
+		end,
+		onDone = function(result)
+			if not ui.runtime then return end
+			if result.saved then queueBatteryRead() end
+			if type(ui.runtime.requestRebuild) == "function" then
+				ui.runtime.requestRebuild()
+			end
+		end
+	})
+end
+
 function M.getHeaderActions()
 	ensureDeps()
 	return {
@@ -279,6 +309,8 @@ end
 
 function M.onSave(ctx)
 	if not M.canSave() then return false, "loaded_data_missing" end
+	if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
+	if SavePipeline and SavePipeline.isActive() then return false end
 	ensureDeps()
 	ensureLoaded()
 
@@ -293,41 +325,16 @@ function M.onSave(ctx)
 	session.battery_config = batteryConfig
 	session.batteryConfig = batteryConfig
 
-	local okMsp = false
-	if MspRuntime and BatteryConfigApi and type(MspRuntime.getState) == "function" then
-		local mspState = MspRuntime.getState()
-		local queue = mspState and mspState.queue
-		if queue and type(queue.add) == "function" then
-			okMsp = true
-			queue:add({
-				command = BatteryConfigApi.writeCommand,
-				payload = buildBatteryPayload(batteryConfig),
-				timeout = 5.0,
-				isWrite = true,
-				processReply = function() end,
-				errorHandler = function() end
-			})
-
-		end
-	end
-
-	if ctx and type(ctx.reportSave) == "function" then
-		if okMsp then
+	local ok, err = queueBatteryWrite(batteryConfig)
+	if not ok then
+		if ctx and type(ctx.reportSave) == "function" then
 			ctx.reportSave({
-				ok = true,
-				title = pageText(ctx and ctx.i18n, "saved_title", "Saved"),
-				message = pageText(ctx and ctx.i18n, "saved_message", "Power sources saved")
-			})
-		else
-			ctx.reportSave({
-				title = pageText(ctx and ctx.i18n, "warning_title", "Warning"),
-				message = pageText(ctx and ctx.i18n, "saved_local_only_message", "Saved locally; FC write pending")
+				title = pageText(ctx and ctx.i18n, "save_error_title", "Error"),
+				message = tostring(err or "MSP write failed")
 			})
 		end
+		return false
 	end
-
-	ui.dirty = false
-	ui.runtime.lastSessionSignature = buildSessionSignature()
 	return true
 end
 
@@ -418,6 +425,7 @@ function M.onClose()
 	Common = nil
 	MspRuntime = nil
 	BatteryConfigApi = nil
+	SavePipeline = nil
 	LoadingOverlay = nil
 	ApiVersion = nil
 	PowerFields = nil
