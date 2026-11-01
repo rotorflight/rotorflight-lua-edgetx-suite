@@ -49,6 +49,35 @@ Text boxes configure their default font color via `textcolor`. This property acc
 }
 ```
 
+### Tile fill and frame
+
+Every box draws a tile under its content, filled with `bgcolor` (white where it names none).
+Three more fields shape that tile:
+
+- `bordercolor` draws a frame around the tile in that colour, `borderwidth` pixels wide (2 when
+  omitted). It takes the same values as `textcolor`, named colours included.
+- `rounded` rounds the corners of the fill and the frame by that many pixels.
+- `bgcolor = false` draws no fill at all, so the box shows whatever lies under it — the theme's
+  background, or a box declared before it in the same cells. That is how a gauge stands inside a
+  framed panel: declare the panel first, then the gauge over it with `bgcolor = false`.
+
+```lua
+{ col = 1, row = 1, colspan = 2, rowspan = 2, type = "text", subtype = "governor",
+  title = "GOVERNOR", bgcolor = BLACK, bordercolor = "red", borderwidth = 3, rounded = 6 }
+```
+
+A box without these fields draws the plain filled rectangle it always did.
+
+### Gauges
+
+A gauge shows the live reading by default. Given `stattype = "max"` or `stattype = "min"` it
+shows that extreme of the flight instead — the same figure a `stats` text box shows for that
+source — which is how a post-flight screen draws the highest head speed as a bar.
+
+A horizontal bar is half its panel high and 4 px in from each side unless the box gives
+`gaugepaddingtop`, `gaugepaddingbottom`, `gaugepaddingleft` or `gaugepaddingright`; then the bar
+spans the panel less those paddings, as a vertical bar always has.
+
 ### Dynamic color thresholds
 
 Both gauges and text boxes support a `thresholds` list. When telemetry values update, the box evaluates the thresholds and updates its text or accent color reactively:

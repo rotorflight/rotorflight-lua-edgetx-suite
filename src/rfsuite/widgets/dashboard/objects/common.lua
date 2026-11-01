@@ -1023,16 +1023,37 @@ function Utils.defaultValueY(rect, box)
   return valueY
 end
 
+-- The tile under a box: its fill, then the optional frame. `bgcolor = false` draws no fill, so a
+-- box can sit on another box's tile; `rounded` rounds the fill and the frame by that radius, and
+-- `bordercolor` (with `borderwidth`, 2 px by default) draws the frame. A box without them draws
+-- the plain filled rectangle it always did.
 function Utils.drawContainer(nodes, rect, box, state)
-  nodes[#nodes + 1] = {
-    type = "rectangle",
-    x = rect.x,
-    y = rect.y,
-    w = rect.w,
-    h = rect.h,
-    color = box.bgcolor or WHITE,
-    filled = true
-  }
+  local rounded = box.rounded
+  if box.bgcolor ~= false then
+    nodes[#nodes + 1] = {
+      type = "rectangle",
+      x = rect.x,
+      y = rect.y,
+      w = rect.w,
+      h = rect.h,
+      color = box.bgcolor or WHITE,
+      filled = true,
+      rounded = rounded
+    }
+  end
+  if box.bordercolor ~= nil then
+    nodes[#nodes + 1] = {
+      type = "rectangle",
+      x = rect.x,
+      y = rect.y,
+      w = rect.w,
+      h = rect.h,
+      color = Utils.normalizeColor(box.bordercolor, WHITE),
+      filled = false,
+      thickness = box.borderwidth or 2,
+      rounded = rounded
+    }
+  end
 
   -- Titel-Cache pro Box
   box._lastTitleRaw = box._lastTitleRaw or nil

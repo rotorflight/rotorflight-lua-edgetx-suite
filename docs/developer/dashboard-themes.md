@@ -568,8 +568,25 @@ theme that wants both names both. A theme that names none of the four reaches no
 neither sensor.
 
 The rest of a box is presentation and is shared across the types that can use it: `title`,
-`titlepos`, `titlealign`, `titlecolor`, `textcolor`, `bgcolor`, `font`, `unit`, `decimals`,
-`transform`, `autosize_chars`, `thresholds`. Thresholds — the dynamic colour lists and how a
+`titlepos`, `titlealign`, `titlecolor`, `textcolor`, `bgcolor`, `bordercolor`, `borderwidth`,
+`rounded`, `font`, `unit`, `decimals`, `transform`, `autosize_chars`, `thresholds`.
+
+The tile under a box is `objects/common.lua`'s `drawContainer`: a rectangle filled with `bgcolor`
+(`WHITE` when nil), then, where the box gives `bordercolor`, a frame `borderwidth` pixels wide (2
+by default) in that colour, named colours included. `rounded` is the corner radius of both.
+`bgcolor = false` draws no fill, so the box lies on whatever was drawn before it — a panel box
+declared first in the same cells, as @Kevd's in-flight arcs stand in their frame. Such a box is
+not counted when the full-screen info bar takes the colour most tiles are filled with. Each is
+fixed when the box is built, so none of them costs anything per frame.
+
+A `gauge` reads the live value of its `source` unless it carries `stattype` `"min"` or `"max"`:
+then every getter reads that extreme of the flight out of the flight record, with the key
+`Utils.statFields` resolves once at render — the same record, and the same rule for which flight
+it answers for, as a `stats` text box. A horizontal `bar` is half its panel high and 4 px in from
+each side unless the box gives one of `gaugepaddingtop`, `gaugepaddingbottom`,
+`gaugepaddingleft` and `gaugepaddingright`, in which case it spans the panel less those paddings
+(an absent one counts 0 top and bottom, 4 left and right) — the fields a vertical bar has always
+read. Thresholds — the dynamic colour lists and how a
 temperature limit is converted for a radio set to Fahrenheit — are described once, in
 [user themes](../dashboard/user-themes.md); they behave identically in a shipped theme.
 

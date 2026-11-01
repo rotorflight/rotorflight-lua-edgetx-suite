@@ -63,10 +63,29 @@ end
 -- probe: the sweep runs per frame on the refresh's leftover budget, outside any pcall,
 -- so its per-object cost has to be a constant (see GEMINI.md, "Dashboard reactive
 -- closures"). The snapshot is rebuilt on the telemetry-read cadence.
-local function readDerived(state, source)
+--
+-- A gauge with a `stattype` of "min" or "max" shows that extreme of the flight instead, read out
+-- of the flight record with `statKey` (statKeyFor, resolved where the gauge is rendered) -- the
+-- record the stats text object reads, with the same rule for which flight it answers for.
+local function readDerived(state, source, statKey)
+  if statKey ~= nil then
+    local flight = type(state) == "table" and state.flight or nil
+    if type(flight) ~= "table" then return nil end
+    local record = flight.current
+    local value = record and record[statKey]
+    if flight.armed == true or value ~= nil then return value end
+    record = flight.last
+    return record and record[statKey]
+  end
   local derived = type(state) == "table" and state.derived or nil
   if derived == nil or source == nil then return nil end
   return derived[source]
+end
+
+local function statKeyFor(box, state, source, utils)
+  local stattype = utils.resolveValue(box.stattype, box, state)
+  if stattype ~= "min" and stattype ~= "max" then return nil end
+  return utils.statFields(source, stattype)
 end
 
 local function resolveThresholdColor(value, thresholds, defaultColor, isFahrenheit, box, state, utils, compiled)
@@ -238,13 +257,14 @@ end
 
 local function renderBar(nodes, rect, box, state, themeCommon, utils)
   local source = utils.resolveValue(box.source, box, state)
+  local statKey = statKeyFor(box, state, source, utils)
   local unit = utils.resolveValue(box.unit, box, state)
   local isTemp = isTempSource(source) or unit == "°C" or unit == "°F"
   local fahrenheit = isTemp and useFahrenheit()
   -- Compiled once, here where the box is rendered, rather than on every value change in the
   -- reactive sweep -- the argument for why that is the same answer is on Utils.renderThresholds.
   local compiledThresholds = utils.renderThresholds(box, state, fahrenheit, WHITE)
-  local rawValue = readDerived(state, source)
+  local rawValue = readDerived(state, source, statKey)
   local hasValue = type(rawValue) == "number"
   local gaugeValue = utils.toNumber(rawValue, 0)
   if fahrenheit and hasValue then
@@ -301,7 +321,7 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
     local cachedBarColor = nil
 
     local function updateVerticalBar()
-      local curRaw = readDerived(state, source)
+      local curRaw = readDerived(state, source, statKey)
       if curRaw == lastRawBar and cachedFillH ~= nil then
         return
       end
@@ -391,7 +411,7 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
     local lastBarVal = nil
     local cachedBarText = nil
     local valueTextGetter = function()
-      local curRaw = readDerived(state, source)
+      local curRaw = readDerived(state, source, statKey)
       if curRaw == lastBarVal and cachedBarText ~= nil then
         return cachedBarText
       end
@@ -457,6 +477,22 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
     local barX = rect.x + 4
     local barW = rect.w - 8
     local barY = panelY + math.floor((panelH - barHeight) / 2)
+    -- A bar given paddings spans the panel less them, as a vertical bar does; one given none is
+    -- half the panel high, centred, 4 px in from each side.
+    local padTop = utils.resolveValue(box.gaugepaddingtop, box, state)
+    local padBottom = utils.resolveValue(box.gaugepaddingbottom, box, state)
+    if padTop ~= nil or padBottom ~= nil then
+      padTop, padBottom = utils.toNumber(padTop, 0), utils.toNumber(padBottom, 0)
+      barY = panelY + padTop
+      barHeight = math.max(12, panelH - padTop - padBottom)
+    end
+    local padLeft = utils.resolveValue(box.gaugepaddingleft, box, state)
+    local padRight = utils.resolveValue(box.gaugepaddingright, box, state)
+    if padLeft ~= nil or padRight ~= nil then
+      padLeft, padRight = utils.toNumber(padLeft, 4), utils.toNumber(padRight, 4)
+      barX = rect.x + padLeft
+      barW = math.max(12, rect.w - padLeft - padRight)
+    end
     
     local thresholds = box.thresholds or {}
     local hasDynamicColor = (type(thresholds) == "table" and #thresholds > 0)
@@ -482,7 +518,7 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
     local cachedBarColor = nil
 
     local function updateHorizontalBar()
-      local curRaw = readDerived(state, source)
+      local curRaw = readDerived(state, source, statKey)
       if curRaw == lastRawBar and cachedBarW ~= nil then
         return
       end
@@ -545,7 +581,7 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
     local lastBarVal = nil
     local cachedBarText = nil
     local valueTextGetter = function()
-      local curRaw = readDerived(state, source)
+      local curRaw = readDerived(state, source, statKey)
       if curRaw == lastBarVal and cachedBarText ~= nil then
         return cachedBarText
       end
@@ -692,6 +728,7 @@ end
 
 local function renderArc(nodes, rect, box, state, themeCommon, utils)
   local source = utils.resolveValue(box.source, box, state)
+  local statKey = statKeyFor(box, state, source, utils)
   local unit = utils.resolveValue(box.unit, box, state)
   local isTemp = isTempSource(source) or unit == "°C" or unit == "°F"
   local fahrenheit = isTemp and useFahrenheit()
@@ -738,7 +775,7 @@ local function renderArc(nodes, rect, box, state, themeCommon, utils)
   local lastRawAngle = nil
   local cachedEndAngle = nil
   local valueEndAngleGetter = function()
-    local curRaw = readDerived(state, source)
+    local curRaw = readDerived(state, source, statKey)
     if curRaw == lastRawAngle and cachedEndAngle ~= nil then
       return cachedEndAngle
     end
@@ -758,7 +795,7 @@ local function renderArc(nodes, rect, box, state, themeCommon, utils)
   local lastRawArcColor = nil
   local cachedArcColor = nil
   local valueArcColorGetter = function()
-    local curRaw = readDerived(state, source)
+    local curRaw = readDerived(state, source, statKey)
     if curRaw == lastRawArcColor and cachedArcColor ~= nil then
       return cachedArcColor
     end
@@ -810,7 +847,7 @@ local function renderArc(nodes, rect, box, state, themeCommon, utils)
   local lastRawText = nil
   local cachedValueText = nil
   local valueTextGetter = function()
-    local curRaw = readDerived(state, source)
+    local curRaw = readDerived(state, source, statKey)
     if curRaw == lastRawText and cachedValueText ~= nil then
       return cachedValueText
     end
@@ -852,7 +889,7 @@ local function renderArc(nodes, rect, box, state, themeCommon, utils)
     local lastRawValColor = nil
     local cachedValColor = nil
     valueColorRef = function()
-      local curRaw = readDerived(state, source)
+      local curRaw = readDerived(state, source, statKey)
       if curRaw == lastRawValColor and cachedValColor ~= nil then
         return cachedValColor
       end
