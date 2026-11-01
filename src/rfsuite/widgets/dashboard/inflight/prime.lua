@@ -1206,9 +1206,13 @@ function M.transferRefusal(widget, drive)
 end
 
 function M.restore(widget, drive, target)
-  local refusal = M.transferRefusal(widget, drive)
+  -- A session whose end is still pending (a link gap on the ground) has stale start values: they are
+  -- not written back. The board is read again instead, and that read begins a new session.
+  local expired = type(drive) == "table" and drive.sessionExpired
+  local refusal = not expired and M.transferRefusal(widget, drive) or nil
   local ok, reason = false, refusal
-  if not refusal then ok, reason = profileModule().begin(widget, drive, profileEnvironment(), "restore", target) end
+  if expired then ok, reason = M.refreshValues(widget, drive)
+  elseif not refusal then ok, reason = profileModule().begin(widget, drive, profileEnvironment(), "restore", target) end
   if not ok then
     drive.transfer = {kind = "restore", state = "refused", reason = reason}
     bump(drive)

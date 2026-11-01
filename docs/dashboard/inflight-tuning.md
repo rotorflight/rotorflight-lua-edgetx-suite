@@ -154,7 +154,8 @@ session ends when the link comes back, so a post-flight list stays readable whil
 Nothing ends while a profile job, a pending return to the original profiles or a save is outstanding,
 or while tuning still holds its bank selection. Such a pending end is only taken on the ground: if
 the model is armed first, the session is kept through the flight. A read that begins while the end
-is still pending starts a new session instead of continuing the old one.
+is still pending starts a new session instead of continuing the old one, and so do **Read again**
+and a restore pressed then: the old start values are not written back, the board is read instead.
 
 ### On the ground, before the flight
 

@@ -156,16 +156,22 @@ function M.begin(widget, drive, env, mode, target)
   -- battery change -- begins a new one, whatever an earlier session left on the card. The session
   -- is the board's, not the widget's: while another dashboard in this Lua state holds one for this
   -- board (rfsuite.inflightSession), a drive without one joins it rather than replacing its file.
+  -- An expiry still pending (the link was gone for the gap on the ground, and work held when it came
+  -- back kept the session from ending) means the board is in a new state: that session ends here and
+  -- this read begins a new one, never a continuation of it -- for the automatic read and Read again
+  -- alike (a restore asked for meanwhile is turned into this read by prime.lua, M.restore, so the
+  -- stale start values are not written back). This read is the one Drive:endSession asks for, so no
+  -- second one is requested. A parameter choice of the ended session may already have filtered the
+  -- groups, so they are filtered again without it.
+  if drive.sessionExpired and (mode == "auto" or mode == "refresh") then
+    local chosen = drive.sessionList
+    drive:endSession()
+    drive.readAgain = nil
+    if chosen ~= nil then drive:applyFilter() end
+    if drive.phase == "post" then drive:setPhase("ground") end
+    if mode == "refresh" then mode = "new" end
+  end
   if mode == "auto" then
-    -- An expiry still pending (the link was gone for the gap on the ground, and output held when it
-    -- came back kept the session from ending) means the board is in a new state: that session ends
-    -- here and this read begins a new one, never a continuation of it. This read is the one
-    -- Drive:endSession asks for, so no second one is requested.
-    if drive.sessionExpired then
-      drive:endSession()
-      drive.readAgain = nil
-      if drive.phase == "post" then drive:setPhase("ground") end
-    end
     local root = _G.rfsuite
     if drive.baseline == nil and not (type(root) == "table" and root.inflightSession == uid) then
       mode = "new"
