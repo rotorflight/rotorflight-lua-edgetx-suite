@@ -909,6 +909,22 @@ do
       and instance.baseline ~= nil and instance.baseline ~= stale and not instance.readRequired,
     "the read retried on the ground begins the new session")
 
+  -- Without a link nothing is read: Read again is refused and the session stays for the list on screen.
+  instance, stale = gap()
+  widget.state.fblConnected = false
+  local refusedOk, refusedWhy = Prime.refreshValues(widget, instance)
+  widget.state.fblConnected = true
+  check(not refusedOk and refusedWhy == "no_link" and instance.baseline == stale and instance.sessionExpired == true,
+    "Read again without a link is refused and keeps the session and its pending end")
+
+  -- A model-default save still waiting is the model's: the read that ends the session keeps it, and it
+  -- is written once the read is done.
+  instance, stale = gap()
+  instance.pendingSave = {list = {"saved-default"}, mcu = fc.uid}
+  check(Prime.refreshValues(widget, instance) and instance.baseline == nil, "positive control: the read ended the session")
+  check(instance.pendingSave ~= nil and instance.pendingSave.list[1] == "saved-default",
+    "the waiting model-default save survives the session's end")
+
   instance, stale = gap()
   -- What the runtime does when nothing holds the expiry back (widgets/dashboard/runtime.lua, inflightLinkWatch).
   instance:endSession()
@@ -1107,6 +1123,9 @@ for _,size in ipairs({{480,272},{480,320},{800,480}}) do
         if node.text=="Restore..." then entryButton=lastButton end
         if node.text=="Continue tuning" then continueButton=lastButton end
         check(#node.text*(node.font==SMLSIZE and 11 or node.font==MIDSIZE and 16 or 9)<=(node.w or 0),"post-flight text fits its box: "..node.text)
+      elseif node.type=="label" and type(node.text)=="function" then
+        -- The note line follows the drive on every frame (a session end noted during a link gap).
+        if node.text()=="PID restore does not cover rate profiles" then rateNotice=true end
       end
       if node.type=="button" then lastButton=node end
     end
