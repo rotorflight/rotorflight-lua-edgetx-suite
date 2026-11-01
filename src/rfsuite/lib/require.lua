@@ -77,10 +77,8 @@ local function requireModule(path, forceReload)
   -- failed. Callers take a falsy result as "not available" (`rfsuite.require(path) or false`,
   -- then `if not mod`), the answer every loadScript fallback beside them gives for such a chunk;
   -- a cached `true` would pass that test and be indexed as the module table. Such a module runs
-  -- again on every load, so a module that has to run once returns its table.
-  if result == nil then
-    return nil
-  end
+  -- again on every load, so a module that has to run once returns its table. Storing the nil also
+  -- drops what a forced reload of a module that used to return a table left in the cache.
   modules[fullPath] = result
 
   return result
