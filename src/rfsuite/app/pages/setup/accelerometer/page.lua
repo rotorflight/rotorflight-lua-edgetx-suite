@@ -332,7 +332,9 @@ function M.build(ctx)
           ui.dirty = true
         end
       end,
-      suffix = "°"
+      helpTitle = pageText(i18n, "roll", "Roll"),
+      helpText = pageText(i18n, "help_roll",
+        "Value in tenths of a degree, shown without a unit; raise it to correct a drift to the left, lower it for a drift to the right.")
     }
   )
 
@@ -349,7 +351,9 @@ function M.build(ctx)
           ui.dirty = true
         end
       end,
-      suffix = "°"
+      helpTitle = pageText(i18n, "pitch", "Pitch"),
+      helpText = pageText(i18n, "help_pitch",
+        "Value in tenths of a degree, shown without a unit; raise it to correct a drift to the rear, lower it for a drift to the front.")
     }
   )
 end
