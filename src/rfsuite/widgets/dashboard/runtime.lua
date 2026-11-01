@@ -4811,7 +4811,10 @@ function Runtime.new(zone, options)
     -- So nothing is resolved until the read has settled -- answered, given up after its retries, or
     -- not possible on this link; the MSP runtime clears the flag whenever the link goes down or
     -- comes up, so it is this link's. The splash stands meanwhile: the startup reads are not done.
-    if wantReload and isFblConnected and MspRuntime and type(MspRuntime.getState) == "function" then
+    -- The wait ends with the splash: once the dashboard is ready without the read (its soft
+    -- timeout), the theme is resolved -- the radio's, as before. A read that cannot go out does not
+    -- settle: arming takes it off the queue and MSP sends nothing more before the disarm.
+    if wantReload and isFblConnected and not ready and MspRuntime and type(MspRuntime.getState) == "function" then
       local msp = MspRuntime.getState()
       if type(msp) == "table" and msp.uidReadSettled == false then wantReload = false end
     end

@@ -72,7 +72,7 @@ The model's own theme settings are edited under
   itself.** Until then the connection screen stays up, so a model with a theme of its own goes
   straight back to that theme instead of passing through the radio's theme first and loading its
   own from the SD card again. A flight controller that does not identify itself gets the radio's
-  theme.
+  theme, and so does a model armed before it has: the model's theme follows after the disarm.
 - **The theme list is kept between visits.** The page lists the theme folders when it is first
   opened and keeps that list while the tool runs, until the tool drops the page from its cache of
   recently opened pages. The page has no *Reload*: a theme copied onto the card while the tool is

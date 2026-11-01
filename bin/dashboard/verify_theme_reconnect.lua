@@ -15,6 +15,11 @@
 -- reconnect; a radio setting saved while the link is down is still picked up. A change found while
 -- its reload is deferred is found once, not again on every stat interval of the deferral.
 --
+-- And the two ends of that wait: armed before the UID read has an answer, the theme waits no longer
+-- than the splash for a read that is not sent before the disarm; a board whose API version is
+-- refused never connects, so the model's theme stays in hand behind its refusal screen as while the
+-- link is down.
+--
 --   lua5.3 bin/dashboard/verify_theme_reconnect.lua [runtime.lua] [--trace]
 local runtimePath = "src/rfsuite/widgets/dashboard/runtime.lua"
 local trace = false
@@ -292,6 +297,7 @@ do
     held.released .. " module(s) released")
   expect((held.foreign or 0) == 0, "after a flight: no other theme is resolved before the UID",
     tostring(held.foreign or 0) .. " foreign resolve(s)")
+  expect(held.reloads == 0, "after a flight: no theme is resolved before the UID", held.reloads .. " resolve(s)")
   world.releaseUid()
   passes(world, 60, "uid")
   expect(world.w.themePath == "system/urban", "after a flight: the model's theme is back after the UID",
@@ -327,10 +333,11 @@ for _, pending in ipairs({ true, false }) do
   passes(world, 30, "down")
   local held = reconnectWindow(world, 30)
   expect(#world.heldUid > 0, "control: the UID request was held (" .. tag .. ")")
-  expect((held.foreign or 0) == 0, tag .. ": no theme is resolved before the UID",
-    tostring(held.foreign or 0) .. " resolve(s)")
+  expect(held.reloads == 0, tag .. ": no theme is resolved before the UID", held.reloads .. " resolve(s)")
   world.releaseUid()
   passes(world, 60, "uid")
+  expect(#world.reloads > held.reloads, "control: the theme is resolved after the UID (" .. tag .. ")",
+    (#world.reloads - held.reloads) .. " resolve(s)")
   expect(world.w.themePath == "system/urban", tag .. ": the model's theme is back after the UID",
     tostring(world.w.themePath))
   cost(world, tag)
@@ -471,6 +478,88 @@ do
   expect(world.w._reloadPending ~= true, "deferred: nothing is left pending after the reload")
   expect(world.w.themePath == "system/urban", "deferred: the model's theme is on screen after the reload",
     tostring(world.w.themePath))
+end
+
+-- 7. Armed before the UID read has an answer. Arming pauses MSP and takes the read off the queue;
+-- it is owed again, but not sent while the board is armed, so it cannot settle before the disarm.
+-- The theme waits no longer than the splash: nothing is resolved while the splash waits for the
+-- startup reads, and once it gives up (its soft timeout) the radio's theme is drawn, as before this
+-- change; the model's comes back once the read is answered after the disarm.
+do
+  if trace then print("scenario: armed before the UID") end
+  local world = newWorld()
+  connectAndSettle(world)
+  world.linkUp = false
+  passes(world, 30, "down")
+  world.holdUid = true
+  world.linkUp = true
+  for _ = 1, 60 do
+    passes(world, 1, "held")
+    if #world.heldUid > 0 and world.w.state.fblConnected == true then break end
+  end
+  expect(#world.heldUid > 0 and world.w.state.fblConnected == true,
+    "control: the link is back and the UID request is out (armed before the UID)")
+  Stubs.sensors["ARM"], Stubs.sensors["Gov"] = 1, 2
+  local resolvesBefore = #world.reloads
+  passes(world, 60, "armed")
+  local st = _G.rfsuite.require("tasks/msp/runtime.lua").getState()
+  expect(st.lastArmed == true and st.uidReadSettled == false and st.pendingUidRead == true,
+    "control: MSP is paused and the UID read is owed while armed", "armed=" .. tostring(st.lastArmed)
+    .. " settled=" .. tostring(st.uidReadSettled) .. " pending=" .. tostring(st.pendingUidRead))
+  expect(world.w.connectionReady ~= true and #world.reloads == resolvesBefore,
+    "armed before the UID: no theme is resolved while the splash waits",
+    (#world.reloads - resolvesBefore) .. " resolve(s), ready=" .. tostring(world.w.connectionReady))
+  passes(world, 250, "armed")
+  expect(world.w.connectionReady == true, "control: the splash gave up waiting (soft timeout)",
+    tostring(world.w.connectionReady))
+  expect(world.w.theme ~= nil and world.w.themePath == "system/default",
+    "armed before the UID: the radio's theme is drawn once the splash gives up, not only after the disarm",
+    tostring(world.w.themePath) .. ", theme " .. tostring(world.w.theme ~= nil))
+  -- The request the queue dropped is never answered; the read goes out again after the disarm.
+  world.heldUid = {}
+  world.holdUid = false
+  Stubs.sensors["ARM"], Stubs.sensors["Gov"] = 0, 0
+  passes(world, 200, "disarmed")
+  expect(_G.rfsuite.session.mcu_id == world.mcuId, "control: the board identified itself after the disarm",
+    tostring(_G.rfsuite.session.mcu_id))
+  expect(world.w.themePath == "system/urban", "armed before the UID: the model's theme is back after the disarm",
+    tostring(world.w.themePath))
+end
+
+-- 8. A board whose API version is refused, plugged in after a link loss on the ground. It never
+-- connects, so its connect edge never comes and the model's preferences stay in hand behind the
+-- refusal screen -- nothing released, as while the link is down. A board that is accepted afterwards
+-- is a connect edge like any other: it resolves its own theme, here the same model's, from the cache.
+do
+  if trace then print("scenario: refused board after a ground link loss") end
+  local world = newWorld()
+  connectAndSettle(world)
+  world.released = 0
+  world.linkUp = false
+  passes(world, 30, "down")
+  local accepted = FC.replies[1]
+  FC.replies[1] = { 0, 1, 0 }
+  world.linkUp = true
+  passes(world, 60, "refused")
+  local st = _G.rfsuite.require("tasks/msp/runtime.lua").getState()
+  expect(st.unsupportedApi == true and world.w.state.fblConnected ~= true,
+    "control: the board's API version is refused and it does not connect",
+    "unsupported=" .. tostring(st.unsupportedApi) .. " fbl=" .. tostring(world.w.state.fblConnected))
+  expect(world.released == 0, "refused board: the model's theme is held behind the refusal screen, not released",
+    world.released .. " module(s) released")
+  FC.replies[1] = accepted
+  world.linkUp = false
+  passes(world, 30, "down")
+  world.cached, world.cachedReloads = {}, 0
+  for path in pairs(world.loadedBeforeDrop or {}) do world.cached[path] = true end
+  world.linkUp = true
+  passes(world, 200, "accepted")
+  expect(world.w.state.fblConnected == true and _G.rfsuite.session.mcu_id == world.mcuId,
+    "control: the accepted board connected and identified itself")
+  expect(world.w.themePath == "system/urban", "refused board: the accepted board's model theme is on screen",
+    tostring(world.w.themePath))
+  expect(world.cachedReloads == 0, "refused board: the model's theme is not read from the card again",
+    world.cachedReloads .. " re-read(s)")
 end
 
 -- The memory probe's own control: an allocation it must see.
