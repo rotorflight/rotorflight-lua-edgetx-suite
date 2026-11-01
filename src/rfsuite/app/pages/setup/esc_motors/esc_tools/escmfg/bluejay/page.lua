@@ -128,11 +128,16 @@ local function logMsg(msg, level)
 end
 
 local function queueBluejayReadActual(queue)
+  local escTarget = ui.escTarget or 0
+  -- A page close releases ui.runtime and the next visit builds a new one, so a reply queued
+  -- by an earlier visit is told apart by its runtime, and one for another target by escTarget.
+  local runtime = ui.runtime
   queue:add({
     command = EscParametersBluejayApi.command,
     timeout = 15,
     simulatorResponse = EscParametersBluejayApi.simulatorResponse,
     processReply = function(self, buf)
+      if ui.runtime ~= runtime or escTarget ~= (ui.escTarget or 0) then return end
       local parsed = EscParametersBluejayApi.parse(buf)
       if parsed then
         for k, v in pairs(ui.config) do
@@ -161,6 +166,7 @@ local function queueBluejayReadActual(queue)
         local session = getSession()
         if session then
           session.setup_esc_motors_esc_tools_bluejay = {
+            escTarget = escTarget,
             config = {},
             parsedCache = ui.parsedCache,
             layoutRevision = ui.layoutRevision,
@@ -184,6 +190,7 @@ local function queueBluejayReadActual(queue)
       end
     end,
     errorHandler = function()
+      if ui.runtime ~= runtime or escTarget ~= (ui.escTarget or 0) then return end
       ui.runtime.readPending = false
       ui.loading = false
       if type(ui.runtime.requestRebuild) == "function" then
@@ -194,6 +201,7 @@ local function queueBluejayReadActual(queue)
 end
 
 local function queueBluejayRead(isAutoReload)
+  local runtime = ui.runtime
   if not MspRuntime or not EscParametersBluejayApi or type(MspRuntime.getState) ~= "function" then
     return false, "msp_runtime_unavailable"
   end
@@ -230,7 +238,7 @@ local function queueBluejayRead(isAutoReload)
         isWrite = true,
         simulatorResponse = {},
         processReply = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 2
           ui.connTimer = nowSeconds()
           ui.runtime.readPending = false
@@ -239,7 +247,7 @@ local function queueBluejayRead(isAutoReload)
           end
         end,
         errorHandler = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 0
           ui.loading = false
           ui.runtime.readPending = false
@@ -256,7 +264,7 @@ local function queueBluejayRead(isAutoReload)
         isWrite = true,
         simulatorResponse = {},
         processReply = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 4
           ui.connTimer = nowSeconds()
           ui.runtime.readPending = false
@@ -265,7 +273,7 @@ local function queueBluejayRead(isAutoReload)
           end
         end,
         errorHandler = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 0
           ui.loading = false
           ui.runtime.readPending = false
@@ -287,6 +295,7 @@ local function queueBluejayRead(isAutoReload)
 end
 
 local function queuePostSaveReset(target, nextState)
+  local runtime = ui.runtime
   local FwdProgApi = loadModule("tasks/msp/api/4wif_esc_fwd_prog.lua")
   if not FwdProgApi or not MspRuntime or type(MspRuntime.getState) ~= "function" then
     return
@@ -303,7 +312,7 @@ local function queuePostSaveReset(target, nextState)
     isWrite = true,
     simulatorResponse = {},
     processReply = function()
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.connState = nextState
       ui.connTimer = nowSeconds()
       if ui.runtime and type(ui.runtime.requestRebuild) == "function" then
@@ -311,7 +320,7 @@ local function queuePostSaveReset(target, nextState)
       end
     end,
     errorHandler = function()
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.connState = 5
       ui.saving = false
       ui.notice = {
@@ -339,6 +348,7 @@ local MESSAGE_KEYS = {
 }
 
 local function queueBluejayWrite(requestRebuild)
+  local runtime = ui.runtime
   if not MspRuntime or not EscParametersBluejayApi or type(MspRuntime.getState) ~= "function" then
     return false, "msp_runtime_unavailable"
   end
@@ -379,7 +389,7 @@ local function queueBluejayWrite(requestRebuild)
     payload = EscParametersBluejayApi.buildWritePayload(writeData),
     isWrite = true,
     processReply = function(self, buf)
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.dirty = false
       ui.connState = 6
       ui.connTimer = nowSeconds()
@@ -388,7 +398,7 @@ local function queueBluejayWrite(requestRebuild)
       end
     end,
     errorHandler = function()
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.saving = false
       ui.notice = {
         title = pageText(ui.i18n, "save_failed_title", "Save Failed"),
@@ -410,7 +420,7 @@ end
 local function loadFromSession()
   local session = getSession()
   local cached = session and session.setup_esc_motors_esc_tools_bluejay or nil
-  if type(cached) == "table" and type(cached.config) == "table" then
+  if type(cached) == "table" and cached.escTarget == ui.escTarget and type(cached.config) == "table" then
     for k, v in pairs(ui.config) do
       if cached.config[k] ~= nil then
         ui.config[k] = cached.config[k]
@@ -503,6 +513,11 @@ local function ensureLoaded()
   end
 
   if not loadFromSession() then
+    for k, v in pairs(CONFIG_DEFAULTS) do ui.config[k] = v end
+    ui.parsedCache = nil
+    ui.escModel = nil
+    ui.escVersion = nil
+    ui.escFirmware = nil
     ui.layoutRevision = nil
     ui.supportsLedControl = false
   end
@@ -578,6 +593,7 @@ end
 
 function M.getHeaderActions()
   return {
+    help = true,
     save = true,
     reload = true,
     menu = true
@@ -610,6 +626,12 @@ function M.onReload(ctx)
   ui.connTimer = nil
   queueBluejayRead(false)
   return true
+end
+
+function M.onHelp(ctx)
+  local help = loadModule("app/pages/setup/esc_motors/esc_tools/escmfg/bluejay/help.lua")
+  if type(help) ~= "function" then return nil end
+  return help({ i18n = ctx and ctx.i18n, section = ui.currentSection })
 end
 
 function M.build(ctx)
