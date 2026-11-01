@@ -1,0 +1,2 @@
+- **The module loader no longer hands out `true` for a module that returns nothing (`lib/require.lua`)**:
+  - Such a module now loads as nothing and is not cached, like a load that failed, so callers that treat a missing module as "not available" (the event tasks' MSP runtime, the sensors in `lib/profile.lua`, the MSP queue's cache and environment) take that path instead of indexing `true`. Every module the suite loads through it today returns a value, so nothing a pilot sees changes; this closes the hazard for a future module (#420).

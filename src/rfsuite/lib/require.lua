@@ -73,11 +73,17 @@ local function requireModule(path, forceReload)
     return nil, result
   end
 
-  -- If module returns nothing/nil, store true as sentinel
-  local instance = (result == nil) and true or result
-  modules[fullPath] = instance
+  -- A module that returns nothing hands out nothing and is not cached, the same as a load that
+  -- failed. Callers take a falsy result as "not available" (`rfsuite.require(path) or false`,
+  -- then `if not mod`), the answer every loadScript fallback beside them gives for such a chunk;
+  -- a cached `true` would pass that test and be indexed as the module table. Such a module runs
+  -- again on every load, so a module that has to run once returns its table.
+  if result == nil then
+    return nil
+  end
+  modules[fullPath] = result
 
-  return instance
+  return result
 end
 
 local function clearModule(path)
