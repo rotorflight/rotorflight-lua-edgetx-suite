@@ -71,7 +71,7 @@ local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
 
 -- The shipped themes that have a settings page. Named rather than listed from the directory, so
 -- a theme that goes missing is a failure and not a smaller matrix.
-local THEMES = { "default", "rfstatus", "@rt-rc", "@rt-rc-n", "@srb-rc", "@aerc", "@aerc-n", "urban", "grid", "deck" }
+local THEMES = { "default", "rfstatus", "@rt-rc", "@rt-rc-n", "@srb-rc", "@aerc", "@aerc-n", "@kse4", "@kse5", "@kevd", "urban", "grid", "deck" }
 local LOCALES = { "en", "de" }
 local SCOPES = { "standard", "model" }
 

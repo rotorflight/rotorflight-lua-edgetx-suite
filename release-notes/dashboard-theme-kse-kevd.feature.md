@@ -1,0 +1,4 @@
+- **@KSE4, @KSE5 and @Kevd themes, ported from the Ethos suite (`widgets/dashboard/themes/@kse4`, `@kse5`, `@kevd`, `docs/dashboard/themes.md`)**:
+  - @KSE4: a grid of framed tiles over a fuel bar; @KSE5: the same tiles with rings for fuel, head speed, current and ESC temperature; @Kevd: gauges on the page with their highest value of the flight, framed tiles and a column of flight time, battery and governor.
+  - All three take the full screen and open Look, Before flight, In flight, Statistics, Info bar and Keys; the values size themselves to the zone they are drawn in.
+  - Theme boxes can draw a frame (`bordercolor`, `borderwidth`), round their corners (`rounded`) and leave their fill out (`bgcolor = false`); a gauge can show the flight's minimum or maximum (`stattype`), and a horizontal bar honours its gauge paddings (`docs/dashboard/user-themes.md`).
