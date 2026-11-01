@@ -219,6 +219,12 @@ before. "In use" goes by folder: a theme that loads modules from another folder 
 `@aerc/common.lua`, a user copy of Urban with the shipped Urban's modules) does not keep that folder
 in use, so those modules are read from the card again on its next load after a release.
 
+On a reconnect the widget resolves no theme while the link is up and the board's UID read has no
+outcome yet, and a preferences reload that falls due in that window waits for it too: the model's
+preferences are loaded by that UID, and a theme resolved without them would be the radio's, release
+the model's theme and read it from the card again seconds later. The read has an outcome once it is
+answered or has given up after its retries; without a UID the radio's theme is resolved then.
+
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be
 released with the rest, and the next load of the theme would pair it with fresh copies of the

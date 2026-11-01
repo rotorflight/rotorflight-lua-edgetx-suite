@@ -1,0 +1,2 @@
+- **A reconnect no longer reloads the model's dashboard theme from the SD card (`widgets/dashboard/runtime.lua`)**:
+  - Until the flight controller's UID has been read, the dashboard resolves no theme and runs no pending preferences reload, so a model with a theme of its own keeps that theme's modules loaded across the reconnect instead of releasing them for the radio's theme and reading them from the card again seconds later (#1008).

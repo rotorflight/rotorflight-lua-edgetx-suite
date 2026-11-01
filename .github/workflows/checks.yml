@@ -266,6 +266,9 @@ jobs:
           lua5.3 bin/themes/verify_voltage_save.lua
           lua5.3 bin/dashboard/verify_offline_theme_settings.lua
 
+      - name: Check the dashboard theme across a reconnect
+        run: lua5.3 bin/dashboard/verify_theme_reconnect.lua
+
       - name: Check per-model reset rollback
         run: lua5.3 bin/dashboard/verify_overrides_reset.lua
 

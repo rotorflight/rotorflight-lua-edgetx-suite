@@ -2225,6 +2225,21 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     return
   end
 
+  -- While the link is up and its UID read has no outcome yet, the per-model half has no board to
+  -- load by: run now, it would adopt the stamp without that half, and the model's file appearing
+  -- once the UID is read would signal a second full reload and another theme build. Kept pending
+  -- instead, it runs once, with both halves, on the first pass after the read has settled. The
+  -- MSP runtime's own flags, not this widget's, because this runs before updateConnectionState()
+  -- has looked at the link on this pass.
+  if not force and MspRuntime and type(MspRuntime.isFblConnected) == "function"
+    and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+    local msp = MspRuntime.getState()
+    if type(msp) == "table" and msp.uidReadSettled == false then
+      logGv("reloadPreferencesIfNeeded: deferred until the UID read settles (pending=%s)", tostring(self._reloadPending))
+      return
+    end
+  end
+
   if isBackground and not force then
     -- During background passes (when widget is off-screen), defer heavy file I/O and theme
     -- compilation until widget returns to screen (refresh pass) to avoid EdgeTX CPU limit faults.
@@ -4765,6 +4780,18 @@ function Runtime.new(zone, options)
       or modelPrefsChanged
       or not self.theme
       or (modeChanged and self.themeStateKeys[nextMode] ~= self.themeStateKey)
+
+    -- On a reconnect the edge above has dropped the model's preferences, and until this link's UID
+    -- read has an outcome there is no board to load them by. A theme resolved in that window lands
+    -- on the radio's theme, releases the model's from the module cache (releaseUnusedThemes), and
+    -- the model's theme is read from the card and built again seconds later, when the UID arrives.
+    -- So nothing is resolved until the read has settled -- answered, given up after its retries, or
+    -- not possible on this link; the MSP runtime clears the flag whenever the link goes down or
+    -- comes up, so it is this link's. The splash stands meanwhile: the startup reads are not done.
+    if wantReload and isFblConnected and MspRuntime and type(MspRuntime.getState) == "function" then
+      local msp = MspRuntime.getState()
+      if type(msp) == "table" and msp.uidReadSettled == false then wantReload = false end
+    end
 
     -- A theme reload does not share a pass with the telemetry read: the two are the largest
     -- pieces of state work this runtime has, and on connect they land together with the connect
