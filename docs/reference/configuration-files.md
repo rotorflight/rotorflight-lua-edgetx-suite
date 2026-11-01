@@ -154,6 +154,11 @@ finish. The tool and the background decoder are not stopped that way.
   file as `<mcu id>.lua.bak` until the next save. If a save is cut short after the old file was renamed to `.bak`
   and before the new one was in place, the flights are read from the `.bak` and the next save writes them back.
   Deleting the file and its `.bak`, or *\** on the page, forgets the flights.
+- `flightlog/batteries.cfg` — the [Flight Log](../pages/tools/flight_log.md)'s battery registry, one pack per line,
+  kept by hand or from the page. It is saved the same way as the Tune Advisor's flights, with the previous version kept
+  as `batteries.cfg.bak`. If a save is cut short after the old file was renamed to `.bak` and before the new one was in
+  place, the registry is read from the `.bak` and the next edit or counted flight writes it back. To start an empty
+  registry, delete the file and its `.bak`.
 - `reload.req` — a few bytes the tool writes when you save, so the dashboard widget knows to
   re-read the settings. Unchanged by the move to Lua files. Do not delete it while the suite is
   running.
