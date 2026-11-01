@@ -153,9 +153,12 @@ session never ends, and a shorter link gap on the ground continues it. With tuni
 session ends when the link comes back, so a post-flight list stays readable while the pack is out.
 Nothing ends while a profile job, a pending return to the original profiles or a save is outstanding,
 or while tuning still holds its bank selection. Such a pending end is only taken on the ground: if
-the model is armed first, the session is kept through the flight. A read that begins while the end
-is still pending starts a new session instead of continuing the old one, and so do **Read again**
-and a restore pressed then: the old start values are not written back, the board is read instead.
+the model is armed first, the session is kept through the flight. While such an end is pending the
+**Session** status reads **Battery changed: new session at next read** (on the post-flight list, its
+bottom line), and the restores are shown disabled. Any read that begins then, the automatic one or
+**Read again**, ends the old session as it starts and begins a new one, also if it is interrupted
+by arming; the old start values are not written back. A read answers every read still due, so none
+follows it.
 
 ### On the ground, before the flight
 
@@ -163,7 +166,7 @@ and a restore pressed then: the old start values are not written back, the board
 
 One filled status panel shows **Model** (the setup verdict), **FC slots** (the number of parameters
 read from the board, plus skipped slots), and **Session** (the time this session's start values
-were read, for example **Start values 14:32**, or a not-read/refused status). Dim labels sit
+were read, for example **Start values 14:32**, a pending session end, or a not-read/refused status). Dim labels sit
 beside values. Each status takes one line on 480x272, 480x320 and 800x480 displays, and a second
 one only where its text needs it and the actions keep their room; where they would not, the status
 is cut to one line, the slot count first, then the session, the model verdict last. The rows are
