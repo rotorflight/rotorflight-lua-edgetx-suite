@@ -360,6 +360,9 @@ do
     .. " mcu=" .. tostring(_G.rfsuite.session.mcu_id))
   expect(world.w.themePath == "system/default", "settled without a UID: the radio's theme is resolved",
     tostring(world.w.themePath))
+  -- A real change of theme still releases the one it replaces (the release itself is unchanged).
+  expect(modelThemeModules() == 0, "settled without a UID: the model's theme modules are released",
+    modelThemeModules() .. " still loaded")
 end
 
 -- 4. A UID read that times out: given up after its retries, the read is settled without a UID and
@@ -386,6 +389,8 @@ do
   passes(world, 10, "timeout")
   expect(world.w.themePath == "system/default", "timed out: the radio's theme is resolved without a retry",
     tostring(world.w.themePath))
+  expect(modelThemeModules() == 0, "timed out: the model's theme modules are released",
+    modelThemeModules() .. " still loaded")
   world.heldUid = {}
   world.holdUid = false
   passes(world, 400, "retry")
