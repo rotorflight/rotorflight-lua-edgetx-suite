@@ -310,11 +310,11 @@ scenario("a battery change during a profile job ends the session once the job is
   end
 end)
 
--- The expiry a ground gap notes is taken on the ground only. Work outstanding when the link comes
--- back keeps it waiting, and so does the bank variable the open surface then holds on the ground;
--- if the pilot arms before that is released, the release in the air (a profile switch cleans the
--- bank up) must not end the session.
-local function expiredWithBankHeld(widget, d)
+-- The expiry a ground gap notes is taken on the ground only. Work still outstanding when the link
+-- comes back (here a profile job) keeps it waiting. If the pilot arms first, the job is cancelled and
+-- the live phase arms the bank variable, which keeps it waiting in the air; when the bank is then
+-- released in flight (a profile switch cleans it up), the session must not end.
+local function expiredWithWorkOutstanding(widget, d)
   d.profileJob = {}
   widget.state.fblConnected = false
   Stubs.tick(); widget:refresh(0, nil)
@@ -323,18 +323,17 @@ local function expiredWithBankHeld(widget, d)
   widget.state.fblConnected = true
   Stubs.tick(); widget:refresh(0, nil)
   check(d.sessionExpired == true, "positive control: the gap was long enough to end the session")
-  d.profileJob, d.bankWritten = nil, 1
-  widget.state.fblConnected = true
-  Stubs.tick(); widget:refresh(0, nil)
-  check(widget._inflight == d and d.baseline ~= nil, "the held bank keeps the session on the ground")
+  check(widget._inflight == d and d.baseline ~= nil, "the outstanding job keeps the session on the ground")
 end
 
 scenario("an expiry noted on the ground is not taken in the air, and is taken at the landing", function()
   local widget = newWidget()
   open(widget)
   local d = withSession(widget, nil)
-  expiredWithBankHeld(widget, d)
+  expiredWithWorkOutstanding(widget, d)
   widget.state.armed, d.phase, d.live = true, "live", true
+  d.profileJob, d.bankWritten = nil, 1
+  widget.state.fblConnected = true
   Stubs.tick(); widget:refresh(0, nil)
   d.bankWritten = 0
   for _ = 1, 3 do widget.state.fblConnected = true; Stubs.tick(); widget:refresh(0, nil) end
@@ -354,8 +353,8 @@ scenario("an expiry on the ground waits for this link's arm state, then ends the
   local widget = newWidget()
   open(widget)
   local d = withSession(widget, nil)
-  expiredWithBankHeld(widget, d)
-  d.bankWritten = 0
+  expiredWithWorkOutstanding(widget, d)
+  d.profileJob = nil
   widget.state.armedSeen = false
   for _ = 1, 2 do widget.state.fblConnected = true; Stubs.tick(); widget:refresh(0, nil) end
   check(d.baseline ~= nil and d.sessionExpired == true, "arm state not yet read on this link: the session is kept")
@@ -363,7 +362,7 @@ scenario("an expiry on the ground waits for this link's arm state, then ends the
   widget.state.fblConnected = true
   Stubs.tick(); widget:refresh(0, nil)
   check(d.baseline == nil and d.readAgain and d.phase == "ground" and d.sessionExpired == nil,
-    "on the ground, with the output released, the session ends and a new read is asked for")
+    "on the ground, with the job done, the session ends and a new read is asked for")
   close(widget)
   forget(widget)
 end)
