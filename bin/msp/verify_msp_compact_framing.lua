@@ -61,7 +61,7 @@ loadScript = function(path)
     return function() return transport end
   elseif relative == "tasks/msp/protocols.lua" then
     return function() return function() return "stub" end end
-  elseif relative == "tasks/msp/queue.lua" then
+  elseif relative == "tasks/msp/queue.lua" and fakeQueue then
     return function() return { new = function() return fakeQueue end } end
   elseif relative == "lib/log.lua" then
     return function()
@@ -270,6 +270,34 @@ do
   equal(cmd, 217, "a compact error reply keeps its command")
   equal(err, true, "a compact error reply carries the error flag")
   equal(c.getProtocolVersion(), 3, "a compact error reply does not fall back")
+end
+
+-- The real queue sends the refused request again, in MSPv2 ---------------------------------------
+do
+  local Queue = assert(loadfile(core .. "tasks/msp/queue.lua"))()
+  local c = newCommon()
+  c.setProtocolVersion(3)
+  local q = Queue.new(c, { isSimulator = false, maxRetries = 3 })
+  local got = {}
+  q:add({ command = 1, processReply = function(_, buf) got[#got + 1] = buf end, errorHandler = function() end })
+  local now = 0
+  local function step(seconds)
+    now = now + (seconds or 0.01)
+    q:processQueue(now)
+  end
+  step()
+  equal(#h.sent, 1, "real queue: the request went out")
+  equal(h.sent[1] and h.sent[1][1] & 0x60, 0x60, "real queue: the first attempt is version 3")
+  h.inbox = mismatchReply()
+  step()
+  equal(c.getProtocolVersion(), 2, "real queue: the refusal falls back to MSPv2")
+  step(2.5)
+  equal(#h.sent, 2, "real queue: the request is sent again after the retry window")
+  equal(h.sent[2] and h.sent[2][1] & 0x60, 0x40, "real queue: the second attempt is MSPv2")
+  h.inbox = reply(2, 1, { 0, 12, 10 })
+  step()
+  step()
+  equal(#got, 1, "real queue: the MSPv2 reply is delivered")
 end
 
 -- The runtime chooses the framing from the API version ------------------------------------------
