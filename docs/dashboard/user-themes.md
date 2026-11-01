@@ -74,9 +74,10 @@ A gauge shows the live reading by default. Given `stattype = "max"` or `stattype
 shows that extreme of the flight instead — the same figure a `stats` text box shows for that
 source — which is how a post-flight screen draws the highest head speed as a bar.
 
-A horizontal bar is half its panel high and 4 px in from each side unless the box gives
-`gaugepaddingtop`, `gaugepaddingbottom`, `gaugepaddingleft` or `gaugepaddingright`; then the bar
-spans the panel less those paddings, as a vertical bar always has.
+A horizontal bar is half its panel high, centred, and 4 px in from each side. The paddings change
+that one direction at a time: given `gaugepaddingtop` or `gaugepaddingbottom` the bar spans the
+panel's height less them, and given `gaugepaddingleft` or `gaugepaddingright` its width, as a
+vertical bar always has. Paddings larger than the panel leave a thin bar inside the tile.
 
 ### Dynamic color thresholds
 

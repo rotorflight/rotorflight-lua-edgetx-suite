@@ -37,7 +37,9 @@ local COLOR_NAME_MAP = {
   grey = COLOR_THEME_SECONDARY2,
   gray = COLOR_THEME_SECONDARY2,
   orange = rgb(0xFF8000, 0xFF8000),
-  blue = rgb(0x3399FF, 0x3399FF)
+  blue = rgb(0x3399FF, 0x3399FF),
+  cyan = rgb(0x00FFFF, 0x07FF),
+  magenta = rgb(0xFF00FF, 0xF81F)
 }
 
 local function detectSimulator()
@@ -1026,9 +1028,11 @@ end
 -- The tile under a box: its fill, then the optional frame. `bgcolor = false` draws no fill, so a
 -- box can sit on another box's tile; `rounded` rounds the fill and the frame by that radius, and
 -- `bordercolor` (with `borderwidth`, 2 px by default) draws the frame. A box without them draws
--- the plain filled rectangle it always did.
+-- the plain filled rectangle it always did. The three frame fields are resolved here, once per
+-- build, so one given as a function is called with the box and the state and never reaches the
+-- reactive sweep.
 function Utils.drawContainer(nodes, rect, box, state)
-  local rounded = box.rounded
+  local rounded = Utils.resolveValue(box.rounded, box, state)
   if box.bgcolor ~= false then
     nodes[#nodes + 1] = {
       type = "rectangle",
@@ -1041,16 +1045,17 @@ function Utils.drawContainer(nodes, rect, box, state)
       rounded = rounded
     }
   end
-  if box.bordercolor ~= nil then
+  local bordercolor = Utils.resolveValue(box.bordercolor, box, state)
+  if bordercolor ~= nil then
     nodes[#nodes + 1] = {
       type = "rectangle",
       x = rect.x,
       y = rect.y,
       w = rect.w,
       h = rect.h,
-      color = Utils.normalizeColor(box.bordercolor, WHITE),
+      color = Utils.normalizeColor(bordercolor, WHITE),
       filled = false,
-      thickness = box.borderwidth or 2,
+      thickness = Utils.toNumber(Utils.resolveValue(box.borderwidth, box, state), 2),
       rounded = rounded
     }
   end

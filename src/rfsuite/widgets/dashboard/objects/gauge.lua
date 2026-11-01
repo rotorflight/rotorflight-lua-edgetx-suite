@@ -418,6 +418,11 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
       lastBarVal = curRaw
       local curHasValue = type(curRaw) == "number"
       local curVal = utils.toNumber(curRaw, 0)
+      -- The reading is Celsius; with Fahrenheit chosen the label shows it in the unit it names,
+      -- as the fill does.
+      if fahrenheit and curHasValue then
+        curVal = cToF(curVal)
+      end
       if not curHasValue then
         if unit ~= nil and unit ~= "" then
           cachedBarText = "-- " .. tostring(unit)
@@ -477,21 +482,26 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
     local barX = rect.x + 4
     local barW = rect.w - 8
     local barY = panelY + math.floor((panelH - barHeight) / 2)
-    -- A bar given paddings spans the panel less them, as a vertical bar does; one given none is
-    -- half the panel high, centred, 4 px in from each side.
+    -- Each axis on its own: given gaugepaddingtop or gaugepaddingbottom the bar spans the panel's
+    -- height less them, given gaugepaddingleft or gaugepaddingright its width; an axis given
+    -- neither keeps the default -- half the panel high and centred, 4 px in from each side.
     local padTop = utils.resolveValue(box.gaugepaddingtop, box, state)
     local padBottom = utils.resolveValue(box.gaugepaddingbottom, box, state)
     if padTop ~= nil or padBottom ~= nil then
-      padTop, padBottom = utils.toNumber(padTop, 0), utils.toNumber(padBottom, 0)
+      -- Clamped to the panel, so paddings larger than it leave a 1 px bar inside the tile rather
+      -- than one drawn past its edge.
+      padTop = utils.clamp(utils.toNumber(padTop, 0), 0, panelH - 1)
+      padBottom = utils.clamp(utils.toNumber(padBottom, 0), 0, panelH - 1 - padTop)
       barY = panelY + padTop
-      barHeight = math.max(12, panelH - padTop - padBottom)
+      barHeight = panelH - padTop - padBottom
     end
     local padLeft = utils.resolveValue(box.gaugepaddingleft, box, state)
     local padRight = utils.resolveValue(box.gaugepaddingright, box, state)
     if padLeft ~= nil or padRight ~= nil then
-      padLeft, padRight = utils.toNumber(padLeft, 4), utils.toNumber(padRight, 4)
+      padLeft = utils.clamp(utils.toNumber(padLeft, 4), 0, rect.w - 1)
+      padRight = utils.clamp(utils.toNumber(padRight, 4), 0, rect.w - 1 - padLeft)
       barX = rect.x + padLeft
-      barW = math.max(12, rect.w - padLeft - padRight)
+      barW = rect.w - padLeft - padRight
     end
     
     local thresholds = box.thresholds or {}
@@ -588,6 +598,11 @@ local function renderBar(nodes, rect, box, state, themeCommon, utils)
       lastBarVal = curRaw
       local curHasValue = type(curRaw) == "number"
       local curVal = utils.toNumber(curRaw, 0)
+      -- The reading is Celsius; with Fahrenheit chosen the label shows it in the unit it names,
+      -- as the fill does.
+      if fahrenheit and curHasValue then
+        curVal = cToF(curVal)
+      end
       if not curHasValue then
         if unit ~= nil and unit ~= "" then
           cachedBarText = "-- " .. tostring(unit)

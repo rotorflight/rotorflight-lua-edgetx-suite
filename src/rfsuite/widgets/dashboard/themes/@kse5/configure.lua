@@ -25,6 +25,11 @@ local SETTINGS = {
     default = 100, min = 40, max = 150, step = 5, fmt = "%d°C" },
 }
 
+-- Settings that must rise strictly from first to last, each by at least one step of its field: a
+-- range's minimum below its warning level below its maximum. An edit is held between its
+-- neighbours, and a stored chain out of order is put back to its defaults when the page loads.
+local ORDERED = {}
+
 -- The pages init.lua declares beside Look: what the tiles of each phase show, and the keys.
 local PHASES = { preflight = "preflight.lua", inflight = "inflight.lua", postflight = "postflight.lua" }
 
@@ -44,6 +49,41 @@ local function clamp(value, minValue, maxValue)
   if value < minValue then return minValue end
   if value > maxValue then return maxValue end
   return value
+end
+
+local SETTING_BY_KEY = {}
+for _, s in ipairs(SETTINGS) do SETTING_BY_KEY[s.key] = s end
+
+local function defaultValue(s)
+  return math.floor(s.default * (s.scale or 1) + 0.5)
+end
+
+--- The range an edit of `key` may take: its own, narrowed by its neighbours in an ordered chain.
+local function bounds(key)
+  local s = SETTING_BY_KEY[key]
+  local lo, hi = s.min, s.max
+  for _, chain in ipairs(ORDERED) do
+    for i = 1, #chain do
+      if chain[i] == key then
+        local prev, nxt = chain[i - 1], chain[i + 1]
+        if prev and ui.values[prev] then lo = math.max(lo, ui.values[prev] + 1) end
+        if nxt and ui.values[nxt] then hi = math.min(hi, ui.values[nxt] - 1) end
+      end
+    end
+  end
+  return lo, hi
+end
+
+local function normalizeOrder()
+  for _, chain in ipairs(ORDERED) do
+    local ordered = true
+    for i = 2, #chain do
+      if ui.values[chain[i]] <= ui.values[chain[i - 1]] then ordered = false end
+    end
+    if not ordered then
+      for i = 1, #chain do ui.values[chain[i]] = defaultValue(SETTING_BY_KEY[chain[i]]) end
+    end
+  end
 end
 
 local function loadConfig(prefs)
@@ -71,6 +111,7 @@ local function loadConfig(prefs)
     local v = tonumber(cfg[s.key]) or s.default
     ui.values[s.key] = clamp(math.floor(v * scale + 0.5), s.min, s.max)
   end
+  normalizeOrder()
 
   ui.loaded = true
 end
@@ -195,8 +236,11 @@ function M.build(ctx)
       min = s.min,
       max = s.max,
       step = s.step,
-      get = function() return ui.values[s.key] or math.floor(s.default * scale + 0.5) end,
-      set = function(value) ui.values[s.key] = clamp(tonumber(value) or math.floor(s.default * scale + 0.5), s.min, s.max) end,
+      get = function() return ui.values[s.key] or defaultValue(s) end,
+      set = function(value)
+        local lo, hi = bounds(s.key)
+        ui.values[s.key] = clamp(tonumber(value) or defaultValue(s), lo, hi)
+      end,
       display = function(value)
         return string.format(s.fmt, (tonumber(value) or s.default * scale) / scale)
       end

@@ -51,11 +51,31 @@ Layout.DEFAULTS = { rpm_max = 3000, bec_min = 3.0, bec_warn = 6.0, bec_max = 13.
 local PREFLIGHT = { cols = 7, rows = 12, padding = 6, showstats = false, bgcolor = C.BG }
 local FLIGHT = { cols = 24, rows = 20, padding = 4, showstats = false, bgcolor = C.BG }
 
-local function cfgValue(state, key)
+local function rawValue(state, key)
   local cfg = state and state.themeConfig
   local v = tonumber(cfg and cfg[key])
   if v ~= nil then return v end
   return Layout.DEFAULTS[key]
+end
+
+-- The settings that must rise from first to last (configure.lua holds an edit to that). A stored
+-- chain out of order -- written by hand, or into a model's settings elsewhere -- would leave an
+-- arc with no range or a colour step that never fires, so the whole chain falls back to its
+-- defaults.
+local ORDERED = { { "bec_min", "bec_warn", "bec_max" }, { "esctemp_warn", "esctemp_max" } }
+local CHAIN_OF = {}
+for _, chain in ipairs(ORDERED) do
+  for _, key in ipairs(chain) do CHAIN_OF[key] = chain end
+end
+
+local function cfgValue(state, key)
+  local chain = CHAIN_OF[key]
+  if chain then
+    for i = 2, #chain do
+      if rawValue(state, chain[i]) <= rawValue(state, chain[i - 1]) then return Layout.DEFAULTS[key] end
+    end
+  end
+  return rawValue(state, key)
 end
 
 local function place(box, col, row, colspan, rowspan)
