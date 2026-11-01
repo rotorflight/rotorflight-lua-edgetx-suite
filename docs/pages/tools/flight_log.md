@@ -59,8 +59,8 @@ its number of flights and its total time.
 
 ## Settings
 
-*Write a flight log* is what switches the log on. The other tabs only read what has been
-written.
+*Write a flight log* is what switches the log on. *Flights* and *Models* only read what has been
+written; *Batteries* also edits the pack registry, whether the log is on or off.
 
 | Setting | What it does |
 | --- | --- |
