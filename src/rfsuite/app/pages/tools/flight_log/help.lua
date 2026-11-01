@@ -15,9 +15,9 @@ return function(ctx)
   local t = Common and Common.pageT("tools_flight_log") or function(_, _, fb) return fb end
   local i18n = ctx.i18n
 
-  -- One sentence for the page: every setting on it carries its own ? with the specifics.
+  -- One sentence for the page: every switch and number on it carries its own ? with the specifics.
   local message = t(i18n, "help_message",
-    "Lists the flights logged on the card, their totals per model and the battery registry with its editor; each setting has its own ?.")
+    "Lists the flights logged on the card, their totals per model and the battery registry; every switch and number has its own ?.")
 
   return {
     title = t(i18n, "help_title", "Flight Log Help"),

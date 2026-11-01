@@ -259,11 +259,13 @@ the chosen id as before.
 A flight counts as logged only once the file on the card has grown by exactly the bytes its line
 takes. Where the card will not say how large a file on it is, the flight is not written at all and
 the log says which step refused, rather than a line being appended to a file whose contents cannot
-be established. The registry is held to the same standard: a pack's cycle count and the edits made
-under *Batteries* are refused rather than rewriting the file from a read that may have been cut
-short. An edit refused this way says *The registry was not read whole; nothing was changed*, and
-the file on the card is as it was; *The card did not take the write* is the message for a save the
-card itself refused. A registry of the size a pilot keeps is unaffected either way.
+be established. The registry is checked the same way where the card says how large it is: a pack's
+cycle count and the edits made under *Batteries* are refused when the read does not match that size,
+rather than rewriting the file from a read that was cut short. Where the card does not say, the
+read cannot be checked, and only one that reached 64 KiB is refused, as too large. An edit refused
+for a short read says *The registry was not read whole; nothing was changed*, and the file on the
+card is as it was; *The card did not take the write* is the message for a save the card itself
+refused. A registry of the size a pilot keeps is unaffected either way.
 
 A line the card took only part of -- a write that came up short, or power lost during it -- is not
 repaired: it stays in the file as a line of its own, and the next flight's line starts on a new

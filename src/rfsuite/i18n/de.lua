@@ -3350,7 +3350,7 @@ return {
         setting_min_seconds = "Mindestflugdauer",
         setting_set_fc_profile = "Akkuprofil des Akkus setzen",
         help_title = "Hilfe zum Flugbuch",
-        help_message = "Zeigt die auf der Karte aufgezeichneten Fluege, ihre Summen je Modell und die Akkuliste mit ihrem Editor; jede Einstellung hat ihr eigenes ?.",
+        help_message = "Zeigt die auf der Karte aufgezeichneten Fluege, ihre Summen je Modell und die Akkuliste; jeder Schalter und jede Zahl hat ein eigenes ?.",
         help_row_capacity = "Kapazitaet des Akkus in ganzen mAh, exakt mit den Profilen des Flugcontrollers verglichen; 0 laesst sie in der Datei weg.",
         help_row_cells = "Muss auch zur Zellenzahl des Profils passen, wo der Flugcontroller eine je Profil hat; 0 laesst sie weg.",
         help_row_profile = "Akkuprofil des Flugcontrollers fuer diesen Akku, 1 bis 6; es geht vor dem Kapazitaetsvergleich. 0 laesst es in der Datei weg.",

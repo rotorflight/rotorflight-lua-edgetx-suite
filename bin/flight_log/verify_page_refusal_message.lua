@@ -4,11 +4,12 @@
 --     lua5.3 bin/flight_log/verify_page_refusal_message.lua
 --
 -- Drives the real src/rfsuite/app/pages/tools/flight_log/page.lua, lib/flight_log.lua,
--- lib/atomic_file.lua and ui/controls.lua against an in-memory card. The page is opened, the
--- Batteries tab pressed, and a new pack saved or an existing one deleted through the buttons the
--- page builds. A registry that is refused before anything is written -- the file stands but does
--- not open, or the read does not match its size -- must not be reported as a write the card did
--- not take; a write that the card really refused still is.
+-- lib/atomic_file.lua, ui/controls.lua and ui/confirm_dialog.lua against an in-memory card. The
+-- page is opened, the Batteries tab pressed, and a new pack saved, an existing one edited, or one
+-- deleted (answering the confirmation the way the radio's dialog does) through what the page
+-- builds. A registry that is refused before anything is written -- the file stands but does not
+-- open, or the read does not match its size -- must not be reported as a write the card did not
+-- take; a write that the card really refused still is.
 
 local failures, checks = 0, 0
 local function check(label, ok, detail)
@@ -25,7 +26,7 @@ end
 -- ---------------------------------------------------------------------------
 -- The card
 -- ---------------------------------------------------------------------------
--- luacheck: globals io fstat mkdir del rename loadScript SMLSIZE CENTER RIGHT LEFT
+-- luacheck: globals io fstat mkdir del rename loadScript lvgl SMLSIZE CENTER RIGHT LEFT
 local files = {}
 local unopenable = {}
 local failRename = false
@@ -73,7 +74,8 @@ SMLSIZE, CENTER, RIGHT, LEFT = 0, 1, 2, 3
 local REAL = {
   ["lib/flight_log.lua"] = true,
   ["lib/atomic_file.lua"] = true,
-  ["ui/controls.lua"] = true
+  ["ui/controls.lua"] = true,
+  ["ui/confirm_dialog.lua"] = true
 }
 local STUB = {
   ["ui/loading_overlay.lua"] = { append = function() end }
@@ -89,6 +91,16 @@ function loadScript(path)
 end
 _G.rfsuite = { palette = {} }
 
+-- The radio's confirmation box is asynchronous: lvgl.confirm registers the two callbacks and
+-- returns nothing, and the pilot's answer arrives later through one of them.
+local confirmBox = nil
+lvgl = {
+  confirm = function(opts)
+    confirmBox = opts
+    return nil
+  end
+}
+
 local FlightLog = assert(loadfile("src/rfsuite/lib/flight_log.lua"))()
 local REG = FlightLog.registryPath()
 local REGISTRY = "# my packs\n"
@@ -102,6 +114,7 @@ local WRITE_TEXT = "The card did not take the write"
 -- ---------------------------------------------------------------------------
 
 local function freshCard()
+  confirmBox = nil
   for k in pairs(files) do files[k] = nil end
   for k in pairs(unopenable) do unopenable[k] = nil end
   for k in pairs(short) do short[k] = nil end
@@ -136,6 +149,13 @@ local function open()
     end
     return out
   end
+  function state.edits()
+    local out = {}
+    for _, child in ipairs(state.children) do
+      if child.type == "textEdit" then out[#out + 1] = child end
+    end
+    return out
+  end
   function state.press(text)
     local button = state.find("button", text)
     assert(button ~= nil, "no button " .. text)
@@ -163,6 +183,22 @@ local function shown(state)
   return table.concat(out, " | ")
 end
 
+local TYPED = "Typed pack"
+
+-- Types a name into the open editor's Name field (its second text box) and checks it took.
+local function typeName(state)
+  local edits = state.edits()
+  assert(edits[2] ~= nil, "no Name field")
+  edits[2].set(TYPED)
+  state.build()
+  return state.edits()[2] ~= nil and state.edits()[2].value == TYPED
+end
+
+local function typedKept(state)
+  local name = state.edits()[2]
+  return name ~= nil and name.value == TYPED, name and name.value
+end
+
 -- Saves a new pack from the Batteries tab with `stage` applied to the card just before Save.
 local function saveNew(stage)
   freshCard()
@@ -170,15 +206,13 @@ local function saveNew(stage)
   state.press("Batteries")
   state.press("New battery")
   check("the editor is open", state.find("button", "Save") ~= nil)
+  check("a name typed into the editor shows in it", typeName(state))
   stage()
   state.press("Save")
   return state
 end
 
--- Deletes pack 1 through its detail view with `stage` applied before Delete.
-local function deleteFirst(stage)
-  freshCard()
-  local state = open()
+local function openFirst(state)
   state.press("Batteries")
   local more = nil
   for _, child in ipairs(state.children) do
@@ -187,8 +221,34 @@ local function deleteFirst(stage)
   assert(more ~= nil, "no pack row")
   more.press()
   state.build()
+end
+
+-- Edits pack 1 (Edit on its detail view, a new name, Save) with `stage` applied before Save.
+local function editFirst(stage)
+  freshCard()
+  local state = open()
+  openFirst(state)
+  state.press("Edit")
+  check("the editor is open on the pack", state.find("button", "Save") ~= nil
+    and state.edits()[1] ~= nil and state.edits()[1].value == "1")
+  check("a name typed into the editor shows in it", typeName(state))
+  stage()
+  state.press("Save")
+  return state
+end
+
+-- Deletes pack 1 through its detail view with `stage` applied before Delete, then answers the
+-- confirmation box with its confirm callback, as the pilot's Yes does.
+local function deleteFirst(stage)
+  freshCard()
+  local state = open()
+  openFirst(state)
   stage()
   state.press("Delete")
+  check("Delete asks first, and nothing is written before the answer",
+    confirmBox ~= nil and type(confirmBox.confirm) == "function" and files[REG] == REGISTRY)
+  if confirmBox ~= nil and type(confirmBox.confirm) == "function" then confirmBox.confirm() end
+  state.build()
   return state
 end
 
@@ -206,7 +266,7 @@ do
     hasLabel(state, "The registry was not read whole; nothing was changed"), shown(state))
   check("a read cut short: the registry on the card is unchanged", files[REG] == REGISTRY, files[REG])
   check("a read cut short: the editor stays open with what was typed",
-    state.find("button", "Save") ~= nil)
+    state.find("button", "Save") ~= nil and typedKept(state), select(2, typedKept(state)))
 
   state = saveNew(function() unopenable[REG] = true end)
   check("a registry that stands but does not open: not reported as a refused write",
@@ -214,6 +274,17 @@ do
   check("a registry that stands but does not open: the not-read-whole message",
     hasLabel(state, "The registry was not read whole; nothing was changed"), shown(state))
   check("a registry that stands but does not open: unchanged", files[REG] == REGISTRY, files[REG])
+
+  state = editFirst(function()
+    short[REG] = true
+    shortAt = 10
+  end)
+  check("Edit on a read cut short: not reported as a refused write", not hasLabel(state, WRITE_TEXT), shown(state))
+  check("Edit on a read cut short: the not-read-whole message",
+    hasLabel(state, "The registry was not read whole; nothing was changed"), shown(state))
+  check("Edit on a read cut short: the registry on the card is unchanged", files[REG] == REGISTRY, files[REG])
+  check("Edit on a read cut short: the editor stays open with what was typed",
+    state.find("button", "Save") ~= nil and typedKept(state), select(2, typedKept(state)))
 
   state = deleteFirst(function()
     short[REG] = true
@@ -236,6 +307,9 @@ do
   check("a rename the card refuses: the registry under its name is unchanged",
     files[REG] == REGISTRY, files[REG])
 
+  state = editFirst(function() failRename = true end)
+  check("Edit with a rename the card refuses: the write message", hasLabel(state, WRITE_TEXT), shown(state))
+
   state = deleteFirst(function() failRename = true end)
   check("Delete with a rename the card refuses: the write message", hasLabel(state, WRITE_TEXT), shown(state))
 end
@@ -248,7 +322,12 @@ do
   check("a normal save: no refusal message",
     not hasLabel(state, WRITE_TEXT)
       and not hasLabel(state, "The registry was not read whole; nothing was changed"), shown(state))
-  check("a normal save: the new pack is in the registry", string.find(files[REG] or "", "id=3;", 1, true) ~= nil,
+  check("a normal save: the new pack is in the registry, with the typed name",
+    string.find(files[REG] or "", "id=3;name=" .. TYPED, 1, true) ~= nil, files[REG])
+
+  deleteFirst(function() end)
+  check("a confirmed delete: pack 1 is gone, pack 2 stays",
+    string.find(files[REG] or "", "id=1;", 1, true) == nil and string.find(files[REG] or "", "id=2;", 1, true) ~= nil,
     files[REG])
 end
 

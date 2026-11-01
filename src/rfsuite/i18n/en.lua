@@ -3356,7 +3356,7 @@ return {
         setting_min_seconds = "Minimum flight length",
         setting_set_fc_profile = "Set the pack's battery profile",
         help_title = "Flight Log Help",
-        help_message = "Lists the flights logged on the card, their totals per model and the battery registry with its editor; each setting has its own ?.",
+        help_message = "Lists the flights logged on the card, their totals per model and the battery registry; every switch and number has its own ?.",
         help_row_capacity = "The pack's capacity in whole mAh, matched exactly against the flight controller's profiles; 0 leaves it out of the file.",
         help_row_cells = "Must also equal the profile's cell count where the flight controller keeps one per profile; 0 leaves it out.",
         help_row_profile = "The flight controller's battery profile for this pack, 1 to 6; it wins over the capacity match. 0 leaves it out of the file.",
