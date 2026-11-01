@@ -1471,10 +1471,12 @@ end
 function Drive:tick(armed)
   local now = self.radio.now()
   local wasLive = self.live
-  -- A landing found while output was revoked (the link was lost in the air) with the trim block to
-  -- walk again (settings adopted when the link came back) leaves the flight here, before the
-  -- interlock runs: from the live phase the interlock would go live on a verdict that is gone.
-  if armed ~= true and self.phase == M.PHASE_LIVE and self.live ~= true and trimsPending(self) then
+  -- A landing found while output was revoked (the link was lost in the air) with the setup verdict
+  -- or the trim block to take again (settings adopted when the link came back) leaves the flight
+  -- here, before the interlock runs: from the live phase the interlock would go live on a verdict
+  -- that is gone, and only then move to the ground and check.
+  if armed ~= true and self.phase == M.PHASE_LIVE and self.live ~= true
+      and (self._checkedAt == nil or trimsPending(self)) then
     self:setPhase((self.fired > 0) and M.PHASE_POST or M.PHASE_GROUND)
   end
   self:evaluateInterlock(now)

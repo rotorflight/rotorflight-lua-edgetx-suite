@@ -81,9 +81,9 @@ switch positions are its trims. The first time tuning is opened after the widget
 these settings change, the surface shows **Model: Checking trims** while the radio's switch list
 is read, a slice per pass. Output stays refused until that is done — about one pass of the widget
 for every 32 positions the radio lists, plus one. The setup check follows on the next pass.
-Settings changed while the model is armed take effect after the landing, and the trims are read
-and the setup check is made again then, before anything is driven on the ground, also when the
-link was lost during the flight and came back after the landing.
+Settings changed while the model is armed take effect after the landing. The setup check is made
+again then (with trims in use, after the trims are read again) before anything is driven on the
+ground, also when the link was lost during the flight and came back after the landing.
 Close tuning and open it again from the quick menu to repeat the setup check after a repair.
 A trim the overlay
 claims has to be off in every flight mode, not only the active one. A flight mode that uses
