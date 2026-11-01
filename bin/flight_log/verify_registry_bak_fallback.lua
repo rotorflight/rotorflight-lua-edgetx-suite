@@ -155,6 +155,19 @@ do
     unopenable["/x.bak"] = true
     check("only a .bak, and it does not open: the .bak, so its read fails rather than reading as no file",
       helper("/x") == "/x.bak", helper("/x"))
+    -- A card whose fstat does not answer: the opens alone decide
+    local realFstat = fstat
+    fstat = nil
+    reset()
+    files["/x.bak"] = "only copy"
+    check("no fstat, only a .bak: still read from the .bak", helper("/x") == "/x.bak", helper("/x"))
+    reset()
+    files["/x"], files["/x.bak"] = "file", "older"
+    check("no fstat, a file under the name: the name", helper("/x") == "/x", helper("/x"))
+    cutOff()
+    check("no fstat, only the registry's .bak: loadRegistry still shows the pilot's packs",
+      ids(FlightLog.loadRegistry()) == "1,2,3", ids(FlightLog.loadRegistry()))
+    fstat = realFstat
     reset()
     check("neither: the name, so a missing file still reads as missing", helper("/x") == "/x", helper("/x"))
   end
