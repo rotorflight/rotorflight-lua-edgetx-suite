@@ -370,6 +370,22 @@ scenario("an expiry on the ground waits for this link's arm state, then ends the
   forget(widget)
 end)
 
+scenario("closing tuning with an expiry pending releases the session only once this link has read the arm state", function()
+  local widget = newWidget()
+  open(widget)
+  local d = withSession(widget, nil)
+  expiredWithWorkOutstanding(widget, d)
+  d.profileJob = nil
+  widget.state.armedSeen = false
+  close(widget)
+  check(widget._inflight == d and d.baseline ~= nil and d.sessionExpired == true,
+    "arm state not yet read on this link: the closed session is kept")
+  widget.state.armedSeen = true
+  for _ = 1, 2 do Stubs.tick(); widget:refresh(0, nil) end
+  check(widget._inflight ~= d, "the arm state read on the ground: the closed session is released")
+  forget(widget)
+end)
+
 scenario("closing during the first read releases it and its late replies answer into nothing", function()
   local widget = newWidget()
   open(widget)
