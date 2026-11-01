@@ -556,15 +556,20 @@ end
 -- the cap and nowhere else, so a result shorter than the cap ended at the end of the file and is
 -- whole. Only a read that filled the cap with no size to hold it against is refused, which is
 -- the narrowest refusal that closes the loss -- a registry of the size a pilot keeps stays
--- editable on a card whose fstat has stopped answering. What it does not cover is a read that
--- ended early on a card error: this interpreter returns the same empty string for that as for
--- the end of the file.
+-- editable on a card whose fstat has stopped answering. Where the size is there, the read has to
+-- match it, as in readRegistry: a file that stands but does not open, or a read that ended early
+-- on a card error (this interpreter returns the same empty string for that as for the end of
+-- the file), answers "unreadable" instead of a short registry that the edit would be written
+-- over. Without a size, such a read is not told apart from a whole one.
 local function guardedRead(path)
   path = readPathFor(path)
   local size = fileSize(path)
   if size ~= nil and size > READ_CAP then return nil, "toobig" end
   local data = readAll(path, READ_CAP)
   if size == nil and data ~= nil and #data >= READ_CAP then return nil, "toobig" end
+  if size ~= nil and ((data == nil and size > 0) or (data ~= nil and #data ~= size)) then
+    return nil, "unreadable"
+  end
   return data, nil
 end
 

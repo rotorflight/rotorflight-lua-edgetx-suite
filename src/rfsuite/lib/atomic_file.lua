@@ -32,13 +32,16 @@ end
 
 --- The path to read a file written through here from: the file itself or, when no file stands
 --- under the name, the `.bak` a replace cut short between its two renames left behind. With
---- neither there it answers the name, so a missing file still reads as missing. The `.bak` is
---- left where it is; the next replace built on what was read from it writes it back under the
---- name, and only the replace after that removes it.
+--- neither there it answers the name, so a missing file still reads as missing. A file that
+--- stands but does not open counts as standing, the name's and the `.bak` alike: its read then
+--- fails where the caller can see it, rather than an older `.bak` being read in place of the
+--- name, or a `.bak` that holds the only copy being taken for no file at all. The `.bak` is left
+--- where it is; the next replace built on what was read from it writes it back under the name,
+--- and only the replace after that removes it.
 function M.readablePath(path)
-  if opens(path) then return path end
+  if opens(path) or fileSize(path) ~= nil then return path end
   local bakPath = path .. ".bak"
-  if opens(bakPath) then return bakPath end
+  if opens(bakPath) or fileSize(bakPath) ~= nil then return bakPath end
   return path
 end
 
