@@ -197,8 +197,8 @@ the full form, `keyPrefix = "app.pages.<page_prefix>"`, and the precompiler stri
 resolves for one page and falls through for the rest.
 
 **What a single literal costs:** a long help text joined up with `..` is a few lines under the
-140 that `.luacheckrc` names, and flat it is one line of roughly 280. The tree already carries 667
-lines over 140 (the longest 1493) and CI does not enforce the line length, so the trade falls on
+140 that `.luacheckrc` names, and flat it is one line of roughly 280. `luacheck src` already reports 992
+lines over 140 (the longest 870) and CI does not enforce the line length, so the trade falls on
 correctness.
 German is not the only language this is about: it is the only one where a pilot can see the
 difference without reading English.
