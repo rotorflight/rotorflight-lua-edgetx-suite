@@ -430,7 +430,7 @@ local REFUSAL_TICKS = 80
 -- `ticks` overrides how long it stands, for a notice that has more to say than a refused tap.
 function Drive:refuseStep(reason, now, ticks)
   if reason == "range" and self.setSource == "unread" then reason = "unread" end
-  if reason == "range" and self.setSource == "unavailable" then reason = "empty" end
+  if reason == "range" and (self.setSource == "unavailable" or self.setSource == "conflict") then reason = "empty" end
   self.stepRefusedReason = reason
   self.stepRefusedUntil = now + (ticks or REFUSAL_TICKS)
 end
@@ -1922,6 +1922,8 @@ local function publish(widget, drive)
     -- usable. It is on the screen because a set that silently fell back to the reference layout
     -- and a set that came off this board look exactly alike otherwise.
     setSource = drive.setSource,
+    -- The slot that refused the whole set (setSource "conflict"), by its 1-based number.
+    conflictSlot = drive.conflictSlot,
     -- For the ground surface: how many cells the board offers, how many of them would jump on the
     -- first press, and whether the last read continued the stored session or started one.
     cellCount = drive.cellCount,

@@ -405,19 +405,21 @@ end
 --
 -- A slot is usable only when it steps -- a continuous slot has no park position, so nothing on
 -- this screen could leave it alone -- and when both of its channels are the ones this model
--- devotes to the pair. A slot on some other channel belongs to a switch the pilot flies with and
--- is none of the overlay's business.
+-- devotes to the pair. A slot with both channels elsewhere belongs to a switch the pilot flies
+-- with and is none of the overlay's business; a slot that touches the pair in any other way
+-- refuses the whole set (see deriveStep).
 --
 -- Answers nil when nothing usable came back, which is what keeps the documented layout as the
--- fallback rather than replacing it with an empty table.
+-- fallback rather than replacing it with an empty table. The third answer is the number of the
+-- slot that refused the set, counted from 1 the way the Adjustments page counts its ranges.
 function M.deriveSet(records, map, bankChannel, valueChannel)
   local work = M.newDerivation(records, map, bankChannel, valueChannel)
   if work == nil then return nil, {} end
-  local done, result, skipped
+  local done, result, skipped, conflict
   repeat
-    done, result, skipped = M.deriveStep(work)
+    done, result, skipped, conflict = M.deriveStep(work)
   until done
-  return result, skipped
+  return result, skipped, conflict
 end
 
 --- The same derivation, prepared to run a SLICE at a time.
@@ -447,9 +449,10 @@ function M.newDerivation(records, map, bankChannel, valueChannel)
   }
 end
 
---- One slice. Answers `done, result, skipped`; `result` is nil until the last slice, and nil at
--- the end means nothing usable came back -- which is what keeps the documented layout as the
--- fallback rather than replacing it with an empty table.
+--- One slice. Answers `done, result, skipped, conflict`; `result` is nil until the last slice, and
+-- nil at the end means nothing usable came back -- which is what keeps the documented layout as
+-- the fallback rather than replacing it with an empty table. `conflict` is set only on a refused
+-- set: the 1-based number of the first slot that refused it.
 function M.deriveStep(work, budget)
   if type(work) ~= "table" then return true, nil, {} end
   local taken = 0
@@ -457,7 +460,7 @@ function M.deriveStep(work, budget)
   if work.phase == "scan" then
     -- Classify and collect in one walk. A slot is usable only when it steps -- a continuous slot
     -- has no park position -- and when both of its channels are the ones this model devotes to
-    -- the pair. A slot on some other channel belongs to a switch the pilot flies with.
+    -- the pair. A slot with both channels elsewhere belongs to a switch the pilot flies with.
     while work.at < SLOT_COUNT do
       if budget ~= nil and taken >= budget then return false, nil, nil end
       work.at = work.at + 1
@@ -467,12 +470,33 @@ function M.deriveStep(work, budget)
       if type(record) == "table" and (tonumber(record.adjFunction) or 0) ~= 0 then
         local enableCh = M.auxToWireChannel(record.enaChannel, work.map)
         local valueCh = M.auxToWireChannel(record.adjChannel, work.map)
-        if (tonumber(record.enaChannel) or 0) >= Functions.AUX_FIELD_COUNT and valueCh == work.valueCh then
-          -- An out-of-range enable field is always active (fc/rc_adjustments.c).
+        -- The firmware runs a slot with enable field 255 whatever the enable channel carries
+        -- (fc/rc_adjustments.c). Every field from 13 up is taken the same way: the CLI admits only
+        -- 0..12 and 255, but MSP stores any byte, and 13..254 index past the channels the board
+        -- has, so treating them as always on is the safe superset.
+        local alwaysOn = (tonumber(record.enaChannel) or 0) >= Functions.AUX_FIELD_COUNT
+        if alwaysOn and valueCh == work.valueCh then
           work.skipped[#work.skipped + 1] = slot
-          for _, range in ipairs({record.adjRange1, record.adjRange2}) do
-            local low, high = Functions.windowBounds(range)
-            if low ~= nil then work.alwaysWindows[#work.alwaysWindows + 1] = {low = low, high = high, slot = record} end
+          if (tonumber(record.adjStep) or 0) > 0 then
+            for _, range in ipairs({record.adjRange1, record.adjRange2}) do
+              local low, high = Functions.windowBounds(range)
+              if low ~= nil then work.alwaysWindows[#work.alwaysWindows + 1] = {low = low, high = high, slot = record} end
+            end
+          else
+            -- A continuous slot reads only its first range, and widened: it sets its parameter
+            -- while the channel lies within `rangeMargin = MAX(5, rangeWidth / (valueWidth * 2))`
+            -- of that range on either side, and never if either width is zero or less
+            -- (fc/rc_adjustments.c). That range is not tested for the firmware's step limits, so
+            -- it is read as it stands. The firmware's lower bound is exclusive; it is taken as
+            -- inclusive here, one microsecond wider, since a row value is not a whole number of
+            -- microseconds.
+            local range = type(record.adjRange1) == "table" and record.adjRange1 or {}
+            local lower, upper = tonumber(range.start), tonumber(range["end"])
+            local valueWidth = (tonumber(record.adjMax) or 0) - (tonumber(record.adjMin) or 0)
+            if lower ~= nil and upper ~= nil and upper > lower and valueWidth > 0 then
+              local margin = math.max(5, math.floor((upper - lower) / (valueWidth * 2)))
+              work.alwaysWindows[#work.alwaysWindows + 1] = {low = lower - margin, high = upper + margin, slot = record}
+            end
           end
         elseif enableCh == work.bankCh and valueCh == work.valueCh then
           -- Every enable window of the pair, stepped or continuous: the board runs each slot
@@ -507,6 +531,18 @@ function M.deriveStep(work, budget)
           else
             work.skipped[#work.skipped + 1] = slot
           end
+        elseif ((work.valueCh ~= nil and (valueCh == work.valueCh or enableCh == work.valueCh))
+              or (work.bankCh ~= nil and (enableCh == work.bankCh or valueCh == work.bankCh)))
+            and (alwaysOn or Functions.windowBounds(record.enaRange) ~= nil) then
+          -- A slot that can be enabled and touches the pair in any other arrangement: enabled by
+          -- another switch while it reads the value channel, enabled in a bank while it reads
+          -- another channel, or with the two roles swapped. The board fires it beside the
+          -- parameter the screen names, and nothing on this screen can hold its other channel
+          -- still, so no set is offered at all and the screen names the slot. An enable window
+          -- the firmware never reads (fc/rc_modes.h, isRangeUsable) never enables it.
+          logPrime("set refused: slot %d (enable field %s, value field %s) does not use the pair as a bank and value slot",
+            slot, tostring(record.enaChannel), tostring(record.adjChannel))
+          return true, nil, {}, slot
         end
       end
     end
@@ -691,13 +727,15 @@ function M.deriveStep(work, budget)
 end
 
 --- What the finished derivation does to the drive. Called on the slice that completed it.
-local function applySet(drive, prime, derived, skipped)
+local function applySet(drive, prime, derived, skipped, conflict)
   prime.skipped = skipped or {}
+  -- The slot that refused the set, for the ground screen to name; nil whenever none did.
+  drive.conflictSlot = derived == nil and conflict or nil
   if derived == nil then
     drive.rowValues = {}
     drive.cellRecords = {}
     drive.set = {}
-    drive.setSource = "unavailable"
+    drive.setSource = conflict ~= nil and "conflict" or "unavailable"
     drive:rebuildGroups()
     bump(drive)
     logPrime("slot table yielded nothing usable; custom steps are unavailable")
@@ -882,7 +920,7 @@ local function stepDerivation(widget, drive)
   if prime.derived ~= nil then
     local derived = prime.derived
     prime.derived = nil
-    applySet(drive, prime, derived.set, derived.skipped)
+    applySet(drive, prime, derived.set, derived.skipped, derived.conflict)
     prime.setApplied = true
     return true
   end
@@ -892,10 +930,10 @@ local function stepDerivation(widget, drive)
     prime.setApplied = true
     return true
   end
-  local done, derived, skipped = M.deriveStep(prime.derivation, DERIVE_SLICE)
+  local done, derived, skipped, conflict = M.deriveStep(prime.derivation, DERIVE_SLICE)
   if not done then return true end
   prime.derivation = nil
-  prime.derived = { set = derived, skipped = skipped }
+  prime.derived = { set = derived, skipped = skipped, conflict = conflict }
   return true
 end
 
