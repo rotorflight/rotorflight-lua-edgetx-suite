@@ -992,6 +992,9 @@ releaseInflight = function(self)
     return
   end
   if drive.phase == "live" or inflightOutstanding(drive) then return end
+  -- A pending expiry releases the session on the ground only, as inflightLinkWatch takes it: not
+  -- before this link has read the arm state again.
+  if drive.sessionExpired and self.state.armedSeen ~= true then return end
   if inflightSessionEnded(drive) then
     -- A ground read still on the wire answers into nothing from here on.
     if drive.prime then drive.prime.invalidated = true end
