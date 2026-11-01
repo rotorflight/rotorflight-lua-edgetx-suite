@@ -198,7 +198,8 @@ resolves for one page and falls through for the rest.
 
 **What a single literal costs:** a long help text joined up with `..` is a few lines under the
 140 that `.luacheckrc` names, and flat it is one line of roughly 280. The tree already carries 667
-lines over 140 (the longest 1493) and no CI job runs `luacheck`, so the trade falls on correctness.
+lines over 140 (the longest 1493) and CI does not enforce the line length, so the trade falls on
+correctness.
 German is not the only language this is about: it is the only one where a pilot can see the
 difference without reading English.
 
@@ -207,8 +208,11 @@ difference without reading English.
 ## Style
 
 `.luacheckrc` is the style reference: `std = "lua54"`, `max_line_length = 140`,
-`unused_args = false`, plus the globals the EdgeTX Lua environment provides. No CI job runs
-`luacheck` at present.
+`unused_args = false`, plus the globals the EdgeTX Lua environment provides. CI runs
+`luacheck src --only 111 112 113` (the *Undeclared globals* job): a global that is neither in that
+list nor declared `local` fails the pull request. A name goes into the list only if EdgeTX really
+publishes it -- one that it does not is nil on the radio and is fixed where it is read. The style
+warnings (line length, unused values) are not enforced.
 
 Follow the indentation of the file you are editing and avoid reformatting untouched lines — a
 whitespace-only diff buries the change a reviewer is looking for.

@@ -1,25 +1,28 @@
 std = "lua54"
 
--- EdgeTX/OpenTX Ethos Environment Globals
+-- The globals EdgeTX 2.12 publishes that this tree reads. Every name below is a row of a table
+-- the firmware's global lookup searches (`_global_symbols` in radio/src/thirdparty/Lua/src/linit.c:
+-- base_func, etxlib, etxdir, etxcst, etxstr, colorlib on colour radios) or of `rotables` in the same
+-- file. A name EdgeTX does not publish is nil on the radio, so it is fixed where it is read rather
+-- than declared here: declaring it would hide exactly the defect this list exists to show.
 globals = {
-  -- Scripting Engine
+  -- Scripting engine (etxlib)
   "loadScript",
-  "loadModuleChunk",
-  "registerTelemetry",
-  "registerForm",
-  "registerGadget",
-  
-  -- System/Time/Model
+
+  -- System, time, model (etxlib, rotables)
   "getTime",
+  "getDateTime",
+  "getRtcTime",
   "getUsage",
-  "system",
+  "getAvailableMemory",
+  "getCpuLoad",
   "model",
   "getVersion",
-  "getField",
-  "setField",
   "getFieldInfo",
   "getSwitchIndex",
+  "getSourceIndex",
   "getGeneralSettings",
+  "getTxGPS",
   "FUNC_PLAY_SCRIPT",
 
   -- Filesystem. These are bare globals of the firmware's filesystem library, not members of an
@@ -35,18 +38,27 @@ globals = {
   "setShmVar",
   "getShmVar",
 
-  -- Telemetry/Sensors
+  -- Telemetry, sensors, serial (etxlib)
   "getValue",
-  "getSensor",
+  "getRSSI",
   "setTelemetryValue",
-  
+  "crossfireTelemetryPush",
+  "crossfireTelemetryPop",
+  "serialWrite",
+
+  -- Audio and haptics (etxlib)
+  "playFile",
+  "playNumber",
+  "playHaptic",
+
   -- Display/LCD
   "lcd",
   "lvgl",
+  "Bitmap",
   "LCD_W",
   "LCD_H",
-  
-  -- Colors
+
+  -- Colors (colorlib)
   "WHITE",
   "BLACK",
   "RED",
@@ -55,6 +67,8 @@ globals = {
   "BLUE",
   "MAGENTA",
   "CYAN",
+  "ORANGE",
+  "DARKGREY",
   "COLOR_THEME_PRIMARY1",
   "COLOR_THEME_PRIMARY2",
   "COLOR_THEME_PRIMARY3",
@@ -66,27 +80,57 @@ globals = {
   "COLOR_THEME_FOCUS",
   "COLOR_THEME_ACTIVE",
   "COLOR_THEME_EDIT",
-  
-  -- Font sizes
+
+  -- Font sizes and number flags (etxcst)
   "DBLSIZE",
   "MIDSIZE",
   "SMLSIZE",
+  "TINSIZE",
+  "BOLD",
   "XXLSIZE",
-  
-  -- Alignment
+  "PREC1",
+  "PREC2",
+
+  -- Alignment (etxcst)
   "CENTER",
   "VCENTER",
   "LEFT",
   "RIGHT",
-  "TOP",
-  "BOTTOM",
-  
+
+  -- Telemetry units (etxcst)
+  "UNIT_RAW",
+  "UNIT_VOLTS",
+  "UNIT_AMPS",
+  "UNIT_PERCENT",
+  "UNIT_CELSIUS",
+  "UNIT_FAHRENHEIT",
+  "UNIT_MAH",
+  "UNIT_RPMS",
+  "UNIT_DEGREE",
+  "UNIT_G",
+  "UNIT_METERS",
+  "UNIT_METERS_PER_SECOND",
+  "UNIT_GPS",
+  "UNIT_CELLS",
+
+  -- Key events every target publishes (radio/util/hw_defs/lua_keys.jinja, outside every
+  -- conditional). The rest of the EVT_* family depends on the radio's keys and is read as
+  -- _G.<name> where it is optional.
+  "EVT_VIRTUAL_ENTER",
+  "EVT_VIRTUAL_EXIT",
+  "EVT_EXIT_BREAK",
+
   -- Bit operations
   "bit32",
-  
-  -- Global state (RF2/Ethos)
-  "rfsuite",
+
+  -- Not EdgeTX. `system` is the Ethos API and `Rf2Runtime` is set by nothing in this tree; both
+  -- are read only behind a type guard, so on EdgeTX the guarded branch never runs. Listed so the
+  -- check stays about names that are actually missing, not about these guards.
+  "system",
   "Rf2Runtime",
+
+  -- Global state of the suite
+  "rfsuite",
   "_G",
 }
 
@@ -97,13 +141,20 @@ globals = {
 -- exempt: it defines mapTelemetrySource, which widgets/dashboard/derived.lua calls from
 -- the widget pass, where probing is legal.
 local probe_globals = {
-  ["model"] = true, ["getValue"] = true, ["getSensor"] = true, ["getFieldInfo"] = true,
+  ["model"] = true, ["getValue"] = true, ["getFieldInfo"] = true,
   -- Reading the card is a probe like any other: derived.lua stats /IMAGES/ for the model
   -- picture, and an object doing the same would do it once per frame.
   ["fstat"] = true, ["dir"] = true,
   -- And writing to it is worse than reading it, so the three that do are subtracted here too.
   -- Without this, naming them above would have quietly widened what an object may do.
   ["del"] = true, ["rename"] = true, ["mkdir"] = true,
+  -- The rest of the firmware's functions named above: telemetry and link reads, clocks, memory,
+  -- the serial and CRSF transports, audio and the bitmap loader. None of them was declared before,
+  -- so no object could call one without a warning; subtracting them keeps it that way.
+  ["getRSSI"] = true, ["getTxGPS"] = true, ["getSourceIndex"] = true,
+  ["getDateTime"] = true, ["getRtcTime"] = true, ["getAvailableMemory"] = true, ["getCpuLoad"] = true,
+  ["crossfireTelemetryPush"] = true, ["crossfireTelemetryPop"] = true, ["serialWrite"] = true,
+  ["playFile"] = true, ["playNumber"] = true, ["playHaptic"] = true, ["Bitmap"] = true,
 }
 local object_globals = {}
 for _, g in ipairs(globals) do
@@ -123,11 +174,15 @@ files["src/rfsuite/widgets/dashboard/objects/common.lua"] = { new_globals = glob
 -- The same set of names as the objects rule above, and it names them directly because there is
 -- one file rather than a directory: `not_globals` subtracts from the inherited list, which is
 -- what a single-file restriction needs, and `new_globals` would have to repeat the whole list
--- to take four names out of it. Verified in both directions -- a planted `model` read in this
+-- to take these names out of it. Verified in both directions -- a planted `model` read in this
 -- file reports "accessing undefined variable 'model'", and removing the entry silences it.
 files["src/rfsuite/widgets/dashboard/inflight/screen.lua"] = {
-  not_globals = { "model", "getValue", "getSensor", "getFieldInfo", "fstat", "dir",
-                  "del", "rename", "mkdir" }
+  not_globals = { "model", "getValue", "getFieldInfo", "fstat", "dir",
+                  "del", "rename", "mkdir",
+                  "getRSSI", "getTxGPS", "getSourceIndex",
+                  "getDateTime", "getRtcTime", "getAvailableMemory", "getCpuLoad",
+                  "crossfireTelemetryPush", "crossfireTelemetryPop", "serialWrite",
+                  "playFile", "playNumber", "playHaptic", "Bitmap" }
 }
 
 -- Code style rules
