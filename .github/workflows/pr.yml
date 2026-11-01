@@ -577,3 +577,11 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/flight_tuning/verify_tune_advisor_apply.lua
+
+  flight-log-free-id:
+    name: Flight log pack ids
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_log/verify_free_id.lua
