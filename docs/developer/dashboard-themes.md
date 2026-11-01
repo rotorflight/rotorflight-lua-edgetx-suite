@@ -222,7 +222,9 @@ in use, so those modules are read from the card again on its next load after a r
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be
 released with the rest, and the next load of the theme would pair it with fresh copies of the
-modules it requires.
+modules it requires. A module loaded this way returns its table: one that returns nothing gets
+no cache entry either, `rfsuite.require` hands out `nil` for it as for a file that did not load,
+and every load runs it again ([the module loader](../reference/module-loader.md)).
 
 ## What a phase module returns
 

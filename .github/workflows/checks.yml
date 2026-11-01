@@ -598,3 +598,11 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua-check
       - run: luacheck --version
       - run: luacheck src --only 111 112 113 --codes
+
+  require-nil-module:
+    name: Module loader and a module that returns nothing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/core/verify_require_nil_module.lua
