@@ -5,7 +5,7 @@ sidebar_label: Themes
 
 # Dashboard themes
 
-A theme decides what the *RFSuite* dashboard widget draws. The suite ships ten of them, and
+A theme decides what the *RFSuite* dashboard widget draws. The suite ships thirteen of them, and
 every theme draws three screens: one before the flight, one in flight and one after it. This page
 shows each shipped theme on them, and says how to choose one.
 
@@ -57,7 +57,8 @@ electric helicopter, left to right before, during and after the flight; for the 
 during and after it. Some values in them come
 from the simulation rather than from a model in the air: the head speed reads 0 throughout, and
 *Total time* is the flight controller's own lifetime counter, which is why it differs between the
-pictures.
+pictures. The pictures of @KSE4, @KSE5 and @Kevd come from a later simulated flight that feeds
+head speed, current and throttle as well, so those read values there.
 
 ### Default
 
@@ -200,6 +201,65 @@ its settings open the same six pages: **Look** (its BEC and ESC temperature warn
 flight**, **Statistics**, **Info bar** and **Keys**, as described for [Default](#default).
 
 ![@SRB-RC before, during and after the flight](../images/dashboard/themes/srb-rc.png)
+
+### @KSE4
+
+After Kyle Stacy's KSE4 widget, by way of the Ethos suite's theme of that name: a grid of dark
+tiles with a thin frame, each with its caption small at the top and its value as large as the tile
+allows, over a full-width fuel bar. Before the flight: the model picture, the flight count, the
+head speed, the timer, the current, the pack voltage, the BEC voltage, the ESC temperature and the
+governor state. In flight the head speed and the timer take the top row, over the current, the
+voltage per cell, the ESC temperature and the throttle. After the flight: flight time, capacity
+used, fuel left, and the highest head speed, current, power, throttle and ESC temperature, the
+lowest voltage per cell, the lowest BEC voltage and the lowest link quality.
+
+@KSE4 takes the full screen like Default, and its settings open six pages: **Look** (the fuel
+levels its fuel readings turn amber and red at, 45 % and 25 % unless set), **Before flight**,
+**In flight**, **Statistics**, **Info bar** and **Keys**, as described for [Default](#default).
+
+![@KSE4 before, during and after the flight](../images/dashboard/themes/kse4.png)
+
+### @KSE5
+
+After Kyle Stacy's KSE5 widget: @KSE4's tiles, with rings. Before the flight: rings for the fuel,
+the head speed, the current and the ESC temperature over the model picture, the flight count, the
+governor state, the BEC voltage, the voltage per cell and the capacity used. In flight: a large
+fuel ring beside the head speed and ESC temperature rings, the timer and the governor state, over
+the current, the voltage per cell, the BEC voltage and the throttle. After the flight: rings for
+the fuel left and the highest head speed, current and ESC temperature, then the flight time, the
+capacity used, the lowest voltage per cell and BEC voltage, the highest power and the lowest link
+quality.
+
+The current ring runs up to the speed controller's current limit where the model has one on file
+(*Setup* → *Power* → *Preferences*, or read off an AM32, Scorpion or YGE controller).
+
+@KSE5 takes the full screen like Default, and its settings open six pages: **Look** (the full
+scale of its head speed, current and ESC temperature rings; the current figure applies where no
+limit is on file), **Before flight**, **In flight**,
+**Statistics**, **Info bar** and **Keys**, as described for [Default](#default).
+
+![@KSE5 before, during and after the flight](../images/dashboard/themes/kse5.png)
+
+### @Kevd
+
+The Ethos suite's Kevd theme: gauges standing on the page, the smaller readings in tiles with a
+light frame and the governor in a red one. Before the flight: the model picture, a battery bar
+that carries the pack voltage, the voltage per cell, the cell count and the capacity used, the
+BEC voltage and the ESC temperature as gauges, the rate and PID profile, the flight count, the
+blackbox state and the governor state. In flight: the ESC temperature, the throttle and the head
+speed as gauges in a framed panel, each with its highest value of the flight, beside a column of
+the flight time, the battery as a vertical bar with the pack voltage, the voltage per cell and
+the capacity used over it, and the governor state. After the flight the gauges give way to the
+flight count, the total flight time and bars for the highest head speed, ESC temperature,
+current, altitude and power and the lowest link quality, beside the same column. The current bar
+runs up to the speed controller's current limit where the model has one on file, amber from 80 %
+and red from 95 % of it; without one it runs to 300 A.
+
+@Kevd takes the full screen like Default, and its settings open six pages: **Look** (its head
+speed, BEC voltage and ESC temperature ranges), **Before flight**, **In flight**, **Statistics**,
+**Info bar** and **Keys**, as described for [Default](#default).
+
+![@Kevd before, during and after the flight](../images/dashboard/themes/kevd.png)
 
 ### Urban
 

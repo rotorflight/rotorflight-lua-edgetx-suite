@@ -181,6 +181,13 @@ return {
     ["theme.@rt-rc"] = { target = 16200, measured = 13296, proposed = 14000 },
     ["theme.@rt-rc-n"] = { target = 16200, measured = 13235, proposed = 14000 },
     ["theme.@srb-rc"] = { target = 16200, measured = 12936, proposed = 14000 },
+    -- The ports of the Ethos suite's KSE4, KSE5 and Kevd are themes of boxes like the five above,
+    -- and are held to the same ceiling. @KSE5 is the closest of the three: its preflight draws four
+    -- rings, each with a fill colour that follows its value, and its percentage ring a value colour
+    -- as well.
+    ["theme.@kse4"] = { target = 16200, measured = 15260 },
+    ["theme.@kse5"] = { target = 16200, measured = 15928 },
+    ["theme.@kevd"] = { target = 16200, measured = 15729 },
     ["theme.default"] = { target = 16200, measured = 10095, proposed = 14000 },
     ["theme.rfstatus"] = { target = 16200, measured = 10217, proposed = 14000 },
     -- A free-form theme builds its whole tree in the one pass that prepares the scene, where a
@@ -253,7 +260,13 @@ return {
     ["sweep.text/blackbox"] = { target = 620, measured = 551, proposed = 500 },
     ["box.text/governor"] = { target = 720, measured = 556, proposed = 600 },
     ["sweep.text/governor"] = { target = 500, measured = 339 },
-    ["box.text/stats"] = { target = 470, measured = 365, proposed = 300 },
+    -- Raised from 470 when @KSE5 became the first shipped theme whose preflight declares a stats
+    -- box: its V/CELL readout, stattype `cell`, divides the pack voltage by the cell count, where
+    -- the fixture before was a recorded extreme read straight off the flight record. No `theme.*`
+    -- row moves. The margin is held at ~15%.
+    -- Raised again from 750 when this branch took master up to #1018 (647 to 681 on the same
+    -- fixture; objects/text/stats.lua itself did not change); the margin is held at ~15%.
+    ["box.text/stats"] = { target = 790, measured = 681, proposed = 300 },
     ["sweep.text/stats"] = { target = 300, measured = 109 },
     ["box.text/telemetry"] = { target = 740, measured = 570, proposed = 600 },
     ["sweep.text/telemetry"] = { target = 450, measured = 301 },

@@ -271,6 +271,9 @@ jobs:
       - name: Check dashboard tile choices and theme key pages
         run: lua5.3 bin/dashboard/verify_field_choices.lua
 
+      - name: Check gauge statistics, bar labels and tile frames
+        run: lua5.3 bin/dashboard/verify_gauge_render.lua
+
       - name: Check dashboard standby geometry and formatting
         run: lua5.3 bin/dashboard/verify_standby.lua
 

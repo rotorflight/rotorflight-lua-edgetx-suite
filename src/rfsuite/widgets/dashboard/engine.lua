@@ -315,14 +315,19 @@ function Engine.renderKey(state, _)
   -- that scene into itself -- a torn-down LVGL tree for no visible change. `state.flightMode`
   -- is still the phase, and a theme whose boxes depend on it keys its own renderKey on it.
   local flightMode = tostring((state and state.themePhase) or (state and state.flightMode) or "")
+  -- The ESC current limit is the full scale of a theme's current gauges. It arrives with the
+  -- model's preferences, normally before the first build, and moves only when the stored figure
+  -- does, so keying on it costs a rebuild on that rare change and nothing otherwise.
+  local currentLimit = Utils.toNumber(state and state.escCurrentLimit, 0)
 
-  return string.format("%s|%dx%d|%d|%d|%d",
+  return string.format("%s|%dx%d|%d|%d|%d|%d",
     flightMode,
     zoneW,
     zoneH,
     math.floor(cells + 0.5),
     math.floor(themeMin * 10 + 0.5),
-    math.floor(themeMax * 10 + 0.5)
+    math.floor(themeMax * 10 + 0.5),
+    math.floor(currentLimit + 0.5)
   )
 end
 

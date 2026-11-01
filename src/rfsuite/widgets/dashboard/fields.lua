@@ -141,6 +141,10 @@ M.STATS = {
     label = "@i18n(widgets.dashboard.fields.consumed)@", title = "@i18n(widgets.dashboard.fields.consumed_title)@" },
   { id = "landing_voltage", source = "voltage", stattype = "last", unit = "V", decimals = 2,
     label = "@i18n(widgets.dashboard.fields.landing_voltage)@", title = "@i18n(widgets.dashboard.fields.landing_voltage_title)@" },
+  -- The live voltage per cell, which stats.lua divides by the live cell count: a reading rather
+  -- than a figure of the flight, but a stats box is what can show it.
+  { id = "cell_voltage", source = "voltage", stattype = "cell", unit = "V", decimals = 2,
+    label = "@i18n(widgets.dashboard.fields.cell_voltage)@", title = "@i18n(widgets.dashboard.fields.cell_voltage_title)@" },
   { id = "landing_cell", source = "voltage", stattype = "lastcell", unit = "V", decimals = 2,
     label = "@i18n(widgets.dashboard.fields.landing_cell)@", title = "@i18n(widgets.dashboard.fields.landing_cell_title)@" },
   -- stats.lua formats this one itself, with its own unit, so the box carries none.

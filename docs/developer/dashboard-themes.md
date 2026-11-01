@@ -568,8 +568,30 @@ theme that wants both names both. A theme that names none of the four reaches no
 neither sensor.
 
 The rest of a box is presentation and is shared across the types that can use it: `title`,
-`titlepos`, `titlealign`, `titlecolor`, `textcolor`, `bgcolor`, `font`, `unit`, `decimals`,
-`transform`, `autosize_chars`, `thresholds`. Thresholds — the dynamic colour lists and how a
+`titlepos`, `titlealign`, `titlecolor`, `textcolor`, `bgcolor`, `bordercolor`, `borderwidth`,
+`rounded`, `font`, `unit`, `decimals`, `transform`, `autosize_chars`, `thresholds`.
+
+The tile under a box is `objects/common.lua`'s `drawContainer`: a rectangle filled with `bgcolor`
+(`WHITE` when nil), then, where the box gives `bordercolor`, a frame `borderwidth` pixels wide (2
+by default) in that colour, named colours included; given as functions, the three are called
+with the box and the state when the box is built. `rounded` is the corner radius of both.
+`bgcolor = false` draws no fill, so the box lies on whatever was drawn before it — a panel box
+declared first in the same cells, as @Kevd's in-flight arcs stand in their frame. Such a box is
+not counted when the full-screen info bar takes the colour most tiles are filled with. Each is
+fixed when the box is built, so none of them costs anything per frame.
+
+A `gauge` reads the live value of its `source` unless it carries `stattype` `"min"` or `"max"`:
+then every getter reads that extreme of the flight out of the flight record, with the key
+`Utils.statFields` resolves once at render — the same record, and the same rule for which flight
+it answers for, as a `stats` text box. Only a source with a recorded extreme has one (see
+[flight statistics](../reference/flight-statistics.md)); for any other pair — `esc_temp` with
+`"min"`, say — the gauge draws no value, the `--` a `stats` box draws for it, and not the live
+reading under a caption that names an extreme. A horizontal `bar` is half its panel high, centred, and 4 px
+in from each side; its paddings act per axis. Given `gaugepaddingtop` or `gaugepaddingbottom` it
+spans the panel's height less them (an absent one of the two counts 0), given `gaugepaddingleft`
+or `gaugepaddingright` its width (an absent one counts 4), and an axis given neither keeps the
+default — the fields a vertical bar has always read. Both are clamped to the panel, so paddings
+larger than it leave a 1 px bar inside the tile. Thresholds — the dynamic colour lists and how a
 temperature limit is converted for a radio set to Fahrenheit — are described once, in
 [user themes](../dashboard/user-themes.md); they behave identically in a shipped theme.
 
@@ -768,6 +790,10 @@ them in again whenever the bounds it holds are still the unset defaults, no long
 count, or were filled in for a different cell count. A move of those bounds rebuilds the scene, and
 the render key is computed again in the pass that moves them, so the scene is queued under the key
 for the new bounds.
+
+The ESC current limit the model has on file, `state.escCurrentLimit` (nil without one), is part
+of the render key too, so a box that takes its `max` from it is rebuilt when the limit arrives
+after the first build or the stored figure changes.
 
 The cell count is the one the flight controller reports in telemetry. Until that reads a count --
 it reads 0 for the moment after a pack is plugged in, until the board has detected the pack -- and

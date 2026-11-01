@@ -72,7 +72,7 @@ end
 
 -- 1. Every shipped box theme: every reassignable box is named uniquely within its phase, and
 --    the value it shows by default is in the catalogue, so its choice never starts on nothing.
-local BOX_THEMES = { "default", "rfstatus", "@aerc", "@aerc-n", "@rt-rc", "@rt-rc-n", "@srb-rc" }
+local BOX_THEMES = { "default", "rfstatus", "@aerc", "@aerc-n", "@rt-rc", "@rt-rc-n", "@srb-rc", "@kse4", "@kse5", "@kevd" }
 local PHASES = { "preflight", "inflight", "postflight" }
 local reassignable = 0
 for _, folder in ipairs(BOX_THEMES) do
