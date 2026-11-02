@@ -53,6 +53,19 @@ Only a value is kept. A module that returns nothing is run again on every `rfsui
 as is a file that failed to load, so a module whose body must run only once ends in
 `return M`.
 
+## A failed load is not remembered, so the caller remembers it
+
+Because a failure is not cached, a caller that asks again on every pass goes back to the card for
+the file every time. Callers that run on every pass therefore keep the answer themselves:
+
+- The background telemetry runner (`tasks/events/telemetry_bg/tasks.lua`), SmartFuel and the
+  custom telemetry drain record `false` for a module that did not load and do not ask for it again
+  until the Lua state restarts. For the drain that is its decoder table (`lib/rf2tlm_sensors.lua`)
+  and `lib/crsf.lua`; without them it takes nothing off the link in that state.
+- The MSP API version read, which every connection waits on, asks again for a module that did not
+  load after one second rather than on every tick, so a failure that does not last still lets the
+  connection come up.
+
 ## Reloading and releasing
 
 - `rfsuite.require(path, true)` runs the file again even when it is cached. If it now returns
