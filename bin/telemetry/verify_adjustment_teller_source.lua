@@ -314,5 +314,25 @@ do
     "widget: a selection pending when the widget stepped aside survived the reset")
 end
 
+-- The decoder itself (lib/rf2tlm_sensors.lua): the suite's own load hands every decoded ADJ pair
+-- to the state's teller, also one the publish throttle declines; EdgeTX's sensor discovery, which
+-- calls every decoder once with zero bytes, hands it nothing.
+do
+  newWorld("widget", { enabled = true })
+  local got = {}
+  _G.rfsuite.adjustmentAnnouncer = { report = function(f, v) got[#got + 1] = f .. "/" .. v end }
+  local chunk = assert(loadfile(ROOT .. "/src/rfsuite/lib/rf2tlm_sensors.lua"))
+  local data = { 0x00, 0x0E, 0xFF, 0xFF, 0xFF, 0x9C }
+  local sensors = chunk(nil, function() return false end)
+  local _, pos = sensors[0x1220].dec(data, 1)
+  check(pos == 7, "decoder: the ADJ row is six bytes")
+  check(got[1] == "14/-100", "decoder: a decoded pair the throttle declines is still handed to the teller ("
+    .. tostring(got[1]) .. ")")
+  got = {}
+  local discovered = chunk({ 99 })
+  check(type(discovered[0x1220]) == "table", "decoder: discovery returns the ADJ row")
+  check(#got == 0, "decoder: sensor discovery hands the teller a pair")
+end
+
 print(string.format("%d checks, %d failures", checks, failures))
 os.exit(failures == 0 and 0 or 1)
