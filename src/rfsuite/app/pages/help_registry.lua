@@ -15,10 +15,10 @@ function HelpRegistry.new(options)
     end
 
     if string.sub(pagePath, -9) == "/page.lua" then
-      return "/SCRIPTS/TOOLS/rfsuite-core/app/pages/" .. string.sub(pagePath, 1, -10) .. "/help.lua"
+      return _G.rfsuite.paths.core .. "/app/pages/" .. string.sub(pagePath, 1, -10) .. "/help.lua"
     end
 
-    return "/SCRIPTS/TOOLS/rfsuite-core/app/pages/" .. pagePath .. "/help.lua"
+    return _G.rfsuite.paths.core .. "/app/pages/" .. pagePath .. "/help.lua"
   end
 
   local function ensureChunk(menuId)

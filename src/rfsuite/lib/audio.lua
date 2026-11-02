@@ -133,7 +133,7 @@ local function getVolumeRules()
   if volumeRules ~= nil then return volumeRules or nil end
   volumeRules = false
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/audio_volume.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/audio_volume.lua", mode)
   if chunk then
     local ok, mod = pcall(chunk)
     if ok and type(mod) == "table" then volumeRules = mod end
@@ -887,7 +887,7 @@ local function getLocaleModule()
   end
 
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/system_locale.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/system_locale.lua", mode)
   if chunk then
     local ok, mod = pcall(chunk)
     if ok and type(mod) == "table" then
@@ -1817,7 +1817,7 @@ local function loadCoreModule(path)
     if ok and type(mod) == "table" then return mod end
   end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/" .. path, mode)
   if chunk then
     local ok, mod = pcall(chunk)
     if ok and type(mod) == "table" then return mod end
@@ -2089,7 +2089,7 @@ end
 -- dashboard makes before it draws (done >= total, widgets/dashboard/runtime.lua). The tool runs
 -- this module as soon as the link and a battery reading are up, which is before the chain is
 -- through. Where the runtime is not in the cache there is no chain to wait for.
-local EVENTS_RUNTIME_PATH = "/SCRIPTS/TOOLS/rfsuite-core/tasks/events/runtime.lua"
+local EVENTS_RUNTIME_PATH = _G.rfsuite.paths.core .. "/tasks/events/runtime.lua"
 local function connectChainDone()
   local modules = type(_G) == "table" and _G.rfsuite and _G.rfsuite.modules or nil
   local events = type(modules) == "table" and modules[EVENTS_RUNTIME_PATH] or nil

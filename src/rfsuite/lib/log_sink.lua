@@ -43,10 +43,10 @@
 
 local Sink = {}
 
-local ROOT = "/SCRIPTS/TOOLS/rfsuite.user"
+local ROOT = _G.rfsuite.paths.user
 local DIR = ROOT .. "/logs"
 local RUN_FILE = DIR .. "/current.run"
-local BUILD_FILE = "/SCRIPTS/TOOLS/rfsuite-core/build.txt"
+local BUILD_FILE = _G.rfsuite.paths.core .. "/build.txt"
 
 -- Bounds, and what each one bounds.
 local DEFAULT_RUNS = 10      -- card space: how many runs' files are kept, unless the pilot says

@@ -1,5 +1,5 @@
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = loadScript(fullPath, "t")
   if type(chunk) ~= "function" then return nil end
   local ok, mod = pcall(chunk)
@@ -16,7 +16,8 @@ return function(ctx)
     t(i18n, "help_p1"),
     t(i18n, "help_p2"),
     t(i18n, "help_p3"),
-    t(i18n, "help_p4")
+    t(i18n, "help_p4"),
+    t(i18n, "help_p5")
   }
 
   return {

@@ -1,11 +1,11 @@
 local M = {}
 
-local PREF_PATH        = "/SCRIPTS/TOOLS/rfsuite.user/preferences.lua"
+local PREF_PATH        = _G.rfsuite.paths.user .. "/preferences.lua"
 -- Reload request file monitored by the dashboard widget via fstat size.
 -- Uses a rotating byte counter (1..32 bytes) so changes are reliably detected
 -- where fstat is available even without an RTC or when the INI byte-size doesn't change,
 -- without ever consuming or deleting the file (which breaks multi-reader and drops armed events).
-local RELOAD_REQ_PATH  = "/SCRIPTS/TOOLS/rfsuite.user/reload.req"
+local RELOAD_REQ_PATH  = _G.rfsuite.paths.user .. "/reload.req"
 
 local cachedModelPreferences = nil
 
@@ -25,7 +25,7 @@ local function getModelPreferences()
     return cachedModelPreferences
   end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/model_preferences.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/model_preferences.lua", mode)
   if chunk then
     local ok, mod = pcall(chunk)
     if ok and type(mod) == "table" then
@@ -68,7 +68,7 @@ local function loadConfigStore()
     return _G.rfsuite.require("lib/config_store.lua")
   end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/config_store.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/config_store.lua", mode)
   if not chunk then return nil end
   local ok, mod = pcall(chunk)
   if ok and type(mod) == "table" then return mod end

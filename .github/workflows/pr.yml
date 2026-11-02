@@ -82,11 +82,17 @@ jobs:
       - name: Silent ground profile selections
         run: lua5.3 bin/dashboard/verify_inflight_audio.lua
 
+      - name: In-flight settings adopted after a landing are checked first
+        run: lua5.3 bin/dashboard/verify_inflight_landing_resettle.lua
+
       - name: In-flight list picker and help limits
         run: lua5.3 bin/dashboard/verify_inflight_flightlist.lua
 
       - name: In-flight session and view lifetimes
         run: lua5.3 bin/dashboard/verify_inflight_lifetimes.lua
+
+      - name: In-flight slots that touch the tuning pair in part
+        run: lua5.3 bin/dashboard/verify_inflight_foreign_slots.lua
 
   startup-compile:
     # The configuration tool compiles the installed suite at start (src/rfsuite/lib/precompile.lua).
@@ -308,6 +314,9 @@ jobs:
           lua5.3 bin/themes/verify_voltage_save.lua
           lua5.3 bin/dashboard/verify_offline_theme_settings.lua
 
+      - name: Check the dashboard theme across a reconnect
+        run: lua5.3 bin/dashboard/verify_theme_reconnect.lua
+
       - name: Check per-model reset rollback
         run: lua5.3 bin/dashboard/verify_overrides_reset.lua
 
@@ -521,6 +530,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_armed_state.lua
+      - run: lua5.3 bin/msp/verify_uid_empty_retry.lua
 
   msp-resend-on-break:
     name: MSP resend on a broken reply
@@ -645,6 +655,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/diagnostics/verify_elrs_probe_armed.lua
 
+  validate-sensors-wakeup:
+    name: Validate Sensors wakeup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/diagnostics/verify_validate_sensors_wakeup.lua
+
   telemetry-sync-slots:
     name: Telemetry slots after a save
     runs-on: ubuntu-latest
@@ -697,3 +715,35 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_compact_framing.lua
+
+  mixer-live-override:
+    name: Mixer live override (Tail and Trims)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/mixer/verify_live_override.lua
+
+  save-notice-text:
+    name: Save notice text
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/ui/verify_save_notice_text.lua
+  telemetry-drain-failed-load:
+    name: Telemetry drain and a module that does not load
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/telemetry/verify_drain_failed_load.lua
+
+  msp-version-deps-retry:
+    name: MSP version read and a module that does not load
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/msp/verify_msp_version_deps_retry.lua
+

@@ -64,7 +64,7 @@ function M.tick(widget, drive, Prime)
     local modules = root.modules or {}
     for _, path in ipairs({"tasks/msp/api/rx_map.lua", "tasks/msp/api/get_adjustment_function_ids.lua",
       "tasks/msp/api/get_adjustment_range.lua", "tasks/msp/api/set_adjustment_range.lua", "tasks/msp/api/eeprom_write.lua"}) do
-      if modules["/SCRIPTS/TOOLS/rfsuite-core/" .. path] == nil then
+      if modules[_G.rfsuite.paths.core .. "/" .. path] == nil then
         state.loadedOnlyHere[#state.loadedOnlyHere + 1] = path
       end
     end

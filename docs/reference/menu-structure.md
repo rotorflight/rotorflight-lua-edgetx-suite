@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**119 entries, 98 of them open a page, 64 of those pages are documented.**
+**119 entries, 98 of them open a page, 66 of those pages are documented.**
 
 ## Diagrams
 
@@ -161,9 +161,9 @@ flowchart LR
   n7 --> n8
   n9["Geometry"]:::undocumented
   n7 --> n9
-  n10["Tail"]:::undocumented
+  n10["Tail"]:::documented
   n7 --> n10
-  n11["Trims"]:::undocumented
+  n11["Trims"]:::documented
   n7 --> n11
   n12["Servos"]:::menu
   n0 --> n12
@@ -423,8 +423,8 @@ Section `configuration`.
 | Setup &rsaquo; Mixer | `mixer` | `mixer_menu` | menu, 4 entries | &mdash; | &mdash; |
 | Setup &rsaquo; Mixer &rsaquo; Swash | `swash` | `setup_mixer_swash_page` | `setup/mixer/swash` | **none** | `lockedWhileArmed = true` |
 | Setup &rsaquo; Mixer &rsaquo; Geometry | `swashgeometry` | `setup_mixer_swashgeometry_page` | `setup/mixer/swashgeometry` | **none** | `lockedWhileArmed = true` |
-| Setup &rsaquo; Mixer &rsaquo; Tail | `tail` | `setup_mixer_tail_page` | `setup/mixer/tail` | **none** | `lockedWhileArmed = true` |
-| Setup &rsaquo; Mixer &rsaquo; Trims | `trims` | `setup_mixer_trims_page` | `setup/mixer/trims` | **none** | `lockedWhileArmed = true` |
+| Setup &rsaquo; Mixer &rsaquo; Tail | `tail` | `setup_mixer_tail_page` | `setup/mixer/tail` | [setup/mixer/tail.md](../pages/setup/mixer/tail.md) | `lockedWhileArmed = true` |
+| Setup &rsaquo; Mixer &rsaquo; Trims | `trims` | `setup_mixer_trims_page` | `setup/mixer/trims` | [setup/mixer/trims.md](../pages/setup/mixer/trims.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Servos | `servos` | `servos_menu` | menu, 2 entries | &mdash; | &mdash; |
 | Setup &rsaquo; Servos &rsaquo; PWM Output | `pwm` | `setup_servos_pwm_page` | `setup/servos/pwm` | **none** | `lockedWhileArmed = true` |
 | Setup &rsaquo; Servos &rsaquo; BUS Output | `bus` | `setup_servos_bus_page` | `setup/servos/bus` | **none** | `lockedWhileArmed = true` |

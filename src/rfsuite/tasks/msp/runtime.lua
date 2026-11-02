@@ -12,7 +12,7 @@ local function loadModule(path)
   if _G.rfsuite and _G.rfsuite.require then
     return _G.rfsuite.require(path)
   end
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = loadScript(fullPath, "t")
   if type(chunk) ~= "function" then
     return nil
@@ -69,10 +69,11 @@ local state = {
   mspLastErrorAt = 0,
   pendingVersionRead = true,
   pendingUidRead = true,
-  -- True once this link's UID read has an outcome: answered, given up after its retries, or not
-  -- possible at all. The onconnect `uid` task waits on it instead of sending a read of its own.
-  -- "Given up" means at least once, not for good: the read is re-armed after its backoff, and a
-  -- later answer still reaches the session through applyModelPreferencesForMcu() and publish().
+  -- True once this link's UID read has an outcome: answered, answered without a UID, given up
+  -- after its retries, or not possible at all. The onconnect `uid` task waits on it instead of
+  -- sending a read of its own. "Given up" and "without a UID" mean at least once, not for good:
+  -- the read is re-armed after its backoff, and a later answer still reaches the session through
+  -- applyModelPreferencesForMcu() and publish().
   uidReadSettled = false,
   versionReadCompleted = false,
   lastArmed = nil,
@@ -575,6 +576,12 @@ local function setFraming(apiVersion)
   common.setProtocolVersion(compact and 3 or 2)
 end
 
+-- How long the version read waits before asking the loader again for a module that did not load.
+-- Short on purpose, and flat: this read holds the whole connection, so a failure that does not
+-- last has to be recovered within about a second, while a module that keeps failing is asked
+-- for once a second instead of on every tick.
+local VERSION_DEPS_RETRY_SECONDS = 1
+
 local function enqueueVersionReads(now)
   if not state.pendingVersionRead then
     return true
@@ -587,6 +594,11 @@ local function enqueueVersionReads(now)
   end
 
   if not ensureVersionDeps() then
+    -- The loader does not remember a module that failed to load, so every call here asks it for
+    -- the module again. The read stays owed and is tried again after a short wait; the link
+    -- coming up again clears the wait. Not the board's failure, so neither its counter nor its
+    -- notice is touched.
+    state.requestBackoffUntil = now + VERSION_DEPS_RETRY_SECONDS
     return false
   end
   state.pendingVersionRead = false
@@ -719,6 +731,16 @@ local function enqueueUidRead(now)
         state.consecutiveUidFailures = 0
         state.values.mcuId = tostring(parsed.mcuId)
         applyModelPreferencesForMcu(state.values.mcuId)
+      else
+        -- An answer that carries no UID identifies nothing, and the queue counts it as done, so
+        -- its own retries never run. Treat it like a read the board did not answer: owed again
+        -- after the same backoff. Settled stays true, as on a failure, so nothing that waits on
+        -- this read holds the connect sequence for the retry.
+        state.consecutiveUidFailures = (state.consecutiveUidFailures or 0) + 1
+        local backoff = math.min(30, 2 + state.consecutiveUidFailures * 2)
+        state.requestBackoffUntil = nowSeconds() + backoff
+        state.pendingUidRead = true
+        log("UID read answered without a UID (cmd=160); backoff " .. tostring(backoff) .. "s", "warn")
       end
       state.uidReadSettled = true
       publish()

@@ -1,6 +1,6 @@
 local I18n = {}
 
-local BASE_PATH = "/SCRIPTS/TOOLS/rfsuite-core/i18n/"
+local BASE_PATH = _G.rfsuite.paths.core .. "/i18n/"
 local bundleCache = {}
 local strLower = string.lower
 local strGsub = string.gsub

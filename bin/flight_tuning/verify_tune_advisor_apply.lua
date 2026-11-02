@@ -112,6 +112,7 @@ function queue.isProcessed() return #queue.entries == 0 end
 mspState.queue = queue
 
 _G.rfsuite = { palette = { text = 0, border = 0 }, session = { mcu_id = MCU } }
+_G.rfsuite.paths = dofile(ROOT .. "lib/paths.lua")
 
 local profiles = { pid = 1, rate = 1 }
 local dialogs = {}

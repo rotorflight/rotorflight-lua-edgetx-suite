@@ -16,7 +16,7 @@ local M = {}
 local requireModule = (_G.rfsuite and _G.rfsuite.require)
 if not requireModule then
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local rChunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/require.lua", mode)
+  local rChunk = loadScript(_G.rfsuite.paths.core .. "/lib/require.lua", mode)
   if rChunk then
     local ok, res = pcall(rChunk)
     if ok and type(res) == "function" then
@@ -25,7 +25,7 @@ if not requireModule then
   end
 end
 requireModule = requireModule or function(path)
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if chunk then
@@ -850,6 +850,10 @@ local function describeSet(snapshot, t)
     text = string.format(t("widgets.dashboard.inflight_board_parameters", "%d parameters on the board"), snapshot.cellCount or 0)
   elseif snapshot.setSource == "unavailable" then
     text = t("widgets.dashboard.inflight_board_no_slots", "No usable slots on the board")
+  elseif snapshot.setSource == "conflict" then
+    -- A slot with one channel on the pair and one elsewhere refused the whole set (prime.lua).
+    return string.format(t("widgets.dashboard.inflight_board_conflict", "Slot %d blocks tuning"),
+      tonumber(snapshot.conflictSlot) or 0)
   else
     return t("widgets.dashboard.inflight_board_unread", "Not read yet")
   end
@@ -1079,13 +1083,13 @@ function M.buildGround(children, widget, m, w, h, t, p)
   end)
 
   -- Snapshots are replaced on publication; cache the scalar inputs rather than their tables.
-  local lastSource, lastCount, lastSkipped, lastSetRead, setText
+  local lastSource, lastCount, lastSkipped, lastSetRead, lastConflict, setText
   row(slotsLabel, slotsLines, function()
     local snap = state.inflight or empty
     local skipped = snap.prime and snap.prime.skipped
     if setText == nil or snap.setSource ~= lastSource or snap.cellCount ~= lastCount or skipped ~= lastSkipped
-      or snap.readRequired ~= lastSetRead then
-      lastSetRead = snap.readRequired
+      or snap.readRequired ~= lastSetRead or snap.conflictSlot ~= lastConflict then
+      lastSetRead, lastConflict = snap.readRequired, snap.conflictSlot
       lastSource, lastCount, lastSkipped = snap.setSource, snap.cellCount, skipped
       setText = fit(describeSet(snap, t), slotsLines)
     end
@@ -1230,7 +1234,11 @@ function M.buildGround(children, widget, m, w, h, t, p)
     changed()
   end
   if emptyBoard and available then
-    local text = fitTwoLines(t("widgets.dashboard.inflight_fc_no_functions",
+    local text = first.setSource == "conflict"
+      and fitTwoLines(string.format(t("widgets.dashboard.inflight_fc_slot_conflict",
+        "Slot %d conflicts with the tuning channels. Change it in the Configurator."),
+        tonumber(first.conflictSlot) or 0), lineW, lineFont)
+      or fitTwoLines(t("widgets.dashboard.inflight_fc_no_functions",
       "The FC has no adjustment functions for in-flight tuning."), lineW, lineFont)
     appendTwoLines(children, m.pad, y, lineW, function() return text end, p.text, lineFont, lineH)
     y = y + lineH * 2 + gap

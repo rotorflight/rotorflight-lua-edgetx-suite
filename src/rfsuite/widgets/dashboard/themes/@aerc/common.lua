@@ -4,7 +4,7 @@ end
 
 local Common = {}
 
-local LOGO_FILE = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/gfx/logo.png"
+local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 
 local i18nModule = nil
 local i18nContext = nil
@@ -32,7 +32,7 @@ local function getLocaleModule()
   end
 
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/system_locale.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/system_locale.lua", mode)
   if chunk then
     local ok, mod = pcall(chunk)
     if ok and type(mod) == "table" then
@@ -88,7 +88,7 @@ local function getI18nContext()
     end
     if not i18nModule then
       local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/i18n/init.lua", mode)
+      local chunk = loadScript(_G.rfsuite.paths.core .. "/i18n/init.lua", mode)
       if chunk then
         local ok, mod = pcall(chunk)
         if ok and type(mod) == "table" and type(mod.new) == "function" then

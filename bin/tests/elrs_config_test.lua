@@ -1,6 +1,7 @@
 local source = string.sub(debug.getinfo(1, "S").source, 2)
 local root = string.match(source, "^(.*)[/\\]bin[/\\]tests[/\\]") or "."
 _G.rfsuite = {}
+_G.rfsuite.paths = dofile(root .. "/src/rfsuite/lib/paths.lua")
 local currentFilename = "model01.yml"
 model = {
   getInfo = function() return { filename = currentFilename, name = "Model", bitmap = "m.png" } end,

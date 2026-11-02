@@ -18,7 +18,7 @@ local function normalizeLanguage(value)
   return nil
 end
 
-local PREF_PATH = "/SCRIPTS/TOOLS/rfsuite.user/preferences.lua"
+local PREF_PATH = _G.rfsuite.paths.user .. "/preferences.lua"
 
 -- The store is read through lib/config_store.lua with a schema naming the one key this needs,
 -- rather than through lib/preferences.lua: this runs very early in the boot sequence, before
@@ -53,7 +53,7 @@ end
 local function languageStore()
   if cachedStore then return cachedStore end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/config_store.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/config_store.lua", mode)
   if type(chunk) ~= "function" then return nil end
   local okMod, ConfigStore = pcall(chunk)
   if not okMod or type(ConfigStore) ~= "table" then return nil end

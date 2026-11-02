@@ -16,6 +16,7 @@ rfsuite = { session = { mcu_id = "board", isConnected = true,
   if not cache[path] then cache[path] = loadScript(path)() end
   return cache[path]
 end }
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 local realLoad = loadScript
 loadScript = function(path)
   if string.find(path, "lib/model_preferences.lua", 1, true) or string.find(path, "lib/env.lua", 1, true) then

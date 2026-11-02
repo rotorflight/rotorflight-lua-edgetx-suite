@@ -54,7 +54,7 @@ local function buildPage(delta, denom)
   -- Deliver the four configuration replies separately, then the optional BOARD_INFO.
   -- The real page, common lifecycle helpers and API parsers run in a fresh session.
   local env = setmetatable({
-    rfsuite = { palette = {}, session = { setup_configuration = {
+    rfsuite = { paths = dofile("src/rfsuite/lib/paths.lua"), palette = {}, session = { setup_configuration = {
       task_delta_time_gyro = delta,
       pid_process_denom = denom or 1
     } } }

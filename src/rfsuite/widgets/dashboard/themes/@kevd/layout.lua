@@ -34,7 +34,7 @@ local function loadCommon()
     if type(mod) == "table" then return mod end
   end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/themes/@kevd/common.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/widgets/dashboard/themes/@kevd/common.lua", mode)
   if not chunk then return nil end
   local ok, mod = pcall(chunk)
   if ok and type(mod) == "table" then return mod end

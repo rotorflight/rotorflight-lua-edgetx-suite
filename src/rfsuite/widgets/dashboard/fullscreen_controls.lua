@@ -19,7 +19,7 @@
 local M = {}
 
 local requireModule = (_G.rfsuite and _G.rfsuite.require) or function(path)
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local chunk = loadScript(fullPath, "t")
   if chunk then
     local ok, mod = pcall(chunk)

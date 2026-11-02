@@ -25,10 +25,12 @@ end
 local function loadRadioStatus()
   if _G.rfsuite and type(_G.rfsuite.require) == "function" then return _G.rfsuite.require("lib/radio_status.lua") end
   if type(loadScript) ~= "function" then return nil end
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/radio_status.lua", "t")
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/radio_status.lua", "t")
   return chunk and chunk() or nil
 end
 local RadioStatus = loadRadioStatus()
+-- Joined once here, so a build does not join it again.
+local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 
 M.KEY_ENABLED = "standby_enabled"
 M.KEY_LAYOUT = "standby_layout"
@@ -723,7 +725,7 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
     children = {
     { type = "rectangle", x = 0, y = 0, w = w, h = h, color = COLOR_THEME_PRIMARY3, filled = true },
     { type = "image", x = contentMargin, y = headerY, w = logoW, h = logoH,
-      file = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/gfx/logo.png" },
+      file = LOGO_FILE },
     { type = "rectangle", x = contentMargin, y = headerDividerY, w = contentWidth, h = 1,
       color = COLOR_THEME_SECONDARY1, filled = true },
     { type = "rectangle", x = 0, y = footerY, w = w, h = stripH, color = COLOR_THEME_SECONDARY2, filled = true },

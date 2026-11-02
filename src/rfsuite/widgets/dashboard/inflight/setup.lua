@@ -17,7 +17,7 @@ local M = {}
 local requireModule = (_G.rfsuite and _G.rfsuite.require)
 if not requireModule then
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local rChunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/require.lua", mode)
+  local rChunk = loadScript(_G.rfsuite.paths.core .. "/lib/require.lua", mode)
   if rChunk then
     local ok, res = pcall(rChunk)
     if ok and type(res) == "function" then
@@ -26,7 +26,7 @@ if not requireModule then
   end
 end
 requireModule = requireModule or function(path)
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if chunk then

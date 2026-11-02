@@ -18,6 +18,7 @@ end }
 
 local source = string.sub(debug.getinfo(1, "S").source, 2)
 local root = string.match(source, "^(.*)[/\\]bin[/\\]dashboard[/\\]") or "."
+rfsuite.paths = dofile(root .. "/src/rfsuite/lib/paths.lua")
 local standbyPath = root .. "/src/rfsuite/widgets/dashboard/standby.lua"
 if arg then
   for i = 1, #arg - 1 do if arg[i] == "--standby" then standbyPath = arg[i + 1] end end

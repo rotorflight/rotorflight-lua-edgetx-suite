@@ -1,13 +1,13 @@
 local M = {}
 
 local DEBUG_PREFIX = "[dashboard.lib] "
-local INDEX_PATH = "/SCRIPTS/TOOLS/rfsuite-core/app/pages/settings/dashboard/theme_index.lua"
+local INDEX_PATH = _G.rfsuite.paths.core .. "/app/pages/settings/dashboard/theme_index.lua"
 
 local Log = nil
 local themesCache = nil
 do
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local okLoad, chunk = pcall(loadScript, "/SCRIPTS/TOOLS/rfsuite-core/lib/log.lua", mode)
+  local okLoad, chunk = pcall(loadScript, _G.rfsuite.paths.core .. "/lib/log.lua", mode)
   if okLoad and type(chunk) == "function" then
     local okMod, mod = pcall(chunk)
     if okMod and type(mod) == "table" and type(mod.emit) == "function" then
@@ -44,10 +44,10 @@ local function scanSkipped(log, fmt, ...)
   end
 end
 
-local SYSTEM_THEMES_LIST_PATH = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/themes"
-local USER_THEMES_LIST_PATH = "/SCRIPTS/TOOLS/rfsuite.user/dashboard"
-local SYSTEM_THEMES_LOAD_PATH = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/themes/"
-local USER_THEMES_LOAD_PATH = "/SCRIPTS/TOOLS/rfsuite.user/dashboard/"
+local SYSTEM_THEMES_LIST_PATH = _G.rfsuite.paths.core .. "/widgets/dashboard/themes"
+local USER_THEMES_LIST_PATH = _G.rfsuite.paths.user .. "/dashboard"
+local SYSTEM_THEMES_LOAD_PATH = _G.rfsuite.paths.core .. "/widgets/dashboard/themes/"
+local USER_THEMES_LOAD_PATH = _G.rfsuite.paths.user .. "/dashboard/"
 
 local function normalizePath(path)
   if type(path) ~= "string" then return nil end
@@ -640,7 +640,7 @@ local SettingsCommon = nil
 
 function M.saveFailureReason(i18n, err, modelStore)
   if not SettingsCommon then
-    local okLoad, chunk = pcall(loadScript, "/SCRIPTS/TOOLS/rfsuite-core/app/pages/settings/common.lua", "t")
+    local okLoad, chunk = pcall(loadScript, _G.rfsuite.paths.core .. "/app/pages/settings/common.lua", "t")
     local okRun, mod = false, nil
     if okLoad and type(chunk) == "function" then okRun, mod = pcall(chunk) end
     if not (okRun and type(mod) == "table" and type(mod.saveFailureReason) == "function") then

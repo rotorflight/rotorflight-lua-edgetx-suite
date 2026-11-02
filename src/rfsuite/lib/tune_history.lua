@@ -30,7 +30,7 @@
 local M = {}
 
 local requireModule = (_G.rfsuite and _G.rfsuite.require) or function(path)
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if chunk then
@@ -40,7 +40,7 @@ local requireModule = (_G.rfsuite and _G.rfsuite.require) or function(path)
   return nil
 end
 
-local USER_ROOT = "/SCRIPTS/TOOLS/rfsuite.user"
+local USER_ROOT = _G.rfsuite.paths.user
 local DATA_DIR = USER_ROOT .. "/tune"
 local FORMAT_VERSION = 1
 local MAX_FLIGHTS = 5

@@ -24,7 +24,7 @@ end
 local requireModule = (_G.rfsuite and _G.rfsuite.require)
 if not requireModule then
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local rChunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/require.lua", mode)
+  local rChunk = loadScript(_G.rfsuite.paths.core .. "/lib/require.lua", mode)
   if rChunk then
     local ok, res = pcall(rChunk)
     if ok and type(res) == "function" then
@@ -33,7 +33,7 @@ if not requireModule then
   end
 end
 requireModule = requireModule or function(path)
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if chunk then
@@ -430,7 +430,7 @@ local REFUSAL_TICKS = 80
 -- `ticks` overrides how long it stands, for a notice that has more to say than a refused tap.
 function Drive:refuseStep(reason, now, ticks)
   if reason == "range" and self.setSource == "unread" then reason = "unread" end
-  if reason == "range" and self.setSource == "unavailable" then reason = "empty" end
+  if reason == "range" and (self.setSource == "unavailable" or self.setSource == "conflict") then reason = "empty" end
   self.stepRefusedReason = reason
   self.stepRefusedUntil = now + (ticks or REFUSAL_TICKS)
 end
@@ -889,7 +889,8 @@ end
 -- one after which the real verdict is taken. A drive that is still live when its trims go back to
 -- unresolved -- the settings moved under an open surface on the ground -- answers what it has
 -- (nothing, after the forget that came with them) and takes nothing either: the new settings revoke
--- output themselves (M.get drops `live`), and the next evaluation waits for the walk.
+-- output themselves (M.get drops `live`), and on the ground Drive:evaluateInterlock drops it as well
+-- before it walks, whichever way the drive got there.
 function M.verdict(drive)
   if type(drive) ~= "table" then return nil end
   if drive.phase == M.PHASE_LIVE then return drive._checkResult end
@@ -985,8 +986,14 @@ function Drive:evaluateInterlock(now, open)
     return false
   end
 
-  -- Resolve trims on their own pass before the setup check can permit output.
-  if not self.live and self.phase ~= M.PHASE_LIVE and trimsPending(self) then
+  -- Resolve trims on their own pass before the setup check can permit output. On the ground a drive
+  -- that is still live gives its output up for the walk as well: settings adopted after a landing
+  -- forgot the trims and the verdict, and nothing may stand on the wire until both are taken again.
+  if self.phase ~= M.PHASE_LIVE and trimsPending(self) then
+    if self.live then
+      self.live = false
+      self:cleanup(false)
+    end
     self:ensureTrims()
     return false
   end
@@ -1464,6 +1471,14 @@ end
 function Drive:tick(armed)
   local now = self.radio.now()
   local wasLive = self.live
+  -- A landing found while output was revoked (the link was lost in the air) with the setup verdict
+  -- or the trim block to take again (settings adopted when the link came back) leaves the flight
+  -- here, before the interlock runs: from the live phase the interlock would go live on a verdict
+  -- that is gone, and only then move to the ground and check.
+  if armed ~= true and self.phase == M.PHASE_LIVE and self.live ~= true
+      and (self._checkedAt == nil or trimsPending(self)) then
+    self:setPhase((self.fired > 0) and M.PHASE_POST or M.PHASE_GROUND)
+  end
   self:evaluateInterlock(now)
   if not self.live then
     if wasLive then self.valueEpoch = self.valueEpoch + 1 end
@@ -1922,6 +1937,8 @@ local function publish(widget, drive)
     -- usable. It is on the screen because a set that silently fell back to the reference layout
     -- and a set that came off this board look exactly alike otherwise.
     setSource = drive.setSource,
+    -- The slot that refused the whole set (setSource "conflict"), by its 1-based number.
+    conflictSlot = drive.conflictSlot,
     -- For the ground surface: how many cells the board offers, how many of them would jump on the
     -- first press, and whether the last read continued the stored session or started one.
     cellCount = drive.cellCount,

@@ -51,7 +51,7 @@ local GAP_SECONDS = 2             -- between one answered request and the next
 local RETRY_SECONDS = 5           -- after a link error, before asking again
 local MAX_FAILURES = 3            -- link errors per disarm before waiting for the next one
 local AXIS_COUNT = 3
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = _G.rfsuite.paths.core .. "/"
 
 -- Loaded one per pass, each dropped again once its step is through, and all of them with this
 -- module once the capture is idle. Held together they would be most of what the capture costs

@@ -1,5 +1,5 @@
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end
@@ -281,7 +281,7 @@ local function saveToPreferences(prefs)
 
       -- Save model preferences using ModelPreferences module
       modelOk, modelErr = false, "unavailable"
-      local loadMod = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/model_preferences.lua", "t")
+      local loadMod = loadScript(_G.rfsuite.paths.core .. "/lib/model_preferences.lua", "t")
       if type(loadMod) == "function" then
         local loaded, MP = pcall(loadMod)
         if loaded and type(MP) == "table" and type(MP.saveByMcuId) == "function" then

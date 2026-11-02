@@ -2,7 +2,7 @@ local function loadModule(path)
   if _G.rfsuite and _G.rfsuite.require then
     return _G.rfsuite.require(path)
   end
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end
@@ -72,7 +72,8 @@ local MEM_LOW_CLEAR_KB = 96
 -- here" and neither warns nor is logged.
 local MEM_FREE_MIN_KB = 4
 
-local APP_ICON  = "/SCRIPTS/TOOLS/rfsuite-core/assets/icon.png"
+local APP_ICON  = _G.rfsuite.paths.core .. "/assets/icon.png"
+local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 
 local M = {}
 
@@ -326,7 +327,7 @@ local SavePipeline = nil
 -- the pilot can read. An id with no entry falls back to the generic notice rather than putting
 -- an internal name on screen.
 --- What a save is doing, for the phases that have no step count of their own.
--- The writes and the EEPROM commit are counted, so they name the step being written; everything
+-- The writes and the EEPROM commit are counted by the bar under the general save text; everything
 -- after the commit is a wait on the flight controller and is named rather than counted.
 local SAVE_TEXT = {
   rebooting    = "@i18n(app.save.rebooting)@",
@@ -814,7 +815,7 @@ end
 local function resolveLocaleFromSystem()
   -- Always reload module on init so locale behavior changes are picked up
   -- immediately and not held back by stale cached globals.
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/system_locale.lua", "t")
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/system_locale.lua", "t")
   if chunk then
     local ok, localeMod = pcall(chunk)
     if ok and type(localeMod) == "table" and type(localeMod.resolveSystemLanguage) == "function" then
@@ -2653,7 +2654,7 @@ local function buildScene()
       {
         type = "image",
         x = logoX, y = logoY, w = logoW, h = logoH,
-        file = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/gfx/logo.png"
+        file = LOGO_FILE
       },
       {
         type = "label",
@@ -2721,12 +2722,14 @@ local function buildScene()
     local action = nil
 
     -- Until the save reaches the flight controller the notice says only that something is being
-    -- applied, which is all a queued chain can honestly say. A pipeline reports which step it is
-    -- on, and stays on screen for the phases the old notice never covered: the restart, the wait
-    -- for the board to answer and the read-back.
+    -- applied, which is all a queued chain can honestly say. A pipeline fills the bar step by step,
+    -- and stays on screen for the phases the old notice never covered: the restart, the wait for
+    -- the board to answer and the read-back. A step's label is not shown: pages name their steps
+    -- after the MSP command they send, an identifier for the log rather than a text the pilot can
+    -- read, and it is never translated.
     if saveProgress then
       local phaseKey = SAVE_PHASE_TEXT[saveProgress.phase]
-      message = saveProgress.label or (phaseKey and SAVE_TEXT[phaseKey]) or message
+      message = (phaseKey and SAVE_TEXT[phaseKey]) or message
       progress = saveProgress.indeterminate and 1 or (saveProgress.fraction or 0)
       if saveProgress.saved then
         title = SAVE_TEXT.saved_title

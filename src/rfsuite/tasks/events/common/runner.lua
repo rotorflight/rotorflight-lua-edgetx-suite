@@ -12,7 +12,7 @@ local MAX_RETRIES = 3
 local RETRY_BACKOFF_SECONDS = 1
 
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if type(chunk) ~= "function" then return nil end
@@ -71,7 +71,7 @@ function M.new(category)
   local function loadManifest()
     if Log == nil then Log = loadModule("lib/log.lua") or false end
     local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-    local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. MANIFEST_PATH, mode)
+    local chunk = loadScript(_G.rfsuite.paths.core .. "/" .. MANIFEST_PATH, mode)
     if type(chunk) ~= "function" then
       if type(Log) == "table" and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, "manifest missing: " .. tostring(MANIFEST_PATH), "debug") end
       tasksLoaded = true
@@ -123,12 +123,12 @@ function M.new(category)
     if not task or not task.path then return nil, "invalid task" end
     if task.module then return task.module end
     local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-    local chunk, err = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. task.path, mode)
+    local chunk, err = loadScript(_G.rfsuite.paths.core .. "/" .. task.path, mode)
     if type(chunk) ~= "function" then
       -- Fallback to common path if not already using it and local load failed
       if not string.find(task.path, COMMON_PATH, 1, true) then
         local commonPath = COMMON_PATH .. task.name .. ".lua"
-        chunk, err = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. commonPath, mode)
+        chunk, err = loadScript(_G.rfsuite.paths.core .. "/" .. commonPath, mode)
       end
     end
 
