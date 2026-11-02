@@ -576,6 +576,12 @@ local function setFraming(apiVersion)
   common.setProtocolVersion(compact and 3 or 2)
 end
 
+-- How long the version read waits before asking the loader again for a module that did not load.
+-- Short on purpose, and flat: this read holds the whole connection, so a failure that does not
+-- last has to be recovered within about a second, while a module that keeps failing is asked
+-- for once a second instead of on every tick.
+local VERSION_DEPS_RETRY_SECONDS = 1
+
 local function enqueueVersionReads(now)
   if not state.pendingVersionRead then
     return true
@@ -588,6 +594,11 @@ local function enqueueVersionReads(now)
   end
 
   if not ensureVersionDeps() then
+    -- The loader does not remember a module that failed to load, so every call here goes back to
+    -- the card for it. The read stays owed and is tried again after a short wait; the link
+    -- coming up again clears the wait. Not the board's failure, so neither its counter nor its
+    -- notice is touched.
+    state.requestBackoffUntil = now + VERSION_DEPS_RETRY_SECONDS
     return false
   end
   state.pendingVersionRead = false
