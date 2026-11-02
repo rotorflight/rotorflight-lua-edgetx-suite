@@ -185,6 +185,24 @@ scenario("changed configuration", function()
   page.closePage()
 end)
 
+scenario("same count, different sensors", function()
+  rebuilds = 0
+  session.telemetry_config = makeConfig(FULL)
+  radioHas(FULL)
+  local page = loadPage()
+  openSettled(page)
+  wakeup(page, 5)
+  -- Forty slots again, two of them exchanged: the count holds and the slot list changes, so a
+  -- check that compared only the count would miss it.
+  local swapped = {}
+  for i = 1, #FULL do swapped[i] = FULL[i] end
+  swapped[1], swapped[2] = FULL[2], FULL[1]
+  session.telemetry_config = makeConfig(swapped)
+  wakeup(page, 5)
+  equal(rebuilds, 1, "a changed slot list with the same count rebuilds on the next wakeup")
+  page.closePage()
+end)
+
 scenario("the page's own read", function()
   -- The page notices a new configuration by the table being a different one, which holds as
   -- long as every writer stores what the parser returns. Here the parser is the real one, fed
