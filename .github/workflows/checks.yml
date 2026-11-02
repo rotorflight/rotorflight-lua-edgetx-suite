@@ -62,6 +62,9 @@ jobs:
       - name: In-flight list picker and help limits
         run: lua5.3 bin/dashboard/verify_inflight_flightlist.lua
 
+      - name: Leaving in-flight tuning builds the dashboard once
+        run: lua5.3 bin/dashboard/verify_tuning_close_key.lua
+
       - name: In-flight session and view lifetimes
         run: lua5.3 bin/dashboard/verify_inflight_lifetimes.lua
 
