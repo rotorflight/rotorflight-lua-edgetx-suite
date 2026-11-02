@@ -74,17 +74,16 @@ M.LOAD_LINES_PER_STEP = 12
 --- time by loadStep.
 --
 -- `cfg`, the board's battery configuration, is copied when the load starts and every pack of the
--- load is matched against that copy, so no list mixes two answers. The pack chosen at the start
--- (selectedId) is noted as it goes by, so the caller need not search the list for it. Each pack is
--- a fresh table rather than the registry's own: the caller extends it, and the registry is read
--- again on the next connection.
+-- load is matched against that copy, so no list mixes two answers. `byId` indexes the packs by id
+-- for the caller's lookups, and goes with the load. Each pack is a fresh table rather than the
+-- registry's own: the caller extends it, and the registry is read again on the next connection.
 function M.newLoad(session, cfg)
   local snapshot = nil
   if type(cfg) == "table" then
     snapshot = {}
     for key, value in pairs(cfg) do snapshot[key] = value end
   end
-  local load = { cfg = snapshot, packs = {}, selectedId = M.selectedId(session) }
+  local load = { cfg = snapshot, packs = {}, byId = {} }
   local FlightLog = requireModule("lib/flight_log.lua")
   if type(FlightLog) ~= "table" or type(FlightLog.newRegistryReader) ~= "function" then return load end
   load.flightLog = FlightLog
@@ -114,7 +113,7 @@ function M.loadStep(load, maxLines)
       }
       pack.targetProfile = M.targetProfile(pack, load.cfg)
       packs[#packs + 1] = pack
-      if pack.id == load.selectedId then load.selected = pack end
+      load.byId[pack.id] = pack
     end
   end
   return reader.ended == true

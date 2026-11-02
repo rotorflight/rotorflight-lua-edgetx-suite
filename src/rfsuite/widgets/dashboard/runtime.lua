@@ -1805,12 +1805,10 @@ local function batteryPickLoadStep(self)
   local list = load.packs
   pick.candidates = list
 
-  -- The load noted the pack chosen when it started; the list is searched only for a choice that
-  -- has changed since.
+  -- Looked up in the load's own index rather than searched for in the list.
   local id = BatteryPick.selectedId(session)
   pick.selectedId = id
-  local entry = load.selected
-  if id ~= load.selectedId then entry = batteryPickEntry(pick, id) end
+  local entry = id ~= nil and load.byId[id] or nil
   pick.selectedName = entry and entry.name or nil
 
   -- Not raised while armed: a model armed before this step ran has already passed the arm edge
@@ -5526,10 +5524,11 @@ function Runtime.new(zone, options)
     -- past the load is three table reads. Both are one-shot jobs (see the dispatcher): neither is
     -- armed on `built`, and each clears what arms it before it can raise. A load that has taken
     -- its first step finishes before a pick is applied: the pick looks its pack up in the list
-    -- the load publishes, and would otherwise find no pack and write no profile.
+    -- the load publishes, and would otherwise find no pack and write no profile. A load that is
+    -- held but latched (a step stopped after it was handed back) holds no pick up.
     if self._job == nil then
       local pick = self.state.batteryPick
-      if self._batteryPickRequest ~= nil and pick.load == nil then
+      if self._batteryPickRequest ~= nil and (pick.load == nil or pick.loaded == true) then
         self._job = { kind = "battery_pick_apply", step = batteryPickApplyStep, oneShot = true }
       elseif pick.loaded ~= true and self.state.tasksDone == true then
         self._job = { kind = "battery_pick_load", step = batteryPickLoadStep, oneShot = true }

@@ -221,17 +221,18 @@ if type(BatteryPick.newLoad) == "function" then
   check("a configuration changed during the load does not reach the packs after the change",
     describe(load.packs) == expected(), describe(load.packs))
 
-  -- The pack chosen when the load started is noted on the way, so the caller need not search.
-  local chosen = BatteryPick.newLoad({ modelName = "goblin", flightlog = { batteryId = "6" } }, CFG)
-  repeat until BatteryPick.loadStep(chosen)
-  check("the pack chosen at the start is noted by the load", chosen.selected ~= nil and chosen.selected.id == "6"
-    and chosen.selected == chosen.packs[5], chosen.selected and chosen.selected.id)
-  local gone = BatteryPick.newLoad({ modelName = "goblin", flightlog = { batteryId = "4" } }, CFG)
-  repeat until BatteryPick.loadStep(gone)
-  check("a chosen pack the model is not offered is not noted", gone.selected == nil and gone.selectedId == "4")
+  -- The load indexes its packs by id, so the caller looks a pack up instead of searching the list.
+  local indexed = BatteryPick.newLoad(SESSION, CFG)
+  repeat until BatteryPick.loadStep(indexed)
+  local all = true
+  for k = 1, #indexed.packs do
+    if indexed.byId[indexed.packs[k].id] ~= indexed.packs[k] then all = false end
+  end
+  check("every pack of the load is found by its id", all and indexed.byId["6"] == indexed.packs[5])
+  check("a pack the model is not offered is not in the index", indexed.byId["4"] == nil)
 else
   check("a configuration changed during the load does not reach the packs after the change", false, "no stepped load")
-  check("the pack chosen at the start is noted by the load", false, "no stepped load")
+  check("every pack of the load is found by its id", false, "no stepped load")
 end
 
 local registry = FlightLog.loadRegistry()

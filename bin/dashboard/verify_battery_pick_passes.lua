@@ -190,24 +190,44 @@ do
   end)
   local pick = widget.state.batteryPick
   check("a pick requested mid-load waits for the list", requested and not applyBeforeLoadEnd)
-  check("a pick requested mid-load finds its pack and reaches the profile step",
-    pick.selectedId == "25" and pick.selectedName == "Pack 25" and pick.applied ~= nil,
+  check("a pick requested mid-load finds its pack and queues the profile write",
+    pick.selectedId == "25" and pick.selectedName == "Pack 25" and pick.applied == "queued",
     string.format("selected=%s name=%s applied=%s", tostring(pick.selectedId), tostring(pick.selectedName),
       tostring(pick.applied)))
 end
 
--- Two thousand one-field lines, the last one the pack chosen before: the step that publishes the
--- list does not search all of it for the chosen pack.
+-- A step stopped by the instruction limit after it handed the load back leaves the load held and
+-- the latch raised. That load is not finished by anything, so it must not hold a pick up either.
+do
+  local widget = newWidget(PACKS)
+  local requested = false
+  drive(widget, PASSES, function(w, _, s)
+    s.expect = PACKS
+    local pick = w.state.batteryPick
+    if not requested and pick.load ~= nil then
+      requested = true
+      pick.loaded = true
+      w._batteryPickRequest = "25"
+    end
+  end)
+  local pick = widget.state.batteryPick
+  check("a pick is applied while a held load is latched", requested and widget._batteryPickRequest == nil
+    and pick.selectedId == "25", string.format("requested=%s request=%s selected=%s", tostring(requested),
+      tostring(widget._batteryPickRequest), tostring(pick.selectedId)))
+end
+
+-- Two thousand one-field lines, and the chosen pack changed from the first to the last while the
+-- load is part-way: the step that publishes the list does not search all of it for the choice.
 do
   local MANY = 2000
   local widget = newWidget(MANY, function(n) return string.format("id=%d\n", n) end)
   local seen = drive(widget, 1400, function(_, _, s)
     s.expect = MANY
-    _G.rfsuite.session.flightlog = { batteryId = tostring(MANY) }
+    _G.rfsuite.session.flightlog = { batteryId = s.loads < 5 and "1" or tostring(MANY) }
   end)
   local pick = widget.state.batteryPick
-  check(string.format("%d packs, the last one chosen: no load pass costs more than %d instructions", MANY, PASS_LIMIT),
-    seen.worst <= PASS_LIMIT and #pick.candidates == MANY and pick.selectedId == tostring(MANY),
+  check(string.format("%d packs, the choice changed mid-load: no load pass costs more than %d instructions", MANY,
+    PASS_LIMIT), seen.worst <= PASS_LIMIT and #pick.candidates == MANY and pick.selectedId == tostring(MANY),
     string.format("worst load pass %d over %d load passes, %d packs, selected %s", seen.worst, seen.loads,
       #pick.candidates, tostring(pick.selectedId)))
 end
