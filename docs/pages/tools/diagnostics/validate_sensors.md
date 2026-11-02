@@ -52,5 +52,8 @@ Three points worth knowing before you read a row:
   which is their ordinary state, since the pair only moves when an adjustment fires; and
   `INVALID` as soon as one of the two is missing from the radio, because waiting will not
   produce it and discovery will.
+- **The rows keep themselves current while the page is open.** Each status is checked again
+  about every second, so a sensor that starts or stops arriving changes its row without
+  leaving the page (within the radio's own timeout above).
 
-*Documented against RFSuite 0.1.7.*
+*Documented against RFSuite 0.2.2.*
