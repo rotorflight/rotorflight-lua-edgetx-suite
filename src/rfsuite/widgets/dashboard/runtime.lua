@@ -4401,105 +4401,13 @@ function Runtime.new(zone, options)
     logVoltageThemeDecision(self, "normalize", cells, currentConfig.v_min, currentConfig.v_max, nextConfig.v_min, nextConfig.v_max)
   end
 
-  local function reloadActiveTheme(self)
-    -- A reload carried over from a telemetry read pass is answered by this one, whoever called
-    -- it. Cleared first, so a load that raises is retried by the same tests as it was before.
-    self._themeReloadPending = nil
-    -- The wait for this link's UID read (see the pass below) holds for every caller, the
-    -- constructor at the end of Runtime.new included: EdgeTX builds every dashboard again when it
-    -- loads the screens' layout again -- a model selected, the screens edited -- and the link and
-    -- the MSP runtime, which all dashboards on the radio share, carry on through that. An instance
-    -- built while the read has no outcome resolves nothing; it has no theme, and its first pass
-    -- takes the reload through the same wait. Below the line above, so a carried reload does not
-    -- hold the splash back. Such an instance has not loaded a theme yet, so its first load is
-    -- marked as a change of folder (`false`): the release below then drops what the widget it
-    -- replaced held and no widget uses any more, as the constructor's own load would have led to.
-    if MspRuntime and type(MspRuntime.isFblConnected) == "function"
-      and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
-      local msp = MspRuntime.getState()
-      if type(msp) == "table" and msp.uidReadSettled == false then
-        self.theme = nil
-        if self._themeFolder == nil then self._themeFolder = false end
-        return
-      end
-    end
-    local modelPrefs = self.modelPreferences or (type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.session) == "table" and _G.rfsuite.session.modelPreferences) or nil
-    local dashboardPrefs = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
-    local selectedTheme = themePathFor(self, dashboardPrefs, modelPrefs, self.flightMode)
-    -- The same model that supplies the offline theme supplies its settings. The memo is already
-    -- retained by noteModelTheme and is cleared on reconnect; it never enters the new session.
-    if themePrefs(modelPrefs) == nil and (self.flightMode == "postflight" or self.flightMode == "offline") then
-      modelPrefs = self._modelThemePrefs
-    end
-    local nextConfig = {}
-    if self.dashboardLib and self.dashboardLib.getThemeConfig then
-      nextConfig = self.dashboardLib.getThemeConfig(self.preferences, selectedTheme, {}, modelPrefs)
-    end
-
-    local hasCustomVoltage = (nextConfig.v_min ~= nil or nextConfig.v_max ~= nil)
-    nextConfig.v_min = tonumber(nextConfig.v_min) or 18.0
-    nextConfig.v_max = tonumber(nextConfig.v_max) or 25.2
-    nextConfig._customVoltage = hasCustomVoltage
-
-    self.themePath = selectedTheme
-    -- Before the new theme loads, so the one being left is not held beside it for longer than
-    -- this widget still has it on screen. Only on a change of folder: a phase change within one
-    -- theme, or a settings save, releases nothing, and pays one string comparison.
-    if selectedTheme ~= self._themeFolderPath then
-      local folder = themeFolderKey(selectedTheme)
-      if self._themeFolder ~= nil and folder ~= self._themeFolder then releaseUnusedThemes(self) end
-      self._themeFolder, self._themeFolderPath = folder, selectedTheme
-    end
-    self.state.themeConfig = nextConfig
-    updateVoltageThemeConfig(self)
-    -- The announcements' levels, for a theme to colour the same readings by. Resolved here, with
-    -- the theme configuration and before the theme loads, because a box reads a level once when it
-    -- is built: saving the announcement settings reloads the preferences, which tears the theme
-    -- down and brings the next pass here. Read-only for the theme; a fresh table per reload.
-    if DashboardAudio and type(DashboardAudio.alertLevels) == "function" then
-      self.state.alerts = DashboardAudio.alertLevels(self.preferences and self.preferences.audio_events,
-        self.audioState)
-    end
-    -- The phase key, and the key every other phase resolves to for this theme, are kept so that
-    -- the pass below can compare MODULES rather than phase names: a phase change that resolves
-    -- to the module already on screen is not a reason to tear the scene down.
-    local declares
-    self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
-    self.themeStateKeys = themeStateKeys(declares)
+  -- The second half of a theme load: the pilot's field choices on the module just loaded, the
+  -- readings its boxes and declarations name, and the first snapshot of them. A switch of theme in
+  -- the background work runs it on the logic tick after the module's own (reloadActiveTheme): the
+  -- two halves are the largest pieces of a theme switch, and in one widget call, beside the connect
+  -- chain that brings a model's own theme in, they come near the instruction limit.
+  local function finishThemeLoad(self, nextConfig)
     applyFieldChoices(self.theme, self.themeStateKey or self.flightMode, nextConfig)
-
-    -- A theme of the pilot's own may read the flight record under the names it carried before it
-    -- moved to the session table. The mapping goes on HERE -- with the theme, in the same call,
-    -- ahead of the build below that is the first thing to read it -- rather than on a later pass,
-    -- where that first build would see nothing. A radio running the shipped themes never reaches
-    -- this: the mapping answers every read of a key the state table does not hold, which is not
-    -- free, and no shipped theme asks for one.
-    if not self.flightCompat and parseThemePath(selectedTheme) ~= "system" then
-      self.flightCompat = true
-      buildCompatNames()
-      setmetatable(self.state, stateCompatMeta)
-    end
-
-    self.built = false
-    self.renderKey = nil
-    -- The scene is to be keyed on the module this call has just loaded. refresh() copies the phase
-    -- onto the state only at the top of a pass, and the 2 Hz throttle may hand back the key of the
-    -- previous module; a scene queued under that key is built again once the throttle computes
-    -- the new one. So the two fields refresh() copies are written here too, and the throttle is
-    -- opened, which makes the next key computed the new module's. The cached key is left alone:
-    -- the throttle overwrites it, and a surface that takes the throttle first falls back to it.
-    self.state.flightMode = self.flightMode
-    self.state.themePhase = self.themeStateKey or self.flightMode
-    self._lastUIRefresh = 0
-    -- A pending job may belong to the theme just torn down; drop it. The next STATE
-    -- pass re-detects and enqueues a build against the new theme, in a pass of its own.
-    self._job = nil
-    -- And every job gets its tries back: what raised may have been the theme just replaced.
-    self._jobFaults = {}
-
-    logGv("reloadActiveTheme: flightMode=%s, selectedTheme=%s, loadedTheme=%s, v_min=%.1f, v_max=%.1f, customV=%s",
-      tostring(self.flightMode), tostring(selectedTheme), tostring(self.theme ~= nil),
-      nextConfig.v_min, nextConfig.v_max, tostring(hasCustomVoltage))
 
     local sources = {}
     if self.theme then
@@ -4572,6 +4480,119 @@ function Runtime.new(zone, options)
     if DerivedSnapshot and type(DerivedSnapshot.build) == "function" then
       DerivedSnapshot.build(self.state, self.boxSources)
     end
+  end
+
+  local function reloadActiveTheme(self, staged)
+    -- A reload carried over from a telemetry read pass is answered by this one, whoever called
+    -- it. Cleared first, so a load that raises is retried by the same tests as it was before. So is
+    -- the second half of a staged load: this load replaces the module it was for.
+    self._themeReloadPending = nil
+    self._themeSourcesPending = nil
+    -- The wait for this link's UID read (see the pass below) holds for every caller, the
+    -- constructor at the end of Runtime.new included: EdgeTX builds every dashboard again when it
+    -- loads the screens' layout again -- a model selected, the screens edited -- and the link and
+    -- the MSP runtime, which all dashboards on the radio share, carry on through that. An instance
+    -- built while the read has no outcome resolves nothing; it has no theme, and its first pass
+    -- takes the reload through the same wait. Below the line above, so a carried reload does not
+    -- hold the splash back. Such an instance has not loaded a theme yet, so its first load is
+    -- marked as a change of folder (`false`): the release below then drops what the widget it
+    -- replaced held and no widget uses any more, as the constructor's own load would have led to.
+    if MspRuntime and type(MspRuntime.isFblConnected) == "function"
+      and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+      local msp = MspRuntime.getState()
+      if type(msp) == "table" and msp.uidReadSettled == false then
+        self.theme = nil
+        if self._themeFolder == nil then self._themeFolder = false end
+        return
+      end
+    end
+    local modelPrefs = self.modelPreferences or (type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.session) == "table" and _G.rfsuite.session.modelPreferences) or nil
+    local dashboardPrefs = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
+    local selectedTheme = themePathFor(self, dashboardPrefs, modelPrefs, self.flightMode)
+    -- The same model that supplies the offline theme supplies its settings. The memo is already
+    -- retained by noteModelTheme and is cleared on reconnect; it never enters the new session.
+    if themePrefs(modelPrefs) == nil and (self.flightMode == "postflight" or self.flightMode == "offline") then
+      modelPrefs = self._modelThemePrefs
+    end
+    local nextConfig = {}
+    if self.dashboardLib and self.dashboardLib.getThemeConfig then
+      nextConfig = self.dashboardLib.getThemeConfig(self.preferences, selectedTheme, {}, modelPrefs)
+    end
+
+    local hasCustomVoltage = (nextConfig.v_min ~= nil or nextConfig.v_max ~= nil)
+    nextConfig.v_min = tonumber(nextConfig.v_min) or 18.0
+    nextConfig.v_max = tonumber(nextConfig.v_max) or 25.2
+    nextConfig._customVoltage = hasCustomVoltage
+
+    self.themePath = selectedTheme
+    -- Before the new theme loads, so the one being left is not held beside it for longer than
+    -- this widget still has it on screen. Only on a change of folder: a phase change within one
+    -- theme, or a settings save, releases nothing, and pays one string comparison.
+    local switching = false
+    if selectedTheme ~= self._themeFolderPath then
+      local folder = themeFolderKey(selectedTheme)
+      switching = folder ~= self._themeFolder
+      if self._themeFolder ~= nil and switching then releaseUnusedThemes(self) end
+      self._themeFolder, self._themeFolderPath = folder, selectedTheme
+    end
+    self.state.themeConfig = nextConfig
+    updateVoltageThemeConfig(self)
+    -- The announcements' levels, for a theme to colour the same readings by. Resolved here, with
+    -- the theme configuration and before the theme loads, because a box reads a level once when it
+    -- is built: saving the announcement settings reloads the preferences, which tears the theme
+    -- down and brings the next pass here. Read-only for the theme; a fresh table per reload.
+    if DashboardAudio and type(DashboardAudio.alertLevels) == "function" then
+      self.state.alerts = DashboardAudio.alertLevels(self.preferences and self.preferences.audio_events,
+        self.audioState)
+    end
+    -- The phase key, and the key every other phase resolves to for this theme, are kept so that
+    -- the pass below can compare MODULES rather than phase names: a phase change that resolves
+    -- to the module already on screen is not a reason to tear the scene down.
+    local declares
+    self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
+    self.themeStateKeys = themeStateKeys(declares)
+
+    -- A theme of the pilot's own may read the flight record under the names it carried before it
+    -- moved to the session table. The mapping goes on HERE -- with the theme, in the same call,
+    -- ahead of the build below that is the first thing to read it -- rather than on a later pass,
+    -- where that first build would see nothing. A radio running the shipped themes never reaches
+    -- this: the mapping answers every read of a key the state table does not hold, which is not
+    -- free, and no shipped theme asks for one.
+    if not self.flightCompat and parseThemePath(selectedTheme) ~= "system" then
+      self.flightCompat = true
+      buildCompatNames()
+      setmetatable(self.state, stateCompatMeta)
+    end
+
+    self.built = false
+    self.renderKey = nil
+    -- The scene is to be keyed on the module this call has just loaded. refresh() copies the phase
+    -- onto the state only at the top of a pass, and the 2 Hz throttle may hand back the key of the
+    -- previous module; a scene queued under that key is built again once the throttle computes
+    -- the new one. So the two fields refresh() copies are written here too, and the throttle is
+    -- opened, which makes the next key computed the new module's. The cached key is left alone:
+    -- the throttle overwrites it, and a surface that takes the throttle first falls back to it.
+    self.state.flightMode = self.flightMode
+    self.state.themePhase = self.themeStateKey or self.flightMode
+    self._lastUIRefresh = 0
+    -- A pending job may belong to the theme just torn down; drop it. The next STATE
+    -- pass re-detects and enqueues a build against the new theme, in a pass of its own.
+    self._job = nil
+    -- And every job gets its tries back: what raised may have been the theme just replaced.
+    self._jobFaults = {}
+
+    logGv("reloadActiveTheme: flightMode=%s, selectedTheme=%s, loadedTheme=%s, v_min=%.1f, v_max=%.1f, customV=%s",
+      tostring(self.flightMode), tostring(selectedTheme), tostring(self.theme ~= nil),
+      nextConfig.v_min, nextConfig.v_max, tostring(hasCustomVoltage))
+
+    -- Staged where the theme changes folder, which is where the shared modules of the new theme
+    -- are read as well: the rest waits for the next logic tick, and refresh() queues no scene
+    -- before it. A phase change within one theme loads its phase module alone, and runs through.
+    if staged and switching then
+      self._themeSourcesPending = nextConfig
+      return
+    end
+    finishThemeLoad(self, nextConfig)
   end
 
   local function performBackgroundWork(self, isBackground)
@@ -4861,7 +4882,7 @@ function Runtime.new(zone, options)
     -- it already has on screen, and a rebuild there would be a torn-down LVGL tree for no
     -- visible difference -- once per arm, and again on every link transition after a flight.
     local modeChanged = (nextMode ~= self.flightMode)
-    local wantReload = self._themeReloadPending == true
+    local wantReload = self._themeReloadPending ~= nil
       or selectedTheme ~= self.themePath
       or modelPrefsChanged
       or not self.theme
@@ -4891,16 +4912,30 @@ function Runtime.new(zone, options)
     -- next tick is normally not a read pass (the read runs every TELEMETRY_READ_SECONDS, the tick
     -- every LOGIC_TICK_SECONDS), but where passes come further apart than the read interval every
     -- tick reads, and a carried reload then runs anyway rather than waiting for ever.
-    if wantReload and readThisPass and self._themeReloadPending ~= true then
-      self._themeReloadPending = true
+    --
+    -- Nor does it share a pass with the read of the model's preferences that asks for it: at
+    -- connect the board's UID answer brings them in inside the MSP tick above, and a model with a
+    -- theme of its own then has its preferences read, the radio's theme released and the model's
+    -- loaded in one widget call. Carried the same way, once, and marked as such, so that the tick it
+    -- is carried to may still carry it off a read pass.
+    if wantReload and ((readThisPass and self._themeReloadPending ~= true)
+        or (modelPrefsChanged and self._themeReloadPending == nil)) then
+      self._themeReloadPending = (readThisPass and self._themeReloadPending ~= true) or "preferences"
       -- As the reload itself would: a job already queued belongs to the theme being replaced. In
       -- a foreground pass none is (a job pass never reaches this function), but widget.background
       -- runs this work whatever is queued.
       self._job = nil
     else
       self.flightMode = nextMode
+      -- A switch of theme is staged over two logic ticks: the theme's module on this one, its field
+      -- choices, readings and first snapshot on the next (finishThemeLoad). A reload that falls
+      -- due before the second half has run replaces it.
       if wantReload then
-        reloadActiveTheme(self)
+        reloadActiveTheme(self, true)
+      elseif self._themeSourcesPending then
+        local config = self._themeSourcesPending
+        self._themeSourcesPending = nil
+        finishThemeLoad(self, config)
       end
     end
     
@@ -5337,8 +5372,9 @@ function Runtime.new(zone, options)
 
     -- A theme reload that fell on a read pass waits for the next logic tick; the deferral itself
     -- is in performBackgroundWork. Queuing a scene job here would build against the theme that
-    -- reload is about to replace, and run ahead of it. widget.background queues no scene jobs.
-    if self._themeReloadPending and not tuningMode then
+    -- reload is about to replace, and run ahead of it. widget.background queues no scene jobs. The
+    -- same holds between the two halves of a staged load: the module is in, its readings are not.
+    if (self._themeReloadPending or self._themeSourcesPending) and not tuningMode then
       self._passEndAt = nowSeconds()
       return
     end
