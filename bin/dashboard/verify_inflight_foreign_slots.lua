@@ -117,6 +117,9 @@ do
   end
   check(refuses(continuous(0, 5, 1715)),
     "a continuous slot on one channel whose margin (20 us) reaches into its enable window refuses the set")
+  check(ignored(continuous(0, 6, 1715)),
+    "a continuous slot on one channel whose margin (16 us) ends exactly at its enable window refuses nothing"
+      .. " (the firmware's lower bound is exclusive, so 1699 is not inside it)")
   check(ignored(continuous(0, 1000, 1715)),
     "control: the same continuous slot with a margin of 5 us stays clear of its enable window and refuses nothing")
   check(ignored(continuous(7, 7, 1400)),

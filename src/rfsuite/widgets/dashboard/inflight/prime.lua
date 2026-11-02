@@ -422,7 +422,10 @@ local function sameChannelSteps(record)
     low, high = Functions.windowBounds(record.adjRange1)
     low2, high2 = Functions.windowBounds(record.adjRange2)
   else
+    -- Here the firmware's exclusive lower bound is taken as it stands: the test asks whether one
+    -- whole channel value lies in both windows, and the first one past that bound is one higher.
     low, high = continuousWindow(record)
+    if low ~= nil then low = low + 1 end
   end
   return (low ~= nil and low < enableHigh and enableLow < high)
     or (low2 ~= nil and low2 < enableHigh and enableLow < high2)
