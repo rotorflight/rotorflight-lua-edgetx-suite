@@ -31,18 +31,22 @@ local function check(ok, label, detail)
   end
 end
 
+-- A function's own upvalues first, then the functions it holds, so a same-named local of a
+-- nested closure cannot shadow the one the function itself uses.
 local function find(fn, wanted, seen)
   seen = seen or {}
   if seen[fn] then return nil end
   seen[fn] = true
+  local nested = {}
   for i = 1, 200 do
     local name, value = debug.getupvalue(fn, i)
     if not name then break end
     if name == wanted then return value end
-    if type(value) == "function" then
-      local found = find(value, wanted, seen)
-      if found ~= nil then return found end
-    end
+    if type(value) == "function" then nested[#nested + 1] = value end
+  end
+  for i = 1, #nested do
+    local found = find(nested[i], wanted, seen)
+    if found ~= nil then return found end
   end
 end
 
@@ -69,6 +73,15 @@ local function shows(Stubs, needle)
   return false
 end
 
+-- A string that is exactly one of the strings in the trees (a label's whole text).
+local function showsExactly(Stubs, text)
+  local all = strings(Stubs.lvgl.trees, {})
+  for i = 1, #all do
+    if all[i] == text then return true end
+  end
+  return false
+end
+
 local Stubs = assert(loadfile(root .. "/bin/accounting/stubs/edgetx.lua"))()
 local FC = assert(loadfile(root .. "/bin/accounting/stubs/fc.lua"))()
 Stubs.clearCard()
@@ -85,6 +98,15 @@ local buildUI = assert(M.buildUI, "home buildUI missing")
 local pipeline = assert(find(Home.run, "SavePipeline"), "home save pipeline missing")
 state.initialLoad = false
 
+-- The notice asks the tool's translator for its text on every build. A distinctive answer for the
+-- save text proves that the message on screen is the translated one, not a fallback literal.
+local SAVE_TEXT = "<translated save text>"
+local translator = assert(state.i18n and state.i18n.t, "home translator missing")
+state.i18n = { t = function(key, ...)
+  if key == "app.saving_settings" then return SAVE_TEXT end
+  return translator(key, ...)
+end }
+
 local LABEL = "MSP_SET_PID_PROFILE"
 local current = nil
 pipeline.getProgress = function() return current end
@@ -100,13 +122,11 @@ end
 draw({ phase = "write", label = LABEL, done = 1, total = 3, fraction = 1 / 3 })
 check(#Stubs.lvgl.trees > 0, "write phase builds a notice")
 check(not shows(Stubs, LABEL), "write phase keeps the step label off the screen", LABEL)
-check(shows(Stubs, "Applying settings") or shows(Stubs, "app.saving_settings"),
-  "write phase shows the translated save text")
+check(showsExactly(Stubs, SAVE_TEXT), "write phase shows the translated save text")
 
--- The EEPROM commit: no label, the same text.
-draw({ phase = "commit", label = nil, done = 3, total = 3, fraction = 1 })
-check(shows(Stubs, "Applying settings") or shows(Stubs, "app.saving_settings"),
-  "commit phase shows the translated save text")
+-- The EEPROM commit (the pipeline reports no label there): the same text.
+draw({ phase = "commit", label = nil, done = 2, total = 3, fraction = 2 / 3 })
+check(showsExactly(Stubs, SAVE_TEXT), "commit phase shows the translated save text")
 
 -- Control: a phase with a text of its own still shows it, so the trees are being read.
 draw({ phase = "reboot", label = nil, done = 3, total = 3, fraction = 1, indeterminate = true })
