@@ -1,0 +1,3 @@
+- **A module that does not load is no longer asked for again on every pass (`tasks/events/telemetry_bg/drain.lua`, `tasks/msp/runtime.lua`)**:
+  - The custom-telemetry drain asks for its decoder table (`lib/rf2tlm_sensors.lua`) and the CRSF module (`lib/crsf.lua`) once. A load that fails leaves the drain idle in that Lua state until it restarts, instead of going back to the card for the file on every wakeup, ten times a second (#477).
+  - The API version read waits one second before asking again for one of its modules that did not load, instead of asking on every tick. The read stays owed, so a load that fails a few times and then succeeds still connects, about one second later per failed attempt (#471).
