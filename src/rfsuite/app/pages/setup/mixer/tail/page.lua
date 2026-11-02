@@ -16,7 +16,17 @@ local MspRuntime = nil
 local MixerConfigApi = nil
 local MixerInputYawApi = nil
 local LoadingOverlay = nil
+local LiveOverride = nil
 local t = nil
+
+local MSP_SET_MIXER_OVERRIDE = 191
+local MIXER_OVERRIDE_OFF = 2501
+local MIXER_OVERRIDE_ON = 0
+-- MIXER_IN_STABILIZED_YAW: only the tail is held at centre while its trim is set.
+local OVERRIDE_INPUTS = { 3 }
+-- The trim goes out once it has been left unchanged this long, so the tail moves to the value the
+-- pilot stopped at rather than through every step on the way.
+local LIVE_SETTLE = 0.5
 
 
 local function u16_to_s16(u)
@@ -63,6 +73,10 @@ local ui = {
     yaw_ccw_limit = 1250
   },
   apiData = {},
+  -- The override, from app/pages/lib/live_override.lua, created the first time * is pressed in a
+  -- visit: it holds what the board has as far as this page knows (the read, or the last save that
+  -- reached EEPROM) and what went out live. A visit that never presses * never loads it.
+  override = nil,
   runtime = {
     readPending = false,
     requestRebuild = nil
@@ -170,6 +184,112 @@ local function copyRecord(record)
   return copy
 end
 
+local function getQueue()
+  if not MspRuntime or type(MspRuntime.getState) ~= "function" then return nil end
+  local mspState = MspRuntime.getState()
+  local queue = mspState and mspState.queue
+  if not queue or type(queue.add) ~= "function" then return nil end
+  return queue
+end
+
+-- The one value the live loop sends.
+local function trimValues()
+  return { tail_center_trim = ui.config.tail_center_trim or 0 }
+end
+
+local function overrideActive()
+  return ui.override ~= nil and ui.override.active == true
+end
+
+-- A save is still writing: a step or the EEPROM commit is ahead. The pipeline queues each step from
+-- the previous reply, so a rollback queued now would land between them and EEPROM could keep the
+-- old value while the save reports the new one. A save that needs no restart lets the page be left
+-- meanwhile (SavePipeline.blocksNavigation()). Asked of the pipeline rather than kept in a flag:
+-- a dismissed save's outcome is delivered late, and a flag cleared there could stay set.
+local function saveWriting()
+  if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
+  if not SavePipeline or type(SavePipeline.getProgress) ~= "function" then return false end
+  local progress = SavePipeline.getProgress()
+  local phases = SavePipeline.PHASE or {}
+  return type(progress) == "table"
+    and (progress.phase == (phases.WRITE or "write") or progress.phase == (phases.COMMIT or "commit"))
+end
+
+local function ensureOverride()
+  if ui.override then return ui.override end
+  local read = ui.apiData.MIXER_CONFIG
+  if type(read) ~= "table" then return nil end
+  if not LiveOverride then LiveOverride = loadModule("app/pages/lib/live_override.lua") end
+  if not LiveOverride then return nil end
+  ui.override = LiveOverride.new({
+    command = MSP_SET_MIXER_OVERRIDE,
+    inputs = OVERRIDE_INPUTS,
+    on = MIXER_OVERRIDE_ON,
+    off = MIXER_OVERRIDE_OFF,
+    cadence = "settle",
+    interval = LIVE_SETTLE
+  })
+  -- The record read stays as read (writes go out as copies), so it is what the board holds.
+  ui.override:snapshot(read, { tail_center_trim = read.tail_center_trim or 0 })
+  return ui.override
+end
+
+-- The override is offered for a variable-pitch tail only, as the board has it and as the page shows
+-- it, with nothing else edited. A disarmed flight controller drives motors from motor override
+-- alone (motorUpdate()), so a motorised tail would not move; and the live write carries the whole
+-- MIXER_CONFIG record, so an unsaved Tail Mode would reach the board's RAM without the restart a
+-- mode change needs.
+local function canStartOverride()
+  local read = ui.apiData.MIXER_CONFIG
+  return M.canSave() and type(read) == "table" and read.tail_rotor_mode == 0
+    and ui.config.tail_rotor_mode == 0 and not ui.dirty
+end
+
+-- One live write: the record read, with the trim on screen. The board applies it at once
+-- (mixerInitConfig() ends the firmware's MSP_SET_MIXER_CONFIG handler) and keeps it in RAM only
+-- until Save writes it to EEPROM.
+local function sendLive(values)
+  local queue = getQueue()
+  if not queue or not MixerConfigApi then return false end
+  if type(queue.isProcessed) == "function" and not queue:isProcessed() then return false end
+  local read = ui.apiData.MIXER_CONFIG
+  if not M.canSave() or type(read) ~= "table" then return false end
+  local record = copyRecord(read)
+  record.tail_center_trim = values.tail_center_trim
+  local override = ui.override
+  queue:add({
+    command = MixerConfigApi.writeCommand,
+    payload = MixerConfigApi.buildWritePayload(record),
+    isWrite = true,
+    processReply = function() end,
+    errorHandler = function(_, reason) if override then override:writeFailed(reason) end end
+  })
+  return true
+end
+
+--- Leaving without Save, or Reload: a trim sent live goes back to the board's record, on screen and
+--- in the session copy. The payload is built here, not in a reply, because onClose drops this
+--- page's modules right after.
+local function rollbackLiveChanges()
+  if not ui.override or not MixerConfigApi then return false end
+  local queue = getQueue()
+  if not queue then return false end
+  local orig = ui.override:rollback(function(record)
+    queue:add({
+      command = MixerConfigApi.writeCommand,
+      payload = MixerConfigApi.buildWritePayload(record),
+      isWrite = true,
+      processReply = function() end
+    })
+    return true
+  end)
+  if not orig then return false end
+  ui.apiData.MIXER_CONFIG = copyRecord(orig.record)
+  ui.config.tail_center_trim = orig.values.tail_center_trim
+  saveToSession()
+  return true
+end
+
 local function queueTailRead(isAutoReload)
   if ui.runtime.readPending then return false, "read_pending" end
   ui.runtime.readComplete = false
@@ -230,6 +350,9 @@ local function queueTailRead(isAutoReload)
           end
 
           saveToSession()
+
+          -- What the board holds as of this read: leaving without Save puts it back.
+          if ui.override then ui.override:snapshot(ui.apiData.MIXER_CONFIG, trimValues()) end
 
           ui.runtime.readPending = false
           ui.runtime.readComplete = true
@@ -299,7 +422,10 @@ local function queueTailWrite()
   writeYaw.min_stabilized_yaw = s16_to_u16(-math.abs(ui.config.yaw_cw_limit or 0))
   writeYaw.max_stabilized_yaw = s16_to_u16(math.abs(ui.config.yaw_ccw_limit or 0))
 
-  return SavePipeline.start({
+  local values = trimValues()
+  local override = ui.override
+
+  local ok, reason = SavePipeline.start({
     pageId = "setup_mixer_tail",
     steps = {
       {
@@ -314,9 +440,12 @@ local function queueTailWrite()
       }
     },
     reboot = tailModeChanged,
-    invalidateSessionKeys = { "setup_mixer_tail" },
+    -- The Trims page shows the same centre trim from its own copy.
+    invalidateSessionKeys = { "setup_mixer_tail", "setup_mixer_trims" },
     onSaved = function()
       ui.dirty = false
+      -- Stored: from now on this is what leaving without Save puts back.
+      if override then override:stored(writeConfig, values) end
     end,
     onDone = function(result)
       if result.status == "done" then
@@ -331,6 +460,9 @@ local function queueTailWrite()
       end
     end
   })
+  -- The save sends what is on screen, so the live loop has nothing to send until it changes.
+  if ok and override then override:markSent(values) end
+  return ok, reason
 end
 
 local function buildSessionSignature()
@@ -369,12 +501,20 @@ function M.wakeup(ctx)
     ui.runtime.lastSessionSignature = signature
     queueTailRead(false)
   end
+
+  if overrideActive() and ui.dirty then
+    ui.override:tick(trimValues(), sendLive)
+  end
 end
 
 function M.getHeaderActions()
   return {
     save = true,
     reload = true,
+    -- Offered for a variable-pitch tail with nothing else edited (canStartOverride above);
+    -- switching it off is always offered.
+    star = overrideActive() or canStartOverride(),
+    help = true,
     menu = true
   }
 end
@@ -411,6 +551,24 @@ function M.build(ctx)
   end
 
   local displayTitle = ui.baseTitle or getBaseTitle()
+  -- While the override holds the tail, only the trim can be edited: the rest stays as read, so the
+  -- live write -- the whole record -- changes nothing but the trim. The other settings are drawn as
+  -- text, not as disabled controls: a disabled control still takes the focus (the first control
+  -- does after every rebuild, and the rotary reaches the others), and one holding the focus keeps
+  -- EXIT from the tool, so the page could not be left until the rotary was turned.
+  local locked = overrideActive()
+  if locked then
+    displayTitle = displayTitle .. " *"
+  end
+  -- The header reads its actions when the page is built. The first edit takes the * away, so the
+  -- page is built once more when that happens rather than leaving a * that would do nothing.
+  ui.runtime.starOffered = canStartOverride()
+  local function afterEdit()
+    if ui.runtime and ui.runtime.starOffered and not canStartOverride()
+        and type(ui.runtime.requestRebuild) == "function" then
+      ui.runtime.requestRebuild()
+    end
+  end
 
   if type(ui.runtime) == "table" and type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(displayTitle, M.getHeaderActions())
@@ -424,47 +582,92 @@ function M.build(ctx)
 
   cursorY = cursorY + 10
 
-  -- 1) Tail Mode
-  local tailModeChoices = {
-    { value = 0, label = pageText(i18n, "tbl_tail_variable_pitch", "Variable Pitch") },
-    { value = 1, label = pageText(i18n, "tbl_tail_motororized_tail", "Motorized Tail") },
-    { value = 2, label = pageText(i18n, "tbl_tail_bidirectional", "Bidirectional Motor") }
-  }
-  cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
-    pageText(i18n, "tail_rotor_mode", "Tail Mode"),
-    tailModeChoices,
-    ui.config.tail_rotor_mode,
-    function(newVal)
-      if ui.config.tail_rotor_mode ~= newVal then
-        ui.config.tail_rotor_mode = newVal
-        -- A tail mode change starts Yaw Calibration from the value that mode is set up with, as
-        -- the Rotorflight Configurator does on the same change: 100 % for a motorised or
-        -- bidirectional tail, 25 % for variable pitch. The direction is kept.
-        ui.config.yaw_calibration = (newVal >= 1) and 1000 or 250
-        ui.dirty = true
-        if type(ui.runtime.requestRebuild) == "function" then
-          ui.runtime.requestRebuild()
-        end
-      end
+  local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+  local rowH = Controls.ROW_H or 40
+  local valueX = x + math.floor(w * 0.6)
+  -- A setting the override holds still: its label and value as text, nothing that takes the focus.
+  local function lockedRow(labelText, valueText)
+    local labelY = type(Controls.labelY) == "function" and Controls.labelY(cursorY, rowH) or cursorY
+    local muted = Palette and Palette.muted or nil
+    children[#children + 1] = {
+      type = "label", x = x, y = labelY, w = valueX - x - 8,
+      text = labelText, color = muted, font = SMLSIZE
+    }
+    children[#children + 1] = {
+      type = "label", x = valueX, y = labelY, w = x + w - valueX - 10,
+      text = valueText, color = muted, font = SMLSIZE, align = RIGHT
+    }
+    children[#children + 1] = {
+      type = "rectangle", x = x, y = cursorY + rowH, w = w, h = 1,
+      color = Palette and Palette.border or nil, filled = true
+    }
+    return rowH + 1
+  end
+  local function choiceText(choices, value)
+    for _, choice in ipairs(choices) do
+      if choice.value == value then return choice.label end
     end
-  )
+    return tostring(value)
+  end
 
-  -- 2) Yaw Direction
-  local dirChoices = {
-    { value = 0, label = pageText(i18n, "tbl_reversed", "Reversed") },
-    { value = 1, label = pageText(i18n, "tbl_normal", "Normal") }
-  }
-  cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
-    pageText(i18n, "yaw_direction", "Yaw Direction"),
-    dirChoices,
-    ui.config.yaw_direction,
-    function(newVal)
-      if ui.config.yaw_direction ~= newVal then
-        ui.config.yaw_direction = newVal
-        ui.dirty = true
-      end
+  do
+    -- 1) Tail Mode
+    local tailModeChoices = {
+      { value = 0, label = pageText(i18n, "tbl_tail_variable_pitch", "Variable Pitch") },
+      { value = 1, label = pageText(i18n, "tbl_tail_motororized_tail", "Motorized Tail") },
+      { value = 2, label = pageText(i18n, "tbl_tail_bidirectional", "Bidirectional Motor") }
+    }
+    if locked then
+      cursorY = cursorY + lockedRow(pageText(i18n, "tail_rotor_mode", "Tail Mode"),
+        choiceText(tailModeChoices, ui.config.tail_rotor_mode))
+    else
+      cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+        pageText(i18n, "tail_rotor_mode", "Tail Mode"),
+        tailModeChoices,
+        ui.config.tail_rotor_mode,
+        function(newVal)
+          if ui.config.tail_rotor_mode ~= newVal then
+            ui.config.tail_rotor_mode = newVal
+            -- A tail mode change starts Yaw Calibration from the value that mode is set up with, as
+            -- the Rotorflight Configurator does on the same change: 100 % for a motorised or
+            -- bidirectional tail, 25 % for variable pitch. The direction is kept.
+            ui.config.yaw_calibration = (newVal >= 1) and 1000 or 250
+            ui.dirty = true
+            if type(ui.runtime.requestRebuild) == "function" then
+              ui.runtime.requestRebuild()
+            end
+          end
+        end,
+        { helpText = pageText(i18n, "help_tail_rotor_mode",
+            "A tail servo (Servo 4), a tail motor (Motor 2) or a reversible tail motor; changing it restarts the flight controller on Save.") }
+      )
     end
-  )
+
+    -- 2) Yaw Direction
+    local dirChoices = {
+      { value = 0, label = pageText(i18n, "tbl_reversed", "Reversed") },
+      { value = 1, label = pageText(i18n, "tbl_normal", "Normal") }
+    }
+    if locked then
+      cursorY = cursorY + lockedRow(pageText(i18n, "yaw_direction", "Yaw Direction"),
+        choiceText(dirChoices, ui.config.yaw_direction))
+    else
+      cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+        pageText(i18n, "yaw_direction", "Yaw Direction"),
+        dirChoices,
+        ui.config.yaw_direction,
+        function(newVal)
+          if ui.config.yaw_direction ~= newVal then
+            ui.config.yaw_direction = newVal
+            ui.dirty = true
+            afterEdit()
+          end
+        end,
+        { helpText = pageText(i18n, "help_yaw_direction",
+            "Reverse it when the tail moves the wrong way for a yaw input; it depends on the tail rotor direction and the servo or ESC setup.") }
+      )
+    end
+  end
 
   local isMotor = isTailMotorizedMode()
 
@@ -474,6 +677,10 @@ function M.build(ctx)
   local trimMin = isMotor and -500 or -250
   local trimMax = isMotor and 500 or 250
   local trimSuffix = isMotor and "%" or "°"
+  local trimHelp = isMotor
+    and pageText(i18n, "help_tail_center_offset", "Tail motor throttle at zero yaw command.")
+    or pageText(i18n, "help_yaw_center_trim",
+      "Tail blade pitch at zero yaw command. With * on, the tail moves to it about half a second after the last change; Save stores it.")
   cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
     trimLabel,
     {
@@ -488,88 +695,122 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. trimSuffix end,
-      suffix = trimSuffix
+      suffix = trimSuffix,
+      edited = afterEdit,
+      helpText = trimHelp
     }
   )
 
   -- 4) Yaw Calibration
-  cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
-    pageText(i18n, "yaw_calibration", "Yaw Calibration"),
-    {
-      min = 200,
-      max = 2000,
-      step = 1,
-      get = function() return ui.config.yaw_calibration or 400 end,
-      set = function(val)
-        if ui.config.yaw_calibration ~= val then
-          ui.config.yaw_calibration = val
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
-    }
-  )
-
-  -- 5) Yaw CW Limit
-  local limitSuffix = isMotor and "%" or "°"
-  local limitMax = isMotor and 2000 or 600
-  cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
-    pageText(i18n, "yaw_cw_limit", "Yaw CW Limit"),
-    {
-      min = 0,
-      max = limitMax,
-      step = 1,
-      get = function() return rawToField(ui.config.yaw_cw_limit) end,
-      set = function(val)
-        if rawToField(ui.config.yaw_cw_limit) ~= val then
-          ui.config.yaw_cw_limit = fieldToRaw(val)
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
-      suffix = limitSuffix
-    }
-  )
-
-  -- 6) Yaw CCW Limit
-  cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
-    pageText(i18n, "yaw_ccw_limit", "Yaw CCW Limit"),
-    {
-      min = 0,
-      max = limitMax,
-      step = 1,
-      get = function() return rawToField(ui.config.yaw_ccw_limit) end,
-      set = function(val)
-        if rawToField(ui.config.yaw_ccw_limit) ~= val then
-          ui.config.yaw_ccw_limit = fieldToRaw(val)
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
-      suffix = limitSuffix
-    }
-  )
-
-  -- 7) Tail Motor Idle (Motor mode only)
-  if isMotor then
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "yaw_calibration", "Yaw Calibration"),
+      string.format("%.1f%%", (tonumber(ui.config.yaw_calibration) or 400) / 10))
+  else
     cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
-      pageText(i18n, "tail_motor_idle", "Tail Motor Idle"),
+      pageText(i18n, "yaw_calibration", "Yaw Calibration"),
       {
-        min = 0,
-        max = 250,
+        min = 200,
+        max = 2000,
         step = 1,
-        get = function() return ui.config.tail_motor_idle or 0 end,
+        get = function() return ui.config.yaw_calibration or 400 end,
         set = function(val)
-          if ui.config.tail_motor_idle ~= val then
-            ui.config.tail_motor_idle = val
+          if ui.config.yaw_calibration ~= val then
+            ui.config.yaw_calibration = val
             ui.dirty = true
           end
         end,
         display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-        suffix = "%"
+        suffix = "%",
+        edited = afterEdit,
+        helpText = pageText(i18n, "help_yaw_calibration",
+          "Yaw gain matched to the tail mechanics; usually 50-150% for a servo tail, and quite different for a motorised tail.")
       }
     )
+  end
+
+  -- 5) Yaw CW Limit
+  local limitSuffix = isMotor and "%" or "°"
+  local limitMax = isMotor and 2000 or 600
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "yaw_cw_limit", "Yaw CW Limit"),
+      string.format("%.1f", rawToField(ui.config.yaw_cw_limit) / 10) .. limitSuffix)
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "yaw_cw_limit", "Yaw CW Limit"),
+      {
+        min = 0,
+        max = limitMax,
+        step = 1,
+        get = function() return rawToField(ui.config.yaw_cw_limit) end,
+        set = function(val)
+          if rawToField(ui.config.yaw_cw_limit) ~= val then
+            ui.config.yaw_cw_limit = fieldToRaw(val)
+            ui.dirty = true
+          end
+        end,
+        display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
+        suffix = limitSuffix,
+        edited = afterEdit,
+        helpText = pageText(i18n, "help_yaw_cw_limit",
+          "Limit for clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
+      }
+    )
+  end
+
+  -- 6) Yaw CCW Limit
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "yaw_ccw_limit", "Yaw CCW Limit"),
+      string.format("%.1f", rawToField(ui.config.yaw_ccw_limit) / 10) .. limitSuffix)
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "yaw_ccw_limit", "Yaw CCW Limit"),
+      {
+        min = 0,
+        max = limitMax,
+        step = 1,
+        get = function() return rawToField(ui.config.yaw_ccw_limit) end,
+        set = function(val)
+          if rawToField(ui.config.yaw_ccw_limit) ~= val then
+            ui.config.yaw_ccw_limit = fieldToRaw(val)
+            ui.dirty = true
+          end
+        end,
+        display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
+        suffix = limitSuffix,
+        edited = afterEdit,
+        helpText = pageText(i18n, "help_yaw_ccw_limit",
+          "Limit for counter-clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
+      }
+    )
+  end
+
+  -- 7) Tail Motor Idle (Motor mode only)
+  if isMotor then
+    if locked then
+      cursorY = cursorY + lockedRow(pageText(i18n, "tail_motor_idle", "Tail Motor Idle"),
+        string.format("%.1f%%", (tonumber(ui.config.tail_motor_idle) or 0) / 10))
+    else
+      cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+        pageText(i18n, "tail_motor_idle", "Tail Motor Idle"),
+        {
+          min = 0,
+          max = 250,
+          step = 1,
+          get = function() return ui.config.tail_motor_idle or 0 end,
+          set = function(val)
+            if ui.config.tail_motor_idle ~= val then
+              ui.config.tail_motor_idle = val
+              ui.dirty = true
+            end
+          end,
+          display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
+          suffix = "%",
+          edited = afterEdit,
+          helpText = pageText(i18n, "help_tail_motor_idle",
+            "Lowest throttle sent to the tail motor; set it just high enough that the motor does not stop.")
+        }
+      )
+    end
   end
 end
 
@@ -597,6 +838,8 @@ end
 function M.onReload(ctx)
   local session = getSession()
   if session then
+    -- Before the read, so the read is queued behind the rollback and shows the board's value.
+    if ui.dirty and not saveWriting() then rollbackLiveChanges() end
     loadFromSession()
     ui.dirty = false
     queueTailRead(false)
@@ -604,8 +847,56 @@ function M.onReload(ctx)
   return true
 end
 
+function M.onStar(ctx)
+  local switchingOn = not overrideActive()
+  if switchingOn and not canStartOverride() then return false end
+  if not ensureOverride() then return false end
+
+  local i18n = ctx and ctx.i18n
+  local title
+  local message
+  if switchingOn then
+    title = pageText(i18n, "enable_tail_override", "Enable tail override")
+    message = pageText(i18n, "enable_tail_override_message",
+      "The flight controller holds the yaw input at centre while the trim is set. Changes are sent live; Save stores them.\n\nThe other settings are locked while it is on.")
+  else
+    title = pageText(i18n, "disable_tail_override", "Disable tail override")
+    message = pageText(i18n, "disable_tail_override_message", "Return the yaw input to the flight controller.")
+  end
+
+  ui.override:confirm({
+    title = title,
+    message = message,
+    uncertainText = pageText(i18n, "override_armed_unknown",
+      "The flight controller does not report whether it is armed. Make sure the rotors cannot spin."),
+    onConfirm = function()
+      local override = ui.override
+      if not override then return end
+      if not override.active then
+        -- Checked again: Yes comes later than the press, and the page may have changed since.
+        if not canStartOverride() then return end
+        override:enable(getQueue())
+      else
+        override:disable(getQueue())
+      end
+      if ui.runtime and type(ui.runtime.requestRebuild) == "function" then
+        ui.runtime.requestRebuild()
+      end
+    end
+  })
+  return true
+end
 
 function M.onClose()
+  -- An unsaved trim sent live is taken back first, while the override still holds the tail.
+  -- Queued ahead of the override write on purpose: should the close end before every write is
+  -- out, a lost override write leaves a board that refuses to arm, a lost rollback a trial trim
+  -- the model would fly with. A save still writing is not undone here (saveWriting above).
+  if ui.dirty and not saveWriting() then rollbackLiveChanges() end
+  if overrideActive() then
+    ui.override:disable(getQueue())
+  end
+  ui.override = nil
   if Common and type(Common.resetPageState) == "function" then
     Common.resetPageState(ui, {
       resetLoaded = true,
@@ -618,6 +909,7 @@ function M.onClose()
   MixerConfigApi = nil
   MixerInputYawApi = nil
   LoadingOverlay = nil
+  LiveOverride = nil
   t = nil
 end
 
