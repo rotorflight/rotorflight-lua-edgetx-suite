@@ -275,8 +275,9 @@ do
   check(said("inflight/fn/20.wav") and said("#5"), "widget: the next adjustment after taking over is announced")
 end
 
--- Widget only: a reset (a lost link) forgets the last report. With no ADJ frame for 2.5 s -- the
--- firmware's slow interval for an unchanged ADJ row is 3 s -- the first report after it is joined.
+-- Widget only: a reset (a lost link) forgets the last report. Passes without an ADJ row can come
+-- first after it -- the firmware's slow interval for an unchanged ADJ row is 3 s -- and the first
+-- report seen after the reset is then joined, as one standing when the teller starts.
 do
   newWorld("widget", { enabled = true })
   W.adj = { 0, 0 }
@@ -286,7 +287,7 @@ do
   seconds(2.5)
   W.adj = { 14, 100 }
   seconds(2.0)
-  check(#W.spoken == 0, "widget: the first report after a reset is joined")
+  check(#W.spoken == 0, "widget: the first ADJ report after a reset is joined, also after passes without one")
   W.adj = { 0, 0 }
   seconds(1.0)
   W.adj = { 15, 7 }

@@ -3,6 +3,7 @@ local M = {}
 local Drain = nil
 local Smart = nil
 local Adjustments = nil
+local tellerStageSpent = false
 local tellerAside = false
 
 local function loadModule(path)
@@ -48,6 +49,12 @@ function M.wakeup(carry)
     -- own. The in-flight tuning overlay may have loaded it already for its own speech, and that
     -- one instance is taken over rather than loaded again, so the step-aside reset below still
     -- reaches it.
+    --
+    -- With the setting off, the pass the teller would have loaded on is still spent, once, doing
+    -- nothing: every later start-up step then lands on the wakeup it always had. Moved one pass
+    -- earlier, the decoder table's load meets another start-up step -- in bin/accounting
+    -- `pass.startup.worst` went up by about 1 100 instructions and `unit.events.wakeup.armed`
+    -- by about 900 -- for a saving of one 50 ms pass.
     if Adjustments == nil then
         local root = _G.rfsuite
         local shared = root and root.adjustmentAnnouncer
@@ -58,6 +65,9 @@ function M.wakeup(carry)
             local events = prefs and prefs.audio_events
             if events and events.adjustment_events == true then
                 Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua") or false
+                return
+            elseif not tellerStageSpent then
+                tellerStageSpent = true
                 return
             end
         end
