@@ -184,6 +184,8 @@ local function runCase(name, case, saveAs, expected, extra)
   local world = newWorld(case)
   local generation = world.locale.localeGeneration
   local ran = reloadAfterSave(world, saveAs)
+  -- Read before the fresh resolution below, whose own invalidation moves it as well.
+  local moved = world.locale.localeGeneration - generation
   local opens = world.opens
   local built = world.contexts[#world.contexts]
   local answer = world.locale.resolveSystemLanguage("en")
@@ -202,7 +204,7 @@ local function runCase(name, case, saveAs, expected, extra)
     tostring(fresh) .. " vs " .. tostring(expected))
   expect(built == expected, name .. ": the context is built for that language", tostring(built))
   expect(answer == expected, name .. ": the resolution after the reload answers it", tostring(answer))
-  expect(world.locale.localeGeneration ~= generation, name .. ": the locale generation moved")
+  expect(moved == 1, name .. ": the reload moved the locale generation once", tostring(moved))
   if extra then extra(world) end
   finish(world)
 end
@@ -231,5 +233,6 @@ runCase("default", { radio = "FR" }, nil, "en", function(w)
   expect(other == "de", "default: a caller with another default gets its own", tostring(other))
 end)
 
+Stubs.releaseCard()
 print(string.format("verify_reload_locale_once: %d checks, %d failures", checks, failures))
 os.exit(failures == 0 and 0 or 1)
