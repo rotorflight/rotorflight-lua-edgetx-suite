@@ -1165,7 +1165,9 @@ end
 -- firmware calls again on every refresh of the scene, and a step fills it once. It is filled
 -- from the engine at every build of the plot and at every step, never inside those functions,
 -- so a refresh allocates nothing and does not reach for an engine that Back has already closed.
-local cursorView = { x = 0, y = 0, left = 0, right = 0, shown = false, time = "-", count = 0, values = {} }
+-- Every curve slot has its text, an empty one where the plot has no such curve or no reading yet:
+-- a plot built before its cursor was set has no readings, and the first step gives it some.
+local cursorView = { x = 0, y = 0, left = 0, right = 0, shown = false, time = "-", values = {} }
 
 local function readCursor()
   local v = cursorView
@@ -1174,7 +1176,6 @@ local function readCursor()
   v.shown = x >= v.left and x <= v.right
   v.time = Graph.getCursorTimeText() or "-"
   local readout = Graph.getReadout()
-  v.count = #readout
   for k = 1, Graph.MAX_CURVES do
     local r = readout[k]
     local text = ""
@@ -1301,7 +1302,7 @@ local function buildChart(children, x, y, w, availH, i18n)
   local valuesW = math.max(40, (x + w) - valuesX)
   local slotW = math.floor(valuesW / Graph.MAX_CURVES)
   local values = view.values
-  for k = 1, view.count do
+  for k = 1, Graph.MAX_CURVES do
     children[#children + 1] = {
       type = "label",
       x = valuesX + (k - 1) * slotW, y = readY + 3, w = slotW,

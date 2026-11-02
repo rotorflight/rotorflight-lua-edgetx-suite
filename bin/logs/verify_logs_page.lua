@@ -1191,6 +1191,36 @@ do
     end
     return out
   end
+  -- One refresh as the firmware makes it: `visible` first; only a shown object has its `pos`
+  -- read, as two non-negative integers, and a shown label its `text`, as a string. Anything else
+  -- is an error on the radio that takes the scene down.
+  local function refresh(children)
+    for i, ch in ipairs(children) do
+      local shown = true
+      if type(ch.visible) == "function" then
+        local okv, v = pcall(ch.visible)
+        if not okv then return false, "child " .. i .. " visible() raised: " .. tostring(v) end
+        if type(v) ~= "boolean" and math.tointeger(v) == nil then
+          return false, "child " .. i .. " visible() gave " .. tostring(v)
+        end
+        shown = v == true or (type(v) == "number" and v ~= 0)
+      end
+      if shown and type(ch.pos) == "function" then
+        local okp, px, py = pcall(ch.pos)
+        if not okp then return false, "child " .. i .. " pos() raised: " .. tostring(px) end
+        local ix, iy = math.tointeger(px), math.tointeger(py)
+        if ix == nil or iy == nil or ix < 0 or iy < 0 then
+          return false, "child " .. i .. " pos() gave " .. tostring(px) .. ", " .. tostring(py)
+        end
+      end
+      if shown and type(ch.text) == "function" then
+        local okt, t = pcall(ch.text)
+        if not okt then return false, "child " .. i .. " text() raised: " .. tostring(t) end
+        if type(t) ~= "string" then return false, "child " .. i .. " text() gave " .. tostring(t) end
+      end
+    end
+    return true
+  end
   rebuildView()
   button(ctx, "graph_open").press()
   local G = find(page.wakeup, "Graph")
@@ -1208,8 +1238,12 @@ do
     local label = "cursor step " .. i .. " (" .. (dir > 0 and ">" or "<") .. ")"
     check(G.getCursorX() ~= x0, label .. ": the engine's cursor moved", x0)
     check(asked == 0, label .. ": no build asked for", asked)
-    local x = c and select(1, c.pos())
+    local okr, why = refresh(ctx.children)
+    check(okr, label .. ": the scene refreshes as the firmware reads it", why)
+    local x, y
+    if c then x, y = c.pos() end
     check(x == G.getCursorX(), label .. ": the cursor stands at the engine's cursor", tostring(x) .. " vs " .. G.getCursorX())
+    check(c ~= nil and y == c.y, label .. ": the cursor keeps its height", tostring(y))
     check(c ~= nil and c.visible() == true, label .. ": the cursor is shown")
     local texts = labelTexts()
     check(texts[G.getCursorTimeText()] == true, label .. ": the time follows the cursor", G.getCursorTimeText())
@@ -1220,6 +1254,26 @@ do
       local want = r.value ~= nil and string.format("%s %g%s", r.name, r.value, r.unit or "") or (r.name .. " -")
       check(texts[want] == true, label .. ": the reading of curve " .. k .. " follows the cursor", want)
     end
+  end
+  -- A plot built while it has no readings yet (its cursor not set: a curve change cut short by the
+  -- instruction limit leaves it so) gets them from the first step, without a build.
+  do
+    local realReadout = G.getReadout
+    G.getReadout = function() return {} end
+    rebuildView()
+    G.getReadout = realReadout
+    asked = 0
+    button(ctx, ">").press()
+    check(asked == 0, "cursor step after a plot without readings: no build asked for", asked)
+    local texts = labelTexts()
+    local readout = G.getReadout()
+    check(#readout == 2, "cursor step after a plot without readings: a reading per curve", #readout)
+    for k = 1, #readout do
+      local r = readout[k]
+      local want = r.value ~= nil and string.format("%s %g%s", r.name, r.value, r.unit or "") or (r.name .. " -")
+      check(texts[want] == true, "cursor step after a plot without readings: curve " .. k .. " is shown", want)
+    end
+    rebuildView()
   end
   asked = 0
   button(ctx, "+").press()
@@ -1232,11 +1286,16 @@ do
       if type(ch[k]) == "function" then fns[#fns + 1] = ch[k] end
     end
   end
+  local standing = ctx.children
   page.onBack(ctx)
   check(find(page.wakeup, "Graph") == nil, "cursor step: Back closed the engine")
   local ok, err = pcall(function() for _, f in ipairs(fns) do f() end end)
   check(ok, "cursor step: a refresh after Back raises nothing", err)
+  local okb, whyb = refresh(standing)
+  check(okb, "cursor step: the scene standing after Back refreshes as the firmware reads it", whyb)
   page.onClose()
+  local okc, whyc = refresh(standing)
+  check(okc, "cursor step: the scene standing after the page closed refreshes as the firmware reads it", whyc)
 end
 
 print(string.format("Logs page: %d checks, %d failures", checks, failures))
