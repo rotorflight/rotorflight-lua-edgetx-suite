@@ -199,5 +199,5 @@ function M.onClose()
   modules, stage, w, context, viewJob, scene, sceneInputs, pendingInputs = {}, 1, nil, nil, nil, nil, nil, nil
   loadingScene,loadingFraction,loadingPoints[2][1],historyEntry=nil,0,24,nil
 end
-function M.getHeaderActions() return { save = false, reload = false, help = false } end
+function M.getHeaderActions() return { save = false, reload = false, help = true } end
 return M
