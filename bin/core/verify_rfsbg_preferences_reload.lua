@@ -16,7 +16,9 @@
 --      bring-across whose write failed is tried again on the next interval;
 --   5. a read that raised: nothing is adopted, and the next interval reads the change;
 --   6. a write that keeps the file's size and time: the reload request beside it carries it;
---   7. a radio without fstat: the file is read on every interval, as before.
+--   7. a radio without fstat: the file is read on every interval, as before;
+--   8. a settings file that does not compile: the defaults are used, it is not read again on every
+--      interval, and the save that replaces it is picked up.
 local checks, failures = 0, 0
 local function check(ok, label)
   checks = checks + 1
@@ -370,6 +372,27 @@ do
   local took = runUntil(script, INTERVAL + 1, function() return adjustmentEvents() == true end)
   check(took ~= nil, "7: without fstat a change is read within one interval (took " .. tostring(took) .. ")")
   fstat = realFstat
+end
+
+-- ------------------------------------------------------------------------------- 8
+
+do
+  resetCard()
+  -- A save cut off part-way: the table is never closed.
+  files[PREFS] = { data = "return {\n  general = {\n", time = cardTime() }
+  local script = boot()
+  runFor(script, 1)
+  local p = prefs()
+  check(type(p) == "table" and type(p.general) == "table" and p.general.debug_level == "off",
+    "8: with a settings file that does not compile the declared defaults are in rfsuite.preferences")
+  runFor(script, INTERVAL)
+  zeroCounts()
+  runFor(script, 5 * INTERVAL)
+  check(settingsOpens() == 0, "8: a settings file that does not compile is not read on every interval (opens "
+    .. settingsOpens() .. ")")
+  toolSave(function(q) q.audio_events.adjustment_events = true end)
+  local took = runUntil(script, INTERVAL + 1, function() return adjustmentEvents() == true end)
+  check(took ~= nil, "8: the save that replaces it is picked up within one interval (took " .. tostring(took) .. ")")
 end
 
 print(string.format("%d checks, %d failures", checks, failures))
