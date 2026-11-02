@@ -58,6 +58,11 @@ function M.dispatch(widget, action, direction, source, index)
     widget.inflightFullscreen = nil
     widget._job = nil
     widget.built, widget.renderKey = false, nil
+    -- The surface's close is where the visit ends on this path: the drive is no longer open and the
+    -- flag is down, so cleanupInflight() on the next pass no longer sees a visit to end. Open the
+    -- render-key throttle here, which the tuning surface has been stamping, so whatever comes next --
+    -- the full-screen theme, or the zone if fullscreen is left at once -- is keyed when it is built.
+    widget._lastUIRefresh = 0
     if widget.state then widget.state.inflight = nil end
   end
   trace("dispatch " .. action .. " source=" .. tostring(source) .. " index=" .. tostring(index),

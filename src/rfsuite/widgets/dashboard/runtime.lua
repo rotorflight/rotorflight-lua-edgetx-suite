@@ -795,6 +795,11 @@ local function cleanupInflight(self)
   local instance = self._inflight
   if self.inflightFullscreen == true or (instance and instance.open == true) then
     self.built, self.renderKey, self._cachedTuningKey = false, nil, nil
+    -- The tuning branch of refresh() stamps the render-key throttle whenever it recomputes its own
+    -- key, so whatever invalidated the dashboard's key while the surface was up has not been
+    -- recomputed. Opened here, the surface the pilot returns to is keyed in the pass that builds it,
+    -- rather than built under the key left behind and then again once the throttle opens.
+    self._lastUIRefresh = 0
   end
   if self._job and self._job.kind == "tuning_fs" then self._job = nil end
   self.inflightFullscreen = nil
@@ -5296,7 +5301,11 @@ function Runtime.new(zone, options)
       -- Throttle dashboard rendering to max 2Hz (0.5s) to save CPU
       if not self._lastUIRefresh then self._lastUIRefresh = 0 end
       local now = nowSeconds()
-      if (now - self._lastUIRefresh) >= 0.5 then
+      -- A cached key of nil is one an invalidation dropped (applyThemeConfig, a reload): it is
+      -- computed at once rather than handed on, since another surface -- the full-screen theme,
+      -- the tuning surface -- may have spent the throttle since, and a scene queued under nil is
+      -- built again as soon as the throttle next opens.
+      if (now - self._lastUIRefresh) >= 0.5 or self._cachedRenderKey == nil then
         self._lastUIRefresh = now
         local newKey = nil
         if type(self.theme.renderKey) == "function" then
