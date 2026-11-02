@@ -275,6 +275,9 @@ jobs:
           lua5.3 bin/themes/verify_voltage_save.lua
           lua5.3 bin/dashboard/verify_offline_theme_settings.lua
 
+      - name: Check the switch to a model's own theme over passes
+        run: lua5.3 bin/dashboard/verify_theme_switch_passes.lua
+
       - name: Check the dashboard theme across a reconnect
         run: lua5.3 bin/dashboard/verify_theme_reconnect.lua
 
