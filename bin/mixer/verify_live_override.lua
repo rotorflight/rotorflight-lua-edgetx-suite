@@ -372,6 +372,11 @@ do
 
   page.onClose()
   equal(commands(), "43,191,191,191,191", "trims: leaving puts the trims back, then releases the four inputs")
+  for i = 1, 4 do
+    local release = queue.messages[i + 1]
+    equal(release and release.payload[1], i, "trims: release " .. i .. " is for input " .. i)
+    equal(release and (release.payload[3] * 256 + release.payload[2]), 2501, "trims: release " .. i .. " value is 2501")
+  end
   equal(queue.messages[1] and payloadTrim(queue.messages[1]), 165, "trims: the rollback carries the yaw trim read")
 end
 
