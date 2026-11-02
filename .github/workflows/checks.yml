@@ -68,6 +68,9 @@ jobs:
       - name: Leaving in-flight tuning builds the dashboard once
         run: lua5.3 bin/dashboard/verify_tuning_close_key.lua
 
+      - name: A preferences reload reads the radio-wide settings once
+        run: lua5.3 bin/dashboard/verify_reload_locale_once.lua
+
       - name: In-flight session and view lifetimes
         run: lua5.3 bin/dashboard/verify_inflight_lifetimes.lua
 
