@@ -7,31 +7,38 @@ sidebar_label: Background tasks
 
 What the suite does on its own, without a page asking for it: which background jobs exist under
 `src/rfsuite/tasks/events/`, when each one runs, what it does, and the rules a new task has to
-follow.
+follow. Other background work outside that folder is listed at the end.
 
 ## Who drives them
 
 Nothing under `tasks/events/` runs by itself. `tasks/events/runtime.lua` (the event runtime) does
 work only when something calls `Events.wakeup()`, and three hosts do. Each one first calls
-`MspRuntime.tick()` (`tasks/msp/runtime.lua`) and then `Events.wakeup()`:
+`MspRuntime.tick()` (`tasks/msp/runtime.lua`) and then `Events.wakeup()`. The intervals below are
+the shortest gap between two calls; a host can skip a pass for its own reasons.
 
 | Host | How often | Context |
 | --- | --- | --- |
-| Dashboard widget (`widgets/dashboard/runtime.lua`) | every logic tick: 0.1 s, or 0.05 s while the widget is starting | `widget` |
-| Service widget (`widgets/service/runtime.lua`) | every 0.1 s | `widget` |
+| Dashboard widget (`widgets/dashboard/runtime.lua`) | every logic tick: 0.1 s, or 0.05 s while the link is up and the connection is not ready yet. Skipped while the startup compile holds the connect, on a pass that builds a scene, and while a tool is hosted (the tool then drives it) | `widget` |
+| Service widget (`widgets/service/runtime.lua`) | every 0.1 s. Skipped on a pass that re-reads the settings and while the startup compile holds the connect | `widget` |
 | The tool, while it is open (`ui/home.lua`) | every 5 `getTime()` ticks (50 ms). Not on a pass that changes menu, not while background work is deferred, and not on the MSP speed page | `tool` |
 
 The service widget exists only to be a host. Put it on a model that does not use the dashboard
-and the background work still runs. If a radio runs neither widget and the tool is closed, nothing
-advances: no connect chain, no custom telemetry sensors, no flight record.
+and the background work still runs. With both widgets on one model, both drive the runtimes
+today ([#455](https://github.com/rotorflight/rotorflight-lua-edgetx-suite/issues/455)).
+
+If a radio runs neither widget and the tool is closed, no connect chain runs and no flight is
+recorded. Custom telemetry can still be decoded: the background function script
+`SCRIPTS/FUNCTIONS/rfsbg.lua`, when the model runs it, loads `telemetry_bg/drain.lua` and
+`telemetry_bg/adjustments.lua` itself, without the event runtime.
 
 **Context.** `lib/env.lua` answers `Env.get()` from `rfsuite.session.event_context`. Both widgets
 set it to `"widget"` around their call, and anything that sets nothing gets `"tool"`. A tool
 opened from inside the dashboard (`widgets/dashboard/tool_host.lua`) runs its work in the
 `widget` context.
 
-The tool and each widget are separate Lua states. Each one has its own copy of every runner and
-every task module, and its own `rfsuite.session`.
+**Lua states.** The standalone tool runs in its own Lua state, with its own copy of the event
+runtime, every runner and `rfsuite.session`. The widgets share one state, so the dashboard, the
+service widget and a tool hosted by the dashboard all use the same event runtime and session.
 
 ## What one wakeup does
 
@@ -39,14 +46,16 @@ every task module, and its own `rfsuite.session`.
 
 1. **Link state, with hysteresis.** It reads `lastConnected` from the MSP runtime. The link has to
    stay up for 0.6 s before it counts as connected, and stay down for 2.0 s before it counts as
-   disconnected. Only those two edges set `session.isConnected` (`publishConnected`).
+   disconnected. Within a wakeup, only those two edges change `session.isConnected`
+   (`publishConnected`); `Events.reset()` also clears it directly.
    - On **connect** the previous session ends: the flight count is set to 0 and the flight
      record is reset. The exception is a link that came back after a loss in flight, covered
      below.
-   - On **disconnect**, every runner is reset so that it runs again on the next connect, and a
-     full garbage collection runs. Unless the craft was armed, `session.flightlog` is dropped and
-     the arm-edge detector is cleared. The flight statistics are kept, so the post-flight screen still shows them
-     after the pack comes off.
+   - On **disconnect**, every cached runner is reset and a full garbage collection runs. So
+     `onconnect` runs again after the next connect, and the arm and disarm runners start fresh
+     on the next edge. Unless the craft was armed, `session.flightlog` is dropped and the
+     arm-edge detector is cleared. The flight statistics are kept, so the post-flight screen
+     still shows them after the pack comes off.
    - While the link is held down, the widget context puts back a model name that
      `model_name_sync` replaced (`restorePendingModelName`). Because this is a check of the
      current state rather than an event, it also catches a radio that was switched off while
@@ -62,17 +71,20 @@ every task module, and its own `rfsuite.session`.
    per-call instruction limit for widgets. The tool does not wait: a standalone script has no such
    limit, and while the tool is open the background function script is paused, so this is the
    only decoder running.
-5. **Arm and disarm edges.** These are watched while the link is held up and no kept flight is
-   still being settled. A change of the armed state resets that edge's runner (`onarm` or
-   `ondisarm`). The runner is then called on every following wakeup until it reports no remaining
-   work, not just once on the edge.
+5. **Arm and disarm edges.** These are detected while the link is held up and no kept flight is
+   still being settled. The first armed reading only sets the baseline and fires nothing. A change
+   of the armed state resets that edge's runner (`onarm` or `ondisarm`), which is then called on
+   every following wakeup until it reports no remaining work, not just once on the edge. A newer
+   edge replaces an edge runner that has not finished.
 6. **Widget context only:** the flight record samples the flight in progress
-   (`telemetry/flight_record.lua`), then the Tune Advisor capture advances
+   (`telemetry/flight_record.lua`): its clock runs while armed, and its statistics are sampled at
+   most every 0.5 s while the link is up. Then the Tune Advisor capture advances
    (`tune_capture.lua`, see below).
 
-`carry` comes from the dashboard. It is true on a pass that also runs the dashboard's telemetry
-read, and work that does not need that pass (today, the SmartFuel wake) waits one logic tick.
-Every other host passes nothing.
+`carry` comes from the dashboard. It is set on a pass that is going to run the dashboard's
+telemetry read, when logic ticks come closer together than the read interval, so the next tick is
+free. Work that does not need that pass waits one logic tick: the SmartFuel wake and the Tune
+Advisor capture. Every other host passes nothing.
 
 ## The ordered runners: `onconnect`, `onarm`, `ondisarm`
 
@@ -87,13 +99,14 @@ Each of these categories is a folder with a `manifest.lua`, a `tasks.lua` that r
 - Each wakeup, the runner takes the **first** eligible task that is neither complete nor failed,
   calls its `wakeup(args)`, and then asks `isComplete()`. That makes at most one task per wakeup,
   so the tasks run strictly one after another.
-- A task's module is loaded from `<category>/tasks/<name>.lua`. If that file does not exist, the
+- A task's module is loaded from `<category>/tasks/<name>.lua`. If that cannot be loaded, the
   runner loads `common/<name>.lua` instead. The module is released once the task completes or
   fails.
-- A task that has not completed after **25 s** is re-queued, with a back-off of 1 s, 2 s and then
-  4 s, and gets a fresh module instance each time. After 3 re-queues it is marked failed and
-  skipped. A failed task counts towards `done` in `getProgress()`, and `failed` says how many of
-  those gave up.
+- A task that is still not complete more than **25 s** after it started is retried after 1 s,
+  2 s and then 4 s, each time with a fresh module instance. Nothing behind it in the list runs
+  while it waits. If the fourth attempt also times out, the task is marked failed and skipped. A
+  failed task counts towards `done` in `getProgress()`, and `failed` says how many of those gave
+  up.
 - `reset()` (on disconnect, and on every arm or disarm edge for that edge's runner) marks every
   task as not done and calls each loaded module's `reset()`.
 
@@ -102,17 +115,23 @@ Each of these categories is a folder with a `manifest.lua`, a `tasks.lua` that r
 ```lua
 local M = {}
 function M.wakeup(args) end   -- called once per wakeup while this task is the current one;
-                              -- args.context is "tool" or "widget". Do not keep `args`:
-                              -- the same table is reused for every call.
-function M.isComplete() end   -- true once the work is done; the runner then moves on
+                              -- args.context is "tool" or "widget". Do not keep `args` and do
+                              -- not write to it: the same table is reused for every call.
+function M.isComplete() end   -- true once the work is finished or deliberately stopped
 function M.reset() end        -- optional; forget everything, so the next run starts fresh
 return M
 ```
 
+`isComplete()` returning true means the task is finished with, not that its read succeeded. The
+`status` task, for one, reports complete on an MSP error too, so `failed` in the progress counts
+tasks that timed out, not every read that failed.
+
 A task that sends an MSP request latches it in a module-local flag, so it does not send the
-request again on the next wakeup, and reports complete when the reply has been handled. Put a
-request on the MSP queue with a `maxRetries` that keeps its total give-up time under the runner's
-25 s. Otherwise the runner re-queues the task while its first request is still in flight.
+request again on the next wakeup. If the queue drops the request (reason `"cleared"`), it
+releases the latch so the next wakeup sends again (`common/status.lua` shows the pattern). The
+runner's 25 s start when the task starts, and the queue starts a message's timeout only when the
+message is sent, so a request's waiting time and all of its retries have to fit inside the 25 s.
+Otherwise the runner retries the task while its first request is still in flight.
 
 ### `onconnect`: once per connection
 
@@ -121,7 +140,7 @@ controller unless it says otherwise:
 
 | Task | Context | What it does |
 | --- | --- | --- |
-| `apiversion` | both | Waits for the MSP runtime's API version read and shows the unsupported-version notice when the version is refused. |
+| `apiversion` | both | Waits for the MSP runtime's API version read. A refused version stops the whole chain, and the tool and the dashboard report it. |
 | `uid` | both | Waits for the MSP runtime's MCU UID read and resolves the per-model preferences file from it. |
 | `rtc` | both | Sends the radio's clock to the flight controller (`MSP_SET_RTC`). |
 | `status` | both | `MSP_STATUS`: the active PID and rate profiles and the profile counts. |
@@ -129,22 +148,22 @@ controller unless it says otherwise:
 | `flight_stats` | widget | The board's flight count and total flight time. |
 | `dataflash_summary` | widget | The state of the blackbox flash. |
 | `battery_config` | both | The battery settings. |
-| `governor_config` | both | The governor feature, mode and settings. |
+| `governor_config` | both | The governor settings. The governor feature flag is read too, and its reply may arrive after the task has completed. |
 | `esc_sensor_config` | tool | The ESC telemetry protocol and ESC type. |
-| `smartfuel_config` | both | The SmartFuel settings. |
+| `smartfuel_config` | both | The SmartFuel settings, from MSP API 12.0.9. On an older or still unknown version it completes without a read. |
 | `name` | both | The craft name (`session.modelName`). |
-| `model_params_sync` | widget | Writes the flight controller's model parameters onto the radio model's timers and global variables, when *Synchronize Model Parameters* is on. |
-| `model_name_sync` | widget | Renames the radio model to the craft name when *Synchronize Model Name* is on, and puts the model's own name back when the link goes. |
-| `function_script` | widget | Adds the special function that runs `SCRIPTS/FUNCTIONS/rfsbg.lua` (the background decoder) when the model has none. It reads nothing from the flight controller. |
+| `model_params_sync` | widget | Reads the pilot configuration and keeps it in `session.pilotConfig` for `model_name_sync`. When *Synchronize Model Parameters* is on, writes the three model parameters onto the radio model: a timer's start value or a global variable in flight mode 0. |
+| `model_name_sync` | widget | Renames the radio model to the craft name and puts the model's own name back when the link goes. Whether to rename is the flight controller's `MODEL_SET_NAME` flag (MSP API 12.09 and later), or the radio's *Synchronize Model Name* setting where there is no flag. |
+| `function_script` | widget | Adds an always-on special function that runs `rfsbg` when the model has none, an empty slot exists, and no competing decoder such as `rf2bg` is enabled. It reads eight of the 64 slots per wakeup, reads nothing from the flight controller, and the entry takes effect the next time the model is loaded. |
 
 The last three are `widget` because they change the pilot's model. That is background work that
-belongs to whatever runs during flight. If they ran in both contexts, the tool and the widget
+belongs to whatever runs during flight. If they ran in both contexts, the tool and the widgets
 would each attempt the same rename from Lua states that cannot see each other.
 
-The dashboard and the service widget show the chain's progress through
-`Events.getOnconnectProgress()` and `Events.getOnconnectPendingTaskName()`. A reboot of the flight
-controller that is too short to bring the link down does not re-run the chain on its own.
-`Events.rerunOnconnect()` resets this runner only.
+Both widgets show the chain's progress through `Events.getOnconnectProgress()`. The dashboard
+also names the task that is still running, through `Events.getOnconnectPendingTaskName()`. A
+reboot of the flight controller that is too short to bring the link down does not re-run the
+chain on its own. `Events.rerunOnconnect()` resets this runner only.
 
 ### `onarm`: on every arm edge
 
@@ -162,7 +181,7 @@ Widget only.
 | Task | What it does |
 | --- | --- |
 | `flight_record` | Closes the record and moves it to `last`, so every task behind it reads a finished flight. |
-| `flight_log` | Writes the flight log line to the card. It is near the front because a pack unplugged soon after the disarm drops `session.flightlog`. |
+| `flight_log` | When the flight log is on and the flight lasted at least the minimum duration (30 s by default), writes its line to the card and counts a use of the selected battery, once per battery per connection. It is near the front because a pack unplugged soon after the disarm drops `session.flightlog`. |
 | `flight_stats` | Reads the board's flight count and total flight time again. |
 | `dataflash_summary` | Reads the blackbox flash state again. |
 | `tune_history` | Marks the flight's Tune Advisor numbers as owed. It completes in the same call, so it never holds up the chain. |
@@ -171,25 +190,33 @@ Widget only.
 
 `tasks/events/telemetry_bg/tasks.lua` is not a runner. Its `wakeup` runs on every eligible pass
 (see step 4 above) and never completes. On its first three passes it loads one module each, so no
-single pass loads all three.
+single pass loads all three. After that, each pass runs them in this order:
 
 | Module | What it does |
 | --- | --- |
-| `drain.lua` | Takes the flight controller's custom telemetry frames off the CRSF link, decodes them and publishes them as radio sensors. It also sets `session.telemetryFrameAt`. |
-| `smart.lua` | Computes the SmartFuel fuel and consumption values, at most once a second. It skips the dashboard's `carry` passes. |
-| `adjustments.lua` | Announces an in-flight adjustment (function and new value) after the decode has published it. |
+| `drain.lua` | Takes the flight controller's custom telemetry frames off the CRSF link and publishes the sensors they carry. Per pass it takes at most 15 frames and fully decodes the newest 4. |
+| `smart.lua` | Updates the SmartFuel values in the session at most once a second, from the flight controller's own fuel value or from a local estimate, with the reserve applied. It skips the dashboard's `carry` passes. |
+| `adjustments.lua` | Announces an in-flight adjustment (the function and its new value) once the value has settled, when the adjustment announcements are switched on. It reads what the drain has just published. `adjustment_words.lua` beside it supplies the spoken names. |
 
-When the background function script (`rfsbg.lua`) is already decoding for the whole radio,
-`drain.lua` and `adjustments.lua` step aside together, so no sensor is published twice and no
-adjustment is announced twice. `smart.lua` keeps running because its state is per Lua state.
+`tasks.lua` also sets `session.telemetryFrameAt` whenever frames arrived on this pass or the
+background function script is decoding them.
+
+When the background function script (`rfsbg.lua`) is decoding for the whole radio, `drain.lua`
+and `adjustments.lua` step aside together, so sensors are not published twice and adjustments are
+not announced twice. The script signals that through a counter it advances when it takes frames;
+when the counter has not moved for 1 s, both take over again. `smart.lua` keeps running because
+its state is per Lua state.
 
 ## Not a runner: the Tune Advisor capture
 
-After a disarm that `tune_history` marked as owed, the runtime loads `tasks/events/tune_capture.lua`
-no earlier than 5 s later, so that the disarm chain has the link to itself first. The capture reads
-the three axes, saves them on the radio and clears the flight controller. Arming stops a capture
-in progress. The module is released when nothing is left to do. It runs in the widget context
-only and skips the dashboard's `carry` passes.
+`tune_history` marks the flight as owed on the disarm, and so does a kept flight that turns out to
+have ended during a link loss. Five seconds later the runtime loads
+`tasks/events/tune_capture.lua`, so that the disarm chain has the link to itself first. The
+capture needs MSP API 12.10 or later and a known MCU UID. It reads the three axes with 2 s between
+the requests, saves them on the radio, then clears the flight controller and reads the tuning
+context that goes with the saved flight. A failed save does not clear the flight controller.
+Arming stops a capture in progress. The module is released when nothing is left to do. It runs in
+the widget context only and skips the dashboard's `carry` passes.
 
 ## Adding a task
 
@@ -205,6 +232,21 @@ only and skips the dashboard's `carry` passes.
   `onconnect/tasks/status.lua` shows.
 - **Keep each wakeup short.** It runs inside a widget call that the firmware stops at its
   instruction limit. Do one step per wakeup and return, rather than waiting in a loop.
+
+## Other background work
+
+These run on the same hosts but are not part of `tasks/events/`:
+
+- **The MSP runtime** (`tasks/msp/runtime.lua`) reads the API version, the flight controller
+  version and the MCU UID by itself, works through the MSP queue, and empties the queue while the
+  craft is armed.
+- **The background function script** (`src/functions/rfsbg.lua`, installed as
+  `SCRIPTS/FUNCTIONS/rfsbg.lua`) decodes custom telemetry for the whole radio. See
+  [Background decoder](../reference/background-decoder.md).
+- **Announcements** (`lib/audio.lua`) run from the dashboard and the tool. See
+  [Audio announcements](audio-announcements.md).
+- **The card log** (`lib/log_sink.lua`) is flushed from the widgets, the tool and the background
+  function script.
 
 ## Related
 
