@@ -16,7 +16,8 @@ return function(ctx)
     t(i18n, "help_p1"),
     t(i18n, "help_p2"),
     t(i18n, "help_p3"),
-    t(i18n, "help_p4")
+    t(i18n, "help_p4"),
+    t(i18n, "help_p5")
   }
 
   return {

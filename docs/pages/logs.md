@@ -102,6 +102,19 @@ or another flight, and on a zoom or page step whose window has not been read yet
 way to the loading notice, with a bar for how far that read has got. A window the plot still holds
 from an earlier read (it keeps the last few) is drawn again without the notice.
 
+The plot's buttons:
+
+| Button | What it does |
+| --- | --- |
+| `<` `>` | Step the cursor, the vertical line on the plot, a few pixels to the left or right -- the finest step the readout can tell apart. The time beside the buttons (from the start of the flight) and each curve's value at the cursor follow it. Only the cursor and those values change; the plot itself is not drawn again. |
+| `-` `+` | Zoom out or in around the cursor. |
+| *Full* | Shows the whole flight again. |
+| `<<` `>>` | Page a zoomed plot by about half a window. |
+| *Sensors* | Back to the curve choice. |
+
+A curve's value at the cursor is the highest it reaches within that step; `-` where it has none
+there.
+
 Changing the curves while a plot is still being read is safe. If the tool reaches its
 instruction limit in the middle of a change, the plot stays empty instead of the page failing
 on every pass. Choose the curves again and press *Show* to draw it.
