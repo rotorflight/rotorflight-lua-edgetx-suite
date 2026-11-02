@@ -11,7 +11,7 @@
 -- mechanics are all still at their defaults.
 
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = loadScript(fullPath, "t")
   if type(chunk) ~= "function" then return nil end
   local ok, mod = pcall(chunk)

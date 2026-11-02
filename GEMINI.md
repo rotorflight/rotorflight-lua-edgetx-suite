@@ -42,9 +42,9 @@ The project uses VS Code tasks for deployment and testing in the EdgeTX Simulato
 ## Development Conventions
 
 ### Module Loading
-Modules are typically loaded using `loadScript` with absolute paths to ensure compatibility with the EdgeTX environment.
+Modules are typically loaded using `loadScript` with absolute paths to ensure compatibility with the EdgeTX environment. The card roots are not spelled in a module: build the path from `rfsuite.paths` (`src/rfsuite/lib/paths.lua`, published by `lib/require.lua`; see `docs/reference/module-loader.md`).
 ```lua
-local Sensors = assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/sensors.lua", "t"))()
+local Sensors = assert(loadScript(_G.rfsuite.paths.core .. "/lib/sensors.lua", "t"))()
 ```
 
 ### UI Development
@@ -80,7 +80,7 @@ Theme-level closures run on the same leftover budget and follow the same rule.
 ### Logging
 Use the centralized `Log` library for consistent output:
 ```lua
-local Log = assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/log.lua", "t"))()
+local Log = assert(loadScript(_G.rfsuite.paths.core .. "/lib/log.lua", "t"))()
 Log.emit("tag", "message", "info") -- levels: error, warn, info, debug, trace; "off" silences everything
 Log.emitf("tag", "info", "value=%d", v) -- formats only past the level gate
 if Log.wanted("trace") then end      -- ask first when building the message is the expensive part

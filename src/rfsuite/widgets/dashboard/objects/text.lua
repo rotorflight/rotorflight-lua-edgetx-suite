@@ -4,7 +4,7 @@ local function requireModule(path)
   if _G.rfsuite and type(_G.rfsuite.require) == "function" then
     return _G.rfsuite.require(path)
   end
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if chunk then

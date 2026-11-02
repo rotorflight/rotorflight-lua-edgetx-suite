@@ -14,7 +14,7 @@ local function loadModule(path)
   if _G.rfsuite and _G.rfsuite.require then
     return _G.rfsuite.require(path)
   end
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = loadScript(fullPath, "t")
   if type(chunk) ~= "function" then return nil end
   local ok, mod = pcall(chunk)
@@ -165,7 +165,7 @@ end
 local function loadPlain(path)
   local utils = _G.rfsuite and _G.rfsuite.utils
   local loader = utils and utils.loadScriptUncached or loadScript
-  local chunk = loader("/SCRIPTS/TOOLS/rfsuite-core/" .. path, (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
+  local chunk = loader(_G.rfsuite.paths.core .. "/" .. path, (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
   if type(chunk) ~= "function" then return false end
   local ok, mod = pcall(chunk)
   return ok and type(mod) == "table" and mod or false

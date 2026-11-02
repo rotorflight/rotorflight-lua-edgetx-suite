@@ -113,6 +113,7 @@ local function newHost()
     elrs_config = provider,
     require = function(path) return modules[path] end,
   }
+  _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
   loadScript = function(path)
     local relative = assert(string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$"), path)
     if relative == "app/pages/tools/diagnostics/elrs_link/elrslink_task.lua" then

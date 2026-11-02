@@ -43,6 +43,7 @@ local function beginConnect(eq)
   })
   -- Stand in for the previous board, including a known enabled feature.
   _G.rfsuite = { session = { governorMode = 4, governorFeature = true, governor_config = {} } }
+  _G.rfsuite.paths = dofile(sourceRoot .. "lib/paths.lua")
   local governorApi = loadModule("tasks/msp/api/governor_config.lua")
   local featureApi = loadModule("tasks/msp/api/feature_config.lua")
   local task = loadModule("tasks/events/common/governor_config.lua")
@@ -158,6 +159,7 @@ local function newPage(path, mode, feature)
       apiVersion = "12.0.9"
     }
   }
+  _G.rfsuite.paths = dofile(sourceRoot .. "lib/paths.lua")
   -- Suppress unrelated page-load reads. The real pages still load their APIs and
   -- helper; only the queue runtime, profile selection and UI services are stubbed.
   installLoader({

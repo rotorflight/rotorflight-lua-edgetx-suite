@@ -529,7 +529,7 @@ local function loadModule(path)
   if _G.rfsuite and _G.rfsuite.require then
     return _G.rfsuite.require(path)
   end
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, "t")
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/" .. path, "t")
   if type(chunk) ~= "function" then return nil end
   local ok, mod = pcall(chunk)
   if not ok then return nil end

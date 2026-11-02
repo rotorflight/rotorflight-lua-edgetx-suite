@@ -1,7 +1,7 @@
 local M = {}
 
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end

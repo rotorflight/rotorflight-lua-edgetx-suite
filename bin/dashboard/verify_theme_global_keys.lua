@@ -130,12 +130,15 @@ end
 -- Open the real Keys page over old stored choices in either preference scope. `globalKeys`, where
 -- given, are radio-wide key choices stored beside them (Settings > Dashboard > Keys).
 local function openPage(theme, scope, globalKeys)
+  _G.rfsuite = _G.rfsuite or {}
+  _G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
   local DashboardLib = loadRel("app/pages/settings/dashboard/lib.lua")()
   local radio = seedOld(theme)
   for k, v in pairs(globalKeys or {}) do radio[k] = v end
   local model = seedOld(theme)
   local modelPrefs = { dashboard = model }
   _G.rfsuite = { session = { mcu_id = "0123456789ABCDEF01234567", modelPreferences = modelPrefs } }
+  _G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
   DashboardLib.setEditScope(scope)
   local factory = loadRel("widgets/dashboard/themes/" .. theme .. "/configure.lua")()
   local reports = {}
@@ -268,6 +271,7 @@ end
 -- decides whether that binding acts.
 local function bindingCase(theme)
   _G.rfsuite = {}
+  _G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
   local layout = loadRel("widgets/dashboard/themes/" .. theme .. "/layout.lua")()
   local init = loadRel("widgets/dashboard/themes/" .. theme .. "/init.lua")()
   local Keys = loadRel("widgets/dashboard/keys.lua")()

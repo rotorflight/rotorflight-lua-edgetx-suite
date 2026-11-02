@@ -6,8 +6,34 @@ sidebar_label: Module loader
 # The module loader
 
 `rfsuite.require(path)` (`src/rfsuite/lib/require.lua`) loads a suite module once and hands the
-same result to every later caller. A relative `path` is taken under `/SCRIPTS/TOOLS/rfsuite-core/`;
-the loaded results are kept in `rfsuite.modules`, keyed by that full path.
+same result to every later caller. A relative `path` is taken under the code root,
+`rfsuite.paths.core` (see below); the loaded results are kept in `rfsuite.modules`, keyed by that
+full path.
+
+## Card paths
+
+Where the suite sits on the card is stated once, in `src/rfsuite/lib/paths.lua`:
+
+| Field | Value today | Holds |
+| --- | --- | --- |
+| `core` | `/SCRIPTS/TOOLS/rfsuite-core` | the suite's code |
+| `user` | `/SCRIPTS/TOOLS/rfsuite.user` | the pilot's data: preferences, flight log, user themes |
+
+`lib/require.lua` loads that file and publishes it as `rfsuite.paths`. Every Lua state of the
+suite -- the tool, both widgets and the special-function script -- loads `lib/require.lua` before
+any other suite module, so every module can build its paths from the table instead of spelling
+them: `loadScript(rfsuite.paths.core .. "/lib/log.lua", mode)`. Neither root ends in a slash.
+If `lib/require.lua` cannot be loaded or run, no module finds its paths, and the state does not
+start.
+
+Only `lib/paths.lua` itself, `lib/require.lua` (to load it), the files that load
+`lib/require.lua` (`src/main.lua`, the two widgets' `main.lua`, `src/functions/rfsbg.lua`), and
+the model template (`src/templates/5.Rotorflight/Rotorflight.lua`), which runs without it, name
+the code root directly.
+
+A desktop test that loads a suite module without `lib/require.lua` provides the table itself,
+from the same file, for example `_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")` when it
+runs from the repository root.
 
 ## What a load returns
 

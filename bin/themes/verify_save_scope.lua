@@ -142,6 +142,8 @@ _G.loadScript = function(path)
   return assert(loadfile(SRC .. rel))
 end
 
+_G.rfsuite = _G.rfsuite or {}
+_G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
 local DashboardLib = assert(loadfile(SRC .. "app/pages/settings/dashboard/lib.lua"))()
 
 -- ---------------------------------------------------------------------------
@@ -268,7 +270,7 @@ end
 
 local function runCase(chunk, theme, scope, case, lang)
   mpMode, mpCalls = case.mp, 0
-  _G.rfsuite = { session = {} }
+  _G.rfsuite = { session = {}, paths = dofile(SRC .. "lib/paths.lua") }
   if case.connected then
     _G.rfsuite.session.mcu_id = MCU_ID
     _G.rfsuite.session.modelPreferences = { dashboard = {} }

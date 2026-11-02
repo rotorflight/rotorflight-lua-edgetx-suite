@@ -4,8 +4,6 @@
 -- Prevents repeated disk reads, bytecode compilation, and redundant
 -- module execution of shared libraries and singletons across the suite.
 
-local BASE_PATH = "/SCRIPTS/TOOLS/rfsuite-core/"
-
 _G.rfsuite = _G.rfsuite or {}
 _G.rfsuite.modules = _G.rfsuite.modules or {}
 
@@ -33,6 +31,14 @@ _G.rfsuite.utils = _G.rfsuite.utils or {}
 if _G.rfsuite.utils.loadScriptUncached == nil then
   _G.rfsuite.utils.loadScriptUncached = loadScript
 end
+
+-- The card roots every module builds its paths from (lib/paths.lua). Every Lua state of the
+-- suite -- the tool, both widgets and the special-function script -- loads this file before any
+-- other module of the suite, so the table is there by the time one reads it. This load, and the
+-- files that load this one, are the places that still name the code root themselves.
+_G.rfsuite.paths = assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/paths.lua", _G.rfsuite.loadMode))()
+
+local BASE_PATH = _G.rfsuite.paths.core .. "/"
 
 local modules = _G.rfsuite.modules
 

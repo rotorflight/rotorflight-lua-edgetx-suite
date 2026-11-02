@@ -1,10 +1,16 @@
 -- Host regression checks for Setup > ESC & Motors > Telemetry wiring detection.
 local root = (arg and arg[1]) or "."
 local function source(path) return root .. "/" .. path end
+-- The card roots the suite builds its paths from; a source tree older than lib/paths.lua has none.
+local function cardPaths()
+  local chunk = loadfile(source("src/rfsuite/lib/paths.lua"))
+  return chunk and chunk() or nil
+end
 
 -- settings/common.lua and the page read the colour roles of ui/palette.lua when they load.
 local Palette = assert(loadfile(source("src/rfsuite/ui/palette.lua")))()
 _G.rfsuite = { palette = Palette }
+_G.rfsuite.paths = cardPaths()
 local TrialApi = assert(loadfile(source("src/rfsuite/tasks/msp/api/esc_sensor_trial.lua")))()
 local ConfigApi = assert(loadfile(source("src/rfsuite/tasks/msp/api/esc_sensor_config.lua")))()
 local Common = assert(loadfile(source("src/rfsuite/app/pages/settings/common.lua")))()
@@ -75,6 +81,7 @@ local function newPage(apiVersion)
       parsedCache = ConfigApi.parse(configReply)
     }
   } }
+  _G.rfsuite.paths = cardPaths()
   local page = assert(loadfile(source("src/rfsuite/app/pages/setup/esc_motors/telemetry/page.lua")))()
   local ctx = { requestRebuild = function() end }
   page.wakeup(ctx)
@@ -457,6 +464,7 @@ do
       parsedCache = ConfigApi.parse(configReply)
     }
   } }
+  _G.rfsuite.paths = cardPaths()
   local page = assert(loadfile(source("src/rfsuite/app/pages/setup/esc_motors/telemetry/page.lua")))()
   page.wakeup({ requestRebuild = function() end })
   assert(#queued == 1 and queued[1].command == ConfigApi.command, "configuration read not queued")

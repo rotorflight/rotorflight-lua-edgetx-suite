@@ -4,7 +4,7 @@ local Render = {}
 -- resolving them walks the card and reads the craft name the flight controller reported,
 -- and neither is allowed in an object (see GEMINI.md, "Dashboard reactive closures", and
 -- the .luacheckrc override that enforces it). This file only places what the snapshot holds.
-local LOGO_FILE = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/gfx/logo.png"
+local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 
 --- The derived snapshot, or nil before the first one has been built.
 --

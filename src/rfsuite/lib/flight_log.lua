@@ -29,7 +29,7 @@
 
 local M = {}
 
-local USER_ROOT = "/SCRIPTS/TOOLS/rfsuite.user"
+local USER_ROOT = _G.rfsuite.paths.user
 local DATA_DIR = USER_ROOT .. "/flightlog"
 
 -- The registry is read whole, so it needs a ceiling: a file above this is refused rather than
@@ -137,7 +137,7 @@ local function atomicFile()
     if type(req) == "function" then
       AtomicFile = req("lib/atomic_file.lua") or false
     else
-      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/atomic_file.lua", (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
+      local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/atomic_file.lua", (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
       local ok, mod = pcall(chunk)
       AtomicFile = (ok and type(mod) == "table") and mod or false
     end

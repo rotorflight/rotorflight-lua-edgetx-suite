@@ -30,6 +30,8 @@ local modules = {
   ["lib/env.lua"] = { isWidget = function() return hosted end },
   ["ui/palette.lua"] = {}
 }
+_G.rfsuite = _G.rfsuite or {}
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 loadScript = function(path)
   local key = string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", "")
   if key == "app/pages/logs/graph.lua" then return assert(loadfile(GRAPH)) end

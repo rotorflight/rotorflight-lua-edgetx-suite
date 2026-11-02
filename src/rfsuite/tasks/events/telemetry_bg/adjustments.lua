@@ -35,7 +35,7 @@ local function requireModule(path)
     if ok and type(mod) == "table" then return mod end
   end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/" .. path, mode)
   if type(chunk) ~= "function" then return nil end
   local ok, mod = pcall(chunk)
   if not ok then return nil end

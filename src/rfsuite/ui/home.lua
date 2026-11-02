@@ -2,7 +2,7 @@ local function loadModule(path)
   if _G.rfsuite and _G.rfsuite.require then
     return _G.rfsuite.require(path)
   end
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end
@@ -72,7 +72,8 @@ local MEM_LOW_CLEAR_KB = 96
 -- here" and neither warns nor is logged.
 local MEM_FREE_MIN_KB = 4
 
-local APP_ICON  = "/SCRIPTS/TOOLS/rfsuite-core/assets/icon.png"
+local APP_ICON  = _G.rfsuite.paths.core .. "/assets/icon.png"
+local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 
 local M = {}
 
@@ -814,7 +815,7 @@ end
 local function resolveLocaleFromSystem()
   -- Always reload module on init so locale behavior changes are picked up
   -- immediately and not held back by stale cached globals.
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/system_locale.lua", "t")
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/system_locale.lua", "t")
   if chunk then
     local ok, localeMod = pcall(chunk)
     if ok and type(localeMod) == "table" and type(localeMod.resolveSystemLanguage) == "function" then
@@ -2653,7 +2654,7 @@ local function buildScene()
       {
         type = "image",
         x = logoX, y = logoY, w = logoW, h = logoH,
-        file = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/gfx/logo.png"
+        file = LOGO_FILE
       },
       {
         type = "label",

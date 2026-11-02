@@ -2,7 +2,7 @@ local Log = nil
 local M = {}
 
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end
@@ -21,8 +21,7 @@ local LoadingOverlay = nil
 local AsyncLoadUi = nil
 
 local API_DIR_CANDIDATES = {
-  "/SCRIPTS/TOOLS/rfsuite-core/tasks/msp/api/",
-  "/SCRIPTS/TOOLS/rfsuite/tasks/msp/api/",
+  _G.rfsuite.paths.core .. "/tasks/msp/api/",
 }
 
 local ROW_ORDER_KEYS = { "status", "info", "error", "value" }

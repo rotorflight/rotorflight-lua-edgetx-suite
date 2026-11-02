@@ -72,6 +72,7 @@ end
 -- ── A Lua state: its own _G.rfsuite, its own copies of the two modules ─────
 local function newState(name, general)
   local root = {
+    paths = dofile("src/rfsuite/lib/paths.lua"),
     preferences = { general = general or { log_to_card = true, debug_level = "off" } },
     require = function(path)
       if path == "lib/version.lua" then return { VERSION = "0.2.2" } end

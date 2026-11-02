@@ -14,7 +14,7 @@ end
 local env = setmetatable({
   loadScript = unexpectedIo,
   io = setmetatable({}, { __index = function() return unexpectedIo end }),
-  rfsuite = {}
+  rfsuite = { paths = dofile("src/rfsuite/lib/paths.lua") }
 }, { __index = _G })
 env._G = env
 local FlightLog = assert(loadfile("src/rfsuite/lib/flight_log.lua", "t", env))()

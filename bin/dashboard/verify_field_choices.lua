@@ -36,6 +36,7 @@ for _, name in ipairs({ "WHITE", "BLACK", "RED", "GREEN", "YELLOW", "ORANGE", "G
 end
 _G.lcd = _G.lcd or { RGB = function() return 0 end }
 _G.rfsuite = _G.rfsuite or { session = {} }
+_G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
 
 local Controls
 local DashboardLib

@@ -68,6 +68,7 @@ local function loadPair(source)
       return nil
     end,
   }
+  _G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
   local Views, viewErr = loadModule(viewsSource, "widgets/dashboard/views.lua")
   if Views == nil then return nil, nil, viewErr end
   return Keys, Views
@@ -263,6 +264,7 @@ local function loadThemeLayout(theme, transform)
   end
   restore()
   _G.rfsuite = {}
+  _G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
   _G.loadScript = function(path)
     local rel = string.match(path, "rfsuite%-core/(.+)$")
     local src = rel and readFile(SRC .. rel)

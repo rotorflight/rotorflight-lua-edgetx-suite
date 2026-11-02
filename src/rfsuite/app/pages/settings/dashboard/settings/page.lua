@@ -3,7 +3,7 @@ local loadedModules = {}
 local loadedThemeConfigs = {}
 local function loadModule(path)
   if loadedModules[path] then return loadedModules[path] end
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   local mod = chunk()
   loadedModules[path] = mod
@@ -45,7 +45,7 @@ end
 -- Written only when a theme's module fails to load, so the log module is read only then.
 local function logLoadFailure(path, reason)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local okLoad, chunk = pcall(loadScript, "/SCRIPTS/TOOLS/rfsuite-core/lib/log.lua", mode)
+  local okLoad, chunk = pcall(loadScript, _G.rfsuite.paths.core .. "/lib/log.lua", mode)
   if not okLoad or type(chunk) ~= "function" then return end
   local okMod, Log = pcall(chunk)
   if okMod and type(Log) == "table" and type(Log.emit) == "function" then

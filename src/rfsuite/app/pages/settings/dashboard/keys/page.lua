@@ -1,6 +1,6 @@
 -- Settings > Dashboard > Keys. These are radio preferences, including while offline.
 local function loadModule(path)
-  return assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, "t"))()
+  return assert(loadScript(_G.rfsuite.paths.core .. "/" .. path, "t"))()
 end
 local M = {}
 local Controls, Common, Keys, t

@@ -57,6 +57,7 @@ function getSourceValue(name)
   if quality[name] == "error" then error("source unavailable") end
   return values[name], live[name]
 end
+_G.rfsuite = { paths = dofile("src/rfsuite/lib/paths.lua") }
 local Sensors = assert(loadfile("src/rfsuite/lib/sensors.lua"))()
 local function reset()
   clock = clock + 4000; Sensors.reset()

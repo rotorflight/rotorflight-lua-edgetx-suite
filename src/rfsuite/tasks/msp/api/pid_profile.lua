@@ -90,7 +90,7 @@ local function loadApiVersion()
         if type(req) == "function" then
             mod = req("lib/api_version.lua")
         else
-            local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/api_version.lua", (root and root.loadMode) or "bt")
+            local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/api_version.lua", (root and root.loadMode) or "bt")
             if type(chunk) == "function" then
                 local ok, res = pcall(chunk)
                 if ok then mod = res end

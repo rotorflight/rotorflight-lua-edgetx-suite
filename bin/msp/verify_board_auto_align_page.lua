@@ -111,6 +111,7 @@ local function newSession(id, api)
   return { signature = api .. ":" .. id, apiVersion = api, fblConnected = true }
 end
 _G.rfsuite = { session = newSession("board-a", "12.10") }
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 
 local Page = assert(loadfile("src/rfsuite/app/pages/setup/alignment/page.lua"))()
 local wakeContext = { requestRebuild = function() rebuilds = rebuilds + 1 end }
