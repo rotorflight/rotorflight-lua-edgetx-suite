@@ -3404,7 +3404,7 @@ return {
         help_p2 = "View: Opens the log summary with Flight Time, Voltage, Current, Headspeed and ESC Temp; missing columns give --.",
         help_p3 = "Graph: Plots the log over time; in the list it skips the summary and opens the plot sooner.",
         help_p4 = "Curve: Choose up to four columns, or one of the offered sets (Power, Battery, Link, Governor), then press Show.",
-        help_p5 = "Full: The whole flight again; - and + zoom, the double arrows page, the single arrows step the cursor and its readout, Sensors returns to the curve choice.",
+        help_p5 = "Full: The whole flight; - and + zoom, the double arrows page, the single arrows step the cursor, Sensors: back to the curves.",
         graph_open = "Graph",
         graph_title = "Graph",
         graph_select = "Select Sensors",

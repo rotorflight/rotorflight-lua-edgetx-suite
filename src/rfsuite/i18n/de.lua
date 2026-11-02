@@ -3398,7 +3398,7 @@ return {
         help_p2 = "Anzeigen: Öffnet die Log-Zusammenfassung mit Flugzeit, Spannung, Strom, Kopfdrehzahl und Regler-Temp; fehlt eine Spalte, steht dort --.",
         help_p3 = "Diagramm: Zeigt das Log im Zeitverlauf; in der Liste ohne Zusammenfassung und dadurch schneller.",
         help_p4 = "Kurve: Bis zu vier Spalten oder eines der angebotenen Sets (Leistung, Akku, Funk, Governor) wählen, dann Anzeigen.",
-        help_p5 = "Ganz: Wieder der ganze Flug; - und + zoomen, die Doppelpfeile blättern, die Einzelpfeile schieben den Cursor samt Werten, Sensoren führt zur Kurvenwahl zurück.",
+        help_p5 = "Ganz: Der ganze Flug; - und + zoomen, Doppelpfeile blättern, Einzelpfeile schieben den Cursor, Sensoren: zurück zur Kurvenwahl.",
         graph_open = "Diagramm",
         graph_title = "Diagramm",
         graph_select = "Sensoren wählen",
