@@ -1801,9 +1801,11 @@ local function batteryPickLoadStep(self)
     pick.loaded = false
     return true
   end
+  -- The index before the list: a step stopped between the two then shows no packs yet, rather than
+  -- packs a pick could not find.
   local list = load.packs
-  pick.candidates = list
   pick.byId = load.byId
+  pick.candidates = list
 
   local id = BatteryPick.selectedId(session)
   pick.selectedId = id
