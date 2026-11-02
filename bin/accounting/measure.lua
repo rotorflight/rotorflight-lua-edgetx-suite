@@ -762,22 +762,29 @@ local function runThemeSwitchScenario(radioTheme, modelTheme)
   end
 
   local session = _G.rfsuite.session
-  local worst, worstAt, from = 0, 0, nil
+  local worst, worstAt, from, movedAt = 0, 0, nil, nil
   for i = 1, 400 do
+    -- The window ends before its first pass past it runs, so a switch can only be counted, never
+    -- completed in a pass the row leaves out.
+    if from and i >= from + SWITCH_WINDOW then break end
     feedLink(sensorIds, i)
     local had = session.modelPreferences
     local n = count(widget.refresh, widget, nil, nil)
     if from == nil and had == nil and type(session.modelPreferences) == "table" then from = i end
-    if from and i < from + SWITCH_WINDOW then
+    if from then
       if n > worst then worst, worstAt = n, i - from end
-    elseif from then
-      break
+      if movedAt == nil and widget.themePath == modelTheme then movedAt = i - from end
     end
   end
   if from == nil then error("accounting: the model's preferences never arrived") end
-  if widget.themePath ~= modelTheme then
-    error("accounting: the widget did not move to the model's " .. modelTheme .. " ("
-      .. tostring(widget.themePath) .. ")")
+  if movedAt == nil or widget.themePath ~= modelTheme then
+    error("accounting: the widget did not move to the model's " .. modelTheme .. " within "
+      .. SWITCH_WINDOW .. " passes (" .. tostring(widget.themePath) .. ")")
+  end
+  -- The whole switch is inside the passes counted: the theme is loaded, and nothing of it is still
+  -- waiting for a later pass.
+  if widget.theme == nil or widget._themeReloadPending ~= nil or widget._themeSourcesPending ~= nil then
+    error("accounting: the switch to " .. modelTheme .. " did not finish within " .. SWITCH_WINDOW .. " passes")
   end
   return worst, worstAt
 end
