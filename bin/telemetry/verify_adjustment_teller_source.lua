@@ -353,6 +353,27 @@ for _, host in ipairs(HOSTS) do
     host .. ": an adjustment decoded on the pass after the teller's load is announced")
 end
 
+-- Widget only: the overlay loaded the teller while announcements were off and nothing was being
+-- adjusted; a report standing when they are switched on is still joined, and the next one spoken.
+do
+  newWorld("widget", { enabled = false })
+  W.adj = { 0, 0 }
+  seconds(2.0)
+  _G.rfsuite.require(TELLER)
+  seconds(0.5)
+  W.adj = { 14, 100 }
+  seconds(1.0)
+  W.prefs.audio_events.adjustment_events = true
+  seconds(2.0)
+  check(#W.spoken == 0, "widget: a report standing when switched on is joined, also by the overlay's teller")
+  W.adj = { 0, 0 }
+  seconds(1.0)
+  W.adj = { 15, 7 }
+  seconds(2.0)
+  check(said("inflight/fn/15.wav") and said("#7"),
+    "widget: the overlay's teller announces the next adjustment once switched on")
+end
+
 -- Widget only: the decoder table loads on the same pass whether the teller was loaded, taken over
 -- from the in-flight overlay, or not loaded at all.
 do

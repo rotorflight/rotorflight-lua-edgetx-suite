@@ -109,14 +109,6 @@ local state = {
   changedAt = nil,
 }
 
--- A teller loaded while the decoder holds a 0 starts as one that has already read it: nothing is
--- being adjusted, so the next report is the pilot's. Its host does not wake it on the pass that
--- loads it, and a report decoded on the next one would otherwise be its first reading -- joined.
-do
-  local report = root and root.adjustmentReport
-  if type(report) == "table" and report[1] == 0 then state.idleSeen = true end
-end
-
 local function nowSeconds()
   if type(getTime) == "function" then
     local ok, v = pcall(getTime)
@@ -130,6 +122,16 @@ local function enabled()
   local prefs = root and root.preferences
   local events = prefs and prefs.audio_events
   return events ~= nil and events.adjustment_events == true
+end
+
+-- A teller loaded while announcements are on and the decoder holds a 0 starts as one that has
+-- already read it: nothing is being adjusted, so the next report is the pilot's. Its host does not
+-- wake it on the pass that loads it, and a report decoded on the next one would otherwise be its
+-- first reading -- joined. Not while they are off (the in-flight overlay loads it for its own
+-- speech): its wakeup reads nothing then, and a report standing when they are switched on is joined.
+do
+  local report = root and root.adjustmentReport
+  if enabled() and type(report) == "table" and report[1] == 0 then state.idleSeen = true end
 end
 
 -- Resolved on the first announcement rather than on the first pass, and NOT latched on a
