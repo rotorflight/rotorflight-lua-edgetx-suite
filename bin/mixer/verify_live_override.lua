@@ -63,11 +63,24 @@ local ConfirmDialog = {
   end
 }
 
+-- The save pipeline is stubbed with its phase: "write" from start until finishSave() ends it, as
+-- the real one reports through getProgress() while a step or the EEPROM commit is ahead.
 local saveRequest = nil
+local savePhase = nil
 local SavePipeline = {
+  PHASE = { WRITE = "write", COMMIT = "commit" },
   takeResult = function() end,
-  start = function(request) saveRequest = request; return true end
+  start = function(request) saveRequest = request; savePhase = "write"; return true end,
+  getProgress = function() return savePhase and { phase = savePhase } or nil end
 }
+-- The pipeline's own order: onSaved after the EEPROM commit, then onDone. `held` is a run whose
+-- overlay was dismissed: its onDone waits until the page claims the outcome, possibly much later.
+local function finishSave(status, held)
+  savePhase = nil
+  if not saveRequest then return end
+  if status == "done" and saveRequest.onSaved then saveRequest.onSaved() end
+  if not held then saveRequest.onDone({ status = status }) end
+end
 
 local Common = {
   pageT = function() return function(_, _, fallback) return fallback end end,
@@ -136,6 +149,7 @@ end
 local function openTail(tailMode, trimRaw)
   clearQueue()
   saveRequest = nil
+  savePhase = nil
   local page = freshPage("tail")
   page.wakeup(ctx)
   reply(mixerConfig(tailMode, trimRaw))
@@ -231,7 +245,7 @@ do
   check(saveRequest ~= nil, "tail: Save goes through the save pipeline")
   equal(saveRequest and #saveRequest.steps, 2, "tail: Save writes MIXER_CONFIG and the yaw input")
   equal(saveRequest and saveRequest.reboot, false, "tail: Save with the override on does not restart")
-  if saveRequest then saveRequest.onSaved(); saveRequest.onDone({ status = "done" }) end
+  finishSave("done")
   clearQueue()
   page.onClose()
   equal(commands(), "191", "tail: after Save, leaving only releases the override")
@@ -251,7 +265,36 @@ do
   page.onSave({})
   page.onClose()
   equal(commands(), "191", "tail: leaving during a save queues no rollback, only the release")
-  if saveRequest then saveRequest.onDone({ status = "done" }) end
+  finishSave("done")
+end
+
+-- The page module is kept between visits: once that save has ended, the next visit rolls back again.
+do
+  local page = openTail(0, 120)
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Yaw Center Trim"].opts.set(12)
+  page.onSave({})
+  page.onClose()
+  finishSave("done", true)
+  clearQueue()
+  page.wakeup(ctx)
+  reply(mixerConfig(0, 50))
+  reply(YAW_INPUT)
+  clearQueue()
+  build(page)
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Yaw Center Trim"].opts.set(24)
+  page.wakeup(ctx)
+  advance(0.6)
+  page.wakeup(ctx)
+  clearQueue()
+  page.onClose()
+  equal(commands(), "43,191", "tail: a later visit of the same page rolls back after an earlier save ended")
+  equal(queue.messages[1] and payloadTrim(queue.messages[1]), 50, "tail: that rollback carries this visit's read")
 end
 
 -- A save that fails after its configuration write: leaving still puts the record read back.
@@ -262,7 +305,7 @@ do
   build(page)
   fields["Yaw Center Trim"].opts.set(12)
   page.onSave({}) -- before the live write was due
-  if saveRequest then saveRequest.onDone({ status = "failed" }) end
+  finishSave("failed")
   clearQueue()
   page.onClose()
   equal(commands(), "43,191", "tail: after a failed save, leaving puts the trim back, then releases")
@@ -275,6 +318,7 @@ end
 local function openTrims(trimRaw)
   clearQueue()
   saveRequest = nil
+  savePhase = nil
   local page = freshPage("trims")
   page.wakeup(ctx)
   reply(mixerConfig(0, trimRaw))
@@ -337,7 +381,7 @@ do
   page.onSave({})
   page.onClose()
   equal(commands(), "191,191,191,191", "trims: leaving during a save queues no rollback, only the release")
-  if saveRequest then saveRequest.onDone({ status = "done" }) end
+  finishSave("done")
 end
 
 do
@@ -346,7 +390,7 @@ do
   clearQueue()
   fields["Pitch trim"].opts.set(30)
   page.onSave({})
-  if saveRequest then saveRequest.onDone({ status = "failed" }) end
+  finishSave("failed")
   clearQueue()
   page.onClose()
   equal(commands(), "43,191,191,191,191", "trims: after a failed save, leaving puts the trims back, then releases")

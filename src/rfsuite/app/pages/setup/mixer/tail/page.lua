@@ -77,10 +77,6 @@ local ui = {
   -- visit: it holds what the board has as far as this page knows (the read, or the last save that
   -- reached EEPROM) and what went out live. A visit that never presses * never loads it.
   override = nil,
-  -- A save of this page is on its way (set when the pipeline takes it, cleared by its onDone). Its
-  -- steps are queued one by one from the replies, so a rollback queued meanwhile would land
-  -- between them; leaving or Reload then queues none, and the save's outcome decides.
-  saving = false,
   runtime = {
     readPending = false,
     requestRebuild = nil
@@ -203,6 +199,20 @@ end
 
 local function overrideActive()
   return ui.override ~= nil and ui.override.active == true
+end
+
+-- A save is still writing: a step or the EEPROM commit is ahead. The pipeline queues each step from
+-- the previous reply, so a rollback queued now would land between them and EEPROM could keep the
+-- old value while the save reports the new one. A save that needs no restart lets the page be left
+-- meanwhile (SavePipeline.blocksNavigation()). Asked of the pipeline rather than kept in a flag:
+-- a dismissed save's outcome is delivered late, and a flag cleared there could stay set.
+local function saveWriting()
+  if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
+  if not SavePipeline or type(SavePipeline.getProgress) ~= "function" then return false end
+  local progress = SavePipeline.getProgress()
+  local phases = SavePipeline.PHASE or {}
+  return type(progress) == "table"
+    and (progress.phase == (phases.WRITE or "write") or progress.phase == (phases.COMMIT or "commit"))
 end
 
 local function ensureOverride()
@@ -438,7 +448,6 @@ local function queueTailWrite()
       if override then override:stored(writeConfig, values) end
     end,
     onDone = function(result)
-      ui.saving = false
       if result.status == "done" then
         -- The board holds what was written, and the next save is compared with that.
         ui.apiData.MIXER_CONFIG = writeConfig
@@ -451,7 +460,6 @@ local function queueTailWrite()
       end
     end
   })
-  if ok then ui.saving = true end
   -- The save sends what is on screen, so the live loop has nothing to send until it changes.
   if ok and override then override:markSent(values) end
   return ok, reason
@@ -774,7 +782,7 @@ function M.onReload(ctx)
   local session = getSession()
   if session then
     -- Before the read, so the read is queued behind the rollback and shows the board's value.
-    if ui.dirty and not ui.saving then rollbackLiveChanges() end
+    if ui.dirty and not saveWriting() then rollbackLiveChanges() end
     loadFromSession()
     ui.dirty = false
     queueTailRead(false)
@@ -826,8 +834,8 @@ function M.onClose()
   -- An unsaved trim sent live is taken back first, while the override still holds the tail.
   -- Queued ahead of the override write on purpose: should the close end before every write is
   -- out, a lost override write leaves a board that refuses to arm, a lost rollback a trial trim
-  -- the model would fly with. A save still on its way is not undone here (ui.saving).
-  if ui.dirty and not ui.saving then rollbackLiveChanges() end
+  -- the model would fly with. A save still writing is not undone here (saveWriting above).
+  if ui.dirty and not saveWriting() then rollbackLiveChanges() end
   if overrideActive() then
     ui.override:disable(getQueue())
   end
