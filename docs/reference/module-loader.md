@@ -55,8 +55,8 @@ as is a file that failed to load, so a module whose body must run only once ends
 
 ## A failed load is not remembered, so the caller remembers it
 
-Because a failure is not cached, a caller that asks again on every pass goes back to the card for
-the file every time. Callers that run on every pass therefore keep the answer themselves:
+Because a failure is not cached, a caller that asks again on every pass loads the file again every
+time -- from the card, unless the tool already holds its compiled chunk (see below). Callers that run on every pass therefore keep the answer themselves:
 
 - The background telemetry runner (`tasks/events/telemetry_bg/tasks.lua`) and SmartFuel record
   `false` for a module that did not load and do not ask for it again until the Lua state restarts.

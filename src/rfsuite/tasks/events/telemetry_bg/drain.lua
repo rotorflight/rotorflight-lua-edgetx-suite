@@ -151,7 +151,7 @@ local CrsfManager = nil
 
 -- How long the drain waits before asking the loader again for one of its modules that did not
 -- load, and the time before which it does not ask. The loader does not remember a failure, so
--- without the wait every wakeup goes back to the card for the file. A retry rather than giving
+-- without the wait every wakeup asks for the file again. A retry rather than giving
 -- up for good, because a load can fail without the file being broken: the loader's pcall also
 -- catches the radio's instruction limit when it stops a pass while the module's chunk runs.
 local LOAD_RETRY_SECONDS = 1
@@ -172,15 +172,7 @@ local DECODE_CAP = 4
 -- the drain chose to skip must never read as a link problem.
 local function popAndAccount()
     local CRSF_FRAME_CUSTOM_TELEM = 0x88
-    -- Asked for at most once a second after a failed load, for the reason M.wakeup gives.
-    if not CrsfManager then
-      if passNow < loadRetryAt then return nil end
-      CrsfManager = loadModule("lib/crsf.lua")
-      if not CrsfManager then
-        loadRetryAt = passNow + LOAD_RETRY_SECONDS
-        return nil
-      end
-    end
+    -- CrsfManager is loaded by M.wakeup before any frame is popped.
 
     local data = CrsfManager.popFrame(CRSF_FRAME_CUSTOM_TELEM)
     if not data then return nil end
@@ -325,13 +317,25 @@ function M.wakeup(now, decodeAll)
     -- wire.
     --
     -- A failed load is asked for again after LOAD_RETRY_SECONDS, not on the next wakeup: the
-    -- drain is woken about ten times a second, and each ask is a card read. M.reset() leaves the
+    -- drain is woken about ten times a second, and each ask can be a card read. M.reset() leaves the
     -- wait alone: a lost link says nothing about what is on the card.
     if not RFSensors then
         if now < loadRetryAt then return 0 end
         RFSensors = loadModule("lib/rf2tlm_sensors.lua", nil, groupDue)
         if not RFSensors then loadRetryAt = now + LOAD_RETRY_SECONDS end
         return 0
+    end
+
+    -- The CRSF module, under the same wait, and before the resume bookkeeping below: a pass that
+    -- cannot pop must not start the window in which frame ids are not yet counted as gaps, or the
+    -- first frame after a late load would count as frames the link lost.
+    if not CrsfManager then
+        if now < loadRetryAt then return 0 end
+        CrsfManager = loadModule("lib/crsf.lua")
+        if not CrsfManager then
+            loadRetryAt = now + LOAD_RETRY_SECONDS
+            return 0
+        end
     end
 
     -- A pass after a stretch in which this state took no frames is a resume (see `resyncPending`

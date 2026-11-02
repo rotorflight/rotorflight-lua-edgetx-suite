@@ -33,8 +33,8 @@ end
 
 -- `failing` names the module that does not load, `times` how many loads of it fail (nil: all);
 -- `failing` nil loads both.
-local function newDrain(failing, times)
-  local h = { loads = {}, published = {}, queued = {}, t = 0, frames = 0 }
+local function newDrain(failing, times, firstId)
+  local h = { loads = {}, published = {}, queued = {}, t = 0, frames = (firstId or 1) - 1 }
   local env = setmetatable({}, { __index = _G })
   env._G = env
   env.bit32 = bit32
@@ -76,6 +76,13 @@ local function newDrain(failing, times)
       popped = popped + n
     end
     return popped
+  end
+  function h:lastPublished(id)
+    local value
+    for _, entry in ipairs(self.published) do
+      if entry.id == id then value = entry.value end
+    end
+    return value
   end
   function h:armPublished()
     for _, entry in ipairs(self.published) do
@@ -131,11 +138,12 @@ end)
 
 -- A load that fails once and then succeeds -- the loader's pcall also catches the radio's
 -- instruction limit -- does not switch decoding off: frames are taken again within about a
--- second of the failure.
+-- second of the failure. The link's frame ids start at 100 and run without a gap, so the skip
+-- counter must stay at 0: the late first frame is not a frame the link lost.
 for _, module in ipairs({ DECODER, CRSF }) do
   local label = module == DECODER and "decoder_fails_once" or "crsf_fails_once"
   scenario(label, function()
-    local h = newDrain(module, 1)
+    local h = newDrain(module, 1, 100)
     h:run(WAKEUPS)
     print(string.format("%s: %d loads, first frame taken at %.1f s", label, h.loads[module] or 0,
       h.firstPopAt or -1))
@@ -144,6 +152,8 @@ for _, module in ipairs({ DECODER, CRSF }) do
     check(h.firstPopAt ~= nil and h.firstPopAt <= 1.5, label .. ": frames taken within about a second",
       "first pop at " .. tostring(h.firstPopAt))
     check(h:armPublished(), label .. ": decoded sensor published")
+    local skp = h:lastPublished(0xEE02)
+    check(skp == 0, label .. ": no frame counted as skipped", "*Skp=" .. tostring(skp))
   end)
 end
 
