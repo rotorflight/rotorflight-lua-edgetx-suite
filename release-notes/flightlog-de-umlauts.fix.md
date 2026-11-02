@@ -1,2 +1,2 @@
-- **The German Flight Log texts use real umlauts (`i18n/de.lua`)**:
-  - The refused-read message and the inline help of Tools > Flight Log were written with transliterated umlauts ("geaendert", "Kapazitaet"); they now carry the real characters like the rest of the German table.
+- **The German Flight Log page uses real umlauts (`i18n/de.lua`)**:
+  - Its labels, notices, dialogs and help ("Fluege", "Kapazitaet", "Akku loeschen", "Entschaerfen") were written with transliterated umlauts; they now carry the real characters like the rest of the German table.
