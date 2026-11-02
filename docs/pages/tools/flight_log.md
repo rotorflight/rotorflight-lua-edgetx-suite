@@ -209,8 +209,9 @@ A column whose sensor the model does not have, such as ESC temperature, is left 
 | `sags`, `sag_min` | How many times the pack sagged to the flight controller's minimum cell voltage, and the deepest per-cell voltage it reached |
 
 Per-cell voltage needs a cell count, which comes from the flight controller's battery
-configuration. On a model where that has not been read, the two per-cell columns stay empty rather
-than being divided by a guess.
+configuration. Where the cell count there is `0` — the flight controller detects the count itself —
+it is the count the flight controller reports in telemetry (`Cel#`) during the flight. Where neither
+gives one, the two per-cell columns stay empty rather than being divided by a guess.
 
 A sag is a dip to or below the flight controller's own *Min cell voltage*, counted once per dip:
 the pack has to come back 0.05 V a cell above the line before the next one counts. A reading at or

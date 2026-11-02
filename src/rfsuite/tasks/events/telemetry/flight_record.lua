@@ -19,6 +19,8 @@
 --     last        = { <key> = number, ... },  -- the flight that ended, empty before the first one
 --     seconds     = number,   -- armed seconds of the flight in progress
 --     lastSeconds = number,   -- armed seconds of the flight that ended
+--     lastCells   = number,   -- the pack's cell count the flight that ended was flown with, as
+--                             -- resolvePack found it; nil where neither the board nor telemetry said
 --     flights     = number,   -- flights the flight controller counts
 --     totalSeconds= number,   -- armed seconds the flight controller counts, plus the live flight
 --     armed       = boolean,  -- whether a record is open
@@ -233,6 +235,9 @@ local values = {
   powered = false,
   -- Not sampled: the pack the sag detector is judging, resolved once per flight.
   cells = 0,
+  -- The cell count alone, kept even where the board's minimum cell voltage leaves the sag detector
+  -- off: the flight log divides the pack voltage by it (`lastCells`).
+  packCells = nil,
   sagEnter = nil,
   sagLeave = nil,
   sagIn = false,
@@ -241,6 +246,7 @@ local values = {
 --- The sag detector, back to the state a fresh flight starts in.
 local function resetSagDetector()
   values.cells = 0
+  values.packCells = nil
   values.sagEnter = nil
   values.sagLeave = nil
   values.sagIn = false
@@ -582,9 +588,11 @@ Record.ensure = ensureFlight
 ---
 --- The cell count is the flight controller's own where it has one; a configured count of zero is
 --- the board saying it detects the count itself, and then telemetry answers instead. That is the
---- rule lib/audio.lua already applies to the same question, and the flight log takes the per-cell
---- columns beside these two from the same configuration. Where neither answers, nothing is
---- resolved and the detector stays silent rather than dividing by a guess.
+--- rule lib/audio.lua already applies to the same question. The count is kept on its own as well
+--- (`packCells`, closed into the flight as `lastCells`), because the flight log's per-cell columns
+--- beside these two need it even where the board's minimum cell voltage leaves the detector off.
+--- Where neither answers, nothing is resolved and the detector stays silent rather than dividing
+--- by a guess.
 local function resolvePack(get)
   local session = _G.rfsuite and _G.rfsuite.session
   local config = session and (session.batteryConfig or session.battery_config) or nil
@@ -594,6 +602,7 @@ local function resolvePack(get)
   if cells == nil or cells <= 0 then cells = tonumber(get("battery_cell_count")) end
   if cells == nil or cells <= 0 then return end
   cells = math.floor(cells + 0.5)
+  values.packCells = cells
 
   -- Centi-volts, as tasks/msp/api/battery_config.lua parses it and the Battery page displays it.
   -- Outside the range that page and the flight controller allow (1.00 to 5.00 V), the value is not
@@ -787,6 +796,7 @@ function Record.close()
   local flight = ensureFlight()
   flight.last = flight.current
   flight.lastSeconds = flight.seconds
+  flight.lastCells = values.packCells
   if flight.seconds >= 1 then
     closedFlights = closedFlights + 1
   end
@@ -876,6 +886,7 @@ function Record.reset()
   flight.last = {}
   flight.seconds = 0
   flight.lastSeconds = 0
+  flight.lastCells = nil
   flight.armed = false
   values.fuelSeen = false
   -- Every sampled reading belongs to the session that ended. A sensor that answers nothing leaves
