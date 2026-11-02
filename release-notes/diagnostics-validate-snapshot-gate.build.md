@@ -1,0 +1,2 @@
+- **Validate Sensors reads the telemetry slot list only when it has changed (`app/pages/tools/diagnostics/validate_sensors/page.lua`)**:
+  - The page walked all 40 telemetry slots on every wakeup to notice a new sensor configuration; it now does so only when a new configuration has been stored, which takes a wakeup between two row refreshes from about 1 070 to about 60 instructions. A changed configuration still shows on the next wakeup, and the rows still refresh every 0.8 s (#604).

@@ -645,6 +645,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/diagnostics/verify_elrs_probe_armed.lua
 
+  validate-sensors-wakeup:
+    name: Validate Sensors wakeup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/diagnostics/verify_validate_sensors_wakeup.lua
+
   telemetry-sync-slots:
     name: Telemetry slots after a save
     runs-on: ubuntu-latest
