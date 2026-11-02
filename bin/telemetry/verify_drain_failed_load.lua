@@ -32,8 +32,9 @@ local function frame(id, armed)
 end
 
 -- `failing` names the module that does not load, `times` how many loads of it fail (nil: all);
--- `failing` nil loads both.
-local function newDrain(failing, times, firstId)
+-- `failing` nil loads both. `raises` makes a failing load a chunk that raises while it runs, as
+-- the radio's instruction limit does, instead of a file that cannot be read.
+local function newDrain(failing, times, firstId, raises)
   local h = { loads = {}, published = {}, queued = {}, t = 0, frames = (firstId or 1) - 1 }
   local env = setmetatable({}, { __index = _G })
   env._G = env
@@ -56,6 +57,7 @@ local function newDrain(failing, times, firstId)
     assert(relative, "unexpected script path: " .. tostring(path))
     h.loads[relative] = (h.loads[relative] or 0) + 1
     if relative == failing and (times == nil or h.loads[relative] <= times) then
+      if raises then return function() error("CPU limit") end end
       return nil, "cannot open " .. path
     end
     if relative == DECODER then return function() return decoder end end
@@ -140,10 +142,11 @@ end)
 -- instruction limit -- does not switch decoding off: frames are taken again within about a
 -- second of the failure. The link's frame ids start at 100 and run without a gap, so the skip
 -- counter must stay at 0: the late first frame is not a frame the link lost.
-for _, module in ipairs({ DECODER, CRSF }) do
-  local label = module == DECODER and "decoder_fails_once" or "crsf_fails_once"
+for _, case in ipairs({ { DECODER, false }, { CRSF, false }, { DECODER, true }, { CRSF, true } }) do
+  local module, raises = case[1], case[2]
+  local label = (module == DECODER and "decoder" or "crsf") .. (raises and "_raises_once" or "_fails_once")
   scenario(label, function()
-    local h = newDrain(module, 1, 100)
+    local h = newDrain(module, 1, 100, raises)
     h:run(WAKEUPS)
     print(string.format("%s: %d loads, first frame taken at %.1f s", label, h.loads[module] or 0,
       h.firstPopAt or -1))
@@ -156,6 +159,17 @@ for _, module in ipairs({ DECODER, CRSF }) do
     check(skp == 0, label .. ": no frame counted as skipped", "*Skp=" .. tostring(skp))
   end)
 end
+
+-- Control for the skip check above: a real gap in the link's frame ids, after the drain has been
+-- taking frames for a while, is counted.
+scenario("gap_counted", function()
+  local h = newDrain(nil, nil, 100)
+  h:run(30)
+  h.frames = h.frames + 5
+  h:run(30)
+  local skp = h:lastPublished(0xEE02)
+  check(skp ~= nil and skp >= 1, "gap_counted: a gap in the frame ids counts as skipped", "*Skp=" .. tostring(skp))
+end)
 
 -- A lost link resets the drain's link state, not the wait: a module that is not on the card is
 -- not asked for again because the link went.

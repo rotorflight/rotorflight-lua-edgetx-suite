@@ -594,8 +594,8 @@ local function enqueueVersionReads(now)
   end
 
   if not ensureVersionDeps() then
-    -- The loader does not remember a module that failed to load, so every call here goes back to
-    -- the card for it. The read stays owed and is tried again after a short wait; the link
+    -- The loader does not remember a module that failed to load, so every call here asks it for
+    -- the module again. The read stays owed and is tried again after a short wait; the link
     -- coming up again clears the wait. Not the board's failure, so neither its counter nor its
     -- notice is touched.
     state.requestBackoffUntil = now + VERSION_DEPS_RETRY_SECONDS
