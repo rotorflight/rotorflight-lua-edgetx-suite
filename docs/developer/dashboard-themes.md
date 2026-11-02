@@ -240,6 +240,14 @@ after a flight, off screen, or for the UID) is not looked for again until the re
 reload then checks the files once and reads only the one that moved since the last reload, as an
 undeferred reload does; both where both moved, the check cannot tell which, or a change was
 signalled only by the reload request, which names no file -- when it was found, or while it waited.
+A battery picked on the dashboard is saved to the model's preferences and moves the reload request
+like any save, so that the tool and the other widgets read it. The dashboard that saved it already
+holds what it wrote: it looks at the files just before and just after its own save, and where they
+stood before it as it last saw them, it takes them as they stand after it, without a reload or a
+theme resolve. A save made elsewhere since its last look (once a second) that the look can see -- the
+reload request, or a preference file's size or time, moved -- leaves nothing taken, and the pick is
+reloaded with it; one made after the pick is found at the next look, as any save is. Where it cannot
+take its save as its own (a reload already waiting, a file it cannot stat), the pick is reloaded.
 
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be
@@ -283,7 +291,8 @@ stop at the instruction limit goes to the card every time, as the widget's own `
 fault, and the widget waits 1.2 s before the next try). A
 build that is stopped at the limit only sometimes is drawn again as soon as one try completes,
 which starts the count over; one that is stopped three times in a row stays *Dashboard error*. A
-theme reload starts over: choosing a theme, any change to the preferences, the flight
+theme reload starts over: choosing a theme, any change to the preferences (a battery picked on the
+dashboard itself, taken as its own, is not one, see above), the flight
 controller reconnecting, or a flight phase that brings up another of the theme's modules. Until
 then the error stays on screen, even if the cause has gone away by itself: a build that raises
 for as little as three tries in a row in flight can leave *Dashboard error* up for the rest of

@@ -5533,7 +5533,47 @@ function Runtime.new(zone, options)
       local pick = self.state.batteryPick
       if pick.load ~= nil and pick.loaded == true then pick.load = nil end
       if self._batteryPickRequest ~= nil and pick.loaded == true then
-        self._job = { kind = "battery_pick_apply", step = batteryPickApplyStep, oneShot = true }
+        -- The pick saves the model's store, and the save moves the reload request so that the
+        -- tool and every other widget read the store again. This dashboard already holds what
+        -- the pick writes -- the session's table, which it reads from -- so where the files stand
+        -- just before the save as it last saw them, it takes them as they stand just after it for
+        -- its own view, instead of reading the store back and resolving its theme again. Nothing
+        -- runs between the two looks (scripts run one after another), so a save made anywhere
+        -- else after the pick moves the files past that view and is reloaded like any save after
+        -- a look; one made since the last look leaves the files off it, and nothing is taken.
+        -- The look is the same one reloadPreferencesIfNeeded takes, once per pick.
+        self._job = { kind = "battery_pick_apply", oneShot = true, step = function(w)
+          local function look()
+            local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+            local stamp = preferencesStamp(session and session.modelPreferencesFile, w._lastPrefsStamp)
+            if not stamp then return nil end
+            local seqs, paths = {}, reloadRequestPaths()
+            for i = 1, #paths do
+              local ok, info = pcall(fstat, paths[i])
+              seqs[paths[i]] = (ok and type(info) == "table" and (info.size or 0) > 0) and info.size or 0
+            end
+            return stamp, seqs
+          end
+          -- Each look is protected: one that raises takes nothing, and never keeps the pick itself
+          -- from running (it is what takes the request off).
+          local seen = false
+          if not w._reloadPending and type(w._lastPrefsStamp) == "string" and type(w._lastReloadSeqs) == "table" then
+            local ok, stamp, seqs = pcall(look)
+            seen = ok and stamp ~= nil and stamp == w._lastPrefsStamp
+            for path, seq in pairs(seqs or {}) do
+              if w._lastReloadSeqs[path] ~= seq then seen = false end
+            end
+          end
+          local done = batteryPickApplyStep(w)
+          if seen then
+            local ok, stamp, seqs = pcall(look)
+            if ok and stamp then
+              w._lastPrefsStamp = stamp
+              for path, seq in pairs(seqs) do w._lastReloadSeqs[path] = seq end
+            end
+          end
+          return done
+        end }
       elseif pick.loaded ~= true and self.state.tasksDone == true then
         self._job = { kind = "battery_pick_load", step = batteryPickLoadStep, oneShot = true }
       end
