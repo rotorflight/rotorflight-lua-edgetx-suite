@@ -797,6 +797,11 @@ local function cleanupInflight(self)
   local instance = self._inflight
   if self.inflightFullscreen == true or (instance and instance.open == true) then
     self.built, self.renderKey, self._cachedTuningKey = false, nil, nil
+    -- The tuning branch of refresh() stamps the render-key throttle whenever it recomputes its own
+    -- key, so whatever invalidated the dashboard's key while the surface was up has not been
+    -- recomputed. Opened here, the surface the pilot returns to is keyed in the pass that builds it,
+    -- rather than built under the key left behind and then again once the throttle opens.
+    self._lastUIRefresh = 0
   end
   if self._job and self._job.kind == "tuning_fs" then self._job = nil end
   self.inflightFullscreen = nil
@@ -2305,6 +2310,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   self.built = false
   self.renderKey = nil
   self._cachedRenderKey = nil
+  self._renderKeyCached = nil
   self.lastModelPreferences = nil
   self.lastModelPrefsSignature = nil
   -- Clear self.modelPreferences NOW, before the disk reads below. reloadActiveTheme
@@ -4265,6 +4271,7 @@ function Runtime.new(zone, options)
       self.built = false
       self.renderKey = nil
       self._cachedRenderKey = nil
+      self._renderKeyCached = nil
       -- refresh() computes the render key under a 2 Hz throttle and hands on the cached key while
       -- it is closed, which is nil now; a scene queued under that would be built again once the
       -- throttle computed the real key. Opening it keys the scene on the new bounds in this pass.
@@ -4751,6 +4758,7 @@ function Runtime.new(zone, options)
       self.built = false
       self.renderKey = nil
       self._cachedRenderKey = nil
+      self._renderKeyCached = nil
       self._job = nil
       if Sensors and type(Sensors.reset) == "function" then
         Sensors.reset()
@@ -4922,6 +4930,7 @@ function Runtime.new(zone, options)
     self.built = false
     self.renderKey = nil
     self._cachedRenderKey = nil
+    self._renderKeyCached = nil
     self._lastUIRefresh = 0
     -- Reporting starts over, which is what makes switching tracing on mid-session work: changing
     -- the debug level rewrites the settings file, which reloadPreferencesIfNeeded watches,
@@ -5414,7 +5423,12 @@ function Runtime.new(zone, options)
       -- Throttle dashboard rendering to max 2Hz (0.5s) to save CPU
       if not self._lastUIRefresh then self._lastUIRefresh = 0 end
       local now = nowSeconds()
-      if (now - self._lastUIRefresh) >= 0.5 then
+      -- A key an invalidation dropped (applyThemeConfig, a reload: `_renderKeyCached` cleared) is
+      -- computed at once rather than handed on, since another surface -- the full-screen theme,
+      -- the tuning surface -- may have spent the throttle since, and a scene queued under nil is
+      -- built again as soon as the throttle next opens. The flag, not the value, says whether the
+      -- key was computed: a theme without a key of its own computes nil, and stays on 2 Hz.
+      if (now - self._lastUIRefresh) >= 0.5 or not self._renderKeyCached then
         self._lastUIRefresh = now
         local newKey = nil
         if type(self.theme.renderKey) == "function" then
@@ -5423,6 +5437,7 @@ function Runtime.new(zone, options)
           newKey = self.dashboardEngine.renderKey(self.state, self.boxSources)
         end
         self._cachedRenderKey = newKey
+        self._renderKeyCached = true
       end
       nextRenderKey = self._cachedRenderKey
     end
