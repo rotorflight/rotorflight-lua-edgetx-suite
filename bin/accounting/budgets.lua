@@ -328,6 +328,13 @@ return {
     -- The API-layer parse of the largest reply the suite scripts, in one piece. It
     -- lands in whatever pass completes the reassembly.
     ["unit.msp.parse.max"] = { target = 2750, measured = 2175 },
+    -- The dashboard's preferences reload (forced), the half that reads the radio-wide settings: the file
+    -- loaded, the language resolved and the i18n context built again. Once per saved settings
+    -- change, in a STATE pass. The language is handed over from the settings just read rather than
+    -- read from the file a second time; the parse itself is load(), a C function outside the hook, so
+    -- what this row prices is the Lua around the read. The target is the measurement with the
+    -- margin --emit gives a new row.
+    ["unit.preferences.reload"] = { target = 2500, measured = 1998 },
 
     ----------------------------------------------------------------------------
     -- The tool's pages, as the dashboard hosts them: the instructions inside one page
