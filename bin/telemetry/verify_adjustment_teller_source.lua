@@ -350,6 +350,42 @@ do
     "widget: an adjustment made within 3 s of a reset, after an idle 0, is announced")
 end
 
+-- The settle is 1.0 s from the first decoded row of the new value: nothing before, the value at
+-- the first pass after.
+for _, host in ipairs(HOSTS) do
+  newWorld(host, { enabled = true })
+  W.adj = { 0, 0 }
+  warm()
+  adjust(14, 100)
+  pass(1)
+  pass(18)
+  check(#W.spoken == 0, host .. ": nothing is spoken before the value has stood 1.0 s")
+  pass(3)
+  check(said("#100"), host .. ": the value is spoken once it has stood 1.0 s")
+end
+
+-- Widget only: taking over from another Lua state while a report stands, when its next row is
+-- the slow one (3 s). The other state has announced it (and published it to the radio); the pair
+-- this state decoded before stepping aside is not taken for the current one.
+do
+  newWorld("widget", { enabled = true })
+  idle()
+  seconds(4.0)
+  W.remote = true
+  seconds(2.0)
+  adjust(14, 100)
+  W.rows.AdjF, W.rows.AdjV = 14, 100
+  seconds(0.3)
+  W.adjEvery = IDLE_TICKS
+  seconds(1.0)
+  W.remote = false
+  W.frames = {}
+  W.nextAdjAt = W.ticks + IDLE_TICKS
+  seconds(5.0)
+  check(#W.spoken == 0,
+    "widget: a report standing at takeover is joined, also when its next row comes 3 s later")
+end
+
 -- Widget only: a teller the in-flight tuning overlay has already loaded is taken over, not
 -- loaded a second time, and it is reset when the widget steps aside, as before.
 do
