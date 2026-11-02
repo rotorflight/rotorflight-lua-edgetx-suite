@@ -19,12 +19,15 @@ the shortest gap between two calls; a host can skip a pass for its own reasons.
 | Host | How often | Context |
 | --- | --- | --- |
 | Dashboard widget (`widgets/dashboard/runtime.lua`) | every logic tick: 0.1 s, or 0.05 s while the link is up and the connection is not ready yet. Skipped while the startup compile holds the connect, on a pass that builds a scene, and while a tool is hosted (the tool then drives it) | `widget` |
-| Service widget (`widgets/service/runtime.lua`) | every 0.1 s. Skipped on a pass that re-reads the settings and while the startup compile holds the connect | `widget` |
+| Service widget (`widgets/service/runtime.lua`) | every 0.1 s. Skipped on a pass that re-reads the settings, while the startup compile holds the connect, and while the dashboard drives the work (below) | `widget` |
 | The tool, while it is open (`ui/home.lua`) | every 5 `getTime()` ticks (50 ms). Not on a pass that changes menu, not while background work is deferred, and not on the MSP speed page | `tool` |
 
 The service widget exists only to be a host. Put it on a model that does not use the dashboard
-and the background work still runs. With both widgets on one model, both drive the runtimes
-today ([#455](https://github.com/rotorflight/rotorflight-lua-edgetx-suite/issues/455)).
+and the background work still runs. With both widgets on one model, only one of them drives: the
+dashboard marks each pass it drives (`Events.markDriving`), and the service widget stands down
+while that mark is younger than 0.5 s. When the mark goes stale -- the dashboard taken off the
+model, its script stopped, or a tool open inside it, which drives the runtimes itself -- the
+service widget takes the work over.
 
 If a radio runs neither widget and the tool is closed, no connect chain runs and no flight is
 recorded. Custom telemetry can still be decoded: the background function script
