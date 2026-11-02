@@ -9,6 +9,12 @@
 -- loaded they share this one instance through the module loader, so the level lib/audio.lua sets
 -- is the level the teller speaks at, and an alarm lib/audio.lua plays keeps the teller quiet.
 
+-- One instance per Lua state, whichever loader arrives: the module loader, or a plain load where
+-- the loader answered with nothing. A second instance would keep a level and an alarm window of
+-- its own, so the state's root owns this one, as it owns the adjustment teller.
+local root = _G.rfsuite
+if root and type(root.audioPlayback) == "table" then return root.audioPlayback end
+
 local M = {}
 
 local AUDIO_PACK_BASE = "/SOUNDS/"
@@ -255,5 +261,7 @@ function M.playRawFile(path)
   resolve_undriven_level()
   return playRawFile(path) == true
 end
+
+if root then root.audioPlayback = M end
 
 return M

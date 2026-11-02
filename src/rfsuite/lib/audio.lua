@@ -16,9 +16,10 @@ local function setGlobalLowVoltageAt(val)
 end
 
 -- Finding a file of the sound pack, the level it is played at and the alarm window live in
--- lib/audio_playback.lua, which the adjustment teller loads without this module. The suite's
--- module loader first, so this module and the teller in one Lua state share one instance -- one
--- level, one path cache, one alarm window -- and a plain load only where there is no loader.
+-- lib/audio_playback.lua, which the adjustment teller loads without this module. This module and
+-- the teller in one Lua state share one instance of it -- one level, one path cache, one alarm
+-- window -- which that module keeps on the state's root. The suite's module loader first, and a
+-- plain load where there is none or where it answered with nothing.
 local Playback = nil
 do
   local root = _G.rfsuite

@@ -76,6 +76,8 @@ local function newWorld(host, opts)
     played = {},
     probes = {},
     files = opts.files or {},
+    -- A module whose first load fails (a load the module loader asks for and gets nothing).
+    failOnce = opts.failOnce,
     rssi = 80,
     prefs = { audio_events = { adjustment_events = true, telemetry_lost = true }, general = {},
       audio = opts.audio or {} },
@@ -127,6 +129,10 @@ local function newWorld(host, opts)
     assert(string.sub(path, 1, #CORE) == CORE, "unexpected module path: " .. tostring(path))
     local relative = string.sub(path, #CORE + 1)
     W.loads[relative] = (W.loads[relative] or 0) + 1
+    if W.failOnce == relative then
+      W.failOnce = nil
+      return nil, "injected load failure"
+    end
     if standIns[relative] then return standIns[relative] end
     return loadfile(ROOT .. "/src/rfsuite/" .. relative)
   end
@@ -245,11 +251,19 @@ for _, host in ipairs({ "rfsbg", "widget" }) do
     newWorld(host, { lang = lang, files = {}, audio = LEVEL3 })
     local got = announce(14, 100)
     expect(tag .. ": the file in neither folder", got, { "number 100 unit=0 attr=0 level=3" })
+    -- Another function's name is looked for (the positive control), and the first one's again
+    -- when the pilot comes back to it -- from the remembered miss, without opening a file.
     local opened = #W.probes
     W.played = {}
-    W.adj = { 14, 101 }
+    W.adj = { 16, 50 }
     seconds(2.0)
-    check(#W.probes == opened, tag .. ": a file found missing is looked for again")
+    local afterOther = #W.probes
+    check(afterOther > opened, tag .. ": a name not asked for before is looked for")
+    W.adj = { 14, 60 }
+    seconds(2.0)
+    check(#W.played > 0 and W.played[#W.played] == "number 60 unit=0 attr=0 level=3",
+      tag .. ": the function returned to is announced")
+    check(#W.probes == afterOther, tag .. ": a file found missing is looked for again")
   end
 end
 
@@ -316,6 +330,28 @@ do
   check(okReq and type(playback) == "table" and Audio.playNumber == playback.playNumber
     and Audio.playEventFile == playback.playEventFile,
     "dashboard: lib/audio.lua and the teller play through one lib/audio_playback.lua")
+end
+
+-- The module loader's first load of the playback module fails and lib/audio.lua's plain load
+-- of it succeeds: the teller, which asks the loader later, still gets that same instance, so an
+-- alarm lib/audio.lua plays keeps it quiet.
+do
+  newWorld("dashboard", { lang = "en", files = pack("en", NAMES), audio = LEVEL3,
+    failOnce = "lib/audio_playback.lua" })
+  local Audio = W.audio
+  W.adj = { 0, 0 }
+  seconds(1.0)
+  local owner = { audioState = { flightArmed = true }, state = { rfConnected = true }, telemetry = {},
+    preferences = W.prefs }
+  W.played = {}
+  Audio.announceConnectionLost(owner, true, nil)
+  W.played = {}
+  W.adj = { 14, 50 }
+  seconds(2.0)
+  expect("dashboard, plain load: an adjustment inside the alarm window", W.played, {})
+  local okReq, playback = pcall(_G.rfsuite.require, "lib/audio_playback.lua")
+  check(okReq and type(playback) == "table" and Audio.playNumber == playback.playNumber,
+    "dashboard, plain load: lib/audio.lua and the teller play through one lib/audio_playback.lua")
 end
 
 print(string.format("%d checks, %d failures", checks, failures))
