@@ -164,8 +164,9 @@ local DECODE_CAP = 4
 -- the drain chose to skip must never read as a link problem.
 local function popAndAccount()
     local CRSF_FRAME_CUSTOM_TELEM = 0x88
-    if not CrsfManager then
-      CrsfManager = loadModule("lib/crsf.lua")
+    -- `false` once a load has failed, for the reason the decoder table below gives.
+    if CrsfManager == nil then
+      CrsfManager = loadModule("lib/crsf.lua") or false
     end
     if not CrsfManager then return nil end
 
@@ -310,10 +311,18 @@ function M.wakeup(now, decodeAll)
     -- follows for the modules above this one. Nothing is popped here, so the frames stay queued
     -- for the next wakeup, and returning 0 keeps liveness honest: this pass took nothing off the
     -- wire.
-    if not RFSensors then
-        RFSensors = loadModule("lib/rf2tlm_sensors.lua", nil, groupDue)
+    --
+    -- `false` rather than a retry, as telemetry_bg/tasks.lua records for its own modules: with
+    -- `not RFSensors` as the test a table that cannot be loaded is asked for again on every
+    -- wakeup, a failing card read ten times a second for as long as the radio is on. The table
+    -- ships with the suite, so a failed load is a broken install, and the drain then stays idle
+    -- in this Lua state until it restarts. M.reset() leaves it alone: a lost link says nothing
+    -- about what is on the card.
+    if RFSensors == nil then
+        RFSensors = loadModule("lib/rf2tlm_sensors.lua", nil, groupDue) or false
         return 0
     end
+    if not RFSensors then return 0 end
 
     -- A pass after a stretch in which this state took no frames is a resume (see `resyncPending`
     -- above). The values on the radio are read once per resume, not per pass.
