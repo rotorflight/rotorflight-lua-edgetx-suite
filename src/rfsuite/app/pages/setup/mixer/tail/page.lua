@@ -73,8 +73,9 @@ local ui = {
     yaw_ccw_limit = 1250
   },
   apiData = {},
-  -- The visit's override, from app/pages/lib/live_override.lua: it holds what the board has as far
-  -- as this page knows (the read, or the last save that reached EEPROM) and what went out live.
+  -- The override, from app/pages/lib/live_override.lua, created the first time * is pressed in a
+  -- visit: it holds what the board has as far as this page knows (the read, or the last save that
+  -- reached EEPROM) and what went out live. A visit that never presses * never loads it.
   override = nil,
   runtime = {
     readPending = false,
@@ -94,7 +95,6 @@ local function ensureDeps()
   if not MixerConfigApi then MixerConfigApi = loadModule("tasks/msp/api/mixer_config.lua") end
   if not MixerInputYawApi then MixerInputYawApi = loadModule("tasks/msp/api/get_mixer_input_yaw.lua") end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
-  if not LiveOverride then LiveOverride = loadModule("app/pages/lib/live_override.lua") end
   if not t then t = Common and Common.pageT("setup_mixer") or nil end
 
   if type(ui.runtime) ~= "table" then
@@ -199,6 +199,25 @@ end
 
 local function overrideActive()
   return ui.override ~= nil and ui.override.active == true
+end
+
+local function ensureOverride()
+  if ui.override then return ui.override end
+  local read = ui.apiData.MIXER_CONFIG
+  if type(read) ~= "table" then return nil end
+  if not LiveOverride then LiveOverride = loadModule("app/pages/lib/live_override.lua") end
+  if not LiveOverride then return nil end
+  ui.override = LiveOverride.new({
+    command = MSP_SET_MIXER_OVERRIDE,
+    inputs = OVERRIDE_INPUTS,
+    on = MIXER_OVERRIDE_ON,
+    off = MIXER_OVERRIDE_OFF,
+    cadence = "settle",
+    interval = LIVE_SETTLE
+  })
+  -- The record read stays as read (writes go out as copies), so it is what the board holds.
+  ui.override:snapshot(read, { tail_center_trim = read.tail_center_trim or 0 })
+  return ui.override
 end
 
 -- The override is offered for a variable-pitch tail only, as the board has it and as the page shows
@@ -451,14 +470,6 @@ local function ensureLoaded()
   loadFromSession()
   ui.loaded = true
   ui.dirty = false
-  ui.override = LiveOverride and LiveOverride.new({
-    command = MSP_SET_MIXER_OVERRIDE,
-    inputs = OVERRIDE_INPUTS,
-    on = MIXER_OVERRIDE_ON,
-    off = MIXER_OVERRIDE_OFF,
-    cadence = "settle",
-    interval = LIVE_SETTLE
-  }) or nil
   ui.runtime.lastSessionSignature = buildSessionSignature()
   ui.baseTitle = getBaseTitle()
   queueTailRead(false)
@@ -766,9 +777,9 @@ function M.onReload(ctx)
 end
 
 function M.onStar(ctx)
-  if not ui.override then return false end
   local switchingOn = not overrideActive()
   if switchingOn and not canStartOverride() then return false end
+  if not ensureOverride() then return false end
 
   local i18n = ctx and ctx.i18n
   local title
