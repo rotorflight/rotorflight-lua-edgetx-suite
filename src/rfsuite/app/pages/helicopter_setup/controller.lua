@@ -851,6 +851,20 @@ function M.new(runtime, transport, mathModule, labels)
     if self.onLive then self.onLive(api, d) end
   end
   function w:motorised() return self.data.mixer_config and self.data.mixer_config.tail_rotor_mode ~= 0 end
+  -- The governor mode as the firmware runs it: OFF while the GOVERNOR feature (bit 26) is off.
+  function w:governorMode()
+    if (self.data.feature_config.enabledFeatures & (1 << 26)) == 0 then return 0 end
+    return self.data.governor_config.gov_mode
+  end
+  -- The RPM source is either bidirectional DShot (motor_config) or the wire sensor (feature bit
+  -- 28), never both. DShot150 sends no RPM back, so it cannot be the DShot source.
+  function w:setRpmSource(dshot)
+    if dshot and self.data.motor_config.motor_pwm_protocol == 5 then self.message = self.L.dshot150NoRpm; return end
+    self:feature(28, not dshot, true)
+    if (self.data.motor_config.use_dshot_telemetry ~= 0) ~= dshot then
+      self:field("motor_config", "use_dshot_telemetry", dshot and 1 or 0, true)
+    end
+  end
   function w:servos()
     local d = self.data.servo_configurations
     if not d then return {} end

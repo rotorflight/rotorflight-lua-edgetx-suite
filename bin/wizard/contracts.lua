@@ -1753,6 +1753,33 @@ return function(h)
     c=step(w,"governor");c[1].rows[1].set(1);c=step(w,"governor")
     cardOrder(c,{L.governorMode},"S08 disabled again")
   end)
+  case("S09.rpm-source-follows-protocol",function()
+    local w=world();settle(w);w.step=9
+    local m=w.data.motor_config
+    w.data.feature_config.enabledFeatures=1<<26;w.data.governor_config.gov_mode=3
+    m.motor_pwm_protocol=0;m.use_dshot_telemetry=0
+    local c=step(w,"motor");local protocol,dshot=c[1].rows[1],c[1].rows[2]
+    protocol.set(3)
+    eq(m.motor_pwm_protocol,6,"S09 DShot300 chosen")
+    eq(m.use_dshot_telemetry,1,"S09 DShot300 with a governor takes bidirectional DShot as RPM source")
+    eq(w.data.feature_config.enabledFeatures & (1<<28),0,"S09 DShot300 turns the wire sensor off")
+    protocol.set(1)
+    eq(m.use_dshot_telemetry,0,"S09 PWM with a governor turns bidirectional DShot off")
+    eq(w.data.feature_config.enabledFeatures & (1<<28),1<<28,"S09 PWM with a governor takes the wire sensor")
+    protocol.set(2)
+    eq(m.use_dshot_telemetry,0,"S09 DShot150 never takes bidirectional DShot")
+    eq(w.data.feature_config.enabledFeatures & (1<<28),1<<28,"S09 DShot150 keeps the wire sensor")
+    protocol.set(4);dshot.set(1)
+    eq(m.use_dshot_telemetry,0,"S09 bidirectional DShot can be switched off")
+    eq(w.data.feature_config.enabledFeatures & (1<<28),0,"S09 switching DShot off does not turn the wire sensor on")
+    w.data.feature_config.enabledFeatures=1<<26|1<<28;dshot.set(2)
+    eq(m.use_dshot_telemetry,1,"S09 bidirectional DShot switched on")
+    eq(w.data.feature_config.enabledFeatures & (1<<28),0,"S09 switching DShot on turns the wire sensor off")
+    local v=world();settle(v);v.step=9
+    v.data.feature_config.enabledFeatures=0;v.data.motor_config.motor_pwm_protocol=0;v.data.motor_config.use_dshot_telemetry=0
+    step(v,"motor")[1].rows[1].set(3)
+    eq(v.data.feature_config.enabledFeatures & (1<<28),0,"S09 without a governor the protocol picks no RPM source")
+  end)
   case("S09.card-order-and-save",function()
     for _,tail in ipairs({0,1}) do
       local w=world();settle(w);w.step=9;w.data.mixer_config.tail_rotor_mode=tail
@@ -2362,8 +2389,8 @@ return function(h)
     eq(source.get(),2,"S08 DShot selection is reflected")
     eq(status.get(),L.rpmNeedsDshot,"S08 DShot selection needs a compatible protocol before restart")
     source.set(1)
-    eq(m.use_dshot_telemetry,1,"S08 wire preserves enabled DShot telemetry")
-    eq(source.get(),1,"S08 frequency sensor takes precedence over DShot telemetry")
+    eq(m.use_dshot_telemetry,0,"S08 wire turns bidirectional DShot off")
+    eq(source.get(),1,"S08 wire selection replaces DShot")
     source.set(2);m.motor_pwm_protocol=8
     q.sent={};w:save();settle(w)
     savedPayload(w,"motor_config","S08 RPM");savedPayload(w,"feature_config","S08 RPM")

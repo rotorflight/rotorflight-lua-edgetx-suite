@@ -1,10 +1,7 @@
 return function(w)
   local L = w.L
   local fields = w:loadModule("lib/governor_fields.lua")
-  local function mode()
-    if (w.data.feature_config.enabledFeatures & (1 << 26)) == 0 then return 0 end
-    return w.data.governor_config.gov_mode
-  end
+  local function mode() return w:governorMode() end
   local function governs() return mode() == 3 or mode() == 4 end
   local function source()
     if (w.data.feature_config.enabledFeatures & (1 << 28)) ~= 0 then return 1 end
@@ -115,8 +112,7 @@ return function(w)
           if (mode()==0 and not w.governorRpmFilter) or (v~=1 and v~=2) then return end
           -- DShot150 ESCs send no bidirectional DShot RPM; the protocol is changed in the Motor step.
           if v==2 and w.data.motor_config.motor_pwm_protocol==5 then w.message=L.dshot150NoRpm;return end
-          w:feature(28, v==1)
-          if v==2 then w:field("motor_config", "use_dshot_telemetry", 1, true) end
+          w:setRpmSource(v==2)
           w.rebootPending = true
           w.buildRequested = true; w:rebuild()
         end,enabled=function() return mode()>0 or w.governorRpmFilter end },

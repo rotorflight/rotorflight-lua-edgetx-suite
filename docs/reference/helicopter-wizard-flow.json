@@ -4,9 +4,9 @@
   "semantics": "Static source templates; conditional branches and runtime repetitions are alternatives, not a session trace.",
   "inputs": {
     "bin/wizard/source-map.json": "73fcb2f83c26053a3060c33160983b7493ef13e4e5b1832604aa075a6387d76f",
-    "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "d67a1e1cde6b46fc7e33f500e2085fe2e391b021cb96df69dfce03c194744faa",
-    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "8cd7c33b9dcb51f93d4fe46050ad0d00a67d132d0dfca3e12240df765e0b32f7",
-    "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "899a0648ffd40e0c3bbd2d00b07c1598ca0109d1179a64557832e063a2b0919e",
+    "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "1750296f3f160c4c328b331cf34673bb803e936266f19712698dac996c6ea56a",
+    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "10e6fbf53f54adf67f49b14292f761145773f0af3e16f30efb2a276c10c951ff",
+    "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "015fba632ba4835d2f433ed11e6180cf330bf35b103c06b954f689fae2c74dac",
     "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "2da65f54ecf424df2a75e37bdf7c4f8618429eb3c623a1bdf0939a21579431bf",
     "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "281da481f9e8406e760fc9c5d94809d661cb2df4060b05a3fb1430b5380ec71d",
     "src/rfsuite/app/pages/helicopter_setup/feedback.lua": "4f73ebe86a8b140a8960ec3d0af6d9e29373994545bb48afaf2827ca6a8a661e",
@@ -17,7 +17,7 @@
     "src/rfsuite/app/pages/helicopter_setup/labels.lua": "7581e5da211bbfe06585a163f840bc2706fd97b9dd0dd02f271858afb61e0d50",
     "src/rfsuite/app/pages/helicopter_setup/math.lua": "c4124f86de6988af6bb22e6fa1cb67e7e924eb78de38cffa5be107492caa14c1",
     "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "1e54a9965742d66c7454f7fe0e32ad7512fce7dfed931aee47353757b95ae4d3",
-    "src/rfsuite/app/pages/helicopter_setup/page.lua": "5b90895498d7cd91784b8ca10aa736c9aa72f90f7696318bc7c58f49838c186b",
+    "src/rfsuite/app/pages/helicopter_setup/page.lua": "a54a2992e14e607625b0722cf9e8772232cee015126510cc11c184555ee6ad5b",
     "src/rfsuite/app/pages/helicopter_setup/palette.lua": "520252a85efdf156bc6b325b2f15331f433c76b7783fa18ef8a1d415d4c70a80",
     "src/rfsuite/app/pages/helicopter_setup/power_cards.lua": "4f66e7b230177f93d39af6b20681f325338078b006b16482f2469eb4ba0104b0",
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",
@@ -25,11 +25,11 @@
     "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua": "5375aced67797811c1a76847db7a41d1bd801ad15731ffa4e8c48214695c4699",
     "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "68e0fd6dc0859447b5a19f489cbb95ac69124b5bafe3e11a9488bdabccfdc500",
     "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua": "4bb2414076dfcb0bfce29665eae470f504945bf08dd85b16b55c7fb8946f6443",
-    "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "0aa1440982868497d1353553b6e74a15c9dda57d94784a74da7f18dd25593c34",
+    "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "bfdd6556e85f9c0ea398d334b70ee1266c12b6f47a64af05724ddec25e951eeb",
     "src/rfsuite/app/pages/helicopter_setup/steps/gyro.lua": "c9751a300b355d699fc3689c61f379e0f20610dadaf9383573fff229d9a9c402",
     "src/rfsuite/app/pages/helicopter_setup/steps/level.lua": "8433f8d0799153b4c5a9c4dbd8c930e115e7c26486c9fb5cc19c936ebd54f3f5",
     "src/rfsuite/app/pages/helicopter_setup/steps/modes.lua": "de74bea00b5c837a16a2e83a36d3d4186f32ae73e39ad58e298e74773837038b",
-    "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "b951deeb3e02f542a592a0c7487208b38ef4aa9e8c7ca0d133dbb2bdeea571d9",
+    "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "be6f98522f854283fcfba6ff37591d27e180af4421b9024902b4ee967d29ab14",
     "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "687354e0d60624d22e10ccd17e210cf6a6060319d30339cb2abbf0b9aa028fa3",
     "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "041f133ac6675869aed50b88d815ba6f74184691fd2db4b6c4a5e0aa6a0094a6",
     "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "4157b1bd7bcd0136bfa3e744ff6d384595d7fcc246b1798e639ccba93b6d69b8",
@@ -5010,6 +5010,46 @@
               "scope": "profile callback"
             },
             {
+              "kind": "MSP write",
+              "label": "feature_config.enabledFeatures",
+              "api": "feature_config",
+              "field": "enabledFeatures",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : feature ( 28 , not v == 2 , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "motor_config.use_dshot_telemetry",
+              "api": "motor_config",
+              "field": "use_dshot_telemetry",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : field ( \"motor_config\" , \"use_dshot_telemetry\" , v == 2 and 1 or 0 , true )"
+            },
+            {
               "kind": "read",
               "label": "governor_profile.governor_headspeed",
               "api": "governor_profile",
@@ -5130,38 +5170,6 @@
           "additions": [],
           "rows": [
             {
-              "kind": "MSP write",
-              "label": "feature_config.enabledFeatures",
-              "api": "feature_config",
-              "field": "enabledFeatures",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepGovernor.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua",
-              "expression": "w : feature ( 28 , v == 1 )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "motor_config.use_dshot_telemetry",
-              "api": "motor_config",
-              "field": "use_dshot_telemetry",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepGovernor.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua",
-              "expression": "w : field ( \"motor_config\" , \"use_dshot_telemetry\" , 1 , true )"
-            },
-            {
               "kind": "read",
               "label": "Status",
               "api": null,
@@ -5191,7 +5199,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua",
-              "expression": "{ kind = \"choice\" , label = L . rpmSource , fullWidth = w . wideScreen , allowUnset = true , values = { L . rpmWire , L . bidirectionalDshot } , get = source , set = function ( v ) if ( mode ( ) == 0 and not w . governorRpmFilter ) or ( v ~= 1 and v ~= 2 ) then return end if v == 2 and w . data . motor_config . motor_pwm_protocol == 5 then w . message = L . dshot150NoRpm ; return end w : feature ( 28 , v == 1 ) if v == 2 then w : field ( \"motor_config\" , \"use_dshot_telemetry\" , 1 , true ) end w . rebootPending = true w . buildRequested = true ; w : rebuild ( ) end , enabled = function ( ) return mode ( ) > 0 or w . governorRpmFilter end }"
+              "expression": "{ kind = \"choice\" , label = L . rpmSource , fullWidth = w . wideScreen , allowUnset = true , values = { L . rpmWire , L . bidirectionalDshot } , get = source , set = function ( v ) if ( mode ( ) == 0 and not w . governorRpmFilter ) or ( v ~= 1 and v ~= 2 ) then return end if v == 2 and w . data . motor_config . motor_pwm_protocol == 5 then w . message = L . dshot150NoRpm ; return end w : setRpmSource ( v == 2 ) w . rebootPending = true w . buildRequested = true ; w : rebuild ( ) end , enabled = function ( ) return mode ( ) > 0 or w . governorRpmFilter end }"
             },
             {
               "kind": "gate",
@@ -5664,6 +5672,23 @@
               "expression": "w : c ( \"motor_config\" , \"use_dshot_telemetry\" , L . bidirectionalDshot , { L . off , L . on } , true )"
             },
             {
+              "kind": "MSP write",
+              "label": "motor_config.use_dshot_telemetry",
+              "api": "motor_config",
+              "field": "use_dshot_telemetry",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "w : field ( \"motor_config\" , \"use_dshot_telemetry\" , 0 , true )"
+            },
+            {
               "kind": "pilot sets",
               "label": "Protocol",
               "api": "motor_config",
@@ -5696,23 +5721,6 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
               "expression": "w : enum ( \"motor_config\" , \"motor_pwm_protocol\" , L . protocol , w : motorProtocols ( ) , true )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "motor_config.use_dshot_telemetry",
-              "api": "motor_config",
-              "field": "use_dshot_telemetry",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/MotorGearArt.svelte",
-                "tabs/setup_wizard/StepMotor.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : field ( \"motor_config\" , \"use_dshot_telemetry\" , 0 , true )"
             },
             {
               "kind": "pilot confirms",
@@ -5814,6 +5822,86 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/workflow.lua",
               "expression": "self : field ( \"motor_config\" , \"use_dshot_telemetry\" , 0 , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "feature_config.enabledFeatures",
+              "api": "feature_config",
+              "field": "enabledFeatures",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : feature ( 28 , not true , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "motor_config.use_dshot_telemetry",
+              "api": "motor_config",
+              "field": "use_dshot_telemetry",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : field ( \"motor_config\" , \"use_dshot_telemetry\" , true and 1 or 0 , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "feature_config.enabledFeatures",
+              "api": "feature_config",
+              "field": "enabledFeatures",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : feature ( 28 , not m . motor_pwm_protocol == 6 or m . motor_pwm_protocol == 7 , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "motor_config.use_dshot_telemetry",
+              "api": "motor_config",
+              "field": "use_dshot_telemetry",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : field ( \"motor_config\" , \"use_dshot_telemetry\" , m . motor_pwm_protocol == 6 or m . motor_pwm_protocol == 7 and 1 or 0 , true )"
             },
             {
               "kind": "read",

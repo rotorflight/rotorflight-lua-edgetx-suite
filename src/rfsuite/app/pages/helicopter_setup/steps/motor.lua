@@ -8,14 +8,24 @@ return function(w)
     local p = w.data.motor_config.motor_pwm_protocol
     return p >= 6 and p <= 8
   end
+  -- Bidirectional DShot is one of the two RPM sources; turning it on turns the wire sensor off.
+  dshot.set = function(v)
+    if v == 2 then w:setRpmSource(true) else w:field("motor_config", "use_dshot_telemetry", 0, true) end
+  end
   local protocol = w:enum("motor_config", "motor_pwm_protocol", L.protocol, w:motorProtocols(), true)
   local setProtocol = protocol.set
   protocol.set = function(v)
+    local before = w.data.motor_config.motor_pwm_protocol
     setProtocol(v)
     -- An ESC that does not answer the bidirectional request may not arm.
     local m = w.data.motor_config
     if m.motor_pwm_protocol == 5 and m.use_dshot_telemetry ~= 0 then
       w:field("motor_config", "use_dshot_telemetry", 0, true)
+    end
+    -- With a governor the RPM source follows the protocol: DShot300 and DShot600 carry it,
+    -- every other protocol needs the wire sensor.
+    if m.motor_pwm_protocol ~= before and w:governorMode() > 0 then
+      w:setRpmSource(m.motor_pwm_protocol == 6 or m.motor_pwm_protocol == 7)
     end
   end
   local cards = {

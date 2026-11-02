@@ -109,7 +109,7 @@ flowchart LR
       direction TB
       S8c0["<b>Governor Mode</b><br/>sets: Mode<br/>reads: MSP filter_config, MSP rpm_filter_v2...<br/>writes: governor_config, feature_config, set_..."]:::k3
       class S8c0 deviation
-      S8c1["<b>RPM source</b><br/>sets: RPM source<br/>reads: Status<br/>writes: feature_config.enabledFeatures, motor..."]:::k3
+      S8c1["<b>RPM source</b><br/>sets: RPM source<br/>reads: Status"]:::k0
       S8c0 --> S8c1
       S8c2["<b>RPM filter</b>"]:::k4
       class S8c2 deviation
