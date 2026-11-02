@@ -343,12 +343,22 @@ do
   seconds(1.0)
   local owner = { audioState = { flightArmed = true }, state = { rfConnected = true }, telemetry = {},
     preferences = W.prefs }
+  check(W.failOnce == nil, "dashboard, plain load: the module loader's first load failed")
   W.played = {}
   Audio.announceConnectionLost(owner, true, nil)
+  check(#W.played == 1 and string.find(W.played[1], "telemetrylost.wav", 1, true) ~= nil,
+    "dashboard, plain load: the alarm is played {" .. table.concat(W.played, " ; ") .. "}")
   W.played = {}
   W.adj = { 14, 50 }
   seconds(2.0)
   expect("dashboard, plain load: an adjustment inside the alarm window", W.played, {})
+  W.adj = { 0, 0 }
+  seconds(7.0)
+  W.played = {}
+  W.adj = { 16, 60 }
+  seconds(2.0)
+  expect("dashboard, plain load: an adjustment after the alarm window", W.played,
+    { "file " .. RF("en", "inflight/fn/16.wav") .. " level=3", "number 60 unit=0 attr=0 level=3" })
   local okReq, playback = pcall(_G.rfsuite.require, "lib/audio_playback.lua")
   check(okReq and type(playback) == "table" and Audio.playNumber == playback.playNumber,
     "dashboard, plain load: lib/audio.lua and the teller play through one lib/audio_playback.lua")
