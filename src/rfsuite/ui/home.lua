@@ -326,7 +326,7 @@ local SavePipeline = nil
 -- the pilot can read. An id with no entry falls back to the generic notice rather than putting
 -- an internal name on screen.
 --- What a save is doing, for the phases that have no step count of their own.
--- The writes and the EEPROM commit are counted, so they name the step being written; everything
+-- The writes and the EEPROM commit are counted by the bar under the general save text; everything
 -- after the commit is a wait on the flight controller and is named rather than counted.
 local SAVE_TEXT = {
   rebooting    = "@i18n(app.save.rebooting)@",
@@ -2721,12 +2721,14 @@ local function buildScene()
     local action = nil
 
     -- Until the save reaches the flight controller the notice says only that something is being
-    -- applied, which is all a queued chain can honestly say. A pipeline reports which step it is
-    -- on, and stays on screen for the phases the old notice never covered: the restart, the wait
-    -- for the board to answer and the read-back.
+    -- applied, which is all a queued chain can honestly say. A pipeline fills the bar step by step,
+    -- and stays on screen for the phases the old notice never covered: the restart, the wait for
+    -- the board to answer and the read-back. A step's label is not shown: pages name their steps
+    -- after the MSP command they send, an identifier for the log rather than a text the pilot can
+    -- read, and it is never translated.
     if saveProgress then
       local phaseKey = SAVE_PHASE_TEXT[saveProgress.phase]
-      message = saveProgress.label or (phaseKey and SAVE_TEXT[phaseKey]) or message
+      message = (phaseKey and SAVE_TEXT[phaseKey]) or message
       progress = saveProgress.indeterminate and 1 or (saveProgress.fraction or 0)
       if saveProgress.saved then
         title = SAVE_TEXT.saved_title

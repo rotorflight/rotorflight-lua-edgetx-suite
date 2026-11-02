@@ -125,6 +125,14 @@ Without the rollback, a trial value stayed in the flight controller's memory: th
 it until the next restart, and the next save from any page stored it, because a save writes the
 whole configuration from that memory.
 
+## What the save notice shows
+
+While a save sends its settings and stores them on the flight controller, the notice under
+*Saving...* reads *Applying settings*, and its bar fills as each write and the final store go out.
+It does not name the individual writes. A save that restarts the flight controller then says what it
+is waiting for -- *Restarting the flight controller...*, *Waiting for the flight controller...*,
+*Reconnecting...*, *Reading the settings back...* -- and the notice ends with the outcome.
+
 ## A save that restarts the flight controller
 
 A save on Configuration, Alignment, GPS, Ports, Radio Config, Setup > Telemetry, and ESC/Motors
