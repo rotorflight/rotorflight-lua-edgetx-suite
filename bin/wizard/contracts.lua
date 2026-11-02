@@ -1718,10 +1718,18 @@ return function(h)
     eq(card.rows[1].get(),2,"S04 altitude hold reads as rescue on")
     check(card.rows[2].enabled(),"S04 flip is offered with altitude hold")
     card.rows[2].set(1);q.sent={};w:save();settle(w)
-    for i=0,2 do eq(records[i][1],2,"S04 altitude hold is kept and written to profile "..i) end
+    for i=0,2 do
+      eq(records[i][1],i==original and 2 or 1,"S04 a flip-only change keeps each profile's own mode "..i)
+      eq(records[i][2],0,"S04 the flip change reaches profile "..i)
+    end
     card.rows[1].set(1);card.rows[1].set(2)
     eq(w.rescue.chosen[1],2,"S04 switching rescue off and on again keeps altitude hold")
     w:discard(function() end);settle(w)
+    c=step(w,"profiles");card=rescueCard(c);card.enter();settle(w);c=step(w,"profiles");card=rescueCard(c)
+    card.rows[1].set(1);q.sent={};w:save();settle(w)
+    for i=0,2 do eq(records[i][1],0,"S04 rescue off is written to profile "..i) end
+    card.rows[1].set(2);q.sent={};w:save();settle(w)
+    for i=0,2 do eq(records[i][1],1,"S04 rescue on after a saved off is CLIMB on every profile "..i) end
     -- Another active profile is read again on entry.
     local other=(original+1)%3
     records[other][1],records[other][2]=0,1;selected=other;w.data.status.current_pid_profile_index=other
@@ -4208,6 +4216,8 @@ return function(h)
       local s=w.escParams
       s.changes,s.restart={governor=1},restart or nil
       w:navigate(11);settle(w);w:navigate(10);settle(w)
+      check(w.unpluggedAgain and #step(w,"escTelemetry")==1,"S11 coming back asks for unplugged servos first")
+      w.checks.unplugged,w.checks.blades=true,true
       local cards=step(w,"escTelemetry")
       check(w.escParams==s and s.changes and s.restart==(restart or nil),"S11 navigation retains unresolved expectation and restart latch")
       check(not w.validate(),"S11 re-entering cannot complete unresolved ESC verification")
@@ -4727,6 +4737,32 @@ return function(h)
     end
     voltage.rows[1].set(2)
     eq(smart.rows[2].get(),"","POWER warning clears with a voltage source")
+  end)
+  case("S10.esc-step-asks-unplugged-again",function()
+    local w=world();settle(w);w.step=11;w.rebootPending=nil;w.checks.unplugged=true
+    w:navigate(10,1);settle(w);w.step=10
+    check(w.unpluggedAgain and not w.checks.unplugged,"S10 coming back from Connect servos clears the unplugged answer")
+    local c=step(w,"escTelemetry")
+    eq(#c,1,"S10 coming back from Connect servos shows only the unplugged card")
+    eq(c[1].rows[2].label,L.servosUnplugged,"S10 the card asks for unplugged servos")
+    w.buildRequested=nil;check(not w.validate(),"S10 Next does not leave the card unanswered")
+    check(not w.buildRequested,"S10 an unanswered card opens nothing")
+    w.checks.blades,w.checks.unplugged=true,true
+    check(not w.validate(),"S10 Next on the answered card stays in the step")
+    check(w.buildRequested,"S10 the answered card opens the step's own cards")
+    check(#step(w,"escTelemetry")>1,"S10 the step's cards follow the answer")
+  end)
+  case("S09.one-to-two-stages-keeps-an-intermediate-tail",function()
+    local w=world();settle(w);w.step=9;w.data.mixer_config.tail_rotor_mode=0;w.gear=nil
+    local m=w.data.motor_config
+    m.main_rotor_gear_ratio_0,m.main_rotor_gear_ratio_1,m.tail_rotor_gear_ratio_0,m.tail_rotor_gear_ratio_1=12,120,20,90
+    local c=step(w,"motor");c[4].rows[1].set(2);c=step(w,"motor")
+    c[4].rows[2].left.set(30);c[4].rows[3].left.set(20);c[4].rows[3].right.set(25)
+    local ratio=m.tail_rotor_gear_ratio_1/m.tail_rotor_gear_ratio_0
+    local main=m.main_rotor_gear_ratio_1/m.main_rotor_gear_ratio_0
+    c[3].rows[1].set(2)
+    eq(m.tail_rotor_gear_ratio_1/m.tail_rotor_gear_ratio_0,ratio,"S09 one to two stages keeps an intermediate-shaft tail ratio")
+    eq(m.main_rotor_gear_ratio_1/m.main_rotor_gear_ratio_0,main,"S09 one to two stages keeps the main ratio")
   end)
   case("S10.restart-asks-again-after-connect",function()
     local w=world();settle(w);w.step=10;w.rebootPending=nil;w.checks.unplugged=nil

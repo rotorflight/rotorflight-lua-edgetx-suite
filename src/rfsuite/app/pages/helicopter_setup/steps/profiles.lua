@@ -184,12 +184,14 @@ return function(w)
   local function rescueGet(i)
     local r=w.rescue
     if not (r and r.loaded) then return nil end
-    return (r.chosen or r.value)[i]
+    if r.chosen and r.chosen[i]~=nil then return r.chosen[i] end
+    return r.value[i]
   end
   local function rescueSet(i,value)
     local r=w.rescue
     if not (r and r.loaded) or not rescueSwitch() or rescueGet(i)==value then return end
-    r.chosen=r.chosen or {rescueGet(1) or 0,rescueGet(2) or 0}
+    -- Only what the pilot changed is staged: a flip change leaves every profile's mode alone.
+    r.chosen=r.chosen or {}
     r.chosen[i]=value;w:touch("rescue_profile")
     w.buildRequested=true;w:rebuild()
   end
@@ -200,10 +202,8 @@ return function(w)
   local function rescueEnter()
     local r=w.rescue
     if w.transition or (r and r.chosen) then return end
-    local active=w.data.status.current_pid_profile_index
-    if r and r.loaded and r.index==active then return end
     r={};w.rescue=r;w.transition=true
-    w:read("rescue_profile",function(d) r.value,r.index={d.rescue_mode,d.rescue_flip_mode},active end)
+    w:read("rescue_profile",function(d) r.value={d.rescue_mode,d.rescue_flip_mode} end)
     w:run(function() r.loaded=true;w.transition=nil;w.buildRequested=true;w:rebuild() end)
   end
   local function rescueReady() return w.rescue~=nil and w.rescue.loaded==true and rescueSwitch()~=nil end
@@ -229,10 +229,13 @@ return function(w)
     local r=w.rescue
     if not (r and r.chosen) then return end
     local c=r.chosen
+    -- Off is written as off; On keeps a profile's own non-zero mode (CLIMB or ALT_HOLD) and
+    -- gives a profile that had rescue off the mode chosen here.
     w:profileLoop("rescue",w.data.status.pid_profile_count,function(d)
-      d.rescue_mode=c[1];d.rescue_flip_mode=c[2]
+      if c[1]~=nil and (c[1]==0 or d.rescue_mode==0) then d.rescue_mode=c[1] end
+      if c[2]~=nil then d.rescue_flip_mode=c[2] end
     end)
-    w:run(function() r.value,r.chosen={c[1],c[2]},nil end)
+    w:run(function() r.value,r.chosen={rescueGet(1),rescueGet(2)},nil end)
   end
   return cards
 end

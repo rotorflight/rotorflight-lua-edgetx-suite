@@ -1,5 +1,17 @@
 return function(w)
   local L = w.L
+  -- Coming back from Connect servos cleared the unplugged answer. Nothing on this step (an ESC
+  -- battery restart, a telemetry restart) is offered before blades off and servos unplugged are
+  -- confirmed again; Next then opens the step's own cards.
+  if w.unpluggedAgain and not w.checks.unplugged then
+    w.validate = function()
+      if w:ack("blades") and w:ack("unplugged") then w.unpluggedAgain = nil; w.buildRequested = true; w:rebuild() end
+      return false
+    end
+    return { w:cardDef(L.escTelemetry, L.entryRestartHint, {
+      w:check("blades", L.bladesRemoved), w:check("unplugged", L.servosUnplugged)
+    }, nil, "servo") }
+  end
   w.validate = function()
     w:escFamily()
     if w.escParams and (w.escParams.changes or w.escParams.restart) then w.message=L.escRestart; return false end

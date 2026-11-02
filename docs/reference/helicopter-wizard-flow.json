@@ -5,7 +5,7 @@
   "inputs": {
     "bin/wizard/source-map.json": "c08b9d97f4cc0cc9eb997fc72b8fd968a677dd99b2c7eecd25cbd27e3b2066cd",
     "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "1750296f3f160c4c328b331cf34673bb803e936266f19712698dac996c6ea56a",
-    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "692eda9572d73a917700e67ea9d515986ebb3b14378bad1ec4c9afb1cfca0be8",
+    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "25c51a1dd6ec559045ca2d620cf11fdc729f568a31bf4dc967c7a0a11be62518",
     "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "7b4e1e1857c352d30ea7c8e271c37361cf3721fd895550ea19951c369c1b9f57",
     "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "2da65f54ecf424df2a75e37bdf7c4f8618429eb3c623a1bdf0939a21579431bf",
     "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "438d2dec84876613b20258faf3cf3d674291c6d7f9f8ce5966b9b1a222ed0089",
@@ -23,15 +23,15 @@
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",
     "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "f741e6f37093039de1a53793c2c5a062f63a7699f56c3abc0dc7842b20dcc9a7",
     "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua": "5375aced67797811c1a76847db7a41d1bd801ad15731ffa4e8c48214695c4699",
-    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "7177367e84dac15ae318b659f368119bffb11e1a75021f5054d4630d45c0d71c",
+    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "b36f24c06c53771d3e1ecdd12c16f6e53f9fe313cb671430c565a01bf6e7b72f",
     "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua": "4bb2414076dfcb0bfce29665eae470f504945bf08dd85b16b55c7fb8946f6443",
     "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "98d010c46cee286f8813cdc26fd1d77291e83d2f0c7e6172fca22f45bd157ba2",
     "src/rfsuite/app/pages/helicopter_setup/steps/gyro.lua": "c9751a300b355d699fc3689c61f379e0f20610dadaf9383573fff229d9a9c402",
     "src/rfsuite/app/pages/helicopter_setup/steps/level.lua": "8433f8d0799153b4c5a9c4dbd8c930e115e7c26486c9fb5cc19c936ebd54f3f5",
     "src/rfsuite/app/pages/helicopter_setup/steps/modes.lua": "de74bea00b5c837a16a2e83a36d3d4186f32ae73e39ad58e298e74773837038b",
-    "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "50e69940cb6becbcd60bbf99529324ffbe3cbae6dc0b18afda6e50a959068eea",
+    "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "4a0ed908b09265d93f282a106d5d75ee250857c17d363ee0820c337d115c73c9",
     "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "687354e0d60624d22e10ccd17e210cf6a6060319d30339cb2abbf0b9aa028fa3",
-    "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "3abf09c8d5db46c4ba2078665cfb007fc3834a5c1f4275f78081729c82472b80",
+    "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "42c2a28773bde9a0ca0d325b25e782971d3ed1c4bc122c77af837d59b1e766bd",
     "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "4157b1bd7bcd0136bfa3e744ff6d384595d7fcc246b1798e639ccba93b6d69b8",
     "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "d0af9c9ca4990baa9027bd76d327d5ef1170f07730c5d0be255c626ec7932623",
     "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua": "d725edcb37c5fcdc9c8ef4ba5bc688875fc7a4c84946dbaafb09860b72fa0df6",
@@ -3060,7 +3060,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "self : read ( \"rescue_profile\" , function ( d ) self . profileData = d if loaded then loaded ( d , index ) end if function ( d ) d . rescue_mode = c [ 1 ] ; d . rescue_flip_mode = c [ 2 ] end then self . profileOriginal = self . profileOriginal or { } self . profileOriginal [ \"rescue\" ] = self . profileOriginal [ \"rescue\" ] or { } self . profileOriginal [ \"rescue\" ] [ index ] = self . profileOriginal [ \"rescue\" ] [ index ] or copy ( d ) end end )"
+              "expression": "self : read ( \"rescue_profile\" , function ( d ) self . profileData = d if loaded then loaded ( d , index ) end if function ( d ) if c [ 1 ] ~= nil and ( c [ 1 ] == 0 or d . rescue_mode == 0 ) then d . rescue_mode = c [ 1 ] end if c [ 2 ] ~= nil then d . rescue_flip_mode = c [ 2 ] end end then self . profileOriginal = self . profileOriginal or { } self . profileOriginal [ \"rescue\" ] = self . profileOriginal [ \"rescue\" ] or { } self . profileOriginal [ \"rescue\" ] [ index ] = self . profileOriginal [ \"rescue\" ] [ index ] or copy ( d ) end end )"
             },
             {
               "kind": "MSP write",
@@ -3080,7 +3080,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "self : write ( \"rescue_profile\" , function ( ) if function ( d ) d . rescue_mode = c [ 1 ] ; d . rescue_flip_mode = c [ 2 ] end ( self . profileData , index ) == false then return false end return self . profileData end )"
+              "expression": "self : write ( \"rescue_profile\" , function ( ) if function ( d ) if c [ 1 ] ~= nil and ( c [ 1 ] == 0 or d . rescue_mode == 0 ) then d . rescue_mode = c [ 1 ] end if c [ 2 ] ~= nil then d . rescue_flip_mode = c [ 2 ] end end ( self . profileData , index ) == false then return false end return self . profileData end )"
             },
             {
               "kind": "MSP write",
@@ -3160,7 +3160,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "function ( d ) d . rescue_mode = c [ 1 ] ; d . rescue_flip_mode = c [ 2 ] end",
+              "expression": "function ( d ) if c [ 1 ] ~= nil and ( c [ 1 ] == 0 or d . rescue_mode == 0 ) then d . rescue_mode = c [ 1 ] end if c [ 2 ] ~= nil then d . rescue_flip_mode = c [ 2 ] end end",
               "scope": "profile callback"
             },
             {
@@ -3181,7 +3181,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "function ( d ) d . rescue_mode = c [ 1 ] ; d . rescue_flip_mode = c [ 2 ] end",
+              "expression": "function ( d ) if c [ 1 ] ~= nil and ( c [ 1 ] == 0 or d . rescue_mode == 0 ) then d . rescue_mode = c [ 1 ] end if c [ 2 ] ~= nil then d . rescue_flip_mode = c [ 2 ] end end",
               "scope": "profile callback"
             },
             {
@@ -3536,7 +3536,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua",
-              "expression": "w : read ( \"rescue_profile\" , function ( d ) r . value , r . index = { d . rescue_mode , d . rescue_flip_mode } , active end )"
+              "expression": "w : read ( \"rescue_profile\" , function ( d ) r . value = { d . rescue_mode , d . rescue_flip_mode } end )"
             },
             {
               "kind": "read",
@@ -6521,8 +6521,8 @@
       "phase": "B",
       "cards": [
         {
-          "title": "Connect the battery",
-          "title_expression": "L . connectBattery",
+          "title": "ESC telemetry",
+          "title_expression": "L . escTelemetry",
           "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
           "configurator_reference": [
             "tabs/setup_wizard/EscArt.svelte",
@@ -6535,9 +6535,77 @@
           "additions": [],
           "rows": [
             {
-              "kind": "MSP write",
-              "label": "serial_config (record/payload)",
-              "api": "serial_config",
+              "kind": "gate",
+              "label": "ack blades",
+              "api": null,
+              "field": "blades",
+              "deviation": true,
+              "configurator_status": [
+                "differs from the Configurator"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/EscArt.svelte",
+                "tabs/setup_wizard/StepEscTelemetry.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
+              "expression": "w : ack ( \"blades\" )"
+            },
+            {
+              "kind": "gate",
+              "label": "ack unplugged",
+              "api": null,
+              "field": "unplugged",
+              "deviation": true,
+              "configurator_status": [
+                "differs from the Configurator"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/EscArt.svelte",
+                "tabs/setup_wizard/StepEscTelemetry.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
+              "expression": "w : ack ( \"unplugged\" )"
+            },
+            {
+              "kind": "pilot confirms",
+              "label": "All blades removed",
+              "api": null,
+              "field": "blades",
+              "deviation": true,
+              "configurator_status": [
+                "differs from the Configurator"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/EscArt.svelte",
+                "tabs/setup_wizard/StepEscTelemetry.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
+              "expression": "w : check ( \"blades\" , L . bladesRemoved )"
+            },
+            {
+              "kind": "pilot confirms",
+              "label": "Servos unplugged",
+              "api": null,
+              "field": "unplugged",
+              "deviation": true,
+              "configurator_status": [
+                "differs from the Configurator"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/EscArt.svelte",
+                "tabs/setup_wizard/StepEscTelemetry.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
+              "expression": "w : check ( \"unplugged\" , L . servosUnplugged )"
+            },
+            {
+              "kind": "gate",
+              "label": "validation",
+              "api": null,
               "field": null,
               "deviation": true,
               "configurator_status": [
@@ -6549,7 +6617,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
-              "expression": "w : touch ( \"serial_config\" , true )"
+              "expression": "validate = function ( ) if w : ack ( \"blades\" ) and w : ack ( \"unplugged\" ) then w . unpluggedAgain = nil ; w . buildRequested = true ; w : rebuild ( ) end return false end"
             },
             {
               "kind": "MSP write",
@@ -7186,6 +7254,55 @@
           ]
         },
         {
+          "title": "Connect the battery",
+          "title_expression": "L . connectBattery",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/EscArt.svelte",
+            "tabs/setup_wizard/StepEscTelemetry.svelte"
+          ],
+          "configurator_status": [
+            "differs from the Configurator"
+          ],
+          "additions": [],
+          "rows": [
+            {
+              "kind": "MSP write",
+              "label": "serial_config (record/payload)",
+              "api": "serial_config",
+              "field": null,
+              "deviation": true,
+              "configurator_status": [
+                "differs from the Configurator"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/EscArt.svelte",
+                "tabs/setup_wizard/StepEscTelemetry.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
+              "expression": "w : touch ( \"serial_config\" , true )"
+            },
+            {
+              "kind": "gate",
+              "label": "validation",
+              "api": null,
+              "field": null,
+              "deviation": true,
+              "configurator_status": [
+                "differs from the Configurator"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/EscArt.svelte",
+                "tabs/setup_wizard/StepEscTelemetry.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
+              "expression": "validate = function ( ) w : escFamily ( ) if w . escParams and ( w . escParams . changes or w . escParams . restart ) then w . message = L . escRestart ; return false end return not w . escBusy end"
+            }
+          ]
+        },
+        {
           "title": "ESC telemetry",
           "title_expression": "L . escTelemetry",
           "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
@@ -7238,23 +7355,6 @@
               ],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
               "expression": "w : enum ( \"esc_sensor_config\" , \"protocol\" , L . protocol , w : telemetryProtocols ( ) , true )"
-            },
-            {
-              "kind": "gate",
-              "label": "validation",
-              "api": null,
-              "field": null,
-              "deviation": true,
-              "configurator_status": [
-                "differs from the Configurator"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/EscArt.svelte",
-                "tabs/setup_wizard/StepEscTelemetry.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
-              "expression": "validate = function ( ) w : escFamily ( ) if w . escParams and ( w . escParams . changes or w . escParams . restart ) then w . message = L . escRestart ; return false end return not w . escBusy end"
             },
             {
               "kind": "read",
@@ -9067,7 +9167,6 @@
         "smartfuel_config.smartfuel_mode"
       ],
       "msp_writes": [
-        "serial_config",
         "esc_sensor_config",
         "feature_config.enabledFeatures",
         "motor_config.use_dshot_telemetry",
@@ -9079,6 +9178,7 @@
         "motor_config.mincommand",
         "motor_config.minthrottle",
         "motor_config.maxthrottle",
+        "serial_config",
         "esc_sensor_config.protocol",
         "serial_config.port_{n}_function_mask",
         "esc_sensor_trial",

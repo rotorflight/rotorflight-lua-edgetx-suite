@@ -540,7 +540,7 @@ function M.new(runtime, transport, mathModule, labels)
   end
   function w:navigate(step, card)
     if self.transition or not self.ready then return end
-    if self.step >= 11 and step <= 10 then self.checks.unplugged = nil end
+    if self.step >= 11 and step <= 10 then self.checks.unplugged, self.unpluggedAgain = nil, true end
     if step ~= self.step then self:resetVisit(step) end
     -- Full throttle must remain active while the battery instruction is displayed.
     -- Back and every other transition still release all overrides.
@@ -704,6 +704,8 @@ function M.new(runtime, transport, mathModule, labels)
   end
   -- The restart card: blades off and servos unplugged are confirmed before the FC restarts.
   function w:showRebootGate()
+    -- A preparation card would otherwise keep Next; it is shown again after the restart's reload.
+    self.modelPreparationCard, self.preparationCard = nil, nil
     self.entryRebootGate = true
     self.cards={self:cardDef(self.L.pendingReboot,self.L.entryRestartHint,{
       self:check("blades",self.L.bladesRemoved),self:check("unplugged",self.L.servosUnplugged)

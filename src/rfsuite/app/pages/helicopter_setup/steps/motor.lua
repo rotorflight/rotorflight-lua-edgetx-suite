@@ -111,7 +111,9 @@ return function(w)
     if v == 2 then
       -- Both intermediate gears start at the main gear's count, a 1:1 pair: the ratio stays.
       if g.stages == 3 then g.pinion, g.main = pair(g.ratio) end
-      local x = g.main
+      -- A tail already driven from the intermediate shaft names that shaft's pinion: keep it, so
+      -- the tail ratio stays; otherwise both intermediate gears start at the main gear's count.
+      local x = t.from == 2 and or1(t.mesh) or g.main
       if g.pinion * x > MAX or x * g.main > MAX then x = 1 end
       g.pinionSide, g.mainSide = x, x
     elseif v == 3 then
