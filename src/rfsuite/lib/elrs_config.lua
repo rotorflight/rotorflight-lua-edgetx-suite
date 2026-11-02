@@ -32,7 +32,7 @@ local function getPowerDecoder()
   if type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.require) == "function" then
     powerDecoder = _G.rfsuite.require("lib/elrs_power.lua")
   elseif type(loadScript) == "function" then
-    local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/elrs_power.lua", "t")
+    local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/elrs_power.lua", "t")
     if type(chunk) == "function" then
       local ok, loaded = pcall(chunk)
       if ok then powerDecoder = loaded end

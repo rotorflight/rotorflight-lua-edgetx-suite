@@ -208,6 +208,7 @@ local function installGlobals(card)
       end,
     },
   }
+  _G.rfsuite.paths = dofile(ROOT .. "/src/rfsuite/lib/paths.lua")
 
   -- The suite's own logger, so a line is judged as the log page keeps it: the ring truncates
   -- what it stores, and a stub that kept the whole line would hide that.

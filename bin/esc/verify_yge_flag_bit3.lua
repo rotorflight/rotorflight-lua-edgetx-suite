@@ -42,6 +42,7 @@ local function newPage()
     }
   }
   _G.rfsuite = { palette = {}, session = {} }
+  _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
   function loadScript(path)
     local relative = string.match(path, "/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
     assert(modules[relative], "unexpected module: " .. tostring(path))

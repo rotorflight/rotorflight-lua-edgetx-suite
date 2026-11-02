@@ -21,7 +21,7 @@ function M.show(ctx)
   local message = (ctx and ctx.message) or ""
 
   if Log == nil then
-    local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/log.lua", "t")
+    local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/log.lua", "t")
     if type(chunk) == "function" then
       local ok, mod = pcall(chunk)
       if ok and type(mod) == "table" and type(mod.emit) == "function" then

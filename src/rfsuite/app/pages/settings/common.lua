@@ -4,7 +4,7 @@ local function loadModule(path)
   if _G.rfsuite and _G.rfsuite.require then
     return _G.rfsuite.require(path)
   end
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end
@@ -141,7 +141,7 @@ local function loadProfile()
     if _G.rfsuite and _G.rfsuite.require then
       Profile = _G.rfsuite.require("lib/profile.lua") or false
     else
-      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/profile.lua", "t")
+      local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/profile.lua", "t")
       if type(chunk) == "function" then
         local ok, mod = pcall(chunk)
         Profile = (ok and mod) or false

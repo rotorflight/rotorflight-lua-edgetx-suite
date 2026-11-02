@@ -101,6 +101,7 @@ function Rig.new(opts)
   end
   local modules = {}
   _G.rfsuite = {
+    paths = dofile(ROOT .. "lib/paths.lua"),
     loadMode = "t",
     -- lib/require.lua publishes the radio's own loader here; the capture loads through it
     utils = { loadScriptUncached = function(...) return _G.loadScript(...) end },

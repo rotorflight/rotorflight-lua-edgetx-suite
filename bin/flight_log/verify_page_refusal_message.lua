@@ -90,6 +90,7 @@ function loadScript(path)
   return nil
 end
 _G.rfsuite = { palette = {} }
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 
 -- The radio's confirmation box is asynchronous: lvgl.confirm registers the two callbacks and
 -- returns nothing, and the pilot's answer arrives later through one of them.

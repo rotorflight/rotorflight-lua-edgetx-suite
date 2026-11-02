@@ -1,7 +1,7 @@
 local Runtime = {}
 
-local SYSTEM_THEME_BASE = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/themes/"
-local USER_THEME_BASE = "/SCRIPTS/TOOLS/rfsuite.user/dashboard/"
+local SYSTEM_THEME_BASE = _G.rfsuite.paths.core .. "/widgets/dashboard/themes/"
+local USER_THEME_BASE = _G.rfsuite.paths.user .. "/dashboard/"
 local AUDIO_LOG_FORCE = false
 local SPLASH_READY_HOLD_SECONDS = 1.0
 -- The steady-state pass rate, and the faster one used only while a start is in progress.
@@ -33,7 +33,7 @@ local VOLUME_REFRESH_SECONDS = 0.5
 local requireModule = (_G.rfsuite and _G.rfsuite.require)
 if not requireModule then
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local rChunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/require.lua", mode)
+  local rChunk = loadScript(_G.rfsuite.paths.core .. "/lib/require.lua", mode)
   if rChunk then
     local ok, res = pcall(rChunk)
     if ok and type(res) == "function" then
@@ -42,7 +42,7 @@ if not requireModule then
   end
 end
 requireModule = requireModule or function(path)
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if chunk then
@@ -92,31 +92,36 @@ end
 -- would take for its own. Until then the release is retried on later passes, draining as it goes.
 -- Every dashboard widget runs its own copy of this file, so a standby screen another widget opened
 -- since is seen by its display module in the shared registry, and leaves the release to that one.
-local function releaseElrsProvider(self)
-  local rf = _G.rfsuite
-  local modules = type(rf) == "table" and rf.modules or nil
-  if type(modules) == "table" and modules["/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/standby.lua"] ~= nil then
-    elrsReleasePending = false
-    return
-  end
-  local config = type(rf) == "table" and rf.elrs_config or nil
-  if type(config) == "table" and type(config.idle) == "function" then
-    local idle, held = config.idle()
-    if not idle then
-      elrsReleasePending = true
-      if not held and type(config.drain) == "function" then
-        config.drain({ crsf = rf.crsf_manager, now = type(getTime) == "function" and getTime() / 100 or 0 })
-      end
+local releaseElrsProvider
+do
+  -- The standby display module's key in the shared registry, joined once rather than on every retry.
+  local STANDBY_MODULE_KEY = _G.rfsuite.paths.core .. "/widgets/dashboard/standby.lua"
+  function releaseElrsProvider(self)
+    local rf = _G.rfsuite
+    local modules = type(rf) == "table" and rf.modules or nil
+    if type(modules) == "table" and modules[STANDBY_MODULE_KEY] ~= nil then
+      elrsReleasePending = false
       return
     end
-  end
-  elrsReleasePending = false
-  if type(rf) == "table" and type(rf.clearModule) == "function" and DashboardAudio
-      and type(DashboardAudio.releaseElrsConfig) == "function"
-      and DashboardAudio.releaseElrsConfig(self.preferences and self.preferences.audio_events) then
-    rf.clearModule("lib/elrs_config.lua")
-    rf.clearModule("lib/elrs_power.lua")
-    rf.elrs_config = nil
+    local config = type(rf) == "table" and rf.elrs_config or nil
+    if type(config) == "table" and type(config.idle) == "function" then
+      local idle, held = config.idle()
+      if not idle then
+        elrsReleasePending = true
+        if not held and type(config.drain) == "function" then
+          config.drain({ crsf = rf.crsf_manager, now = type(getTime) == "function" and getTime() / 100 or 0 })
+        end
+        return
+      end
+    end
+    elrsReleasePending = false
+    if type(rf) == "table" and type(rf.clearModule) == "function" and DashboardAudio
+        and type(DashboardAudio.releaseElrsConfig) == "function"
+        and DashboardAudio.releaseElrsConfig(self.preferences and self.preferences.audio_events) then
+      rf.clearModule("lib/elrs_config.lua")
+      rf.clearModule("lib/elrs_power.lua")
+      rf.elrs_config = nil
+    end
   end
 end
 local function releaseStandby(self, reason)
@@ -672,13 +677,13 @@ end
 
 --- The files the tool writes when a preference changes, and how often they are looked at.
 -- One second is the rate the old signal was polled at, so nothing gets slower here.
-local PREFERENCES_FILE  = "/SCRIPTS/TOOLS/rfsuite.user/preferences.lua"
+local PREFERENCES_FILE  = _G.rfsuite.paths.user .. "/preferences.lua"
 -- Rotating sequence file written by lib/preferences.lua and lib/model_preferences.lua.
 -- The file contains between 1 and 32 bytes ('x'). Each save cycles the size by 1.
 -- The widget inspects fstat(RELOAD_REQ_FILE).size without modifying or deleting the file.
 -- This ensures multi-reader safety (all widgets see the change) and armed safety
 -- (updates occurring while armed are not consumed prematurely and remain pending until disarm).
-local RELOAD_REQ_FILE   = "/SCRIPTS/TOOLS/rfsuite.user/reload.req"
+local RELOAD_REQ_FILE   = _G.rfsuite.paths.user .. "/reload.req"
 local PREFS_STAT_INTERVAL = 1.0
 
 local function preferencesFile()
@@ -2792,7 +2797,7 @@ end
 
 local function loadDashboardLib()
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/app/pages/settings/dashboard/lib.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/app/pages/settings/dashboard/lib.lua", mode)
   if not chunk then return nil end
   local ok, lib = pcall(chunk)
   if not ok or type(lib) ~= "table" then return nil end
@@ -2801,7 +2806,7 @@ end
 
 local function loadDashboardEngine()
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/engine.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/widgets/dashboard/engine.lua", mode)
   if not chunk then return nil end
   local ok, engine = pcall(chunk)
   if not ok or type(engine) ~= "table" then return nil end

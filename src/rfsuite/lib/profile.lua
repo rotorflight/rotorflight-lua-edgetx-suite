@@ -15,7 +15,7 @@ local function loadSensors()
     if _G.rfsuite and _G.rfsuite.require then
       Sensors = _G.rfsuite.require("lib/sensors.lua") or false
     else
-      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/sensors.lua", "t")
+      local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/sensors.lua", "t")
       if type(chunk) == "function" then
         local ok, mod = pcall(chunk)
         Sensors = (ok and mod) or false

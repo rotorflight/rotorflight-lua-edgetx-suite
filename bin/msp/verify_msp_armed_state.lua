@@ -84,6 +84,7 @@ local function newRuntime(armflags, failedArmedLoads)
     ["lib/model_preferences.lua"] = { loadByMcuId = function() return nil, nil end }
   }
   local real = {
+    ["lib/paths.lua"] = true,
     ["tasks/msp/runtime.lua"] = true,
     ["lib/armed.lua"] = true,
     ["tasks/msp/api/api_version.lua"] = true,

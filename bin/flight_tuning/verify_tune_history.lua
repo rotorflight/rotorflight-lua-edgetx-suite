@@ -85,7 +85,7 @@ function loadScript(path)
   assert(relative == "lib/atomic_file.lua", "unexpected module: " .. tostring(path))
   return assert(loadfile("src/rfsuite/" .. relative))
 end
-_G.rfsuite = nil
+_G.rfsuite = { paths = dofile("src/rfsuite/lib/paths.lua") }
 
 local Api = assert(loadfile("src/rfsuite/tasks/msp/api/tune_advisor.lua"))()
 local tuneHistory = assert(loadfile("src/rfsuite/lib/tune_history.lua"))()

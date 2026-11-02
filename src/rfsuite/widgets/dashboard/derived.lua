@@ -3,7 +3,7 @@ local Derived = {}
 local requireModule = (_G.rfsuite and _G.rfsuite.require)
 if not requireModule then
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local rChunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/require.lua", mode)
+  local rChunk = loadScript(_G.rfsuite.paths.core .. "/lib/require.lua", mode)
   if rChunk then
     local ok, res = pcall(rChunk)
     if ok and type(res) == "function" then
@@ -12,7 +12,7 @@ if not requireModule then
   end
 end
 requireModule = requireModule or function(path)
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if chunk then
@@ -25,7 +25,7 @@ end
 local Utils = requireModule("widgets/dashboard/objects/common.lua")
 
 local IMAGE_DIR = "/IMAGES/"
-local LOGO_FILE = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/gfx/logo.png"
+local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 
 -- What EdgeTX accepts for a model bitmap on a colour radio (radio/src/sdcard.h,
 -- BITMAPS_EXT), with the empty one first so the same lookup also resolves a name that

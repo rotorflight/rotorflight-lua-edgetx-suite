@@ -43,6 +43,13 @@ WIDGETS/rfsuitesvc/              background service widget
 SOUNDS/rf/                       announcement pack, one folder per language
 ```
 
+The code never spells the first two roots: every module builds its card paths from
+`rfsuite.paths` (`src/rfsuite/lib/paths.lua`), so a change of layout is a change of that file,
+of `lib/require.lua` and the few files that load it, of the model template, and of the packager.
+A desktop test under `bin/` that loads suite modules without `lib/require.lua` sets the table
+itself, from the same file (`_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")` from the
+repository root). See `docs/reference/module-loader.md`.
+
 
 ## The `simulator/` folder
 

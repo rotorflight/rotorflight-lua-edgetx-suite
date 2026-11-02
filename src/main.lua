@@ -56,7 +56,7 @@ end
 -- module and the tool still has to come up.
 pcall(function() return _G.rfsuite.require("lib/config_store.lua").allowMigration() end)
 
-local chunk = assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/ui/home.lua", "t"))
+local chunk = assert(loadScript(_G.rfsuite.paths.core .. "/ui/home.lua", "t"))
 return chunk()
 
 

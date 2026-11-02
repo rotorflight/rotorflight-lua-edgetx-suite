@@ -3,7 +3,7 @@
 -- the exact same theme set at runtime.
 
 local function loadModule(path)
-  local chunk = assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, "t"))
+  local chunk = assert(loadScript(_G.rfsuite.paths.core .. "/" .. path, "t"))
   return chunk()
 end
 

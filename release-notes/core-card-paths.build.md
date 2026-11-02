@@ -1,0 +1,2 @@
+- **Card paths come from one module (`src/rfsuite/lib/paths.lua`, `src/rfsuite/lib/require.lua`)**:
+  - The suite's modules no longer spell `/SCRIPTS/TOOLS/rfsuite-core` and `/SCRIPTS/TOOLS/rfsuite.user`; they build their paths under those two folders from `lib/paths.lua`, which `lib/require.lua` publishes as `rfsuite.paths`. Nothing on the card moves.

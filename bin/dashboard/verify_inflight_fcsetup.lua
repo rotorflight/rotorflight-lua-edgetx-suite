@@ -25,6 +25,9 @@ local fakePrime = {
 }
 rfsuite = {session = {mcu_id = "mcu-a", apiVersion = {12, 0, 9},
   modelPreferences = {inflight = {step = 2, step_headspeed = 25, flight_list = "18"}}}}
+-- The card roots the suite builds its paths from; a source tree older than lib/paths.lua has none.
+local pathsChunk = loadfile(sourceRoot .. "/rfsuite/lib/paths.lua")
+rfsuite.paths = pathsChunk and pathsChunk() or nil
 rfsuite.clearModule = function(path) cleared[#cleared + 1] = path; cache[path] = nil end
 rfsuite.require = function(path)
   loaded[#loaded + 1] = path

@@ -22,6 +22,7 @@ end
 local function newPage(spec)
   -- Module handles, the queue and the pipeline's shared state belong to one scenario.
   _G.rfsuite = { palette = {}, session = {} }
+  _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
   local ticks = 0
   function getTime() return ticks end
   local api = assert(loadfile("src/rfsuite/tasks/msp/api/rc_tuning.lua"))()

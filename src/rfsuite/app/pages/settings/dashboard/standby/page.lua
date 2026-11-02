@@ -1,5 +1,5 @@
 local M = {}
-local function load(path) return assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, "t"))() end
+local function load(path) return assert(loadScript(_G.rfsuite.paths.core .. "/" .. path, "t"))() end
 local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or load)("ui/palette.lua")
 local Common, Controls, Standby, t
 local NOTE_LINE_H = 24

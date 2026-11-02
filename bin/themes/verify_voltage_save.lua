@@ -1,5 +1,10 @@
 -- Exercise real voltage forms and stores. An optional source root tests an older tree unchanged.
 local root = (arg[1] or ".") .. "/src/rfsuite/"
+-- The card roots the suite builds its paths from; a source tree older than lib/paths.lua has none.
+local function cardPaths()
+  local chunk = loadfile(root .. "lib/paths.lua")
+  return chunk and chunk() or nil
+end
 local core = "/SCRIPTS/TOOLS/rfsuite-core/"
 local fields, switches, modelSaved, radioSaved, modelOk, radioOk
 local function clone(value)
@@ -38,6 +43,7 @@ local function open(theme,scope,prefs,model)
   modelOk,radioOk=true,true
   modelSaved,radioSaved=nil,nil
   _G.rfsuite={session={mcu_id="test",modelPreferences=model}}
+  _G.rfsuite.paths=cardPaths()
   local lib=assert(loadfile(root.."app/pages/settings/dashboard/lib.lua"))()
   lib.setEditScope(scope)
   local reports={}

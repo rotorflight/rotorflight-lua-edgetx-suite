@@ -7,7 +7,7 @@
 -- layout.lua beside the rows that render it, so the page and the panel cannot drift apart.
 
 local function loadModule(path)
-  local chunk = assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, "t"))
+  local chunk = assert(loadScript(_G.rfsuite.paths.core .. "/" .. path, "t"))
   return chunk()
 end
 
@@ -303,7 +303,7 @@ local function saveConfig(prefs)
   -- failure to rewrite it is not a failure of this save.
   local modelScope = type(DashboardLib.getEditScope) == "function" and DashboardLib.getEditScope() == "model"
   if session and session.mcu_id and modelPrefs then
-    local loadMod = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/model_preferences.lua", "t")
+    local loadMod = loadScript(_G.rfsuite.paths.core .. "/lib/model_preferences.lua", "t")
     if type(loadMod) == "function" then
       local ok, MP = pcall(loadMod)
       if ok and type(MP) == "table" and type(MP.saveByMcuId) == "function" then

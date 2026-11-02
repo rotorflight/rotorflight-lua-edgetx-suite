@@ -18,6 +18,7 @@ _G.rfsuite = {
   },
   Log = { emit = function() end },
 }
+_G.rfsuite.paths = dofile(root .. "/src/rfsuite/lib/paths.lua")
 _G.rfsuite.require = function(path)
   if path == "lib/armed.lua" then return armed end
   if path == "lib/elrs_config.lua" then configLoads = configLoads + 1; return provider end

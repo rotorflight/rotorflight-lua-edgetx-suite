@@ -153,6 +153,7 @@ end
 
 local loaded = {}
 _G.rfsuite = {
+  paths = dofile(ROOT .. "/src/rfsuite/lib/paths.lua"),
   loadMode = "t",
   session = {},
   require = function(path)

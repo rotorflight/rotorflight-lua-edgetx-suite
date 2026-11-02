@@ -1,7 +1,7 @@
 -- Append-only, per-flight-controller record of values committed to EEPROM.
 local M = {}
 
-local USER_ROOT = "/SCRIPTS/TOOLS/rfsuite.user"
+local USER_ROOT = _G.rfsuite.paths.user
 local DATA_DIR = USER_ROOT .. "/journal"
 local READ_CAP, READ_CHUNK = 65536, 4096
 

@@ -63,6 +63,7 @@ local modules = {
 }
 
 _G.rfsuite = { palette = {} }
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 _G.SMLSIZE = 0
 _G.RIGHT = 0
 _G.getSourceValue = function(name)

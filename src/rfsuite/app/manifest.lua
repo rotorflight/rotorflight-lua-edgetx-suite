@@ -1,5 +1,5 @@
-local SYSTEM_THEMES_PATH = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/themes/"
-local USER_THEMES_PATH = "/SCRIPTS/TOOLS/rfsuite.user/dashboard/"
+local SYSTEM_THEMES_PATH = _G.rfsuite.paths.core .. "/widgets/dashboard/themes/"
+local USER_THEMES_PATH = _G.rfsuite.paths.user .. "/dashboard/"
 
 local function hexEncode(input)
   if type(input) ~= "string" then return "" end

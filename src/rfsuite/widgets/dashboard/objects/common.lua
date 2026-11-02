@@ -70,7 +70,7 @@ local function getLocaleModule()
   end
 
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/system_locale.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/system_locale.lua", mode)
   if chunk then
     local ok, mod = pcall(chunk)
     if ok and type(mod) == "table" then
@@ -129,7 +129,7 @@ local function getI18nContext()
     end
     if not i18nModule then
       local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/i18n/init.lua", mode)
+      local chunk = loadScript(_G.rfsuite.paths.core .. "/i18n/init.lua", mode)
       if chunk then
         local ok, mod = pcall(chunk)
         if ok and type(mod) == "table" and type(mod.new) == "function" then
@@ -233,7 +233,7 @@ local function loadCoreModule(path)
     if mod and type(mod) == "table" then return mod end
   end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/" .. path, mode)
   if chunk then
     local ok, mod = pcall(chunk)
     if ok and type(mod) == "table" then return mod end
@@ -389,7 +389,7 @@ local function resolveEscStatus(state, sensors)
     end
     if escStatusModule == nil then
       local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/esc_status.lua", mode)
+      local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/esc_status.lua", mode)
       if chunk then
         local ok, mod = pcall(chunk)
         if ok and type(mod) == "table" then escStatusModule = mod end

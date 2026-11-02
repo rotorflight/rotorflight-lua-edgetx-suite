@@ -4,6 +4,7 @@
 -- Only module loading, logging and the MSP queue are stubbed; no hardware/timing claim.
 local queued = {}
 _G.rfsuite = { session = {}, Log = { emit = function() end } }
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 _G.loadScript = function(path)
     return function()
         if string.match(path, "tasks/msp/runtime.lua$") then

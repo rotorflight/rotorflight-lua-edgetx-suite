@@ -1,7 +1,7 @@
 local M = {}
 
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end
@@ -657,7 +657,7 @@ local function saveModelStore()
   local session = modelStore()
   if not session then return true end
   -- A module that will not load answers as saveByMcuId does when it has no store: "unavailable".
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/model_preferences.lua", "t")
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/model_preferences.lua", "t")
   if type(chunk) ~= "function" then return false, "unavailable" end
   local loaded, MP = pcall(chunk)
   if not (loaded and type(MP) == "table" and type(MP.saveByMcuId) == "function") then

@@ -107,6 +107,7 @@ local modules = {
 }
 
 _G.rfsuite = { palette = { accent = 0 }, session = { esc4WayMotorCount = 2 } }
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 _G.SMLSIZE = 0
 _G.getTime = function() return ticks end
 _G.loadScript = function(path)
