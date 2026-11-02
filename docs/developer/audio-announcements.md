@@ -164,7 +164,7 @@ runtime, and an unresolved key ships to the radio as a raw marker with nothing g
 
 Announcements play through `Audio.playEventFile(path)` or, inside the engine,
 `tryPlayEventFile(audioState, now, path, opts)`. The path is relative to the pack root:
-`evt/…`, `gov/…`, `adj/…`, `stat/alerts/…`.
+`evt/…`, `gov/…`, `adj/…`, `inflight/…`, `stat/alerts/…`.
 
 `tryPlayEventFile` returns `true` when the file was handed to `playFile`, otherwise `false` and the
 reason: `"cooldown"` (the quarter second after the previous file still runs), `"nofile"` (the pack
@@ -204,15 +204,16 @@ file, the announcement is silent — which is why the fallback shape above is wo
 ## What the packager ships
 
 `bin/package/build_package.py` copies, per language, exactly these folders out of
-`src/rfsuite/audio/<language>/`: `adj`, `app`, `evt`, `stat`, `gov` — into `SOUNDS/rf/<language>/`
-on the card. A new top-level folder would not be copied. The loose tones at the root of the audio
+`src/rfsuite/audio/<language>/`: `adj`, `app`, `evt`, `stat`, `gov`, `inflight` — into `SOUNDS/rf/<language>/`
+on the card. For each locale it uses `default/` if present, otherwise the locale directory itself.
+A new top-level folder needs an explicit packaging entry. The loose tones at the root of the audio
 tree (`beep.wav`, `multibeep.wav`, `warn.wav`, `alarm.wav`) are copied into `SOUNDS/rf/`
 separately; they are not part of the word lists and are not generated.
 
 ## A trap worth knowing before you audit anything
 
 Several paths are **built by concatenation**, not written out: `"gov/" .. file` and
-`"evt/" .. file` in `lib/audio.lua`, and `"adj/" .. words[i]` in
+`"evt/" .. file` in `lib/audio.lua`, and `"inflight/fn/" .. id` and `"adj/" .. words[i]` in
 `tasks/events/telemetry_bg/adjustments.lua`. A search for `"gov/active.wav"` finds nothing and
 the file is used on every flight. Any sweep for unused audio has to account for the constructed
 paths, or it will report two thirds of the pack as dead.
@@ -228,3 +229,7 @@ paths, or it will report two thirds of the pack as dead.
 5. `bin/sound-generator/json/*.json` — the line to speak; `--check` must come back clean.
 6. `docs/audio/events.md` — the announcement, its switch, its default and what fires it.
 7. `release-notes/<short-name>.feature.md` — the release note, filed under its release when it is cut (see `release-notes/README.md`).
+
+The inflight overlay announces profile edges through `evt/profile.wav` and the existing number
+teller only when the corresponding general PID/rate event is disabled. In flight, unread/unknown profiles use `inflight/paused.wav`; returning to read profiles uses
+`inflight/resumed.wav` without an interlock cycle. Both cues are silent on the ground. These hooks share the Adjustments setting and critical-alarm gate.

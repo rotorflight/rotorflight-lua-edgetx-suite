@@ -27,7 +27,7 @@ layer described below, and the menu and the picker open over it.
 | `widgets/dashboard/battery_pick_menu.lua` | The battery picker view. It draws the quick menu's `battery_pick` record, whose options and close are what its presses run. |
 | `widgets/dashboard/battery_profile_menu.lua` | The battery profile page. It draws the quick menu's `battery_profile` record, whose options are what its presses run, with the outcome of the last one in its foot line. |
 | `widgets/dashboard/confirm_menu.lua` | The confirmation view. It draws the question an entry's `confirm` raises (see [Confirmations](#confirmations)); its two buttons run or discard the press held behind the question. |
-| `widgets/dashboard/fullscreen_controls.lua` | The tool control, the menu glyph and the X the widget draws over a fullscreen theme that binds no control of its own, and the tool control alone on the connect splash at full screen. |
+| `widgets/dashboard/fullscreen_controls.lua` | The tool control, the menu glyph and the X the widget draws over a fullscreen theme that binds no control of its own; the info bar that carries them above a declarative theme at full screen; and the tool control alone on the connect splash at full screen. |
 | `widgets/dashboard/tool_host.lua` | The suite's tool, run inside the widget while it is open — see [The tool](#the-tool). |
 
 `views.lua` is loaded on the first fullscreen pass and never on a zone pass, so a dashboard

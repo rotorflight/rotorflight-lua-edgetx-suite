@@ -12,16 +12,17 @@ local FIELD_NAMES = {
     "pid_0_O","pid_1_O"
 }
 
+-- P and F as the Tune Advisor's simulator reply (tune_advisor.lua) measured them.
 local SIM_RESPONSE = {
-    50,0,  -- pid_0_P
+    70,0,  -- pid_0_P
     2,0,   -- pid_0_I
     50,0,  -- pid_0_D
-    0,0,   -- pid_0_F
-    50,0,  -- pid_1_P
+    120,0, -- pid_0_F
+    100,0, -- pid_1_P
     2,0,   -- pid_1_I
     50,0,  -- pid_1_D
-    0,0,   -- pid_1_F
-    70,0,  -- pid_2_P
+    120,0, -- pid_1_F
+    100,0, -- pid_2_P
     3,0,   -- pid_2_I
     70,0,  -- pid_2_D
     0,0,   -- pid_2_F

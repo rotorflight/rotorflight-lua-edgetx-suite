@@ -52,6 +52,7 @@ local BOOST_SECONDS = 8
 -- When the Alert Level ends, on this Lua state's clock (nowSeconds); before it, every refresh of
 -- the master volume asks for the Alert Level. 0 until the first critical announcement.
 local boost_until = 0
+local adjustment_quiet_until = 0
 
 -- The dashboard widget and the tool started from the radio's tool list each run their own copy of
 -- this module, and EdgeTX never runs the two at the same time: it stops refreshing widgets while a
@@ -1060,6 +1061,9 @@ local RAISE_OFF_BY_DEFAULT = { dropouts = true }
 --- alarm may speak (alertMaySpeak), and the haptic is booked by the caller as before. Returns what
 --- tryPlayEventFile returns, the reason included.
 local function tryPlayAlertFile(self, audioState, events, now, relativePath, opts, alertKey, critical)
+  if critical and now >= (audioState.nextAllowedAt or 0) and resolveEventPath(relativePath) then
+    adjustment_quiet_until = now + BOOST_SECONDS
+  end
   if critical and now >= (audioState.nextAllowedAt or 0) then
     local key = RAISE_KEYS[alertKey]
     if key and prefEnabled(events, key, not RAISE_OFF_BY_DEFAULT[alertKey]) and resolveEventPath(relativePath) then
@@ -1290,6 +1294,14 @@ local function announceProfileEvent(self, eventKey, value, soundFile, opts)
   end
 
   local audioState = self.audioState
+  local profileJob = _G.rfsuite and _G.rfsuite.inflightProfileJob
+  if profileJob then
+    -- Track the return pair while temporary MSP selections are deliberately silent.
+    local kind = eventKey == "pid_profile" and "pid" or "rate"
+    audioState.lastValues[eventKey] = profileJob.original and profileJob.original[kind] or rounded
+    audioState.pendingValues[eventKey] = nil
+    return
+  end
   if not audioState.lastAlertAt then
     audioState.lastAlertAt = { voltage = 0, esc_temperature = 0 }
   end
@@ -2353,6 +2365,12 @@ function Audio.playEventFile(relativePath, opts)
   if type(relativePath) ~= "string" or relativePath == "" then return false end
   resolve_undriven_level()
   return playResolvedEventFile(relativePath, opts) == true
+end
+
+-- Adjustment names and values are advisory. Leave the alarm window clear even when raising the
+-- master volume is disabled; the priority belongs to the alarm, not to its volume setting.
+function Audio.adjustmentAllowed()
+  return nowSeconds() >= adjustment_quiet_until and not boost_active(nowSeconds())
 end
 
 --- Speak a whole number through the radio's own number teller, at the level the files above

@@ -46,11 +46,20 @@ values for every profile.
   leaves the board's profile alone rather than switching it to the one on screen. Selecting a
   profile on this page always sends it.
 - Saving writes the whole battery configuration to the flight controller and commits it to the
-  board's own storage. A cell voltage that was not edited goes back exactly as the flight
-  controller reported it. The page also keeps this model's copy of its settings on the radio; where
-  that copy cannot be written, the notice says the values went to the flight controller, that the
-  model's settings were not saved, and why — for example *the settings file could not be written
-  to the SD card*.
+  board's own storage; the shared save reports success only after the writes and EEPROM commit
+  succeed, or reports *Not saved* if a write fails. A cell voltage that was not edited goes back
+  exactly as the flight controller reported it. The page still saves this model's preferences on
+  the radio before starting the flight-controller save, even if that save is refused or fails;
+  a failure to save the model preferences is reported with its reason, separately from the
+  flight-controller outcome.
+- **When the flight controller uses a saved value.** Capacity, maximum cell voltage and the
+  profile apply at once. The cell count and the warning and minimum cell voltage are taken when
+  the flight controller detects a pack, so with a pack connected they apply at the next plug-in
+  or restart. On firmware with SmartFuel the page also reads the SmartFuel configuration after it
+  has loaded and sends it back unchanged with the save, so the flight controller's SmartFuel
+  estimate uses the new minimum and full cell voltage at once, as a save from Rotorflight
+  Configurator does. If that read was not answered, the save goes ahead without it and the
+  estimate picks up the new voltages at the next restart.
 - **Per profile, each cell voltage stays between its neighbours.** On firmware with per-profile
   cells the flight controller keeps every profile ordered — Min below Max, and Min ≤ Warn ≤ Full ≤
   Max — and changes a profile that is out of that order itself when it stores it. So a voltage

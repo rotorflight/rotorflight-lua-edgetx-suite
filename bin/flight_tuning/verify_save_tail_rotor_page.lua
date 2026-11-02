@@ -45,7 +45,7 @@ local function newPage(spec)
   }
   function loadScript(path)
     local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
-    if relative == pipelinePath then
+    if relative == pipelinePath or relative == "lib/governor.lua" then
       return assert(loadfile("src/rfsuite/" .. relative))
     end
     assert(modules[relative], "unexpected module: " .. tostring(path))

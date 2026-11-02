@@ -1,41 +1,6 @@
--- Settings > Dashboard > In-flight tuning: the RADIO's half of it.
---
--- The flight controller's half -- the set layout, the step every slot is written with, the undo
--- profile and the action that puts them on the board -- moved to Setup > Controls > In-Flight
--- Tuning after the pilot's third radio round. They are not one job: this page is a mixer, two
--- global variables, a switch and six trims, and it is true of the radio whether or not anything is
--- connected; the other cannot be looked at without a flight controller. He kept finding the button
--- that writes the board on a page he had opened to change a trim.
---
--- Everything on this page belongs to the RADIO and applies to every model on it: which switch
--- arms the overlay, which channels and global variables the transmitter's mixer devotes to the
--- adjustment pair, and which trims stand in for the rows. One
--- transmitter has one set of those, and a pilot who set them up once should not meet them again
--- on his next machine. So they are in the radio's own preferences file under [inflight], saved
--- the way every other Settings page saves, and no flight controller has to be connected for any
--- of it -- which is why this page carries no store gate and no note asking for a link.
---
--- The MODEL's half is on Setup > Controls > In-Flight Tuning: which parameters its flight
--- controller offers, how far one press moves them, which PID profile is the undo, and a switch
--- of its own saying the machine is set up for the overlay. BOTH switches have to be on before
--- anything drives; the switch on this page is the master, and with it off nothing happens on any
--- model.
---
--- Two things this page has learned the hard way, both from a radio and both worth stating here.
---
--- What it LOADS. The page needs the settings, the setup check and the trim names -- it needs
--- nothing of the live state machine and nothing of the adjustment-function tables behind it.
--- Loading widgets/dashboard/inflight/drive.lua to get at them pulled 135 kB of Lua into the tool
--- on entry, against 0.1 to 3.9 kB for the project's other settings pages, on a radio whose tool
--- had 134 kB of heap left; the tool stopped answering twelve seconds later. It loads
--- inflight/setup.lua instead, which is the same code without the drive behind it.
---
--- What it READS. The setup check walks the model's mixer lines, its variables and its trim modes.
--- That walk runs ONCE per visit, and again only after a field has actually changed, latched on a
--- flag the next build consumes. (Opened from the dashboard the variable walk is kept for the visit
--- instead and answers a changed variable without a read, until Set up the model writes the model;
--- see gvarConflicts and markValue.) It is not on a timer: a page that re-reads the model because a
--- second has passed is a page that re-reads the model forever.
+-- Settings > Dashboard > In-flight tuning: radio wiring shared by all models.
+-- Suggested flight-controller functions and the model flight list are configured from the
+-- tuning screen on the ground. This page loads only the radio setup and its sliced model walks.
 
 local function loadModule(path)
   local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
@@ -44,6 +9,18 @@ local function loadModule(path)
 end
 
 local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
+
+-- The tuning overlay's own instance when one is already loaded: the tool opened from the dashboard
+-- runs in the widget's Lua state (widgets/dashboard/tool_host.lua), and a second instance of this
+-- module is some 80 kB for nothing. Otherwise a private one, released with the page, so the
+-- standalone tool keeps nothing of it after the page closes. The module holds no state of its own.
+local SETUP_PATH = "widgets/dashboard/inflight/setup.lua"
+local function loadSetup()
+  local modules = _G.rfsuite and _G.rfsuite.modules
+  local shared = modules and modules["/SCRIPTS/TOOLS/rfsuite-core/" .. SETUP_PATH]
+  if type(shared) == "table" then return shared end
+  return loadModule(SETUP_PATH)
+end
 
 local Common = nil
 local Controls = nil
@@ -56,7 +33,7 @@ local M = {}
 -- The switch picker's filters, as the firmware numbers them. Named here rather than reached for
 -- as globals, following app/pages/setup_wizard/proc_radio.lua: SW_SWITCH is the physical switch
 -- block, SW_NONE the empty entry that lets a pilot clear the choice. Trims are a filter of their
--- own and are deliberately not offered -- a trim is a row, not the interlock.
+-- own and are deliberately not offered -- a trim drives a row rather than releasing the surface.
 local SW_SWITCH = 1
 -- The trim block, as its own filter. A trim is offered by the picker as two positions -- the
 -- decrement and the increment -- and the overlay stores the increment; see Setup.normaliseTrim.
@@ -90,7 +67,7 @@ local function ensureDeps()
     Controls = loadModule("ui/controls.lua")
   end
   if not Setup then
-    Setup = loadModule("widgets/dashboard/inflight/setup.lua")
+    Setup = loadSetup()
   end
   if not ui.runtime then
     ui.runtime = Common.createFormRuntime(ui)
@@ -394,7 +371,7 @@ local function describeCheck(i18n, result)
   end
 
   local parts = {}
-  if unset then parts[#parts + 1] = t(i18n, "check_unset", "Switch or variables not set") end
+  if unset then parts[#parts + 1] = t(i18n, "check_unset", "Variables not set") end
   if sameGvar then
     parts[#parts + 1] = t(i18n, "check_same_gvar", "Bank and value point at the same variable")
   end
@@ -749,32 +726,14 @@ end
 local function buildGeneral(children, x, y, w, i18n)
   local cursorY = y
   cursorY = cursorY + appendNote(children, x, cursorY, w,
-    t(i18n, "pointer_fc", "The set layout, the step size and the undo profile are in Setup > Controls."))
+    t(i18n, "pointer_tuning", "Set up suggested functions from the tuning screen on the ground."))
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     t(i18n, "enabled", "In-flight tuning on this radio"),
     ui.runtime.getBoolGetter("enabled"),
     ui.runtime.getBoolSetter("enabled"))
   cursorY = cursorY + appendNote(children, x, cursorY, w,
     t(i18n, "enabled_note",
-      "The master switch. Each model has one of its own under Setup > Controls, and both have to be on."))
-
-  -- The interlock. The picker stores a signed switch POSITION, which is what getSwitchValue takes,
-  -- so nothing has to be resolved between what the pilot chose and what the overlay reads.
-  local pickerW = 172
-  if pickerW > w then pickerW = w end
-  local rowH = Controls.ROW_H
-  children[#children + 1] = {
-    type = "label", x = x, y = Controls.labelY(cursorY, rowH), w = w - pickerW - 18,
-    text = t(i18n, "switch", "Interlock switch"), color = Palette.text, font = SMLSIZE
-  }
-  children[#children + 1] = {
-    type = "switch",
-    x = x + w - pickerW - 10, y = Controls.controlY(cursorY, rowH), w = pickerW, h = rowH - 6,
-    filter = SW_SWITCH | SW_NONE,
-    get = function() return ui.config.switch or 0 end,
-    set = function(value) markValue("switch", tonumber(value) or 0) end
-  }
-  cursorY = cursorY + rowH
+      "The master switch for every model."))
 
   cursorY = cursorY + appendNote(children, x, cursorY, w, describeCheck(i18n, checkResult()))
 
@@ -850,7 +809,7 @@ end
 --- The line drawn while the variables are read. Reached inside the widget's call only: the
 -- standalone tool walks in the build.
 --
--- Drawn through a closure, the way setup/controls/inflight/page.lua draws its progress line,
+-- Drawn through a closure, so a changing notice does not rebuild the page,
 -- because one of the two variables can be edited while the walk runs. The walk's answer cannot
 -- then be shown by building the page again, which would close the editor (see markValue), and
 -- EdgeTX does not always say when that editor has closed (gvarEdited). So the walk's end, and every
@@ -909,8 +868,8 @@ end
 
 --- The notes the trims section can draw, in either layout; see sectionHeldBack.
 local function trimsNotes(i18n)
-  return t(i18n, "navigate_note", "One trim steps through the parameters, the other moves the one it selected."),
-    t(i18n, "bank_trim_note", "With a bank trim the walk trim stays inside the bank; without one it walks the whole set."),
+  return t(i18n, "navigate_note", "Optional trims: one highlights a parameter, the other steps it. Touch remains available."),
+    t(i18n, "bank_trim_note", "The group trim changes group; the walk trim highlights a parameter inside it."),
     t(i18n, "trims_unreadable", "This radio did not report its trims; the default order is used.")
 end
 
@@ -957,7 +916,7 @@ local function buildTrims(children, x, y, w, i18n)
   if ui.config.trim_mode == Setup.TRIM_MODE_NAVIGATE then
     cursorY = cursorY + appendNote(children, x, cursorY, w, navigateNote)
     cursorY = cursorY + appendTrimPicker(children, x, cursorY, w,
-      t(i18n, "bank_trim", "Bank trim"), trimField("bank_trim"))
+      t(i18n, "bank_trim", "Group trim"), trimField("bank_trim"))
     cursorY = cursorY + appendNote(children, x, cursorY, w, bankTrimNote)
     cursorY = cursorY + appendTrimPicker(children, x, cursorY, w,
       t(i18n, "nav_trim", "Walk trim"), trimField("nav_trim"))
@@ -1050,7 +1009,9 @@ function M.build(ctx)
     Controls.appendSectionHeader(children, x, cursorY, w,
       t(i18n, section.titleKey, section.titleFallback),
       ui.sections[section.key],
-      ui.runtime.getSectionToggleHandler(section.key))
+      function()
+        ui.runtime.getSectionToggleHandler(section.key)()
+      end)
     cursorY = cursorY + Controls.SECTION_H
     if ui.sections[section.key] then
       if sectionHeldBack(section, i18n, w) then
@@ -1069,7 +1030,7 @@ end
 -- rebuild, which is when the screen can say what it found -- except a variable job while one of the
 -- two variables' editors may be open (see appendGvarNote).
 function M.wakeup(ctx)
-  if not ui.loaded or Setup == nil or not inWidgetCall() then return end
+  if not ui.loaded or Setup == nil then return end
   -- Never in the pass that built the page: the build is the most expensive thing that pass does,
   -- and a slice beside it is what would take the pass over the limit. One pass later costs nothing.
   -- This relies on builds being event-driven: a page rebuilt on every pass would never take a
@@ -1079,7 +1040,8 @@ function M.wakeup(ctx)
     return
   end
   local finished = false
-  if ui.notesWanted then
+  if not inWidgetCall() then return
+  elseif ui.notesWanted then
     finished = stepNotes(ctx and ctx.i18n)
   elseif ui.trimNames == nil then
     finished = stepTrimWalk()

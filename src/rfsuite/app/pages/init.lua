@@ -90,7 +90,6 @@ local entries = {
   setup_servos_bus_page = definePage("setup/servos/bus"),
   setup_controls_modes_page = definePage("setup/controls/modes"),
   setup_controls_adjustments_page = definePage("setup/controls/adjustments"),
-  setup_controls_inflight_page = definePage("setup/controls/inflight"),
   setup_controls_failsafe_page = definePage("setup/controls/failsafe"),
   setup_controls_beepers_page = definePage("setup/controls/beepers"),
   setup_controls_beepers_configuration_page = definePage("setup/controls/beepers/configuration"),

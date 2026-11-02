@@ -355,7 +355,7 @@ function Copy-LanguageAudioPack {
     }
     New-Item -ItemType Directory -Path $TargetAudioDir -Force | Out-Null
 
-    foreach ($sub in @('adj', 'app', 'evt', 'stat', 'gov')) {
+    foreach ($sub in @('adj', 'app', 'evt', 'stat', 'gov', 'inflight')) {
         $srcSub = Join-Path $sourcePack $sub
         if (Test-Path $srcSub) {
             Copy-Item -Path $srcSub -Destination (Join-Path $TargetAudioDir $sub) -Recurse -Force

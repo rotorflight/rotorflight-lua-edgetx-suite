@@ -2,7 +2,7 @@ local M = {}
 
 local Log = nil
 
-local unpack_fn = table.unpack or unpack
+local unpack_fn = table.unpack
 local function safeCall(fn, ...)
   if type(fn) ~= "function" then return false, "not a function" end
   if type(debug) == "table" and type(debug.traceback) == "function" and type(xpcall) == "function" then

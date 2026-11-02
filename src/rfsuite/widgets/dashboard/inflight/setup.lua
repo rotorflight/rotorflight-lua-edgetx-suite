@@ -61,18 +61,15 @@ M.log = logDrive
 -- The MODEL half of this table -- the keys M.MODEL_KEYS lists -- is duplicated in
 -- lib/model_preferences.lua, which seeds a new per-model store and cannot require a widget module
 -- to reach these. The two MUST agree; the same note sits on the other side. The radio half is not
--- duplicated anywhere: lib/preferences.lua seeds the section and its switch, and every other radio
+-- duplicated anywhere: lib/preferences.lua seeds the section and its enabled flag, and every other radio
 -- key is filled in from here when the store does not hold it.
 --
 -- No global variable is defaulted: a variable this overlay writes has to be one the pilot
 -- declared, because writing an arbitrary one would move whatever it already drives. The channels
 -- ARE defaulted, to the pair the project's own generic radio setup documents.
 M.DEFAULTS = {
-  -- Both sections carry a key of this name and both default to off, which is why one entry
-  -- serves them. The radio's says the pilot wants the overlay on this transmitter at all; the
-  -- model's says this machine is set up for it. See M.settings for how the two combine.
+  -- The radio master switch defaults to off for every model.
   enabled = false,
-  switch = 0,
   bank_ch = 11,
   value_ch = 12,
   -- The two variables are DEFAULTED, and the pilot's ruling after the third radio round is what
@@ -84,7 +81,7 @@ M.DEFAULTS = {
   -- reaches, and the model is walked to WARN that one of them is spoken for rather than to choose.
   bank_gvar = 6,
   value_gvar = 5,
-  trims = true,
+  trims = false,
   -- Walk-and-adjust with three trims is the arrangement the pilot flew and asked to keep, and it
   -- is the one that works on every radio: the six-trim layout needs six trims, and the TX15, the
   -- Boxer and the Pocket have four. Rudder walks the rows, elevator steps the bank, aileron
@@ -99,11 +96,6 @@ M.DEFAULTS = {
   row_trim_4 = 3,
   row_trim_5 = 5,
   row_trim_6 = 6,
-  -- The last PID profile, because a helicopter that uses several uses them from the first upwards
-  -- and the undo wants the one nothing is flown on. A default and not a rule: a board with fewer
-  -- profiles has the choice refused by name, and the pilot can move it.
-  backup_profile = 6,
-  set_mode = "standard",
   -- What one press of a step control moves a parameter by, in the flight controller's own units.
   -- It is written into every slot the setup action puts on the board except the head speed's, so
   -- a changed step means setting the flight controller up again -- which the help says and the
@@ -113,7 +105,10 @@ M.DEFAULTS = {
   -- other is bounded above 250: the step that makes a gain move by a feelable amount would take
   -- two thousand presses to cross it. Its rungs start where the general ones stop, and it reaches
   -- no other slot.
-  step_headspeed = 50
+  step_headspeed = 50,
+  -- Empty means every driveable parameter; otherwise a comma-separated list of function ids.
+  -- Stored ids remain present even when the connected FC no longer offers them.
+  flight_list = ""
 }
 
 -- The plateau the flight controller sees is timed by a logical switch, not by the widget.
@@ -190,39 +185,24 @@ M.PROFILE_MAX = 6
 M.TRIM_MODE_ROWS = "rows"
 M.TRIM_MODE_NAVIGATE = "navigate"
 
--- The two ways the overlay learns which parameter sits in which bank and row.
---
--- `standard` is a set the overlay KNOWS: the documented six-band layout with the six cells it
--- leaves empty filled in, held in inflight/functions.lua. The screen can name every cell before
--- the board has said anything, the board's own slot table is read only to be COMPARED against it,
--- and the settings page can offer to write that set onto the flight controller.
---
--- `custom` is the board's: the slot table is read and turned into whatever layout it describes,
--- nothing is ever written, and the documented layout stands only where the table yields nothing
--- the overlay can drive. It is the mode for a pilot whose adjustment configuration is his own.
-M.SET_MODE_STANDARD = "standard"
-M.SET_MODE_CUSTOM = "custom"
-
 -- Which setting belongs to which file, and the whole of the ownership rule in two lists.
 --
 -- A setting belongs to the RADIO when it is true of the transmitter whatever is plugged into it:
--- the interlock switch, the two channels and the two global variables the mixer devotes to the
+-- the two channels and the two global variables the mixer devotes to the
 -- adjustment pair, and which trims stand in for the rows. One transmitter has
 -- one set of those, and a pilot who set them up once should not meet them again on his next
 -- model. They live in the radio's own preferences file, section [inflight].
 --
--- A setting belongs to the MODEL when it describes the machine: which set of parameters its
--- flight controller offers, how far one press moves them, and which PID profile is the undo.
+-- A setting belongs to the MODEL when it describes suggested step sizes or its flight list.
 -- Those stay in the per-model store, section [inflight], keyed by the flight controller's MCU id.
 --
--- `enabled` is in BOTH lists, and deliberately: see M.settings.
 M.RADIO_KEYS = {
-  "enabled", "switch", "bank_ch", "value_ch", "bank_gvar", "value_gvar",
+  "enabled", "bank_ch", "value_ch", "bank_gvar", "value_gvar",
   "trims", "trim_mode", "nav_trim", "bank_trim", "adj_trim",
   "row_trim_1", "row_trim_2", "row_trim_3", "row_trim_4", "row_trim_5", "row_trim_6"
 }
 
-M.MODEL_KEYS = { "enabled", "set_mode", "step", "step_headspeed", "backup_profile" }
+M.MODEL_KEYS = { "step", "step_headspeed", "flight_list" }
 
 --- The rung of `choices` a stored value means.
 --
@@ -679,12 +659,11 @@ function M.loadRadioSettings(preferences)
 
   local settings = {
     enabled = src.enabled == true,
-    switch = clampNumber(src.switch, -1024, 1024, M.DEFAULTS.switch),
     bank_ch = clampNumber(src.bank_ch, M.CHANNEL_MIN, M.CHANNEL_MAX, M.DEFAULTS.bank_ch),
     value_ch = clampNumber(src.value_ch, M.CHANNEL_MIN, M.CHANNEL_MAX, M.DEFAULTS.value_ch),
     bank_gvar = clampNumber(src.bank_gvar, 0, M.GVAR_MAX_INDEX, M.DEFAULTS.bank_gvar),
     value_gvar = clampNumber(src.value_gvar, 0, M.GVAR_MAX_INDEX, M.DEFAULTS.value_gvar),
-    trims = src.trims ~= false,
+    trims = src.trims == true,
     -- Named explicitly in both directions, so that the DEFAULT is what an unset store gets. Read
     -- as "navigate or else rows" this silently pinned every store that had never been saved to
     -- the layout that happened to be the fallback, and moving the default would have moved
@@ -713,12 +692,6 @@ function M.loadModelSettings(modelPreferences)
   local src = section(modelPreferences)
 
   return {
-    enabled = src.enabled == true,
-    -- Anything that is not the word `custom` is the standard set, which is what a store written
-    -- by a build that did not have this setting yet reads as -- and is the right way round: the
-    -- standard set names every cell without a round trip, while the custom one shows nothing at
-    -- all until the board has been read.
-    set_mode = (src.set_mode == M.SET_MODE_CUSTOM) and M.SET_MODE_CUSTOM or M.SET_MODE_STANDARD,
     step = M.nearestStep(src.step),
     -- A store written before the head speed had a step of its own holds nothing here and reads as
     -- the default, which is the number that build wrote into the slot anyway only if the pilot
@@ -726,34 +699,21 @@ function M.loadModelSettings(modelPreferences)
     -- differing on the step until the flight controller is set up again. That is the verdict
     -- doing its job: the board really does carry the other number.
     step_headspeed = M.nearestHeadspeedStep(src.step_headspeed),
-    backup_profile = clampNumber(src.backup_profile, 0, M.PROFILE_MAX, M.DEFAULTS.backup_profile)
+    flight_list = type(src.flight_list) == "string" and src.flight_list or M.DEFAULTS.flight_list
   }
 end
 
---- Both halves in one table, plus the answer to the only question the drive asks of them.
---
--- TWO switches have to be on, and neither implies the other. The radio's says the pilot wants the
--- overlay on this transmitter; with it off nothing happens on any model, and the model's switch
--- has no effect at all. The model's says this machine is set up for it; a transmitter that flies
--- six helicopters drives the one whose switch is on and leaves the other five alone. `active` is
--- the conjunction, and it is what everything downstream tests -- the two flags travel beside it
--- so that a surface can say WHICH of them is the one that is off.
+--- Radio wiring and model defaults; only the radio master switch enables tuning.
 function M.settings(preferences, modelPreferences)
   local radio = M.loadRadioSettings(preferences)
   local model = M.loadModelSettings(modelPreferences)
-  local radioEnabled = radio.enabled == true
-
   for i = 1, #M.MODEL_KEYS do
     local key = M.MODEL_KEYS[i]
-    if key ~= "enabled" then radio[key] = model[key] end
+    radio[key] = model[key]
   end
-
-  -- No merged key called `enabled`. The name means one thing in each file and nothing at all in
-  -- the union of them, so the drive is given the two it can tell apart and the answer it wants.
+  radio.radio_enabled = radio.enabled == true
+  radio.active = radio.radio_enabled
   radio.enabled = nil
-  radio.radio_enabled = radioEnabled
-  radio.model_enabled = model.enabled == true
-  radio.active = radioEnabled and radio.model_enabled
   return radio
 end
 
@@ -765,7 +725,6 @@ end
 function M.storeRadioSettings(target, settings)
   if type(target) ~= "table" or type(settings) ~= "table" then return end
   target.enabled = settings.enabled == true
-  target.switch = settings.switch or 0
   target.bank_ch = settings.bank_ch
   target.value_ch = settings.value_ch
   target.bank_gvar = settings.bank_gvar
@@ -784,11 +743,9 @@ end
 -- lib/model_preferences.lua serialises one level of tables and nothing below it.
 function M.storeModelSettings(target, settings)
   if type(target) ~= "table" or type(settings) ~= "table" then return end
-  target.enabled = settings.enabled == true
-  target.set_mode = settings.set_mode or M.SET_MODE_STANDARD
   target.step = M.nearestStep(settings.step)
   target.step_headspeed = M.nearestHeadspeedStep(settings.step_headspeed)
-  target.backup_profile = settings.backup_profile
+  target.flight_list = settings.flight_list or ""
 end
 
 -- ---------------------------------------------------------------------------
@@ -1059,7 +1016,7 @@ local function checkMixLine(radio, channel, gvarIndex, faults, prefix, gated)
     faults[#faults + 1] = prefix .. "_mix_multiplex"
   end
   -- The bank line is always on: the enable channel has to stand in its band for as long as the
-  -- interlock is closed. The value line is switched by the logical switch that times the pulse, and
+  -- tuning surface is open. The value line is switched by the logical switch that times the pulse, and
   -- a value line without it is the line the widget would have to time itself -- one press, two
   -- steps, on a slow pass.
   if gated then
@@ -1222,7 +1179,12 @@ function M.check(drive, settings, trims)
   if trims == nil then trims = drive.trimsResolved == true and drive.trims or nil end
 
   local faults = {}
-  if (settings.switch or 0) == 0 then faults[#faults + 1] = "no_switch" end
+  -- The layout owner supplies this list after deriving the FC's safe cells. The settings-only
+  -- caller cannot know the slot table and leaves the verdict to the overlay's ground check.
+  if type(drive.flightListMissing) == "table" and #drive.flightListMissing > 0 then
+    faults[#faults + 1] = "flight_list_missing"
+    faults.missing = drive.flightListMissing
+  end
   if (settings.bank_gvar or 0) <= 0 then faults[#faults + 1] = "no_bank_gvar" end
   if (settings.value_gvar or 0) <= 0 then faults[#faults + 1] = "no_value_gvar" end
 

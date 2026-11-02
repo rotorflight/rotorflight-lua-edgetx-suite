@@ -12,9 +12,16 @@
 -- flight_record runs ahead of all three. It closes the record of the flight that has just ended,
 -- moving it to `last`, so every task behind it reads a finished flight instead of one still open.
 -- It touches nothing but session memory either, so it cannot hold the sequence up.
+--
+-- tune_history runs LAST, and only marks the flight's Tune Advisor numbers as owed: it reports
+-- itself complete in the call that marks them, so it never holds the sequence either. The
+-- capture itself -- three paced reads, the save, the clear -- is driven by the event runtime
+-- from five seconds after the disarm, after the reads above have had the link to themselves
+-- (tasks/events/tune_capture.lua says why it cannot be a task that waits here).
 return {
   { name = "flight_record", context = "widget" },
   { name = "flight_log", context = "widget" },
   { name = "flight_stats", context = "widget" },
   { name = "dataflash_summary", context = "widget" },
+  { name = "tune_history", context = "widget" },
 }

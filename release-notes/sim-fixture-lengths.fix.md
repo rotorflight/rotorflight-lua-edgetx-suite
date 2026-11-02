@@ -1,0 +1,2 @@
+- **Simulator replies have the length their parsers read (`tasks/msp/api`)**:
+  - Without a flight controller, Status reports one motor, four servos and valid profile counts again instead of fields shifted by one byte; the RX, telemetry, voltage meter and VTX replies carry every byte their parsers read, and the VTX parser reads the last byte of a full reply. A CI check holds every module's simulator reply to its parser (#294).

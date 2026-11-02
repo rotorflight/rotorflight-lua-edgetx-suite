@@ -18,7 +18,7 @@
 -- Two things are read off the board rather than assumed. The SET is the board's own adjustment
 -- slot table: which parameter sits in which bank and row is whatever the pilot configured there,
 -- and the documented layout is only the fallback for a board that yields nothing usable. The
--- VALUES are the nine reads that between them answer every adjustment function id, so the screen
+-- VALUES are read by a sliced transaction for each reachable profile, so the screen
 -- can show a number before the first step is made -- AdjF/AdjV only report what has just moved.
 
 local M = {}
@@ -48,6 +48,15 @@ end
 local Functions = requireModule("widgets/dashboard/inflight/functions.lua")
 local Setup = requireModule("widgets/dashboard/inflight/setup.lua")
 local Log = requireModule("lib/log.lua")
+local Profiles
+local function profileModule()
+  if not Profiles then
+    local module = requireModule("widgets/dashboard/inflight/profiles.lua")
+    if type(module) ~= "table" then error("inflight/prime.lua: profile dependency missing", 0) end
+    Profiles = module
+  end
+  return Profiles
+end
 
 -- A dependency that did not load must not leave a WORKING-LOOKING module behind.
 --
@@ -87,16 +96,6 @@ local CMD_RX_MAP = 64
 local CMD_ADJ_FUNCTION_IDS = 167
 local CMD_ADJ_RANGE = 156
 
--- MSP_COPY_PROFILE and MSP_EEPROM_WRITE, the pair their app/pages/tools/copy_profiles page uses.
--- 183 carries { type, destination, source } and 0 is the PID profile type; the copy lives in RAM
--- until 250 commits it, so the two always travel together.
-local CMD_COPY_PROFILE = 183
-local CMD_EEPROM_WRITE = 250
-local PROFILE_TYPE_PID = 0
-
--- MSP_STATUS, the one value read that also says how many profiles the board has.
-local CMD_STATUS = 101
-
 -- The board's table is 42 slots, the length of the 167 reply.
 local SLOT_COUNT = 42
 
@@ -131,11 +130,6 @@ local DRIVE_PHASE_GROUND = "ground"
 -- answers an error answers it again -- so it is retried this many times and then left alone with
 -- the error on the screen rather than asked the same question for the rest of the session.
 local AUTO_RETRY_LIMIT = 2
-
--- How many profiles a board has, when neither the status read nor the session says. Their own
--- status reply carries `pid_profile_count`, which is where the real number comes from; this is
--- only what the refusal falls back on, and it is the count every current target ships.
-local PROFILE_COUNT_FALLBACK = 6
 
 -- Every read this module makes is a read, and 250 is a write with an empty payload. The queue
 -- infers `isWrite` from a non-empty payload (tasks/msp/queue.lua), which is wrong for both: 156
@@ -178,6 +172,7 @@ local function boardOnLink()
   local signature = (type(session) == "table") and session.signature or nil
   return signature
 end
+M.boardOnLink = boardOnLink
 
 local function queueOf()
   local state = mspState()
@@ -240,6 +235,15 @@ function M.groundRefusal(widget)
   return nil
 end
 
+-- The setup writer shares the ground read's rotor and arming gates.
+function M.setupRefusal(widget)
+  local state = widget and widget.state
+  if type(state) ~= "table" or state.armedSeen ~= true then return "arm_unknown" end
+  if state.armed == true then return "armed" end
+  if isArmed(widget) then return "rotor_running" end
+  return nil
+end
+
 local function apiModule(name)
   if type(name) ~= "string" or name == "" then return nil end
   return requireModule("tasks/msp/api/" .. name .. ".lua")
@@ -267,23 +271,14 @@ local RUNNING = {
 --- Whether a run is still expecting a reply.
 function M.isRunning(drive)
   local prime = type(drive) == "table" and drive.prime or nil
-  return type(prime) == "table" and RUNNING[prime.phase] == true
+  return type(drive) == "table" and (drive.profileJob ~= nil
+    or type(prime) == "table" and not prime.invalidated and RUNNING[prime.phase] == true)
 end
 
---- Whether the board HAS BEEN READ, which is not the same question as what the last run did.
---
--- The evidence is a completed read that left something in the cache, and everything that used to
--- ask `prime.phase == PHASE_DONE` asks this instead. The difference is a defect measured on a
--- radio: a re-read that was abandoned when the pilot armed -- the MSP runtime clears its whole
--- queue on every armed tick, which this module takes as the abandon it is -- set the phase back to
--- idle over a full cache, and from there the backup refused as `unprimed` and the surface said the
--- values had never been read. An abandoned read invalidates nothing: what it did not do is REPLACE
--- values that were already there.
---
--- `readAt` is not the flag, deliberately. It is the radio's wall clock and a radio that answers
--- none leaves it nil, so a read would stop counting on exactly the models whose clock is not set.
+-- A completed session cache survives an interrupted refresh; phase alone is not evidence
+-- that values exist. readAt is optional because some radios have no wall clock.
 function M.hasRead(drive)
-  if type(drive) ~= "table" or drive.valuesRead ~= true then return false end
+  if type(drive) ~= "table" or drive.valuesRead ~= true or drive.readRequired then return false end
   return type(drive.values) == "table" and next(drive.values) ~= nil
 end
 
@@ -313,7 +308,7 @@ end
 -- callbacks close over the run they were made for. Comparing the run rather than a flag is what
 -- keeps a late reply from a previous attempt out of the current one's counters.
 local function stillCurrent(drive, prime)
-  return type(drive) == "table" and drive.prime == prime and RUNNING[prime.phase] == true
+  return type(drive) == "table" and drive.prime == prime and not prime.invalidated and RUNNING[prime.phase] == true
 end
 
 local function fail(drive, prime, reason)
@@ -445,7 +440,7 @@ function M.newDerivation(records, map, bankChannel, valueChannel)
     records = records, map = map,
     bankCh = bankChannel, valueCh = valueChannel,
     phase = "scan", at = 0,
-    usable = {}, usableSlot = {}, skipped = {},
+    usable = {}, usableSlot = {}, skipped = {}, alwaysWindows = {},
     bands = {}, bandSeen = {}, rows = {}, rowSeen = {},
     enableWindows = {}, enableSeen = {}, refusedBank = {},
     set = {}, rowValues = {}, cellRecord = {}, bankWindows = {}, cells = {}, placed = 0
@@ -472,7 +467,14 @@ function M.deriveStep(work, budget)
       if type(record) == "table" and (tonumber(record.adjFunction) or 0) ~= 0 then
         local enableCh = M.auxToWireChannel(record.enaChannel, work.map)
         local valueCh = M.auxToWireChannel(record.adjChannel, work.map)
-        if enableCh == work.bankCh and valueCh == work.valueCh then
+        if (tonumber(record.enaChannel) or 0) >= Functions.AUX_FIELD_COUNT and valueCh == work.valueCh then
+          -- An out-of-range enable field is always active (fc/rc_adjustments.c).
+          work.skipped[#work.skipped + 1] = slot
+          for _, range in ipairs({record.adjRange1, record.adjRange2}) do
+            local low, high = Functions.windowBounds(range)
+            if low ~= nil then work.alwaysWindows[#work.alwaysWindows + 1] = {low = low, high = high, slot = record} end
+          end
+        elseif enableCh == work.bankCh and valueCh == work.valueCh then
           -- Every enable window of the pair, stepped or continuous: the board runs each slot
           -- whose window holds the bank channel (fc/rc_adjustments.c), and a continuous one then
           -- sets its parameter from the value channel, so a parked bank value inside its window
@@ -635,8 +637,19 @@ function M.deriveStep(work, budget)
       end
     end
     if work.placed == 0 then return true, nil, work.skipped end
-    work.phase = "cross"
+    work.phase = #work.alwaysWindows > 0 and "always" or "cross"
     work.at = 0
+    return false, nil, nil
+  end
+
+  if work.phase == "always" then
+    -- Copy one window to each bank per unit, separately from placement and cross-checking.
+    while work.at < #work.alwaysWindows do
+      if budget ~= nil and taken >= budget then return false, nil, nil end
+      work.at, taken = work.at + 1, taken + 1
+      for _, windows in pairs(work.bankWindows) do windows[#windows + 1] = work.alwaysWindows[work.at] end
+    end
+    work.phase, work.at = "cross", 0
     return false, nil, nil
   end
 
@@ -647,15 +660,16 @@ function M.deriveStep(work, budget)
     -- one window that also sits inside another would step two parameters at once -- the very
     -- thing this map exists to rule out. The row says it cannot be stepped instead.
     while work.at < #work.cells do
-      if budget ~= nil and taken >= budget then return false, nil, nil end
-      work.at = work.at + 1
-      taken = taken + 1
-      local cell = work.cells[work.at]
+      local cell = work.cells[work.at + 1]
+      local windows = work.bankWindows[cell.bank]
+      -- Charge extra windows against the slice: always-active slots can enlarge every bank.
+      local cost = math.ceil(#windows / (Functions.ROW_COUNT * 2))
+      if budget ~= nil and (taken >= budget or (taken > 0 and taken + cost > budget)) then return false, nil, nil end
+      work.at, taken = work.at + 1, taken + cost
       local values = work.rowValues[cell.bank][cell.row]
       local own = work.cellRecord[cell.bank][cell.row]
       local usUp = values.up ~= nil and Functions.gvarToUs(values.up) or nil
       local usDown = values.down ~= nil and Functions.gvarToUs(values.down) or nil
-      local windows = work.bankWindows[cell.bank]
       for i = 1, #windows do
         local window = windows[i]
         local foreign = window.slot ~= own
@@ -669,7 +683,7 @@ function M.deriveStep(work, budget)
         end
       end
     end
-    return true, { bands = work.outBands, bankValues = work.bankValues,
+    return true, { bands = work.outBands, bankValues = work.bankValues, records = work.cellRecord,
                    set = work.set, rowValues = work.rowValues, placed = work.placed }, work.skipped
   end
 
@@ -681,8 +695,10 @@ local function applySet(drive, prime, derived, skipped)
   prime.skipped = skipped or {}
   if derived == nil then
     drive.rowValues = {}
+    drive.cellRecords = {}
     drive.set = {}
     drive.setSource = "unavailable"
+    drive:rebuildGroups()
     bump(drive)
     logPrime("slot table yielded nothing usable; custom steps are unavailable")
     return
@@ -692,7 +708,10 @@ local function applySet(drive, prime, derived, skipped)
   drive.bankValues = derived.bankValues
   drive.set = derived.set
   drive.rowValues = derived.rowValues
+  -- Each cell's own slot record: its step and its bounds are the board's, not a table of ours.
+  drive.cellRecords = derived.records or {}
   drive.setSource = "board"
+  drive:rebuildGroups()
   -- The one place inside a run that must move the epoch. Everything else a prime does travels on
   -- the snapshot and is read by a closure, but the SET is the row list itself -- six names built
   -- into the tree -- and a tree built from the documented layout cannot show the board's.
@@ -803,101 +822,22 @@ local function stashHandler(widget, drive, prime, template)
   end
 end
 
---- The run is over: everything the nine reads can answer is in the cache.
---
--- The snapshot the delta is measured against is taken here only when no backup has been made yet:
--- once one exists, THAT is what the flight is compared with, and re-priming must not quietly move
--- the baseline.
-local function finishValues(drive, prime)
-  if type(drive.backup) ~= "table" then
-    local copy = {}
-    for id, value in pairs(drive.values) do copy[id] = value end
-    drive.primedValues = copy
-  end
-  prime.phase = M.PHASE_DONE
-  -- When, on the radio's own wall clock. The ground surface says "values read 14:31" because a
-  -- pilot standing beside the machine wants to know whether that was this session or the last
-  -- one, and a tick count cannot tell him.
-  drive.readAt = drive.radio.clock and drive.radio.clock() or nil
-  -- and the evidence that it happened at all, which the line above cannot carry on a radio whose
-  -- clock answers nothing. See M.hasRead.
-  drive.valuesRead = true
-  -- Whatever the last attempt did, this one finished: nothing is left to say about it.
-  drive.primeInterrupted = nil
-  bump(drive)
-  logPrime("prime done: %d value(s) cached, %d id(s) unanswered", prime.mapped or 0, prime.unmapped or 0)
+-- Profile transactions share the prime's existing arm, link and FC identity gates.
+local function profileEnvironment()
+  return {
+    armed = isArmed, queue = queueOf,
+    identity = function()
+      local state = mspState()
+      return boardOnLink(), state and state.values and state.values.mcuId
+    end
+  }
 end
 
-local function sendValueRead(widget, drive, prime, queue)
-  local command = Functions.VALUE_READS[prime.valueAt]
-  if command == nil then
-    -- Nothing left to ask for. The run only ends here when nothing is still waiting to be parsed;
-    -- otherwise the last parse ends it, because the values it holds belong in the snapshot.
-    if pendingDepth(prime) <= 0 then finishValues(drive, prime) end
-    return true
-  end
-
-  local moduleName, fields = Functions.fieldsForCommand(command)
-  local api = apiModule(moduleName)
-  if api == nil or type(api.parse) ~= "function" or type(api.simulatorResponse) ~= "table" then
-    -- A module the tree does not have, or one with nothing to answer under the simulator, is
-    -- skipped rather than fatal: the ids behind it stay unknown and the screen shows them so.
-    prime.unmapped = (prime.unmapped or 0) + ((fields and #fields) or 0)
-    prime.valueAt = prime.valueAt + 1
-    advanced(drive, prime)
-    return sendValueRead(widget, drive, prime, queue)
-  end
-
-  queue:add({
-    command = command,
-    isWrite = false,
-    simulatorResponse = api.simulatorResponse,
-    client = M.CLIENT,
-    processReply = stashHandler(widget, drive, prime,
-      { kind = "values", command = command, api = api, fields = fields }),
-    errorHandler = replyFailed(drive, prime, "values")
-  })
-  return true
-end
-
-local function sendValues(widget, drive, prime)
-  local queue = queueOf()
-  if queue == nil then
-    prime.failedIn = "values"
-    return fail(drive, prime, "no_link")
-  end
-  return sendValueRead(widget, drive, prime, queue)
-end
-
--- Moving from one phase of a run to the next changes a word on one line and nothing else on the
--- surface, and that line is a reactive closure. No epoch, so no rebuild -- see `advanced` above.
 local function startValues(widget, drive, prime)
   prime.phase = M.PHASE_VALUES
-  prime.valueAt = 1
-  prime.mapped = 0
-  prime.unmapped = 0
-  return sendValues(widget, drive, prime)
-end
-
---- Whether this model's set is the one this build knows rather than the one the board carries.
-local function standardMode(drive)
-  local settings = drive.settings
-  return type(settings) == "table" and settings.set_mode ~= Setup.SET_MODE_CUSTOM
-end
-
---- What the finished comparison does to the drive. The set is NOT touched: in the standard layout
--- the set is a constant of this build and the board's table is evidence about the board, not about
--- the set. A comparison that could not be made at all -- no field on this receiver map reaches the
--- configured channels -- is recorded as its own verdict rather than as a difference.
-local function applyComparison(drive, prime, result)
-  if result == nil then
-    drive.compare = { verdict = "unmapped", count = 0 }
-    logPrime("standard set: neither channel has a field on this receiver map")
-    return
-  end
-  drive.compare = result
-  logPrime("standard set: board %s (%d of %d slot(s) differ, %d of them empty)",
-    result.verdict, result.count, result.total, result.empty)
+  local ok, reason = profileModule().begin(widget, drive, profileEnvironment(), prime.refresh and "refresh" or prime.auto and "auto" or "new")
+  if not ok then fail(drive, prime, reason) end
+  return ok, reason
 end
 
 --- The slot table is in: enter the phase that turns it into a set or into a verdict.
@@ -908,20 +848,17 @@ end
 -- out, no reply due, no error. A flight controller with nothing configured is exactly the board
 -- this feature exists to offer a set to.
 local function startDerive(drive, prime)
-  prime.phase = M.PHASE_DERIVE
-  if standardMode(drive) then
-    -- The set is known; what the board's table is read for is the verdict on the board.
-    -- The steps are part of what a slot has to hold, so they are part of what the board is
-    -- compared against: a board set up under one step and a radio configured with another
-    -- disagree, and the verdict has to say so rather than call the pair a match. Both go, since
-    -- the head speed's slot is written from the second of them.
-    prime.comparison = Functions.newComparison(prime.records, prime.map,
-      drive.settings.bank_ch, drive.settings.value_ch,
-      { step = drive.settings.step, step_headspeed = drive.settings.step_headspeed })
-  else
-    prime.derivation = M.newDerivation(prime.records, prime.map,
-      drive.settings.bank_ch, drive.settings.value_ch)
+  -- The settings picker reuses this completed ground read without sending its own MSP.
+  local session = _G.rfsuite and _G.rfsuite.session
+  if session then
+    session.inflightSlots = { mcu = session.mcu_id, records = prime.records, map = prime.map,
+      bank = drive.settings.bank_ch, value = drive.settings.value_ch }
   end
+  prime.phase = M.PHASE_DERIVE
+  -- What can be tuned is what the board carries: the set is always derived from its own slots.
+  -- The standard layout survives only as what *Set up the flight controller* writes.
+  prime.derivation = M.newDerivation(prime.records, prime.map,
+    drive.settings.bank_ch, drive.settings.value_ch)
 end
 
 --- One slice of the work that turns the board's slot table into something, taken from the widget's
@@ -933,34 +870,32 @@ local function stepDerivation(widget, drive)
   local prime = drive.prime
   if type(prime) ~= "table" or prime.phase ~= M.PHASE_DERIVE then return false end
 
-  if prime.comparison ~= nil then
-    local done, result = Functions.compareStep(prime.comparison, Functions.COMPARE_SLICE)
-    if not done then return true end
-    prime.comparison = nil
-    applyComparison(drive, prime, result)
+  -- The derivation's last slice, applying the set (it rebuilds the groups and moves the layout
+  -- epoch) and starting the values (the profile job and the SD baseline) each take a pass of their
+  -- own. Measured on a full standard board: the three in one pass cost about 23 000 instructions
+  -- and the first two still 21 600, against the 20 000 a widget call is stopped at.
+  if prime.setApplied then
+    prime.setApplied = nil
     startValues(widget, drive, prime)
     return true
   end
-
-  if standardMode(drive) then
-    -- The standard layout with no comparison to run: the receiver map did not answer, or neither
-    -- configured channel has a field that could carry the set. Said as its own verdict.
-    applyComparison(drive, prime, nil)
-    startValues(widget, drive, prime)
+  if prime.derived ~= nil then
+    local derived = prime.derived
+    prime.derived = nil
+    applySet(drive, prime, derived.set, derived.skipped)
+    prime.setApplied = true
     return true
   end
-
   if type(prime.derivation) ~= "table" then
     -- Nothing to work on: fall through to the values as if the table had yielded nothing.
     applySet(drive, prime, nil, prime.skipped)
-    startValues(widget, drive, prime)
+    prime.setApplied = true
     return true
   end
   local done, derived, skipped = M.deriveStep(prime.derivation, DERIVE_SLICE)
   if not done then return true end
   prime.derivation = nil
-  applySet(drive, prime, derived, skipped)
-  startValues(widget, drive, prime)
+  prime.derived = { set = derived, skipped = skipped }
   return true
 end
 
@@ -1041,9 +976,7 @@ end
 --- Ask the board for whatever the run's cursor now points at.
 --
 -- Called on a reply's arrival, and by a parse that found the arrival had held the chain back. The
--- END of a phase is never asked for from here: the last record of the slot table still has to be
--- decoded before the derivation reads them all, and the last of the nine values still has to be
--- decoded before the snapshot is taken from them. Both of those belong to the parse.
+  -- The last slot reply must be parsed before derivation; profile reads have their own job.
 chain = function(widget, drive, prime)
   prime.chainPaused = false
   local phase = prime.phase
@@ -1053,10 +986,6 @@ chain = function(widget, drive, prime)
   if phase == M.PHASE_SLOTS then
     if prime.slotList[prime.slotAt] == nil then return false end
     return sendSlot(widget, drive, prime)
-  end
-  if phase == M.PHASE_VALUES then
-    if Functions.VALUE_READS[prime.valueAt] == nil then return false end
-    return sendValues(widget, drive, prime)
   end
   return false
 end
@@ -1147,48 +1076,6 @@ local function parseSlot(widget, drive, prime, record)
   end
 end
 
-local function parseValues(widget, drive, prime, record)
-  local parsed = record.api.parse(record.buf)
-  if type(parsed) == "table" then
-    local fields = record.fields
-    -- The status reply counts the profiles the way the WIRE does, from 0. Everything else on this
-    -- screen that shows one of those two numbers counts them the way the pilot's own menus do: the
-    -- header reads the PID profile off the PID# telemetry sensor, the backup line records both
-    -- 1-based, and the range this build declares for the two ids is 1 to 6 -- which is the
-    -- firmware's own (fc/rc_adjustments.c, ADJ_ENTRY(RATE_PROFILE, 1, 6) and its PID sibling). Left
-    -- as they arrive, the two rows read one less than the header above them and than the row a step
-    -- would land on.
-    --
-    -- They are moved onto that count here, at the one place they enter the cache, and there is no
-    -- second writer to keep in step with: the same firmware file leaves all four profile
-    -- adjustments out of the report AdjF and AdjV carry (updateAdjustmentData), so the live
-    -- surface's own adoption path can never put a raw one in beside them.
-    --
-    -- `prime.status` below keeps the reply exactly as it came. The undo reads the active index off
-    -- it and MSP_COPY_PROFILE has to be told the wire's own number.
-    local base = (record.command == CMD_STATUS) and 1 or 0
-    for i = 1, #fields do
-      local entry = fields[i]
-      local value = tonumber(parsed[entry.field])
-      if value == nil then
-        prime.unmapped = (prime.unmapped or 0) + 1
-      else
-        drive.values[entry.id] = value + base
-        prime.mapped = (prime.mapped or 0) + 1
-      end
-    end
-    -- The status reply is the only one that says how many profiles this board has and which of
-    -- them is live, and the undo needs both.
-    if record.command == CMD_STATUS then prime.status = parsed end
-  end
-
-  if Functions.VALUE_READS[prime.valueAt] == nil and pendingDepth(prime) <= 0 then
-    finishValues(drive, prime)
-  elseif prime.chainPaused then
-    chain(widget, drive, prime)
-  end
-end
-
 --- Parse ONE stored reply, and no more, however many are waiting.
 --
 -- Answers true when the pass was spent here, so the caller stops at it.
@@ -1212,9 +1099,7 @@ local function takeReply(widget, drive)
   if not stillCurrent(drive, prime) or type(record) ~= "table" then return true end
 
   local kind = record.kind
-  if kind == "values" then
-    parseValues(widget, drive, prime, record)
-  elseif kind == "slot" then
+  if kind == "slot" then
     parseSlot(widget, drive, prime, record)
   elseif kind == "functionIds" then
     parseFunctionIds(widget, drive, prime, record)
@@ -1224,41 +1109,29 @@ local function takeReply(widget, drive)
   return true
 end
 
---- A profile change has been answered by a read, and on the ground the undo is due with it.
---
--- The backup is scoped to a PROFILE: the board's adjustments only ever move the one that is active,
--- so the spare slot holds a copy of the profile that was being flown before the change and is not
--- an undo for the one the pilot is about to fly. One slot and one undo is the shape this feature
--- has, so the fresh copy REPLACES it -- the ground line then names the new source, and the previous
--- profile's undo is gone. That is the trade the single slot makes, and it is the one the pilot
--- chose.
---
--- A request and no more, exactly as the interlock's own edge raises it: whether anything goes out
--- is M.tick's decision, and every refusal the button has applies there unchanged. A RATE profile
--- change moves no PID profile and this cannot tell the two apart, so the request is raised for
--- both and the existence test sends nothing for the one that changed nothing.
---
--- Raised where the change is ANSWERED rather than where it is seen. The flag it follows stands
--- until a read can serve it, so a test on the flag alone would raise this again on every pass of
--- that wait.
-local function profileChangeAnswered(drive)
-  if drive.phase ~= DRIVE_PHASE_GROUND then return end
-  if drive.autoBackupWanted == true then return end
-  drive.autoBackupWanted = true
-  logPrime("profile changed on the ground: a fresh undo is due")
-end
-
---- Read the board: the receiver map, the slot table, and the nine value reads.
+--- Read the receiver map and slot table, then start the multi-profile transaction.
 --
 -- Refused while armed and without a link. The counters start at the whole table's length and are
 -- corrected down once 167 has said how many slots actually carry a function.
-function M.start(widget, drive)
+function M.start(widget, drive, automatic)
   if type(widget) ~= "table" or type(drive) ~= "table" then return false, "no_drive" end
+  if type(widget.state) ~= "table" then return false, "armed" end
   if isArmed(widget) then return false, "armed" end
+  if M.isRunning(drive) then return false, "reading" end
   if queueOf() == nil then return false, "no_link" end
+  -- A session whose end is still pending ends as this read begins, so the read begins a new one --
+  -- also when it is interrupted before its values (Drive:takeExpiry). A profile job still running
+  -- belongs to that session and finishes first, as profiles.begin requires. Without a link nothing is
+  -- read, and the session is kept for the list on screen until the link is back.
+  if drive.sessionExpired then
+    if widget.state.fblConnected ~= true then return false, "no_link" end
+    if drive.profileJob ~= nil then return false, "reading" end
+    drive:takeExpiry()
+  end
 
   local prime = {
     phase = M.PHASE_RXMAP,
+    auto = automatic == true,
     done = 0,
     total = 2 + SLOT_COUNT + #Functions.VALUE_READS,
     records = {},
@@ -1280,43 +1153,29 @@ function M.start(widget, drive)
   drive.compare = nil
   -- The wait the pass gate counts belongs to the run that is starting.
   widget._primeSkips = nil
-  -- A full run reads the nine value commands as well, so a profile change waiting for a re-read of
-  -- its own is answered by this one and must not send it a second time afterwards.
-  if drive.profileChanged == true then profileChangeAnswered(drive) end
   drive.profileChanged = nil
   drive.primeInterrupted = nil
   bump(drive)
   logPrime("prime started")
-  return sendRxMap(widget, drive, prime)
+  local ok = sendRxMap(widget, drive, prime)
+  if ok then
+    -- A full read, whoever asked for it, answers every read still asked for: the link's automatic
+    -- read and the one an ended session asks for. A run that fails or is armed into is offered
+    -- again by M.tick's retry, as before.
+    drive.readAgain = nil
+    drive._primeAutoDone = true
+  end
+  return ok
 end
 
---- Read the values again, without the slot table. What a restore puts back on the board is a set
--- of values, not a layout, so re-reading 42 slot records to learn them would be 42 round trips
--- spent on something that cannot have moved.
---
--- A FRESH run table, and not the previous one under a new phase. `stillCurrent` tells a reply which
--- run it belongs to by the IDENTITY of this table -- it is the only thing that can, since the
--- callbacks close over the run they were made for -- so a refresh that reused the table accepted a
--- late reply of the PREVIOUS run into the new one: the answer to a read the queue had given up on,
--- retried and delivered after the refresh had gone out, counted as one of the nine and written into
--- the cache as whatever the board held before. Of everything the fourth radio round turned up, that
--- is the one mechanism that would genuinely read as "he only ever reads PARTS of it".
---
--- What carries over is what the refresh does not read: the slot table and the derivation's own
--- leavings. Both describe a LAYOUT, and a layout does not move when a profile does.
---
--- THE STATUS REPLY IS NOT AMONG THEM, and the first cut of this had it there with the reasoning that
--- a profile change moves none of the three. That was wrong about exactly one field: the status reply
--- is where the ACTIVE PROFILE INDEX comes from, so it is the one thing a profile change does move,
--- and carrying it across the re-read that answers that change carried the answer to the question
--- being asked. Measured against a real board: with the PID# sensor momentarily not delivering, the
--- undo was copied from the profile the board had been on BEFORE the change. Dropped here, the reply
--- this run holds is either the one that answered the change or nothing at all -- and nothing is
--- refused by name. The profile COUNT, which no profile change moves, comes from their own status
--- task's copy on the session in that window (see M.profileCount).
+-- Refresh uses the completed slot table and existing session membership. Each transaction
+-- owns fresh callback identity, so late replies cannot be adopted by a later run.
 function M.refreshValues(widget, drive)
   if type(widget) ~= "table" or type(drive) ~= "table" then return false, "no_drive" end
+  if type(widget.state) ~= "table" then return false, "armed" end
   if isArmed(widget) then return false, "armed" end
+  if M.isRunning(drive) then return false, "reading" end
+  if drive.readRequired then return M.start(widget, drive, true) end
   local previous = drive.prime
   if type(previous) ~= "table" or type(previous.records) ~= "table" then
     return M.start(widget, drive)
@@ -1324,6 +1183,7 @@ function M.refreshValues(widget, drive)
   if queueOf() == nil then return false, "no_link" end
   local prime = {
     phase = M.PHASE_IDLE,
+    refresh = drive.sessionProfiles ~= nil,
     done = 0,
     total = #Functions.VALUE_READS,
     records = previous.records,
@@ -1350,212 +1210,35 @@ end
 -- The undo
 -- ---------------------------------------------------------------------------
 
---- Which PID profile the board is flying, 0-based.
---
--- The telemetry sensor counts from 1, the way the pilot's own menus do; the status reply counts
--- from 0, the way the wire does. The sensor is preferred because it is live even when nothing has
--- been primed this session.
---
--- A SENSOR THE RADIO IS NOT DELIVERING ANSWERS 0, AND NEVER NIL. That is EdgeTX's getValue, and it
--- is the whole of a defect measured against a real board: one profile change on the ground produced
--- two copies, the second of them naming the profile the pilot had just left. Read as a number, 0 is
--- not nil, so the question went PAST the last good reading the drive kept and landed on the status
--- reply -- and a status reply is the one thing in this module that can be older than the profile
--- change itself. 0 is not a profile either way: the pilot's menus and the firmware's own adjustment
--- range for this parameter both start at 1. So it is treated as no answer, which is what sends the
--- question on to the reading the drive kept, which is the freshest thing there is after the sensor.
---
--- The status reply stays as the LAST resort, for a model whose telemetry list has no PID# at all.
--- What makes it safe is at the other end: a value refresh no longer carries the previous run's
--- status (see M.refreshValues), so the reply this reads is either the one that answered the change
--- or nothing -- and nothing is refused by name rather than guessed at.
-function M.activeProfile0(drive)
-  local sensor = tonumber(drive.radio.sensor("PID#"))
-  if sensor == nil or sensor < 1 then sensor = tonumber(drive.profile) end
-  if sensor ~= nil and sensor >= 1 then return math.floor(sensor) - 1 end
-  local status = drive.prime and drive.prime.status or nil
-  local index = status and tonumber(status.current_pid_profile_index) or nil
-  if index ~= nil then return math.floor(index) end
-  return nil
-end
-
---- How many PID profiles this board has. Their status reply carries the number, and their own
--- status task keeps the last one on the session. The constant is what is left when neither spoke.
-function M.profileCount(drive)
-  local status = drive.prime and drive.prime.status or nil
-  local count = status and tonumber(status.pid_profile_count) or nil
-  if count == nil then
-    local session = _G.rfsuite and _G.rfsuite.session or nil
-    count = type(session) == "table" and tonumber(session.pid_profile_count) or nil
-  end
-  if count == nil or count < 1 then count = PROFILE_COUNT_FALLBACK end
-  return math.floor(count)
-end
-
---- What stands between this model and a usable undo, or nil when nothing does.
+--- Restores are identity-checked SD transactions, with the original pair always returned.
 function M.transferRefusal(widget, drive)
   if isArmed(widget) then return "armed" end
-  local backup = math.floor(tonumber(drive.settings.backup_profile) or 0)
-  if backup <= 0 then return "unset" end
-  if backup > M.profileCount(drive) then return "range" end
-  local active0 = M.activeProfile0(drive)
-  if active0 == nil then return "no_active" end
-  -- Copying a profile onto itself is not a no-op on the board: it is a write and an eeprom
-  -- commit, and it would leave the pilot believing an undo exists where none does.
-  if (backup - 1) == active0 then return "same" end
+  if M.isRunning(drive) then return "reading" end
   if queueOf() == nil then return "no_link" end
-  -- The session belongs to the flight controller it was read from (see M.tick), and after a
-  -- reconnect the board on the link says which one it is only once the UID read has answered. Until
-  -- then a restore would copy a spare profile of a board nobody has identified, and a backup would
-  -- lay down an undo no board can be named for, so both transfers wait, with the line that says the
-  -- board is being read. That holds for the first board as well: an undo taken there would be
-  -- inherited by whichever board identified itself first.
-  local onLink = boardOnLink()
-  if onLink == nil or (drive.board ~= nil and onLink ~= drive.board) then return "reading" end
+  local board = boardOnLink()
+  if board == nil then return "reading" end
+  if board ~= drive.board then return "baseline_identity" end
+  if not drive.baseline then return "baseline_missing" end
   return nil
 end
 
-local function copyProfile(widget, drive, destination0, source0, kind, onDone)
-  local queue = queueOf()
-  if queue == nil then return false, "no_link" end
-
-  drive.transfer = { kind = kind, state = "busy" }
-  bump(drive)
-
-  local function finished(ok, reason)
-    if type(drive.transfer) ~= "table" or drive.transfer.kind ~= kind then return end
-    drive.transfer.state = ok and "ok" or "error"
-    drive.transfer.reason = ok and nil or tostring(reason or "failed")
+function M.restore(widget, drive, target)
+  -- A session whose end is still pending (a link gap on the ground) has stale start values: they are
+  -- not written back. The board is read again instead, and that read begins a new session.
+  local expired = type(drive) == "table" and drive.sessionExpired
+  local refusal = not expired and M.transferRefusal(widget, drive) or nil
+  local ok, reason = false, refusal
+  if expired then ok, reason = M.refreshValues(widget, drive)
+  elseif not refusal then ok, reason = profileModule().begin(widget, drive, profileEnvironment(), "restore", target) end
+  if not ok then
+    drive.transfer = {kind = "restore", state = "refused", reason = reason}
     bump(drive)
-    if ok and type(onDone) == "function" then onDone() end
   end
-
-  queue:add({
-    command = CMD_COPY_PROFILE,
-    payload = { PROFILE_TYPE_PID, destination0, source0 },
-    isWrite = true,
-    simulatorResponse = {},
-    client = M.CLIENT,
-    processReply = function()
-      -- The armed check the outer message made is not the armed check this one needs. It was made
-      -- before the copy went out; the reply comes back a round trip later, and a pilot who armed
-      -- in between would have the commit added to a queue that tasks/msp/runtime.lua clears on
-      -- every armed tick -- dropped without a word, leaving the transfer reading "busy" for ever
-      -- and the copy sitting in the board's RAM believing it is an undo.
-      if isArmed(widget) then return finished(false, "armed") end
-      -- The copy lives in RAM until the board is told to commit it, and the board commits nothing
-      -- on its own until the next disarm -- by which time the flight this undo exists for has
-      -- been flown. So the write follows immediately, as their copy-profiles page does it.
-      queue:add({
-        command = CMD_EEPROM_WRITE,
-        payload = {},
-        isWrite = true,
-        simulatorResponse = {},
-        client = M.CLIENT,
-        processReply = function() finished(true) end,
-        errorHandler = function(_, reason) finished(false, reason) end
-      })
-    end,
-    errorHandler = function(_, reason) finished(false, reason) end
-  })
-  return true
+  return ok, reason
 end
 
---- Copy the flying profile into the spare one, and remember what it held.
---
--- The board writes an in-flight change into its own storage half a second after disarm, so the
--- copy has to exist BEFORE the flight; afterwards there is nothing left to copy. The values are
--- snapshotted at the same moment and for the same reason: after that save nothing on the radio
--- could still say what the profile used to hold, and the delta is measured against this.
---- A refusal the pilot can read, rather than one that came back as a return value nobody looked
--- at. It goes on the drive where every other outcome of a transfer goes, so the ground screen's
--- backup line says what the last press did.
-local function refuseTransfer(drive, kind, reason)
-  drive.transfer = { kind = kind, state = "refused", reason = reason }
-  bump(drive)
-  return false, reason
-end
-
-function M.backup(widget, drive)
-  local refusal = M.transferRefusal(widget, drive)
-  if refusal ~= nil then return refuseTransfer(drive, "backup", refusal) end
-
-  -- A backup taken before the board has been read copies the profile and snapshots NOTHING, and
-  -- the delta after the flight is then measured against an empty table. That reads on screen as
-  -- "nothing has changed" for a flight that changed everything -- a wrong answer where a missing
-  -- one was wanted, and the worst of the three states this screen can be in. An undo is only an
-  -- undo once there is something to compare the flight with.
-  --
-  -- The question is whether the board HAS BEEN READ and not what the last run did, which is the
-  -- whole of M.hasRead: a read the pilot armed into abandoned the run and left the cache alone,
-  -- and refusing the undo for the rest of that link is refusing it for the flights it exists for.
-  if not M.hasRead(drive) then
-    return refuseTransfer(drive, "backup", "unprimed")
-  end
-
-  -- A read that is still on the wire is half of one answer and half of another. The snapshot is
-  -- taken here, in this pass, and a cache being refilled parameter by parameter would put the
-  -- values of two different profiles into it -- so the copy waits for the run rather than racing
-  -- it. The request that asked for it is a state and survives the wait.
-  if M.isRunning(drive) then
-    return refuseTransfer(drive, "backup", "reading")
-  end
-
-  local backup0 = math.floor(tonumber(drive.settings.backup_profile) or 0) - 1
-  local active0 = M.activeProfile0(drive)
-  local snapshot = {}
-  for id, value in pairs(drive.values) do snapshot[id] = value end
-  local at = drive.radio.now()
-
-  logPrime("backup: pid profile %d -> %d", active0, backup0)
-  return copyProfile(widget, drive, backup0, active0, "backup", function()
-    -- The profile the copy was taken FROM is kept with it. The board's adjustments act on
-    -- whichever profile is active, so this backup describes that one and no other: it is what the
-    -- ground surface names under the button, and what the restore below refuses to cross.
-    drive.backup = { profile = backup0 + 1, source = active0 + 1, at = at, values = snapshot,
-      clock = drive.radio.clock and drive.radio.clock() or nil }
-    -- A fresh undo ends the postflight read-out. It is one of the three enders the pilot named,
-    -- and it is the one that matters: the list the delta was measured against has just been
-    -- replaced, so what stood on that screen described a comparison that no longer exists.
-    if type(drive.endPost) == "function" then drive:endPost("backup") end
-    bump(drive)
-  end)
-end
-
---- Put the copy back over the flying profile, and read the values again.
---
--- The cached values describe what the board held a moment ago, which after a restore is exactly
--- what it no longer holds; leaving them would show a delta against a profile that has been undone.
-function M.restore(widget, drive)
-  local refusal = M.transferRefusal(widget, drive)
-  if refusal ~= nil then return refuseTransfer(drive, "restore", refusal) end
-
-  local backup0 = math.floor(tonumber(drive.settings.backup_profile) or 0) - 1
-  local active0 = M.activeProfile0(drive)
-
-  -- A backup is an undo for the profile it was taken from and for no other. Put back over a
-  -- different one it would not undo anything: it would overwrite a profile the copy never
-  -- described, with values the pilot never flew there. Refused by name rather than silently, so
-  -- the screen can say which profile to switch back to.
-  --
-  -- With NO RECORD AT ALL the answer is that refusal and not permission, which is the half this
-  -- test used to get wrong. The record lives in memory and the per-model store beside it keeps the
-  -- slot number alone, so after a restart -- or after any session that did not make the copy
-  -- itself -- the spare profile holds a copy of SOME profile and nothing on the radio knows which.
-  -- Allowing the restore there allowed exactly the write this guard exists to prevent, in the one
-  -- state where nothing could warn the pilot about it.
-  local source = (type(drive.backup) == "table") and tonumber(drive.backup.source) or nil
-  if source == nil then
-    return refuseTransfer(drive, "restore", "unknown_profile")
-  end
-  if active0 == nil or (source - 1) ~= active0 then
-    return refuseTransfer(drive, "restore", "other_profile")
-  end
-
-  logPrime("restore: pid profile %d -> %d", backup0, active0)
-  return copyProfile(widget, drive, active0, backup0, "restore", function()
-    M.refreshValues(widget, drive)
-  end)
+function M.retryReturn(drive)
+  return profileModule().retryReturn(drive)
 end
 
 -- ---------------------------------------------------------------------------
@@ -1576,57 +1259,37 @@ end
 -- is one to name: today the reference belonging to another profile, which is a refusal to compare
 -- rather than an absence of anything to compare.
 function M.delta(drive)
-  if type(drive) ~= "table" then return nil end
-  local backup = (type(drive.backup) == "table") and drive.backup or nil
-  local reference = (backup ~= nil and backup.values) or drive.primedValues
-  -- An EMPTY reference is no reference. A snapshot taken before anything had been read off the
-  -- board is a table with nothing in it, and measuring against it yields an empty list -- which
-  -- the screen reads as "nothing has changed", a wrong answer where a missing one was wanted.
-  if type(reference) ~= "table" or next(reference) == nil then return nil end
-
-  -- And a reference taken from ANOTHER PROFILE is not a reference either. This is the test the
-  -- restore above has had all along and this comparison did not: the board's adjustments only ever
-  -- moved the profile that was active, so a backup of profile 1 held against the values of profile
-  -- 2 reports the difference between two profiles as though the flight had made it. The pilot's
-  -- fourth radio round photographed exactly that -- twelve rows of "changed" after a flight that
-  -- moved one of them, the rest of the list being what the two profiles disagree about.
-  --
-  -- Only a BACKUP can be from elsewhere. `primedValues` is this session's own read of whichever
-  -- profile is active, and finishValues takes it again on every read while no backup stands.
-  if backup ~= nil then
-    local source = tonumber(backup.source)
-    local active0 = M.activeProfile0(drive)
-    if source ~= nil and active0 ~= nil and (source - 1) ~= active0 then
-      return nil, "other_profile"
-    end
+  local baseline, values = drive.baseline, drive.profileValues
+  if not baseline or not values then return nil end
+  if drive._deltaEpoch == drive.valueEpoch and drive._deltaReport == drive.reportEpoch and drive._deltaList then
+    return drive._deltaList
   end
-
-  if drive._deltaEpoch == drive.valueEpoch and drive._deltaReport == drive.reportEpoch
-    and drive._deltaList ~= nil then return drive._deltaList end
-
   local list = {}
-  for id, value in pairs(drive.values) do
-    local was = reference[id]
-    if was ~= nil and was ~= value then
-      list[#list + 1] = {
-        id = id,
-        name = Functions.nameOf(id),
-        old = was,
-        new = value,
-        size = math.abs(value - was)
-      }
+  local changes = drive.changes or {pid = {}, rate = {}, global = {}}
+  for _, kind in ipairs({"pid", "rate", "global"}) do
+    local profiles = kind == "global" and {global = changes.global} or changes[kind]
+    for profile, ids in pairs(profiles) do
+      local current = kind == "global" and values.global or values[kind][profile]
+      local reference = baseline[profileModule().section(kind, profile)] or {}
+      for id in pairs(ids) do
+        local value = current[id]
+        local was = reference[tostring(id)]
+        if was ~= nil and was ~= value then
+          list[#list + 1] = {id = id, name = Functions.nameOf(id), old = was, new = value,
+            difference = value - was, size = math.abs(value - was), group = Functions.groupOf(id),
+            scope = kind, profile = profile}
+        end
+      end
     end
   end
-  -- Largest change first, and the id decides a tie: a list whose order depended on how the value
-  -- table happened to be walked would reshuffle itself under the pilot between two rebuilds.
+  local order = {pid = 1, rate = 2, global = 3}
   table.sort(list, function(a, b)
-    if a.size ~= b.size then return a.size > b.size end
-    return a.id < b.id
+    if a.scope ~= b.scope then return order[a.scope] < order[b.scope] end
+    if a.profile ~= b.profile then return a.profile < b.profile end
+    if a.group ~= b.group then return a.group < b.group end
+    return Functions.parameterOrder(a.id) < Functions.parameterOrder(b.id)
   end)
-
-  drive._deltaEpoch = drive.valueEpoch
-  drive._deltaReport = drive.reportEpoch
-  drive._deltaList = list
+  drive._deltaEpoch, drive._deltaReport, drive._deltaList = drive.valueEpoch, drive.reportEpoch, list
   return list
 end
 
@@ -1690,26 +1353,11 @@ function M.passHasRoom(widget, drive)
   return false
 end
 
---- Another flight controller has answered, and the tuning session is not carried over to it.
---
--- The undo record, the comparison snapshot and the board read behind them all describe the board
--- they were taken from. Kept for another one, the automatic backup found a record whose profile
--- NUMBER matched and made none, the comparison after the flight measured the new board against the
--- old one's snapshot, and the restore copied the new board's spare profile over the one it flies.
---
--- So the session ends as it does when the interlock is released on the ground (inflight/drive.lua,
--- Drive:endSession), and more goes with it, because a closed interlock keeps the board and this
--- does not. The run that read the slot table goes, so no value re-read can be made against the old
--- board's table, and the automatic run is armed again, which reads the new board in full. The set
--- goes back to what this build knows (Drive:seedSet): a set derived from the old board's windows
--- would step the new board's slots by the old board's table. The profiles last seen are the old
--- board's too, so the first reading of the new one seeds them rather than announcing a change. The
--- per-link latches are the ones M.tick clears when it sees the link down, cleared here as well
--- because a widget in the background never ran that pass. The automatic backup is not asked for
--- here: the link drop took the surface off the ground (Drive:setPhase(nil) through M.cleanup), and
--- its return to the ground with the interlock on raises that request, which waits for the new read.
+-- A different identified board ends cached membership and layout. A pending transaction is
+-- handled before this edge and can only return to its own board.
 local function boardChanged(drive, board)
   drive:endSession()
+  drive.readRequired = true
   drive.prime = nil
   drive.readAgain = nil
   drive.primeInterrupted = nil
@@ -1734,6 +1382,36 @@ end
 function M.tick(widget, drive)
   if type(widget) ~= "table" or type(drive) ~= "table" then return end
   if type(widget.state) ~= "table" then return end
+  if widget.state.fblConnected ~= true then drive:invalidateRead() end
+
+  if drive.fcSetupOpen then
+    if drive.fcSurface == nil then
+      if widget.state.armed == true then
+        drive.fcSetupOpen = nil
+        drive.valueEpoch = drive.valueEpoch + 1
+        return
+      end
+      drive.fcWorked = true
+      drive.fcSurface = requireModule("widgets/dashboard/inflight/fcsurface.lua")
+      collectgarbage("collect")
+      return
+    end
+    drive.fcWorked = drive.fcSurface.tick(widget, drive, M)
+    return
+  end
+
+  if drive.profileJob ~= nil then
+    local job = drive.profileJob
+    local board = (job.suspended or job.linkLost) and boardOnLink()
+    if board and board ~= job.identity then
+      profileModule().drop(drive)
+      if job.original then logPrime("original profile return is still owed to flight controller %s", job.identity) end
+      boardChanged(drive, board)
+      return
+    end
+    profileModule().tick(widget, drive, M.passHasRoom(widget, drive))
+    return
+  end
 
   if isArmed(widget) then
     if M.isRunning(drive) then abandon(drive, drive.prime, "armed") end
@@ -1741,7 +1419,10 @@ function M.tick(widget, drive)
     return
   end
 
+  if drive.prime and drive.prime.invalidated then drive.prime = nil end
+
   if widget.state.fblConnected ~= true then
+    if M.isRunning(drive) then abandon(drive, drive.prime, "no_link") end
     drive._primeLinkSince = nil
     drive._primeAutoDone = false
     -- The retry budget is per link session, like the latch above it: a new board is a new answer
@@ -1750,14 +1431,7 @@ function M.tick(widget, drive)
     return
   end
 
-  -- Which flight controller the session belongs to. The first one to identify itself is recorded,
-  -- and the session ends only when a DIFFERENT one does. A reconnect to the same board -- after a
-  -- battery change, a short fade on the ground, or a link lost in the air, which comes back after
-  -- the landing because nothing is asked of an armed board -- ends nothing, so the undo laid down
-  -- before the flight is still the one the restore puts back. A board that has not identified
-  -- itself on this link ends nothing either: nothing is known to have changed, and the automatic
-  -- run and the automatic backup below wait for the identity anyway (`tasksDone` holds until the
-  -- MSP runtime holds an MCU id for this link).
+  -- A reconnect to the same UID keeps its SD baseline; another board starts separately.
   local board = boardOnLink()
   if board ~= nil and board ~= drive.board then
     if drive.board == nil then
@@ -1793,108 +1467,16 @@ function M.tick(widget, drive)
     return
   end
 
-  -- A profile change invalidated everything scoped to it, and the board is the only thing that
-  -- can say what the new profile holds. On the GROUND that is the nine value reads again and
-  -- nothing else: the slot table describes a LAYOUT, and a layout does not move when a profile
-  -- does, so re-reading forty records would be forty round trips spent on something that cannot
-  -- have changed. In the air this is never reached -- the armed gate at the top of this function
-  -- returns first -- and the values simply stay unknown until the board reports each one on
-  -- AdjV, which is the honest answer while nothing may be asked.
-  --
-  -- The flag is left standing while a run is on the wire: that run was started under the old
-  -- profile and the next idle pass sends the reads again. It is left standing just as much when
-  -- there is no finished run to refresh -- a read that was abandoned, one that failed, or none at
-  -- all -- and that is a defect this round measured rather than reasoned about. It used to be
-  -- cleared here whatever the phase was, so a profile change that arrived while a read was being
-  -- abandoned was consumed by the one pass that could do nothing with it, and the new profile's
-  -- values stayed unknown for the rest of the link. What answers it in that state is the automatic
-  -- run the block below offers again, and M.start drops the flag itself because it reads the nine
-  -- value commands too.
-  if drive.profileChanged == true and not M.isRunning(drive) then
-    if type(drive.prime) == "table" and drive.prime.phase == M.PHASE_DONE then
-      drive.profileChanged = nil
-      profileChangeAnswered(drive)
-      logPrime("profile changed: the nine value reads are sent again")
-      M.refreshValues(widget, drive)
-      return
-    end
-  end
-
-  -- The session was closed on the ground and has been opened again, so the board is read once more
-  -- before anything else: the pilot's ruling is that closing the feature on the ground starts
-  -- everything fresh, and the drive has already dropped the cache, the undo and the comparison
-  -- (inflight/drive.lua, Drive:endSession).
-  --
-  -- Only the nine VALUE commands. The slot table describes a layout, a switch cannot move one, and
-  -- re-reading forty records would be forty round trips on the one queue the connect chain shares
-  -- for an answer that cannot have changed -- the same reasoning the re-read after a profile change
-  -- and the re-read after a restore already run on. M.refreshValues falls back to a whole run by
-  -- itself where no slot table has been read yet, so there is no second branch to keep in step.
-  --
-  -- Held until the surface is back ON THE GROUND: while the feature is closed this half sends
-  -- nothing, which is the whole promise of the interlock. The flag is a STATE and is spent only by a
-  -- read that actually went out, so a pass that could not serve it leaves it standing.
+  -- Reopening a closed ground session rereads the slot table and starts a new baseline.
   if drive.readAgain == true and drive.phase == DRIVE_PHASE_GROUND and not M.isRunning(drive) then
-    if M.refreshValues(widget, drive) then
+    if M.start(widget, drive) then
       drive.readAgain = nil
       logPrime("the session was opened again: the value reads are sent")
       return
     end
   end
 
-  -- The undo, made without being asked for.
-  --
-  -- The pilot's ruling after the third radio round: the interlock is the one entry, so turning it
-  -- on before a flight is the moment the backup should exist -- not a button he has to remember
-  -- on the flight line. The drive raises the request on the interlock's rising edge and knows
-  -- nothing else; this is where the link, the arm state and the prime are known, and every
-  -- refusal the button has applies here unchanged and lands on the same line of the screen.
-  --
-  -- Once per session and per ACTIVE PID profile, and the existing backup is what says so: it
-  -- records the profile it was taken from, so a second interlock cycle on the same profile finds
-  -- one already made and sends nothing, while a profile change makes the next cycle take a fresh
-  -- one. No counter of its own, and nothing to reset.
-  --
-  -- THE REQUEST IS A STATE AND NOT A SIGNAL, and that distinction is a defect this round
-  -- measured rather than reasoned about. The first cut cleared the flag on the line above the
-  -- test below it, so an interlock thrown while the values were not yet read consumed the
-  -- request and made no undo at all -- silently, for the rest of that interlock cycle. It is a
-  -- pilot-plausible sequence and it was measured: a momentary arming on the bench cleared the
-  -- MSP queue, the value re-read came back `abandoned`, and the interlock forty seconds later
-  -- produced nothing. So the flag stands until a backup is actually asked for, or until there is
-  -- one for this profile already, or until the phase leaves the ground -- which is where the
-  -- drive clears it, on every transition that is not into `ground`.
-  if drive.autoBackupWanted == true then
-    -- The EVIDENCE of a read, and a run still on the wire waited out: both are M.backup's own
-    -- conditions, restated here so that a pass which cannot serve the request leaves it standing
-    -- instead of spending it.
-    if M.hasRead(drive) and not M.isRunning(drive) then
-      local active0 = M.activeProfile0(drive)
-      local have = type(drive.backup) == "table" and tonumber(drive.backup.source) or nil
-      if active0 ~= nil and have ~= nil and (have - 1) == active0 then
-        -- There is one already, and it describes the profile being flown. Nothing to ask for,
-        -- and nothing to keep asking about.
-        drive.autoBackupWanted = false
-      else
-        drive.autoBackupWanted = false
-        logPrime("automatic backup on the interlock")
-        M.backup(widget, drive)
-        return
-      end
-    end
-  end
-
-  -- A run that did not finish must not latch the automatic one off for the rest of the link.
-  --
-  -- `_primeAutoDone` is the once-per-connect latch, and until this round the only thing that reset
-  -- it was the link going down. So an arming DURING a read left the phase idle with the latch
-  -- still set, and nothing sent another read or another backup for the whole session: the pilot's
-  -- own card log has two interlock cycles after such an abandon with no prime and no undo in
-  -- either of them, and dashes where the profile-scoped values had stood.
-  --
-  -- An abandon is retried without a limit and a failure a bounded number of times; see
-  -- AUTO_RETRY_LIMIT. Both go through the settle below rather than starting here, so a read is
-  -- never sent on the pass the pilot disarmed on.
+  -- Failed runs consume the existing per-link retry budget; armed aborts wait for ground.
   if drive._primeAutoDone == true and not M.isRunning(drive) then
     local phase = (type(drive.prime) == "table") and drive.prime.phase or nil
     if phase == M.PHASE_IDLE and drive.primeInterrupted == true then
@@ -1911,7 +1493,7 @@ function M.tick(widget, drive)
   if M.isRunning(drive) then return end
 
   drive._primeAutoDone = true
-  M.start(widget, drive)
+  M.start(widget, drive, true)
 end
 
 return M

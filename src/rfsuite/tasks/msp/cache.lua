@@ -139,14 +139,15 @@ function Cache.put(command, buf, sentKey)
   return true
 end
 
---- Drop everything. Called on a disconnect and after any write the tool issues.
+--- Drop one command, or everything when omitted. Disconnects and writes drop everything.
 --
 -- A write is not matched to the command it invalidates on purpose: the write command number
 -- is a different one from the read (11 against 10 for the craft name), the mapping lives in
 -- the api/ modules rather than in the queue, and a Save is rare enough that dropping the whole
 -- cache costs nothing next to getting the mapping subtly wrong.
-function Cache.clear()
+function Cache.clear(command)
   local store = entryStore()
+  if command ~= nil then store[command] = nil; return end
   for k in pairs(store) do
     store[k] = nil
   end

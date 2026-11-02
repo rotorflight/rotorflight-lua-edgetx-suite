@@ -550,6 +550,7 @@ end
 
 function M.getHeaderActions()
   return {
+    help = true,
     save = true,
     reload = true,
     menu = true
@@ -598,7 +599,7 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = "BLHeli_S Configurator"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "BLHeli_S")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -674,9 +675,9 @@ function M.build(ctx)
   end
 
   local sectionOptions = {
-    { value = 1, label = "Basic" },
-    { value = 2, label = "Advanced" },
-    { value = 3, label = "Input" }
+    { value = 1, label = pageText(i18n, "section_basic", "Basic") },
+    { value = 2, label = pageText(i18n, "section_advanced", "Advanced") },
+    { value = 3, label = pageText(i18n, "blheli_s_section_input", "Input") }
   }
   local sectionLabel = pageText(i18n, "esc_section", "Section")
   rowH = Controls.appendComboSelect(children, x, cursorY, w, sectionLabel, sectionOptions, ui.currentSection, function(val)
@@ -703,10 +704,10 @@ function M.build(ctx)
     -- as unknown and cannot be chosen.
     -- Basic Settings
     local dirOpts = {
-      { value = 1, label = "Normal" },
-      { value = 2, label = "Reversed" },
-      { value = 3, label = "Bidirectional 3D" },
-      { value = 4, label = "Bidirectional 3D Rev" }
+      { value = 1, label = pageText(i18n, "opt_normal", "Normal") },
+      { value = 2, label = pageText(i18n, "opt_reversed", "Reversed") },
+      { value = 3, label = pageText(i18n, "blheli_s_opt_bidirectional_3d", "Bidirectional 3D") },
+      { value = 4, label = pageText(i18n, "blheli_s_opt_bidirectional_3d_rev", "Bidirectional 3D Rev") }
     }
     local motorDirectionLabel = pageText(i18n, "esc_motor_direction", "Motor Direction")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, motorDirectionLabel, dirOpts, ui.config.motor_direction, function(val)
@@ -738,11 +739,11 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local timingOpts = {
-      { value = 1, label = "Low" },
-      { value = 2, label = "Medium Low" },
-      { value = 3, label = "Medium" },
-      { value = 4, label = "Medium High" },
-      { value = 5, label = "High" }
+      { value = 1, label = pageText(i18n, "opt_low", "Low") },
+      { value = 2, label = pageText(i18n, "blheli_s_opt_medium_low", "Medium Low") },
+      { value = 3, label = pageText(i18n, "opt_medium", "Medium") },
+      { value = 4, label = pageText(i18n, "blheli_s_opt_medium_high", "Medium High") },
+      { value = 5, label = pageText(i18n, "opt_high", "High") }
     }
     local motorTimingLabel = pageText(i18n, "esc_motor_timing", "Motor Timing")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, motorTimingLabel, timingOpts, ui.config.commutation_timing, function(val)
@@ -752,9 +753,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local demagOpts = {
-      { value = 1, label = "Off" },
-      { value = 2, label = "Low" },
-      { value = 3, label = "High" }
+      { value = 1, label = pageText(i18n, "opt_off", "Off") },
+      { value = 2, label = pageText(i18n, "opt_low", "Low") },
+      { value = 3, label = pageText(i18n, "opt_high", "High") }
     }
     local demagCompensation = pageText(i18n, "esc_demag_compensation", "Demag Compensation")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, demagCompensation, demagOpts, ui.config.demag_compensation, function(val)
@@ -764,8 +765,8 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local brakeOpts = {
-      { value = 0, label = "Off" },
-      { value = 1, label = "On" }
+      { value = 0, label = pageText(i18n, "opt_off", "Off") },
+      { value = 1, label = pageText(i18n, "opt_on", "On") }
     }
     local brakeOnStopLabel = pageText(i18n, "esc_brake_on_stop", "Brake on Stop")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, brakeOnStopLabel, brakeOpts, ui.config.brake_on_stop, function(val)
@@ -777,7 +778,7 @@ function M.build(ctx)
   elseif ui.currentSection == 2 then
     -- Advanced Settings
     local tempOpts = {
-      { value = 0, label = "Disabled" },
+      { value = 0, label = pageText(i18n, "opt_disabled", "Disabled") },
       { value = 1, label = "80C" },
       { value = 2, label = "90C" },
       { value = 3, label = "100C" },
@@ -813,11 +814,11 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local beaconDelayOpts = {
-      { value = 1, label = "1 minute" },
-      { value = 2, label = "2 minutes" },
-      { value = 3, label = "5 minutes" },
-      { value = 4, label = "10 minutes" },
-      { value = 5, label = "Infinite" }
+      { value = 1, label = pageText(i18n, "opt_1_minute", "1 minute") },
+      { value = 2, label = pageText(i18n, "opt_2_minutes", "2 minutes") },
+      { value = 3, label = pageText(i18n, "opt_5_minutes", "5 minutes") },
+      { value = 4, label = pageText(i18n, "opt_10_minutes", "10 minutes") },
+      { value = 5, label = pageText(i18n, "opt_infinite", "Infinite") }
     }
     local beaconDelayLabel = pageText(i18n, "esc_beacon_delay", "Beacon Delay")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, beaconDelayLabel, beaconDelayOpts, ui.config.beacon_delay, function(val)

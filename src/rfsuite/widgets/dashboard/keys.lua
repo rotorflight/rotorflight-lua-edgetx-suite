@@ -23,10 +23,12 @@ M.OPTIONS = {
   { value = "suite_tool", label = "@i18n(app.pages.settings_dashboard_keys.suite_tool)@" },
   { value = "flight_log", label = "@i18n(app.pages.settings_dashboard_keys.flight_log)@" },
   { value = "exit", label = "@i18n(app.pages.settings_dashboard_keys.exit)@" },
+  { value = "inflight_tuning", label = "@i18n(app.pages.settings_dashboard_keys.inflight_tuning)@" },
 }
 local ACTIONS = {
   none = "none", menu = "openView:menu", suite_tool = "openTool",
   flight_log = "openTool:tools_flight_log_page", exit = "exitFullscreen",
+  inflight_tuning = "openTuning",
 }
 local BY_ID = {}
 for i = 1, #M.KEYS do BY_ID[M.KEYS[i].id] = M.KEYS[i] end

@@ -62,8 +62,8 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 
 | Page | File | In-app help | Conditions | Status |
 | --- | --- | --- | --- | --- |
-| Configuration | `setup/configuration.md` | yes | read-only while armed | to write |
-| Radio Config | `setup/radio_config.md` | yes | read-only while armed | to write |
+| Configuration | [setup/configuration.md](setup/configuration.md) | yes | read-only while armed | written |
+| Radio Config | [setup/radio_config.md](setup/radio_config.md) | yes | read-only while armed | written |
 | Telemetry | [setup/telemetry.md](setup/telemetry.md) | yes | read-only while armed | written |
 | Accelerometer | [setup/accelerometer.md](setup/accelerometer.md) | yes | read-only while armed | written |
 | Alignment | [setup/alignment.md](setup/alignment.md) | yes | read-only while armed | written |
@@ -83,7 +83,6 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 | Controls → Blackbox → Logging | `setup/controls/blackbox/logging.md` | yes | read-only while armed | to write |
 | Controls → Blackbox → Status | [setup/controls/blackbox/status.md](setup/controls/blackbox/status.md) | yes | read-only while armed | written |
 | Controls → Stats | `setup/controls/stats.md` | yes | read-only while armed | to write |
-| Controls → In-Flight Tuning | [setup/controls/inflight.md](setup/controls/inflight.md) | yes | preview switch *In-flight tuning*, needs the flight controller, read-only while armed | written |
 | Power → Battery | [setup/power/battery.md](setup/power/battery.md) | yes | read-only while armed | written |
 | Power → Alerts | `setup/power/alerts.md` | yes | always available | to write |
 | Power → Sources | [setup/power/sources.md](setup/power/sources.md) | yes | read-only while armed | written |

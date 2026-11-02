@@ -40,26 +40,36 @@ The time is `getRtcTime()` on radios that offer it. Otherwise the suite computes
 Unix seconds reach their limit on 19 January 2038. A calendar time outside the supported range records 0.
 
 The clock is the radio's own and is only as right as that clock. Correct it on the radio if needed. Lines
-always stay in the order appended, even if the clock is wrong or is set back between saves.
+always stay in the order appended, even if the clock is wrong or is set back between saves. The Tune Advisor's
+saved flights (`tune/<mcu id>.lua`) carry their time from the same clock, so a flight and a change applied after
+it can be put in order.
 
 ## Reading it
 
 A reader reads the whole text (up to 64 KiB) and compiles it with Lua's
 `load(text, name, "t", { e = collector })`, where `collector(time, source, profile, field, old, new)` receives
 each line. Use `load`, not `loadScript`: on EdgeTX, `loadScript` does not pass its environment argument to
-the chunk. The append-only file otherwise grows without limit, so archive a large file by hand.
+the chunk. The append-only file otherwise grows without limit, so archive a large file by hand. The suite
+itself reads the text a few lines at a time, one group per pass of the page, so that a long journal never holds
+up the radio.
+
+The Tune Advisor page reads the journal when it opens, to find the P you last set yourself: it follows its own
+entries for P on an axis and PID profile back from the current value and stops at any other change. If the file
+is there but cannot be read -- over 64 KiB, or it does not open -- the page raises no P until it can be read
+again.
 
 ## Reading and repairing
 
 The file is never rewritten by the suite. Each append is checked against the file's growth on the card.
 A failed journal append is reported by the Tune Advisor and does not undo the board's EEPROM commit.
 
-The reader accepts the whole file or reports an error; it never returns just the readable prefix. A
-half-written last line makes the file unreadable. Delete that broken last line by hand before reading it
-again. A later append starts on a new line and leaves the broken fragment in place. Files above 64 KiB
-are reported as too big rather than read partly; archive the file by hand if it reaches that size.
+When a group of lines does not compile or run -- a half-written last line, or a line broken by hand -- the
+reader reads that group again line by line and skips only the lines that do not read; every other line still counts.
+A later append starts on a new line and leaves the broken fragment in place, where it is skipped again; delete
+it by hand to tidy the file. Files above 64 KiB are reported as too big rather than read partly; archive the
+file by hand if it reaches that size.
 
-There is no journal reader or undo button in the UI. This is a record for undoing a change by hand: select
+There is no journal viewer or undo button in the UI. This is a record for undoing a change by hand: select
 the recorded profile and put the old value back on the appropriate settings page, then save it.
 
 ## Related

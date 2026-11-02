@@ -32,9 +32,9 @@ when the local source under *Power* → *Preferences* is *VOLTAGE* or *COMBINED*
 
 ## Notes
 
-- Saving writes the settings to the flight controller and keeps a copy in this model's
-  preferences on the radio. It waits until the page has read the flight controller's settings on
-  this visit: until then what it shows may be an earlier read, or its own defaults with the source
+- Saving reports success after the flight controller acknowledges the settings and their EEPROM
+  commit, without a restart, and keeps a copy in this model's preferences on the radio. It waits
+  until the page has read the flight controller's settings on this visit: until then what it shows may be an earlier read, or its own defaults with the source
   *OFF (LOCAL)*. Where that copy cannot be written, the notice says the model's
   settings were not saved and why — for example *the settings file could not be written to the
   SD card*.

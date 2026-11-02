@@ -35,6 +35,7 @@ local manifest = nil
 local MenuRegistry = nil
 local PageRegistry = nil
 local getActivePageModule
+local closeHelpDialogIfOpen
 local HelpRegistryFactory = nil
 local HelpRegistry = nil
 local Tiles = nil
@@ -3595,12 +3596,7 @@ local function isBackEvent(ev)
   if isEvent(
     ev,
     EVT_VIRTUAL_EXIT,
-    EVT_VIRTUAL_EXIT_BREAK,
-    EVT_VIRTUAL_EXIT_LONG,
-    EVT_EXIT_BREAK,
-    EVT_EXIT_LONG,
-    EVT_RTN_BREAK,
-    EVT_RTN_LONG
+    EVT_EXIT_BREAK
   ) then
     return true
   end

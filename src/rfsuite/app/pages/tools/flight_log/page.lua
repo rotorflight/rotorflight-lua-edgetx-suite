@@ -764,9 +764,11 @@ local function buildModels(children, x, y, w, h, i18n)
 end
 
 local function startEdit(entry)
+  -- The loading overlay hides New battery until the flight counts are complete.
+  if entry == nil and ui.loading then return end
   ui.edit = {
     originalId = entry and entry.id or nil,
-    id = entry and entry.id or FlightLog.freeId(ui.registry),
+    id = entry and entry.id or FlightLog.freeId(ui.registry, ui.flightsByBattery),
     name = entry and entry.name or "",
     cap = tonumber(entry and entry.cap) or 0,
     cells = tonumber(entry and entry.cells) or 0,
@@ -807,6 +809,11 @@ local function errorText(i18n, result)
   if result == "notfound" then
     return pageText(i18n, "error_notfound", "That pack is no longer in the file")
   end
+  -- Refused before anything was written: the registry stands but did not open, or the read did
+  -- not match its size. Nothing reached the card, so the write message would be wrong here.
+  if result == "unreadable" then
+    return pageText(i18n, "error_unreadable", "The registry was not read whole; nothing was changed")
+  end
   return pageText(i18n, "error_io", "The card did not take the write")
 end
 
@@ -829,8 +836,10 @@ local function saveEdit(i18n)
   local models = FlightLog.sanitizeModelList(table.concat(names, ","))
   if FlightLog.trim(models) == "" then models = false end
 
+  local inheritedFlights = 0
   local result
   if ui.editMode == "create" then
+    inheritedFlights = ui.flightsByBattery[id] or 0
     result = FlightLog.createBattery({
       id = id,
       name = FlightLog.sanitizeName(edit.name),
@@ -841,6 +850,7 @@ local function saveEdit(i18n)
       cycles = tonumber(edit.cycles) or 0
     })
   else
+    inheritedFlights = (id ~= edit.originalId) and (ui.flightsByBattery[id] or 0) or 0
     result = FlightLog.updateBattery(edit.originalId, {
       id = id,
       name = FlightLog.sanitizeName(edit.name),
@@ -869,6 +879,11 @@ local function saveEdit(i18n)
   ui.edit = nil
   ui.editMode = nil
   ui.editError = nil
+  if inheritedFlights > 0 then
+    ui.editError = string.format(
+      pageText(i18n, "notice_inherited_flights", "Logged flights now counted under this pack: %d"),
+      inheritedFlights)
+  end
   ui.batteryId = id
   ui.view = "battery"
   requestRebuild()
@@ -909,6 +924,8 @@ local function buildBatteryForm(children, x, y, w, h, i18n)
       -- Any whole mAh, as on the Battery page: a pack is matched against the board's profile
       -- capacities exactly, so a value this field could not hold could never match.
       suffix = " mAh",
+      helpText = pageText(i18n, "help_row_capacity",
+        "The pack's capacity in whole mAh, matched exactly against the flight controller's profiles; 0 leaves it out of the file."),
       get = function() return math.floor(tonumber(edit.cap) or 0) end,
       set = function(value) edit.cap = math.floor(tonumber(value) or 0) end
     })
@@ -919,6 +936,8 @@ local function buildBatteryForm(children, x, y, w, h, i18n)
     pageText(i18n, "battery_cells", "Cells"), {
       min = 0,
       max = CELLS_MAX,
+      helpText = pageText(i18n, "help_row_cells",
+        "Must also equal the profile's cell count where the flight controller keeps one per profile; 0 leaves it out."),
       get = function() return math.floor(tonumber(edit.cells) or 0) end,
       set = function(value) edit.cells = math.floor(tonumber(value) or 0) end
     })
@@ -927,6 +946,8 @@ local function buildBatteryForm(children, x, y, w, h, i18n)
     pageText(i18n, "battery_profile", "Battery profile"), {
       min = 0,
       max = PROFILE_MAX,
+      helpText = pageText(i18n, "help_row_profile",
+        "The flight controller's battery profile for this pack, 1 to 6; it wins over the capacity match. 0 leaves it out of the file."),
       get = function() return math.floor(tonumber(edit.profile) or 0) end,
       set = function(value) edit.profile = math.floor(tonumber(value) or 0) end
     })
@@ -935,6 +956,8 @@ local function buildBatteryForm(children, x, y, w, h, i18n)
     pageText(i18n, "battery_cycles", "Cycles"), {
       min = 0,
       max = 9999,
+      helpText = pageText(i18n, "help_row_cycles",
+        "How many charges the pack has seen; its first flight of a session counts one. Set it here for a pack already in use."),
       get = function() return math.floor(tonumber(edit.cycles) or 0) end,
       set = function(value) edit.cycles = math.floor(tonumber(value) or 0) end
     })
@@ -947,7 +970,9 @@ local function buildBatteryForm(children, x, y, w, h, i18n)
     function() return next(edit.on) == nil end,
     function(value)
       if value == true then edit.on = {} end
-    end)
+    end,
+    { helpText = pageText(i18n, "help_row_models_all",
+      "Offer the pack for every model; switch single models on below to offer it only for those.") })
   for i = 1, #edit.rows do
     local row = edit.rows[i]
     cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
@@ -955,7 +980,9 @@ local function buildBatteryForm(children, x, y, w, h, i18n)
       function() return edit.on[row.key] == true end,
       function(value)
         edit.on[row.key] = value == true or nil
-      end)
+      end,
+      { helpText = pageText(i18n, "help_row_model",
+        "Offer the pack for this model in the dashboard's battery choice; with no model switched on it is offered for every model.") })
   end
 
   -- The date of last use is not offered: it is a record of what happened, not a setting.
@@ -1105,7 +1132,9 @@ local function buildSettings(children, x, y, w, h, i18n)
     function() return ui.config.enabled == true end,
     function(value)
       ui.config.enabled = value == true
-    end)
+    end,
+    { helpText = pageText(i18n, "help_row_enabled",
+      "Writes one line per flight to the card at the disarm; while on, the dashboard asks for this model's pack after connecting.") })
 
   cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
     pageText(i18n, "setting_min_seconds", "Minimum flight length"), {
@@ -1113,6 +1142,8 @@ local function buildSettings(children, x, y, w, h, i18n)
       max = 600,
       step = 5,
       suffix = " s",
+      helpText = pageText(i18n, "help_row_min_seconds",
+        "A flight runs from arming to disarming; a shorter arm is a spool-up check and is not logged. 0 logs every arm."),
       get = function() return math.floor(tonumber(ui.config.min_seconds) or 30) end,
       set = function(value)
         ui.config.min_seconds = math.floor(tonumber(value) or 30)
@@ -1124,7 +1155,9 @@ local function buildSettings(children, x, y, w, h, i18n)
     function() return ui.config.set_fc_profile == true end,
     function(value)
       ui.config.set_fc_profile = value == true
-    end)
+    end,
+    { helpText = pageText(i18n, "help_row_set_fc_profile",
+      "A pack picked on the dashboard also sets the flight controller's battery profile; never while the model is armed.") })
 
   cursorY = cursorY + 8
   appendLabel(children, x + 6, cursorY, w - 12, FlightLog.dataPath(), Palette.muted)

@@ -19,6 +19,8 @@ the model is armed.
 
 ## Settings
 
+Option names are shown in the radio's language; maker abbreviations such as CW/CCW and BEC remain in English as in the maker's software.
+
 The page opens on the ESC model and the firmware version the ESC reported. *Section* switches
 between three groups of settings, and every row below is drawn only where the connected ESC
 reports that setting as one it has.

@@ -17,6 +17,10 @@
 
 local M = {}
 
+local function t(_key, fallback)
+  return fallback
+end
+
 local requireModule = (_G.rfsuite and _G.rfsuite.require)
 if not requireModule then
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
@@ -93,35 +97,15 @@ M.migrateTrims = Setup.migrateTrims
 M.check = Setup.check
 
 local logDrive = Setup.log
+local boardIdentity
 local SWITCH_SLICE = Setup.SWITCH_SLICE
 local SWITCH_WALK_LIMIT = Setup.SWITCH_WALK_LIMIT
-
--- A switch has to hold its new reading this long before the overlay believes it. It is not a
--- debounce for the switch, which does not bounce: it is the margin against a pilot brushing the
--- interlock on the way to something else.
-local STABILITY_TICKS = 30
 
 -- The walk is EDGE triggered: one press, one parameter. A trim held on purpose then repeats, after
 -- a delay long enough that a single press can never produce two steps, at a rate a pilot can still
 -- count while looking somewhere else.
 local NAV_REPEAT_DELAY_TICKS = 50
 local NAV_REPEAT_INTERVAL_TICKS = 33
-
--- How long the two profile sensors have to agree with themselves before the ground half is told to
--- read the board again. The pilot's own log is the measurement: three profile changes inside
--- thirty seconds, and each of them fired the nine value reads -- twice, because `PID#` and `RTE#`
--- arrive a pass apart and each of them counts as a change on its own. Two seconds is longer than a
--- pilot's hand takes to cross a three-position switch and far shorter than the reads it saves.
---
--- What is NOT debounced is the INVALIDATION. A value read from a profile the board is no longer
--- flying is wrong the instant the switch moves, and showing a dash is the honest answer while
--- nothing has been read; only the re-READ waits.
-local PROFILE_SETTLE_TICKS = 200
-
--- How long the banner naming the new profile stands. The pilot's question was what the overlay is
--- tuning after he moves his profile switch, and the answer has to be on the screen he is looking
--- at rather than in a value that has quietly gone to a dash.
-local PROFILE_BANNER_TICKS = 300
 
 -- ---------------------------------------------------------------------------
 -- The drive
@@ -130,42 +114,178 @@ local PROFILE_BANNER_TICKS = 300
 local Drive = {}
 Drive.__index = Drive
 
---- Which parameters the screen offers, before anything has been read off the board.
+--- Which parameters the screen offers before anything has been read off the board: none.
 --
--- In the STANDARD set layout that is the whole answer: the set is a constant of this build, the
--- screen names all thirty-six cells from the first frame, and the ground half reads the board's
--- own slot table only to say whether the board agrees with it. In the CUSTOM layout it is a
--- placeholder -- the documented thirty, which is the best guess available until the board's table
--- has been read and turned into the set it really describes.
+-- What can be tuned is what the board carries, so the set comes from the ground read of its slot
+-- table (prime.lua `applySet`) and nothing is offered until that read has completed. A set this
+-- build assumed would name cells the board may hold differently, and a press on such a cell
+-- steps whatever the board's slot holds.
 --
--- Called again whenever the settings change, because the channels a cell is derived from and the
--- layout it is derived under are both settings.
+-- Called again whenever the settings change, because the channels a cell is derived from are
+-- settings.
 function Drive:seedSet()
-  local standard = (self.settings and self.settings.set_mode) ~= Setup.SET_MODE_CUSTOM
   self.bands = Functions.REFERENCE_BANDS
   self.bankValues = Functions.REFERENCE_BAND_GV
-  -- An empty custom map refuses steps until the board supplies the matching windows.
-  self.rowValues = nil
-  if standard then
-    self.set = Functions.STANDARD_SET
-    self.setSource = "standard"
-  else
-    self.rowValues = {}
-    self.set = Functions.REFERENCE_SET
-    self.setSource = "unread"
-  end
+  self.rowValues = {}
+  self.cellRecords = {}
+  self.set = {}
+  self.setSource = "unread"
   self.compare = nil
+  self:rebuildGroups()
 end
 
---- A drive with no history: nothing seeded, nothing written, no bank chosen.
+--- Whether a step on this cell would land as one step: the firmware constrains every stepped
+-- result into the slot's adjMin..adjMax (fc/rc_adjustments.c), so a value standing outside them
+-- jumps to the bound on the first press. Unknown value or unknown record: no verdict, no refusal.
+function Drive:cellOutOfBounds(bank, row)
+  local records = self.cellRecords and self.cellRecords[bank]
+  local record = records and records[row]
+  local id = self:functionId(bank, row)
+  local value = id and self.values and self.values[id]
+  if record == nil or value == nil then return false end
+  local low, high = tonumber(record.adjMin), tonumber(record.adjMax)
+  if low == nil or high == nil then return false end
+  return value < low or value > high
+end
+
+-- Derive the flight list at layout changes only. The cell index is also the trim route's gate:
+-- a hidden selector or an excluded parameter must not remain adjustable through another input.
+--
+-- A bank per pass (Functions.groupStep, stepped from M.tick): the whole table on the pass that
+-- applies a freshly read board takes that pass past what a widget call may cost. `now` finishes it
+-- at once, for a caller that needs the groups on the same call; an empty set always finishes at once.
+function Drive:rebuildGroups(now)
+  -- Built unfiltered, so the session picker can offer everything the board carries; the flight
+  -- list is applied afterwards (Functions.filterGroups).
+  self.groupWork = Functions.newGroupWork(self.set, self.rowValues, self.bankValues, nil)
+  self:fenceGroups()
+  if now or type(self.set) ~= "table" or next(self.set) == nil then self:finishGroups() end
+end
+
+--- While groups are being built nothing is offered: the set, its codes and its records may
+-- already be the new board's while the old groups would still name the old one's cells, and a
+-- press or a trim on such a cell steps whatever the new slot holds.
+function Drive:fenceGroups()
+  self.groups, self.groupCells = {}, {}
+  self.valueMode = false
+  self.groupPicker = nil
+end
+
+--- The list that decides what is offered: the pilot's choice for this session where there is one,
+-- otherwise the model's flight list. An empty string means everything.
+function Drive:activeList()
+  if self.sessionList ~= nil then return self.sessionList end
+  return self.settings and self.settings.flight_list
+end
+
+--- The session's own choice (the ground picker's Apply). nil goes back to the model's list.
+function Drive:setSessionList(stored)
+  self.sessionList = stored
+  self:applyFilter()
+end
+
+--- Re-filters the board's groups with the active list, through the same per-pass steps.
+function Drive:applyFilter()
+  local work = self.groupWork
+  if work ~= nil then
+    -- A derivation still running (a fresh board read) filters with the active list when it gets
+    -- there; one already sorted filters again. Replacing it would bring back the old cells.
+    work.filtered = nil
+  else
+    self.groupWork = { result = self.allGroups or {} }
+  end
+  self:fenceGroups()
+end
+
+--- One step of a pending group derivation; answers whether there was one. The banks, the sort, the
+-- filter and the take-over each take a step: measured, the filter of a restricted list and the
+-- take-over together already exceed what a ground-read pass has left.
+function Drive:stepGroups()
+  local work = self.groupWork
+  if work == nil then return false end
+  if work.result == nil then
+    local done, groups = Functions.groupStep(work)
+    if done then work.result = groups end
+    return true
+  end
+  if work.filtered == nil then
+    work.filtered = { Functions.filterGroups(work.result, self:activeList()) }
+    return true
+  end
+  self.groupWork = nil
+  -- A picker opened over other groups starts again from the new ones.
+  if self.allGroups ~= work.result then self.sessionPick = nil end
+  self.allGroups = work.result
+  self:takeGroups(work.filtered[1], work.filtered[2], work.filtered[3])
+  return true
+end
+
+--- The filtered groups take over, and the selection is re-seated on them.
+function Drive:takeGroups(groups, cells, missing)
+  self.groups, self.groupCells, self.flightListMissing = groups, cells, missing
+  if self.setSource == "unread" then self.flightListMissing = {} end
+  local cell = self.groupCells[self.bank] and self.groupCells[self.bank][self.row]
+  if cell == nil then cell = self.groups[1] and self.groups[1].entries[1] end
+  self.group, self.entry = 1, 1
+  if cell ~= nil then
+    self.bank, self.row, self.group, self.entry = cell.bank, cell.row, cell.group, cell.index
+  end
+  -- What the board offers, whatever the list keeps: that is the number the ground surface states.
+  local count = 0
+  for _, group in ipairs(self.allGroups or {}) do count = count + #group.entries end
+  self.cellCount = count
+  self:countOutOfBounds()
+  self.valueMode = false
+  self:forgetVerdict()
+  -- The row list is part of the layout, so the finished groups move the epoch.
+  self.valueEpoch = (self.valueEpoch or 0) + 1
+end
+
+--- How many offered cells would jump on their first press (Drive:cellOutOfBounds), for the
+-- ground surface. Counted when the groups or the read values change, never per pass.
+function Drive:countOutOfBounds()
+  local count = 0
+  for bank, rows in pairs(self.groupCells or {}) do
+    for row in pairs(rows) do
+      if self:cellOutOfBounds(bank, row) then count = count + 1 end
+    end
+  end
+  self.boundsCount = count
+  return count
+end
+
+--- Store the model flight list or suggested step defaults through the suite's preference writer.
+-- Ground only; the caller refuses while armed and gives each store write its own idle pass.
+function M.saveFlightList(stored, steps)
+  local session = _G.rfsuite and _G.rfsuite.session
+  local mcu = session and session.mcu_id
+  if not mcu then return false, "missing_mcu_id" end
+  local MP = requireModule("lib/model_preferences.lua")
+  if type(MP) ~= "table" or type(MP.saveByMcuId) ~= "function" then return false, "store" end
+  local model, inflight = {}, {}
+  for key, value in pairs(session.modelPreferences or {}) do model[key] = value end
+  for key, value in pairs(model.inflight or {}) do inflight[key] = value end
+  if steps then
+    inflight.step, inflight.step_headspeed = steps.step, steps.step_headspeed
+  else inflight.flight_list = stored or "" end
+  model.inflight = inflight
+  local ok, err = MP.saveByMcuId(mcu, model)
+  if not ok then return false, err end
+  session.modelPreferences = model
+  return true
+end
+
+function Drive:finishGroups()
+  while self.groupWork ~= nil do self:stepGroups() end
+end
+
+--- A drive with no history: surface closed, nothing written, no bank chosen.
 function M.newDrive(radio, settings)
   local self = setmetatable({}, Drive)
   self.radio = radio or M.radio()
   self.settings = settings or M.settings(nil, nil)
   self.live = false
-  self.seeded = false
-  self.rawSwitch = nil
-  self.rawSince = nil
+  self.open = false
   self.bank = 1
   self.row = 1
   self:seedSet()
@@ -182,9 +302,6 @@ function M.newDrive(radio, settings)
   self.holdSince = nil
   self.trimRow = nil
   self.trimUp = nil
-  self.trimCode = nil
-  self.trimPulseUntil = nil
-  self.trimCoolUntil = 0
   self.trims = nil
   self.rowTrims = nil
   self.trimsResolved = false
@@ -196,24 +313,28 @@ function M.newDrive(radio, settings)
   self.fastAt = nil
   self.values = {}
   -- TWO counters over the same value table, because two different readers want two different
-  -- things. `valueEpoch` is the LAYOUT epoch: the widget's render key carries it, so every bump
-  -- is a tree the surface throws away and builds again. `reportEpoch` says only that a number
+  -- things. `valueEpoch` publishes selection/control changes and keys ground/post layouts;
+  -- the retained live scene keys only structural changes. `reportEpoch` says only that a number
   -- the surface reads through a closure has moved, and no render key follows it. See the AdjF
   -- block in fastTick for why the board's own answers travel on the second one.
   self.valueEpoch = 0
   self.reportEpoch = 0
   self.profile = nil
   self.rateProfile = nil
+  self.knownPid, self.knownRate = nil, nil
+  self.sessionProfiles = nil
+  self.profileValues = nil
+  self.profilePrevious = nil
+  self.changes = {pid = {}, rate = {}, global = {}}
+  self.profilePaused = false
   self.profileChanged = nil
   self.profileSettleAt = nil
   self.profileBannerUntil = nil
-  -- The three phases the one interlock switch shows, and the state behind them. `phase` is nil
-  -- while the overlay is not up; see Drive:setPhase for what each of them means.
+  -- Flight phase survives a closed surface; see Drive:setPhase for its transitions.
   self.phase = nil
   self.fired = 0
   self.post = false
   self.deltaPage = 1
-  self.autoBackupWanted = false
   self.stepRefusedUntil = nil
   self.previous = {}
   self.readAt = nil
@@ -239,11 +360,8 @@ end
 
 --- Which of the three the overlay is in, and everything that has to happen on a transition.
 --
--- The interlock is the ONE entry the pilot has, and what it shows follows the FLIGHT rather than
--- the switch: on the ground before a flight it is the preflight read-out, in the air it is the
--- tuning surface, and on the ground after a flight that moved something it is the delta and the
--- undo. A pilot who has to remember which of three screens a switch is on has one more thing to
--- get wrong in the air than he has thumbs for.
+-- Arm state chooses the surface: ground before flight, tuning while armed, comparison after
+-- a flight that changed values. Closing pauses this progression without ending the session.
 --
 -- The consequence worth stating plainly: NOTHING STEPS ON THE GROUND. The step controls and the
 -- trims are live in the `live` phase and in no other, because the ground surface carries neither
@@ -253,34 +371,33 @@ function Drive:setPhase(phase)
   if self.phase == phase then return end
   local was = self.phase
   self.phase = phase
+  self.postActionsOpen = nil
+  self.groupPicker = nil
   self.valueEpoch = self.valueEpoch + 1
 
-  if phase == M.PHASE_GROUND and was == nil then
-    -- The interlock has just been opened, on the ground, before a flight. That is the moment the
-    -- undo has to exist, so it is asked for here and nowhere else -- NOT on the interlock's own
-    -- rising edge, because an interlock opened IN THE AIR would then take its backup on landing
-    -- and overwrite the undo with the values the flight had already moved.
-    --
-    -- A request and no more: the drive sends no MSP and cannot see the link. The ground half takes
-    -- it on its next pass and applies every refusal the button applies.
-    self.autoBackupWanted = true
-  else
-    self.autoBackupWanted = false
-  end
-
   if phase == M.PHASE_LIVE then
-    -- A new flight. What the last one changed is no longer the question, and the counter that
-    -- decides whether there will be a delta to show starts again.
+    -- A ground-to-air transition starts a new count. A same-flight reopen keeps this phase
+    -- and returns above without resetting its count or selection.
     self.post = false
-    self.fired = 0
+    if was == M.PHASE_GROUND or was == M.PHASE_POST then self.fired = 0 end
     self.deltaPage = 1
+    self.valueMode = false
+    -- Every flight starts at the top of the list, not at whatever cell the enable channel or an
+    -- earlier flight left selected.
+    local first = self.groups and self.groups[1] and self.groups[1].entries[1]
+    if first ~= nil then
+      self.group, self.entry = 1, 1
+      self.bank, self.row = first.bank, first.row
+      self:ensureBankArmed()
+    end
+    self:speakSelection("group")
   elseif was == M.PHASE_LIVE then
-    -- Out of the air. Whatever MAGNITUDE it left standing goes now, whichever transition was seen --
-    -- but not the bank, which the interlock is still on for and which the surface goes on showing.
-    -- See Drive:cleanup's `keepBank`: the interlock falling, the fullscreen closing, the widget
-    -- going to background and the link dropping all still take it to 0, and this is the one
-    -- transition that does not.
-    self:cleanup(false, true)
+    -- The continuation across a link gap is a property of the flight it was taken in.
+    self.armedThrough = nil
+    self.readArmed = nil
+    -- Landing clears the value. The bank may remain selected only while the surface is open;
+    -- every exit clears both variables before changing the phase.
+    self:cleanup(false, self.live == true)
     self.deltaPage = 1
   end
   -- `post` is the phase and nothing else: it is what tick reads on the next pass to keep the
@@ -293,12 +410,14 @@ end
 
 --- Leave the postflight read-out, on any of the three things that end it.
 --
--- The LIST is not dropped with it. The delta is computed against the backup's own snapshot, and
--- that snapshot stands until the next backup replaces it -- so a pilot who cycles the interlock
--- and goes back in finds the same list, which is the answer he expects and not a fresh empty one.
+-- The LIST is not dropped with it. The delta is computed against the SD baseline, and
+-- that snapshot stands until a new session replaces it -- so a pilot who closes tuning
+-- and reopens it finds the same list, which is the answer he expects and not a fresh empty one.
 function Drive:endPost(why)
   if not self.post then return end
   self.post = false
+  -- Dismissed: a later pass with no phase (the widget left and came back) must not bring it back.
+  self.fired = 0
   self.valueEpoch = self.valueEpoch + 1
   logDrive("postflight ended: %s", tostring(why))
 end
@@ -349,7 +468,8 @@ local GAP_TICKS = math.floor(Setup.PULSE_GAP_MS / 10 + 0.5)
 -- row moved in that gap would put the next pulse on another parameter while the finger is still
 -- on the one it pressed -- so the hold counts as busy from its press to its release.
 function Drive:valueBusy()
-  return self.written ~= 0 or self.holdRow ~= nil
+  local now = self.radio.now()
+  return self.written ~= 0 or self.holdRow ~= nil or self.pulseUntil ~= nil or now < (self.coolUntil or 0)
 end
 
 --- The function id sitting in the current cell, or nil when the cell carries no slot.
@@ -423,8 +543,8 @@ function Drive:armBank(bank)
   --
   -- The flight mode is recorded with it, for the same reason the value variable's is:
   -- model.setGlobalVariable resolves a "same as FMx" link itself, so a bank armed in one mode and
-  -- cleared in another leaves the first one armed. A pilot who changes flight mode with the
-  -- interlock closed -- which is a switch, not a rare event -- would otherwise land back on the
+  -- cleared in another leaves the first one armed. A pilot who changes flight mode with
+  -- the tuning surface open would otherwise land back on the
   -- ground with the enable channel still parked in a band.
   self.bankWritten = value
   self.bankFm = fm
@@ -433,26 +553,9 @@ function Drive:armBank(bank)
   return true
 end
 
---- The enable channel carries the SELECTED bank for as long as the interlock is on.
---
--- armBank on its own is EDGE work: the chip, the bank trim and a walk that crosses a bank each
--- call it once, and nothing calls it on the way into the air. The interlock's own defensive
--- cleanup(true) then takes the bank variable to 0 while `self.bank` keeps its value, and 1500 us
--- -- what the mixer line puts on the channel for 0 -- sits inside no band the firmware watches.
--- Between the interlock closing and the pilot's first bank gesture the screen therefore showed a
--- bank the wire did not carry, and every step went out against an enable channel outside every
--- adjustment's window: the board saw a value move and had no function to apply it to.
---
--- So the selection is asserted rather than followed. Called once per pass for as long as the
--- interlock is closed -- in all three phases, because all three name a bank on the screen -- it
--- costs one comparison when the variable already holds what the selection says, and it repairs the
--- defensive cleanup, an arming, a landing, a row walk and the entry point's emergency clear alike.
--- None of those is a bank CHANGE, which is why none of them had a writer.
---
--- It is the bank variable only. The value variable is still 0 whenever no pulse is running and
--- nothing is held, on every path out of the overlay, which is the rule at the top of this file: a
--- parked enable channel with the value channel at rest steps nothing, and the firmware needs a
--- magnitude inside an increment window before it counts anything at all.
+--- Assert the selected bank while the surface is open, including on ground and after landing.
+-- One comparison repairs the defensive opening clear, a flight-mode change or a navigation.
+-- The value channel remains zero unless a pulse owns it.
 --
 -- Refused, silently, while a value stands on the wire: moving the enable channel under a
 -- magnitude that sits inside a step window is how one press ends up counted against another
@@ -468,60 +571,16 @@ function Drive:ensureBankArmed()
   return self:armBank(self.bank)
 end
 
---- A bank chosen by hand, from a chip on the fullscreen screen.
---
--- Refused while the value variable is not 0: moving the enable channel under a value that is
--- inside a step window is how one tap ends up counted against another parameter.
-function Drive:setBank(bank)
-  bank = tonumber(bank)
-  if bank == nil or bank < 1 or bank > Functions.BANK_COUNT then return false, "range" end
-  if self:valueBusy() then return false, "busy" end
-  self.bank = bank
-  self.row = 1
-  return self:armBank(bank)
-end
-
---- The next assigned cell in the set's own order: bank by bank, row by row, unassigned cells
--- skipped. It wraps, because a walk that stops without a sound cannot be told apart from a trim
--- that stopped answering -- and this is the control a pilot uses without looking.
-function Drive:stepCell(up)
-  local perBank = Functions.ROW_COUNT
-  local total = Functions.BANK_COUNT * perBank
-  local index = (self.bank - 1) * perBank + (self.row - 1)
-  for _ = 1, total do
-    index = (index + (up and 1 or -1)) % total
-    local bank = (index // perBank) + 1
-    local row = (index % perBank) + 1
-    if self:functionId(bank, row) ~= nil then return bank, row end
-  end
-  return nil
-end
-
---- One step of the walk, in navigate mode.
---
--- Refused outright while the value variable is not 0. The alternative -- moving the selection and
--- leaving the enable channel where it was -- puts the screen and the board on different
--- parameters, which is the one state a tuning surface must never be in.
+-- Compatibility entry points use the same dispatcher as touch and keys. The bank/row are still
+-- the wire address; the visible walk is the current group's ordered list, without wrapping.
 function Drive:navigate(up)
-  if not self:tuning() then return false, "not_live" end
-  if self:valueBusy() then return false, "busy" end
-  local bank, row = self:stepCell(up)
-  if bank == nil then return false, "empty" end
-  self.bank = bank
-  self.row = row
-  self.valueEpoch = self.valueEpoch + 1
-  -- Unconditional, where this used to write only when the step crossed a bank boundary. A walk
-  -- inside one bank is not a bank change and still has to leave the wire carrying that bank, which
-  -- it does not when the interlock's cleanup was the last thing to touch the variable.
-  self:ensureBankArmed()
-  return true
+  return self:dispatch("function", up and 1 or -1, "trim")
 end
 
 function Drive:selectRow(row)
-  row = tonumber(row)
-  if row == nil or row < 1 or row > Functions.ROW_COUNT then return false end
-  self.row = row
-  return true
+  local cell = self.groupCells[self.bank] and self.groupCells[self.bank][row]
+  if cell == nil or cell.group ~= self.group then return false, "range" end
+  return self:dispatch("select", nil, "touch", cell.index)
 end
 
 --- A press on the minus or plus control. Refused inside the cool-down, the gap after a pulse: the
@@ -534,11 +593,10 @@ end
 -- board has counted it -- the trim's step is lost -- or, in the same direction, stretches the
 -- plateau past REPEAT_DELAY into a second step. The trim path refuses a touch pulse the same way
 -- (Drive:pollTrimStep).
-function Drive:press(row, up)
-  if not self:tuning() then return false, "not_live" end
+function Drive:startPress(row, up)
+  if not self:tuning() then return false, self:profileRefusal() or "not_live" end
   local now = self.radio.now()
-  if self.pulseUntil ~= nil or now < (self.coolUntil or 0)
-    or self.trimPulseUntil ~= nil or now < (self.trimCoolUntil or 0) then
+  if self.pulseUntil ~= nil or now < (self.coolUntil or 0) then
     -- Said on the screen rather than returned to a caller that drops it. The pilot's own report
     -- after three rounds is "sometimes no step at all", and his card log shows what that is: a
     -- tap inside the cool-down writes nothing, logs nothing and looks exactly like a control that
@@ -578,25 +636,188 @@ end
 --- One tap, for a radio whose LVGL build has no momentary button: press without the hold, so the
 -- pulse ends on its own timer and nothing waits for a release that never comes.
 function Drive:tap(row, up)
-  local ok, reason = self:press(row, up)
-  if ok then self:release() end
-  return ok, reason
+  return self:dispatch("step", up and 1 or -1, "touch", row)
+end
+
+function Drive:press(row, up)
+  return self:dispatch("step", up and 1 or -1, "touch_hold", row)
+end
+
+local Announcer = nil
+local function announcer()
+  if Announcer == nil then Announcer = requireModule("tasks/events/telemetry_bg/adjustments.lua") end
+  return Announcer
+end
+
+function Drive:cancelSpeech()
+  if Announcer and type(Announcer.cancelSelection) == "function" then Announcer.cancelSelection(self) end
+end
+
+function Drive:speakSelection(kind)
+  local teller = announcer()
+  local group = self.groups[self.group]
+  local entry = group and group.entries[self.entry]
+  if teller and type(teller.select) == "function" and entry then
+    teller.select(self, kind, kind == "group" and group.id or entry.id,
+      kind == "value" and self.values[entry.id] or nil, self.radio.now())
+  end
+end
+
+-- One semantic route owns navigation and adjustment, regardless of the physical input. A busy
+-- gesture is consumed here and never saved for later. Touch holds retain their bounded pulse
+-- train; keys, encoder changes and trim edges use taps and cannot start a hold.
+function Drive:dispatch(action, direction, source, index, armed)
+  local now = self.radio.now()
+  if action == "release" then self:release(); return true end
+  -- The group picker is a scene of the live surface, not a native popup: a popup closed with RTN
+  -- calls nothing back, so the scene under it could neither return the encoder's focus nor know
+  -- the choice was abandoned. Opening it leaves value mode; RTN, or the title again, closes it.
+  if action == "picker" then
+    if self.live ~= true or self.phase ~= M.PHASE_LIVE then return false, "not_live" end
+    if #self.groups < 2 then return false, "groups" end
+    if self.groupPicker then
+      self.groupPicker = nil
+      self.valueEpoch = self.valueEpoch + 1
+      return true
+    end
+    if self.valueMode then
+      local ok, reason = self:dispatch("leave", nil, source, nil, armed)
+      if not ok then return ok, reason end
+    end
+    self.groupPicker = true
+    self.valueEpoch = self.valueEpoch + 1
+    return true
+  end
+  if self.groupPicker and (action == "back" or action == "leave" or action == "pick") then
+    self.groupPicker = nil
+    self.valueEpoch = self.valueEpoch + 1
+    if action ~= "pick" then return true end
+    local target = tonumber(index) or self.group or 1
+    -- The current group chosen again goes to its first function, as the title's menu did.
+    if target == self.group then return self:dispatch("function", nil, source, 1, armed) end
+    return self:dispatch("group", target - (self.group or 1), source, nil, armed)
+  end
+  if action == "pick" then return false, "stale" end
+  -- Any other input takes the picker down first; what it asked for is then decided as usual.
+  if self.groupPicker then
+    self.groupPicker = nil
+    self.valueEpoch = self.valueEpoch + 1
+  end
+  -- Armed input cannot close the surface, including before a live phase is published.
+  -- RTN can still leave value mode through the common leave action.
+  if (action == "close" or (action == "back" and not self.valueMode))
+      and armed == true then
+    return false, "armed"
+  end
+  if action == "close" then
+    self:evaluateInterlock(now, false)
+    self:cancelSpeech()
+    self.valueMode = false
+    self.closeRequested = true
+    return true
+  end
+  if action == "back" then
+    if self.valueMode then return self:dispatch("leave", nil, source, nil, armed) end
+    return self:dispatch("close", nil, source, nil, armed)
+  end
+  if action == "leave" then
+    if self:valueBusy() then self:refuseStep("cooling", now); return false, "busy" end
+    self:release()
+    if self.valueMode then
+      self.valueMode = false
+      self.valueEpoch = self.valueEpoch + 1
+    end
+    return true
+  end
+  if action == "step" then
+    -- A native callback may run after a switch moved but before the next widget sample.
+    self:watchProfiles()
+    local refusal = self:profileRefusal()
+    if refusal ~= nil then self:refuseStep(refusal, now); return false, refusal end
+    -- AdjF/AdjV retain the last adjustment for several seconds and carry no profile id. After
+    -- a profile pause, a nonzero report may still belong to the profile just left. Observe its
+    -- idle boundary before another step; a timer would only guess when the old report ended.
+    if self.reportFence then
+      local report = self.radio.sensor("AdjF")
+      if report ~= nil and report > 0 then
+        self:refuseStep("report_sync", now)
+        return false, "report_sync"
+      end
+      if report ~= 0 then return false, "report_sync" end
+      self.reportFence = nil
+    end
+  end
+  if self:valueBusy() then
+    self:refuseStep("cooling", now)
+    return false, "busy"
+  end
+  -- A sampled trim edge and a native callback can arrive in the same radio tick. They cannot
+  -- both acquire the value channel, including when a second route only changes the selection.
+  if self.inputAt == now and self.inputSource ~= source then return false, "input_owned" end
+  if action == "group" and self.phase == M.PHASE_POST then
+    return self:pageDelta(direction > 0, self.deltaPages)
+  end
+  if self.live ~= true or self.phase ~= M.PHASE_LIVE then return false, "not_live" end
+  if action == "step" then
+    local row = index or self.row
+    local cell = self.groupCells[self.bank] and self.groupCells[self.bank][row]
+    if cell == nil then self:refuseStep("range", now); return false, "range" end
+    if self:cellOutOfBounds(self.bank, row) then self:refuseStep("bounds", now); return false, "bounds" end
+    if source == "encoder" and not self.valueMode then return false, "browse" end
+    local ok, reason = self:startPress(row, direction > 0)
+    if ok then
+      self.group, self.entry = cell.group, cell.index
+      self.inputAt, self.inputSource = now, source
+      if source ~= "touch_hold" then self:release() end
+    end
+    return ok, reason
+  end
+  local groupIndex, entryIndex = self.group, self.entry
+  if action == "group" then
+    groupIndex, entryIndex = groupIndex + direction, 1
+  elseif action == "function" then
+    entryIndex = index or (entryIndex + direction)
+  elseif action == "select" then
+    entryIndex = index or entryIndex
+  else
+    return false, "action"
+  end
+  local group = self.groups[groupIndex]
+  local cell = group and group.entries[entryIndex]
+  if cell == nil then
+    self:refuseStep("list_end", now)
+    local teller = announcer()
+    if teller and type(teller.endFeedback) == "function" then teller.endFeedback() end
+    return false, "list_end"
+  end
+  self.group, self.entry = groupIndex, entryIndex
+  self.bank, self.row = cell.bank, cell.row
+  self.valueMode = action == "select" or (action == "function" and self.valueMode)
+  self:ensureBankArmed()
+  self.inputAt, self.inputSource = now, source
+  self.valueEpoch = self.valueEpoch + 1
+  self:speakSelection(action == "group" and "group" or (self.valueMode and "value" or "function"))
+  return true
 end
 
 --- Both variables to 0 and every pending motion dropped.
 --
--- Cheap and idempotent by design: it runs on the interlock falling, on leaving fullscreen, on the
--- widget going to background, on the link dropping, and once defensively on the interlock rising.
+-- Cheap and idempotent by design: it runs on closing tuning, on leaving fullscreen, on the
+-- widget going to background, on the link dropping, and once defensively when tuning opens.
 -- `force` writes even when the drive believes the variables are already clear, which is what the
 -- rising edge needs -- what a previous session left behind is not knowable from here.
 --
 -- `keepBank` leaves the enable channel alone, and exactly one caller passes it: the transition OUT
 -- of the air. The value variable going to 0 there is the safety rule this whole file is built
 -- around and stays unconditional. The bank variable is not a magnitude, steps nothing on its own,
--- and while the interlock is still on it has to go on saying which bank the surface has selected --
+-- and while the surface is still open it has to go on saying which bank the surface has selected --
 -- so clearing it on the landing and writing it straight back on the next pass would be a pair of
 -- model writes that cancel out.
 function Drive:cleanup(force, keepBank)
+  self:cancelSpeech()
+  -- A contact held across an exit, loss or profile pause is not a new trim press on reopening.
+  -- Keep this latch across the defensive rising-edge clear; only an observed release clears it.
+  self.trimAwaitRelease = true
   self.stepRefusedUntil, self.stepRefusedReason = nil, nil
   local settings = self.settings
   local fm = self.writtenFm
@@ -609,8 +830,6 @@ function Drive:cleanup(force, keepBank)
   self.holdSince = nil
   self.trimRow = nil
   self.trimUp = nil
-  self.trimCode = nil
-  self.trimPulseUntil = nil
   self.navDir = 0
   self.navNextAt = nil
   self.bankDir = 0
@@ -637,7 +856,6 @@ function Drive:cleanup(force, keepBank)
     self.bankFm = nil
   end
   self.coolUntil = 0
-  self.trimCoolUntil = 0
 end
 
 --- The verdict while the trim block is still being walked: a fault list of one, so that every
@@ -655,7 +873,7 @@ end
 -- this model could be looked at".
 --
 -- The walk behind it reads the model's mixer lines, its global variable details and its trim
--- modes. It is taken at most once per settings change and once per interlock closing, and NEVER
+-- modes. It is taken at most once per settings change and once per ground-surface opening, and NEVER
 -- while the craft is in the air: the airborne pass is the one driving the flight controller, and
 -- a verdict cannot change under a pilot who is flying.
 --
@@ -666,23 +884,23 @@ end
 -- stored as a switch position cannot be turned into the number the trim-mode table is indexed by,
 -- so the trim half of the check is simply not made -- and a verdict cached then let the first
 -- closing after every start through on a trim that still trims. The answer in that state is
--- M.TRIMS_PENDING while the interlock is closed, which refuses like a fault and says why, and
--- "not checked" while it is open; neither is cached, so the pass that completes the walk is the
+-- M.TRIMS_PENDING while the surface is open, which refuses like a fault and says why, and
+-- "not checked" while it is closed; neither is cached, so the pass that completes the walk is the
 -- one after which the real verdict is taken. A drive that is still live when its trims go back to
 -- unresolved -- the settings moved under an open surface on the ground -- answers what it has
--- (nothing, after the forget that came with them) and takes nothing either: the new settings close
--- the surface by themselves (M.get drops `seeded`), and the next closing waits for the walk.
+-- (nothing, after the forget that came with them) and takes nothing either: the new settings revoke
+-- output themselves (M.get drops `live`), and the next evaluation waits for the walk.
 function M.verdict(drive)
   if type(drive) ~= "table" then return nil end
   if drive.phase == M.PHASE_LIVE then return drive._checkResult end
   if trimsPending(drive) then
     if drive.live == true then return drive._checkResult end
-    return (drive.rawSwitch == true) and M.TRIMS_PENDING or nil
+    return (drive.open == true) and M.TRIMS_PENDING or nil
   end
   if drive._checkedAt == nil then
     drive._checkedAt = drive.radio.now()
     drive._checkResult = Setup.check(drive)
-    -- What the surface shows, kept apart from the cache: a forget (the switch let go, the settings
+    -- What the surface shows, kept apart from the cache: a forget (the surface closed, the settings
     -- moved) empties the cache for the next pass to fill, and the published refusal stands until a
     -- verdict has actually been taken again -- rather than dropping to the theme for that one pass.
     drive._checkFault = type(drive._checkResult) == "table"
@@ -696,177 +914,102 @@ function Drive:forgetVerdict()
   self._checkResult = nil
 end
 
---- The tuning session is over: the pilot has closed the feature while standing on the ground, or
--- a different flight controller has identified itself on the link (inflight/prime.lua,
--- boardChanged, which also lets go of the board read below).
---
--- His ruling after the fourth radio round is that closing it on the ground or after the flight
--- starts everything fresh, so the next opening of the interlock is a NEW session and not a
--- continuation of this one -- the board is read again and a fresh undo is laid down over whichever
--- profile is active then.
---
--- What goes is everything that describes the session that has just ended. The record of the undo
--- goes with it: the board still holds the copy in its spare profile, but a copy nobody can say the
--- source or the age of is not an undo, and the restore refuses without that record rather than
--- writing a profile it cannot describe. So do the snapshot the comparison was measured against, the
--- cached values and the evidence that they were ever read, the counter that decides whether a flight
--- earned a comparison at all, and the outcome of the last profile copy -- which would otherwise open
--- the next session with the previous one's refusal on its first line.
---
--- What STAYS is what the board answered about itself: the derived set, the verdict on its slot table
--- and the run that read it. Those describe a LAYOUT and a flight controller rather than a session,
--- and nothing a switch does can move one -- which is why the read the next opening asks for is the
--- nine value commands and not forty-odd round trips. See inflight/prime.lua, M.refreshValues.
---
--- NOT reached when the widget goes to the background, nor when the feature is switched off in the
--- settings. Neither of those is the pilot closing the overlay on the flight line, and a theme
--- reload or a tool session would otherwise throw his undo away between two flights. Nor when the
--- link drops and comes back to the same board: a battery change, a fade on the ground and a link
--- lost in the air all come back to the board the undo was taken from.
+-- Ending a session (another board, a battery change) drops its caches and requests a new read,
+-- whose start values then replace these on the SD card; a pending transaction retains its return pair.
 function Drive:endSession()
-  self.backup = nil
+  if self.profileJob then self.profileJob.cancelled = true end
+  if _G.rfsuite and _G.rfsuite.inflightProfileJob == self.profileJob then _G.rfsuite.inflightProfileJob = nil end
+  self.postActionsOpen = nil
+  self.restoreConfirm = nil
+  self.restoreResultOpen = nil
+  -- The session's parameter choice and the ground dialogs belong to the session that ends.
+  self.sessionList, self.sessionPick, self.sessionPickerOpen = nil, nil, nil
+  self.pendingSave = nil
+  self.baseline = nil
+  self.sessionProfiles = nil
+  self.profileValues = nil
+  self.profilePrevious = nil
+  self.changes = {pid = {}, rate = {}, global = {}}
   self.primedValues = nil
   self.transfer = nil
   self.values = {}
   self.previous = {}
   self.valuesRead = nil
+  self.readArmed = nil
   self.readAt = nil
+  self.profilePaused = false
+  self.reportFence = nil
+  self.valueMode = false
+  self:cancelSpeech()
   self.fired = 0
   self.deltaPage = 1
   self._deltaList = nil
   self._deltaEpoch = nil
-  -- The nine value reads are due, and the ground half sends them once the surface is back on the
-  -- ground -- never while the feature is closed, which is what the interlock promises.
+  -- The ten value reads are due, and the ground half sends them once the surface is back on the
+  -- ground -- never while the feature is closed, which is what surface ownership requires.
   self.readAgain = true
   self.valueEpoch = self.valueEpoch + 1
+  -- An expiry noted on the ground (widgets/dashboard/runtime.lua, inflightLinkWatch) belongs to the
+  -- session ending here; left set, it would end the next session as well.
+  self.sessionExpired = nil
+  if _G.rfsuite then _G.rfsuite.inflightSession = nil end
   logDrive("tuning session ended: the undo, the values and the comparison go with it")
 end
 
---- Where the interlock stands, with the first evaluation seeding rather than firing.
---
--- A widget that starts up with the switch already ON must not read that as the pilot having just
--- turned it on: the overlay would open, and on the transition it would write. So the first
--- evaluation only records what it saw.
-function Drive:evaluateInterlock(now)
+--- A read that begins while an expiry is still pending (the link was gone for the gap on the
+-- ground, and work held when it came back kept the session from ending) ends that session first,
+-- so the read begins a new one. The read is the one Drive:endSession asks for, so that request is
+-- withdrawn again. A parameter choice of the ended session may already have filtered the groups,
+-- so they are filtered again without it. A model-default save still waiting is the model's, not the
+-- session's: it is kept and written once the read is done. Answers whether a session was ended.
+function Drive:takeExpiry()
+  if not self.sessionExpired then return false end
+  local chosen, save = self.sessionList, self.pendingSave
+  self:endSession()
+  self.readAgain, self.pendingSave = nil, save
+  if chosen ~= nil then self:applyFilter() end
+  if self.phase == M.PHASE_POST then self:setPhase(M.PHASE_GROUND) end
+  return true
+end
+
+--- Fullscreen foreground ownership is the release, with no seed or delay in either direction.
+-- A closed surface keeps the flight phase and session, but owns no output or pending input.
+function Drive:evaluateInterlock(now, open)
+  local wasOpen = self.open == true
+  if open ~= nil then self.open = open == true end
   local settings = self.settings
-  -- BOTH switches, through the one answer M.settings computes: the radio's, which says the pilot
-  -- wants the overlay on this transmitter at all, and the model's, which says this machine is set
-  -- up for it. See inflight/setup.lua M.settings.
-  if not settings or settings.active ~= true or (settings.switch or 0) == 0 then
-    if self.live then
-      self.live = false
-      self:setPhase(nil)
-      self:endPost("interlock_off")
-      self:cleanup(false)
-    end
-    self.seeded = false
-    self.rawSwitch = nil
-    return false
-  end
-
-  local raw = (self.radio.switchValue(settings.switch) == true)
-
-  -- The trim block, resolved on the ground before the first closing is let through. Until it is,
-  -- the setup check cannot see the trim half (see M.verdict), so the closing is refused and the
-  -- surface says the trims are being checked. The walk is the one ensureTrims takes in the air,
-  -- one slice per pass, and it is only taken while the interlock is closed: the overlay's surface
-  -- is up then in place of the theme, and the pass that completes the walk analyses the whole
-  -- switch list, which is not work to put on a pass the theme -- or the widget's cold start --
-  -- already fills. The switch is tracked meanwhile exactly as the fault gate below tracks it, and
-  -- the first reading seeds, so a widget started with the switch on opens as soon as the walk is
-  -- done and the setup check passes, and not before. The pass that completes the walk returns here
-  -- as well: the check is taken on the next one, not on top of the analysis.
-  if not self.live and self.phase ~= M.PHASE_LIVE and trimsPending(self) then
-    if raw then
-      self:ensureTrims()
-      if not trimsPending(self) then
-        logDrive("trims resolved on the ground: %d trim(s)", type(self.trims) == "table" and #self.trims or 0)
-      end
-    end
-    self.seeded = true
-    if raw ~= self.rawSwitch then
-      self.rawSwitch = raw
-      self.rawSince = now
-    end
-    return false
-  end
-
-  -- The setup check, as a gate rather than as a sentence. What it names are the conditions under
-  -- which a press would move something other than the parameter on the screen: a bank and a value
-  -- pointed at one variable or one channel, so the board reads a step as a bank change and a bank
-  -- change as a step; a mixer line that is not there or carries the wrong weight, so the code
-  -- never reaches the board; a global variable whose range or precision cannot express the codes;
-  -- a trim that still moves a stick neutral in a flight mode. A FAULT therefore refuses.
-  --
-  -- An UNKNOWN does not. The walk answers nil when the radio's seam offered nothing to look at --
-  -- no mixer reader, no flight mode data -- and a check that could not run is not a check that
-  -- failed. Silencing the overlay on a radio that cannot answer the question would take the
-  -- feature away from it for good, which is a worse outcome than the one being guarded against.
-  if type(M.verdict(self)) == "table" then
-    if self.live then
-      self.live = false
-      self:setPhase(nil)
-      self:endPost("setup_fault")
-      self:cleanup(false)
-      logDrive("interlock refused: the model's setup check reports a fault")
-    end
-    -- The switch is still tracked while the gate refuses, so that letting it go re-takes the
-    -- verdict below and a pilot who has just repaired his model gets the new answer by switching
-    -- the interlock off and on. Nothing re-walks on a timer.
-    if raw ~= self.rawSwitch then
-      self.rawSwitch = raw
-      self.rawSince = now
-      if not raw then self:forgetVerdict() end
-    end
-    return false
-  end
-
-  if not self.seeded then
-    self.seeded = true
-    self.rawSwitch = raw
-    self.rawSince = now
-    self.live = false
-    return false
-  end
-
-  if raw ~= self.rawSwitch then
-    self.rawSwitch = raw
-    self.rawSince = now
-    -- Released: the model is walked again on the next closing. See the gate above.
-    if not raw then self:forgetVerdict() end
-    return self.live
-  end
-
-  if self.live == raw then return self.live end
-  if (now - (self.rawSince or now)) < STABILITY_TICKS then return self.live end
-
-  self.live = raw
-  if raw then
-    -- Defensive on the way in, never only on the way out: what the previous session left in the
-    -- two variables cannot be read back from a drive that has just been constructed.
-    self:cleanup(true)
-    self.bankShown = nil
-    logDrive("interlock on: bank ch%d value ch%d", settings.bank_ch, settings.value_ch)
-  else
-    -- Closed. On the GROUND -- before a flight or after one -- that ends the tuning session, and
-    -- everything the session stood on goes with it; see Drive:endSession. In the AIR it ends
-    -- nothing: nothing may be sent to a flying machine, and the comparison the landing is going to
-    -- show is measured against a snapshot that has to survive the cycle.
-    --
-    -- The phase read here is the one the previous pass left, and that is what tells the two apart:
-    -- Drive:tick evaluates the interlock before it decides which surface the pass belongs to.
-    local closedOnGround = (self.phase == M.PHASE_GROUND or self.phase == M.PHASE_POST)
-    self:setPhase(nil)
-    -- One of the three things that end the postflight read-out. In the air the list itself stands --
-    -- it is measured against the backup's own snapshot -- so the same interlock brings the same list
-    -- back; on the ground the line above has just taken that snapshot away with the session.
-    self:endPost("interlock_off")
-    self.autoBackupWanted = false
+  if self.open ~= true or not settings or settings.active ~= true then
+    self.open, self.live = false, false
     self:cleanup(false)
-    if closedOnGround then self:endSession() end
-    logDrive("interlock off")
+    if wasOpen and self.phase ~= M.PHASE_LIVE then self:forgetVerdict() end
+    return false
   end
-  return self.live
+
+  -- Resolve trims on their own pass before the setup check can permit output.
+  if not self.live and self.phase ~= M.PHASE_LIVE and trimsPending(self) then
+    self:ensureTrims()
+    return false
+  end
+
+  -- A fault refuses output. An unavailable check remains unknown, as on radios that cannot
+  -- expose the mixer or flight-mode data. Closing on the ground invalidates the cached check.
+  if type(M.verdict(self)) == "table" then
+    self.live = false
+    self:cleanup(false)
+    return false
+  end
+
+  if not self.live then
+    -- Clear anything a previous instance may have left before selecting a bank.
+    self:cleanup(true)
+    self.live = true
+    self.bankShown = nil
+    -- A paused flight keeps its selection. Assert it before reading the channel, whose echo
+    -- can still carry the cleared output or the bank from an earlier mixer frame.
+    if self.phase == M.PHASE_LIVE then self:ensureBankArmed() end
+    logDrive("tuning open: bank ch%d value ch%d", settings.bank_ch, settings.value_ch)
+  end
+  return true
 end
 
 --- The radio's trim block, resolved once and kept. Re-resolved when the settings change, because
@@ -921,7 +1064,47 @@ end
 -- One function rather than a test spelled at each control, because every one of them has to agree
 -- and a control that forgot the phase would be a step taken on a screen showing no rows.
 function Drive:tuning()
-  return self.live == true and self.phase == M.PHASE_LIVE
+  return self.live == true and self.phase == M.PHASE_LIVE and self:profileRefusal() == nil
+end
+
+-- Permission follows completed ground membership, independent of reopening tuning.
+function Drive:profileRefusal()
+  if self.profileBusy or self.restorePending then return "profile_reading" end
+  if self.readRequired and not (self.readArmed and self.phase == M.PHASE_LIVE) then return "session_unread" end
+  if self.sessionProfiles == nil then return "session_unread" end
+  if self.board then
+    if not boardIdentity then boardIdentity = requireModule("widgets/dashboard/inflight/prime.lua") end
+    local board = boardIdentity.boardOnLink()
+    -- A link that came back in the air has no identified board until landing, and the widget
+    -- vouches for this flight with an armed reading taken since (armedThrough).
+    if board == nil and not (self.armedThrough and self.phase == M.PHASE_LIVE) then return "board_unknown" end
+    if board == nil then board = self.board end
+    if board ~= self.board then return "session_unread" end
+  end
+  if self.profile == nil or self.rateProfile == nil then return "profile_unknown" end
+  if not self.sessionProfiles.pid[self.profile] then return "pid_unread" end
+  if not self.sessionProfiles.rate[self.rateProfile] then return "rate_unread" end
+  return nil
+end
+
+-- Keep the existing flat value view for the renderer and dispatcher. The owning caches remain
+-- per profile; a report changes its owner as well as this view without moving the layout epoch.
+function Drive:activateProfiles()
+  self.values, self.previous, self.primedValues = {}, {}, {}
+  local cache, history, baseline = self.profileValues, self.profilePrevious, self.baseline
+  if not cache then return end
+  for _, kind in ipairs({"pid", "rate", "global"}) do
+    local index = kind == "pid" and self.profile or self.rateProfile
+    local values = kind == "global" and cache.global or cache[kind][index]
+    local old = history and (kind == "global" and history.global or history[kind][index])
+    local name = kind == "global" and "global" or kind .. tostring(index)
+    local start = baseline and baseline[name]
+    for id, value in pairs(values or {}) do
+      self.values[id] = value
+      self.previous[id] = old and old[id]
+      self.primedValues[id] = start and start[tostring(id)]
+    end
+  end
 end
 
 function Drive:navigateMode()
@@ -929,64 +1112,14 @@ function Drive:navigateMode()
   return settings ~= nil and settings.trim_mode == M.TRIM_MODE_NAVIGATE
 end
 
---- Whether a trim of this radio's is actually stepping the bank.
---
--- Configured is not enough: a bank trim named in the settings and absent from this radio would
--- otherwise leave the walk trim confined to one bank with no way of reaching the other five, which
--- is worse than either arrangement on its own. So the split is decided by what the walk can
--- REACH, and a radio without the named trim falls back to walking the whole set.
-function Drive:bankTrimActive()
-  local settings = self.settings
-  if not settings or settings.trims ~= true or not self:navigateMode() then return false end
-  if (tonumber(settings.bank_trim) or 0) <= 0 then return false end
-  return Setup.trimEntry(self.trims, settings.bank_trim) ~= nil
-end
-
---- One step of the walk WITHIN the current bank, wrapping. The other half of the pilot's own
--- arrangement: with a bank trim of its own the walk trim no longer has to count its way across
--- thirty-six cells to reach the row beside the one it started on.
+-- Optional walk trims follow the same groups and functions as the flying surface. Their edge
+-- clocks remain independent of the adjustment trim; a refused walk never queues an adjustment.
 function Drive:navigateRow(up)
-  if not self:bankTrimActive() then return self:navigate(up) end
-  if not self:tuning() then return false, "not_live" end
-  if self:valueBusy() then return false, "busy" end
-  local total = Functions.ROW_COUNT
-  local index = self.row - 1
-  for _ = 1, total do
-    index = (index + (up and 1 or -1)) % total
-    if self:functionId(self.bank, index + 1) ~= nil then
-      self.row = index + 1
-      self.valueEpoch = self.valueEpoch + 1
-      -- The bank does not move here, and that is precisely why the assertion belongs in it: a
-      -- pilot who walks rows with a bank trim configured never makes a bank change at all.
-      self:ensureBankArmed()
-      return true
-    end
-  end
-  return false, "empty"
+  return self:dispatch("function", up and 1 or -1, "trim")
 end
 
---- One bank previous or next, wrapping, with the first assigned row of the new bank selected.
---
--- Refused while the value variable is not 0, for the reason the bank CHIP is: moving the enable
--- channel under a value that sits inside a step window is how one press ends up counted against
--- another parameter. A bank with no assigned cell at all is stepped over rather than shown empty.
 function Drive:navigateBank(up)
-  if not self:tuning() then return false, "not_live" end
-  if self:valueBusy() then return false, "busy" end
-  local count = Functions.BANK_COUNT
-  local bank = self.bank
-  for _ = 1, count do
-    bank = ((bank - 1 + (up and 1 or -1)) % count) + 1
-    for row = 1, Functions.ROW_COUNT do
-      if self:functionId(bank, row) ~= nil then
-        self.bank = bank
-        self.row = row
-        self.valueEpoch = self.valueEpoch + 1
-        return self:armBank(bank)
-      end
-    end
-  end
-  return false, "empty"
+  return self:dispatch("group", up and 1 or -1, "trim")
 end
 
 --- One walk trim, read as an EDGE with a repeat clock of its own. One press moves one step,
@@ -1113,58 +1246,28 @@ function Drive:pollTrims()
   return nil, nil
 end
 
---- The adjust trim, read as an EDGE and answered with a PULSE.
+--- The adjust trim is an edge, never a held level. A contact sampled down on consecutive
+-- passes is still one press, even when a different parameter has been highlighted meanwhile.
+-- Book the edge before dispatching: an input refused during a pulse or its gap cannot fire
+-- later when the gap expires. A release only permits a new edge; it never shortens the pulse.
 --
--- Why it is not the level, which is what this was. A trim is a momentary contact and a pilot's
--- press on one lasts as long as a pilot's press: the two in his own log are 0.0 and 0.1 seconds
--- long. The flight controller counts no step at all until the value channel has stood STILL
--- inside one window for TRIGGER_DELAY, 100 ms (fc/rc_adjustments.c) -- so a relay that wrote the
--- magnitude while the trim was down and 0 when it came up made the channel move out and back
--- without ever standing still. Short press: no step, and nothing on the screen to say why. Held
--- for a second: three or four. That is the pilot's report exactly -- it works "only after a
--- while, and very inaccurately".
---
--- So one press is one pulse, which is what the touch control has always done: the magnitude goes
--- on at the edge and stays on for M.PULSE_MS -- until the first pass at or after it -- however
--- early the trim is let go, and the logical switch on the value line lets 200 ms of it through. The
--- cool-down after a pulse is the gap the next pulse needs to be counted as a new one
--- (Setup.PULSE_GAP_MS), so two presses closer together than that are one step and not an arbitrary
--- number of them.
---
--- And one press is ONE pulse however long the trim is held: a held trim does not repeat, and a
--- new step needs the trim to come up and go down again. A trim is read once per widget pass, and a
--- pass only sees whether it is down at that instant -- so a release and the next press that both
--- fall between two passes read as one continuous hold. With the magnitude kept on the wire for as
--- long as the trim read as held, the board's own REPEAT_DELAY turned every 200 ms of that reading
--- into a step: on a radio running the widget at a few passes a second, a quick series of taps
--- stood on the wire for seconds and stepped many times more often than the trim was pressed.
--- Ending the pulse on its own clock bounds what one press can do whatever the pass rate. Holding
--- to repeat stays with the touch controls, whose release is reported by an event rather than
--- sampled. Nor does a held trim step again when the selection moves under it (see the edge below).
---
--- The pulse is the trim's OWN, deliberately not the touch control's. A held touch button is
--- published as `holding` and freezes the widget's render key, because a rebuild would delete the
--- object that reports its release; a trim has no object and a rebuild cannot lose it, and
--- freezing the surface for as long as a thumb is on a trim would freeze it for the whole of the
--- tuning.
---
--- A press and a release move no epoch. `valueEpoch` is in the widget's render key, so a bump
--- here tore the tuning surface down and built it again on every trim press and every release,
--- and nothing on that surface had changed: the snapshot carries no field derived from trimRow or
--- trimUp, and the screen reads neither. Where a trim does change what the surface shows -- in
--- `rows` mode, the trim of another row selects that row -- `self.row` moves, and the row is in the
--- render key on its own. The board's answer to the step travels on `reportEpoch` (see fastTick),
--- so the value still follows the step without a rebuild.
-function Drive:pollTrimStep(now)
+-- The dispatcher uses the same pulse and cooldown as touch and encoder input, immediately
+-- releasing the hold state for a trim. Only an explicit touch hold keeps that state and starts
+-- another pulse. A sampled trim therefore cannot repeat, freeze a scene waiting for a native
+-- release, or overlap a touch pulse. Neither an edge nor an AdjV moves the layout epoch.
+function Drive:pollTrimStep(_now)
   local row, up = self:pollTrims()
+  if self.trimAwaitRelease then
+    if row == nil then self.trimAwaitRelease = false end
+    return
+  end
 
   -- Everything happens at an edge. A trim that reads the same as on the last pass -- held, or let
   -- go and pressed again between two passes -- has had its answer already.
   --
   -- The edge is the TRIM's, not the row it lands on. In `rows` mode the two are one thing, each row
   -- having a trim of its own. In `navigate` mode the one adjust trim answers whichever row is
-  -- selected, and the selection can move while it is held -- a walk or bank trim step, a tap on the
-  -- row list or a bank chip -- so an edge keyed on the row read each of those as a new press and
+  -- selected, and the selection can move while it is held -- a group trim step or a tap on another parameter -- so an edge keyed on the row read each of those as a new press and
   -- stepped the new row without the trim coming up. There `trimRow` holds 0 for "the adjust trim"
   -- instead, never a row number.
   local key = row
@@ -1176,68 +1279,7 @@ function Drive:pollTrimStep(now)
   -- clock says otherwise, and that is the whole of what makes a short press step at all.
   if row == nil then return end
 
-  -- A press while the TOUCH control owns the value variable -- its pulse, its hold, or the
-  -- cool-down after them. The same refusal Drive:press makes for a trim pulse, with the same line,
-  -- and like it this press starts nothing later: a trim held until the touch is done is still this
-  -- press. Ahead of the row change below, so a trim refused here selects nothing -- above all not
-  -- under a held button, whose surface must not be rebuilt.
-  if self.pulseUntil ~= nil or self.holdRow ~= nil or now < (self.coolUntil or 0) then
-    self:refuseStep("cooling", now)
-    return
-  end
-
-  self.row = row
-  -- A press while a trim pulse or the cool-down after it is still running -- this trim's again, or
-  -- in `rows` mode another row's trim reached without a pass seeing the first one come up. It
-  -- starts nothing, now or later: the board cannot tell two steps that close apart, and a press
-  -- held until the gap is over is still the same press. The running pulse finishes as it began,
-  -- for the press that started it. Said on the screen, as the touch control says it
-  -- (Drive:press), rather than looking like a trim that is not wired up; once, at the press, so
-  -- the refusal's deadline is not moved and the snapshot not republished on every held pass.
-  if self.trimPulseUntil ~= nil or now < (self.trimCoolUntil or 0) then
-    self:refuseStep("cooling", now)
-    return
-  end
-
-  local code = Functions.rowCode(row, up, self.rowValues, self.bank)
-  if code == nil then
-    self:refuseStep("range", now)
-    return
-  end
-  self.stepRefusedUntil, self.stepRefusedReason = nil, nil
-  self.trimCode = code
-  self.trimPulseUntil = now + self:pulseTicks()
-end
-
---- Which rows the pilot can actually reach, as a mask the zone screen hides rows by.
---
--- In `rows` mode that is the rows whose trim this radio has; in `navigate` mode it is every
--- assigned cell, because the walk reaches all of them with the same two trims.
--- This is the SNAPSHOT's view and it never starts the walk. The mask describes the tuning
--- surface's rows, and that surface exists only while the overlay is live; starting the walk from
--- here put it in every pass of the widget's cold start instead, which is where it does not fit.
--- Until `pollTrims` has finished the walk the rows publish no marker, and the epoch bump on the
--- completing pass is what puts them on the screen.
-function Drive:trimRowsPresent()
-  local mask = {}
-  local settings = self.settings
-  if not settings or settings.trims ~= true then return mask end
-  if self.trimsResolved ~= true then return mask end
-  local trims = self.trims
-  if type(trims) ~= "table" then return mask end
-
-  if self:navigateMode() then
-    if Setup.trimEntry(trims, settings.adj_trim) == nil then return mask end
-    for row = 1, Functions.ROW_COUNT do
-      mask[row] = self:functionId(self.bank, row) ~= nil
-    end
-    return mask
-  end
-
-  for row = 1, Functions.ROW_COUNT do
-    mask[row] = Setup.trimEntry(trims, settings.rowTrim and settings.rowTrim[row]) ~= nil
-  end
-  return mask
+  self:dispatch("step", up and 1 or -1, "trim", row)
 end
 
 --- The fast half of a pass: what the board is reporting and what the pilot's thumb is doing.
@@ -1248,18 +1290,24 @@ end
 -- the step the pilot has just asked for, and it is the only thing that tells him the step landed;
 -- the trims are momentary contacts, and a press that begins and ends between two logic ticks is a
 -- press nothing ever saw. Both are cheap -- two telemetry reads and a handful of switch reads, no
--- allocation and no model call -- and none of it runs while the interlock is open.
+-- allocation and no model call -- and none of it runs while the surface is closed.
 --
 -- Guarded on the radio's own clock, so a pass that runs the whole tick as well as this one does
 -- the work once rather than twice.
 function Drive:fastTick(now)
   if self.fastAt == now then return end
   self.fastAt = now
+  local _, refusal = self:watchProfiles()
+  local tuning = self.live == true and self.phase == M.PHASE_LIVE and refusal == nil
+  if self.stepRefusedUntil ~= nil and now >= self.stepRefusedUntil then
+    self.stepRefusedUntil, self.stepRefusedReason = nil, nil
+  end
 
   -- The last adjustment the board reports having made. AdjF reads 0 between adjustments, so a
   -- non-zero reading is a fresh one and its value belongs to that function.
-  local adjF = self.radio.sensor("AdjF")
-  if adjF and adjF > 0 then
+  local adjF = refusal == nil and self.radio.sensor("AdjF")
+  if self.reportFence and refusal == nil and adjF == 0 then self.reportFence = nil end
+  if adjF and adjF > 0 and not self.reportFence and refusal == nil then
     local adjV = self.radio.sensor("AdjV")
     if adjV ~= nil and self.values[adjF] ~= adjV then
       -- Where this parameter stood BEFORE the step the board has just reported. It is what the
@@ -1268,10 +1316,27 @@ function Drive:fastTick(now)
       -- started and says nothing about the last press.
       self.previous[adjF] = self.values[adjF]
       self.values[adjF] = adjV
+      local kind = Functions.scopeOf(adjF) or "global"
+      local index = kind == "pid" and self.profile or self.rateProfile
+      local owner = kind == "global" and self.profileValues.global or self.profileValues[kind][index]
+      local histories = self.profilePrevious
+      local history
+      if kind == "global" then history = histories.global else
+        histories[kind][index] = histories[kind][index] or {}
+        history = histories[kind][index]
+      end
+      history[adjF], owner[adjF] = self.previous[adjF], adjV
+      local changed
+      if kind == "global" then changed = self.changes.global else
+        self.changes[kind][index] = self.changes[kind][index] or {}
+        changed = self.changes[kind][index]
+      end
+      -- Only differences need to be visited when the post-flight scene is built.
+      changed[adjF] = self.primedValues[adjF] ~= nil and self.primedValues[adjF] ~= adjV or nil
       -- The REPORT counter and not the layout epoch, and that one word is the whole of this fix.
       --
       -- The board answers a step 300-400 ms after the press, which is while the pulse that asked
-      -- for it is still standing on the value variable. The layout epoch is in the widget's
+      -- for it is still standing on the value variable. The layout epoch used to be in the live
       -- render key, so bumping it here tore the live surface down and built it again inside the
       -- pulse window -- and the pass that ENDS the pulse is a widget pass. EdgeTX hands those out
       -- in fixed slots from its menus task and never catches up (radio/src/tasks.cpp,
@@ -1285,11 +1350,6 @@ function Drive:fastTick(now)
       -- numbers follow the board on the next frame, and the tree is left standing.
       self.reportEpoch = self.reportEpoch + 1
     end
-    -- Which function the board last reported, kept even when its value did not move: the one
-    -- witness the radio has that the adjustment teller had something to say about THIS parameter.
-    -- No epoch either: which function was reported is a field on the snapshot, and the guard in
-    -- `publish` watches it, so it travels on the next published snapshot without a rebuild.
-    self.spokenId = adjF
   end
 
   -- The postflight list is paged with the walk trim, and it is the ONLY thing a trim does out
@@ -1308,7 +1368,7 @@ function Drive:fastTick(now)
   -- be read at all, and the walk that resolves it is kept off while a touch pulse or hold owns the
   -- variable, as it always was.
   local touching = (self.pulseUntil ~= nil) or (self.holdRow ~= nil)
-  if self:tuning() and (self.trimsResolved or not touching) then
+  if tuning and (self.trimsResolved or not touching) then
     self:pollNavigate(now)
     self:pollTrimStep(now)
   end
@@ -1317,14 +1377,6 @@ function Drive:fastTick(now)
     self.pulseUntil = nil
     self.pulseCode = nil
     self.coolUntil = now + GAP_TICKS
-  end
-  -- The trim's pulse ends on its own clock, and it ends on every pass, whatever the trims were
-  -- doing on it. A magnitude left standing by a pulse nothing is looking at any more is precisely
-  -- the state this module exists to make impossible.
-  if self.trimPulseUntil ~= nil and now >= self.trimPulseUntil then
-    self.trimPulseUntil = nil
-    self.trimCode = nil
-    self.trimCoolUntil = now + GAP_TICKS
   end
   -- A hold that has outlived HOLD_LIMIT_SECONDS is let go here, whether or not its release was
   -- ever reported, and the magnitude falls away below on the same pass. A release that does arrive
@@ -1341,7 +1393,7 @@ function Drive:fastTick(now)
   -- would step once and never again; it goes back to 0 for the gap, and the next pulse is a new
   -- plateau the board counts once. The repeat is the pulse plus the gap plus however late the
   -- passes run, slower and less even than the board's own 200 ms, and every step is exactly one.
-  if self.holdRow ~= nil and self.pulseUntil == nil and now >= (self.coolUntil or 0) then
+  if tuning and self.holdRow ~= nil and self.pulseUntil == nil and now >= (self.coolUntil or 0) then
     local code = Functions.rowCode(self.holdRow, self.holdUp, self.rowValues, self.bank)
     if code ~= nil then
       self.pulseCode = code
@@ -1352,94 +1404,63 @@ function Drive:fastTick(now)
   local want = 0
   if self.pulseUntil ~= nil then
     want = self.pulseCode or 0
-  elseif self.trimPulseUntil ~= nil then
-    want = self.trimCode or 0
   end
 
   if want ~= self.written then
     self:writeValue(want, want ~= 0 and self.radio.flightMode() or nil)
   end
+  if Announcer and type(Announcer.selectionTick) == "function" then Announcer.selectionTick(now) end
 end
 
---- Which profiles the board is flying, and what a change of one of them invalidates.
---
--- The firmware's adjustment functions act on the ACTIVE profile: the PID, rescue and
--- governor-profile terms on `currentPidProfile`, the rates on `currentControlRateProfile`, and a
--- handful of settings on neither. So the profile the pilot is flying is the profile being tuned,
--- and he chooses it with his own switch rather than through this overlay -- which means every
--- value the overlay believes it knows is true of ONE profile, and a change of that profile turns
--- the lot of them into guesses about a profile nobody has read.
---
--- What is dropped is decided by the MSP command each value is read back with, which is already in
--- the function table: functions.lua's `scopeOf`. Everything scoped to the profile that moved goes
--- back to unknown and shows as a dash; the acc trims, the governor config, the battery profile
--- and the status indices are global and are kept. Nothing is READ here -- in the air there is
--- nothing that could be, and on the ground the ground half sends the nine value reads again.
---
--- The first reading of each sensor SEEDS. A widget that comes up on profile 3 has not seen the
--- pilot change anything, and dropping a cache that is not there yet would only cost an epoch.
+-- Profile edges end every pulse/hold and fence the FC's held report before changing owners.
 function Drive:watchProfiles()
-  local dropPid, dropRate = false, false
-  local now = self.radio.now()
-
-  local pid = self.radio.sensor("PID#")
-  if pid ~= nil and pid > 0 then
-    if self.profile ~= nil and self.profile ~= pid then
-      dropPid = true
-      -- The banner, and only for the PID profile: the firmware's adjustments act on the ACTIVE
-      -- profile, the pilot chooses it with his own switch, and after he moves it every value the
-      -- overlay is showing describes a profile nobody is flying. It is set here whether or not
-      -- the overlay is live, because the surface that shows it decides that for itself.
-      self.profileBannerUntil = now + PROFILE_BANNER_TICKS
+  local pid, rate = self.radio.sensor("PID#"), self.radio.sensor("RTE#")
+  if pid == nil or pid <= 0 then pid = nil end
+  if rate == nil or rate <= 0 then rate = nil end
+  local oldPid, oldRate = self.profile, self.rateProfile
+  local changed = oldPid ~= pid or oldRate ~= rate
+  self.profile, self.rateProfile = pid, rate
+  local refusal = self:profileRefusal()
+  local wasPaused = self.profilePaused
+  self.profilePaused = refusal ~= nil
+  if changed then
+    -- The fence is for a change between two KNOWN profiles: a report the board still holds from
+    -- the old one must not be credited to the new one. A profile that only turns unknown is no
+    -- such edge -- the sensors read 0 across a link loss -- and fencing it would leave the steps
+    -- of a flight that continues after the gap waiting for an AdjF of 0 the board need not send.
+    -- Output still stops while the profile is unknown.
+    if pid ~= nil and rate ~= nil then
+      if self.knownPid ~= nil and (self.knownPid ~= pid or self.knownRate ~= rate) then
+        self:cleanup(false)
+        self.reportFence = true
+      end
+      self.knownPid, self.knownRate = pid, rate
+    elseif oldPid ~= nil or oldRate ~= nil then
+      self:cleanup(false)
     end
-    if self.profile ~= pid then self.valueEpoch = self.valueEpoch + 1 end
-    self.profile = pid
-  end
-
-  local rate = self.radio.sensor("RTE#")
-  if rate ~= nil and rate > 0 then
-    if self.rateProfile ~= nil and self.rateProfile ~= rate then dropRate = true end
-    if self.rateProfile ~= rate then self.valueEpoch = self.valueEpoch + 1 end
-    self.rateProfile = rate
-  end
-
-  -- The banner is dropped by the pass it runs out on, so that the snapshot never carries a stamp
-  -- from a profile change the pilot has long since forgotten.
-  if self.profileBannerUntil ~= nil and now >= self.profileBannerUntil then
-    self.profileBannerUntil = nil
-  end
-
-  -- The RE-READ waits for the switch to stand still. Both sensors are watched, because either of
-  -- them moving is a profile change, and the pilot's log has them arriving one pass apart -- which
-  -- on its own doubled every re-read.
-  if dropPid or dropRate then self.profileSettleAt = now + PROFILE_SETTLE_TICKS end
-  if self.profileSettleAt ~= nil and now >= self.profileSettleAt then
-    self.profileSettleAt = nil
-    -- The ground half's signal to read the nine value commands again. It is a flag rather than a
-    -- call because this runs wherever the widget's pass happens to be -- including in the air,
-    -- where the one thing that must not happen is an MSP request.
-    self.profileChanged = true
-    logDrive("profile settled: pid %s rate %s, the value reads are due",
-      tostring(self.profile), tostring(self.rateProfile))
-  end
-
-  if not (dropPid or dropRate) then return false end
-
-  local dropped = 0
-  for id in pairs(self.values) do
-    local scope = Functions.scopeOf(id)
-    if (dropPid and scope == Functions.SCOPE_PID) or (dropRate and scope == Functions.SCOPE_RATE) then
-      self.values[id] = nil
-      dropped = dropped + 1
+    self:cancelSpeech()
+    self:activateProfiles()
+    self.reportEpoch = self.reportEpoch + 1
+    local teller = announcer()
+    if self.phase == M.PHASE_LIVE and not self.profileBusy and teller and type(teller.profile) == "function" then
+      local events = (self._radioSource or _G.rfsuite.preferences or {}).audio_events or {}
+      if pid and pid ~= oldPid and events.pid_profile == false then teller.profile(self, pid) end
+      if rate and rate ~= oldRate and events.rate_profile == false then teller.profile(self, rate) end
     end
   end
-  logDrive("profile changed: pid %s rate %s, %d cached value(s) now unknown",
-    tostring(self.profile), tostring(self.rateProfile), dropped)
-  return true
+  if self.phase == M.PHASE_LIVE and not self.profileBusy and self.sessionProfiles then
+    local teller = announcer()
+    if refusal and (changed or not wasPaused) then
+      if teller and type(teller.pause) == "function" then teller.pause(self) end
+    elseif not refusal and wasPaused then
+      if teller and type(teller.resumed) == "function" then teller.resumed(self) end
+    end
+  end
+  return changed, refusal
 end
 
 --- One pass of the drive. Everything with a cost is behind `live`; a widget whose pilot has the
--- interlock off pays one switch read per pass and nothing else.
+-- surface closed performs no sensor or switch read.
 function Drive:tick(armed)
   local now = self.radio.now()
   local wasLive = self.live
@@ -1457,8 +1478,13 @@ function Drive:tick(armed)
   -- here because the drive touches no telemetry it does not have to, and because the ground half
   -- already has a stricter reading of the same fact for the writes it makes.
   if armed == true then
+    if self.restoreConfirm or self.sessionPickerOpen then
+      -- Ground dialogs close on arming: nothing they offer may run while the model is armed.
+      self.restoreConfirm, self.sessionPickerOpen, self.sessionPick = nil, nil, nil
+      self.valueEpoch = self.valueEpoch + 1
+    end
     self:setPhase(M.PHASE_LIVE)
-  elseif self.phase == M.PHASE_LIVE then
+  elseif self.phase == M.PHASE_LIVE or (self.phase == nil and self.fired > 0) then
     -- The disarm. The delta is worth a screen only if this drive actually asked for a step: a
     -- flight nobody tuned lands back on the ground read-out and not on an empty list.
     self:setPhase((self.fired > 0) and M.PHASE_POST or M.PHASE_GROUND)
@@ -1488,15 +1514,7 @@ function Drive:tick(armed)
     self.bank = shown
   end
 
-  -- The bank the pilot has selected belongs on the wire for the whole time the interlock is on, not
-  -- only on the pass a bank changed and not only in the air. One comparison once it is there.
-  --
-  -- Unconditional at this point on purpose: everything above has already established that the
-  -- interlock is closed and that the setup check allows it -- evaluateInterlock returns early and
-  -- clears both variables where either is untrue -- and all three phases the interlock shows are
-  -- phases in which the surface names a bank. Gating it on the air instead would leave the ground
-  -- read-out and the postflight list showing a bank the wire does not carry, and would put the
-  -- repair of the interlock's own defensive clear a whole arming away.
+  -- All phases name a bank, and only an open surface with a passing setup gate reaches here.
   self:ensureBankArmed()
 
   self:fastTick(now)
@@ -1512,7 +1530,8 @@ end
 function Drive:pageDelta(up, pages)
   local total = math.floor(tonumber(pages) or 0)
   if total < 1 then return false end
-  local page = ((self.deltaPage or 1) - 1 + (up and 1 or -1)) % total + 1
+  local page = (self.deltaPage or 1) + (up and 1 or -1)
+  if page < 1 or page > total then return false, "list_end" end
   if page == self.deltaPage then return false end
   self.deltaPage = page
   self.valueEpoch = self.valueEpoch + 1
@@ -1528,13 +1547,12 @@ local function settingsSignature(settings)
   if type(settings) ~= "table" then return "" end
   local rows = settings.rowTrim or {}
   return table.concat({
-    tostring(settings.radio_enabled), tostring(settings.model_enabled), tostring(settings.switch),
+    tostring(settings.radio_enabled),
     tostring(settings.bank_ch),
     tostring(settings.value_ch), tostring(settings.bank_gvar), tostring(settings.value_gvar),
-    tostring(settings.trims), tostring(settings.backup_profile),
+    tostring(settings.trims), tostring(settings.flight_list),
     tostring(settings.trim_mode), tostring(settings.nav_trim), tostring(settings.bank_trim),
     tostring(settings.adj_trim),
-    tostring(settings.set_mode), tostring(settings.step),
     tostring(rows[1]), tostring(rows[2]), tostring(rows[3]),
     tostring(rows[4]), tostring(rows[5]), tostring(rows[6])
   }, "|")
@@ -1562,8 +1580,8 @@ local function storeStamp(path)
   local time = info.time
   local parts = tostring(info.size)
   if type(time) == "table" then
-    parts = parts .. ":" .. tostring(time.year) .. tostring(time.mon) .. tostring(time.day)
-      .. tostring(time.hour) .. tostring(time.min) .. tostring(time.sec)
+    parts = parts .. ":" .. string.format("%04d-%02d-%02d %02d:%02d:%02d", time.year, time.mon, time.day,
+      time.hour, time.min, time.sec)
   end
   return parts
 end
@@ -1591,10 +1609,6 @@ end
 -- file, and the runtime already watches that one and hands the new table down; opening a second
 -- watcher on it would be the very duplication the paragraph above refuses. Only the per-model
 -- store is stat'ed here.
---
--- And what it is gated on is the RADIO's switch, not the combined answer. The model's switch is
--- IN the file being stat'ed, so gating the stat on it would mean a model switched on from the
--- tool is never noticed by a widget that has already read the store once.
 --
 -- Answers the table to settle from, or nil for "use what the widget was given".
 local function freshPreferences(widget)
@@ -1679,7 +1693,15 @@ function M.get(widget)
     drive = M.newDrive(nil, settings)
     drive._signature = signature
     widget._inflight = drive
+  elseif drive._signature ~= signature and ((widget.state and widget.state.armed == true)
+      or (drive.live == true and drive.phase == M.PHASE_LIVE)) then
+    -- Adopted after landing, like the radio's own settings: a change in the air would rebuild the
+    -- offered groups and leave the list empty for the passes the rebuild takes. The sources are not
+    -- recorded, so the comparison runs again on every call until the flight has ended.
+    return drive
   elseif drive._signature ~= signature then
+    local old = drive.settings or {}
+    local channelsChanged = old.bank_ch ~= settings.bank_ch or old.value_ch ~= settings.value_ch
     drive:cleanup(false)
     drive.settings = settings
     drive.rowTrims = nil
@@ -1694,11 +1716,11 @@ function M.get(widget)
     -- and with it whatever a walk in progress had collected: a half-read list belongs to the
     -- settings it was started under.
     drive.trimScan = nil
-    drive.seeded = false
-    -- The set goes back to what this build knows, and the verdict on the board with it. Both were
-    -- reached under the channels and the layout that have just changed; a set derived from the
-    -- old value channel would keep naming parameters no window on the new one reaches.
-    drive:seedSet()
+    drive.live = false
+    -- A set derived under other channels names parameters no window on the new ones reaches, so
+    -- it goes and the board has to be read again. Any other change keeps the board's set and only
+    -- rebuilds the offered groups (the flight list may be what changed).
+    if channelsChanged then drive:seedSet() else drive:rebuildGroups() end
   end
   drive._source = prefs
   drive._radioSource = radioPrefs
@@ -1737,67 +1759,33 @@ local function publish(widget, drive)
   local prime = drive.prime
   local primePhase, primeDone = nil, nil
   if type(prime) == "table" then primePhase, primeDone = prime.phase, prime.done end
-  -- Whether the interlock is closed and refused because the trims are still being walked -- or have
+  -- Whether the surface is open and refused because the trims are still being walked -- or have
   -- just been, and the verdict they wait for is taken on the next pass (Drive:evaluateInterlock), so
   -- the surface does not drop to the theme for the one pass in between. Read off the drive rather
   -- than through M.verdict, which would take the check on this very pass.
   local trimsChecking = drive.live ~= true and drive.phase ~= M.PHASE_LIVE
-    and drive.rawSwitch == true and type(drive.settings) == "table" and drive.settings.trims == true
+    and drive.open == true and type(drive.settings) == "table" and drive.settings.trims == true
     and (trimsPending(drive) or drive._checkedAt == nil)
-  -- and whether the surface has a refusal to show. Neither the switch closing nor a verdict being
+  -- And whether the surface has a refusal to show. Neither opening the surface nor a verdict being
   -- taken moves an epoch -- the first verdict after the walk is taken on a pass after the snapshot
   -- was built -- so the guard below watches the answer itself.
   local setupFault = drive._checkFault == true or trimsChecking
+  local setupVerdict = trimsChecking and M.TRIMS_PENDING or drive._checkResult
   if type(snapshot) == "table" and snapshot.epoch == epoch
     and snapshot.reportEpoch == reportEpoch
     and snapshot.setupFault == setupFault
-    and snapshot.trimsChecking == trimsChecking
-    and snapshot.spokenId == drive.spokenId
+    and snapshot.setupVerdict == setupVerdict
     and snapshot.live == drive.live
+    and snapshot.linkLost == (drive.linkLost == true)
     and snapshot.bank == drive.bank and snapshot.row == drive.row
     and snapshot.holding == holding
     and snapshot.phase == drive.phase
+    and snapshot.group == drive.group and snapshot.entry == drive.entry
+    and snapshot.valueMode == drive.valueMode and snapshot.profilePaused == drive.profilePaused
+    and snapshot.groupPicker == (drive.groupPicker == true)
     and snapshot.primePhase == primePhase and snapshot.primeDone == primeDone
-    and snapshot.stepRefusedUntil == drive.stepRefusedUntil
-    and snapshot.stepRefusedReason == drive.stepRefusedReason
-    and snapshot.profileBannerUntil == drive.profileBannerUntil then
+    and snapshot.stepRefusedReason == drive.stepRefusedReason then
     return
-  end
-
-  -- The names of the trims the rows are driven from. Read here rather than in the screen because
-  -- the resolved block is the drive's -- the screen is forbidden to probe the radio at all -- and
-  -- because the labels are the LOCALISED, renameable stick short names, so no stem can be guessed
-  -- from the row number. In navigate mode a row carries no trim of its own and the field stays
-  -- nil: one trim adjusts whichever row is selected, and naming it on all six would be a lie.
-  local rows = {}
-  local mask = drive:trimRowsPresent()
-  local trims = (drive.trimsResolved == true) and drive.trims or nil
-  local rowTrim = drive.settings.rowTrim
-  local navigate = drive:navigateMode()
-  for row = 1, Functions.ROW_COUNT do
-    local id = drive:functionId(drive.bank, row)
-    local trimName = nil
-    if not navigate and type(trims) == "table" and type(rowTrim) == "table" then
-      local entry = Setup.trimEntry(trims, rowTrim[row])
-      trimName = entry and entry.name or nil
-    end
-    rows[row] = {
-      id = id,
-      name = id and Functions.nameOf(id) or nil,
-      value = id and drive.values[id] or nil,
-      trim = mask[row] == true,
-      trimName = trimName
-    }
-  end
-
-  -- Which trim moves the parameter that is selected. In navigate mode that is the adjust trim,
-  -- whatever the row; in rows mode it is the selected row's own.
-  local activeTrim = nil
-  if type(trims) == "table" then
-    local stored = navigate and drive.settings.adj_trim
-      or (type(rowTrim) == "table" and rowTrim[drive.row] or 0)
-    local entry = Setup.trimEntry(trims, stored)
-    activeTrim = entry and entry.name or nil
   end
 
   -- The ground half's progress, summarised rather than handed over. Its own table is mutated in
@@ -1819,101 +1807,110 @@ local function publish(widget, drive)
     }
   end
 
-  -- The undo and the transfer, likewise copied rather than aliased. The transfer table in
-  -- particular is mutated in place -- a copy that is running writes its own outcome into it when
-  -- the reply lands -- so a snapshot pointing at it would change under a closure that is reading
-  -- it. Only the scalars travel; the backup's own value table is not on this screen.
-  local backup = drive.backup
-  local backupState = nil
-  if type(backup) == "table" then
-    -- The profile the backup was taken FROM travels with it. A backup is an undo for that one
-    -- profile and for no other, because the board's adjustments only ever moved that one.
-    backupState = { profile = backup.profile, at = backup.at, source = backup.source,
-      -- The wall clock the copy was made at, so the ground line can say WHEN and not only THAT.
-      clock = backup.clock }
-  end
-
   local transfer = drive.transfer
   local transferState = nil
   if type(transfer) == "table" then
-    transferState = { kind = transfer.kind, state = transfer.state, reason = transfer.reason }
-  end
-
-  -- What the board's own slot table said when it was held against the standard set. The verdict,
-  -- the count and the cells named below travel; the full list of slots behind them stays the ground
-  -- half's own, and the screen has room for a sentence rather than for a list.
-  local compare = drive.compare
-  local compareState = nil
-  if type(compare) == "table" then
-    compareState = { verdict = compare.verdict, count = compare.count,
-      -- Whether the step is the whole of the difference. It travels because the pilot can fix
-      -- that one on the radio, in one field, and the sentence on screen is a different sentence.
-      stepOnly = compare.stepOnly,
-      -- The cells whose slot holds another function, and which one: a step there moves that
-      -- function rather than the parameter the row names, so the sentence names them. It is the
-      -- finished comparison's own list, complete when the verdict is, and read and never written.
-      named = compare.named }
+    transferState = { kind = transfer.kind, state = transfer.state, reason = transfer.reason, results = transfer.results }
   end
 
   local activeId = drive:functionId(drive.bank, drive.row)
+  local activeValue = activeId and drive.values[activeId]
+  local function profileNumber(value) return value ~= nil and tostring(value) or "?" end
+  local group = drive.groups[drive.group]
+  local groupRows = drive._groupRows
+  -- Ground progress changes counters, not row values. Reuse their snapshot until a report,
+  -- profile activation or group change actually changes what those rows display.
+  if groupRows == nil or drive._rowsGroup ~= group or drive._rowsValues ~= drive.values
+    or drive._rowsStart ~= drive.primedValues or drive._rowsReport ~= reportEpoch then
+    groupRows = {}
+    if group then
+      for i = 1, #group.entries do
+        local cell = group.entries[i]
+        local value = drive.values[cell.id]
+        local start = drive.primedValues and drive.primedValues[cell.id]
+        groupRows[i] = { differenceText = start ~= nil and value ~= nil and value ~= start and string.format("%+d", value - start) or "", id = cell.id, name = cell.name, bank = cell.bank, row = cell.row,
+          value = value, valueText = value ~= nil and tostring(math.floor(value + 0.5)) or "--" }
+      end
+    end
+    drive._groupRows, drive._rowsGroup, drive._rowsValues = groupRows, group, drive.values
+    drive._rowsStart, drive._rowsReport = drive.primedValues, reportEpoch
+  end
+  if drive._profileListSource ~= drive.sessionProfiles then
+    drive._profileListSource = drive.sessionProfiles
+    local names = {}
+    for _, kind in ipairs({"pid", "rate"}) do
+      local indices = {}
+      for index = 1, 6 do
+        if drive.sessionProfiles and drive.sessionProfiles[kind][index] then indices[#indices + 1] = tostring(index) end
+      end
+      names[#names + 1] = (kind == "pid" and "PID " or "RTE ") .. table.concat(indices, ",")
+    end
+    drive._profileListText = t("widgets.dashboard.inflight_read_profiles", "Read") .. " " .. table.concat(names, " / ")
+  end
+  local restoreSummary = {}
+  if transfer and transfer.results and transfer.state ~= "busy" then
+    for _, kind in ipairs({"pid", "rate", "global"}) do
+      for index = 1, kind == "global" and 1 or 6 do
+        local key = kind == "global" and "global" or kind .. index
+        local result = transfer.results[key]
+        if result then
+          local label = kind == "global" and t("widgets.dashboard.inflight_global", "Global")
+            or (kind == "pid" and "PID " or "RTE ") .. index
+          restoreSummary[#restoreSummary + 1] = label .. ": " .. (result == "ok"
+            and t("widgets.dashboard.inflight_result_ok", "OK") or t("widgets.dashboard.inflight_result_failed", "failed/pending"))
+        end
+      end
+    end
+  end
   state.inflight = {
+    restoreSummary = table.concat(restoreSummary, "; "),
     epoch = epoch,
     -- The report counter travels beside the layout epoch so that the guard above reads one flat
     -- table. Nothing in the widget's render key may ever be derived from it.
     reportEpoch = reportEpoch,
-    -- Both switches, and the conjunction the drive actually runs on. The two flags travel beside
-    -- it because a surface that says nothing is happening should be able to say which of them is
-    -- the one that is off.
-    active = drive.settings.active == true,
-    -- and the third reason nothing is happening: the model's own setup check refused. It is on
+    -- The model's setup check can refuse output. Its answer is on
     -- the snapshot because the widget decides from the snapshot alone which surface a pass
     -- belongs to, and a refusal has to reach a surface that can say so. A closing refused while
     -- the trims are being walked is that refusal too: its surface says the trims are being checked.
     setupFault = setupFault,
-    trimsChecking = trimsChecking,
-    radioEnabled = drive.settings.radio_enabled == true,
-    modelEnabled = drive.settings.model_enabled == true,
+    setupVerdict = setupVerdict,
     live = drive.live,
+    linkLost = drive.linkLost == true,
     -- Which of the three surfaces this is. It is on the snapshot AND in the widget's render key,
     -- because a phase change is a different screen and not a different number on the same one.
     phase = drive.phase,
-    -- How many pages the postflight list has and which one is showing. The screen writes the
-    -- first back onto the drive when it lays the list out; the trim reads it to page.
-    deltaPage = drive.deltaPage,
+    group = drive.group,
+    entry = drive.entry,
+    groups = drive.groups,
+    groupRows = groupRows,
+    valueMode = drive.valueMode,
+    groupPicker = drive.groupPicker == true,
+    -- Bumped by the encoder sensor before a ladder half runs out; part of the live scene key.
+    ladderEpoch = drive.ladderEpoch,
+    profilePaused = drive.profilePaused,
+    profileRefusal = drive:profileRefusal(),
+    restorePending = drive.restorePending,
+    baseline = drive.baseline and drive.baseline.meta,
+    profileText = t("widgets.dashboard.inflight_title", "TUNING") .. " PID " .. profileNumber(drive.profile)
+      .. " / RTE " .. profileNumber(drive.rateProfile),
+    pauseActive = t("widgets.dashboard.inflight_active_profiles", "Active PID / Rate") .. " "
+      .. profileNumber(drive.profile) .. " / " .. profileNumber(drive.rateProfile),
+    pauseSession = drive.baseline and drive._profileListText
+      or t("widgets.dashboard.inflight_baseline_missing", "No complete SD baseline"),
+    activeComparison = activeValue ~= nil and drive.primedValues and drive.primedValues[activeId] ~= nil
+      and (t("widgets.dashboard.inflight_start", "Start") .. " " .. tostring(drive.primedValues[activeId])
+        .. " / " .. string.format("%+d", activeValue - drive.primedValues[activeId])) or "",
+    activeValueText = activeValue ~= nil and tostring(math.floor(activeValue + 0.5)) or "--",
     -- True exactly while a step control is held down. The widget reads it and leaves the render
     -- key alone while it is true; see M.release above for what a rebuild would cost here.
     holding = holding,
     bank = drive.bank,
-    bankShown = drive.bankShown,
     row = drive.row,
-    rows = rows,
     activeId = activeId,
-    activeName = activeId and Functions.nameOf(activeId) or nil,
-    activeValue = activeId and drive.values[activeId] or nil,
-    -- What the ground half read off the board before the flight, so the screen can show where a
-    -- parameter started as well as where it is.
-    activePrimed = activeId and type(drive.primedValues) == "table" and drive.primedValues[activeId] or nil,
-    -- Where this parameter stood before the last step the board reported. It is what the live
-    -- surface puts beside the value now that the caption line is gone.
-    activePrevious = activeId and drive.previous[activeId] or nil,
-    -- When a refused press stops being said on screen. Read through a closure against the clock,
-    -- the way the profile banner is, so nothing rebuilds to put it up or to take it down.
-    stepRefusedUntil = drive.stepRefusedUntil,
+    activeName = activeId and Functions.shortName(activeId) or nil,
     stepRefusedReason = drive.stepRefusedReason,
-    -- When the ground half last finished reading the board, as the radio's own wall clock.
-    readAt = drive.readAt,
-    activeTrim = activeTrim,
-    -- The last function the board reported having stepped, for a surface to hold against the
-    -- selected one. It moves no epoch: the guard above watches it, so it reaches the snapshot on
-    -- the next publish and no tree is rebuilt to carry it.
-    spokenId = drive.spokenId,
-    navigate = drive:navigateMode(),
     profile = drive.profile,
     rateProfile = drive.rateProfile,
-    -- When the banner naming a just-changed PID profile runs out, as a radio tick. The surface
-    -- reads it in a closure and holds it against the clock, so the banner goes away on its own
-    -- without any pass having to rebuild anything to take it off.
-    profileBannerUntil = drive.profileBannerUntil,
     prime = primeState,
     -- The two scalars the guard above compares. They are the same numbers primeState carries; a
     -- copy of them sits here so that the guard reads one flat table rather than reaching into a
@@ -1925,43 +1922,76 @@ local function publish(widget, drive)
     -- usable. It is on the screen because a set that silently fell back to the reference layout
     -- and a set that came off this board look exactly alike otherwise.
     setSource = drive.setSource,
-    -- and, in the standard layout, whether the board carries it: the set is known without the
-    -- board in that mode, so its table is read to be compared rather than to be believed.
-    compare = compareState,
-    backup = backupState,
-    -- Which profile the pilot chose as the undo, 0 when he has chosen none. On the snapshot
-    -- because the ground surface says where to set it when it is unset, and a reactive closure
-    -- reads the snapshot and nothing else.
-    backupProfile = math.floor(tonumber(drive.settings.backup_profile) or 0),
+    -- For the ground surface: how many cells the board offers, how many of them would jump on the
+    -- first press, and whether the last read continued the stored session or started one.
+    cellCount = drive.cellCount,
+    boundsCount = drive.boundsCount,
+    sessionMode = drive.sessionMode,
+    readRequired = drive.readRequired,
     transfer = transferState
   }
 end
 
 --- One pass, called from the widget's background half.
-function M.tick(widget)
-  local drive = M.get(widget)
+-- Whether a ground read is between its first and last reply: phases other than idle, done and error.
+local function primeBusy(drive)
+  local phase = type(drive.prime) == "table" and drive.prime.phase or nil
+  return phase ~= nil and phase ~= "idle" and phase ~= "done" and phase ~= "error"
+end
+
+function M.tick(widget, drive)
+  drive = drive or M.get(widget)
   if drive == nil then return false end
-  if drive.settings.active ~= true then
+  if drive.settings.active ~= true or drive.open ~= true then
+    drive:evaluateInterlock(drive.radio.now(), false)
     if widget.state and widget.state.inflight ~= nil then widget.state.inflight = nil end
     return false
   end
-  -- The setup check as a gate, the second of the two places it stands. evaluateInterlock refuses
-  -- to close on a fault; this refuses the rest of the pass, so that a model the check has just
-  -- turned down is not primed over MSP and its profiles are not watched either. The call below is
-  -- that same refusal and not a second one: it drops `live`, takes both variables back to zero if
-  -- anything was standing in them, and tracks the switch so the next closing walks the model
-  -- again. The snapshot IS published, because the surface has to be able to say why the interlock
-  -- did nothing.
+  if drive.fcWorked then
+    drive.fcWorked = nil
+    publish(widget, drive)
+    return false
+  end
+  local grouped = not drive.fcSetupOpen and drive:stepGroups()
+  if widget.state and widget.state.armed == true
+      and (drive.restoreConfirm or drive.sessionPickerOpen) then
+    -- Ground dialogs close on arming, whether tuning is open or closed: nothing they offer may run
+    -- while the model is armed.
+    drive.restoreConfirm, drive.sessionPickerOpen, drive.sessionPick = nil, nil, nil
+    drive.valueEpoch = drive.valueEpoch + 1
+  end
+  local state = widget.state
+  local session = _G.rfsuite and _G.rfsuite.session
+  local pending = drive.pendingSave
+  if pending ~= nil and session and session.mcu_id ~= pending.mcu then
+    -- Asked on another board: never written into this one's store.
+    drive.pendingSave = nil
+    if pending.steps and drive.fcSurface then drive.fcSurface.saved(widget, drive, false, "board_changed") end
+  elseif pending ~= nil and not grouped and not primeBusy(drive)
+      and drive.profileJob == nil and type(state) == "table" and state.armedSeen == true
+      and state.armed ~= true then
+    -- The model-default save on a pass that does nothing else (no group step, no profile job),
+    -- with the model known to be disarmed: the store writer serialises the whole store.
+    drive.pendingSave = nil
+    local ok, err = M.saveFlightList(pending.list, pending.steps)
+    drive.saveResult = ok and "ok" or tostring(err or "failed")
+    drive.valueEpoch = drive.valueEpoch + 1
+    if pending.steps and drive.fcSurface then drive.fcSurface.saved(widget, drive, ok, err) end
+    publish(widget, drive)
+    return false
+  end
+  if drive.fcSetupOpen then publish(widget, drive); return false end
+  -- A setup fault refuses output and still publishes the fullscreen refusal.
   if type(M.verdict(drive)) == "table" then
     drive:evaluateInterlock(drive.radio.now())
     publish(widget, drive)
     return false
   end
   -- The two profile sensors, watched whether or not the overlay is up and gated on the link
-  -- rather than on the interlock: the pilot changes a profile with his own switch, at any time,
+  -- rather than on surface ownership: the pilot changes a profile with his own switch, at any time,
   -- and what the overlay believes about a value is only ever true of the profile it was read
   -- from. Two getValue calls on the widget's logic tick.
-  if widget.state ~= nil and widget.state.fblConnected == true then
+  if widget.state ~= nil and widget.state.fblConnected == true and drive.live ~= true then
     drive:watchProfiles()
   end
   local live = drive:tick(widget.state.armed == true)
@@ -1983,10 +2013,10 @@ end
 function M.sample(widget)
   if type(widget) ~= "table" then return false end
   local drive = widget._inflight
-  if drive == nil or drive.live ~= true then return false end
-  drive:fastTick(drive.radio.now())
+  if drive == nil or (drive.open ~= true and drive.live ~= true) then return false end
+  if drive.live == true then drive:fastTick(drive.radio.now()) end
   publish(widget, drive)
-  return true
+  return drive.live == true
 end
 
 --- The held control let go, from a caller that is about to destroy the object which would have
@@ -2007,34 +2037,53 @@ function M.release(widget)
   return true
 end
 
---- Everything off, from a widget that is going away. Never allocates a drive that does not
--- already exist: a widget that never ran the overlay has nothing to clean up.
---
--- The PHASE goes with it, and that is a defect measured on a radio rather than a tidying up. This
--- is reached on every pass that is not a foreground pass of an enabled overlay, so a widget put
--- into the background after a flight came back with `live` false and the phase still `post`: the
--- next closing of the interlock was then not a nil -> ground transition, it raised no request for
--- an undo, and the postflight surface stood across two interlock cycles -- 79 seconds of them in
--- the pilot's own card log, neither of which could have asked for a backup.
---
--- Ended the way the interlock's falling edge ends it, because that is this file's own contract for
--- leaving: setPhase writes the phase and takes the postflight flag down with it, and endPost is the
--- defensive second half of the same statement.
+-- A link gap invalidates current readings even when the same board returns. The flight may
+-- continue while armed, but its next ground pass must read the complete board again.
+function Drive:invalidateRead()
+  if not self.readRequired then
+    self.readArmed = self.phase == M.PHASE_LIVE
+    self.valueEpoch = self.valueEpoch + 1
+  end
+  self.readRequired, self.valuesRead, self.compare = true, nil, nil
+  self._primeAutoDone, self._primeLinkSince, self._primeFails = false, nil, nil
+  local session = _G.rfsuite and _G.rfsuite.session
+  if session then session.inflightSlots = nil end
+  if self.prime then self.prime.invalidated = true end
+  if self.profileJob then self.profileJob.linkLost = true end
+end
+
+--- Revoke output during telemetry loss without advancing the flight phase from missing arm data.
+function M.pause(widget)
+  if type(widget) ~= "table" then return end
+  local drive = widget._inflight
+  if drive == nil then return end
+  if not drive.linkLost then drive:invalidateRead() end
+  drive:evaluateInterlock(drive.radio.now(), false)
+  if drive.fcSurface then drive.fcSurface.close(widget, drive) end
+  drive.valueMode = false
+  drive.groupPicker = nil
+  drive.linkLost = true
+  -- No report fence here. A report held across the gap belongs to the profile it was taken in, and
+  -- a profile that changed during the gap is fenced by watchProfiles on its own edge. A fence that
+  -- waits for AdjF to read 0 would refuse every step for as long as the board sends no fresh 0.
+  publish(widget, drive)
+end
+
+--- Revoke surface ownership without ending the flight or its post-flight comparison.
 function M.cleanup(widget)
   if type(widget) ~= "table" then return end
   local drive = widget._inflight
   if drive == nil then return end
-  local wasLive, wasPhase = drive.live, drive.phase
-  drive.live = false
-  drive.seeded = false
-  drive:setPhase(nil)
-  drive:endPost("cleanup")
-  drive:cleanup(false)
-  -- Once per exit rather than once per pass. What is worth a line here is the pass that actually
-  -- took the overlay down: a backgrounded widget was invisible in the card log until now, and a
-  -- trace that simply stops reads like a widget that died.
-  if wasLive == true or wasPhase ~= nil then
-    logDrive("overlay off: was live %s, phase %s", tostring(wasLive == true), tostring(wasPhase))
+  drive:evaluateInterlock(drive.radio.now(), false)
+  if drive.fcSurface then drive.fcSurface.close(widget, drive) end
+  drive.valueMode = false
+  drive.groupPicker = nil
+  drive.linkLost = nil
+  -- Observe landing even while closed. Reopening during this flight keeps PHASE_LIVE and
+  -- its selection; entering it from ground/post on the next arming starts at the first entry.
+  if drive.phase == M.PHASE_LIVE and widget.state and widget.state.armed == false then
+    drive:setPhase(drive.fired > 0 and M.PHASE_POST or M.PHASE_GROUND)
+    drive:forgetVerdict()
   end
   if widget.state then widget.state.inflight = nil end
 end

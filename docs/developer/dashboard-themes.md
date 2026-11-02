@@ -222,7 +222,9 @@ in use, so those modules are read from the card again on its next load after a r
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be
 released with the rest, and the next load of the theme would pair it with fresh copies of the
-modules it requires.
+modules it requires. A module loaded this way returns its table: one that returns nothing gets
+no cache entry either, `rfsuite.require` hands out `nil` for it as for a file that did not load,
+and every load runs it again ([the module loader](../reference/module-loader.md)).
 
 ## What a phase module returns
 
@@ -568,8 +570,30 @@ theme that wants both names both. A theme that names none of the four reaches no
 neither sensor.
 
 The rest of a box is presentation and is shared across the types that can use it: `title`,
-`titlepos`, `titlealign`, `titlecolor`, `textcolor`, `bgcolor`, `font`, `unit`, `decimals`,
-`transform`, `autosize_chars`, `thresholds`. Thresholds — the dynamic colour lists and how a
+`titlepos`, `titlealign`, `titlecolor`, `textcolor`, `bgcolor`, `bordercolor`, `borderwidth`,
+`rounded`, `font`, `unit`, `decimals`, `transform`, `autosize_chars`, `thresholds`.
+
+The tile under a box is `objects/common.lua`'s `drawContainer`: a rectangle filled with `bgcolor`
+(`WHITE` when nil), then, where the box gives `bordercolor`, a frame `borderwidth` pixels wide (2
+by default) in that colour, named colours included; given as functions, the three are called
+with the box and the state when the box is built. `rounded` is the corner radius of both.
+`bgcolor = false` draws no fill, so the box lies on whatever was drawn before it — a panel box
+declared first in the same cells, as @Kevd's in-flight arcs stand in their frame. Such a box is
+not counted when the full-screen info bar takes the colour most tiles are filled with. Each is
+fixed when the box is built, so none of them costs anything per frame.
+
+A `gauge` reads the live value of its `source` unless it carries `stattype` `"min"` or `"max"`:
+then every getter reads that extreme of the flight out of the flight record, with the key
+`Utils.statFields` resolves once at render — the same record, and the same rule for which flight
+it answers for, as a `stats` text box. Only a source with a recorded extreme has one (see
+[flight statistics](../reference/flight-statistics.md)); for any other pair — `esc_temp` with
+`"min"`, say — the gauge draws no value, the `--` a `stats` box draws for it, and not the live
+reading under a caption that names an extreme. A horizontal `bar` is half its panel high, centred, and 4 px
+in from each side; its paddings act per axis. Given `gaugepaddingtop` or `gaugepaddingbottom` it
+spans the panel's height less them (an absent one of the two counts 0), given `gaugepaddingleft`
+or `gaugepaddingright` its width (an absent one counts 4), and an axis given neither keeps the
+default — the fields a vertical bar has always read. Both are clamped to the panel, so paddings
+larger than it leave a 1 px bar inside the tile. Thresholds — the dynamic colour lists and how a
 temperature limit is converted for a radio set to Fahrenheit — are described once, in
 [user themes](../dashboard/user-themes.md); they behave identically in a shipped theme.
 
@@ -769,6 +793,10 @@ count, or were filled in for a different cell count. A move of those bounds rebu
 the render key is computed again in the pass that moves them, so the scene is queued under the key
 for the new bounds.
 
+The ESC current limit the model has on file, `state.escCurrentLimit` (nil without one), is part
+of the render key too, so a box that takes its `max` from it is rebuilt when the limit arrives
+after the first build or the stored figure changes.
+
 The cell count is the one the flight controller reports in telemetry. Until that reads a count --
 it reads 0 for the moment after a pack is plugged in, until the board has detected the pack -- and
 on a model without that sensor, the widget takes the cell count configured on the flight controller
@@ -869,8 +897,9 @@ ordinary theme settings, so the standard values and Per-Model Settings use the s
 and override rules as the theme's other settings.
 
 To offer the shared pages, declare `pages` in `init.lua` with the ids `preflight`, `inflight`,
-`postflight` and `keys`, alongside any pages the theme owns. Use the phase titles **Before
-flight**, **In flight** and **Statistics**, and **Keys** for the key page, with literal i18n
+`postflight`, `bar` and `keys`, alongside any pages the theme owns. Use the phase titles **Before
+flight**, **In flight** and **Statistics**, **Info bar** for the bar page and **Keys** for the
+key page, with literal i18n
 markers for shipped themes as in `themes/default/init.lua`. The manifest selects the pages;
 `configure.lua` must delegate them to `app/pages/settings/dashboard/fields_form.lua` as
 `themes/default/configure.lua` does:
@@ -892,6 +921,12 @@ called with a nil zone and a state containing `themeConfig`, so it must be able 
 the same named boxes with those inputs. Rows use the box's own caption, then its default
 entry's label, then Tile as a fallback.
 
+The Info bar page holds `bar_buttons` (`"left"` or `"right"`) and `bar_slot1` to `bar_slot6`,
+each one of `none`, `clock`, `battery_icon`, `battery_percent`, `battery_volts`, `link_bars` and
+`link_value`, position 1 at the end away from the buttons. A key never stored, or holding a value
+not in that list, takes its default (`left`; `battery_icon`, `clock`, `link_bars`, then `none`),
+so a theme that takes fullscreen gets the default bar even without the page.
+
 The Keys page binds PAGE >, PAGE <, MDL, SYS and TELE to the host actions defined in
 `widgets/dashboard/keys.lua`: nothing, quick menu, suite tool, Flight Log and exit full
 screen. Bindings start unbound. The radio-wide Keys page takes priority; rows for keys it
@@ -911,7 +946,15 @@ The mode follows the theme's `init.lua`, not the module on screen: a phase whose
 back to the default theme's inside a theme that opted in is drawn full screen as well.
 
 The build is the theme's own. A declarative theme is built by the engine from the same boxes as
-in the zone, at the larger size; a free-form theme's `build(zone, state, ctx)` receives the
+in the zone, at the larger size, laid out below an info bar the widget draws across the top of
+the screen: the place the radio's own top bar takes on a normal screen, which fullscreen hides.
+The bar is drawn in the colour most of the theme's boxes are filled with (`bgcolor`; a box
+without one counts as `WHITE`, a function is not counted; the radio's title bar colour where no
+box has a literal fill), with dark text on `WHITE` and light text on anything else. It carries
+the controls at one end and, from the other end inwards, the readings the pilot chooses on the
+shared **Info bar** page (theme configuration keys `bar_buttons` and `bar_slot1` to
+`bar_slot6`, described above); a reading that would reach the controls is left out, with every one after
+it. A free-form theme's `build(zone, state, ctx)` receives the
 fullscreen zone and a third argument, `ctx`, which it never receives in the zone. The render key
 is the theme's, taken at the fullscreen size and under the same 2 Hz throttle as in the zone.
 

@@ -49,7 +49,7 @@ function M.build(ctx)
   local i18n = ctx.i18n
 
   local mfg = _G.rfsuite and _G.rfsuite.selectedEscMfg or "unknown"
-  local title = string.upper(mfg) .. " Configurator"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), string.upper(mfg))
   
   if type(ctx.syncHeaderTitle) == "function" then
     ctx.syncHeaderTitle(title, M.getHeaderActions())
@@ -58,7 +58,7 @@ function M.build(ctx)
   children[#children + 1] = {
     type = "label",
     x = x + 10, y = y + 10,
-    text = title .. " - Work in progress...",
+    text = string.format(pageText(i18n, "run_work_in_progress", "%s - Work in progress..."), title),
     color = Palette.text,
     font = MIDSIZE
   }

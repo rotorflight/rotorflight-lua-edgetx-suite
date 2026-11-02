@@ -1,9 +1,8 @@
 -- Writing the standard adjustment set onto the flight controller.
 --
--- This is the one place in the in-flight tuning feature that changes the BOARD. The overlay's
--- widget half never does: it moves two global variables and the board's own adjustment slots do
--- the rest, so nothing it does needs MSP at all. What lives here belongs to the settings page,
--- which is reached on the ground with the model disarmed, and it does exactly what their own
+-- This is the suggested-functions writer on the overlay's ground surface. In flight the widget
+-- moves two global variables and the board's own adjustment slots do the rest. On the ground,
+-- with the model disarmed, this does exactly what their own
 -- Adjustments page does when it saves -- MSP_SET_ADJUSTMENT_RANGE per slot, chained one reply at
 -- a time, then a single MSP_EEPROM_WRITE -- with the payload built from the standard set instead
 -- of from a screenful of fields.
@@ -296,7 +295,12 @@ end
 -- A chain of thirty-seven writes takes seconds, and a pilot can arm inside it. The runtime would
 -- drop the rest silently; this stops and says which slot it stopped at.
 local function stillAllowed(run, handlers)
-  if run.cancelled == true then return false end
+  if run.cancelled == true or run.phase == M.PHASE_ERROR then return false end
+  if run.boardOnLink then
+    local board = run.boardOnLink()
+    if board == nil then return fail(run, handlers, "no_link") end
+    if board ~= run.board then return fail(run, handlers, "board_changed") end
+  end
   local refusal = M.armRefusal()
   if refusal ~= nil then
     fail(run, handlers, refusal)
@@ -305,39 +309,38 @@ local function stillAllowed(run, handlers)
   return true
 end
 
---- The phases a run may be abandoned in: the READ, and the plan waiting for an answer.
---
--- Nothing past them is on this list and that is the point. A write chain stopped half way leaves
--- the flight controller holding part of one adjustment set and part of another -- a state no
--- screen describes and the pilot has no way of recognising in the air -- so a page that is left
--- during the write lets the queue finish it. Which is why the screen says so while it runs.
-local CANCELLABLE = {
-  [M.PHASE_RXMAP] = true,
-  [M.PHASE_FUNCTION_IDS] = true,
-  [M.PHASE_PLANNED] = true
-}
-
---- Give a run up, if it is in a phase that may be given up.
---
--- Answers whether it was. The messages still in the queue are dropped by client id -- the ground
--- half of the overlay uses a different one, so a prime running beside this is not touched -- and
--- the flag above keeps their error handlers from reporting the drop as a refusal.
+--- Stop requests in every phase; a partial write must be checked on the next ground read.
 function M.cancel(run)
   if type(run) ~= "table" then return false end
-  if CANCELLABLE[run.phase] ~= true then return false end
   run.cancelled = true
-  run.phase = M.PHASE_IDLE
+  run.next = nil
   local queue = queueOf()
-  if queue ~= nil and type(queue.clear) == "function" then
-    pcall(queue.clear, queue, M.CLIENT)
-  end
-  logSetup("fc setup cancelled: nothing had been written")
+  if queue ~= nil and type(queue.clear) == "function" then queue:clear(M.CLIENT) end
+  return true
+end
+
+-- Deferred replies and continuations share one slot. Each pass consumes at most one operation.
+function M.tick(run, handlers)
+  if not stillAllowed(run, handlers) then return false end
+  local nextStep = run.next
+  run.next = nil
+  if nextStep then nextStep() end
   return true
 end
 
 -- ---------------------------------------------------------------------------
 -- Reading the board
 -- ---------------------------------------------------------------------------
+
+local function enqueue(run, queue, message)
+  local reply = message.processReply
+  message.processReply = function(...)
+    if run.cancelled or run.phase == M.PHASE_ERROR then return end
+    local args = {...}
+    run.next = function() reply(table.unpack(args)) end
+  end
+  queue:add(message)
+end
 
 --- Hold the record that has just come in against its cell of the set, and nothing else.
 --
@@ -362,7 +365,7 @@ local function sendVerifyRead(run, handlers, slot)
   local api = apiModule("get_adjustment_range")
   if api == nil then return fail(run, handlers, "no_api") end
 
-  queue:add({
+  enqueue(run, queue, {
     command = CMD_ADJ_RANGE,
     -- The slot index is 0-based on the wire, and a payload does not make this a write: it says
     -- which slot to answer for. The queue infers `isWrite` from a non-empty payload, so both are
@@ -378,11 +381,11 @@ local function sendVerifyRead(run, handlers, slot)
       compareArrived(run, slot)
       run.done = run.done + 1
       run.slotAt = run.slotAt + 1
-      -- The counters move here and the next record goes out from the same reply; whether anything
+      -- The counters move here and the next record waits for another pass; whether anything
       -- is REDRAWN for it is the caller's decision, and after the pilot's round-3 log it is not
-      -- taken per record. See fcaction.lua.
+      -- taken per record. The overlay rebuilds only at phase changes.
       callHandler(handlers, "onProgress", run)
-      M.stepVerify(run, handlers)
+      run.next = function() M.stepVerify(run, handlers) end
     end,
     errorHandler = replyFailed(run, handlers, "verify")
   })
@@ -405,7 +408,7 @@ local function sendFunctionIds(run, handlers)
   if api == nil then return fail(run, handlers, "no_api") end
 
   run.phase = M.PHASE_FUNCTION_IDS
-  queue:add({
+  enqueue(run, queue, {
     command = CMD_ADJ_FUNCTION_IDS,
     isWrite = false,
     simulatorResponse = api.simulatorResponse,
@@ -432,8 +435,7 @@ end
 -- old to answer the paged reads.
 function M.begin(run, handlers)
   if type(run) ~= "table" then return false end
-  local refusal = M.armRefusal()
-  if refusal ~= nil then return fail(run, handlers, refusal) end
+  if not stillAllowed(run, handlers) then return false end
   if not hasPagedReads() then return fail(run, handlers, "old_api") end
 
   local queue = queueOf()
@@ -448,7 +450,7 @@ function M.begin(run, handlers)
   run.total = 2
   logSetup("fc setup: reading the board (2 replies)")
 
-  queue:add({
+  enqueue(run, queue, {
     command = CMD_RX_MAP,
     isWrite = false,
     simulatorResponse = api.simulatorResponse,
@@ -459,7 +461,7 @@ function M.begin(run, handlers)
       run.done = 1
       callHandler(handlers, "onProgress", run)
       if not stillAllowed(run, handlers) then return end
-      sendFunctionIds(run, handlers)
+      run.next = function() sendFunctionIds(run, handlers) end
     end,
     errorHandler = replyFailed(run, handlers, "rxmap")
   })
@@ -568,7 +570,7 @@ function M.buildPlan(run)
   -- confirmation words from it says so: a board whose every slot names the right function can
   -- still watch the wrong channel through the wrong window, and only the read-back sees that.
   plan.compare = Functions.compareFunctionIds(run.functionIds, run.map,
-    settings.bank_ch, settings.value_ch)
+    settings.bank_ch, settings.value_ch, plan.slots)
 
   plan.writes = #plan.slots
   plan.ok = true
@@ -648,7 +650,7 @@ local function sendCommit(run, handlers)
   run.phase = M.PHASE_COMMIT
   callHandler(handlers, "onProgress", run)
 
-  queue:add({
+  enqueue(run, queue, {
     command = (api and api.writeCommand) or CMD_EEPROM_WRITE,
     -- An empty payload and still a write. The queue infers `isWrite` from a non-empty payload,
     -- which is wrong for exactly this message, so it is stated.
@@ -659,7 +661,7 @@ local function sendCommit(run, handlers)
     processReply = function()
       run.done = run.done + 1
       logSetup("fc setup: %d slot(s) written and committed", run.written)
-      M.startVerify(run, handlers)
+      run.next = function() M.startVerify(run, handlers) end
     end,
     errorHandler = replyFailed(run, handlers, "commit")
   })
@@ -677,7 +679,7 @@ local function sendSlotWrite(run, handlers)
   local payload = M.encodeSlot(entry.slot0, entry.record)
   if payload == nil then return fail(run, handlers, "encode") end
 
-  queue:add({
+  enqueue(run, queue, {
     command = (api and api.writeCommand) or CMD_SET_ADJ_RANGE,
     payload = payload,
     isWrite = true,
@@ -688,7 +690,7 @@ local function sendSlotWrite(run, handlers)
       run.done = run.done + 1
       run.writeAt = run.writeAt + 1
       callHandler(handlers, "onProgress", run)
-      sendSlotWrite(run, handlers)
+      run.next = function() sendSlotWrite(run, handlers) end
     end,
     -- Named per slot: a chain of thirty-six identical-looking messages that reports only "the
     -- write failed" leaves nobody able to say what the board is now holding.
@@ -705,8 +707,7 @@ function M.apply(run, handlers)
   if type(run) ~= "table" or type(run.plan) ~= "table" or run.plan.ok ~= true then
     return fail(run or {}, handlers, "no_plan")
   end
-  local refusal = M.armRefusal()
-  if refusal ~= nil then return fail(run, handlers, refusal) end
+  if not stillAllowed(run, handlers) then return false end
 
   run.phase = M.PHASE_WRITING
   run.writeAt = 1

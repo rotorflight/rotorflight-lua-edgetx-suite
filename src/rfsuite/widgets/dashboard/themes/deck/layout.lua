@@ -145,7 +145,7 @@ function L.settingsLabels()
     units = { label = "@i18n(app.pages.settings_dashboard_settings.urban_units)@", values = onOff() },
     temp_colors = { label = "@i18n(app.pages.settings_dashboard_settings.urban_temp_colors)@",
                     values = { off = "@i18n(app.pages.flight_tuning_advanced_pid_controller.tbl_off)@",
-                               standard = "@i18n(app.pages.setup_controls_inflight.set_mode_standard)@",
+                               standard = "@i18n(app.pages.settings_dashboard_inflight.standard)@",
                                early = "@i18n(app.pages.settings_dashboard_settings.urban_temp_colors_early)@" } },
   }
 end

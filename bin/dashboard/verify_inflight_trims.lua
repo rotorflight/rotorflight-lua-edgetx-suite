@@ -1,3 +1,5 @@
+-- EdgeTX exposes string functions without a string-method metatable.
+debug.getmetatable("").__index = nil
 -- Offline routing, lifecycle and fast-path comparison against the original lookup algorithm.
 -- Optional --drive <file> runs the same efficiency assertions on an earlier implementation.
 local source="src/rfsuite/widgets/dashboard/inflight/drive.lua"
@@ -9,6 +11,10 @@ _G.rfsuite={require=function(path)
   return cache[path]
 end}
 local M=assert(loadfile(source))()
+-- The overlay offers cells only after the ground read; every drive here starts from a read board.
+local readBoard=dofile("bin/dashboard/inflight_board_fixture.lua")(rfsuite.require)
+local newDrive=M.newDrive
+M.newDrive=function(...) return readBoard(newDrive(...)) end
 local Setup=cache["widgets/dashboard/inflight/setup.lua"]
 local mask, reads, ticks=0,0,1000
 getTime=function() return ticks end
@@ -17,7 +23,7 @@ for row=1,6 do
   list[#list+1]={name="Trim"..row.."-", swsrc=100+(row-1)*2}
   list[#list+1]={name="Trim"..row.."+", swsrc=101+(row-1)*2}
 end
-local radio={now=function() return ticks end, sensor=function() return nil end,
+local radio={now=function() return ticks end, sensor=function(name) if name=="PID#" or name=="RTE#" then return 1 end end,
   switchValue=function(id) reads=reads+1; return (mask & (1 << (id-100))) ~= 0 end,
   switchList=function() return list,nil end, setGlobalVariable=function() return true end,
   flightMode=function() return 0 end}
@@ -112,6 +118,7 @@ local function trace(useReference)
   local d=M.newDrive(scripted,settings())
   if useReference then d.pollTrims=reference end
   d.live=true; d.phase="live"; d.bankShown=1
+  d.sessionProfiles={pid={[1]=true},rate={[1]=true}}
   local states={}
   ticks=2000
   for step=1,200 do
@@ -136,6 +143,7 @@ end
 assert(count(function() return {1,2,3,4,5,6,7,8} end)>count(function() end),"instruction control failed")
 local poll=count(function() drive:pollTrims() end)
 drive.live=true; drive.phase="live"; drive.fastAt=nil
+drive.sessionProfiles={pid={[1]=true},rate={[1]=true}}
 local fast=count(function() ticks=ticks+5; drive:fastTick(ticks) end)
 print(comparisons.." routing/read-count comparisons passed; sliced discovery, settings invalidation and disabled inputs passed")
 print("warm row poll: "..poll.." instructions; idle fastTick: "..fast.." instructions (stubs included)")

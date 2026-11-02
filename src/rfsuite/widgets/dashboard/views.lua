@@ -96,21 +96,24 @@ local CORE_VIEWS = {
 -- risen again.
 local CONDITIONS = {}
 
--- In-flight tuning, only for a model that has it switched on and only while the preview
--- switch is on.
+-- In-flight tuning, while the preview switch and the radio's own master switch for the
+-- overlay are both on -- the two preferences runtime.lua's inflightEnabled reads.
 --
--- The snapshot alone would very nearly do -- the drive that publishes it is not built with
--- the preview off -- but the menu is built from the preferences of this pass and the
--- snapshot is what the last one left behind. Reading the switch here means the entry cannot
--- offer a route into a feature the runtime has already stopped driving.
+-- This entry is the only way the tuning surface is opened, and the drive that publishes
+-- `state.inflight` runs only while that surface is open. So the entry is decided from the
+-- preferences of this pass and never from the snapshot: asking for the snapshot would hide
+-- the entry until the surface had been opened, which it then never could be.
 --
--- The entry is offered with the interlock OPEN on purpose: the setup check and the parameter
--- grid are what a pilot wants to see on the ground, and the interlock is what decides whether
--- anything is sent. The screen the entry opens is inert until the switch is thrown.
+-- It is offered only while the model is disarmed, so a mis-press in the air -- of the entry or
+-- of a key bound to it -- cannot open a surface that changes flight controller parameters. A
+-- surface opened on the ground stays open through arming; one closed in the air (the firmware's
+-- fullscreen exit, a page switch) can be opened again after the landing.
 function CONDITIONS.previewInflightTuning(widget)
-  local previewOn = widget.preferences and widget.preferences.general
-    and widget.preferences.general.preview_inflight_tuning == true
-  return previewOn == true and widget.state ~= nil and type(widget.state.inflight) == "table"
+  if widget.state and widget.state.armed == true then return false end
+  local prefs = widget.preferences
+  local previewOn = prefs and prefs.general and prefs.general.preview_inflight_tuning == true
+  local radioOn = prefs and type(prefs.inflight) == "table" and prefs.inflight.enabled == true
+  return previewOn == true and radioOn == true
 end
 
 -- The battery prompt, re-opened: only where the registry has a pack for this model, so a pilot
@@ -566,8 +569,10 @@ end
 -- ---------------------------------------------------------------------------
 
 -- An action is a string: `openView:<id>`, `closeView`, `done`, `exitFullscreen`, `openTool`,
--- `openTool:<menuId>` or `none`.
-local SIMPLE_ACTIONS = { closeView = true, done = true, exitFullscreen = true, openTool = true, none = true }
+-- `openTool:<menuId>`, `openTuning` or `none`.
+local SIMPLE_ACTIONS = {
+  closeView = true, done = true, exitFullscreen = true, openTool = true, openTuning = true, none = true
+}
 
 -- The pages `openTool:<menuId>` may open the tool on, each with the condition that has to hold for
 -- it: the page has to be in the tool's menu and reachable now. A target that is not here is
@@ -683,6 +688,15 @@ function M.navigate(widget, after)
     widget._viewStack = nil
     exitFullscreen(widget)
     return true
+  elseif verb == "openTuning" then
+    -- The same flag the quick menu's IN-FLIGHT TUNING entry raises, under the same condition: a
+    -- key bound to it does nothing where the entry would not be offered.
+    if not M.condition("previewInflightTuning", widget) then
+      viewLog("in-flight tuning not opened: the overlay is not enabled, or the model is armed")
+      return
+    end
+    widget.inflightFullscreen = true
+    M.invalidate(widget)
   elseif verb == "openTool" then
     if id ~= nil and not M.condition(TOOL_LANDINGS[id], widget) then
       viewLog("tool not opened on '" .. id .. "': that page is not offered now")

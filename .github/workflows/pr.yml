@@ -12,6 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_setup_apis.lua
+      - run: lua5.3 bin/msp/verify_simulator_fixture_lengths.lua
 
   helicopter-wizard:
     name: Helicopter wizard
@@ -80,6 +81,23 @@ jobs:
 
       - name: In-flight trim routing
         run: lua5.3 bin/dashboard/verify_inflight_trims.lua
+
+      - name: Grouped in-flight tuning and session ownership
+        run: lua5.3 bin/dashboard/verify_inflight_groups.lua
+
+      - name: In-flight fullscreen release and exit safety
+        run: lua5.3 bin/dashboard/verify_inflight_surface.lua
+
+      - name: Multi-profile ground transactions and SD baseline
+        run: lua5.3 bin/dashboard/verify_inflight_profiles.lua
+      - name: Silent ground profile selections
+        run: lua5.3 bin/dashboard/verify_inflight_audio.lua
+
+      - name: In-flight list picker and help limits
+        run: lua5.3 bin/dashboard/verify_inflight_flightlist.lua
+
+      - name: In-flight session and view lifetimes
+        run: lua5.3 bin/dashboard/verify_inflight_lifetimes.lua
 
   startup-compile:
     # The configuration tool compiles the installed suite at start (src/rfsuite/lib/precompile.lua).
@@ -515,6 +533,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_armed_state.lua
 
+  msp-resend-on-break:
+    name: MSP resend on a broken reply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/msp/verify_msp_resend_on_break.lua
+
   diagnostic-logs:
     name: Diagnostic logs
     runs-on: ubuntu-latest
@@ -539,3 +565,138 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/logs/verify_graph_stop.lua
       - run: lua5.3 bin/logs/verify_logs_page.lua
+
+  tune-advisor-payload:
+    name: Tune Advisor reply decode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_tuning/verify_tune_advisor_payload.lua
+
+  tune-history:
+    name: Tune Advisor flight history
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_tuning/verify_tune_history.lua
+
+  tune-advisor-gate:
+    name: Tune Advisor requests are sent only to firmware that has the command
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_tuning/verify_tune_advisor_gate.lua
+
+  tune-advisor-apply:
+    name: Tune Advisor Apply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_tuning/verify_tune_advisor_apply.lua
+
+  flight-log-free-id:
+    name: Flight log pack ids
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/flight_log/verify_free_id.lua
+      - run: lua5.3 bin/flight_log/verify_registry_bak_fallback.lua
+      - run: lua5.3 bin/flight_log/verify_page_refusal_message.lua
+
+  governor-effective-mode:
+    name: Governor effective mode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/governor/verify_effective_mode.lua
+
+  configuration-pid-loop:
+    name: Configuration PID loop and name
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/setup/verify_configuration_pid_loop.lua
+
+  bluejay-target:
+    name: Bluejay ESC target
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/esc/verify_bluejay_target.lua
+
+  telemetry-saves:
+    name: Telemetry page saves
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/telemetry/verify_save_telemetry_page.lua
+
+  info-rf-mode:
+    name: Info RF Mode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/diagnostics/verify_info_rf_mode.lua
+
+  elrs-probe-armed:
+    name: ELRS probe while armed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/diagnostics/verify_elrs_probe_armed.lua
+
+  telemetry-sync-slots:
+    name: Telemetry slots after a save
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/telemetry/verify_telemetry_sync_slots.lua
+
+  power-saves:
+    name: Power page saves
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/power/verify_save_power_pages.lua
+
+  undeclared-globals:
+    # luacheck over the shipped tree, scoped to undeclared globals: 111 (setting a non-standard
+    # global), 112 (mutating an undefined one) and 113 (reading one). .luacheckrc lists the names
+    # EdgeTX publishes, so a hit is a missing `local` or a name the radio does not have, which is
+    # nil there. The style warnings luacheck also reports (line length, unused values) stay advisory.
+    name: Undeclared globals
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua-check
+      - run: luacheck --version
+      - run: luacheck src --only 111 112 113 --codes
+
+  require-nil-module:
+    name: Module loader and a module that returns nothing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/core/verify_require_nil_module.lua
+
+  msp-compact-framing:
+    name: MSP compact framing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/msp/verify_msp_compact_framing.lua

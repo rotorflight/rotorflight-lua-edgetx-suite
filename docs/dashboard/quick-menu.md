@@ -13,7 +13,7 @@ directly when a theme leaves fullscreen to the menu.
 
 Put the *RFSuite* widget full screen the way EdgeTX puts any widget full screen — the widget's
 own context menu on the screen it sits on, then *Full screen*. With Default, fullscreen
-shows the dashboard; press its menu control at the top right, TELE or a page key (the default
+shows the dashboard; press the menu control in its info bar (at the top left as it comes), TELE or a page key (the default
 global shortcuts) to open the quick menu. Default binds no keys: a key put on **Theme** does
 nothing while the dashboard itself is showing.
 Closing the menu returns to the dashboard.
@@ -42,7 +42,7 @@ model. They can also open the core menu on the connection screen, before the FC 
 | Entry | What it does |
 | --- | --- |
 | **ERASE BLACKBOX** | Asks first, because the erase cannot be undone — see [the erase confirmation](#the-erase-confirmation). Its **ERASE** answer erases the flight controller's blackbox storage, then reads the storage summary back so the dashboard shows the free space it has now, closes the menu and leaves full screen (over a theme that takes full screen: closes the menu and shows the theme again). Only listed while the connection is ready and the model is disarmed. |
-| **IN-FLIGHT TUNING** | Opens the in-flight tuning surface at full size. It stays full screen rather than closing. Only listed while the feature is switched on — see below. |
+| **IN-FLIGHT TUNING** | Opens the in-flight tuning surface at full size. It stays full screen rather than closing. Only listed while the feature is switched on and the model is disarmed — see below. |
 | **BATTERY** | Brings the battery prompt back, with this model's packs. It stays full screen, the picker taking the menu's place. Only listed while the battery registry has a pack for this model and the model is disarmed. |
 | **MAIN MENU** | Opens the suite's tool, with its whole menu, inside the widget — see [the tool from full screen](#the-tool-from-full-screen). Only listed while the model is disarmed. |
 | **FLIGHT LOG** | Opens the suite's tool inside the widget on its [Flight Log](../pages/tools/flight_log.md) page; the back key there closes it again. Not in the menu as it comes — the pilot adds it on the *Quick Settings* page — and then only listed while the model is disarmed. |
@@ -68,11 +68,12 @@ armed, and for a theme that draws these entries itself and asks whether each is 
 Urban does.
 
 **IN-FLIGHT TUNING is a preview entry.** It appears only while *System* → *Settings* →
-*General* → *Preview* → *In-flight tuning* is on **and** the widget is carrying the overlay's
-state for this model. With the preview switch off the entry is not listed at all, so the menu
-offers no route into a feature the widget has stopped driving. What the surface itself does is
-in [in-flight tuning](inflight-tuning.md); the screen it opens sends nothing until the
-interlock switch is thrown.
+*General* → *Preview* → *In-flight tuning* is on, the radio's own switch under *Settings* →
+*Dashboard* → *In-Flight Tuning* is on, **and** the model is disarmed. With either switch off the
+entry is not listed at all, so the menu offers no route into a feature the widget has stopped
+driving; while armed it is not listed either, so a mis-press in the air cannot open the tuning. A
+surface opened on the ground stays open through arming. What the surface itself does is in
+[in-flight tuning](inflight-tuning.md).
 
 ## The layout
 

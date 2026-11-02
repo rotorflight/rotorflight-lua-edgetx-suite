@@ -84,7 +84,12 @@ local function newPage(spec)
     ticks = ticks + 1
     pipeline.wakeup()
   end
-  return { page = page, ui = ui, api = api, eeprom = eeprom, queue = queue,
+  -- The board's RC tuning. A rate-type reset starts from a board on Rotorflight rates, so the
+  -- selection of Actual is a change.
+  local reply = {}
+  for i, b in ipairs(api.simulatorResponse) do reply[i] = b end
+  if spec.reset then reply[1] = 6 end
+  return { page = page, ui = ui, api = api, eeprom = eeprom, queue = queue, reply = reply,
     pipeline = pipeline, ctx = ctx, reports = reports, wakeup = wakeup,
     dialogs = dialogs, controls = controls, spec = spec }
 end
@@ -111,16 +116,16 @@ local function loadAndEdit(h, eq)
   eq(#h.queue.entries, 1, "one initial read")
   local initial = assert(h.queue.entries[1], "initial read missing")
   eq(initial.command, h.api.command, "initial RC tuning read command")
-  answer(h, initial, h.api.simulatorResponse)
+  answer(h, initial, h.reply)
   eq(h.page.canSave(), true, "initial reply permits save")
   eq(h.page.hasUnsavedChanges(), false, "initial read is clean")
   eq(h.ui.runtime.readPending, false, "initial read completes")
-  h.expected = assert(h.api.parse(h.api.simulatorResponse))
+  h.expected = assert(h.api.parse(h.reply))
   h.expectedDirty = not h.spec.unchanged
 
   if h.spec.reset then
     h.page.build(h.ctx)
-    eq(h.ui.config.rates_type, 6, "simulator starts with Rotorflight rates")
+    eq(h.ui.config.rates_type, 6, "the board starts with Rotorflight rates")
     assert(h.controls.selectType, "rate type setter missing")(4)
     eq(h.ui.config.rates_type, 4, "type selection stores Actual rates")
     eq(h.ui.runtime.resetRates, true, "type selection requests reset")
@@ -232,13 +237,13 @@ local function accept(h, eq)
   eq(readback.command, h.api.command, "read-back reads RC tuning")
   eq(h.ui.runtime.readPending, true, "read-back pending")
   eq(h.page.canSave(), false, "read-back blocks another save")
-  answer(h, readback, h.api.simulatorResponse)
+  answer(h, readback, h.reply)
   eq(h.ui.runtime.readPending, false, "read-back completes")
   eq(h.page.canSave(), true, "completed read-back permits save")
   eq(h.page.hasUnsavedChanges(), false, "read-back stays clean")
   -- The scripted board reply deliberately differs from the edit/reset payload.
   -- Verify that the page takes the board's values back, not its staged session values.
-  for field, value in pairs(assert(h.api.parse(h.api.simulatorResponse))) do
+  for field, value in pairs(assert(h.api.parse(h.reply))) do
     eq(h.ui.config[field], value, "read-back updates " .. field)
   end
   eq(#h.queue.entries, 4, "read-back queues no further work")
@@ -370,7 +375,7 @@ runScenario(tableSpec, "CANCEL", function(h, eq)
   eq(h.ui.runtime.resetRates, true, "cancel retains reset request")
   eq(h.ui.runtime.readPending, false, "cancel starts no read")
   eq(h.ui.config.rates_type, 4, "cancel retains selected type")
-  for field, value in pairs(assert(h.api.parse(h.api.simulatorResponse))) do
+  for field, value in pairs(assert(h.api.parse(h.reply))) do
     eq(_G.rfsuite.session.rc_tuning[field], value, "cancel preserves session " .. field)
   end
   eq(#h.reports, 0, "cancel opens no reportSave dialog")

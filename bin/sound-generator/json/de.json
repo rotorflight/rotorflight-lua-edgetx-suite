@@ -492,6 +492,552 @@
     "needs_translation": false
   },
   {
+    "file": "inflight/paused.wav",
+    "english": "Tuning paused, wrong profile",
+    "translation": "Tuning pausiert, falsches Profil",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/resumed.wav",
+    "english": "Tuning resumed",
+    "translation": "Tuning fortgesetzt",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/selected.wav",
+    "english": "Selected",
+    "translation": "Ausgewählt",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/10.wav",
+    "english": "Yaw RC Rate",
+    "translation": "Heck RC Drehrate",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/11.wav",
+    "english": "Pitch RC Expo",
+    "translation": "Nick RC Expo",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/12.wav",
+    "english": "Roll RC Expo",
+    "translation": "Roll RC Expo",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/13.wav",
+    "english": "Yaw RC Expo",
+    "translation": "Heck RC Expo",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/14.wav",
+    "english": "Pitch P-gain",
+    "translation": "Nick P-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/15.wav",
+    "english": "Pitch I-gain",
+    "translation": "Nick I-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/16.wav",
+    "english": "Pitch D-gain",
+    "translation": "Nick D-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/17.wav",
+    "english": "Pitch F-gain",
+    "translation": "Nick F-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/18.wav",
+    "english": "Roll P-gain",
+    "translation": "Roll P-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/19.wav",
+    "english": "Roll I-gain",
+    "translation": "Roll I-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/20.wav",
+    "english": "Roll D-gain",
+    "translation": "Roll D-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/21.wav",
+    "english": "Roll F-gain",
+    "translation": "Roll F-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/22.wav",
+    "english": "Yaw P-gain",
+    "translation": "Heck P-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/23.wav",
+    "english": "Yaw I-gain",
+    "translation": "Heck I-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/24.wav",
+    "english": "Yaw D-gain",
+    "translation": "Heck D-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/25.wav",
+    "english": "Yaw F-gain",
+    "translation": "Heck F-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/26.wav",
+    "english": "Yaw CW Stop Gain",
+    "translation": "Heck Rechts Stop-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/27.wav",
+    "english": "Yaw CCW Stop Gain",
+    "translation": "Heck Links Stop-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/28.wav",
+    "english": "Yaw Cyclic Precomp",
+    "translation": "Heck Zyklische Vorsteuerung",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/29.wav",
+    "english": "Yaw Collective Precomp",
+    "translation": "Heck Kollektiv-Pitch Vorsteuerung",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/32.wav",
+    "english": "Pitch Collective Precomp",
+    "translation": "Nick Kollektiv Vorsteuerung",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/33.wav",
+    "english": "Pitch Gyro Cutoff",
+    "translation": "Nick Gyro Grenzfrequenz",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/34.wav",
+    "english": "Roll Gyro Cutoff",
+    "translation": "Roll Gyro Grenzfrequenz",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/35.wav",
+    "english": "Yaw Gyro Cutoff",
+    "translation": "Heck Gyro Grenzfrequenz",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/36.wav",
+    "english": "Pitch D-term Cutoff",
+    "translation": "Nick D-Anteil Grenzfrequenz",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/37.wav",
+    "english": "Roll D-term Cutoff",
+    "translation": "Roll D-Anteil Grenzfrequenz",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/38.wav",
+    "english": "Yaw D-term Cutoff",
+    "translation": "Heck D-Anteil Grenzfrequenz",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/39.wav",
+    "english": "Rescue Climb Collective",
+    "translation": "Rettung Steigflug Kollektiv-Pitch",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/40.wav",
+    "english": "Rescue Hover Collective",
+    "translation": "Rettung Schwebeflug Kollektiv-Pitch",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/41.wav",
+    "english": "Rescue Hover Altitude",
+    "translation": "Rettung Schwebehöhe",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/42.wav",
+    "english": "Rescue Altitude P-gain",
+    "translation": "Rettungshöhe P-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/43.wav",
+    "english": "Rescue Altitude I-gain",
+    "translation": "Rettungshöhe I-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/44.wav",
+    "english": "Rescue Altitude D-gain",
+    "translation": "Rettungshöhe D-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/45.wav",
+    "english": "Angle Level Gain",
+    "translation": "Winkel-Modus Leveling-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/46.wav",
+    "english": "Horizon Level Gain",
+    "translation": "Horizontal-Modus Leveling-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/47.wav",
+    "english": "Acro Trainer Gain",
+    "translation": "Acro-Trainer Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/48.wav",
+    "english": "Governor PID-gain",
+    "translation": "Drehzahlregler PID-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/49.wav",
+    "english": "Governor P-gain",
+    "translation": "Drehzahlregler P-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/5.wav",
+    "english": "Pitch Rate",
+    "translation": "Nick Drehrate",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/50.wav",
+    "english": "Governor I-gain",
+    "translation": "Drehzahlregler I-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/51.wav",
+    "english": "Governor D-gain",
+    "translation": "Drehzahlregler D-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/52.wav",
+    "english": "Governor F-gain",
+    "translation": "Drehzahlregler F-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/53.wav",
+    "english": "Governor TTA-gain",
+    "translation": "Drehzahlregler TTA-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/54.wav",
+    "english": "Governor Cyclic Precomp",
+    "translation": "Drehzahlregler Zyklische Vorsteuerung",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/55.wav",
+    "english": "Governor Collective Precomp",
+    "translation": "Drehzahlregler Kollektiv-Pitch Vorsteuerung",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/56.wav",
+    "english": "Pitch B-gain",
+    "translation": "Nick B-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/57.wav",
+    "english": "Roll B-gain",
+    "translation": "Roll B-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/58.wav",
+    "english": "Yaw B-gain",
+    "translation": "Heck B-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/59.wav",
+    "english": "Pitch O-gain",
+    "translation": "Nick O-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/6.wav",
+    "english": "Roll Rate",
+    "translation": "Roll Drehrate",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/60.wav",
+    "english": "Roll O-gain",
+    "translation": "Roll O-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/61.wav",
+    "english": "Cross Coupling Gain",
+    "translation": "Kreuzkopplung Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/62.wav",
+    "english": "Cross Coupling Ratio",
+    "translation": "Kreuzkopplung Verhältnis Roll/Nick",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/63.wav",
+    "english": "Cross Coupling Cutoff",
+    "translation": "Kreuzkopplung Grenzfrequenz",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/64.wav",
+    "english": "Accelerometer Pitch Trim",
+    "translation": "Beschleunigungs-Sensor Nick-Trimmung",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/65.wav",
+    "english": "Accelerometer Roll Trim",
+    "translation": "Beschleunigungs-Sensor Roll-Trimmung",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/66.wav",
+    "english": "Yaw Inertia Precomp Gain",
+    "translation": "Gain Hauptrotorträgheit-Vorsteuerung für Heck",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/67.wav",
+    "english": "Yaw Inertia Precomp Cutoff",
+    "translation": "Grenzfrequenz Hauptrotorträgheit-Vorsteuerung für Heck",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/68.wav",
+    "english": "Pitch Setpoint Boost Gain",
+    "translation": "Knüppeldynamik: Gain für Nick-Sollwert",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/69.wav",
+    "english": "Roll Setpoint Boost Gain",
+    "translation": "Knüppeldynamik: Gain für Roll-Sollwert",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/7.wav",
+    "english": "Yaw Rate",
+    "translation": "Heck Drehrate",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/70.wav",
+    "english": "Yaw Setpoint Boost Gain",
+    "translation": "Knüppeldynamik: Gain für Heck-Sollwert",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/71.wav",
+    "english": "Collective Setpoint Boost Gain",
+    "translation": "Knüppeldynamik: Gain für Kollektiv-Pitch-Sollwert",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/72.wav",
+    "english": "Yaw Dynamic Ceiling Gain",
+    "translation": "Knüppeldynamik: Gain Dynamischer Endpunkt für Heck",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/73.wav",
+    "english": "Yaw Dynamic Deadband Gain",
+    "translation": "Knüppeldynamik: Gain Dynamische Totzone für Heck",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/74.wav",
+    "english": "Yaw Dynamic Deadband Filter",
+    "translation": "Knüppeldynamik: Filter Dynamische Totzone für Heck",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/75.wav",
+    "english": "Yaw Precomp Cutoff",
+    "translation": "Grenzfrequenz Vorsteuerung Heck",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/76.wav",
+    "english": "Governor Idle Throttle",
+    "translation": "Drehzahlregler Gasstellung Leerlauf",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/77.wav",
+    "english": "Governor Auto Throttle",
+    "translation": "Drehzahlregler Gasstellung Autorotation",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/78.wav",
+    "english": "Governor Max Throttle",
+    "translation": "Drehzahlregler Gasstellung Max",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/79.wav",
+    "english": "Governor Min Throttle",
+    "translation": "Drehzahlregler Gasstellung Min",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/8.wav",
+    "english": "Pitch RC Rate",
+    "translation": "Nick RC Drehrate",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/80.wav",
+    "english": "Governor Headspeed",
+    "translation": "Drehzahlregler Rotordrehzahl",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/81.wav",
+    "english": "Governor Yaw F-gain",
+    "translation": "Drehzahlregler F-Gain Heck",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/83.wav",
+    "english": "Cyclic Master Gain",
+    "translation": "Zyklisch Master-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/84.wav",
+    "english": "Yaw Master Gain",
+    "translation": "Heck Master-Gain",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/fn/9.wav",
+    "english": "Roll RC Rate",
+    "translation": "Roll RC Drehrate",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/acc.wav",
+    "english": "Acc Trim",
+    "translation": "Acc-Trimmung",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/cross.wav",
+    "english": "Cross Coupling",
+    "translation": "Kreuzkopplung",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/cyclic.wav",
+    "english": "Cyclic",
+    "translation": "Zyklisch",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/filter.wav",
+    "english": "Filter",
+    "translation": "Filter",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/governor.wav",
+    "english": "Governor",
+    "translation": "Drehzahlregler",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/other.wav",
+    "english": "Other",
+    "translation": "Sonstige",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/pitch.wav",
+    "english": "Pitch",
+    "translation": "Nick",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/rates.wav",
+    "english": "Rates",
+    "translation": "Raten",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/rescue.wav",
+    "english": "Rescue & Level",
+    "translation": "Rettung & Horizont",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/roll.wav",
+    "english": "Roll",
+    "translation": "Roll",
+    "needs_translation": false
+  },
+  {
+    "file": "inflight/group/yaw.wav",
+    "english": "Yaw",
+    "translation": "Heck",
+    "needs_translation": false
+  },
+  {
     "file": "stat/alerts/current.wav",
     "english": "Current",
     "translation": "Strom",

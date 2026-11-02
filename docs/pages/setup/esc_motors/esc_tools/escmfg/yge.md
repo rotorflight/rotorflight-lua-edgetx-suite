@@ -21,6 +21,8 @@ while the model is armed.
 
 Each setting has its own `?` for a short explanation.
 
+Option names are shown in the radio's language; maker abbreviations such as CW/CCW and BEC remain in English as in the maker's software.
+
 | Setting | What it does |
 | --- | --- |
 | Section | *Basic*, *Advanced* or *Other*. Switching it rebuilds the list below; nothing is read from the ESC again. |

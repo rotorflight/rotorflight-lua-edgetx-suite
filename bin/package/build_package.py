@@ -257,7 +257,7 @@ def copy_audio_pack(lang, src_audio, dst_audio):
         src_pack = os.path.join(src_audio, lang)
     if not os.path.isdir(src_pack):
         return
-    for sub in ["adj", "app", "evt", "stat", "gov"]:
+    for sub in ["adj", "app", "evt", "stat", "gov", "inflight"]:
         src_sub = os.path.join(src_pack, sub)
         if os.path.isdir(src_sub):
             dst_sub = os.path.join(dst_audio, sub)

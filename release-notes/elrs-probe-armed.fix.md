@@ -1,0 +1,2 @@
+- **ELRS Link cancels probes on arming (`app/pages/tools/diagnostics/elrs_link`)**:
+  - Opening, manual and Reload probes stop when the model arms, so they no longer leave all three buttons greyed out. Once the page has read the configuration, the Status row reads *Unavailable while armed* while armed, and after disarm a fresh Probe can run (#614).

@@ -17,15 +17,17 @@ local palette = {
   settingsText = WHITE,
   logWarning = COLOR_THEME_PRIMARY2,
   strongBorder = COLOR_THEME_PRIMARY1,
-  wizardBorder = GREY_DEFAULT,
+  -- GREY_DEFAULT and GREY_DARK are not published on colour radios, so these two used to be nil and
+  -- the rectangles drawing them took EdgeTX's default object colour, which is written out here.
+  wizardBorder = COLOR_THEME_SECONDARY1,
   grid = COLOR_THEME_DISABLED,
   cursor = COLOR_THEME_FOCUS,
   progressTrack = COLOR_THEME_SECONDARY2,
-  testProgressTrack = GREY_DARK,
+  testProgressTrack = COLOR_THEME_SECONDARY1,
   panelProgressTrack = COLOR_THEME_DISABLED,
   panelProgressFill = COLOR_THEME_SECONDARY2,
   tile = COLOR_THEME_DISABLED,
-  tileMuted = GREY_DARK or BLACK or COLOR_THEME_SECONDARY2,
+  tileMuted = BLACK,
 }
 if _G.rfsuite then _G.rfsuite.palette = palette end
 return palette

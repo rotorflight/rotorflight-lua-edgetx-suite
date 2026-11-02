@@ -7,7 +7,8 @@ sidebar_position: 40
 # Governor
 
 Tune headspeed, throttle limits, governor gains, precompensation and Tail Torque Assist in
-the active PID profile. The heading shows the profile number and stored governor mode.
+the active PID profile. The heading shows the profile number and the governor mode the flight
+controller runs: OFF while the GOVERNOR feature is off, whatever mode is stored (when the flight controller reported its feature setting at connect).
 
 ## Where to find it
 
@@ -19,6 +20,12 @@ Needs MSP API 12.09; hidden on an older flight controller.
 With governor mode OFF the page shows a disabled message instead of fields, and Save and
 Reload are disabled. LIMIT and DIRECT show only the two throttle limits. ELECTRO (the page's
 name for ELECTRIC) and NITRO show all fields below.
+
+With the flight controller's GOVERNOR feature off, no governor runs regardless of the stored
+mode. The page shows the mode as OFF and hides the governor gains, as *Setup* → *Governor* →
+*General* does. The stored mode is kept and returns when the feature is switched on. If the
+feature setting could not be read at connect, the page shows the stored mode until *Setup* →
+*Governor* → *General* has been opened.
 
 ## Settings
 

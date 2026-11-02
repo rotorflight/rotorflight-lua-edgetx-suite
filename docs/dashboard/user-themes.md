@@ -49,6 +49,38 @@ Text boxes configure their default font color via `textcolor`. This property acc
 }
 ```
 
+### Tile fill and frame
+
+Every box draws a tile under its content, filled with `bgcolor` (white where it names none).
+Three more fields shape that tile:
+
+- `bordercolor` draws a frame around the tile in that colour, `borderwidth` pixels wide (2 when
+  omitted). It takes the same values as `textcolor`, named colours included.
+- `rounded` rounds the corners of the fill and the frame by that many pixels.
+- `bgcolor = false` draws no fill at all, so the box shows whatever lies under it — the theme's
+  background, or a box declared before it in the same cells. That is how a gauge stands inside a
+  framed panel: declare the panel first, then the gauge over it with `bgcolor = false`.
+
+```lua
+{ col = 1, row = 1, colspan = 2, rowspan = 2, type = "text", subtype = "governor",
+  title = "GOVERNOR", bgcolor = BLACK, bordercolor = "red", borderwidth = 3, rounded = 6 }
+```
+
+A box without these fields draws the plain filled rectangle it always did.
+
+### Gauges
+
+A gauge shows the live reading by default. Given `stattype = "max"` or `stattype = "min"` it
+shows that extreme of the flight instead — the same figure a `stats` text box shows for that
+source — which is how a post-flight screen draws the highest head speed as a bar. Only the
+sources the flight record keeps an extreme of have one
+([flight statistics](../reference/flight-statistics.md)); for any other the gauge shows no value.
+
+A horizontal bar is half its panel high, centred, and 4 px in from each side. The paddings change
+that one direction at a time: given `gaugepaddingtop` or `gaugepaddingbottom` the bar spans the
+panel's height less them, and given `gaugepaddingleft` or `gaugepaddingright` its width, as a
+vertical bar always has. Paddings larger than the panel leave a thin bar inside the tile.
+
 ### Dynamic color thresholds
 
 Both gauges and text boxes support a `thresholds` list. When telemetry values update, the box evaluates the thresholds and updates its text or accent color reactively:
@@ -101,6 +133,8 @@ The same holds for the named colour strings above: they are mapped to a colour n
 box is built, not on the first reading that arrives.
 
 #### Governor state thresholds
+With the GOVERNOR feature off, the governor mode reads OFF regardless of the stored mode, as on *Setup* → *Governor* → *General*, provided the flight controller reported its feature setting at connect.
+
 For governor status boxes (`type = "text"`, `source = "governor"`), thresholds can match against governor state labels:
 
 ```lua

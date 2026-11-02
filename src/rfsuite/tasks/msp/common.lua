@@ -51,13 +51,17 @@ local function new(protocol)
   local mspRxBuf = {}
   local mspRxError = false
   local mspRxSize = 0
-  local mspRxCRC = 0
   local mspRxReq = 0
   local mspStarted = false
   local mspLastReq = 0
+  -- Replies of ours that broke off: a continuation chunk out of sequence while one was being
+  -- assembled. Stale chunks of a reply already abandoned do not count (mspStarted is false).
+  local mspRxBreaks = 0
   local mspTxBuf = {}
   local mspTxIdx = 1
-  local mspTxCRC = 0
+  -- The framing version written into every status byte: 2 is MSPv2 (flags, command and length,
+  -- five header bytes); 3 is the compact form (command and an 8-bit length, three header bytes,
+  -- a 0xFF length announcing a 16-bit one). The firmware answers in the version it was asked in.
   local mspVersion = 2
 
   local maxTxBufferSize = transport.maxTxBufferSize or 8
@@ -92,7 +96,7 @@ local function new(protocol)
   end
 
   local function buildStatusByte(isStart)
-    local versionBits = bit32.lshift(mspVersion == 2 and 2 or 1, 5)
+    local versionBits = bit32.lshift(mspVersion, 5)
     local status = bit32.bor(bit32.band(mspSeq, 0x0F), versionBits)
     if isStart then
       status = bit32.bor(status, 0x10)
@@ -110,7 +114,6 @@ local function new(protocol)
     -- loses its tail: the flight controller assembles nothing, answers nothing, and the whole
     -- message is retried from the beginning after the timeout.
     local chunkIdx = mspTxIdx
-    local chunkCRC = mspTxCRC
     -- ... and the sequence, which buildStatusByte advances as a side effect of being called.
     -- A re-sent chunk has to carry the sequence it was built with: the receiver drops the whole
     -- request when the numbers skip, so restoring the index without the sequence turns a lost
@@ -124,36 +127,7 @@ local function new(protocol)
     while i <= maxTxBufferSize and mspTxIdx <= #mspTxBuf do
       payload[i] = mspTxBuf[mspTxIdx]
       mspTxIdx = mspTxIdx + 1
-      if mspVersion == 1 then
-        mspTxCRC = bit32.bxor(mspTxCRC, payload[i])
-      end
       i = i + 1
-    end
-
-    if mspVersion == 1 then
-      if i <= maxTxBufferSize then
-        payload[i] = mspTxCRC
-        for j = i + 1, maxTxBufferSize do
-          payload[j] = 0
-        end
-        if not transport.mspSend(payload) then
-          mspTxIdx = chunkIdx
-          mspTxCRC = chunkCRC
-          mspSeq = chunkSeq
-          return true
-        end
-        clearArray(mspTxBuf)
-        mspTxIdx = 1
-        mspTxCRC = 0
-        return false
-      end
-
-      if not transport.mspSend(payload) then
-        mspTxIdx = chunkIdx
-        mspTxCRC = chunkCRC
-        mspSeq = chunkSeq
-      end
-      return true
     end
 
     for j = i, maxTxBufferSize do
@@ -162,7 +136,6 @@ local function new(protocol)
 
     if not transport.mspSend(payload) then
       mspTxIdx = chunkIdx
-      mspTxCRC = chunkCRC
       mspSeq = chunkSeq
       return true
     end
@@ -170,7 +143,6 @@ local function new(protocol)
     if mspTxIdx > #mspTxBuf then
       clearArray(mspTxBuf)
       mspTxIdx = 1
-      mspTxCRC = 0
       return false
     end
 
@@ -190,26 +162,34 @@ local function new(protocol)
       transport.prepareRequest(isWrite)
     end
 
-    if mspVersion == 1 then
-      mspTxBuf[1] = payloadSize
-      mspTxBuf[2] = bit32.band(cmd, 0xFF)
-      for i = 1, payloadSize do
-        mspTxBuf[i + 2] = bit32.band(payload[i], 0xFF)
+    local n
+    if mspVersion == 3 then
+      -- Compact header: cmd lo/hi, len; a length of 255 or more is 0xFF, len lo/hi.
+      mspTxBuf[1] = bit32.band(cmd, 0xFF)
+      mspTxBuf[2] = bit32.band(bit32.rshift(cmd, 8), 0xFF)
+      if payloadSize < 0xFF then
+        mspTxBuf[3] = payloadSize
+        n = 3
+      else
+        mspTxBuf[3] = 0xFF
+        mspTxBuf[4] = bit32.band(payloadSize, 0xFF)
+        mspTxBuf[5] = bit32.band(bit32.rshift(payloadSize, 8), 0xFF)
+        n = 5
       end
     else
-      -- MSP V2 request header: flags, cmd lo/hi, len lo/hi
+      -- MSPv2 header: flags, cmd lo/hi, len lo/hi
       mspTxBuf[1] = 0
       mspTxBuf[2] = bit32.band(cmd, 0xFF)
       mspTxBuf[3] = bit32.band(bit32.rshift(cmd, 8), 0xFF)
       mspTxBuf[4] = bit32.band(payloadSize, 0xFF)
       mspTxBuf[5] = bit32.band(bit32.rshift(payloadSize, 8), 0xFF)
-      for i = 1, payloadSize do
-        mspTxBuf[i + 5] = bit32.band(payload[i], 0xFF)
-      end
+      n = 5
+    end
+    for i = 1, payloadSize do
+      mspTxBuf[n + i] = bit32.band(payload[i], 0xFF)
     end
 
     mspTxIdx = 1
-    mspTxCRC = 0
     mspLastReq = cmd
     return true
   end
@@ -227,28 +207,31 @@ local function new(protocol)
     if start then
       clearArray(mspRxBuf)
       mspRxError = bit32.btest(status, 0x80)
-      if version == 2 then
-        local flags = payload[idx] or 0
+      if version == 3 then
+        local cmdLow = payload[idx] or 0
+        local cmdHigh = payload[idx + 1] or 0
+        local len = payload[idx + 2] or 0
+        idx = idx + 3
+        if len == 0xFF then
+          local lenLow = payload[idx] or 0
+          local lenHigh = payload[idx + 1] or 0
+          len = bit32.bor(bit32.band(lenLow, 0xFF), bit32.lshift(bit32.band(lenHigh, 0xFF), 8))
+          idx = idx + 2
+        end
+        mspRxReq = bit32.bor(bit32.band(cmdLow, 0xFF), bit32.lshift(bit32.band(cmdHigh, 0xFF), 8))
+        mspRxSize = len
+      elseif version == 2 then
         local cmdLow = payload[idx + 1] or 0
         local cmdHigh = payload[idx + 2] or 0
         local lenLow = payload[idx + 3] or 0
         local lenHigh = payload[idx + 4] or 0
         mspRxReq = bit32.bor(bit32.band(cmdLow, 0xFF), bit32.lshift(bit32.band(cmdHigh, 0xFF), 8))
         mspRxSize = bit32.bor(bit32.band(lenLow, 0xFF), bit32.lshift(bit32.band(lenHigh, 0xFF), 8))
-        mspRxCRC = 0
         idx = idx + 5
-        if flags ~= 0 then
-          mspRxError = mspRxError or false
-        end
       else
-        mspRxSize = payload[idx] or 0
-        mspRxReq = mspLastReq
-        idx = idx + 1
-        if version == 1 then
-          mspRxReq = payload[idx] or mspRxReq
-          idx = idx + 1
-        end
-        mspRxCRC = bit32.bxor(mspRxSize, mspRxReq)
+        -- Versions 0 and 1 are never requested, so a reply in them answers nothing of ours.
+        mspStarted = false
+        return nil
       end
 
       if mspRxReq == mspLastReq then
@@ -261,9 +244,9 @@ local function new(protocol)
     elseif not mspStarted then
       return nil
     elseif bit32.band(mspRemoteSeq + 1, 0x0F) ~= seq then
+      mspRxBreaks = mspRxBreaks + 1
       clearArray(mspRxBuf)
       mspRxSize = 0
-      mspRxCRC = 0
       mspStarted = false
       mspRemoteSeq = 0
       return nil
@@ -273,27 +256,12 @@ local function new(protocol)
       local b = payload[idx]
       if b == nil then break end
       mspRxBuf[#mspRxBuf + 1] = b
-      if mspVersion == 1 then
-        local v = tonumber(b)
-        if v then
-          mspRxCRC = bit32.bxor(mspRxCRC, v)
-        end
-      end
       idx = idx + 1
     end
 
     if #mspRxBuf < mspRxSize then
       mspRemoteSeq = seq
       return false
-    end
-
-    if mspVersion == 1 then
-      local rxCRC = payload[idx] or 0
-      if mspRxCRC ~= rxCRC and version == 0 then
-        clearArray(mspRxBuf)
-        mspStarted = false
-        return nil
-      end
     end
 
     mspStarted = false
@@ -363,7 +331,6 @@ local function new(protocol)
   local function mspClearTxBuf()
     clearArray(mspTxBuf)
     mspTxIdx = 1
-    mspTxCRC = 0
   end
 
   -- Drop a half-finished reassembly. Chunks of a reply whose request has been abandoned keep
@@ -373,7 +340,6 @@ local function new(protocol)
   local function mspClearRxBuf()
     clearArray(mspRxBuf)
     mspRxSize = 0
-    mspRxCRC = 0
     mspRxReq = 0
     mspRxError = false
     mspStarted = false
@@ -387,12 +353,15 @@ local function new(protocol)
     pollReply = mspPollReply,
     clearTxBuf = mspClearTxBuf,
     clearRxBuf = mspClearRxBuf,
+    -- 3 asks for the compact framing, anything else is MSPv2.
     setProtocolVersion = function(v)
-      local n = tonumber(v)
-      mspVersion = (n == 2) and 2 or 1
+      mspVersion = (tonumber(v) == 3) and 3 or 2
     end,
     getProtocolVersion = function()
       return mspVersion
+    end,
+    rxBreaks = function()
+      return mspRxBreaks
     end,
   }
 end

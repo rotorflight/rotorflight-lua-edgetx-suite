@@ -287,6 +287,17 @@ local function setMspError(message, now, kind)
   state.mspErrorKind = kind or (message and "error" or nil)
 end
 
+-- A reply that broke off is asked for again at once only where the firmware answers a replacing
+-- request from the start (MSP API 12.10 and later); see Queue:setResendOnBreak. `nil` turns it off.
+local RESEND_ON_BREAK_API = { 12, 0, 10 }
+
+local function setResendOnBreak(apiVersion)
+  local queue = state.queue
+  if type(queue) ~= "table" or type(queue.setResendOnBreak) ~= "function" then return end
+  queue:setResendOnBreak(apiVersion ~= nil and ApiVersion ~= nil
+    and ApiVersion.isAtLeast(apiVersion, RESEND_ON_BREAK_API) == true)
+end
+
 local function isApiVersionSupported(version)
   if type(version) ~= "string" or version == "" then
     return false
@@ -551,6 +562,19 @@ local function applyModelPreferencesForMcu(mcuId)
   end
 end
 
+-- The compact MSP-over-telemetry framing (version 3 in the status byte) is used with a board
+-- whose API version is 12.10 or later (Rotorflight 4.7); every link starts in MSPv2, so the
+-- version read itself works on any firmware. `nil` returns to MSPv2.
+local COMPACT_FRAMING_API = { 12, 0, 10 }
+
+local function setFraming(apiVersion)
+  local common = state.common
+  if type(common) ~= "table" or type(common.setProtocolVersion) ~= "function" then return end
+  local compact = apiVersion ~= nil and ApiVersion ~= nil
+    and ApiVersion.isAtLeast(apiVersion, COMPACT_FRAMING_API) == true
+  common.setProtocolVersion(compact and 3 or 2)
+end
+
 local function enqueueVersionReads(now)
   if not state.pendingVersionRead then
     return true
@@ -585,7 +609,9 @@ local function enqueueVersionReads(now)
         local limitedCompatible = (not fullySupported) and isApiVersionLimitedCompatible(parsed.version)
         state.unsupportedApi = not (fullySupported or limitedCompatible)
         state.refusedApiVersion = state.unsupportedApi and parsed.version or nil
+        setResendOnBreak(parsed.version)
         state.limitedApi = limitedCompatible
+        setFraming(parsed.version)
         if limitedCompatible then
           log("MSP API version " .. tostring(parsed.version) .. " accepted in limited compatibility mode", "warn")
         end
@@ -767,12 +793,14 @@ local function doDisconnect(now, reason, keepLink)
   if type(root) == "table" and type(root.session) == "table" then
     root.session.hasMasterGain = nil
   end
+  setFraming(nil)
   state.pendingVersionRead = true
   state.pendingUidRead = true
   -- A refusal (`keepLink`) is an outcome for the UID read as well: tick() stops at the
   -- unsupported-API check before enqueueUidRead() for as long as this link stays up, so no read
   -- follows, and the connect task waiting on this flag would otherwise wait out its timeout.
   state.uidReadSettled = keepLink == true
+  setResendOnBreak(nil)
   state.versionReadCompleted = false
   state.limitedApi = false
   state.consecutiveApiVersionFailures = 0
@@ -808,6 +836,8 @@ local function initIfNeeded()
     log("MSP transport unavailable (no CRSF/GHST/SP)", "warn")
     return false
   end
+
+  state.common = common
 
   if not common then
     common = {

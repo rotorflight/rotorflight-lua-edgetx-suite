@@ -180,9 +180,22 @@ the levels reach 200 %.
 | Adjustment events | `adjustment_events` | Off | Radio | Audio feedback when adjusting tuning parameters via in-flight switches or rotary knobs. |
 
 #### What an Adjustment Announcement Says
-The new value, preceded by the name of the adjustment function whenever the pilot moves on to a different function than the last one adjusted, and on the first adjustment after a connect (when the [background decoder](../reference/background-decoder.md) makes the announcements, only after the first connect since the model was loaded). The name is built from the words in `adj/` (for example *Pitch RC Expo*, *Governor Idle Throttle*). Every adjustment function the firmware defines is named this way except the four profile switches (rate, PID, LED and OSD profile) and the battery profile, which the adjustment announcement does not speak at all. A rate or PID profile change is announced under *Profiles* and a battery profile change under *On Connect* (*Battery Capacity*), so announcing them here as well would say the same event twice; with those announcements switched off, such an adjustment is not spoken.
+The new value, preceded by the name of the adjustment function whenever the pilot moves on to a different function than the last one adjusted, and on the first adjustment after a connect (when the [background decoder](../reference/background-decoder.md) makes the announcements, only after the first connect since the model was loaded). The name is one recording per function, `inflight/fn/<id>.wav`, worded as the Rotorflight Configurator names the function in that language (for example *Pitch RC Expo*, *Governor Idle Throttle*); a function id without a recording falls back to the words in `adj/`. Every adjustment function the firmware defines is named this way except the four profile switches (rate, PID, LED and OSD profile) and the battery profile, which the adjustment announcement does not speak at all. A rate or PID profile change is announced under *Profiles* and a battery profile change under *On Connect* (*Battery Capacity*), so announcing them here as well would say the same event twice; with those announcements switched off, such an adjustment is not spoken.
 
 The flight controller reports an adjustment for three seconds after it was made, and nothing tells how long ago that was. So an adjustment still being reported when the announcements start is not announced: this happens when the configuration tool is opened, when the background decoder starts or the dashboard takes over from it -- where the part that stood before has usually announced it already -- and for an adjustment made while the suite is still connecting.
+
+The grouped tuning overlay shares this radio-wide switch and the critical-alarm quiet period;
+per-model `audio_events` entries do not override `adjustment_events`. On its ground surface,
+an off hint and **Turn on announcements** button offer an explicit save of the global preference.
+Opening the surface does not change it; a failed save leaves it off and shows a warning. The
+hint and button are absent while armed, and the default remains off. The overlay uses
+`inflight/selected.wav` before the selected function name and known value. Profile changes use the general PID/rate announcement when enabled; otherwise the in-flight overlay
+announces `evt/profile.wav` plus the active number. In flight, unread/unknown profiles use
+`inflight/paused.wav`; returning to read profiles uses `inflight/resumed.wav` without an
+interlock cycle. Both cues are silent on the ground. Group selection
+speaks the group title from `inflight/group/<group>.wav`, and a function its name from
+`inflight/fn/<id>.wav`, the same recording the adjustment announcement uses. Browse names settle for 700 ms, with newer requests
+replacing earlier ones. Files resolve below `SOUNDS/rf/<locale>/` in both EN and DE packages.
 
 ### 8. SmartFuel
 

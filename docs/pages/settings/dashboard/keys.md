@@ -19,7 +19,7 @@ theme's.
 
 | Setting | What it does |
 | --- | --- |
-| MDL | One action per key, **Theme** by default. With the theme itself showing and no view on top, **Theme** uses the theme's binding; an unbound key is consumed without opening anything. **Nothing** disables the key. **Quick menu**, **Main menu**, **Flight log** and **Exit fullscreen** override any theme binding. |
+| MDL | One action per key, **Theme** by default. With the theme itself showing and no view on top, **Theme** uses the theme's binding; an unbound key is consumed without opening anything. **Nothing** disables the key. **Quick menu**, **Main menu**, **Flight log**, **Exit fullscreen** and **In-flight tuning** override any theme binding. |
 | PAGE >, PAGE < | As above, **Quick menu** by default: the key opens the quick menu and closes it again. |
 | SYS | As above, **Main menu** by default. |
 | TELE | As above, **Quick menu** by default. |
@@ -62,6 +62,10 @@ A radio without one of these keys never sends it; its saved choice still remains
 - On themes without a theme base layer (legacy quick-menu fullscreen), keys on **Theme** are
   left to LVGL as before.
 - While the suite tool or in-flight tuning owns the fullscreen, these shortcuts do not take its keys.
+- **In-flight tuning** opens the tuning surface directly, as the quick menu's *IN-FLIGHT TUNING*
+  entry does, and only where that entry is offered (the in-flight tuning preview and the radio's
+  in-flight tuning switch on, and the model disarmed); otherwise the key does nothing. A surface
+  opened on the ground stays open through arming, so the key cannot open tuning in the air.
 - Main menu and Flight log are refused while armed.
   The quick menu's FC writes stay hidden until the connection is ready and the model is disarmed.
 - A failed SD-card save reports the error and leaves the page marked as unsaved.

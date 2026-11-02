@@ -14,6 +14,12 @@
 -- first announcement rather than on the first pass, so a model that never touches an adjustment
 -- never pays for it.
 
+-- The telemetry task can load this file directly while a widget reaches it through the module
+-- memoizer. loadScript creates a fresh table each time, so the Lua state's root owns this one
+-- teller explicitly. Navigation and adjustment reports then share both the pending selection
+-- and the report state, whichever loader arrived first.
+local root = _G.rfsuite
+if root and type(root.adjustmentAnnouncer) == "table" then return root.adjustmentAnnouncer end
 local M = {}
 
 local Audio = nil
@@ -39,6 +45,7 @@ end
 -- How long the value has to stand still before it is announced. A pilot sweeping a pult would
 -- otherwise start an announcement per step and finish none of them.
 local SETTLE_SECONDS = 1.0
+M.SELECTION_SETTLE_MS = 700
 
 -- The function ids are the FIRMWARE's, `src/main/fc/rc_adjustments.h`, not a copy of the
 -- sibling project's table -- which stops at 75 and therefore never announced the seven
@@ -53,108 +60,40 @@ local SETTLE_SECONDS = 1.0
 -- a PID or rate profile change through its own `pid_profile` / `rate_profile` settings and a
 -- battery profile change through `battery_profile`, and a second voice for the same event is
 -- worse than none.
-local ADJUSTMENTS = {
-  [5]  = { "pitch", "rate" },
-  [6]  = { "roll", "rate" },
-  [7]  = { "yaw", "rate" },
-  [8]  = { "pitch", "rc", "rate" },
-  [9]  = { "roll", "rc", "rate" },
-  [10] = { "yaw", "rc", "rate" },
-  [11] = { "pitch", "rc", "expo" },
-  [12] = { "roll", "rc", "expo" },
-  [13] = { "yaw", "rc", "expo" },
-
-  [14] = { "pitch", "p", "gain" },
-  [15] = { "pitch", "i", "gain" },
-  [16] = { "pitch", "d", "gain" },
-  [17] = { "pitch", "f", "gain" },
-  [18] = { "roll", "p", "gain" },
-  [19] = { "roll", "i", "gain" },
-  [20] = { "roll", "d", "gain" },
-  [21] = { "roll", "f", "gain" },
-  [22] = { "yaw", "p", "gain" },
-  [23] = { "yaw", "i", "gain" },
-  [24] = { "yaw", "d", "gain" },
-  [25] = { "yaw", "f", "gain" },
-
-  [26] = { "yaw", "cw", "gain" },
-  [27] = { "yaw", "ccw", "gain" },
-  [28] = { "yaw", "cyclic", "ff" },
-  [29] = { "yaw", "collective", "ff" },
-  [30] = { "yaw", "collective", "dyn" },
-  [31] = { "yaw", "collective", "decay" },
-  [32] = { "pitch", "collective", "ff" },
-
-  [33] = { "pitch", "gyro", "cutoff" },
-  [34] = { "roll", "gyro", "cutoff" },
-  [35] = { "yaw", "gyro", "cutoff" },
-
-  [36] = { "pitch", "dterm", "cutoff" },
-  [37] = { "roll", "dterm", "cutoff" },
-  [38] = { "yaw", "dterm", "cutoff" },
-
-  [39] = { "rescue", "climb", "collective" },
-  [40] = { "rescue", "hover", "collective" },
-  [41] = { "rescue", "hover", "alt" },
-  [42] = { "rescue", "alt", "p", "gain" },
-  [43] = { "rescue", "alt", "i", "gain" },
-  [44] = { "rescue", "alt", "d", "gain" },
-
-  [45] = { "angle", "level", "gain" },
-  [46] = { "horizon", "level", "gain" },
-  [47] = { "acro", "gain" },
-
-  [48] = { "gov", "gain" },
-  [49] = { "gov", "p", "gain" },
-  [50] = { "gov", "i", "gain" },
-  [51] = { "gov", "d", "gain" },
-  [52] = { "gov", "f", "gain" },
-  [53] = { "gov", "tta", "gain" },
-  [54] = { "gov", "cyclic", "ff" },
-  [55] = { "gov", "collective", "ff" },
-
-  [56] = { "pitch", "b", "gain" },
-  [57] = { "roll", "b", "gain" },
-  [58] = { "yaw", "b", "gain" },
-  [59] = { "pitch", "o", "gain" },
-  [60] = { "roll", "o", "gain" },
-
-  [61] = { "crossc", "gain" },
-  [62] = { "crossc", "ratio" },
-  [63] = { "crossc", "cutoff" },
-
-  [64] = { "acc", "pitch", "trim" },
-  [65] = { "acc", "roll", "trim" },
-
-  [66] = { "yaw", "inertia", "precomp", "gain" },
-  [67] = { "yaw", "inertia", "precomp", "cutoff" },
-
-  [68] = { "pitch", "setpoint", "boost", "gain" },
-  [69] = { "roll", "setpoint", "boost", "gain" },
-  [70] = { "yaw", "setpoint", "boost", "gain" },
-  [71] = { "collective", "setpoint", "boost", "gain" },
-
-  [72] = { "yaw", "dyn", "ceiling", "gain" },
-  [73] = { "yaw", "dyn", "deadband", "gain" },
-  [74] = { "yaw", "dyn", "deadband", "filter" },
-  [75] = { "yaw", "precomp", "cutoff" },
-
-  [76] = { "gov", "idle", "throttle" },
-  [77] = { "gov", "auto", "throttle" },
-  [78] = { "gov", "max", "throttle" },
-  [79] = { "gov", "min", "throttle" },
-  [80] = { "gov", "headspeed" },
-  [81] = { "gov", "yaw", "ff" },
-
-  -- adj/ has no word for "master"; no other function is spoken as "cyclic gain" or "yaw gain".
-  [83] = { "cyclic", "gain" },
-  [84] = { "yaw", "gain" },
-}
+local ADJUSTMENTS
+local function adjustmentWords(id)
+  if not ADJUSTMENTS then
+    local words = requireModule("tasks/events/telemetry_bg/adjustment_words.lua")
+    if type(words) ~= "table" then error("adjustments.lua: word table missing", 0) end
+    ADJUSTMENTS = words
+  end
+  return ADJUSTMENTS[id]
+end
 
 -- The firmware leaves 1-4 out of its report (`updateAdjustmentData` in `fc/rc_adjustments.c`),
 -- but it does report 82, so without this the battery profile would be spoken twice: the value
 -- here and the pack's capacity by `lib/audio.lua`.
 local SPOKEN_ELSEWHERE = { [1] = true, [2] = true, [3] = true, [4] = true, [82] = true }
+
+-- Every adjustment the firmware reports by a name also has the whole name as one recording, in the
+-- Configurator's wording for the language (`inflight/fn/<id>.wav`), so what is spoken is what the
+-- screen shows. Ids 5-29, 32-81, 83 and 84: the firmware has no 30 and 31 any more, and the
+-- selectors are spoken elsewhere. The word table stays the fallback for an id outside that set.
+local function nameFile(id)
+  id = tonumber(id)
+  if id == nil or id ~= math.floor(id) or id < 5 or id > 84 or id == 30 or id == 31 or id == 82 then return nil end
+  -- A telemetry value can arrive as a float; 14.0 must still name 14.wav.
+  return string.format("inflight/fn/%d.wav", math.floor(id))
+end
+
+local function speakName(audio, id)
+  local file = nameFile(id)
+  if file then audio.playEventFile(file); return true end
+  local words = adjustmentWords(id)
+  if words == nil then return false end
+  for i = 1, #words do audio.playEventFile("adj/" .. words[i] .. ".wav") end
+  return true
+end
 
 local state = {
   functionId = nil,
@@ -201,15 +140,91 @@ local function ensureAudio()
   return Audio
 end
 
+-- One replaceable selection belongs to the same teller as AdjF/AdjV. Nothing is handed to the
+-- firmware queue until it has rested; a newer focus drops the pending words, so a quick walk
+-- across a list cannot leave a chain of obsolete names behind it. Ticks are supplied by the
+-- caller, which also makes the settle boundary independent of the telemetry task's cadence.
+local selection = nil
+local selectionOwner = nil
+-- One recording per group, with the group title the screen shows.
+local GROUP_WORDS = {
+  cyclic = "inflight/group/cyclic.wav", roll = "inflight/group/roll.wav", pitch = "inflight/group/pitch.wav",
+  yaw = "inflight/group/yaw.wav", governor = "inflight/group/governor.wav", filter = "inflight/group/filter.wav",
+  cross = "inflight/group/cross.wav", rates = "inflight/group/rates.wav", rescue = "inflight/group/rescue.wav",
+  acc = "inflight/group/acc.wav", other = "inflight/group/other.wav"
+}
+
+local function allowed(audio)
+  return audio ~= nil and (type(audio.adjustmentAllowed) ~= "function" or audio.adjustmentAllowed())
+end
+
+local function tone(audio)
+  if audio and type(audio.playRawFile) == "function" then audio.playRawFile("/SOUNDS/rf/beep.wav") end
+end
+
+function M.select(owner, kind, id, value, ticks)
+  selectionOwner = owner
+  selection = { owner = owner, kind = kind, id = id, value = value,
+    at = ticks + (kind == "value" and 0 or M.SELECTION_SETTLE_MS / 10) }
+end
+
+function M.cancelSelection(owner)
+  if selectionOwner ~= owner then return end
+  selection, selectionOwner = nil, nil
+end
+
+function M.endFeedback()
+  local audio = ensureAudio()
+  if allowed(audio) then tone(audio) end
+end
+
+-- Session feedback replaces unsettled selection speech and shares its enable/alarm guards.
+local function sessionFeedback(owner, file)
+  selectionOwner, selection = owner, nil
+  if not enabled() then return end
+  local audio = ensureAudio()
+  if not allowed(audio) then return end
+  audio.playEventFile(file)
+end
+
+function M.profile(owner, number)
+  selectionOwner, selection = owner, nil
+  if _G.rfsuite and _G.rfsuite.inflightProfileJob then return end
+  if not enabled() then return end
+  local audio = ensureAudio()
+  if not allowed(audio) then return end
+  audio.playEventFile("evt/profile.wav")
+  if type(audio.playNumber) == "function" then audio.playNumber(number, 0) end
+end
+
+function M.pause(owner) sessionFeedback(owner, "inflight/paused.wav") end
+function M.resumed(owner) sessionFeedback(owner, "inflight/resumed.wav") end
+
+function M.selectionTick(ticks)
+  if selection == nil or ticks < selection.at then return false end
+  local pending = selection
+  selection = nil
+  if not enabled() then return false end
+  local audio = ensureAudio()
+  if not allowed(audio) then return false end
+  if pending.kind == "value" then audio.playEventFile("inflight/selected.wav") end
+  if pending.kind == "group" then
+    local file = GROUP_WORDS[pending.id]
+    if file then audio.playEventFile(file) else tone(audio) end
+    return true
+  end
+  if not speakName(audio, pending.id) then tone(audio) end
+  if pending.kind == "value" and pending.value ~= nil and type(audio.playNumber) == "function" then
+    audio.playNumber(pending.value, 0)
+  end
+  return true
+end
+
 local function announce()
   if SPOKEN_ELSEWHERE[state.functionId] then return end
   local audio = ensureAudio()
-  local words = state.functionChanged and ADJUSTMENTS[state.functionId] or nil
-  if words and audio then
-    for i = 1, #words do
-      audio.playEventFile("adj/" .. words[i] .. ".wav")
-    end
-  end
+  if not allowed(audio) then return end
+  if state.functionChanged and audio then speakName(audio, state.functionId) end
   -- Through the audio module only, so the value is spoken at the same level as the words before
   -- it. Without the module there is no level to speak it at, and no words either: a bare number
   -- at the radio's own volume is not said.
@@ -220,6 +235,8 @@ end
 
 function M.wakeup()
   if not enabled() then return end
+  if M.selectionTick(nowSeconds() * 100) then return end
+  if selection ~= nil then return end
 
   local functionId = readSensor("AdjF")
   local value = readSensor("AdjV")
@@ -269,6 +286,7 @@ function M.wakeup()
 end
 
 function M.reset()
+  selection, selectionOwner = nil, nil
   state.functionId = nil
   state.value = nil
   state.idleSeen = false
@@ -277,4 +295,5 @@ function M.reset()
   state.changedAt = nil
 end
 
+if root then root.adjustmentAnnouncer = M end
 return M

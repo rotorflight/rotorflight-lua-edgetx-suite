@@ -19,8 +19,11 @@ local function t(_key, fallback)
 end
 
 -- Every adjustment function the firmware exposes, with the value range their own adjustments
--- page uses. The names are the ones that page shows, so a parameter reads the same wherever the
--- pilot meets it (app/pages/setup/controls/adjustments/page.lua, ADJUST_FUNCTIONS).
+-- page uses. Where the firmware's own adjustment table (fc/rc_adjustments.c, ADJ_ENTRY) allows
+-- a wider range, fwMin/fwMax carry it: a board value is only refused outside the firmware's range,
+-- while the narrower pair stays the one the standard slots are written with. The names are the
+-- ones that page shows, so a parameter reads the same wherever the pilot meets it
+-- (app/pages/setup/controls/adjustments/page.lua, ADJUST_FUNCTIONS).
 --
 -- `cmd`, `api` and `field` say where the CURRENT value of that parameter lives: the MSP command
 -- that answers it, the module under tasks/msp/api that decodes the reply, and the name that
@@ -60,39 +63,39 @@ M.FUNCTIONS = {
     cmd = 111, api = "rc_tuning", field = "rcExpo_1" },
   { id = 13, name = t("widgets.dashboard.fn_yaw_rc_expo", "Yaw RC Expo"), min = 0, max = 100,
     cmd = 111, api = "rc_tuning", field = "rcExpo_3" },
-  { id = 14, name = t("widgets.dashboard.fn_pitch_p", "Pitch P"), min = 0, max = 250,
+  { id = 14, name = t("widgets.dashboard.fn_pitch_p", "Pitch P-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_1_P" },
-  { id = 15, name = t("widgets.dashboard.fn_pitch_i", "Pitch I"), min = 0, max = 250,
+  { id = 15, name = t("widgets.dashboard.fn_pitch_i", "Pitch I-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_1_I" },
-  { id = 16, name = t("widgets.dashboard.fn_pitch_d", "Pitch D"), min = 0, max = 250,
+  { id = 16, name = t("widgets.dashboard.fn_pitch_d", "Pitch D-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_1_D" },
-  { id = 17, name = t("widgets.dashboard.fn_pitch_f", "Pitch F"), min = 0, max = 250,
+  { id = 17, name = t("widgets.dashboard.fn_pitch_f", "Pitch F-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_1_F" },
-  { id = 18, name = t("widgets.dashboard.fn_roll_p", "Roll P"), min = 0, max = 250,
+  { id = 18, name = t("widgets.dashboard.fn_roll_p", "Roll P-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_0_P" },
-  { id = 19, name = t("widgets.dashboard.fn_roll_i", "Roll I"), min = 0, max = 250,
+  { id = 19, name = t("widgets.dashboard.fn_roll_i", "Roll I-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_0_I" },
-  { id = 20, name = t("widgets.dashboard.fn_roll_d", "Roll D"), min = 0, max = 250,
+  { id = 20, name = t("widgets.dashboard.fn_roll_d", "Roll D-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_0_D" },
-  { id = 21, name = t("widgets.dashboard.fn_roll_f", "Roll F"), min = 0, max = 250,
+  { id = 21, name = t("widgets.dashboard.fn_roll_f", "Roll F-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_0_F" },
-  { id = 22, name = t("widgets.dashboard.fn_yaw_p", "Yaw P"), min = 0, max = 250,
+  { id = 22, name = t("widgets.dashboard.fn_yaw_p", "Yaw P-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_2_P" },
-  { id = 23, name = t("widgets.dashboard.fn_yaw_i", "Yaw I"), min = 0, max = 250,
+  { id = 23, name = t("widgets.dashboard.fn_yaw_i", "Yaw I-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_2_I" },
-  { id = 24, name = t("widgets.dashboard.fn_yaw_d", "Yaw D"), min = 0, max = 250,
+  { id = 24, name = t("widgets.dashboard.fn_yaw_d", "Yaw D-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_2_D" },
-  { id = 25, name = t("widgets.dashboard.fn_yaw_f", "Yaw F"), min = 0, max = 250,
+  { id = 25, name = t("widgets.dashboard.fn_yaw_f", "Yaw F-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_2_F" },
   { id = 26, name = t("widgets.dashboard.fn_yaw_cw_stop_gain", "Yaw CW Stop Gain"), min = 25, max = 250,
     cmd = 94, api = "pid_profile", field = "yaw_cw_stop_gain" },
   { id = 27, name = t("widgets.dashboard.fn_yaw_ccw_stop_gain", "Yaw CCW Stop Gain"), min = 25, max = 250,
     cmd = 94, api = "pid_profile", field = "yaw_ccw_stop_gain" },
-  { id = 28, name = t("widgets.dashboard.fn_yaw_cyclic_ff", "Yaw Cyclic FF"), min = 0, max = 250,
+  { id = 28, name = t("widgets.dashboard.fn_yaw_cyclic_ff", "Yaw Cyclic Precomp"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "yaw_cyclic_ff_gain" },
-  { id = 29, name = t("widgets.dashboard.fn_yaw_collective_ff", "Yaw Collective FF"), min = 0, max = 250,
+  { id = 29, name = t("widgets.dashboard.fn_yaw_collective_ff", "Yaw Collective Precomp"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "yaw_collective_ff_gain" },
-  { id = 32, name = t("widgets.dashboard.fn_pitch_collective_ff", "Pitch Collective FF"), min = 0, max = 250,
+  { id = 32, name = t("widgets.dashboard.fn_pitch_collective_ff", "Pitch Collective Precomp"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "pitch_collective_ff_gain" },
   { id = 33, name = t("widgets.dashboard.fn_pitch_gyro_cutoff", "Pitch Gyro Cutoff"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "gyro_cutoff_1" },
@@ -100,23 +103,23 @@ M.FUNCTIONS = {
     cmd = 94, api = "pid_profile", field = "gyro_cutoff_0" },
   { id = 35, name = t("widgets.dashboard.fn_yaw_gyro_cutoff", "Yaw Gyro Cutoff"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "gyro_cutoff_2" },
-  { id = 36, name = t("widgets.dashboard.fn_pitch_dterm_cutoff", "Pitch Dterm Cutoff"), min = 0, max = 250,
+  { id = 36, name = t("widgets.dashboard.fn_pitch_dterm_cutoff", "Pitch D-term Cutoff"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "dterm_cutoff_1" },
-  { id = 37, name = t("widgets.dashboard.fn_roll_dterm_cutoff", "Roll Dterm Cutoff"), min = 0, max = 250,
+  { id = 37, name = t("widgets.dashboard.fn_roll_dterm_cutoff", "Roll D-term Cutoff"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "dterm_cutoff_0" },
-  { id = 38, name = t("widgets.dashboard.fn_yaw_dterm_cutoff", "Yaw Dterm Cutoff"), min = 0, max = 250,
+  { id = 38, name = t("widgets.dashboard.fn_yaw_dterm_cutoff", "Yaw D-term Cutoff"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "dterm_cutoff_2" },
-  { id = 39, name = t("widgets.dashboard.fn_rescue_climb_collective", "Rescue Climb Coll"), min = 0, max = 1000,
+  { id = 39, name = t("widgets.dashboard.fn_rescue_climb_collective", "Rescue Climb Collective"), min = 0, max = 1000,
     cmd = 146, api = "rescue_profile", field = "rescue_climb_collective" },
-  { id = 40, name = t("widgets.dashboard.fn_rescue_hover_collective", "Rescue Hover Coll"), min = 0, max = 1000,
+  { id = 40, name = t("widgets.dashboard.fn_rescue_hover_collective", "Rescue Hover Collective"), min = 0, max = 1000,
     cmd = 146, api = "rescue_profile", field = "rescue_hover_collective" },
-  { id = 41, name = t("widgets.dashboard.fn_rescue_hover_altitude", "Rescue Hover Alt"), min = 0, max = 2500,
+  { id = 41, name = t("widgets.dashboard.fn_rescue_hover_altitude", "Rescue Hover Altitude"), min = 0, max = 2500,
     cmd = 146, api = "rescue_profile", field = "rescue_hover_altitude" },
-  { id = 42, name = t("widgets.dashboard.fn_rescue_alt_p", "Rescue Alt P"), min = 0, max = 250,
+  { id = 42, name = t("widgets.dashboard.fn_rescue_alt_p", "Rescue Altitude P-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 146, api = "rescue_profile", field = "rescue_alt_p_gain" },
-  { id = 43, name = t("widgets.dashboard.fn_rescue_alt_i", "Rescue Alt I"), min = 0, max = 250,
+  { id = 43, name = t("widgets.dashboard.fn_rescue_alt_i", "Rescue Altitude I-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 146, api = "rescue_profile", field = "rescue_alt_i_gain" },
-  { id = 44, name = t("widgets.dashboard.fn_rescue_alt_d", "Rescue Alt D"), min = 0, max = 250,
+  { id = 44, name = t("widgets.dashboard.fn_rescue_alt_d", "Rescue Altitude D-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 146, api = "rescue_profile", field = "rescue_alt_d_gain" },
   { id = 45, name = t("widgets.dashboard.fn_angle_level_gain", "Angle Level Gain"), min = 0, max = 200,
     cmd = 94, api = "pid_profile", field = "angle_level_strength" },
@@ -124,31 +127,31 @@ M.FUNCTIONS = {
     cmd = 94, api = "pid_profile", field = "horizon_level_strength" },
   { id = 47, name = t("widgets.dashboard.fn_acro_trainer_gain", "Acro Trainer Gain"), min = 25, max = 255,
     cmd = 94, api = "pid_profile", field = "trainer_gain" },
-  { id = 48, name = t("widgets.dashboard.fn_governor_gain", "Governor Gain"), min = 0, max = 250,
+  { id = 48, name = t("widgets.dashboard.fn_governor_gain", "Governor PID-gain"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_gain" },
-  { id = 49, name = t("widgets.dashboard.fn_governor_p", "Governor P"), min = 0, max = 250,
+  { id = 49, name = t("widgets.dashboard.fn_governor_p", "Governor P-gain"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_p_gain" },
-  { id = 50, name = t("widgets.dashboard.fn_governor_i", "Governor I"), min = 0, max = 250,
+  { id = 50, name = t("widgets.dashboard.fn_governor_i", "Governor I-gain"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_i_gain" },
-  { id = 51, name = t("widgets.dashboard.fn_governor_d", "Governor D"), min = 0, max = 250,
+  { id = 51, name = t("widgets.dashboard.fn_governor_d", "Governor D-gain"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_d_gain" },
-  { id = 52, name = t("widgets.dashboard.fn_governor_f", "Governor F"), min = 0, max = 250,
+  { id = 52, name = t("widgets.dashboard.fn_governor_f", "Governor F-gain"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_f_gain" },
-  { id = 53, name = t("widgets.dashboard.fn_governor_tta", "Governor TTA"), min = 0, max = 250,
+  { id = 53, name = t("widgets.dashboard.fn_governor_tta", "Governor TTA-gain"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_tta_gain" },
-  { id = 54, name = t("widgets.dashboard.fn_governor_cyclic_ff", "Gov Cyclic FF"), min = 0, max = 250,
+  { id = 54, name = t("widgets.dashboard.fn_governor_cyclic_ff", "Governor Cyclic Precomp"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_cyclic_weight" },
-  { id = 55, name = t("widgets.dashboard.fn_governor_collective_ff", "Gov Collective FF"), min = 0, max = 250,
+  { id = 55, name = t("widgets.dashboard.fn_governor_collective_ff", "Governor Collective Precomp"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_collective_weight" },
-  { id = 56, name = t("widgets.dashboard.fn_pitch_b", "Pitch B"), min = 0, max = 250,
+  { id = 56, name = t("widgets.dashboard.fn_pitch_b", "Pitch B-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_1_B" },
-  { id = 57, name = t("widgets.dashboard.fn_roll_b", "Roll B"), min = 0, max = 250,
+  { id = 57, name = t("widgets.dashboard.fn_roll_b", "Roll B-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_0_B" },
-  { id = 58, name = t("widgets.dashboard.fn_yaw_b", "Yaw B"), min = 0, max = 250,
+  { id = 58, name = t("widgets.dashboard.fn_yaw_b", "Yaw B-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_2_B" },
-  { id = 59, name = t("widgets.dashboard.fn_pitch_o", "Pitch O"), min = 0, max = 250,
+  { id = 59, name = t("widgets.dashboard.fn_pitch_o", "Pitch O-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_1_O" },
-  { id = 60, name = t("widgets.dashboard.fn_roll_o", "Roll O"), min = 0, max = 250,
+  { id = 60, name = t("widgets.dashboard.fn_roll_o", "Roll O-gain"), min = 0, max = 250, fwMin = 0, fwMax = 1000,
     cmd = 112, api = "pid_tuning", field = "pid_0_O" },
   { id = 61, name = t("widgets.dashboard.fn_cross_coupling_gain", "Cross Coupling Gain"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "cyclic_cross_coupling_gain" },
@@ -156,9 +159,9 @@ M.FUNCTIONS = {
     cmd = 94, api = "pid_profile", field = "cyclic_cross_coupling_ratio" },
   { id = 63, name = t("widgets.dashboard.fn_cross_coupling_cutoff", "Cross Coupling Cutoff"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "cyclic_cross_coupling_cutoff" },
-  { id = 64, name = t("widgets.dashboard.fn_acc_trim_pitch", "Acc Trim Pitch"), min = -300, max = 300,
+  { id = 64, name = t("widgets.dashboard.fn_acc_trim_pitch", "Accelerometer Pitch Trim"), min = -300, max = 300,
     cmd = 240, api = "acc_trim", field = "pitch" },
-  { id = 65, name = t("widgets.dashboard.fn_acc_trim_roll", "Acc Trim Roll"), min = -300, max = 300,
+  { id = 65, name = t("widgets.dashboard.fn_acc_trim_roll", "Accelerometer Roll Trim"), min = -300, max = 300,
     cmd = 240, api = "acc_trim", field = "roll" },
   { id = 66, name = t("widgets.dashboard.fn_yaw_inertia_precomp_gain", "Yaw Inertia Precomp Gain"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "yaw_inertia_precomp_gain" },
@@ -170,27 +173,27 @@ M.FUNCTIONS = {
     cmd = 111, api = "rc_tuning", field = "setpoint_boost_gain_1" },
   { id = 70, name = t("widgets.dashboard.fn_yaw_setpoint_boost_gain", "Yaw Setpoint Boost Gain"), min = 0, max = 255,
     cmd = 111, api = "rc_tuning", field = "setpoint_boost_gain_3" },
-  { id = 71, name = t("widgets.dashboard.fn_col_setpoint_boost_gain", "Col Setpoint Boost Gain"), min = 0, max = 255,
+  { id = 71, name = t("widgets.dashboard.fn_col_setpoint_boost_gain", "Collective Setpoint Boost Gain"), min = 0, max = 255,
     cmd = 111, api = "rc_tuning", field = "setpoint_boost_gain_4" },
-  { id = 72, name = t("widgets.dashboard.fn_yaw_dyn_ceiling_gain", "Yaw Dyn Ceiling Gain"), min = 0, max = 250,
+  { id = 72, name = t("widgets.dashboard.fn_yaw_dyn_ceiling_gain", "Yaw Dynamic Ceiling Gain"), min = 0, max = 250,
     cmd = 111, api = "rc_tuning", field = "yaw_dynamic_ceiling_gain" },
-  { id = 73, name = t("widgets.dashboard.fn_yaw_dyn_deadband_gain", "Yaw Dyn Deadband Gain"), min = 0, max = 250,
+  { id = 73, name = t("widgets.dashboard.fn_yaw_dyn_deadband_gain", "Yaw Dynamic Deadband Gain"), min = 0, max = 250,
     cmd = 111, api = "rc_tuning", field = "yaw_dynamic_deadband_gain" },
-  { id = 74, name = t("widgets.dashboard.fn_yaw_dyn_deadband_filter", "Yaw Dyn Deadband Filter"), min = 0, max = 250,
+  { id = 74, name = t("widgets.dashboard.fn_yaw_dyn_deadband_filter", "Yaw Dynamic Deadband Filter"), min = 0, max = 250,
     cmd = 111, api = "rc_tuning", field = "yaw_dynamic_deadband_filter" },
   { id = 75, name = t("widgets.dashboard.fn_yaw_precomp_cutoff", "Yaw Precomp Cutoff"), min = 0, max = 250,
     cmd = 94, api = "pid_profile", field = "yaw_precomp_cutoff" },
-  { id = 76, name = t("widgets.dashboard.fn_gov_idle_throttle", "Gov Idle Throttle"), min = 0, max = 250,
+  { id = 76, name = t("widgets.dashboard.fn_gov_idle_throttle", "Governor Idle Throttle"), min = 0, max = 250,
     cmd = 142, api = "governor_config", field = "governor_idle_throttle" },
-  { id = 77, name = t("widgets.dashboard.fn_gov_auto_throttle", "Gov Auto Throttle"), min = 0, max = 250,
+  { id = 77, name = t("widgets.dashboard.fn_gov_auto_throttle", "Governor Auto Throttle"), min = 0, max = 250,
     cmd = 142, api = "governor_config", field = "governor_auto_throttle" },
-  { id = 78, name = t("widgets.dashboard.fn_gov_max_throttle", "Gov Max Throttle"), min = 0, max = 100,
+  { id = 78, name = t("widgets.dashboard.fn_gov_max_throttle", "Governor Max Throttle"), min = 0, max = 100,
     cmd = 148, api = "governor_profile", field = "governor_max_throttle" },
-  { id = 79, name = t("widgets.dashboard.fn_gov_min_throttle", "Gov Min Throttle"), min = 0, max = 100,
+  { id = 79, name = t("widgets.dashboard.fn_gov_min_throttle", "Governor Min Throttle"), min = 0, max = 100,
     cmd = 148, api = "governor_profile", field = "governor_min_throttle" },
-  { id = 80, name = t("widgets.dashboard.fn_gov_headspeed", "Gov Headspeed"), min = 0, max = 10000,
-    cmd = 148, api = "governor_profile", field = "governor_headspeed" },
-  { id = 81, name = t("widgets.dashboard.fn_gov_yaw_ff", "Gov Yaw FF"), min = 0, max = 250,
+  { id = 80, name = t("widgets.dashboard.fn_gov_headspeed", "Governor Headspeed"), min = 0, max = 10000,
+    fwMin = 0, fwMax = 50000, cmd = 148, api = "governor_profile", field = "governor_headspeed" },
+  { id = 81, name = t("widgets.dashboard.fn_gov_yaw_ff", "Governor Yaw F-gain"), min = 0, max = 250,
     cmd = 148, api = "governor_profile", field = "governor_yaw_weight" },
   { id = 82, name = t("widgets.dashboard.fn_battery_profile", "Battery Profile"), min = 1, max = 6,
     cmd = 175, api = "battery_profile", field = "batteryProfile" },
@@ -208,17 +211,8 @@ end
 M.BANK_COUNT = 6
 M.ROW_COUNT = 6
 
--- What the six banks of the STANDARD set are called on the chips.
---
--- One character each, because the chips are a strip across the top of a 480 pixel screen and a
--- word does not fit in one. The letters are read off M.STANDARD_SET's own contents further down:
--- bank 1 holds the P gains, 2 the I, 3 the D, 4 the F, 5 the O terms with their cross-coupling
--- neighbours, 6 the tail and governor band. They are NOT translated -- P, I and D name the same
--- three terms wherever a helicopter is tuned, and a translated letter would stop matching the
--- flight controller's own pages.
---
--- A CUSTOM set gets 1..6 instead: its banks hold whatever the board's slot table put in them, so
--- there is nothing for a letter to stand for.
+-- Short addresses for the ground comparison when a full function name does not fit. Banks
+-- remain the wire geometry; the flying surface derives groups and never draws these letters.
 M.STANDARD_BANK_LABELS = { "P", "I", "D", "F", "O", "B" }
 
 -- Which profile a parameter lives in, so that a profile change can say what it invalidated.
@@ -244,12 +238,208 @@ function M.scopeOf(id)
   return SCOPE_BY_COMMAND[fn.cmd]
 end
 
--- The nine MSP reads that between them answer every id in the table above, in the order the
--- ground prime sends them. The order is the useful-first one: the gains a pilot tunes come back
--- before the profile indices, so a prime that is interrupted has still filled in what the screen
--- is most likely to be showing. Two ids are not on this route -- 3 (LED profile, MSP 150) and 4
--- (OSD profile, MSP 84) -- and neither is a parameter anyone tunes in the air.
-M.VALUE_READS = { 112, 111, 94, 148, 142, 146, 240, 175, 101 }
+-- The flying list describes parameters rather than the enable windows that happen to reach
+-- them. This mapping is data, independent of the slot layout and of translated names. Rates
+-- share rc_tuning, the gyro/D filters share their subsystem, and the remaining axis terms keep
+-- their axis even when another set puts them in a different bank.
+M.GROUPS = {
+  { id = "cyclic", name = t("widgets.dashboard.inflight_group_cyclic", "Cyclic") },
+  { id = "roll", name = t("widgets.dashboard.inflight_group_roll", "Roll") },
+  { id = "pitch", name = t("widgets.dashboard.inflight_group_pitch", "Pitch") },
+  { id = "yaw", name = t("widgets.dashboard.inflight_group_yaw", "Yaw") },
+  { id = "governor", name = t("widgets.dashboard.inflight_group_governor", "Governor") },
+  { id = "rates", name = t("widgets.dashboard.inflight_group_rates", "Rates") },
+  { id = "filter", name = t("widgets.dashboard.inflight_group_filter", "Filter") },
+  { id = "cross", name = t("widgets.dashboard.inflight_group_cross", "Cross Coupling") },
+  { id = "rescue", name = t("widgets.dashboard.inflight_group_rescue", "Rescue & Level") },
+  { id = "acc", name = t("widgets.dashboard.inflight_group_acc", "Acc Trim") },
+  { id = "other", name = t("widgets.dashboard.inflight_group_other", "Other") }
+}
+M.GROUP_BY_ID = {
+  [5] = 6, [6] = 6, [7] = 6, [8] = 6, [9] = 6, [10] = 6, [11] = 6, [12] = 6, [13] = 6,
+  [14] = 3, [15] = 3, [16] = 3, [17] = 3, [18] = 2, [19] = 2, [20] = 2, [21] = 2,
+  [22] = 4, [23] = 4, [24] = 4, [25] = 4, [26] = 4, [27] = 4, [28] = 4, [29] = 4,
+  [32] = 3, [33] = 7, [34] = 7, [35] = 7, [36] = 7, [37] = 7, [38] = 7,
+  [39] = 9, [40] = 9, [41] = 9, [42] = 9, [43] = 9, [44] = 9, [45] = 9, [46] = 9, [47] = 9,
+  [48] = 5, [49] = 5, [50] = 5, [51] = 5, [52] = 5, [53] = 5, [54] = 5, [55] = 5,
+  [56] = 3, [57] = 2, [58] = 4, [59] = 3, [60] = 2, [61] = 8, [62] = 8, [63] = 8,
+  [64] = 10, [65] = 10, [66] = 4, [67] = 4, [68] = 6, [69] = 6, [70] = 6, [71] = 6,
+  [72] = 6, [73] = 6, [74] = 6, [75] = 4, [76] = 5, [77] = 5, [78] = 5, [79] = 5,
+  [80] = 5, [81] = 5, [83] = 1, [84] = 4
+}
+M.SELECTORS = { [1] = true, [2] = true, [3] = true, [4] = true, [82] = true }
+local termOrder = {
+  [14] = 1, [15] = 2, [16] = 3, [17] = 4, [56] = 5, [59] = 6,
+  [18] = 1, [19] = 2, [20] = 3, [21] = 4, [57] = 5, [60] = 6,
+  [22] = 1, [23] = 2, [24] = 3, [25] = 4, [58] = 5,
+  [49] = 1, [50] = 2, [51] = 3, [52] = 4
+}
+local functionOrder = {}
+for index = 1, #M.FUNCTIONS do functionOrder[M.FUNCTIONS[index].id] = index end
+
+function M.groupOf(id)
+  return M.GROUP_BY_ID[id] or #M.GROUPS
+end
+
+function M.parameterOrder(id)
+  return termOrder[id] or (10 + (functionOrder[id] or (1000 + id)))
+end
+
+-- An empty string means all parameters. A nonempty list is a stable, per-model list of function
+-- ids, never addresses: a custom slot can move without changing the pilot's flight list. Keep
+-- absent ids in the result so a changed FC table can be reported instead of silently shortening
+-- the list. The store serialises scalars only, hence the comma-separated representation.
+function M.flightList(stored)
+  local wanted = {}
+  for token in string.gmatch(stored or "", "[^,%s]+") do
+    local id = tonumber(token)
+    if id ~= nil and id > 0 and id == math.floor(id) then wanted[id] = true end
+  end
+  return wanted
+end
+
+-- Called only when the set or its geometry changes. Every entry retains the original bank/row;
+-- neither grouping nor filtering writes or rearranges the FC's slot table. A one-direction cell
+-- remains useful, but a cell with neither safe window is absent. Scope travels with each group
+-- as a set because a subsystem such as Governor can contain both PID and global parameters.
+--- The same derivation, one bank per call. It runs on a ground pass that already carries the
+-- widget's whole background, which leaves room for a bank's worth of entries and not for all six
+-- (measured: the whole table on one pass took a ground-read pass to about 20 700 instructions).
+function M.newGroupWork(set, rowValues, bankValues, stored)
+  return {
+    set = set, rowValues = rowValues, bankValues = bankValues,
+    wanted = M.flightList(stored), restricted = stored ~= nil and string.find(stored, "%S") ~= nil,
+    indexed = {}, cells = {}, present = {}, bank = 0
+  }
+end
+
+--- One step of a group derivation: a bank, or, after the last bank, the sort. Answers
+-- done, groups, cells, missing.
+function M.groupStep(work)
+  if work.bank < M.BANK_COUNT then
+    work.bank = work.bank + 1
+    local bank, set, rowValues, bankValues = work.bank, work.set, work.rowValues, work.bankValues
+    local rows = set and set[bank]
+    if rows ~= nil and bankValues and bankValues[bank] ~= nil then
+      local indexed, cells, present, wanted = work.indexed, work.cells, work.present, work.wanted
+      for row = 1, M.ROW_COUNT do
+        local id = rows[row]
+        local up = M.rowCode(row, true, rowValues, bank)
+        local down = M.rowCode(row, false, rowValues, bank)
+        if id ~= nil and not M.SELECTORS[id] and (up ~= nil or down ~= nil) then
+          present[id] = true
+          if not work.restricted or wanted[id] then
+            local index = M.groupOf(id)
+            local group = indexed[index]
+            if group == nil then
+              group = { index = index, id = M.GROUPS[index].id, name = M.GROUPS[index].name, entries = {}, scopes = {} }
+              indexed[index] = group
+            end
+            local scope = M.scopeOf(id)
+            group.scopes[scope or "global"] = true
+            -- The sort key and the shown name are computed once per entry, not per comparison.
+            local name, title = M.nameOf(id), group.name
+            if #name > #title + 1 and string.sub(name, 1, #title + 1) == title .. " " then
+              name = string.sub(name, #title + 2)
+            end
+            local entry = { id = id, name = name, bank = bank, row = row, scope = scope,
+              order = M.parameterOrder(id), up = up ~= nil, down = down ~= nil }
+            group.entries[#group.entries + 1] = entry
+            cells[bank] = cells[bank] or {}
+            cells[bank][row] = entry
+          end
+        end
+      end
+    end
+    return false
+  end
+  local groups, indexed = {}, work.indexed
+  for index = 1, #M.GROUPS do
+    local group = indexed[index]
+    if group ~= nil then
+      table.sort(group.entries, function(a, b)
+        local first, second = a.order, b.order
+        if first ~= second then return first < second end
+        if a.bank ~= b.bank then return a.bank < b.bank end
+        return a.row < b.row
+      end)
+      groups[#groups + 1] = group
+      for i = 1, #group.entries do
+        group.entries[i].group, group.entries[i].index = #groups, i
+      end
+    end
+  end
+  local missing = {}
+  for id in pairs(work.wanted) do if not work.present[id] then missing[#missing + 1] = id end end
+  table.sort(missing)
+  return true, groups, work.cells, missing
+end
+
+--- The groups a flight list keeps, from the unfiltered groups of the board. An empty or absent
+-- list keeps everything and costs nothing; a list copies only the entries it keeps, so their
+-- group and index fields describe the filtered view and not the board's. `missing` names listed
+-- ids the board does not carry.
+function M.filterGroups(all, stored)
+  local wanted = M.flightList(stored)
+  if next(wanted) == nil then
+    local cells = {}
+    for _, group in ipairs(all) do
+      for _, entry in ipairs(group.entries) do
+        cells[entry.bank] = cells[entry.bank] or {}
+        cells[entry.bank][entry.row] = entry
+      end
+    end
+    return all, cells, {}
+  end
+  local groups, cells, present = {}, {}, {}
+  for _, group in ipairs(all) do
+    local kept
+    for _, entry in ipairs(group.entries) do
+      present[entry.id] = true
+      if wanted[entry.id] then
+        if kept == nil then
+          kept = { index = group.index, id = group.id, name = group.name, entries = {}, scopes = group.scopes }
+          groups[#groups + 1] = kept
+        end
+        local copy = { id = entry.id, name = entry.name, bank = entry.bank, row = entry.row, scope = entry.scope,
+          order = entry.order, up = entry.up, down = entry.down, group = #groups, index = #kept.entries + 1 }
+        kept.entries[#kept.entries + 1] = copy
+        cells[copy.bank] = cells[copy.bank] or {}
+        cells[copy.bank][copy.row] = copy
+      end
+    end
+  end
+  local missing = {}
+  for id in pairs(wanted) do if not present[id] then missing[#missing + 1] = id end end
+  table.sort(missing)
+  return groups, cells, missing
+end
+
+function M.deriveGroups(set, rowValues, bankValues, stored)
+  local work = M.newGroupWork(set, rowValues, bankValues, stored)
+  while true do
+    local done, groups, cells, missing = M.groupStep(work)
+    if done then return groups, cells, missing end
+  end
+end
+
+--- The name shown under its group's title. The Configurator's names begin with the axis or the
+-- subsystem (*Governor P-gain*), which the title above the list already says, so a name that
+-- starts with its group's title is shown without it. Speech keeps the whole name.
+function M.shortName(id)
+  local name = M.nameOf(id)
+  local group = M.GROUPS[M.groupOf(id)]
+  local title = group and group.name
+  if type(title) == "string" and #name > #title + 1 and string.sub(name, 1, #title + 1) == title .. " " then
+    return string.sub(name, #title + 2)
+  end
+  return name
+end
+
+-- The eight parameter commands are bracketed by STATUS. A switch moved during the read must
+-- not bind a session to values from two profiles, and the last STATUS confirms the first pair.
+-- LED and OSD profile selectors have no tuning value to read on this route.
+M.VALUE_READS = { 101, 112, 111, 94, 148, 142, 146, 240, 175, 101 }
 
 local commandIndex = nil
 
@@ -419,8 +609,8 @@ function M.windowCode(window)
 end
 
 --- A raw channel reading, as microseconds. EdgeTX answers getValue("chN") on -1024..1024 around
--- centre; the flight controller and every window above speak microseconds. A reading already in
--- the microsecond band is passed through, because the same helper meets numbers from both sides.
+-- centre; the flight controller and every window above speak microseconds. The input is always
+-- raw: positive raw values overlap the microsecond band and cannot be distinguished by magnitude.
 --
 -- The factor is a HALF, not 500/1024. A channel at its mechanical limit is 1024 raw and 2012 us
 -- on the wire -- 512 us either side of centre, which is what the radio sends and what the flight
@@ -433,9 +623,6 @@ function M.channelRawToUs(raw)
   if raw == nil then return nil end
   if raw >= -1200 and raw <= 1200 then
     return roundToInt(CENTRE_US + (raw * 0.5))
-  end
-  if raw >= 700 and raw <= 2300 then
-    return roundToInt(raw)
   end
   return nil
 end
@@ -492,8 +679,7 @@ M.MAPPED_AUX_COUNT = MAPPED_AUX_COUNT
 -- The return is 1-based, the way "ch11" is spelled.
 function M.auxToWireChannel(auxField, map)
   local index = math.floor(tonumber(auxField) or 0)
-  if index < 0 then index = 0 end
-  if index > (AUX_FIELD_COUNT - 1) then index = AUX_FIELD_COUNT - 1 end
+  if index < 0 or index >= AUX_FIELD_COUNT then return nil end
 
   local member = nil
   if type(map) == "table" and index < MAPPED_AUX_COUNT then
@@ -553,14 +739,13 @@ M.STANDARD_SET = {
 
 -- What a slot of the standard set carries as its step and its bounds.
 --
--- The documented thirty get `10 200` verbatim as their bounds, which is what every one of the
--- documented `adjfunc` lines says -- so a board written from this set is the layout that
--- describes, and a pilot who set his up by hand finds his bounds unchanged. They are NOT the
--- function's own range from the table at the top of this file: those are wider, and widening a
--- documented line would be a silent change to a configuration somebody else wrote down.
---
--- The six added cells have no documented line to be equal to, so they take the range their own
--- adjustments page offers for the same function.
+-- Every cell carries the range of its own function from the table at the top of this file as its
+-- bounds. The documented `adjfunc` lines say `10 200`, but fc/rc_adjustments.c constrains every
+-- stepped result into the slot's adjMin..adjMax, so a parameter standing outside that band
+-- jumped to its edge on the first press: a rescue hover collective of 600 fell to 200 in one
+-- step, a D gain of 0 rose to 10. A press is one step and nothing else, so no cell may carry a
+-- band narrower than the values its parameter can hold. A board written from the documented
+-- lines therefore compares as different and is offered the write.
 --
 -- THE STEP IS THE PILOT'S, not this table's. It used to be part of the record -- 5 for the
 -- documented thirty and 10 for the head speed -- and the pilot's ruling after the third radio
@@ -569,9 +754,8 @@ M.STANDARD_SET = {
 -- documented 5, so a caller written before the setting existed still asks for the documented
 -- line.
 --
--- ONE PARAMETER IS NOT ON THAT SETTING. The head speed's range is 0..10000 where no other cell of
--- the set is bounded above 250 -- the documented thirty at 10..200, the five other fills at
--- 0..250 -- so a step chosen to make a gain move by a feelable amount is useless on
+-- ONE PARAMETER IS NOT ON THAT SETTING. The head speed's range is 0..10000 where the gains of the
+-- set reach a few hundred at most, so a step chosen to make a gain move by a feelable amount is useless on
 -- it: five rpm a press is two thousand presses across the range. It carries a SECOND setting of
 -- its own, on its own rungs, reaching that one function and no other cell of the set --
 -- `M.DEFAULT_HEADSPEED_STEP` is what a caller that names none gets.
@@ -583,16 +767,13 @@ M.DEFAULT_HEADSPEED_STEP = 50
 -- occupies is a property of a layout that could be rearranged.
 M.HEADSPEED_FUNCTION = 80
 
-local STANDARD_LIMITS_DOCUMENTED = { min = 10, max = 200 }
-
-M.STANDARD_LIMITS = {
-  [66] = { min = 0, max = 250 },
-  [75] = { min = 0, max = 250 },
-  [61] = { min = 0, max = 250 },
-  [63] = { min = 0, max = 250 },
-  [80] = { min = 0, max = 10000 },
-  [53] = { min = 0, max = 250 }
-}
+--- The bounds a standard-set cell carries: its function's own range, or nil for an id the
+-- firmware does not have.
+function M.standardLimits(id)
+  local fn = byId[tonumber(id) or -1]
+  if fn == nil then return nil end
+  return { min = fn.min, max = fn.max }
+end
 
 -- Which slot of the board's table each cell of the standard set is written to, in order, starting
 -- at M.STANDARD_FIRST_SLOT.
@@ -648,7 +829,8 @@ function M.standardRecord(bank, row, enaField, adjField, steps)
   local band = M.REFERENCE_BANDS[bank]
   local inc = M.REFERENCE_ROW_WINDOWS[row]
   if band == nil or inc == nil then return nil end
-  local limits = M.STANDARD_LIMITS[id] or STANDARD_LIMITS_DOCUMENTED
+  local limits = M.standardLimits(id)
+  if limits == nil then return nil end
   return {
     adjFunction = id,
     enaChannel = enaField,
@@ -823,13 +1005,14 @@ end
 -- `idsOnly`, and every caller that shows it says what was not looked at.
 --
 -- `ids` is 1-based by slot, the way the reply's own parse hands it over.
-function M.compareFunctionIds(ids, map, bankChannel, valueChannel)
+function M.compareFunctionIds(ids, map, bankChannel, valueChannel, expectedSlots)
   if type(ids) ~= "table" then return nil end
   local enaField = M.wireToAuxField(bankChannel, map)
   local adjField = M.wireToAuxField(valueChannel, map)
   if enaField == nil or adjField == nil then return nil end
 
-  local slots = M.standardSlots(enaField, adjField)
+  -- A setup plan already holds these cells; reuse them instead of constructing the set twice.
+  local slots = expectedSlots or M.standardSlots(enaField, adjField)
   local empty, differ, list = 0, 0, {}
   for i = 1, #slots do
     local cell = slots[i]

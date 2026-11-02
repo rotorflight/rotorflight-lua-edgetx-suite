@@ -8,8 +8,7 @@ local Api = {
 }
 
 function Api.buildWritePayload(value)
-  -- Payload is usually a single byte.
-  -- Rotorflight supports combined profile selection: (rateIndex << 4) | pidIndex
+  -- msp.c: RATEPROFILE_MASK is bit 7; indices are zero-based.
   return { tonumber(value) or 0 }
 end
 

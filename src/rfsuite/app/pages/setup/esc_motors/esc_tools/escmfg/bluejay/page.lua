@@ -128,11 +128,16 @@ local function logMsg(msg, level)
 end
 
 local function queueBluejayReadActual(queue)
+  local escTarget = ui.escTarget or 0
+  -- A page close releases ui.runtime and the next visit builds a new one, so a reply queued
+  -- by an earlier visit is told apart by its runtime, and one for another target by escTarget.
+  local runtime = ui.runtime
   queue:add({
     command = EscParametersBluejayApi.command,
     timeout = 15,
     simulatorResponse = EscParametersBluejayApi.simulatorResponse,
     processReply = function(self, buf)
+      if ui.runtime ~= runtime or escTarget ~= (ui.escTarget or 0) then return end
       local parsed = EscParametersBluejayApi.parse(buf)
       if parsed then
         for k, v in pairs(ui.config) do
@@ -161,6 +166,7 @@ local function queueBluejayReadActual(queue)
         local session = getSession()
         if session then
           session.setup_esc_motors_esc_tools_bluejay = {
+            escTarget = escTarget,
             config = {},
             parsedCache = ui.parsedCache,
             layoutRevision = ui.layoutRevision,
@@ -184,6 +190,7 @@ local function queueBluejayReadActual(queue)
       end
     end,
     errorHandler = function()
+      if ui.runtime ~= runtime or escTarget ~= (ui.escTarget or 0) then return end
       ui.runtime.readPending = false
       ui.loading = false
       if type(ui.runtime.requestRebuild) == "function" then
@@ -194,6 +201,7 @@ local function queueBluejayReadActual(queue)
 end
 
 local function queueBluejayRead(isAutoReload)
+  local runtime = ui.runtime
   if not MspRuntime or not EscParametersBluejayApi or type(MspRuntime.getState) ~= "function" then
     return false, "msp_runtime_unavailable"
   end
@@ -230,7 +238,7 @@ local function queueBluejayRead(isAutoReload)
         isWrite = true,
         simulatorResponse = {},
         processReply = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 2
           ui.connTimer = nowSeconds()
           ui.runtime.readPending = false
@@ -239,7 +247,7 @@ local function queueBluejayRead(isAutoReload)
           end
         end,
         errorHandler = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 0
           ui.loading = false
           ui.runtime.readPending = false
@@ -256,7 +264,7 @@ local function queueBluejayRead(isAutoReload)
         isWrite = true,
         simulatorResponse = {},
         processReply = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 4
           ui.connTimer = nowSeconds()
           ui.runtime.readPending = false
@@ -265,7 +273,7 @@ local function queueBluejayRead(isAutoReload)
           end
         end,
         errorHandler = function()
-          if not ui.runtime then return end
+          if not runtime or ui.runtime ~= runtime then return end
           ui.connState = 0
           ui.loading = false
           ui.runtime.readPending = false
@@ -287,6 +295,7 @@ local function queueBluejayRead(isAutoReload)
 end
 
 local function queuePostSaveReset(target, nextState)
+  local runtime = ui.runtime
   local FwdProgApi = loadModule("tasks/msp/api/4wif_esc_fwd_prog.lua")
   if not FwdProgApi or not MspRuntime or type(MspRuntime.getState) ~= "function" then
     return
@@ -303,7 +312,7 @@ local function queuePostSaveReset(target, nextState)
     isWrite = true,
     simulatorResponse = {},
     processReply = function()
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.connState = nextState
       ui.connTimer = nowSeconds()
       if ui.runtime and type(ui.runtime.requestRebuild) == "function" then
@@ -311,7 +320,7 @@ local function queuePostSaveReset(target, nextState)
       end
     end,
     errorHandler = function()
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.connState = 5
       ui.saving = false
       ui.notice = {
@@ -339,6 +348,7 @@ local MESSAGE_KEYS = {
 }
 
 local function queueBluejayWrite(requestRebuild)
+  local runtime = ui.runtime
   if not MspRuntime or not EscParametersBluejayApi or type(MspRuntime.getState) ~= "function" then
     return false, "msp_runtime_unavailable"
   end
@@ -379,7 +389,7 @@ local function queueBluejayWrite(requestRebuild)
     payload = EscParametersBluejayApi.buildWritePayload(writeData),
     isWrite = true,
     processReply = function(self, buf)
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.dirty = false
       ui.connState = 6
       ui.connTimer = nowSeconds()
@@ -388,7 +398,7 @@ local function queueBluejayWrite(requestRebuild)
       end
     end,
     errorHandler = function()
-      if not ui.runtime then return end
+      if not runtime or ui.runtime ~= runtime then return end
       ui.saving = false
       ui.notice = {
         title = pageText(ui.i18n, "save_failed_title", "Save Failed"),
@@ -410,7 +420,7 @@ end
 local function loadFromSession()
   local session = getSession()
   local cached = session and session.setup_esc_motors_esc_tools_bluejay or nil
-  if type(cached) == "table" and type(cached.config) == "table" then
+  if type(cached) == "table" and cached.escTarget == ui.escTarget and type(cached.config) == "table" then
     for k, v in pairs(ui.config) do
       if cached.config[k] ~= nil then
         ui.config[k] = cached.config[k]
@@ -503,6 +513,11 @@ local function ensureLoaded()
   end
 
   if not loadFromSession() then
+    for k, v in pairs(CONFIG_DEFAULTS) do ui.config[k] = v end
+    ui.parsedCache = nil
+    ui.escModel = nil
+    ui.escVersion = nil
+    ui.escFirmware = nil
     ui.layoutRevision = nil
     ui.supportsLedControl = false
   end
@@ -578,6 +593,7 @@ end
 
 function M.getHeaderActions()
   return {
+    help = true,
     save = true,
     reload = true,
     menu = true
@@ -612,6 +628,12 @@ function M.onReload(ctx)
   return true
 end
 
+function M.onHelp(ctx)
+  local help = loadModule("app/pages/setup/esc_motors/esc_tools/escmfg/bluejay/help.lua")
+  if type(help) ~= "function" then return nil end
+  return help({ i18n = ctx and ctx.i18n, section = ui.currentSection })
+end
+
 function M.build(ctx)
   ensureDeps()
   ensureLoaded()
@@ -626,7 +648,7 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = "Bluejay Configurator"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "Bluejay")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -702,10 +724,10 @@ function M.build(ctx)
   end
 
   local sectionOptions = {
-    { value = 1, label = "General" },
-    { value = 2, label = "Brake" },
-    { value = 3, label = "Beacon" },
-    { value = 4, label = "Other" }
+    { value = 1, label = pageText(i18n, "bluejay_section_general", "General") },
+    { value = 2, label = pageText(i18n, "opt_brake", "Brake") },
+    { value = 3, label = pageText(i18n, "bluejay_section_beacon", "Beacon") },
+    { value = 4, label = pageText(i18n, "section_other", "Other") }
   }
   local sectionLabel = pageText(i18n, "esc_section", "Section")
   rowH = Controls.appendComboSelect(children, x, cursorY, w, sectionLabel, sectionOptions, ui.currentSection, function(val)
@@ -733,10 +755,10 @@ function M.build(ctx)
     -- unknown and cannot be chosen.
     -- General Settings
     local dirOpts = {
-      { value = 1, label = "Normal" },
-      { value = 2, label = "Reversed" },
-      { value = 3, label = "Forward/Reverse (3D)" },
-      { value = 4, label = "Forward/Reverse (3D) Rev" }
+      { value = 1, label = pageText(i18n, "opt_normal", "Normal") },
+      { value = 2, label = pageText(i18n, "opt_reversed", "Reversed") },
+      { value = 3, label = pageText(i18n, "bluejay_opt_forward_reverse_3d", "Forward/Reverse (3D)") },
+      { value = 4, label = pageText(i18n, "bluejay_opt_forward_reverse_3d_rev", "Forward/Reverse (3D) Rev") }
     }
     local motorDirectionLabel = pageText(i18n, "esc_motor_direction", "Motor Direction")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, motorDirectionLabel, dirOpts, ui.config.motor_direction, function(val)
@@ -764,7 +786,7 @@ function M.build(ctx)
       cursorY = cursorY + rowH
     else
       local rampPowerOpts = {
-        { value = 1, label = "1x (More protection)" },
+        { value = 1, label = pageText(i18n, "bluejay_opt_1x_more_protection", "1x (More protection)") },
         { value = 2, label = "2x" },
         { value = 3, label = "3x" },
         { value = 4, label = "4x" },
@@ -776,8 +798,8 @@ function M.build(ctx)
         { value = 10, label = "10x" },
         { value = 11, label = "11x" },
         { value = 12, label = "12x" },
-        { value = 13, label = "13x (Less protection)" },
-        { value = 0, label = "Off" }
+        { value = 13, label = pageText(i18n, "bluejay_opt_13x_less_protection", "13x (Less protection)") },
+        { value = 0, label = pageText(i18n, "opt_off", "Off") }
       }
       local rampupPowerLabel = pageText(i18n, "esc_rampup_power", "Rampup Power")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, rampupPowerLabel, rampPowerOpts, ui.config.rpm_power_slope, function(val)
@@ -817,7 +839,7 @@ function M.build(ctx)
           { value = 24, label = "24kHz" },
           { value = 48, label = "48kHz" },
           { value = 96, label = "96kHz" },
-          { value = 0, label = "Dynamic" }
+          { value = 0, label = pageText(i18n, "bluejay_opt_dynamic", "Dynamic") }
         }
       else
         pwmOpts = {
@@ -837,11 +859,11 @@ function M.build(ctx)
   elseif ui.currentSection == 2 then
     -- Brake Settings
     local timingOpts = {
-      { value = 1, label = "0 deg (Low)" },
-      { value = 2, label = "7.5 deg (Medium Low)" },
-      { value = 3, label = "15 deg (Medium)" },
-      { value = 4, label = "22.5 deg (Medium High)" },
-      { value = 5, label = "30 deg (High)" }
+      { value = 1, label = pageText(i18n, "bluejay_opt_0_deg_low", "0 deg (Low)") },
+      { value = 2, label = pageText(i18n, "bluejay_opt_7_5_deg_medium_low", "7.5 deg (Medium Low)") },
+      { value = 3, label = pageText(i18n, "bluejay_opt_15_deg_medium", "15 deg (Medium)") },
+      { value = 4, label = pageText(i18n, "bluejay_opt_22_5_deg_medium_high", "22.5 deg (Medium High)") },
+      { value = 5, label = pageText(i18n, "bluejay_opt_30_deg_high", "30 deg (High)") }
     }
     local motorTimingLabel = pageText(i18n, "esc_motor_timing", "Motor Timing")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, motorTimingLabel, timingOpts, ui.config.commutation_timing, function(val)
@@ -851,9 +873,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local demagOpts = {
-      { value = 1, label = "Off" },
-      { value = 2, label = "Low" },
-      { value = 3, label = "High" }
+      { value = 1, label = pageText(i18n, "opt_off", "Off") },
+      { value = 2, label = pageText(i18n, "opt_low", "Low") },
+      { value = 3, label = pageText(i18n, "opt_high", "High") }
     }
     local demagCompensation = pageText(i18n, "esc_demag_compensation", "Demag Compensation")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, demagCompensation, demagOpts, ui.config.demag_compensation, function(val)
@@ -863,8 +885,8 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local brakeOpts = {
-      { value = 0, label = "Off" },
-      { value = 1, label = "On" }
+      { value = 0, label = pageText(i18n, "opt_off", "Off") },
+      { value = 1, label = pageText(i18n, "opt_on", "On") }
     }
     local brakeOnStopLabel = pageText(i18n, "esc_brake_on_stop", "Brake on Stop")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, brakeOnStopLabel, brakeOpts, ui.config.brake_on_stop, function(val)
@@ -875,9 +897,9 @@ function M.build(ctx)
 
     if ui.layoutRevision == 202 then
       local brakingModeOpts = {
-        { value = 0, label = "Off" },
-        { value = 1, label = "Not during startup" },
-        { value = 2, label = "On" }
+        { value = 0, label = pageText(i18n, "opt_off", "Off") },
+        { value = 1, label = pageText(i18n, "bluejay_opt_not_during_startup", "Not during startup") },
+        { value = 2, label = pageText(i18n, "opt_on", "On") }
       }
       local brakingMode = pageText(i18n, "esc_braking_mode", "Braking Mode")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, brakingMode, brakingModeOpts, ui.config.braking_strength, function(val)
@@ -899,14 +921,14 @@ function M.build(ctx)
 
     if ui.supportsLedControl then
       local ledOpts = {
-        { value = 0x00, label = "Off" },
-        { value = 0x03, label = "Blue" },
-        { value = 0x0C, label = "Green" },
-        { value = 0x30, label = "Red" },
-        { value = 0x0F, label = "Cyan" },
-        { value = 0x33, label = "Magenta" },
-        { value = 0x3C, label = "Yellow" },
-        { value = 0x3F, label = "White" }
+        { value = 0x00, label = pageText(i18n, "opt_off", "Off") },
+        { value = 0x03, label = pageText(i18n, "opt_blue", "Blue") },
+        { value = 0x0C, label = pageText(i18n, "opt_green", "Green") },
+        { value = 0x30, label = pageText(i18n, "opt_red", "Red") },
+        { value = 0x0F, label = pageText(i18n, "opt_cyan", "Cyan") },
+        { value = 0x33, label = pageText(i18n, "bluejay_opt_magenta", "Magenta") },
+        { value = 0x3C, label = pageText(i18n, "opt_yellow", "Yellow") },
+        { value = 0x3F, label = pageText(i18n, "opt_white", "White") }
       }
       local ledControlLabel = pageText(i18n, "esc_led_control", "LED Control")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, ledControlLabel, ledOpts, ui.config.led_control, function(val)
@@ -939,11 +961,11 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     local beaconDelayOpts = {
-      { value = 1, label = "1 minute" },
-      { value = 2, label = "2 minutes" },
-      { value = 3, label = "5 minutes" },
-      { value = 4, label = "10 minutes" },
-      { value = 5, label = "Infinite" }
+      { value = 1, label = pageText(i18n, "opt_1_minute", "1 minute") },
+      { value = 2, label = pageText(i18n, "opt_2_minutes", "2 minutes") },
+      { value = 3, label = pageText(i18n, "opt_5_minutes", "5 minutes") },
+      { value = 4, label = pageText(i18n, "opt_10_minutes", "10 minutes") },
+      { value = 5, label = pageText(i18n, "opt_infinite", "Infinite") }
     }
     local beaconDelayLabel = pageText(i18n, "esc_beacon_delay", "Beacon Delay")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, beaconDelayLabel, beaconDelayOpts, ui.config.beacon_delay, function(val)
@@ -956,9 +978,9 @@ function M.build(ctx)
     if showStartupBeep then
       if ui.layoutRevision == 205 then
         local startupBeepOpts = {
-          { value = 0, label = "Off" },
-          { value = 1, label = "Normal" },
-          { value = 2, label = "Custom" }
+          { value = 0, label = pageText(i18n, "opt_off", "Off") },
+          { value = 1, label = pageText(i18n, "opt_normal", "Normal") },
+          { value = 2, label = pageText(i18n, "opt_custom", "Custom") }
         }
         local startupBeepLabel = pageText(i18n, "esc_startup_beep", "Startup Beep")
         rowH = Controls.appendComboSelect(children, x, cursorY, w, startupBeepLabel, startupBeepOpts, ui.config.startup_beep, function(val)
@@ -968,8 +990,8 @@ function M.build(ctx)
         cursorY = cursorY + rowH
       else
         local startupBeepOpts = {
-          { value = 0, label = "Off" },
-          { value = 1, label = "On" }
+          { value = 0, label = pageText(i18n, "opt_off", "Off") },
+          { value = 1, label = pageText(i18n, "opt_on", "On") }
         }
         local startupBeep = pageText(i18n, "esc_startup_beep", "Startup Beep")
         rowH = Controls.appendComboSelect(children, x, cursorY, w, startupBeep, startupBeepOpts, ui.config.startup_beep, function(val)
@@ -983,7 +1005,7 @@ function M.build(ctx)
   elseif ui.currentSection == 4 then
     -- Other Settings
     local tempOpts = {
-      { value = 0, label = "Disabled" },
+      { value = 0, label = pageText(i18n, "opt_disabled", "Disabled") },
       { value = 1, label = "80C" },
       { value = 2, label = "90C" },
       { value = 3, label = "100C" },
@@ -1000,8 +1022,8 @@ function M.build(ctx)
 
     if ui.layoutRevision == nil or ui.layoutRevision <= 200 then
       local lowRpmOpts = {
-        { value = 0, label = "Off" },
-        { value = 1, label = "On" }
+        { value = 0, label = pageText(i18n, "opt_off", "Off") },
+        { value = 1, label = pageText(i18n, "opt_on", "On") }
       }
       rowH = Controls.appendComboSelect(children, x, cursorY, w, pageText(i18n, "esc_low_rpm_power_protection", "Low RPM Power Protection"), lowRpmOpts, ui.config.low_rpm_power_protection, function(val)
         ui.config.low_rpm_power_protection = val
@@ -1025,8 +1047,8 @@ function M.build(ctx)
 
     if ui.layoutRevision ~= nil and ui.layoutRevision >= 207 then
       local edtOpts = {
-        { value = 0, label = "Off" },
-        { value = 1, label = "On" }
+        { value = 0, label = pageText(i18n, "opt_off", "Off") },
+        { value = 1, label = pageText(i18n, "opt_on", "On") }
       }
       local forceEdtArmLabel = pageText(i18n, "esc_force_edt_arm", "Force EDT Arm")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, forceEdtArmLabel, edtOpts, ui.config.force_edt_arm, function(val)
@@ -1038,8 +1060,8 @@ function M.build(ctx)
 
     if ui.layoutRevision == nil or ui.layoutRevision <= 207 then
       local ditherOpts = {
-        { value = 0, label = "Off" },
-        { value = 1, label = "On" }
+        { value = 0, label = pageText(i18n, "opt_off", "Off") },
+        { value = 1, label = pageText(i18n, "opt_on", "On") }
       }
       local ditheringLabel = pageText(i18n, "esc_dithering", "Dithering")
       rowH = Controls.appendComboSelect(children, x, cursorY, w, ditheringLabel, ditherOpts, ui.config.dithering, function(val)

@@ -12,13 +12,10 @@ return function(ctx)
   local t = Common and Common.pageT("setup_configuration") or function(_, _, fb) return fb end
   local i18n = ctx.i18n
 
-  local help_p1 = t(i18n, "help_p1", "Use this page for system-level setup such as craft name, PID loop speed, and feature flags.")
-  local help_p2 = t(i18n, "help_p2", "Saving writes these values to EEPROM and reboots the flight controller.")
-
-  local parts = { help_p1, help_p2 }
+  local help_p1 = t(i18n, "help_p1", "Set a craft name of up to 16 characters, PID loop speed and features here; Save stores them in EEPROM and restarts the flight controller.")
 
   return {
     title = t(i18n, "help_title", "Configuration Help"),
-    message = table.concat(parts, "\n\n")
+    message = help_p1
   }
 end

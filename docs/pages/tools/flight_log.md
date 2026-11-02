@@ -35,6 +35,10 @@ naming what they show, the flight's date and time and the pack's name.
 Back steps out of whatever was opened before it leaves the page: an open pack editor, then a
 flight or a pack detail, then a filtered flight list, then the page itself.
 
+Every switch and number on the *Settings* tab and in the pack editor has its own `?` beside it
+with what that setting does; *Id* and *Name*, which are typed in, have none. The `?` in the page
+header says in one sentence what the page holds.
+
 ## Flights
 
 ![The Flights tab](../../images/tools/flight_log/flights.png)
@@ -59,12 +63,12 @@ its number of flights and its total time.
 
 ## Settings
 
-*Write a flight log* is what switches the log on. The other tabs only read what has been
-written.
+*Write a flight log* is what switches the log on. *Flights* and *Models* only read what has been
+written; *Batteries* also edits the pack registry, whether the log is on or off.
 
 | Setting | What it does |
 | --- | --- |
-| Write a flight log | Off by default. While it is off nothing is written, and this page stays empty. While it is on, the dashboard widget also asks which pack is on the craft after connecting (see *The prompt on connect* below). |
+| Write a flight log | Off by default. While it is off no flight is written; the flights already in the log are still listed. While it is on, the dashboard widget also asks which pack is on the craft after connecting (see *The prompt on connect* below). |
 | Minimum flight length | An arm shorter than this is a spool-up check rather than a flight, and is not logged. 30 s by default; 0 logs every arm. |
 | Set the pack's battery profile | Off by default. A pack picked on the dashboard — in the prompt after connecting or under *BATTERY* in its quick menu — also moves the flight controller onto that pack's battery profile. Never writes while the model is armed. |
 
@@ -94,13 +98,20 @@ and *Delete*. Deleting asks first.
 
 | Field | What it holds |
 | --- | --- |
-| Id | The name the flight's line and the model's own choice refer to the pack by. Letters, digits, `_` and `-`; anything else is dropped. It has to be unique, and a new pack is offered the lowest number the registry has free. |
+| Id | The name the flight's line and the model's own choice refer to the pack by. Letters, digits, `_` and `-`; anything else is dropped. It has to be unique in the registry; a new pack is offered the lowest positive number used by neither the registry nor any logged flight. |
 | Name | What the pack is called on the page and in the flight list. Up to 24 characters. |
 | Capacity | The pack's capacity in whole mAh, as on the Battery page. `0` means it is not recorded and the field is left out of the file. |
 | Cells | The pack's cell count, 1 to 24. Only used to find the pack's battery profile on a flight controller that keeps a cell count per profile (see *The battery profile* below). `0` means it is not recorded and the field is left out of the file. |
 | Battery profile | The flight controller's battery profile this pack belongs to, 1 to 6. `0` means none is recorded and the field is left out of the file. |
 | Cycles | How many charges the pack has seen. It is counted up by flying, and is editable here for a pack that was already in use before it was entered. |
 | Models | The craft this pack is offered for. The models are listed at the end of the form, below *Cycles*. *All models* (the default) offers it for every model; otherwise only for the models switched on. The list holds every model the radio knows of: those with logged flights, the connected craft, and every flight controller [whose name is recorded on the card](../../reference/configuration-files.md). A model never connected or flown here is not listed yet. A name containing a comma or a semicolon is not listed because the file uses both as separators. An older entry naming a model the radio does not know is kept and shown switched on. |
+
+A new pack's suggested id skips every id that a flight read from the log still names, so it does
+not reuse a deleted pack's id; a flight in a part of the log the card fails to read is not counted.
+The editor becomes available once the flight log has finished loading. Typing a deleted pack's
+id by hand is allowed when creating a pack or changing its id: saving shows a notice with the
+number of its logged flights that now count under this pack, including in the flight list and
+the pack's flight count.
 
 Renaming a pack's id, or deleting it, takes the pack chosen for the connected model with it: the
 choice follows the new id, or is cleared.
@@ -227,6 +238,14 @@ The battery registry beside it is the same kind of file, one pack per line, and 
 kept by hand as readily as from the editor: an edit made here rewrites the one line it changes and
 leaves comments, unknown fields and the rest of the file exactly as they were.
 
+Every edit writes the new file beside the old one first and keeps the previous version as
+`batteries.cfg.bak`. Where the radio loses power in the middle of a save, the registry can be left
+only as `batteries.cfg.bak`: it is then read from there, so the Batteries list, the prompt on
+connect and the disarm all still see every pack, and the next edit or counted flight writes it back
+as `batteries.cfg`. The edit that was being saved when the power went is not kept. This also means
+that deleting `batteries.cfg` on a computer to start an empty registry brings back the packs in
+`batteries.cfg.bak`: delete both files for that.
+
 A pack can leave the registry without this page knowing which models had it chosen: deleted or
 given a new id in the file itself, or on this page while another model is connected. So the pack a
 flight is about to be logged against is looked up in the registry at the disarm first. Where no
@@ -240,9 +259,13 @@ the chosen id as before.
 A flight counts as logged only once the file on the card has grown by exactly the bytes its line
 takes. Where the card will not say how large a file on it is, the flight is not written at all and
 the log says which step refused, rather than a line being appended to a file whose contents cannot
-be established. The registry is held to the same standard: a pack's cycle count and the edits made
-under *Batteries* are refused, with a message on the screen, rather than rewriting the file from a
-read that may have been cut short. A registry of the size a pilot keeps is unaffected either way.
+be established. The registry is checked the same way where the card says how large it is: a pack's
+cycle count and the edits made under *Batteries* are refused when the read does not match that size,
+rather than rewriting the file from a read that was cut short. Where the card does not say, the
+read cannot be checked, and only one that reached 64 KiB is refused, as too large. An edit refused
+for a short read says *The registry was not read whole; nothing was changed*, and the file on the
+card is as it was; *The card did not take the write* is the message for a save the card itself
+refused. A registry of the size a pilot keeps is unaffected either way.
 
 A line the card took only part of -- a write that came up short, or power lost during it -- is not
 repaired: it stays in the file as a line of its own, and the next flight's line starts on a new

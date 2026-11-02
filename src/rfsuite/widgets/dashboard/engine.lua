@@ -180,6 +180,27 @@ local function renderBox(nodes, rect, state)
   end
 end
 
+-- The colour most of a theme's tiles are filled with: what the host draws beside the scene in
+-- (the full-screen info bar) so that it reads as one more tile rather than as the surface between
+-- them. A box without a fill is drawn WHITE (objects/common.lua); a fill that is a function is
+-- left out, since it can change after the build. Nil when no box has a literal fill. Asked only by
+-- the full-screen build, so the zone's builds pay nothing for it.
+function Engine.tileColor(build)
+  local boxes = type(build) == "table" and build.boxes or {}
+  local counts, best, bestCount = {}, nil, 0
+  for i = 1, #boxes do
+    local box = boxes[i]
+    local color = type(box) == "table" and box.bgcolor
+    if color == nil then color = WHITE end
+    if type(color) == "number" then
+      local n = (counts[color] or 0) + 1
+      counts[color] = n
+      if n > bestCount then best, bestCount = color, n end
+    end
+  end
+  return best
+end
+
 -- Everything the build decides, bound once: layout and boxes resolved, grid rects taken
 -- through the cache, main rects and header rects concatenated IN THAT ORDER -- later nodes
 -- draw on top, which is what keeps the header above the scene. Values are read per step;
@@ -259,7 +280,7 @@ function Engine.beginBuild(zone, state, theme)
   local background = buildBackgroundNode(zone, layout, state)
   if background then nodes[1] = background end
 
-  return { rects = rects, nodes = nodes, cursor = 1 }
+  return { rects = rects, nodes = nodes, cursor = 1, boxes = boxes }
 end
 
 -- Renders up to `k` boxes from the cursor into the build's node table -- pure Lua data
@@ -294,14 +315,19 @@ function Engine.renderKey(state, _)
   -- that scene into itself -- a torn-down LVGL tree for no visible change. `state.flightMode`
   -- is still the phase, and a theme whose boxes depend on it keys its own renderKey on it.
   local flightMode = tostring((state and state.themePhase) or (state and state.flightMode) or "")
+  -- The ESC current limit is the full scale of a theme's current gauges. It arrives with the
+  -- model's preferences, normally before the first build, and moves only when the stored figure
+  -- does, so keying on it costs a rebuild on that rare change and nothing otherwise.
+  local currentLimit = Utils.toNumber(state and state.escCurrentLimit, 0)
 
-  return string.format("%s|%dx%d|%d|%d|%d",
+  return string.format("%s|%dx%d|%d|%d|%d|%d",
     flightMode,
     zoneW,
     zoneH,
     math.floor(cells + 0.5),
     math.floor(themeMin * 10 + 0.5),
-    math.floor(themeMax * 10 + 0.5)
+    math.floor(themeMax * 10 + 0.5),
+    math.floor(currentLimit + 0.5)
   )
 end
 

@@ -1,0 +1,2 @@
+- **The Tune Advisor says acro mode (`app/pages/flight_tuning/tune_advisor/page.lua`, `i18n/en.lua`, `i18n/de.lua`, `docs/pages/flight_tuning/tune_advisor.md`)**:
+  - The suggestions, the reason line and the `?` sheet name the flight mode the flight controller measures in by its Rotorflight name, acro mode (German: Acro-Modus), instead of "rate mode".

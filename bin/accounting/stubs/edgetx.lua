@@ -352,6 +352,10 @@ function Stubs.install(root)
   _G.LCD_W = 800
   _G.LCD_H = 480
 
+  -- EdgeTX exposes FAT operations as globals with FRESULT zero on success.
+  _G.rename = function(from, to) return os.rename(from, to) and 0 or 1 end
+  _G.del = function(path) return os.remove(path) and 0 or 1 end
+
   -- Colors, fonts, alignment: numeric constants, values irrelevant to the count.
   local consts = {
     WHITE = 0xFFFF, BLACK = 0x0000, RED = 0xF800, GREEN = 0x07E0, YELLOW = 0xFFE0,
@@ -361,7 +365,7 @@ function Stubs.install(root)
     COLOR_THEME_WARNING = 7, COLOR_THEME_DISABLED = 8, COLOR_THEME_FOCUS = 9,
     COLOR_THEME_ACTIVE = 10, COLOR_THEME_EDIT = 11,
     DBLSIZE = 0x400, MIDSIZE = 0x300, SMLSIZE = 0x100, XXLSIZE = 0x800,
-    CENTER = 0x10, LEFT = 0x20, RIGHT = 0x40, TOP = 0x01, BOTTOM = 0x02,
+    CENTER = 0x10, LEFT = 0x20, RIGHT = 0x40, VCENTER = 0x80, TOP = 0x01, BOTTOM = 0x02,
   }
   for k, v in pairs(consts) do _G[k] = v end
 

@@ -1,0 +1,1 @@
+- **Localize ESC configurator options and titles (`setup/esc_motors/esc_tools`)**: Translate option and section names and configurator titles across all ten ESC pages, preserving maker abbreviations, protocols and numeric choices; add missing help for BLHeli_S, Hobbywing V5, OMP, XDFly and ZTW (#600).

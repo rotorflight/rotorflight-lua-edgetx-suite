@@ -156,6 +156,10 @@ return {
     -- new target is the measurement with the 10 % floor named above, rounded up to the next hundred.
     ["pass.tuning.prime"] = { target = 16900, measured = 15139, proposed = 16700 },
     ["pass.job.tuning"] = { target = 15700, measured = 13155, proposed = 10600 },
+    -- New setup rows use the measured pass.job.build margin (6200 / 5574), rounded up
+    -- to the next hundred. Existing tuning targets remain unchanged.
+    ["pass.job.tuning_setup"] = { target = 10300, measured = 9178 },
+    ["pass.tuning.setup"] = { target = 19200, measured = 17251 },
 
     ----------------------------------------------------------------------------
     -- The ceiling, and the row that carries the safety argument: the worst pass of
@@ -177,6 +181,13 @@ return {
     ["theme.@rt-rc"] = { target = 16200, measured = 13296, proposed = 14000 },
     ["theme.@rt-rc-n"] = { target = 16200, measured = 13235, proposed = 14000 },
     ["theme.@srb-rc"] = { target = 16200, measured = 12936, proposed = 14000 },
+    -- The ports of the Ethos suite's KSE4, KSE5 and Kevd are themes of boxes like the five above,
+    -- and are held to the same ceiling. @KSE5 is the closest of the three: its preflight draws four
+    -- rings, each with a fill colour that follows its value, and its percentage ring a value colour
+    -- as well.
+    ["theme.@kse4"] = { target = 16200, measured = 15260 },
+    ["theme.@kse5"] = { target = 16200, measured = 15928 },
+    ["theme.@kevd"] = { target = 16200, measured = 15729 },
     ["theme.default"] = { target = 16200, measured = 10095, proposed = 14000 },
     ["theme.rfstatus"] = { target = 16200, measured = 10217, proposed = 14000 },
     -- A free-form theme builds its whole tree in the one pass that prepares the scene, where a
@@ -249,7 +260,13 @@ return {
     ["sweep.text/blackbox"] = { target = 620, measured = 551, proposed = 500 },
     ["box.text/governor"] = { target = 720, measured = 556, proposed = 600 },
     ["sweep.text/governor"] = { target = 500, measured = 339 },
-    ["box.text/stats"] = { target = 470, measured = 365, proposed = 300 },
+    -- Raised from 470 when @KSE5 became the first shipped theme whose preflight declares a stats
+    -- box: its V/CELL readout, stattype `cell`, divides the pack voltage by the cell count, where
+    -- the fixture before was a recorded extreme read straight off the flight record. No `theme.*`
+    -- row moves. The margin is held at ~15%.
+    -- Raised again from 750 when this branch took master up to #1018 (647 to 681 on the same
+    -- fixture; objects/text/stats.lua itself did not change); the margin is held at ~15%.
+    ["box.text/stats"] = { target = 790, measured = 681, proposed = 300 },
     ["sweep.text/stats"] = { target = 300, measured = 109 },
     ["box.text/telemetry"] = { target = 740, measured = 570, proposed = 600 },
     ["sweep.text/telemetry"] = { target = 450, measured = 301 },
@@ -365,6 +382,8 @@ return {
     ["page.flight_tuning_governor_page.build"] = { target = 8650, measured = 6907 },
     ["page.flight_tuning_pids_page.build"] = { target = 6300, measured = 5013 },
     ["page.flight_tuning_rates_page.build"] = { target = 5000, measured = 3998 },
+    -- Opened in a world of its own at MSP API 12.10, on five saved flights (measure.lua, openTuneAdvisorPage).
+    ["page.flight_tuning_tune_advisor_page.build"] = { target = 13300, measured = 10612 },
     ["page.logs_page.build"] = { target = 3600, measured = 2875 },
     ["page.settings_audio_events_adjustment_page.build"] = { target = 2300, measured = 2009 },
     ["page.settings_audio_events_arming_page.build"] = { target = 2300, measured = 2006 },
@@ -414,21 +433,23 @@ return {
     ["page.setup_controls_blackbox_logging_page.build"] = { target = 7050, measured = 5620 },
     ["page.setup_controls_blackbox_status_page.build"] = { target = 3800, measured = 3007 },
     ["page.setup_controls_failsafe_page.build"] = { target = 6750, measured = 5396 },
-    ["page.setup_controls_inflight_page.build"] = { target = 9950, measured = 7930 },
     ["page.setup_controls_modes_page.build"] = { target = 4650, measured = 3703 },
     ["page.setup_controls_stats_page.build"] = { target = 3750, measured = 2964 },
     ["page.setup_esc_motors_esc_tools_am32_page.build"] = { target = 6200, measured = 4944 },
     ["page.setup_esc_motors_esc_tools_blheli_s_page.build"] = { target = 6350, measured = 5050 },
     ["page.setup_esc_motors_esc_tools_bluejay_page.build"] = { target = 6450, measured = 5126 },
     ["page.setup_esc_motors_esc_tools_flrtr_page.build"] = { target = 8850, measured = 7074 },
-    ["page.setup_esc_motors_esc_tools_yge_page.build"] = { target = 6350, measured = 5058 },
+    -- The option labels now go through pageText; this run reads the unprecompiled source, where each call is a
+    -- lookup, while the package carries them as literals. 5047 -> 7857 measured; target as --emit gives.
+    ["page.setup_esc_motors_esc_tools_yge_page.build"] = { target = 9850, measured = 7857, proposed = 6350 },
     ["page.setup_esc_motors_motor_override_page.build"] = { target = 3850, measured = 3047 },
     ["page.setup_esc_motors_rpm_page.build"] = { target = 4400, measured = 3510 },
     ["page.setup_esc_motors_telemetry_page.build"] = { target = 4000, measured = 3190 },
     ["page.setup_esc_motors_throttle_page.build"] = { target = 4250, measured = 3379 },
     ["page.setup_governor_curves_page.build"] = { target = 3850, measured = 3070 },
     ["page.setup_governor_filters_page.build"] = { target = 3550, measured = 2833 },
-    ["page.setup_governor_general_page.build"] = { target = 4000, measured = 3177 },
+    -- Six rows gained an inline ? (help text and title per row): 3522 -> 4231 measured; target as --emit gives.
+    ["page.setup_governor_general_page.build"] = { target = 5300, measured = 4231, proposed = 4000 },
     ["page.setup_governor_time_page.build"] = { target = 3550, measured = 2833 },
     ["page.setup_gps_page.build"] = { target = 3950, measured = 3158 },
     ["page.setup_mixer_swash_page.build"] = { target = 4500, measured = 3565 },

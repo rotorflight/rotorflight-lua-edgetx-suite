@@ -6,11 +6,13 @@ sidebar_position: 30
 
 # In-Flight Tuning
 
-The radio's half of the in-flight tuning overlay: which switch brings the surface up, which
-channels and global variables carry it, and which trims move it. These settings belong to the
+The radio's half of the in-flight tuning overlay: which channels and global variables carry it,
+and which trims move it. These settings belong to the
 radio and apply to every model on it, so no flight controller has to be connected to change
-them. What describes the helicopter — the set layout, the step sizes and the undo profile —
-is on the other page, *Configuration* → *Setup* → *Controls* → *In-Flight Tuning*.
+them. Suggested FC functions and their step sizes are set up from the tuning screen on the ground.
+A model whose board carries tuning slots is tunable while the radio's master switch is on and
+the tuning fullscreen is open in the foreground. Enter the dashboard's fullscreen quick menu
+on the ground and choose **In-flight tuning**; while the model is armed the entry is not offered. The dashboard zone continues to show its theme.
 
 What the overlay itself does in the air is in
 [the dashboard guide](../../../dashboard/inflight-tuning.md).
@@ -29,9 +31,8 @@ Hidden until *System* → *Settings* → *General* → *Preview* → *In-flight 
 
 | Setting | What it does |
 | --- | --- |
-| In-flight tuning on this radio | The master switch. With it off nothing drives on any model. Each model has one of its own on the flight controller page, and both have to be on. Off by default. |
-| Interlock switch | The switch that brings the surface up and makes it live. *None* by default, which leaves the overlay unreachable. |
-| *(the line under it)* | What the setup check found when it last walked the model: *Setup OK*, *Setup not checked*, or the faults it names — or *Reading the radio...* while the page opened from the dashboard is still reading (see Notes). A fault refuses the interlock, so the surface does not go live while one stands. |
+| In-flight tuning on this radio | The master switch. With it off nothing drives on any model. Off by default. |
+| *(model status)* | What the setup check found when it last walked the model: *Setup OK*, *Setup not checked*, or the faults it names — or *Reading the radio...* while the page opened from the dashboard is still reading (see Notes). A fault refuses output and is shown on the tuning fullscreen ground surface. |
 | Set up the model | Writes the two mixer lines, the logical switch that times each press, the global variable details and the trim modes this model needs — and only the ones that differ from what the model already carries. It shows what it would remove and what it would add first, and writes nothing until that is confirmed. Where the model already carries all of it, it says so instead of asking. It writes the values as they stand on the page, saved or not. |
 
 *Set up the model* is a comparator, not a rewrite. A channel that already carries nothing but
@@ -86,9 +87,9 @@ the pilot's business.
 
 | Setting | What it does |
 | --- | --- |
-| Drive rows from the trims | Whether the physical trims move the surface at all. On by default; touch works either way. |
-| Trim layout | *Walk and adjust* (default) claims up to three trims — one steps the bank, one walks the row inside it, one moves the value. *One trim per row* gives each of the six rows its own trim, which is the layout the generic radio setup documents and needs six trims to spare. |
-| Bank trim, Walk trim, Adjust trim | The three trims of *Walk and adjust*. Without a bank trim the walk trim walks the whole set instead of staying inside one bank. Shown in that layout only. |
+| Drive rows from the trims | Whether the physical trims move the surface at all. Off by default; touch works either way. |
+| Trim layout | *Walk and adjust* (default) claims up to three trims — one changes group, one highlights a parameter inside it, one moves the value. *One trim per row* gives each of the six rows its own trim, which is the layout the generic radio setup documents and needs six trims to spare. |
+| Group trim, Walk trim, Adjust trim | The three trims of *Walk and adjust*. The walk trim stays in the current group; touch or PAGE changes group when no group trim is assigned. Shown in that layout only. |
 | Row 1 to Row 6 | The trim belonging to each row. Shown in the *One trim per row* layout only. |
 
 ![The trim layout, with the three trims of walk and adjust](../../../images/inflight/settings-radio-trims.png)
@@ -111,7 +112,7 @@ the pilot's business.
 - Opened from the dashboard's full screen, the page runs inside the dashboard widget, whose
   every call the radio stops at an instruction limit. There it reads the radio's switch list
   (to find the trims) and the model's mixer and input lines (for the variable warnings) a
-  slice per frame instead of all at once. While it reads, the line under the interlock switch,
+  slice per frame instead of all at once. While it reads, the model-status line,
   the trim pickers and the variable warnings show *Reading the radio...*, and *Set up the model*
   answers with the same line; on a model with many logical switches and mixer lines this takes
   a second or two. *Channels and variables* and *Rows and trims*, when open, draw their header
@@ -127,6 +128,48 @@ the pilot's business.
   running when the model is written starts over. The tool started from the radio's tool menu
   reads everything when the page opens, as before.
 
+## Grouped overlay inputs
+
+Touch is the primary input. In browse, rotate to highlight a function (settled announcement)
+and press to select it. In value mode, rotate for one step per row and press to leave.
+PAGE changes group in browse and changes function within the current group in value mode,
+remaining in value mode and announcing its name and current value. Ends do not wrap; busy
+PAGE inputs are refused and spent. RTN leaves value mode; in the air it closes nothing and there is no Close, on the ground it
+closes tuning and returns to the quick menu. X is also available only on the ground. Closing
+retains the session. A firmware fullscreen exit (long RTN) or a page switch in the air pauses
+tuning and clears both variables immediately; it can be opened again only after the landing,
+because the quick-menu entry and a bound key open tuning only while the model is disarmed. Every new flight starts at the first function of the
+first group. Stored interlock-switch values are ignored.
+Link loss immediately clears both variables but keeps the visit visible with **PAUSED** and
+**No FC link**. The retained visit resumes automatically when link and arm telemetry return,
+keeping the same group, parameter and session and still checking the flight-controller identity;
+a link gone for five seconds or more on the ground (a battery change) begins a new session instead.
+Firmware exit, page switch, feature off, and ground X/RTN still close the visit during a link loss.
+Optional trims are off by default for everyone. Existing trim users turn them on again in settings.
+Walk and adjust follows groups and their full function names, without wrapping. Slot-row
+trim assignments still address the configured hidden bank/row and obey the flight-list gate.
+Choose the flight list only on the tuning screen on the ground: **Choose parameters** selects
+this session's list, and **Save default** stores it as the model's default. The settings page
+has no per-model list section and writes only radio preferences.
+Cyclic precedes Roll and Pitch and contains Cyclic Master Gain (83) when its slot is available. See the dashboard guide for sensor focus order, bench acceptance
+and multi-profile session membership. A busy detent is spent, never queued.
+
+Selection plays `inflight/selected.wav` before name and value. Profile changes play
+`evt/profile.wav` plus the number. Unread/unknown profiles play `inflight/paused.wav`; returning
+to a read profile plays `inflight/resumed.wav` without closing and reopening tuning. A held report still
+waits for AdjF idle. Each session stores the start values of every reachable PID/rate profile on SD;
+a session is one power cycle of the flight controller. See the dashboard guide.
+Rates, Rescue & Level, Acc Trim and Other use the new group clips; the other groups use `adj/`.
+The Adjustments audio setting and critical-alarm suppression apply throughout.
+
+The flying overlay shows the selected function as a filled, outlined row with neighbouring
+values. Value mode compares the active profile value with its session start; an unknown
+start stays blank. After landing, **Continue tuning** returns to the ground screen in the same
+session, and **Restore...** opens the confirmed restore actions and Read again. Paging repeats the profile/group identity.
+Ground jobs show their current target and silence temporary profile announcements. Restores
+verify targets in RAM, save once after returning to the original pair, then reread each target
+without another write. The dashboard guide describes the verification stages and recovery.
+
 ## Related
 
 - [In-flight tuning overlay](../../../dashboard/inflight-tuning.md) — what the surface does in
@@ -134,4 +177,4 @@ the pilot's business.
 - [Rotorflight documentation](https://doc.rotorflight.org/) — the flight controller's
   adjustment functions, which are what this drives.
 
-*Documented against RFSuite 0.1.7.*
+*Checked against the RFSuite 0.2.1 development tree; native encoder acceptance is pending.*
