@@ -15,7 +15,8 @@
 --   * with adjustment announcements off, neither host loads the teller; switched on, it is loaded
 --     and joins a report already standing rather than announcing it;
 --   * the first-reading join, the 0 between adjustments, the 1.0 s settle and the step-aside
---     reset behave as before.
+--     reset behave as before -- also at the flight controller's real cadence, where an unchanged
+--     ADJ row comes only every 3 s: a teller loaded or reset in between still knows the last 0.
 -- Exit status: 0 green, 1 a FAIL line was printed.
 
 local ROOT = "."
@@ -147,7 +148,7 @@ local function pass(n)
     W.ticks = W.ticks + PASS_TICKS
     if W.adj and W.ticks >= W.nextAdjAt then
       W.frames[#W.frames + 1] = frame(W.adj[1], W.adj[2])
-      W.nextAdjAt = W.ticks + ADJ_FRAME_TICKS
+      W.nextAdjAt = W.ticks + (W.adjEvery or ADJ_FRAME_TICKS)
     end
     if W.remote then
       W.remoteCount = (W.remoteCount or 0) + 1
@@ -275,24 +276,78 @@ do
   check(said("inflight/fn/20.wav") and said("#5"), "widget: the next adjustment after taking over is announced")
 end
 
--- Widget only: a reset (a lost link) forgets the last report. Passes without an ADJ row can come
--- first after it -- the firmware's slow interval for an unchanged ADJ row is 3 s -- and the first
--- report seen after the reset is then joined, as one standing when the teller starts.
+-- Widget only: a reset (a lost link) while a report stands joins it, as a teller that starts
+-- then does; the next adjustment after a 0 is announced.
 do
   newWorld("widget", { enabled = true })
   W.adj = { 0, 0 }
   warm()
+  W.adj = { 14, 100 }
+  seconds(0.5)
   W.tasks.reset()
   W.adj = nil
   seconds(2.5)
   W.adj = { 14, 100 }
   seconds(2.0)
-  check(#W.spoken == 0, "widget: the first ADJ report after a reset is joined, also after passes without one")
+  check(#W.spoken == 0, "widget: a report standing across a reset is joined")
   W.adj = { 0, 0 }
   seconds(1.0)
   W.adj = { 15, 7 }
   seconds(2.0)
   check(said("inflight/fn/15.wav"), "widget: the next adjustment after a reset is announced")
+end
+
+-- The flight controller's real cadence for the ADJ row: an unchanged report goes out at the slow
+-- interval (3 s, `rotorflight-firmware` telemetry/crsf.c, ADJFUNC 200/3000), a changed one at
+-- once. A pilot who adjusts within those 3 s after the teller was loaded, or reset by a lost
+-- link, is announced: the 0 the radio last decoded already said that nothing was being adjusted.
+local IDLE_TICKS = 300
+local function idle()
+  W.adj, W.adjEvery = { 0, 0 }, IDLE_TICKS
+end
+local function adjust(fun, val)
+  W.adj, W.adjEvery, W.nextAdjAt = { fun, val }, ADJ_FRAME_TICKS, 0
+end
+-- Until the host both has the teller and has taken the setting in (the function script only with
+-- its next preferences reload).
+local function untilOn(limitSeconds)
+  local function on()
+    local prefs = _G.rfsuite and _G.rfsuite.preferences
+    local events = type(prefs) == "table" and prefs.audio_events or nil
+    return tellerLoaded() and type(events) == "table" and events.adjustment_events == true
+  end
+  local passes = math.floor(limitSeconds * 100 / PASS_TICKS)
+  for _ = 1, passes do
+    if on() then return true end
+    pass()
+  end
+  return on()
+end
+
+for _, host in ipairs(HOSTS) do
+  newWorld(host, { enabled = false })
+  idle()
+  seconds(4.0)
+  W.prefs.audio_events.adjustment_events = true
+  local loaded = untilOn(35.0)
+  check(loaded, host .. ": the teller is loaded once switched on (slow ADJ cadence)")
+  seconds(0.5)
+  adjust(14, 100)
+  seconds(2.0)
+  check(said("inflight/fn/14.wav") and said("#100"),
+    host .. ": an adjustment made within 3 s of switching on, after an idle 0, is announced")
+end
+
+do
+  newWorld("widget", { enabled = true })
+  idle()
+  seconds(4.0)
+  W.tasks.reset()
+  seconds(0.5)
+  adjust(14, 100)
+  seconds(2.0)
+  check(said("inflight/fn/14.wav") and said("#100"),
+    "widget: an adjustment made within 3 s of a reset, after an idle 0, is announced")
 end
 
 -- Widget only: a teller the in-flight tuning overlay has already loaded is taken over, not
@@ -315,24 +370,26 @@ do
     "widget: a selection pending when the widget stepped aside survived the reset")
 end
 
--- The decoder itself (lib/rf2tlm_sensors.lua): the suite's own load hands every decoded ADJ pair
--- to the state's teller, also one the publish throttle declines; EdgeTX's sensor discovery, which
--- calls every decoder once with zero bytes, hands it nothing.
+-- The decoder itself (lib/rf2tlm_sensors.lua): the suite's own load holds every decoded ADJ pair
+-- for the state's teller, also one the publish throttle declines; EdgeTX's sensor discovery, which
+-- calls every decoder once with zero bytes, holds nothing.
 do
   newWorld("widget", { enabled = true })
-  local got = {}
-  _G.rfsuite.adjustmentAnnouncer = { report = function(f, v) got[#got + 1] = f .. "/" .. v end }
+  local function held()
+    local r = _G.rfsuite.adjustmentReport
+    return type(r) == "table" and (tostring(r[1]) .. "/" .. tostring(r[2])) or tostring(r)
+  end
   local chunk = assert(loadfile(ROOT .. "/src/rfsuite/lib/rf2tlm_sensors.lua"))
   local data = { 0x00, 0x0E, 0xFF, 0xFF, 0xFF, 0x9C }
   local sensors = chunk(nil, function() return false end)
   local _, pos = sensors[0x1220].dec(data, 1)
   check(pos == 7, "decoder: the ADJ row is six bytes")
-  check(got[1] == "14/-100", "decoder: a decoded pair the throttle declines is still handed to the teller ("
-    .. tostring(got[1]) .. ")")
-  got = {}
+  check(held() == "14/-100", "decoder: a decoded pair the throttle declines is still held for the teller ("
+    .. held() .. ")")
+  _G.rfsuite.adjustmentReport = nil
   local discovered = chunk({ 99 })
   check(type(discovered[0x1220]) == "table", "decoder: discovery returns the ADJ row")
-  check(#got == 0, "decoder: sensor discovery hands the teller a pair")
+  check(_G.rfsuite.adjustmentReport == nil, "decoder: sensor discovery holds a pair for the teller")
 end
 
 print(string.format("%d checks, %d failures", checks, failures))

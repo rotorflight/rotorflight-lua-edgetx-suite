@@ -6,9 +6,9 @@
 -- before it had an effect: `audio_events.adjustment_events`.
 --
 -- The pair is not read back from the radio's sensor list. The decoder in the same Lua state
--- hands every pair it decodes to `M.report` (`decAdjFunc` in lib/rf2tlm_sensors.lua), so the
--- teller needs no `getValue` per pass and no AdjF/AdjV row on the model's telemetry page; the
--- two sensors are still published for everything else that shows them.
+-- holds the last pair it decoded as `rfsuite.adjustmentReport` (`decAdjFunc` in
+-- lib/rf2tlm_sensors.lua), so the teller needs no `getValue` per pass and no AdjF/AdjV row on the
+-- model's telemetry page; the two sensors are still published for everything else that shows them.
 --
 -- It runs on the telemetry pass rather than as an event runner of its own, for the same reason
 -- `smart.lua` beside it does: what it reads is what the drain has just decoded, so any other
@@ -124,16 +124,6 @@ local function enabled()
   return events ~= nil and events.adjustment_events == true
 end
 
--- The last pair the decoder handed over, held until the next one: the flight controller repeats
--- an unchanged report only every few seconds, and the settle below needs the pair on every pass.
--- Forgotten on reset, so a report decoded before it can never be taken for one after it.
-local reportedFunction = nil
-local reportedValue = nil
-
-function M.report(functionId, value)
-  reportedFunction, reportedValue = functionId, value
-end
-
 -- Resolved on the first announcement rather than on the first pass, and NOT latched on a
 -- failure. A latch here would trade one missed load -- the module not reachable yet on an early
 -- pass -- for a teller that is silent for the rest of the session with nothing to say so. The
@@ -246,8 +236,10 @@ function M.wakeup()
   if M.selectionTick(nowSeconds() * 100) then return end
   if selection ~= nil then return end
 
-  local functionId = reportedFunction
-  local value = reportedValue
+  local suite = _G.rfsuite
+  local report = suite and suite.adjustmentReport
+  if type(report) ~= "table" then return end
+  local functionId, value = report[1], report[2]
   if functionId == nil or value == nil then return end
 
   -- Nothing is being adjusted. Do not announce, and do not remember it as a change either --
@@ -295,7 +287,6 @@ end
 
 function M.reset()
   selection, selectionOwner = nil, nil
-  reportedFunction, reportedValue = nil, nil
   state.functionId = nil
   state.value = nil
   state.idleSeen = false

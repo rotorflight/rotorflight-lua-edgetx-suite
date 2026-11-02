@@ -112,9 +112,17 @@ function M.wakeup(carry)
     -- The teller is reset when it steps aside, so that when it takes over again it starts as a
     -- new teller does: a report still standing at that moment is one the script has already
     -- announced, and only a new teller joins it without a word.
+    --
+    -- The pair this state decoded last goes with it: the other state decodes from then on, and
+    -- the pair held here would be out of date when this one takes over again. So the first
+    -- report decoded after taking over is the one joined.
     if remote then
-        if not tellerAside and Adjustments and type(Adjustments.reset) == "function" then
-            Adjustments.reset()
+        if not tellerAside then
+            if Adjustments and type(Adjustments.reset) == "function" then
+                Adjustments.reset()
+            end
+            local root = _G.rfsuite
+            if root then root.adjustmentReport = nil end
         end
         tellerAside = true
     else
