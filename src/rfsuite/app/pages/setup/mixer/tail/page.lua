@@ -609,11 +609,6 @@ function M.build(ctx)
     end
     return tostring(value)
   end
-  -- A number setting: the control, or while the override is on its value as text.
-  local function numberRow(labelText, opts)
-    if locked then return lockedRow(labelText, opts.display(opts.get())) end
-    return Controls.appendNumberField(children, x, cursorY, w, labelText, opts)
-  end
 
   do
     -- 1) Tail Mode
@@ -707,95 +702,115 @@ function M.build(ctx)
   )
 
   -- 4) Yaw Calibration
-  cursorY = cursorY + numberRow(
-    pageText(i18n, "yaw_calibration", "Yaw Calibration"),
-    {
-      min = 200,
-      max = 2000,
-      step = 1,
-      get = function() return ui.config.yaw_calibration or 400 end,
-      set = function(val)
-        if ui.config.yaw_calibration ~= val then
-          ui.config.yaw_calibration = val
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%",
-      edited = afterEdit,
-      helpText = pageText(i18n, "help_yaw_calibration",
-        "Yaw gain matched to the tail mechanics; usually 50-150% for a servo tail, and quite different for a motorised tail.")
-    }
-  )
-
-  -- 5) Yaw CW Limit
-  local limitSuffix = isMotor and "%" or "°"
-  local limitMax = isMotor and 2000 or 600
-  cursorY = cursorY + numberRow(
-    pageText(i18n, "yaw_cw_limit", "Yaw CW Limit"),
-    {
-      min = 0,
-      max = limitMax,
-      step = 1,
-      get = function() return rawToField(ui.config.yaw_cw_limit) end,
-      set = function(val)
-        if rawToField(ui.config.yaw_cw_limit) ~= val then
-          ui.config.yaw_cw_limit = fieldToRaw(val)
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
-      suffix = limitSuffix,
-      edited = afterEdit,
-      helpText = pageText(i18n, "help_yaw_cw_limit",
-        "Limit for clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
-    }
-  )
-
-  -- 6) Yaw CCW Limit
-  cursorY = cursorY + numberRow(
-    pageText(i18n, "yaw_ccw_limit", "Yaw CCW Limit"),
-    {
-      min = 0,
-      max = limitMax,
-      step = 1,
-      get = function() return rawToField(ui.config.yaw_ccw_limit) end,
-      set = function(val)
-        if rawToField(ui.config.yaw_ccw_limit) ~= val then
-          ui.config.yaw_ccw_limit = fieldToRaw(val)
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
-      suffix = limitSuffix,
-      edited = afterEdit,
-      helpText = pageText(i18n, "help_yaw_ccw_limit",
-        "Limit for counter-clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
-    }
-  )
-
-  -- 7) Tail Motor Idle (Motor mode only)
-  if isMotor then
-    cursorY = cursorY + numberRow(
-      pageText(i18n, "tail_motor_idle", "Tail Motor Idle"),
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "yaw_calibration", "Yaw Calibration"),
+      string.format("%.1f%%", (tonumber(ui.config.yaw_calibration) or 400) / 10))
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "yaw_calibration", "Yaw Calibration"),
       {
-        min = 0,
-        max = 250,
+        min = 200,
+        max = 2000,
         step = 1,
-        get = function() return ui.config.tail_motor_idle or 0 end,
+        get = function() return ui.config.yaw_calibration or 400 end,
         set = function(val)
-          if ui.config.tail_motor_idle ~= val then
-            ui.config.tail_motor_idle = val
+          if ui.config.yaw_calibration ~= val then
+            ui.config.yaw_calibration = val
             ui.dirty = true
           end
         end,
         display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
         suffix = "%",
         edited = afterEdit,
-        helpText = pageText(i18n, "help_tail_motor_idle",
-          "Lowest throttle sent to the tail motor; set it just high enough that the motor does not stop.")
+        helpText = pageText(i18n, "help_yaw_calibration",
+          "Yaw gain matched to the tail mechanics; usually 50-150% for a servo tail, and quite different for a motorised tail.")
       }
     )
+  end
+
+  -- 5) Yaw CW Limit
+  local limitSuffix = isMotor and "%" or "°"
+  local limitMax = isMotor and 2000 or 600
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "yaw_cw_limit", "Yaw CW Limit"),
+      string.format("%.1f", rawToField(ui.config.yaw_cw_limit) / 10) .. limitSuffix)
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "yaw_cw_limit", "Yaw CW Limit"),
+      {
+        min = 0,
+        max = limitMax,
+        step = 1,
+        get = function() return rawToField(ui.config.yaw_cw_limit) end,
+        set = function(val)
+          if rawToField(ui.config.yaw_cw_limit) ~= val then
+            ui.config.yaw_cw_limit = fieldToRaw(val)
+            ui.dirty = true
+          end
+        end,
+        display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
+        suffix = limitSuffix,
+        edited = afterEdit,
+        helpText = pageText(i18n, "help_yaw_cw_limit",
+          "Limit for clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
+      }
+    )
+  end
+
+  -- 6) Yaw CCW Limit
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "yaw_ccw_limit", "Yaw CCW Limit"),
+      string.format("%.1f", rawToField(ui.config.yaw_ccw_limit) / 10) .. limitSuffix)
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "yaw_ccw_limit", "Yaw CCW Limit"),
+      {
+        min = 0,
+        max = limitMax,
+        step = 1,
+        get = function() return rawToField(ui.config.yaw_ccw_limit) end,
+        set = function(val)
+          if rawToField(ui.config.yaw_ccw_limit) ~= val then
+            ui.config.yaw_ccw_limit = fieldToRaw(val)
+            ui.dirty = true
+          end
+        end,
+        display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
+        suffix = limitSuffix,
+        edited = afterEdit,
+        helpText = pageText(i18n, "help_yaw_ccw_limit",
+          "Limit for counter-clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
+      }
+    )
+  end
+
+  -- 7) Tail Motor Idle (Motor mode only)
+  if isMotor then
+    if locked then
+      cursorY = cursorY + lockedRow(pageText(i18n, "tail_motor_idle", "Tail Motor Idle"),
+        string.format("%.1f%%", (tonumber(ui.config.tail_motor_idle) or 0) / 10))
+    else
+      cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+        pageText(i18n, "tail_motor_idle", "Tail Motor Idle"),
+        {
+          min = 0,
+          max = 250,
+          step = 1,
+          get = function() return ui.config.tail_motor_idle or 0 end,
+          set = function(val)
+            if ui.config.tail_motor_idle ~= val then
+              ui.config.tail_motor_idle = val
+              ui.dirty = true
+            end
+          end,
+          display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
+          suffix = "%",
+          edited = afterEdit,
+          helpText = pageText(i18n, "help_tail_motor_idle",
+            "Lowest throttle sent to the tail motor; set it just high enough that the motor does not stop.")
+        }
+      )
+    end
   end
 end
 
