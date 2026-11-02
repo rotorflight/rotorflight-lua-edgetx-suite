@@ -9,13 +9,15 @@
 -- round, in the order the two widgets happen to sit on the screens. The accounting stubs supply
 -- EdgeTX, the flight controller and a temporary SD card. Events.wakeup and LogSink.tick are wrapped
 -- on the module tables both widgets call through and each call is attributed to the widget whose
--- call is running.
+-- call is running. What is counted for the card log is who ticks the sink -- the call the dashboard
+-- used to leave out for good once a service widget had attached; whether a tick then writes, and
+-- what, is lib/log_sink.lua's own business and unchanged here (the option is off in this world).
 --
 -- What is checked, in one Lua state as on the radio:
 --   both widgets      the event runtime is driven by the dashboard alone, never twice in a cycle,
---                     and the dashboard writes the card log -- in either call order;
+--                     and the dashboard ticks the card log -- in either call order;
 --   dashboard gone    the service widget takes the work over within a second, and not at once;
---   service gone      a dashboard that is still running (or added again) writes the card log;
+--   service gone      a dashboard that is still running (or added again) ticks the card log;
 --   flight clock      an armed flight's clock follows the stub clock through all of the above.
 --
 -- The stub clock steps 0.1 s per cycle and the widgets compare float seconds against 0.1 s, so a
@@ -164,9 +166,9 @@ check(a.service == 0, "both widgets, dashboard first: the service widget does no
   "dashboard=" .. a.dashboard .. " service=" .. a.service)
 check(a.most <= 1, "both widgets, dashboard first: the event runtime runs at most once per cycle",
   "most in one cycle=" .. a.most)
-check(a.sinkDashboard > 0, "both widgets, dashboard first: the dashboard writes the card log",
+check(a.sinkDashboard > 0, "both widgets, dashboard first: the dashboard ticks the card log",
   "dashboard=" .. a.sinkDashboard .. " service=" .. a.sinkService)
-check(a.sinkService == 0, "both widgets, dashboard first: the service widget leaves the card log to it",
+check(a.sinkService == 0, "both widgets, dashboard first: the service widget leaves the card log tick to it",
   "service=" .. a.sinkService)
 
 -- The same, the service widget first in each cycle (it sits on an earlier screen, or in the top bar).
@@ -176,7 +178,7 @@ check(b.service == 0, "both widgets, service first: the service widget does not 
   "dashboard=" .. b.dashboard .. " service=" .. b.service)
 check(b.most <= 1, "both widgets, service first: the event runtime runs at most once per cycle",
   "most in one cycle=" .. b.most)
-check(b.sinkService == 0, "both widgets, service first: the service widget leaves the card log to the dashboard",
+check(b.sinkService == 0, "both widgets, service first: the service widget leaves the card log tick to the dashboard",
   "service=" .. b.sinkService)
 
 -- The dashboard is taken off the model (or its script has stopped): only the service widget is
@@ -192,7 +194,7 @@ check(takeover == nil or takeover <= 1.0 + 1e-6, "dashboard gone: the take-over 
 check(takeover == nil or takeover > 0.15, "dashboard gone: the service widget does not take over on the very next cycle",
   "after " .. tostring(takeover) .. " s")
 check(c.service >= 50, "dashboard gone: the service widget keeps driving on its own", "service wakeups=" .. c.service)
-check(c.sinkService > 0, "dashboard gone: the service widget writes the card log", "service=" .. c.sinkService)
+check(c.sinkService > 0, "dashboard gone: the service widget ticks the card log", "service=" .. c.sinkService)
 
 -- The flight clock through both widgets and the hand-over: neither doubled nor dropped.
 local flightNow, clockNow = flightSeconds(), nowSeconds()
@@ -210,7 +212,7 @@ Stubs.sensors["ARMD"] = 0
 dashboard = DashboardRuntime.new({ x = 0, y = 0, w = 800, h = 458 }, {})
 local d = run(60, { "dashboard" })
 check(d.dashboard > 0, "control: the dashboard alone runs the event runtime", "dashboard=" .. d.dashboard)
-check(d.sinkDashboard > 0, "service widget gone: the dashboard writes the card log",
+check(d.sinkDashboard > 0, "service widget gone: the dashboard ticks the card log",
   "dashboard=" .. d.sinkDashboard)
 
 Events.wakeup, Sink.tick = realWakeup, realSinkTick

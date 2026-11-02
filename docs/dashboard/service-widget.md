@@ -74,8 +74,8 @@ writes the log to the card, and the service widget stands down: its tile still s
 it runs nothing itself. The service widget is then not needed and can be removed.
 
 If the dashboard is taken off the model, or stops running, the service widget notices within about
-half a second and takes the work over, the log to the card included. A flight in progress keeps its
-full flight time across the change.
+half a second and takes the work over, the log to the card included. A flight that stays armed
+across the change keeps its full flight time.
 
 ## What not to do
 
