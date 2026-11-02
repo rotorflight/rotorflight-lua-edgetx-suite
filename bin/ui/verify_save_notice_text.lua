@@ -82,6 +82,38 @@ local function showsExactly(Stubs, text)
   return false
 end
 
+-- Every rectangle anywhere in the recorded trees.
+local function rectangles(node, out, seen)
+  seen = seen or {}
+  if seen[node] then return out end
+  seen[node] = true
+  if node.type == "rectangle" then out[#out + 1] = node end
+  for _, v in pairs(node) do
+    if type(v) == "table" then rectangles(v, out, seen) end
+  end
+  return out
+end
+
+-- The progress bar of the notice (ui/loading_overlay.lua): a 16 px track, and inside it, 2 px in, a
+-- 12 px fill whose width is the progress. A fill of width 0 is left out, so no fill reads as 0.
+-- Returns nil when no track is drawn at all.
+local function barFill(Stubs)
+  local all = rectangles(Stubs.lvgl.trees, {})
+  for i = 1, #all do
+    local track = all[i]
+    if track.h == 16 and type(track.w) == "number" then
+      for j = 1, #all do
+        local fill = all[j]
+        if fill.h == 12 and fill.x == track.x + 2 and fill.y == track.y + 2 then
+          return fill.w, track.w
+        end
+      end
+      return 0, track.w
+    end
+  end
+  return nil
+end
+
 local Stubs = assert(loadfile(root .. "/bin/accounting/stubs/edgetx.lua"))()
 local FC = assert(loadfile(root .. "/bin/accounting/stubs/fc.lua"))()
 Stubs.clearCard()
@@ -123,10 +155,16 @@ draw({ phase = "write", label = LABEL, done = 1, total = 3, fraction = 1 / 3 })
 check(#Stubs.lvgl.trees > 0, "write phase builds a notice")
 check(not shows(Stubs, LABEL), "write phase keeps the step label off the screen", LABEL)
 check(showsExactly(Stubs, SAVE_TEXT), "write phase shows the translated save text")
+local writeFill, trackW = barFill(Stubs)
+check(writeFill ~= nil and writeFill > 0, "write phase fills the bar", writeFill)
 
 -- The EEPROM commit (the pipeline reports no label there): the same text.
 draw({ phase = "commit", label = nil, done = 2, total = 3, fraction = 2 / 3 })
 check(showsExactly(Stubs, SAVE_TEXT), "commit phase shows the translated save text")
+-- Without the step's name, the bar is what tells the pilot how far the save has come.
+local commitFill = barFill(Stubs)
+check(writeFill and commitFill and commitFill > writeFill and commitFill < trackW,
+  "the bar fills further at the commit than at the first write", tostring(writeFill) .. " -> " .. tostring(commitFill))
 
 -- Control: a phase with a text of its own still shows it, so the trees are being read.
 draw({ phase = "reboot", label = nil, done = 3, total = 3, fraction = 1, indeterminate = true })
