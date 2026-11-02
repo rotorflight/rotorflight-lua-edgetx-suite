@@ -109,6 +109,14 @@ local state = {
   changedAt = nil,
 }
 
+-- A teller loaded while the decoder holds a 0 starts as one that has already read it: nothing is
+-- being adjusted, so the next report is the pilot's. Its host does not wake it on the pass that
+-- loads it, and a report decoded on the next one would otherwise be its first reading -- joined.
+do
+  local report = root and root.adjustmentReport
+  if type(report) == "table" and report[1] == 0 then state.idleSeen = true end
+end
+
 local function nowSeconds()
   if type(getTime) == "function" then
     local ok, v = pcall(getTime)

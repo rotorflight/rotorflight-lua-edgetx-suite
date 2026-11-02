@@ -73,6 +73,8 @@ local function newWorld(host, opts)
     allowRows = opts.allowRows ~= false,
     reads = {},             -- getValue() calls by name
     loads = {},             -- loadScript() calls by core-relative path
+    loadPass = {},          -- the host pass each path was first loaded on
+    passes = 0,
     spoken = {},
     shm = {},
     prefs = { audio_events = { adjustment_events = opts.enabled == true }, general = {} },
@@ -119,6 +121,7 @@ local function newWorld(host, opts)
     assert(string.sub(path, 1, #CORE) == CORE, "unexpected module path: " .. tostring(path))
     local relative = string.sub(path, #CORE + 1)
     W.loads[relative] = (W.loads[relative] or 0) + 1
+    W.loadPass[relative] = W.loadPass[relative] or W.passes
     if standIns[relative] then return standIns[relative] end
     return loadfile(ROOT .. "/src/rfsuite/" .. relative)
   end
@@ -146,6 +149,7 @@ end
 local function pass(n)
   for _ = 1, n or 1 do
     W.ticks = W.ticks + PASS_TICKS
+    W.passes = W.passes + 1
     if W.adj and W.ticks >= W.nextAdjAt then
       W.frames[#W.frames + 1] = frame(W.adj[1], W.adj[2])
       W.nextAdjAt = W.ticks + (W.adjEvery or ADJ_FRAME_TICKS)
@@ -336,6 +340,32 @@ for _, host in ipairs(HOSTS) do
   seconds(2.0)
   check(said("inflight/fn/14.wav") and said("#100"),
     host .. ": an adjustment made within 3 s of switching on, after an idle 0, is announced")
+
+  -- The same with the adjustment decoded on the very next pass after the one that loaded it.
+  newWorld(host, { enabled = false })
+  idle()
+  seconds(4.0)
+  W.prefs.audio_events.adjustment_events = true
+  untilOn(35.0)
+  adjust(14, 100)
+  seconds(2.0)
+  check(said("inflight/fn/14.wav") and said("#100"),
+    host .. ": an adjustment decoded on the pass after the teller's load is announced")
+end
+
+-- Widget only: the decoder table loads on the same pass whether the teller was loaded, taken over
+-- from the in-flight overlay, or not loaded at all.
+do
+  local function decoderPass(enabled, overlayFirst)
+    newWorld("widget", { enabled = enabled })
+    if overlayFirst then _G.rfsuite.require(TELLER) end
+    W.adj = { 0, 0 }
+    seconds(2.0)
+    return W.loadPass["lib/rf2tlm_sensors.lua"]
+  end
+  local on, off, adopted = decoderPass(true, false), decoderPass(false, false), decoderPass(false, true)
+  check(on ~= nil and on == off and on == adopted, "widget: the decoder table loads on the same start-up pass "
+    .. "(on " .. tostring(on) .. ", off " .. tostring(off) .. ", overlay first " .. tostring(adopted) .. ")")
 end
 
 do

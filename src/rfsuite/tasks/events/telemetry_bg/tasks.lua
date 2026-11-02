@@ -50,8 +50,9 @@ function M.wakeup(carry)
     -- one instance is taken over rather than loaded again, so the step-aside reset below still
     -- reaches it.
     --
-    -- With the setting off, the pass the teller would have loaded on is still spent, once, doing
-    -- nothing: every later start-up step then lands on the wakeup it always had. Moved one pass
+    -- With the setting off, or with the overlay's teller taken over, the pass the teller would
+    -- have loaded on is still spent, once, doing nothing: every later start-up step then lands on
+    -- the wakeup it always had. Moved one pass
     -- earlier, the decoder table's load meets another start-up step -- in bin/accounting
     -- `pass.startup.worst` went up by about 1 100 instructions and `unit.events.wakeup.armed`
     -- by about 900 -- for a saving of one 50 ms pass.
@@ -66,10 +67,11 @@ function M.wakeup(carry)
             if events and events.adjustment_events == true then
                 Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua") or false
                 return
-            elseif not tellerStageSpent then
-                tellerStageSpent = true
-                return
             end
+        end
+        if not tellerStageSpent then
+            tellerStageSpent = true
+            return
         end
     end
 
