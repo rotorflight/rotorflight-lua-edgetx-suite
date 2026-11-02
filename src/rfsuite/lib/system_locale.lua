@@ -161,9 +161,10 @@ local isBaked = (BAKED ~= "@i18n_" .. "language@")
 -- so that operators can override a German package when running on an English
 -- radio, or vice-versa.  When no explicit preference exists, packaged builds
 -- fall back to the baked locale; simulator / source builds query the radio.
-local function resolveUncached(defaultLang)
+--
+-- `fromPrefs` is step 1's answer, already read: the preference itself, or nil for Automatic.
+local function resolveWith(fromPrefs, defaultLang)
   -- 1. Explicit user preference stored in the radio-wide settings file.
-  local fromPrefs = readLanguageFromPrefs()
   if fromPrefs then return fromPrefs end
 
   -- 2a. Packaged build: use the baked locale (already validated by the packager).
@@ -177,6 +178,23 @@ local function resolveUncached(defaultLang)
 
   -- 3. Caller-supplied default (usually "en").
   return normalizeLanguage(defaultLang) or "en"
+end
+
+local function resolveUncached(defaultLang)
+  return resolveWith(readLanguageFromPrefs(), defaultLang)
+end
+
+--- The language the resolution gives for `defaultLang`, with step 1 answered from settings the
+--- caller has already read rather than from the card.
+---
+--- `prefs` is the radio-wide settings table as lib/preferences.lua loads it. Its
+--- `localizations.language` is the explicit choice; where the key is absent -- Automatic -- the
+--- answer is whatever steps 2 and 3 give, which is why a caller hands this on rather than the
+--- preference itself. Nothing is remembered here; see invalidateLanguage below.
+function M.resolveFromPreferences(prefs, defaultLang)
+  local loc = type(prefs) == "table" and prefs.localizations or nil
+  local fromPrefs = type(loc) == "table" and normalizeLanguage(loc.language) or nil
+  return resolveWith(fromPrefs, defaultLang)
 end
 
 function M.resolveSystemLanguage(defaultLang)
@@ -215,11 +233,28 @@ end
 -- and the whole cost of the check has to be one table index.
 M.localeGeneration = 0
 
-function M.invalidateLanguage()
+--
+-- `resolved` and `forDefault` are optional: the language the caller has just resolved and the
+-- default it resolved it for. Given both, they are kept as if resolveSystemLanguage(forDefault)
+-- had answered them now, so the next call with that default is not a second read of the settings
+-- the caller already has in hand. It must be the RESOLVED answer for that default -- what
+-- resolveFromPreferences gives -- and never the bare preference: with Automatic the preference is
+-- absent and the answer comes from the package or the radio. A caller asking with another default
+-- still resolves for itself, as the memo is kept for one default only.
+function M.invalidateLanguage(resolved, forDefault)
   cachedLanguage = nil
   cachedLanguageFor = nil
   cachedLanguageAt = nil
   M.localeGeneration = M.localeGeneration + 1
+
+  local lang = normalizeLanguage(resolved)
+  if lang == nil or forDefault == nil then return end
+  local now = nowTicks()
+  if now then
+    cachedLanguage = lang
+    cachedLanguageFor = forDefault
+    cachedLanguageAt = now
+  end
 end
 
 function M.resolveAudioFolder(defaultFolder)
