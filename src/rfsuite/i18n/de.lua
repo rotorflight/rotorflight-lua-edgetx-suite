@@ -112,7 +112,7 @@ return {
         powerCapacityShort = "Kapazität in mAh. Bearbeiten aktiviert das Profil nicht.",
         powerSmartFuelShort = "Berechnung der Restkapazität im FC wählen.",
         powerNoEscVoltage = "Keine ESC-Spannung",
-        powerSaveFirst = "Quelle zuerst speichern",
+        powerApplying = "Quelle wird übernommen...",
         powerProfileUnknown = "Aktives Profil unbekannt",
         powerVoltageWarning = "SmartFuel benötigt eine Spannungsquelle.",
         powerVoltageHelp = "Spannungsquelle: Spannungseingang des FC wählen; Optionen wie unter Power > Quellen.\nSpannung: ESC-Telemetrie ist vor dem Speichern live. Andere Quellen zeigen den FC-Wert nach dem Speichern; fehlende ESC-Spannung wird ausdrücklich gemeldet.",

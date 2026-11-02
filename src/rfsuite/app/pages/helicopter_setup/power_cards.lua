@@ -23,8 +23,10 @@ return function(w, cards)
       if signal == "voltage" and motor.voltage <= 0 then return L.powerNoEscVoltage end
       return fields.reading(motor[signal], 1000, unit)
     end
-    local saved = w.saved.battery_config
-    if not saved or source ~= saved[key] then return L.powerSaveFirst end
+    -- A changed source is written to the FC at once (no EEPROM); until that write is out,
+    -- no reading belongs to it.
+    local sent = w.sent.battery_config or w.saved.battery_config
+    if not sent or source ~= sent[key] then return L.powerApplying end
     local age = w.analogAt and getTime() - w.analogAt
     if not age or age < 0 or age > 200 or not w.data.analog or not w.analogSources or w.analogSources[key] ~= source then
       return L.noTelemetry
@@ -36,6 +38,10 @@ return function(w, cards)
     local row = w:enum("battery_config", key, label, entries(options))
     -- Source options already include the stored ID, even when it is unknown.
     row.allowUnset = false
+    -- The firmware reads the source on every battery update, so a live write shows its reading
+    -- before the card is saved.
+    local set = row.set
+    row.set = function(v) set(v); w:touch("battery_config", false, true) end
     add(label, help, {
       row,
       w:value(signal == "voltage" and L.voltage or L.current, function() return sourceValue(key, signal, unit) end)

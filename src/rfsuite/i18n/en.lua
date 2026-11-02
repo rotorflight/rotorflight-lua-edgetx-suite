@@ -112,7 +112,7 @@ return {
         powerCapacityShort = "Capacity in mAh. Editing a slot does not activate it.",
         powerSmartFuelShort = "Choose the FC's remaining-fuel calculation.",
         powerNoEscVoltage = "No ESC voltage",
-        powerSaveFirst = "Save source first",
+        powerApplying = "Applying source...",
         powerProfileUnknown = "Active profile unknown",
         powerVoltageWarning = "SmartFuel needs a voltage source.",
         powerVoltageHelp = "Voltage Source: Choose the FC's voltage input; options match Power > Sources.\nVoltage: ESC telemetry is live before saving. Other sources show the FC reading after saving; missing ESC voltage is reported explicitly.",

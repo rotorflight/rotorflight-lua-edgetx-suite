@@ -4663,8 +4663,19 @@ return function(h)
     w.motorTelemetryAt=getTime()-201
     eq(voltage.rows[2].get(),L.noTelemetry,"POWER stale ESC sample is not live")
     voltage.rows[1].set(4)
-    eq(voltage.rows[2].get(),L.powerSaveFirst,"POWER draft external source never borrows another source's reading")
-    voltage.rows[1].set(2);current.rows[1].set(2)
+    eq(voltage.rows[2].get(),L.powerApplying,"POWER a source not yet written never borrows another source's reading")
+    check(w.live.battery_config,"POWER a source change is queued as a live write")
+    q.sent={};settle(w)
+    local live,eeprom=0,0
+    for _,m in ipairs(q.sent) do
+      if m.command==h.api("battery_config").writeCommand then live=live+1 end
+      if m.command==250 then eeprom=eeprom+1 end
+    end
+    check(live>0,"POWER a source change is written to the FC at once")
+    eq(eeprom,0,"POWER a live source write does not save to EEPROM")
+    check(voltage.rows[2].get()~=L.powerApplying,"POWER once written, the source waits for its own reading")
+    voltage.rows[1].set(2);current.rows[1].set(2);settle(w)
+    eq(w.sent.battery_config.voltageMeterSource,w.data.battery_config.voltageMeterSource,"POWER the live write reaches the FC before the next reading")
     w.card=powerIndex;w.pollIndex=1;w.lastPoll=nil;q.sent={}
     w:poll();settle(w)
     eq(q.sent[1].command,110,"POWER analog replaces the unused servo poll on power cards")
@@ -4685,7 +4696,21 @@ return function(h)
     end
     voltage.rows[1].set(2)
     eq(smart.rows[2].get(),"","POWER warning clears with a voltage source")
-    for _,m in ipairs(q.sent) do check(not m.isWrite,"POWER drafts send no immediate writes") end
+  end)
+  case("S11.power-card-saves-before-the-next",function()
+    local w=world();settle(w);w.step=10;w.rebootPending=nil
+    local cards=step(w,"escTelemetry");w.cards=cards
+    local voltage=powerCard(cards,L.voltageSource);local index
+    for i,card in ipairs(cards) do if card==voltage then index=i end end
+    w.card=index;voltage.rows[1].set(3);settle(w)
+    q.sent={};w:next();settle(w)
+    local eeprom=0
+    for _,m in ipairs(q.sent) do if m.command==250 then eeprom=eeprom+1 end end
+    eq(eeprom,1,"POWER leaving a changed Power card saves it")
+    eq(w.card,index+1,"POWER the save moves on to the next card")
+    check(not next(w.dirty),"POWER nothing is left unsaved after a Power card")
+    q.sent={};w.card=index;w:next();settle(w)
+    for _,m in ipairs(q.sent) do check(m.command~=250,"POWER an unchanged Power card moves on without a save") end
   end)
   case("S11.power-roundtrip-save-discard-and-failure",function()
     local w=world();settle(w);w.step=10

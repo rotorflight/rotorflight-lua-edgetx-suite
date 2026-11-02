@@ -237,9 +237,9 @@ written by opening a card. Existing ESC reboot requirements still apply.
 | Setting | Meaning and availability |
 | --- | --- |
 | Voltage Source | FC voltage input, using the exact Power > Sources options: NONE, ADC, ESC, FBUS; CRSF from known API 12.0.10. An unknown stored ID remains selectable and is preserved. |
-| Voltage | Live ESC voltage in V from motor telemetry, including an explicit missing-voltage message. Other sources show the FC's selected-source analog reading after saving. Missing or stale readings show no telemetry. |
+| Voltage | Live ESC voltage in V from motor telemetry, including an explicit missing-voltage message. Other sources show the FC's selected-source analog reading as soon as the changed source has been written to the FC, before the card is saved; until then the row reads *Applying source...*. Missing or stale readings show no telemetry. |
 | Current Source | FC current input with the same options and version rule as Voltage Source. |
-| Current | Live ESC current in A, or the FC's selected-source analog reading after saving. Zero current can be normal at rest. An unsaved non-ESC source never claims another source's reading. |
+| Current | Live ESC current in A, or the FC's selected-source analog reading once the source is written. Zero current can be normal at rest. A source not yet written never claims another source's reading. |
 | Selected | Read-only active battery profile, obtained from the optional battery_profile API. It is never switched by these cards. An unanswered or out-of-range profile is shown as unknown. |
 | Cell count | 0-24, with 0 for automatic detection. With per-profile cells, edits affect the active slot and preserve every other slot. If its active profile is unknown, the received active cell count is read-only. Legacy single cell count remains editable. |
 | Battery 1 | Capacity of slot 1, 0-40000 mAh; editing does not activate it. |
@@ -261,8 +261,10 @@ requirement remains in force.
 On these cards only, one nine-byte analog live read replaces the unused servo
 poll. It does not add a startup read or delay STATUS/motor_telemetry polling.
 ESC uses the already-polled motor_telemetry values. Both caches expire after two
-seconds; analog readings also retain the saved source IDs associated with their
-request. Voltage meter calibration is unchanged and voltage_meter_config is not
+seconds; analog readings also retain the source IDs the FC held when they were
+requested. A source change is written to the FC at once, without saving to EEPROM: the
+firmware reads the source on every battery update. Each Power card is saved when the
+pilot moves on to the next card, so Discard only undoes the card on screen. Voltage meter calibration is unchanged and voltage_meter_config is not
 read or written.
 
 ## ESC throttle range and operating mode (step 10)

@@ -595,6 +595,12 @@ function M.new(runtime, transport, mathModule, labels)
       return
     end
     if self.step == 1 and (not self:ack("unplugged") or not self:ack("blades")) then return end
+    -- A Power card is saved before the next card, as each answers one question on its own.
+    local card = self.cards[self.card]
+    if card and card.power and self.card < #self.cards and next(self.dirty) then
+      local target = self.card + 1
+      self:save(function() self:navigate(self.step, target) end); return
+    end
     if self.card < #self.cards then self:navigate(self.step, self.card + 1); return end
     if self.validate and not self.validate() then return end
     -- ESC telemetry (10) restarts before the servos are plugged in at Connect servos (11);
@@ -831,7 +837,7 @@ function M.new(runtime, transport, mathModule, labels)
     if self.step == 10 and card and card.power and self.pollIndex == 2 then api = "analog" end
     if self.motorHold then api = "motor" end
     if not api then return end
-    local selectedSources = self.saved.battery_config
+    local selectedSources = self.sent.battery_config or self.saved.battery_config
     -- An idle bus holds no queued or pending job, so the previous poll's job is free again.
     local job = self.bus:idle() and self.pollJob
     if not job then
