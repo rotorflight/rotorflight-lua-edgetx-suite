@@ -29,6 +29,8 @@
 --   rtnfs6   the same with six passes (the full-screen theme built before the exit)
 -- Each counts the builds that complete after the surface is left and records their keys. Expected:
 -- exactly one, carrying the moved bounds. The control moves nothing and expects one build as well.
+-- Two more cases check that a theme without a key of its own stays on the 2 Hz throttle (see
+-- zoneViewCase below).
 -- Exit status: 0 green, 1 failed expectations, 2 invalid arguments.
 
 local ROOT = "."
@@ -189,6 +191,83 @@ for _, path in ipairs({ "exit", "off", "rtn", "rtnexit", "rtnfs2", "rtnfs6" }) d
         print((ok and "PASS " or "FAIL ") .. label .. (ok and (": " .. builds[1]) or (": " .. tostring(why))))
       end
     end
+  end
+end
+
+-- A theme with a build and no key of its own -- a pilot's theme can be one -- computes a key of
+-- nil on every pass that asks. Computing the key at once when the cached one is nil must not
+-- ask that theme on every pass: the throttle would then be stamped on every zone pass, and the
+-- zone views' conditions, asked on each stamp, would run at the pass rate instead of 2 Hz. The
+-- theme is served from the user directory; its one zone view counts the calls of its condition
+-- over PASSES zone passes (100 ms each). The control is the same theme with a key, which the
+-- throttle holds to the same count.
+local PASSES = 50
+local function zoneViewCase(withKey)
+  Stubs.install(ROOT)
+  FC.install(Stubs)
+  Stubs.reset()
+  FC.reset()
+  for k, v in pairs(SENSORS) do Stubs.sensors[k] = v end
+  local asks = 0
+  local manifest = { name = "Zone view test",
+    views = { { id = "zv", module = "zv.lua", where = "zone",
+      openWhen = function() asks = asks + 1; return true end } } }
+  local theme = { build = function() return {} end }
+  if withKey then theme.renderKey = function() return "zv-test" end end
+  local zoneView = { build = function() end }
+  local prefix = "/SCRIPTS/TOOLS/rfsuite.user/dashboard/zv-test/"
+  local realLoadScript = _G.loadScript
+  _G.loadScript = function(path, mode)
+    if path == prefix .. "init.lua" then return function() return manifest end end
+    if path == prefix .. "widget.lua" then return function() return theme end end
+    if path == prefix .. "zv.lua" then return function() return zoneView end end
+    return realLoadScript(path, mode)
+  end
+  local Runtime = _G.rfsuite.require("widgets/dashboard/runtime.lua")
+  local w = Runtime.new({ x = 0, y = 0, w = 800, h = 458 }, {})
+  w.preferences = w.preferences or {}
+  w.preferences.dashboard = { theme_preflight = "user/zv-test" }
+  local settled = false
+  for i = 1, 1200 do
+    pass(w, nil)
+    if i > 50 and w.connectionReady == true and w._job == nil and w.built
+        and w.themePath == "user/zv-test" and w._zoneView ~= nil then
+      settled = true
+      break
+    end
+  end
+  _G.loadScript = realLoadScript
+  if not settled then
+    return nil, "positive control: the theme's zone view never came up (theme " .. tostring(w.themePath) .. ")"
+  end
+  asks = 0
+  local stamps, last = 0, w._lastUIRefresh
+  for _ = 1, PASSES do
+    pass(w, nil)
+    if w._lastUIRefresh ~= last then stamps, last = stamps + 1, w._lastUIRefresh end
+  end
+  return asks, stamps
+end
+
+-- The throttle opens every fifth pass; a margin of two either way for the phase it starts in.
+local lo, hi = PASSES // 5 - 2, PASSES // 5 + 2
+for _, withKey in ipairs({ false, true }) do
+  cases = cases + 1
+  local label = withKey and "zone view, theme with a key (control)" or "zone view, theme without a key"
+  local asks, stamps = zoneViewCase(withKey)
+  local ok, why = false, stamps
+  if asks ~= nil then
+    if asks < lo or asks > hi or stamps < lo or stamps > hi then
+      why = string.format("the condition was asked %d times and the throttle stamped %d times in %d passes, expected %d..%d",
+        asks, stamps, PASSES, lo, hi)
+    else
+      ok = true
+    end
+  end
+  if not ok then failures = failures + 1 end
+  if verbose or not ok then
+    print((ok and "PASS " or "FAIL ") .. label .. ": " ..
+      (ok and string.format("%d asks, %d stamps in %d passes", asks, stamps, PASSES) or tostring(why)))
   end
 end
 Stubs.releaseCard()

@@ -5304,7 +5304,9 @@ function Runtime.new(zone, options)
       -- A cached key of nil is one an invalidation dropped (applyThemeConfig, a reload): it is
       -- computed at once rather than handed on, since another surface -- the full-screen theme,
       -- the tuning surface -- may have spent the throttle since, and a scene queued under nil is
-      -- built again as soon as the throttle next opens.
+      -- built again as soon as the throttle next opens. A theme that has no key (a free-form
+      -- theme with a build and no renderKey) computes nil every time; that is cached as false,
+      -- so such a theme stays on the 2 Hz throttle and hands on nil as it always did.
       if (now - self._lastUIRefresh) >= 0.5 or self._cachedRenderKey == nil then
         self._lastUIRefresh = now
         local newKey = nil
@@ -5313,9 +5315,10 @@ function Runtime.new(zone, options)
         elseif self.dashboardEngine and (type(self.theme.layout) == "table" or type(self.theme.boxes) == "table" or type(self.theme.boxes) == "function") then
           newKey = self.dashboardEngine.renderKey(self.state, self.boxSources)
         end
+        if newKey == nil then newKey = false end
         self._cachedRenderKey = newKey
       end
-      nextRenderKey = self._cachedRenderKey
+      nextRenderKey = self._cachedRenderKey or nil
     end
 
     self._snapshotSources = viewSources
