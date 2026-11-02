@@ -60,8 +60,9 @@ time -- from the card, unless the tool already holds its compiled chunk (see bel
 
 - The background telemetry runner (`tasks/events/telemetry_bg/tasks.lua`) and SmartFuel record
   `false` for a module that did not load and do not ask for it again until the Lua state restarts.
-- The custom telemetry drain (`tasks/events/telemetry_bg/drain.lua`, which loads its modules
-  itself in the same way) and the MSP API version read, which every connection waits on, ask
+- The custom telemetry drain (`tasks/events/telemetry_bg/drain.lua`, which has a loader of its
+  own -- `loadScript` and `pcall`, not `rfsuite.require`, so a failed load there prints nothing)
+  and the MSP API version read, which every connection waits on, ask
   again for a module that did not load after one second rather than on every pass. For the drain
   that is its decoder table (`lib/rf2tlm_sensors.lua`) and `lib/crsf.lua`; while one is missing it
   takes nothing off the link. A load can fail without the file being broken -- the loader's
