@@ -214,14 +214,15 @@ do
   check("a pick is applied while a held load is latched", requested and widget._batteryPickRequest == nil
     and pick.selectedId == "25", string.format("requested=%s request=%s selected=%s", tostring(requested),
       tostring(widget._batteryPickRequest), tostring(pick.selectedId)))
+  check("a held load that is latched is let go", pick.load == nil)
 end
 
--- Two thousand one-field lines, and the chosen pack changed from the first to the last while the
+-- Three thousand one-field lines, and the chosen pack changed from the first to the last while the
 -- load is part-way: the step that publishes the list does not search all of it for the choice.
 do
-  local MANY = 2000
+  local MANY = 3000
   local widget = newWidget(MANY, function(n) return string.format("id=%d\n", n) end)
-  local seen = drive(widget, 1400, function(_, _, s)
+  local seen = drive(widget, 1900, function(_, _, s)
     s.expect = MANY
     _G.rfsuite.session.flightlog = { batteryId = s.loads < 5 and "1" or tostring(MANY) }
   end)
@@ -230,6 +231,22 @@ do
     PASS_LIMIT), seen.worst <= PASS_LIMIT and #pick.candidates == MANY and pick.selectedId == tostring(MANY),
     string.format("worst load pass %d over %d load passes, %d packs, selected %s", seen.worst, seen.loads,
       #pick.candidates, tostring(pick.selectedId)))
+
+  -- A pick of the last pack on that list does not cost a pass that grows with the registry either.
+  widget._batteryPickRequest = tostring(MANY)
+  local applyCost = nil
+  for _ = 1, 50 do
+    Stubs.tick()
+    local isApply = widget._job ~= nil and widget._job.kind == "battery_pick_apply"
+    count = 0
+    debug.sethook(hook, "", 1)
+    widget.refresh(widget, nil, nil)
+    debug.sethook()
+    if isApply then applyCost = count end
+  end
+  check(string.format("a pick on %d packs costs no more than %d instructions", MANY, PASS_LIMIT),
+    applyCost ~= nil and applyCost <= PASS_LIMIT and widget._batteryPickRequest == nil,
+    string.format("apply pass %s", tostring(applyCost)))
 end
 
 Stubs.releaseCard()

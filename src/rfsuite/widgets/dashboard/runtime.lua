@@ -1756,6 +1756,7 @@ local function newBatteryPickState()
     loaded = false,
     pending = false,
     candidates = {},
+    byId = {},
     selectedId = nil,
     selectedName = nil,
     boardProfile = nil,
@@ -1764,13 +1765,11 @@ local function newBatteryPickState()
   }
 end
 
+-- A pack of the published list by its id, through the index the load built beside the list, so a
+-- lookup does not cost a pass that grows with the registry.
 local function batteryPickEntry(pick, id)
-  if id == nil then return nil end
-  local list = pick.candidates
-  for i = 1, #list do
-    if list[i].id == id then return list[i] end
-  end
-  return nil
+  if id == nil or type(pick.byId) ~= "table" then return nil end
+  return pick.byId[id]
 end
 
 --- Read the registry and ask the board which profile it is on. Once per FBL session.
@@ -1804,11 +1803,11 @@ local function batteryPickLoadStep(self)
   end
   local list = load.packs
   pick.candidates = list
+  pick.byId = load.byId
 
-  -- Looked up in the load's own index rather than searched for in the list.
   local id = BatteryPick.selectedId(session)
   pick.selectedId = id
-  local entry = id ~= nil and load.byId[id] or nil
+  local entry = batteryPickEntry(pick, id)
   pick.selectedName = entry and entry.name or nil
 
   -- Not raised while armed: a model armed before this step ran has already passed the arm edge
@@ -5525,10 +5524,12 @@ function Runtime.new(zone, options)
     -- armed on `built`, and each clears what arms it before it can raise. A load that has taken
     -- its first step finishes before a pick is applied: the pick looks its pack up in the list
     -- the load publishes, and would otherwise find no pack and write no profile. A load that is
-    -- held but latched (a step stopped after it was handed back) holds no pick up.
+    -- held but latched -- a step stopped by the instruction limit after it was handed back -- is
+    -- never continued, so it is let go here and holds no pick up.
     if self._job == nil then
       local pick = self.state.batteryPick
-      if self._batteryPickRequest ~= nil and (pick.load == nil or pick.loaded == true) then
+      if pick.load ~= nil and pick.loaded == true then pick.load = nil end
+      if self._batteryPickRequest ~= nil and pick.load == nil then
         self._job = { kind = "battery_pick_apply", step = batteryPickApplyStep, oneShot = true }
       elseif pick.loaded ~= true and self.state.tasksDone == true then
         self._job = { kind = "battery_pick_load", step = batteryPickLoadStep, oneShot = true }
