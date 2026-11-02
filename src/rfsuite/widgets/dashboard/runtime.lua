@@ -512,21 +512,12 @@ local function driveLeftSave()
   end
 end
 
--- Both widgets run in one Lua state and share the one ring in it, so exactly one of them may
--- write it out -- two writers would append to the same file from two places and interleave.
--- widgets/service/runtime.lua is the better owner, because its background() runs while it is off
--- screen, and it announces itself to the MSP runtime under this name when it attaches. Where it
--- is not on the model there is nobody to defer to and this runtime writes instead.
-local function serviceWidgetOwnsTheSink()
-  if not MspRuntime or type(MspRuntime.getState) ~= "function" then return false end
-  local runtimeState = MspRuntime.getState()
-  if type(runtimeState) ~= "table" or type(runtimeState.clients) ~= "table" then return false end
-  return runtimeState.clients["service-widget"] == true
-end
-
+-- Both widgets run in one Lua state and share the one ring in it. Whichever of them drives the
+-- background work writes it out: this widget on every pass it drives, and the service widget only
+-- while this one does not (see tickMspRuntime and widgets/service/runtime.lua). This one's
+-- background() runs while it is off screen as well, so the ring keeps reaching the card either way.
 local function tickCardSink(self)
   if not LogSink or type(LogSink.tick) ~= "function" then return end
-  if serviceWidgetOwnsTheSink() then return end
 
   local armed = false
   if MspRuntime and type(MspRuntime.getState) == "function" then
@@ -603,6 +594,12 @@ local function compileStatusLine(self, t)
 end
 
 local function tickMspRuntime(self, carry)
+  -- The mark the service widget stands down on while this widget drives the work below, the
+  -- compile pass included: on a model that carries both, the work otherwise runs twice per tick.
+  -- See Events.markDriving.
+  if EventsRuntime and type(EventsRuntime.markDriving) == "function" then
+    EventsRuntime.markDriving("dashboard-widget")
+  end
   tickCardSink(self)
 
   if not MspRuntime then

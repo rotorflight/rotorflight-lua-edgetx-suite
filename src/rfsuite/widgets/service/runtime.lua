@@ -7,7 +7,8 @@
 --
 -- This widget is that caller and nothing else. It ticks the same two runtimes the dashboard ticks
 -- and draws a small status tile, so a pilot who does not want the dashboard can still have the
--- suite's background service on the model.
+-- suite's background service on the model. On a model that carries the dashboard as well, the
+-- dashboard does that work and this widget stands down; only its tile is still drawn.
 
 local Runtime = {}
 
@@ -296,6 +297,23 @@ local function tickRuntimes(self)
   if (now - (self._lastLogicTick or 0)) < TICK_INTERVAL_SECONDS then return end
   self._lastLogicTick = now
 
+  -- A dashboard widget on the model does all of the work below itself, on screen and off it, in
+  -- this same Lua state. While it does, this widget stands down -- the settings, the card log and
+  -- the runtimes alike -- and takes over once the dashboard's mark has gone stale: the dashboard
+  -- taken off the model, or its script stopped. See Events.markDriving for the threshold.
+  if EventsRuntime and type(EventsRuntime.isDriving) == "function"
+      and EventsRuntime.isDriving("dashboard-widget") then
+    if not self._standingDown then
+      self._standingDown = true
+      log("the dashboard widget drives the background work: standing down", "debug")
+    end
+    return
+  end
+  if self._standingDown then
+    self._standingDown = nil
+    log("the dashboard widget stopped driving the background work: taking over", "debug")
+  end
+
   -- A pass that re-read the settings ends there, so the work below starts on a fresh
   -- instruction budget instead of behind the parse. The logic tick has already been taken, so
   -- this costs one 0.1 s turn of the background service, and only on a pass in which the
@@ -307,10 +325,8 @@ local function tickRuntimes(self)
   -- is, so deferring it is the only way to keep the parse off the pass that carries it.
   if refreshPreferences(self, false) then return end
 
-  -- This widget owns the card sink for the widget state. It is the better owner of the two that
-  -- run here: background() keeps calling this while it is off screen, so the ring keeps reaching
-  -- the card when the dashboard is not the page being looked at. The dashboard runtime writes
-  -- only where this widget is not on the model, and finds that out from the client list below.
+  -- The card sink for the widget state, written by whichever widget drives the work: here only
+  -- while no dashboard does (above).
   if LogSink and type(LogSink.tick) == "function" then
     pcall(LogSink.tick, isArmed())
   end
