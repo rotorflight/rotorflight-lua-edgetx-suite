@@ -135,9 +135,12 @@ function Override:stored(record, values)
   self.sentAny = false
 end
 
---- Values queued outside the live loop (a save) need no live write until they change.
+--- A save queued `values`: they need no live write until they change, and until the save is
+--- stored (`stored`) they count as sent -- its configuration write reaches the board's RAM even when
+--- a later step or the EEPROM commit fails, and leaving then has to put the record back.
 function Override:markSent(values)
   self.sent = copyFlat(values)
+  self.sentAny = true
 end
 
 --- A live write the board did not answer is sent again on the next due pass; one it refused is not

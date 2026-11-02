@@ -44,6 +44,10 @@ local ui = {
   -- visit: it holds what the board has as far as this page knows (the read, or the last save that
   -- reached EEPROM) and what went out live. A visit that never presses * never loads it.
   override = nil,
+  -- A save of this page is on its way (set when the pipeline takes it, cleared by its onDone). Its
+  -- steps are queued one by one from the replies, so a rollback queued meanwhile would land
+  -- between them; leaving or Reload then queues none, and the save's outcome decides.
+  saving = false,
   runtime = {
     readPending = false,
     requestRebuild = nil
@@ -291,6 +295,7 @@ local function queueTrimsWrite()
       if override then override:stored(writeConfig, values) end
     end,
     onDone = function(result)
+      ui.saving = false
       if result.status == "done" then
         ui.apiData.MIXER_CONFIG = writeConfig
       else
@@ -301,6 +306,7 @@ local function queueTrimsWrite()
       end
     end
   })
+  if ok then ui.saving = true end
   -- The save sends what is on screen, so the live loop has nothing to send until it changes.
   if ok and override then override:markSent(values) end
   return ok, reason
@@ -533,7 +539,7 @@ function M.onReload(ctx)
   local session = getSession()
   if session then
     -- Before the read, so the read is queued behind the rollback and shows the board's value.
-    if ui.dirty then rollbackLiveChanges() end
+    if ui.dirty and not ui.saving then rollbackLiveChanges() end
     loadFromSession()
     ui.dirty = false
     queueTrimsRead(false)
@@ -586,8 +592,8 @@ function M.onClose()
   -- An unsaved trim sent live is taken back first, while the override still holds the servos.
   -- Queued ahead of the override writes on purpose: should the close end before every write is
   -- out, a lost override write leaves a board that refuses to arm, a lost rollback a trial trim
-  -- the model would fly with. Save clears dirty, so a save still on its way is not undone here.
-  if ui.dirty then rollbackLiveChanges() end
+  -- the model would fly with. A save still on its way is not undone here (ui.saving).
+  if ui.dirty and not ui.saving then rollbackLiveChanges() end
   if overrideActive() then
     ui.override:disable(getQueue())
   end

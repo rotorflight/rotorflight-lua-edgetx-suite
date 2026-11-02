@@ -111,6 +111,7 @@ end
 local YAW_INPUT = { 250, 0, 30, 251, 226, 4 }
 
 local function payloadTrim(message)
+  if message.command ~= 43 then return nil end
   local lo, hi = message.payload[4], message.payload[5]
   local v = hi * 256 + lo
   if v >= 0x8000 then v = v - 0x10000 end
@@ -236,6 +237,38 @@ do
   equal(commands(), "191", "tail: after Save, leaving only releases the override")
 end
 
+-- Leaving while a save is still on its way: no rollback between the save's steps.
+do
+  local page = openTail(0, 120)
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Yaw Center Trim"].opts.set(12)
+  page.wakeup(ctx)
+  advance(0.6)
+  page.wakeup(ctx)
+  clearQueue()
+  page.onSave({})
+  page.onClose()
+  equal(commands(), "191", "tail: leaving during a save queues no rollback, only the release")
+  if saveRequest then saveRequest.onDone({ status = "done" }) end
+end
+
+-- A save that fails after its configuration write: leaving still puts the record read back.
+do
+  local page = openTail(0, 120)
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Yaw Center Trim"].opts.set(12)
+  page.onSave({}) -- before the live write was due
+  if saveRequest then saveRequest.onDone({ status = "failed" }) end
+  clearQueue()
+  page.onClose()
+  equal(commands(), "43,191", "tail: after a failed save, leaving puts the trim back, then releases")
+  equal(queue.messages[1] and payloadTrim(queue.messages[1]), 120, "tail: the rollback after a failed save carries the trim read")
+end
+
 ------------------------------------------------------------------------------------------------
 -- Trims
 ------------------------------------------------------------------------------------------------
@@ -294,6 +327,29 @@ do
   equal(saveRequest and saveRequest.reboot, false, "trims: Save does not restart")
   equal(#queue.messages, 0, "trims: Save queues nothing of its own beside the pipeline")
   page.onClose()
+end
+
+do
+  local page = openTrims(165)
+  page.onStar({})
+  clearQueue()
+  fields["Pitch trim"].opts.set(30)
+  page.onSave({})
+  page.onClose()
+  equal(commands(), "191,191,191,191", "trims: leaving during a save queues no rollback, only the release")
+  if saveRequest then saveRequest.onDone({ status = "done" }) end
+end
+
+do
+  local page = openTrims(165)
+  page.onStar({})
+  clearQueue()
+  fields["Pitch trim"].opts.set(30)
+  page.onSave({})
+  if saveRequest then saveRequest.onDone({ status = "failed" }) end
+  clearQueue()
+  page.onClose()
+  equal(commands(), "43,191,191,191,191", "trims: after a failed save, leaving puts the trims back, then releases")
 end
 
 print(string.format("%d checks, %d failed", checks, failures))
