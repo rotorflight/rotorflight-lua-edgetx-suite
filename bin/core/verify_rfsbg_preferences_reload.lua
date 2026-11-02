@@ -342,7 +342,7 @@ do
   -- The same number of bytes with another value, under the same card time.
   local before = files[PREFS]
   local edited, n = string.gsub(before.data, "adjustment_events = false,", "adjustment_events = true, ")
-  assert(n == 1 and #edited == #before.data, "harness: the same-size edit did not apply")
+  assert(n == 1 and #edited == #before.data, "setup: the same-size edit did not apply")
   files[PREFS] = { data = edited, time = before.time }
   -- What every save of the suite does beside the file: the rotating reload request.
   local MP = _G.rfsuite.require("lib/model_preferences.lua")
