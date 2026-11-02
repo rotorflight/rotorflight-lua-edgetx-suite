@@ -15,8 +15,8 @@
 --   4. a card from an earlier release: the former file is brought across on the first read, and a
 --      bring-across whose write failed is tried again on the next interval -- also where an empty
 --      settings file stands in the new file's place;
---   5. a read that raised, or a settings file the card did not hand over: nothing is adopted, and
---      the next interval reads the file again;
+--   5. a read that raised, a settings file the card did not hand over, or an interrupted save the
+--      read could not finish putting in place: nothing is adopted, and the next interval reads again;
 --   6. a write that keeps the file's size and time: the reload request beside it carries it;
 --   7. a radio without fstat: the file is read on every interval, as before;
 --   8. a settings file that does not compile: the defaults are used, it is not read again on every
@@ -50,6 +50,7 @@ local stats     -- fstat calls
 local failWrite -- path -> true: io.open(path, "w") answers nil
 local raiseRead -- path -> true: the next io.open(path, "r") raises
 local nilOpen   -- path -> true: the next io.open(path, "r") answers nil although the file is there
+local failDel   -- path -> true: the next del(path) is refused
 local clock     -- getTime() ticks
 local frozenRtc -- a card time every write gets, for a radio without a running clock
 
@@ -63,7 +64,7 @@ end
 
 local function resetCard()
   files, opens, reads, stats = {}, {}, {}, 0
-  failWrite, raiseRead, nilOpen = {}, {}, {}
+  failWrite, raiseRead, nilOpen, failDel = {}, {}, {}, {}
   clock, frozenRtc = 1000, nil
 end
 
@@ -131,6 +132,10 @@ rename = function(from, to)
 end
 
 del = function(path)
+  if failDel[path] then
+    failDel[path] = nil
+    return 7
+  end
   if not files[path] then return 4 end
   files[path] = nil
   return 0
@@ -376,6 +381,25 @@ do
   local took = runUntil(script, INTERVAL + 1, function() return adjustmentEvents() == true end)
   check(took ~= nil, "5: after a settings file the card did not hand over, the next interval reads it"
     .. " again (took " .. tostring(took) .. ")")
+end
+
+do
+  -- A save cut off while the new content was being written: an empty file under the real name,
+  -- the new content under the temporary one. The read takes the content from the temporary file
+  -- but, with the empty file not removed this once, cannot put it in place.
+  resetCard()
+  toolSave(function(p) p.audio_events.adjustment_events = true end)
+  files[PREFS .. ".tmp"] = files[PREFS]
+  files[PREFS] = { data = "", time = cardTime() }
+  failDel[PREFS] = true
+  local script = boot()
+  runFor(script, 1)
+  check(failDel[PREFS] == nil and files[PREFS .. ".tmp"] ~= nil,
+    "5: the first read could not put the interrupted save in place (control)")
+  check(adjustmentEvents() == true, "5: the interrupted save's values are read from the temporary file")
+  local took = runUntil(script, INTERVAL + 1, function() return files[PREFS .. ".tmp"] == nil end)
+  check(took ~= nil and files[PREFS].data ~= "", "5: an interrupted save the read could not put in place"
+    .. " is put in place within one interval (took " .. tostring(took) .. ")")
 end
 
 -- ------------------------------------------------------------------------------- 6

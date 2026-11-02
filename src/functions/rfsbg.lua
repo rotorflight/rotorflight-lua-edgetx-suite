@@ -200,7 +200,9 @@ end
 -- one it could not bring across. Kept, either would stand until the next save. So the signals are
 -- kept only where what was read matches what was there -- a file that was read, or no file and
 -- nothing read in its place -- and no former file is left on the card beside it, which is a
--- bring-across (or the setting aside of the former file) still owed.
+-- bring-across (or the setting aside of the former file) still owed, nor an interrupted save
+-- under the temporary name the store saves through (its TMP_SUFFIX), which the read could not
+-- finish putting in place.
 local function readSettled(stamp, path, found)
   if stamp == NO_PREFERENCES_FILE then
     if found then return false end
@@ -215,6 +217,9 @@ local function readSettled(stamp, path, found)
     local ok, info = pcall(fstat, legacy)
     if ok and type(info) == "table" then return false end
   end
+
+  local okTmp, tmp = pcall(fstat, path .. ".tmp")
+  if okTmp and type(tmp) == "table" then return false end
   return true
 end
 
