@@ -19,8 +19,9 @@ post-flight screen after the battery is unplugged, until the next flight control
 The retained settings also apply when the model customizes the radio's selected theme. When a
 flight controller connects, the theme is chosen once it has identified itself, so a model with a
 theme of its own goes straight back to it; one that does not identify itself gets the radio's
-theme. The switch to a model's own theme happens while the connecting screen is still up, so the
-first screen the pilot sees after it is already the model's.
+theme. Where no post-flight screen is standing — the radio switched on with the model, say — the
+switch to a model's own theme happens while the connecting screen is still up, so the first screen
+the pilot sees after it is already the model's.
 
 A theme's own settings, such as the voltage range its gauges span, are under
 *System* → *Settings* → *Dashboard* → *Settings*, one tile per theme
