@@ -39,7 +39,7 @@ local function newDrain(failing, times, firstId, raises)
   local env = setmetatable({}, { __index = _G })
   env._G = env
   env.bit32 = bit32
-  env.rfsuite = { loadMode = "t" }
+  env.rfsuite = { loadMode = "t", paths = dofile("src/rfsuite/lib/paths.lua") }
   env.getValue = function() return nil end
   env.setTelemetryValue = function(id, _, _, value)
     h.published[#h.published + 1] = { id = id, value = value, t = h.t }

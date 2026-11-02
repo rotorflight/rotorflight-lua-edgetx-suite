@@ -76,7 +76,8 @@ local function newRuntime(failedLoads)
     ["tasks/msp/api/fc_version.lua"] = true,
     ["tasks/msp/api/uid.lua"] = true,
     ["lib/version.lua"] = true,
-    ["lib/api_version.lua"] = true
+    ["lib/api_version.lua"] = true,
+    ["lib/paths.lua"] = true
   }
   env.loadScript = function(path)
     local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
