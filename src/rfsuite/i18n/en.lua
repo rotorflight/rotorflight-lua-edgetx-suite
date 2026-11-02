@@ -385,7 +385,7 @@ return {
         help_collective_trim = "Swashplate collective trim; use it only when the linkages cannot be adjusted.",
         help_yaw_trim = "Tail blade pitch at zero yaw command; the same value as Yaw Center Trim on the Tail page.",
         enable_tail_override = "Enable tail override",
-        enable_tail_override_message = "The flight controller holds the yaw input at centre while the trim is set. Changes are sent live; Save stores them.\n\nOnly the trim is shown while it is on.",
+        enable_tail_override_message = "The flight controller holds the yaw input at centre while the trim is set. Changes are sent live; Save stores them.\n\nThe other settings are locked while it is on.",
         disable_tail_override = "Disable tail override",
         disable_tail_override_message = "Return the yaw input to the flight controller.",
         override_armed_unknown = "The flight controller does not report whether it is armed. Make sure the rotors cannot spin."

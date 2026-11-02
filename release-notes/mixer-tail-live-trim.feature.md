@@ -1,4 +1,4 @@
 - **Live Yaw Center Trim on the Tail page (`app/pages/setup/mixer/tail`, `app/pages/setup/mixer/trims`, `app/pages/lib/live_override.lua`)**:
-  - On a variable-pitch tail, the header `*` holds the yaw input at centre and sends Yaw Center Trim to the flight controller half a second after the last change, so the trim can be set while watching the tail; the page shows only the trim meanwhile, leaving without Save puts the previous trim back, and leaving releases the override.
+  - On a variable-pitch tail, the header `*` holds the yaw input at centre and sends Yaw Center Trim to the flight controller half a second after the last change, so the trim can be set while watching the tail; every other tail setting is locked meanwhile, leaving without Save puts the previous trim back, and leaving releases the override.
   - Trims shows the tail trim in degrees, as the Tail page and the Configurator do, and saves through the same pipeline as the other setup pages, which reports a failed write instead of "saved".
   - Both pages have a `?` per setting and a page `?`, and the override's confirmation says so when the flight controller does not report whether it is armed.

@@ -99,7 +99,8 @@ local stubs = {
   ["ui/loading_overlay.lua"] = { append = function() end },
   ["ui/confirm_dialog.lua"] = ConfirmDialog,
   ["tasks/msp/save_pipeline.lua"] = SavePipeline,
-  ["lib/armed.lua"] = Armed
+  ["lib/armed.lua"] = Armed,
+  ["ui/palette.lua"] = { muted = 1, border = 2, text = 3 }
 }
 local real = {
   ["tasks/msp/api/mixer_config.lua"] = true,
@@ -192,14 +193,24 @@ do
   clearQueue()
 
   build(page)
-  -- Only the trim is drawn: a disabled control that takes the focus after the rebuild holds EXIT.
-  equal(fields["Tail Mode"], nil, "tail: Tail Mode not drawn while the override is on")
-  equal(fields["Yaw Direction"], nil, "tail: Yaw Direction not drawn")
-  equal(fields["Yaw Calibration"], nil, "tail: Yaw Calibration not drawn")
-  equal(fields["Yaw CW Limit"], nil, "tail: Yaw CW Limit not drawn")
-  equal(fields["Yaw CCW Limit"], nil, "tail: Yaw CCW Limit not drawn")
+  -- The other settings are shown as text, not as controls: a disabled control that holds the
+  -- focus keeps EXIT from the tool. The trim is the one control.
+  equal(fields["Tail Mode"], nil, "tail: Tail Mode is no control while the override is on")
+  equal(fields["Yaw Direction"], nil, "tail: Yaw Direction is no control")
+  equal(fields["Yaw Calibration"], nil, "tail: Yaw Calibration is no control")
+  equal(fields["Yaw CW Limit"], nil, "tail: Yaw CW Limit is no control")
+  equal(fields["Yaw CCW Limit"], nil, "tail: Yaw CCW Limit is no control")
   check(fields["Yaw Center Trim"] ~= nil and fields["Yaw Center Trim"].opts.enabled ~= false,
     "tail: Yaw Center Trim drawn and editable")
+  local shown = {}
+  for _, child in ipairs(ctx.children) do
+    if child.type == "label" and type(child.text) == "string" then shown[child.text] = true end
+    check(child.type ~= "choice" and child.type ~= "numberEdit" and child.type ~= "button",
+      "tail: nothing focusable besides the trim is built while the override is on")
+  end
+  check(shown["Tail Mode"] and shown["Variable Pitch"], "tail: Tail Mode still shown, as text")
+  check(shown["Yaw Direction"] and shown["Yaw Calibration"] and shown["Yaw CW Limit"]
+    and shown["Yaw CCW Limit"], "tail: the other settings still shown, as text")
 
   -- 12 = 1.2 degrees -> raw round(12 * 100 / 24) = 50
   fields["Yaw Center Trim"].opts.set(12)
