@@ -58,13 +58,15 @@ as is a file that failed to load, so a module whose body must run only once ends
 Because a failure is not cached, a caller that asks again on every pass goes back to the card for
 the file every time. Callers that run on every pass therefore keep the answer themselves:
 
-- The background telemetry runner (`tasks/events/telemetry_bg/tasks.lua`), SmartFuel and the
-  custom telemetry drain record `false` for a module that did not load and do not ask for it again
-  until the Lua state restarts. For the drain that is its decoder table (`lib/rf2tlm_sensors.lua`)
-  and `lib/crsf.lua`; without them it takes nothing off the link in that state.
-- The MSP API version read, which every connection waits on, asks again for a module that did not
-  load after one second rather than on every tick, so a failure that does not last still lets the
-  connection come up.
+- The background telemetry runner (`tasks/events/telemetry_bg/tasks.lua`) and SmartFuel record
+  `false` for a module that did not load and do not ask for it again until the Lua state restarts.
+- The custom telemetry drain (`tasks/events/telemetry_bg/drain.lua`, which loads its modules
+  itself in the same way) and the MSP API version read, which every connection waits on, ask
+  again for a module that did not load after one second rather than on every pass. For the drain
+  that is its decoder table (`lib/rf2tlm_sensors.lua`) and `lib/crsf.lua`; while one is missing it
+  takes nothing off the link. A load can fail without the file being broken -- the loader's
+  `pcall` also catches the radio's instruction limit when it stops a pass while the module's chunk
+  runs -- so a failure that does not last costs about a second.
 
 ## Reloading and releasing
 
