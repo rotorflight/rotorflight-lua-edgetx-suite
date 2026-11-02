@@ -71,7 +71,12 @@ local function radioHas(ids)
 end
 
 local session = {}
-_G.rfsuite = { palette = { ok = 1, caution = 2, error = 3, text = 4, accent = 5 }, session = session }
+-- The card roots, as lib/require.lua publishes them before any page is loaded.
+_G.rfsuite = {
+  palette = { ok = 1, caution = 2, error = 3, text = 4, accent = 5 },
+  session = session,
+  paths = dofile("src/rfsuite/lib/paths.lua")
+}
 _G.SMLSIZE = 0
 _G.RIGHT = 0
 _G.getTime = function() return clock end

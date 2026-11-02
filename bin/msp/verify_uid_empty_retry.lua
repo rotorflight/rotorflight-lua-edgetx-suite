@@ -103,7 +103,9 @@ local function newRuntime()
     ["tasks/msp/api/fc_version.lua"] = true,
     ["tasks/msp/api/uid.lua"] = true,
     ["lib/version.lua"] = true,
-    ["lib/api_version.lua"] = true
+    ["lib/api_version.lua"] = true,
+    -- lib/require.lua loads it to publish rfsuite.paths before any other module.
+    ["lib/paths.lua"] = true
   }
   env.loadScript = function(path)
     local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
