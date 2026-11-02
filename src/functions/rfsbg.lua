@@ -25,8 +25,9 @@ local Adjustments = nil
 local initialized = false
 
 -- Tasks read their settings from rfsuite.preferences, and that table belongs to one Lua state.
--- Re-read on an interval so a setting changed in the configuration tool takes effect without a
--- restart. It is not held back while the model is armed: a read that is yielded rather than
+-- Looked at on an interval so a setting changed in the configuration tool takes effect without
+-- a restart, and read again only when the file can be shown to have moved (refreshPreferences
+-- below). It is not held back while the model is armed: a read that is yielded rather than
 -- killed costs nothing that matters here.
 local PREFERENCES_INTERVAL_SECONDS = 30
 
@@ -59,6 +60,9 @@ local USE_LONG_FLUSH_CADENCE = true
 local WIDGET_STALE_SECONDS = 3.0
 
 local lastPreferencesLoad = nil
+local lastPreferencesStamp = nil
+local lastReloadSeqs = nil
+local ModelPreferences = nil
 local lastHeapReport = nil
 local lastStateLine = nil
 local widgetValue = nil
@@ -158,15 +162,104 @@ local function ensureLogSink()
   return LogSink or nil
 end
 
+-- What an fstat that answered, on a settings file that is not there, is recorded as: a card on
+-- which the pilot has never saved a setting has no file, and that is a state rather than a
+-- failure to look. The service widget records it the same way.
+local NO_PREFERENCES_FILE = "absent"
+
+--- The settings file as seen from outside -- its size and modification time -- or nil where
+--- that cannot be established because the radio has no fstat.
+--
+-- The same two signals the service widget's and the dashboard's re-reads watch: this stamp, and
+-- the rotating reload request below. fstat answers the time as a table, so the stamp is built
+-- from its fields; the size carries the rest, and every save moves it (lib/config_store.lua pads
+-- the generation trailer for exactly that).
+local function preferencesStamp()
+  if type(fstat) ~= "function" then return nil end
+  if type(Preferences.getPath) ~= "function" then return nil end
+  local okPath, path = pcall(Preferences.getPath)
+  if not okPath or type(path) ~= "string" then return nil end
+
+  local ok, info = pcall(fstat, path)
+  if not ok then return nil end
+  if type(info) ~= "table" then return NO_PREFERENCES_FILE end
+
+  local t = info.time
+  if type(t) ~= "table" then
+    return tostring(info.size) .. ":" .. tostring(t)
+  end
+  return string.format("%s:%s-%s-%s.%s.%s.%s",
+    tostring(info.size), tostring(t.year), tostring(t.mon), tostring(t.day),
+    tostring(t.hour), tostring(t.min), tostring(t.sec))
+end
+
+--- The sizes of the reload request every save of the suite bumps (lib/model_preferences.lua),
+--- under each user root it can sit in. It moves on every save whatever the clock and whatever
+--- the new file's size, which is the case the stamp alone cannot see. Read, never written.
+local function reloadSequences()
+  if type(fstat) ~= "function" then return nil end
+  if ModelPreferences == nil then
+    ModelPreferences = loadModule("lib/model_preferences.lua") or false
+  end
+  local paths = ModelPreferences and type(ModelPreferences.reloadRequestPaths) == "function"
+    and ModelPreferences.reloadRequestPaths() or nil
+  if type(paths) ~= "table" then return nil end
+
+  local seqs = {}
+  for i = 1, #paths do
+    local ok, info = pcall(fstat, paths[i])
+    seqs[paths[i]] = (ok and type(info) == "table" and info.size) or 0
+  end
+  return seqs
+end
+
+local function sequencesMoved(seqs)
+  if not seqs or not lastReloadSeqs then return false end
+  for path, seq in pairs(seqs) do
+    if lastReloadSeqs[path] ~= seq then return true end
+  end
+  return false
+end
+
+--- Re-read the settings on the interval, but only when they can be shown to have moved.
+--
+-- Read unconditionally, they cost two opens, the read and compile of the whole file and a merge
+-- of every schema section on every interval, changed or not. What a quiet interval costs now is
+-- one fstat on the file and one on each reload request. The cases the gate must leave as they
+-- were:
+--
+-- - The first read of the state always happens, and it is the one that brings a card written
+--   by an earlier release across (lib/config_store.lua's migrate, allowed in this state).
+-- - The signals are taken BEFORE the read and kept only once it has succeeded, so a write that
+--   lands during the read is found on the next interval, and a read that raised is tried again
+--   then.
+-- - A settings file that is not on the card is kept as a state, so it is not read again until it
+--   appears -- except where the read found the former file in its place: that is a bring-across
+--   still owed (its write failed), and it is tried on every interval as before.
+-- - A save that keeps the file's size and time is seen through the reload request.
+-- - Without fstat nothing can be told apart, so the file is read on every interval as before.
 local function refreshPreferences(now)
   if not Preferences or type(Preferences.load) ~= "function" then return end
   if lastPreferencesLoad and (now - lastPreferencesLoad) < PREFERENCES_INTERVAL_SECONDS then return end
   lastPreferencesLoad = now
 
-  local ok, prefs = pcall(Preferences.load)
+  local stamp = preferencesStamp()
+  local seqs = reloadSequences()
+  if stamp ~= nil and lastPreferencesStamp ~= nil
+    and stamp == lastPreferencesStamp and not sequencesMoved(seqs) then
+    return
+  end
+
+  local ok, prefs, found = pcall(Preferences.load)
   if ok and type(prefs) == "table" then
     _G.rfsuite = _G.rfsuite or {}
     _G.rfsuite.preferences = prefs
+    if stamp == NO_PREFERENCES_FILE and found then
+      -- Read from the former file: nothing is kept, so the bring-across is tried again.
+      lastPreferencesStamp, lastReloadSeqs = nil, nil
+    else
+      lastPreferencesStamp, lastReloadSeqs = stamp, seqs
+    end
   end
 end
 

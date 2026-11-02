@@ -714,6 +714,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/core/verify_require_nil_module.lua
 
+  rfsbg-preferences-reload:
+    name: Background decoder re-reads the settings only on a change
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/core/verify_rfsbg_preferences_reload.lua
+
   msp-compact-framing:
     name: MSP compact framing
     runs-on: ubuntu-latest
