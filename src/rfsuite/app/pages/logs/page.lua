@@ -1160,6 +1160,39 @@ local function chartRect(x, y, w, availH)
   return x + 2, y + GRAPH_INFO_H + GRAPH_GAP, w - 4, chartH
 end
 
+-- What the cursor and the readout row show. The step buttons move the cursor without a build:
+-- the cursor and the readout labels read this table through function properties, which the
+-- firmware calls again on every refresh of the scene, and a step fills it once. It is filled
+-- from the engine at every build of the plot and at every step, never inside those functions,
+-- so a refresh allocates nothing and does not reach for an engine that Back has already closed.
+-- Every curve slot has its text, an empty one where the plot has no such curve or no reading yet:
+-- a plot built before its cursor was set has no readings, and the first step gives it some.
+local cursorView = { x = 0, y = 0, left = 0, right = 0, shown = false, time = "-", values = {} }
+
+local function readCursor()
+  local v = cursorView
+  local x = Graph.getCursorX()
+  v.x = x
+  v.shown = x >= v.left and x <= v.right
+  v.time = Graph.getCursorTimeText() or "-"
+  local readout = Graph.getReadout()
+  for k = 1, Graph.MAX_CURVES do
+    local r = readout[k]
+    local text = ""
+    if r ~= nil then
+      text = r.name .. " -"
+      if r.value ~= nil then
+        text = string.format("%s %g%s", r.name, r.value, r.unit or "")
+      end
+    end
+    v.values[k] = text
+  end
+end
+
+local function stepCursor(buckets)
+  if Graph and Graph.moveCursor(buckets) then readCursor() end
+end
+
 local function buildChart(children, x, y, w, availH, i18n)
   local chartX, chartY, chartW, chartH = chartRect(x, y, w, availH)
 
@@ -1224,15 +1257,19 @@ local function buildChart(children, x, y, w, availH, i18n)
     end
   end
 
-  local cursorX = Graph.getCursorX()
-  if cursorX >= chartX and cursorX <= chartX + chartW then
-    children[#children + 1] = {
-      type = "rectangle",
-      x = cursorX, y = chartY + 1, w = 1, h = chartH - 2,
-      color = Palette.cursor,
-      filled = true
-    }
-  end
+  local view = cursorView
+  view.left, view.right, view.y = chartX, chartX + chartW, chartY + 1
+  readCursor()
+  -- Always in the scene, because where it stands, and whether it is inside the plot, is the
+  -- firmware's to update.
+  children[#children + 1] = {
+    type = "rectangle",
+    x = view.x, y = view.y, w = 1, h = chartH - 2,
+    color = Palette.cursor,
+    filled = true,
+    pos = function() return view.x, view.y end,
+    visible = function() return view.shown end
+  }
 
   -- Readout row: the cursor keys, the time it stands at, and what each curve
   -- reaches there.
@@ -1242,19 +1279,13 @@ local function buildChart(children, x, y, w, availH, i18n)
     type = "button",
     x = x, y = readY, w = stepW, h = GRAPH_READ_H,
     text = "<",
-    press = function()
-      Graph.moveCursor(-1)
-      rebuild()
-    end
+    press = function() stepCursor(-1) end
   }
   children[#children + 1] = {
     type = "button",
     x = x + stepW + 4, y = readY, w = stepW, h = GRAPH_READ_H,
     text = ">",
-    press = function()
-      Graph.moveCursor(1)
-      rebuild()
-    end
+    press = function() stepCursor(1) end
   }
 
   local readX = x + 2 * (stepW + 4) + GRAPH_GAP
@@ -1262,25 +1293,20 @@ local function buildChart(children, x, y, w, availH, i18n)
   children[#children + 1] = {
     type = "label",
     x = readX, y = readY + 3, w = timeW,
-    text = Graph.getCursorTimeText() or "-",
+    text = function() return view.time end,
     color = Palette.text,
     font = SMLSIZE
   }
 
-  local readout = Graph.getReadout()
   local valuesX = readX + timeW + GRAPH_GAP
   local valuesW = math.max(40, (x + w) - valuesX)
   local slotW = math.floor(valuesW / Graph.MAX_CURVES)
-  for k = 1, #readout do
-    local r = readout[k]
-    local text = r.name .. " -"
-    if r.value ~= nil then
-      text = string.format("%s %g%s", r.name, r.value, r.unit or "")
-    end
+  local values = view.values
+  for k = 1, Graph.MAX_CURVES do
     children[#children + 1] = {
       type = "label",
       x = valuesX + (k - 1) * slotW, y = readY + 3, w = slotW,
-      text = text,
+      text = function() return values[k] end,
       color = Graph.getCurveColor(k),
       font = SMLSIZE
     }

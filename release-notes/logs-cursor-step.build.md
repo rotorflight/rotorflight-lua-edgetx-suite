@@ -1,0 +1,2 @@
+- **Stepping the Logs graph cursor no longer rebuilds the page (`logs`)**:
+  - `<` and `>` move the cursor line and update the time and the per-curve readout in place; the plot and the rest of the page are no longer deleted and built again for every step (#968).
