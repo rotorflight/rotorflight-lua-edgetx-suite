@@ -142,9 +142,9 @@ unplug servos, restart, then confirm the test prerequisites.
 | Control | What it does |
 | --- | --- |
 | Back | Previous task. At the start of a step entered from the Suite, return to its menu, with Save/Discard when changes are pending. RTN/EXIT follows the same route. |
-| Continue | Next task within this step; no EEPROM write. |
+| Continue | Next task within this step; no EEPROM write, except when leaving a changed Power card at ESC telemetry: that saves everything the step has changed so far, the protocol and port included. |
 | Save & next | Commit this step and write EEPROM only when something changed. A refused or missing reply blocks advance. |
-| Reboot | At ESC telemetry and the connection gate, keep servos unplugged until restart completes. |
+| Reboot | At ESC telemetry and the connection gate, keep servos unplugged until restart completes. Coming back to ESC telemetry after Connect servos, a restart first asks again for blades off and servos unplugged. |
 | Finish | Save pending settings, release overrides, restore arming availability and leave. It never arms the model. |
 | Hold | A momentary motor control. Releasing the button stops the motor; motor overrides also lapse in firmware without refresh. |
 | ? | Full instructions for the current task and the navigation help. |

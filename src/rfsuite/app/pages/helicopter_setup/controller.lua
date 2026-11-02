@@ -702,7 +702,18 @@ function M.new(runtime, transport, mathModule, labels)
       end)
     else self:run(function() self:close() end) end
   end
+  -- The restart card: blades off and servos unplugged are confirmed before the FC restarts.
+  function w:showRebootGate()
+    self.entryRebootGate = true
+    self.cards={self:cardDef(self.L.pendingReboot,self.L.entryRestartHint,{
+      self:check("blades",self.L.bladesRemoved),self:check("unplugged",self.L.servosUnplugged)
+    })}
+    self.card=1;self:rebuild()
+  end
   function w:reboot()
+    -- ESC telemetry restarts with the servos still unplugged. Coming back to it from Connect
+    -- servos cleared that answer, so any restart from it asks for it again first.
+    if self.step == 10 and not self.checks.unplugged then self:showRebootGate(); return end
     self:save(function()
       if self.logInfo then self:log("info", "reboot") end
       self.transition = true; self.message = self.L.rebooting; self.rebootAt = now(); self.rebootPhase = "sent"
@@ -981,12 +992,7 @@ function M.new(runtime, transport, mathModule, labels)
       -- A range transaction owns its motor reboot; first keep ESC restart/readback reachable.
       self.entryRebootGate = self.returnToSuite and self.step >= 10 and self.step ~= 11 and self.rebootPending
         and not (self.step == 10 and self.escRangeExpected) or nil
-      if self.entryRebootGate then
-        self.cards={self:cardDef(self.L.pendingReboot,self.L.entryRestartHint,{
-          self:check("blades",self.L.bladesRemoved),self:check("unplugged",self.L.servosUnplugged)
-        })}
-        self.card=1;self:rebuild();return
-      end
+      if self.entryRebootGate then self:showRebootGate();return end
       local key = STEPS[self.step]
       self.validate, self.onLive, self.commit = nil, nil, nil
       if self.buildPreparation and self:buildPreparation() then self:rebuild();return end

@@ -1713,6 +1713,28 @@ return function(h)
     w:discard(function() end);settle(w)
     for i=0,2 do eq(records[i][1],1,"S04 discard writes nothing to profile "..i) end
     check(w.rescue==nil,"S04 discard drops the staged rescue setting")
+    -- ALT_HOLD (2) is rescue on, keeps its mode, and offers flip.
+    records[original][1]=2;c=step(w,"profiles");card=rescueCard(c);card.enter();settle(w);c=step(w,"profiles");card=rescueCard(c)
+    eq(card.rows[1].get(),2,"S04 altitude hold reads as rescue on")
+    check(card.rows[2].enabled(),"S04 flip is offered with altitude hold")
+    card.rows[2].set(1);q.sent={};w:save();settle(w)
+    for i=0,2 do eq(records[i][1],2,"S04 altitude hold is kept and written to profile "..i) end
+    card.rows[1].set(1);card.rows[1].set(2)
+    eq(w.rescue.chosen[1],2,"S04 switching rescue off and on again keeps altitude hold")
+    w:discard(function() end);settle(w)
+    -- Another active profile is read again on entry.
+    local other=(original+1)%3
+    records[other][1],records[other][2]=0,1;selected=other;w.data.status.current_pid_profile_index=other
+    c=step(w,"profiles");card=rescueCard(c);card.enter();settle(w);c=step(w,"profiles");card=rescueCard(c)
+    eq(card.rows[1].get(),1,"S04 a changed active profile is read again")
+    eq(card.rows[2].get(),2,"S04 the re-read shows that profile's flip")
+    -- A read that fails is tried again on the next entry.
+    selected=original;w.data.status.current_pid_profile_index=original;w.rescue=nil
+    h.setFailCommand(146);c=step(w,"profiles");card=rescueCard(c);card.enter();settle(w);h.setFailCommand(nil)
+    check(w.rescue and not w.rescue.loaded,"S04 a failed rescue read leaves the card unloaded")
+    w.error,w.transition=nil,nil
+    card.enter();settle(w);c=step(w,"profiles");card=rescueCard(c)
+    check(w.rescue and w.rescue.loaded,"S04 entry retries an incomplete rescue read")
     fixtures[146],fixtures[147],fixtures[210]=nil,nil,nil
   end)
   case("S05.profile-cards-and-save",function()
@@ -1908,10 +1930,12 @@ return function(h)
     eq(w.message,L.gearTooLarge,"S09 the refusal is said")
     c[3].rows[1].set(1);c=step(w,"motor")
     eq(m.main_rotor_gear_ratio_1/m.main_rotor_gear_ratio_0,6000/260,"S09 back to one stage keeps the ratio")
-    eq(c[4].rows[2].left.get(),20,"S09 one stage keeps the intermediate pinion for the tail drive")
-    eq(m.tail_rotor_gear_ratio_0,20*21,"S09 tail products stay with the kept mesh")
+    eq(c[4].rows[1].get(),1,"S09 one stage turns an intermediate tail drive into its main-shaft pair")
+    eq(m.tail_rotor_gear_ratio_1/m.tail_rotor_gear_ratio_0,(100*50)/(20*21),"S09 one stage keeps the tail ratio")
+    eq(c[4].rows[2].left.get()/c[4].rows[2].right.get(),(100*50)/(20*21),"S09 the tail pair shows the same ratio")
     c[3].rows[1].set(3);c=step(w,"motor")
-    eq(c[4].rows[1].get(),3,"S09 ratio only turns an intermediate tail drive into a tail ratio")
+    eq(c[4].rows[1].get(),1,"S09 ratio only keeps a main-shaft tail drive")
+    c[4].rows[1].set(3);c=step(w,"motor")
     c[3].rows[2].set(970)
     eq(m.main_rotor_gear_ratio_0,10,"S09 ratio only stores the smallest whole pair")
     eq(m.main_rotor_gear_ratio_1,97,"S09 ratio only 9.70 is 10:97")
@@ -4696,6 +4720,18 @@ return function(h)
     end
     voltage.rows[1].set(2)
     eq(smart.rows[2].get(),"","POWER warning clears with a voltage source")
+  end)
+  case("S10.restart-asks-again-after-connect",function()
+    local w=world();settle(w);w.step=10;w.rebootPending=nil;w.checks.unplugged=nil
+    step(w,"escTelemetry");q.sent={}
+    w:reboot();settle(w)
+    check(w.entryRebootGate,"S10 a restart without the unplugged answer shows the restart card")
+    eq(w.cards[1].rows[2].label,L.servosUnplugged,"S10 the restart card asks for unplugged servos")
+    for _,m in ipairs(q.sent) do check(m.command~=68,"S10 no restart is sent before the answer") end
+    w.checks.unplugged,w.checks.blades=true,true;w:next();settle(w)
+    local reboot=false
+    for _,m in ipairs(q.sent) do if m.command==68 then reboot=true end end
+    check(reboot,"S10 the confirmed restart card restarts the FC")
   end)
   case("S11.power-card-saves-before-the-next",function()
     local w=world();settle(w);w.step=10;w.rebootPending=nil

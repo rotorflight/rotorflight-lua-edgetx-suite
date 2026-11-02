@@ -194,21 +194,30 @@ return function(w)
     w.buildRequested=true;w:rebuild()
   end
   -- Only the active profile is read for display; the save loop reads each profile before it
-  -- writes it, so every other rescue field is kept.
+  -- writes it, so every other rescue field is kept. A read is repeated on entry while nothing is
+  -- staged and the active profile is another than the one read (the profile switch is tried
+  -- out on this step), and after a read that did not complete.
   local function rescueEnter()
-    if w.rescue or w.transition then return end
-    w.rescue={};w.transition=true
-    w:read("rescue_profile",function(d) w.rescue.value={d.rescue_mode,d.rescue_flip_mode} end)
-    w:run(function() w.rescue.loaded=true;w.transition=nil;w.buildRequested=true;w:rebuild() end)
+    local r=w.rescue
+    if w.transition or (r and r.chosen) then return end
+    local active=w.data.status.current_pid_profile_index
+    if r and r.loaded and r.index==active then return end
+    r={};w.rescue=r;w.transition=true
+    w:read("rescue_profile",function(d) r.value,r.index={d.rescue_mode,d.rescue_flip_mode},active end)
+    w:run(function() r.loaded=true;w.transition=nil;w.buildRequested=true;w:rebuild() end)
   end
   local function rescueReady() return w.rescue~=nil and w.rescue.loaded==true and rescueSwitch()~=nil end
   local rescueCard=w:cardDef(L.rescueName,L.rescueHint,{
+    -- rescue_mode is OFF 0, CLIMB 1 or ALT_HOLD 2: On keeps the mode the profile had.
     {kind="choice",label=L.rescueEnable,values={L.off,L.on},allowUnset=true,
-      get=function() local v=rescueGet(1);return v and v+1 or 0 end,
-      set=function(v) rescueSet(1,v-1) end,enabled=rescueReady},
+      get=function() local v=rescueGet(1);return v and (v>0 and 2 or 1) or 0 end,
+      set=function(v)
+        local r=w.rescue;local was=r and r.value and r.value[1] or 0
+        if v==1 then rescueSet(1,0) elseif v==2 and (rescueGet(1) or 0)==0 then rescueSet(1,was>0 and was or 1) end
+      end,enabled=rescueReady},
     {kind="choice",label=L.rescueFlip,values={L.no,L.yes},allowUnset=true,
       get=function() local v=rescueGet(2);return v and v+1 or 0 end,
-      set=function(v) rescueSet(2,v-1) end,enabled=function() return rescueReady() and rescueGet(1)==1 end},
+      set=function(v) rescueSet(2,v-1) end,enabled=function() return rescueReady() and (rescueGet(1) or 0)>0 end},
     w:value(L.rescue,function()
       local r=rescueSwitch()
       return r and "CH"..w:channelNumber(r.auxChannelIndex) or L.rescueNoSwitch

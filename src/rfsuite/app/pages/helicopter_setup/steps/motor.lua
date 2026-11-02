@@ -100,8 +100,14 @@ return function(w)
       end }
   end
   local function ratioDisplay(v) return string.format(L.ratioFormat, v / 100) end
+  local function gcd(a, c)
+    while c ~= 0 do a, c = c, a % c end
+    return a
+  end
   local function setStages(v)
     if v == g.stages then return end
+    -- Kept to take the whole change back when the FC cannot hold a product.
+    local before = { g.stages, g.pinion, g.main, g.pinionSide, g.mainSide, g.ratio, t.from, t.a, t.b, t.mesh, t.ratio }
     if v == 2 then
       -- Both intermediate gears start at the main gear's count, a 1:1 pair: the ratio stays.
       if g.stages == 3 then g.pinion, g.main = pair(g.ratio) end
@@ -113,23 +119,31 @@ return function(w)
       if t.from == 2 then t.from, t.ratio = 3, hundredths(m.tail_rotor_gear_ratio_0, m.tail_rotor_gear_ratio_1) end
     elseif g.stages == 2 then
       -- One stage at the same ratio: the pinion keeps its teeth where the main gear comes out
-      -- whole, else the smallest whole pair. The tail keeps the intermediate gear it meshes with.
-      t.mesh = g.mainSide
+      -- whole, else the smallest whole pair. That main gear is no longer the real one, so a
+      -- tail driven from the intermediate shaft becomes the equivalent drive : tail pair.
+      if t.from == 2 then
+        local t0, t1 = m.tail_rotor_gear_ratio_0, m.tail_rotor_gear_ratio_1
+        local d = gcd(t0, t1)
+        t.from, t.a, t.b = 1, t1 // d, t0 // d
+      end
       local p0, p1 = g.pinion * g.mainSide, g.pinionSide * g.main
       local main = g.pinion * p1 / p0
       if main == math.floor(main) then g.main = math.floor(main)
       else
-        local a, c = p0, p1
-        while c ~= 0 do a, c = c, a % c end
-        g.pinion, g.main = p0 // a, p1 // a
+        local d = gcd(p0, p1)
+        g.pinion, g.main = p0 // d, p1 // d
       end
     else g.pinion, g.main = pair(g.ratio) end
     g.stages = v
-    apply()
+    if not apply() then
+      g.stages, g.pinion, g.main, g.pinionSide, g.mainSide, g.ratio = before[1], before[2], before[3], before[4], before[5], before[6]
+      t.from, t.a, t.b, t.mesh, t.ratio = before[7], before[8], before[9], before[10], before[11]
+    end
     w.buildRequested = true; w:rebuild()
   end
+  local trainNames = { L.stagesOne, L.stagesTwo, L.ratioOnly }
   local mainRows = {
-    { kind = "choice", label = L.gearTrain, values = { L.stagesOne, L.stagesTwo, L.ratioOnly },
+    { kind = "choice", label = L.gearTrain, values = trainNames,
       get = function() return g.stages end, set = setStages }
   }
   if g.stages == 3 then
@@ -179,7 +193,7 @@ return function(w)
       return tostring(m.motor_pwm_protocol)
     end),
     w:value(L.motorPoles, function() return m.motor_pole_count_0 end),
-    w:value(L.gearTrain, function() return ({ L.stagesOne, L.stagesTwo, L.ratioOnly })[g.stages] end),
+    w:value(L.gearTrain, function() return trainNames[g.stages] end),
     w:value(L.mainRatio, mainRatio),
     w:motorised() and w:value(L.tailMotorPoles, function() return m.motor_pole_count_1 end) or w:value(L.tailRatio, tailRatio)
   }
