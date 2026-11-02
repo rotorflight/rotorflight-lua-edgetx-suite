@@ -1165,5 +1165,79 @@ do
   page.onClose()
 end
 
+-- #968: a cursor step moves the cursor and the readout row where they stand. The press asks for
+-- no build; the cursor's position and the readout labels' texts are read by the firmware on every
+-- refresh, so they follow the engine without one. Control: a zoom still asks for a build.
+do
+  local page, st, ctx = listPage(false)
+  local asked = 0
+  ctx.requestRebuild = function() asked = asked + 1 end
+  local function rebuildView() ctx.children = {}; page.build(ctx) end
+  local function untilRebuild()
+    local k, n = 0, asked
+    while asked == n and k < 20000 do page.wakeup(ctx); k = k + 1 end
+  end
+  local function value(v) if type(v) == "function" then return v() end return v end
+  local function cursor()
+    for _, c in ipairs(ctx.children) do
+      if c.type == "rectangle" and c.w == 1 and type(c.pos) == "function" then return c end
+    end
+    return nil
+  end
+  local function labelTexts()
+    local out = {}
+    for _, c in ipairs(ctx.children) do
+      if c.type == "label" then out[tostring(value(c.text))] = true end
+    end
+    return out
+  end
+  rebuildView()
+  button(ctx, "graph_open").press()
+  local G = find(page.wakeup, "Graph")
+  rebuildView(); untilRebuild(); rebuildView()
+  check(G.applyColumns({ 3, 4 }), "cursor step: curves applied")
+  st.pickCurves = false
+  rebuildView(); untilRebuild(); rebuildView()
+  check(not G.isBusy() and #G.getPoints(1) > 0, "cursor step: plot drawn")
+  local c = cursor()
+  check(c ~= nil, "cursor step: the cursor's position is a function of the scene")
+  for i, dir in ipairs({ 1, 1, 1, -1 }) do
+    local x0 = G.getCursorX()
+    asked = 0
+    button(ctx, dir > 0 and ">" or "<").press()
+    local label = "cursor step " .. i .. " (" .. (dir > 0 and ">" or "<") .. ")"
+    check(G.getCursorX() ~= x0, label .. ": the engine's cursor moved", x0)
+    check(asked == 0, label .. ": no build asked for", asked)
+    local x = c and select(1, c.pos())
+    check(x == G.getCursorX(), label .. ": the cursor stands at the engine's cursor", tostring(x) .. " vs " .. G.getCursorX())
+    check(c ~= nil and c.visible() == true, label .. ": the cursor is shown")
+    local texts = labelTexts()
+    check(texts[G.getCursorTimeText()] == true, label .. ": the time follows the cursor", G.getCursorTimeText())
+    local readout = G.getReadout()
+    check(#readout == 2, label .. ": a reading per curve", #readout)
+    for k = 1, #readout do
+      local r = readout[k]
+      local want = r.value ~= nil and string.format("%s %g%s", r.name, r.value, r.unit or "") or (r.name .. " -")
+      check(texts[want] == true, label .. ": the reading of curve " .. k .. " follows the cursor", want)
+    end
+  end
+  asked = 0
+  button(ctx, "+").press()
+  check(asked > 0, "cursor step control: a zoom asks for a build", asked)
+  -- Back from a plot opened from the list closes the engine; the scene still standing until the
+  -- next build is refreshed once more and reaches nothing that is gone.
+  local fns = {}
+  for _, ch in ipairs(ctx.children) do
+    for _, k in ipairs({ "pos", "visible", "text" }) do
+      if type(ch[k]) == "function" then fns[#fns + 1] = ch[k] end
+    end
+  end
+  page.onBack(ctx)
+  check(find(page.wakeup, "Graph") == nil, "cursor step: Back closed the engine")
+  local ok, err = pcall(function() for _, f in ipairs(fns) do f() end end)
+  check(ok, "cursor step: a refresh after Back raises nothing", err)
+  page.onClose()
+end
+
 print(string.format("Logs page: %d checks, %d failures", checks, failures))
 os.exit(failures == 0 and 0 or 1)
