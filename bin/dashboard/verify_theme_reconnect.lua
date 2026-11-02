@@ -14,12 +14,14 @@
 -- the model's theme is neither released at the disconnect nor read from the card again at the
 -- reconnect; a radio setting saved while the link is down is still picked up. A change found while
 -- its reload is deferred is found once, not again on every stat interval of the deferral, and when
--- the reload runs it reads only the file that moved -- both where both moved while it waited.
+-- the reload runs it reads only the file that moved -- both where both moved while it waited, or
+-- where the change was signalled by the reload request alone.
 --
--- And the two ends of that wait: armed before the UID read has an answer, the theme waits no longer
--- than the splash for a read that is not sent before the disarm; a board whose API version is
--- refused never connects, so the model's theme stays in hand behind its refusal screen as while the
--- link is down. And a dashboard built again while the read has no answer waits as well.
+-- And the two ends of that wait: armed before the UID read has an answer, the read is not sent
+-- before the disarm, so no theme is resolved and the splash stays until then, past its soft
+-- timeout; a board whose API version is refused never connects, so the model's theme stays in hand
+-- behind its refusal screen as while the link is down. And a dashboard built again while the read
+-- has no answer waits as well.
 --
 --   lua5.3 bin/dashboard/verify_theme_reconnect.lua [runtime.lua] [--trace]
 local runtimePath = "src/rfsuite/widgets/dashboard/runtime.lua"
@@ -327,7 +329,7 @@ do
   expect(world.w.state.themeConfig and world.w.state.themeConfig.scheme == "dark",
     "after a flight: the setting saved while down is applied",
     tostring(world.w.state.themeConfig and world.w.state.themeConfig.scheme))
-  expect(world.w._themeReloadPending ~= true and world.w._reloadPending ~= true,
+  expect(world.w._themeReloadPending == nil and world.w._reloadPending == nil,
     "after a flight: no reload is left stranded after the UID")
   expect(world.builds > 0, "control: the dashboard was built after the UID", world.builds .. " build(s)")
   -- The preferences reload left pending by the save runs once, after the UID, with both halves:
@@ -500,18 +502,20 @@ do
   passes(world, 60, "back")
   expect(world.prefReloads == 1, "deferred: the reload runs once after the link is back",
     world.prefReloads .. " reload(s)")
-  expect(world.w._reloadPending ~= true, "deferred: nothing is left pending after the reload")
+  expect(world.w._reloadPending == nil, "deferred: nothing is left pending after the reload",
+    tostring(world.w._reloadPending))
   expect(world.w.themePath == "system/urban", "deferred: the model's theme is on screen after the reload",
     tostring(world.w.themePath))
 end
 
 -- 7. Armed before the UID read has an answer. Arming pauses MSP and takes the read off the queue;
 -- it is owed again, but not sent while the board is armed, so it cannot settle before the disarm.
--- The theme waits no longer than the splash: nothing is resolved while the splash waits for the
--- startup reads, and once it gives up (its soft timeout) the radio's theme is drawn, as before this
--- change; the model's comes back once the read is answered after the disarm.
-do
-  if trace then print("scenario: armed before the UID") end
+-- No theme is resolved for as long as that lasts -- well past the splash's 25 s soft timeout -- and
+-- no dashboard scene is built: the splash stays. After the disarm the read is sent again and
+-- settles: with the board's UID the model's theme is built, with an empty answer the radio's.
+for _, answer in ipairs({ "uid", "empty" }) do
+  local tag = answer == "uid" and "armed before the UID" or "armed before the UID, settled without a UID"
+  if trace then print("scenario: " .. tag) end
   local world = newWorld()
   connectAndSettle(world)
   world.linkUp = false
@@ -523,71 +527,60 @@ do
     if #world.heldUid > 0 and world.w.state.fblConnected == true then break end
   end
   expect(#world.heldUid > 0 and world.w.state.fblConnected == true,
-    "control: the link is back and the UID request is out (armed before the UID)")
+    "control: the link is back and the UID request is out (" .. tag .. ")")
   Stubs.sensors["ARM"], Stubs.sensors["Gov"] = 1, 2
-  local resolvesBefore = #world.reloads
-  passes(world, 60, "armed")
-  local st = _G.rfsuite.require("tasks/msp/runtime.lua").getState()
-  expect(st.lastArmed == true and st.uidReadSettled == false and st.pendingUidRead == true,
-    "control: MSP is paused and the UID read is owed while armed", "armed=" .. tostring(st.lastArmed)
-    .. " settled=" .. tostring(st.uidReadSettled) .. " pending=" .. tostring(st.pendingUidRead))
-  expect(world.w.connectionReady ~= true and #world.reloads == resolvesBefore,
-    "armed before the UID: no theme is resolved while the splash waits",
-    (#world.reloads - resolvesBefore) .. " resolve(s), ready=" .. tostring(world.w.connectionReady))
-  -- The first pass the splash gives up on: it is the soft timeout, 25 s after the wait began, and
-  -- not a later event; nothing was resolved before it.
-  local pendingSince = world.w.pendingSince
-  local readyAt, readyElapsed, resolvesBeforeReady = nil, nil, nil
-  for _ = 1, 400 do
-    local resolvesSoFar = #world.reloads
+  local resolvesBefore, treesBefore = #world.reloads, #world.trees
+  local armedAt = _G.getTime() / 100
+  local Msp = _G.rfsuite.require("tasks/msp/runtime.lua")
+  -- Armed for 40 s: the read stays owed and unsent the whole time.
+  local unsettledThroughout = true
+  for _ = 1, 4000 do
     passes(world, 1, "armed")
-    if world.w.connectionReady == true then
-      readyAt, resolvesBeforeReady = world.pass, resolvesSoFar - resolvesBefore
-      readyElapsed = _G.getTime() / 100 - (pendingSince or 0)
-      break
+    local st = Msp.getState()
+    if not (st.lastArmed == true and st.uidReadSettled == false and st.pendingUidRead == true) then
+      unsettledThroughout = false
     end
+    if _G.getTime() / 100 - armedAt >= 40 then break end
   end
-  expect(readyAt ~= nil and pendingSince ~= nil and world.w.pendingSince == pendingSince
-    and readyElapsed >= 25.0 and readyElapsed < 25.2,
-    "armed before the UID: the splash gives up at its soft timeout, 25 s after the wait began",
-    "ready at pass " .. tostring(readyAt) .. ", " .. tostring(readyElapsed) .. " s after the wait began")
-  expect(resolvesBeforeReady == 0, "armed before the UID: nothing is resolved before the splash gives up",
-    tostring(resolvesBeforeReady) .. " resolve(s)")
-  expect(st.lastArmed == true and st.uidReadSettled == false and _G.rfsuite.session.mcu_id == nil,
-    "control: still armed, the UID read unsettled and no board id when the splash gives up")
-  -- And the dashboard is drawn then: a completed scene build of the radio's theme replaces the
-  -- splash while the read is still owed and MSP is still paused.
-  local scene = nil
-  for _ = 1, 30 do
-    passes(world, 1, "armed")
-    for i = #world.trees, 1, -1 do
-      local t = world.trees[i]
-      if t.pass <= readyAt then break end
-      if t.kind == "scene" then scene = t end
-    end
-    if scene then break end
+  local armedFor = _G.getTime() / 100 - armedAt
+  expect(armedFor >= 40 and unsettledThroughout and _G.rfsuite.session.mcu_id == nil,
+    "control: armed for 40 s with MSP paused, the UID read owed and unsettled, and no board id (" .. tag .. ")",
+    string.format("%.1f s, unsettled throughout %s", armedFor, tostring(unsettledThroughout)))
+  expect(#world.reloads == resolvesBefore and world.w.theme == nil,
+    tag .. ": no theme is resolved while the read is unsettled, past the splash's soft timeout",
+    (#world.reloads - resolvesBefore) .. " resolve(s), theme " .. tostring(world.w.themePath))
+  local scenes = 0
+  for i = treesBefore + 1, #world.trees do
+    if world.trees[i].kind == "scene" then scenes = scenes + 1 end
   end
-  expect(scene ~= nil and scene.theme == "system/default" and scene.count > 0,
-    "armed before the UID: the radio's dashboard scene is built once the splash gives up",
-    scene and (tostring(scene.theme) .. ", " .. scene.count .. " node(s) at pass " .. scene.pass) or "no scene built")
-  expect(st.lastArmed == true and st.uidReadSettled == false and _G.rfsuite.session.mcu_id == nil,
-    "control: still armed and the UID read unsettled when the scene is built")
   local onScreen = world.trees[#world.trees]
-  expect(world.w.built == true and onScreen ~= nil and onScreen.kind == "scene",
-    "armed before the UID: the scene is what LVGL holds, not the splash",
-    onScreen and tostring(onScreen.kind) or "nothing built")
-  expect(world.w.theme ~= nil and world.w.themePath == "system/default",
-    "armed before the UID: the radio's theme is drawn once the splash gives up, not only after the disarm",
-    tostring(world.w.themePath) .. ", theme " .. tostring(world.w.theme ~= nil))
+  expect(scenes == 0 and onScreen ~= nil and onScreen.kind == "splash",
+    tag .. ": no dashboard scene is built and the splash is what LVGL holds",
+    scenes .. " scene build(s), on screen " .. tostring(onScreen and onScreen.kind))
   -- The request the queue dropped is never answered; the read goes out again after the disarm.
   world.heldUid = {}
   world.holdUid = false
+  if answer == "empty" then world.emptyUid = true end
+  local treesAtDisarm = #world.trees
   Stubs.sensors["ARM"], Stubs.sensors["Gov"] = 0, 0
   passes(world, 200, "disarmed")
-  expect(_G.rfsuite.session.mcu_id == world.mcuId, "control: the board identified itself after the disarm",
-    tostring(_G.rfsuite.session.mcu_id))
-  expect(world.w.themePath == "system/urban", "armed before the UID: the model's theme is back after the disarm",
-    tostring(world.w.themePath))
+  local st = Msp.getState()
+  local expected = answer == "uid" and "system/urban" or "system/default"
+  if answer == "uid" then
+    expect(st.uidReadSettled == true and _G.rfsuite.session.mcu_id == world.mcuId,
+      "control: the read settled after the disarm and the board identified itself",
+      tostring(_G.rfsuite.session.mcu_id))
+  else
+    expect(st.uidReadSettled == true and _G.rfsuite.session.mcu_id == nil,
+      "control: the read settled after the disarm without a UID", tostring(_G.rfsuite.session.mcu_id))
+  end
+  local scene = nil
+  for i = treesAtDisarm + 1, #world.trees do
+    if world.trees[i].kind == "scene" then scene = world.trees[i] end
+  end
+  expect(world.w.theme ~= nil and world.w.themePath == expected and scene ~= nil and scene.theme == expected,
+    tag .. ": after the disarm the read settles and the " .. (answer == "uid" and "model's" or "radio's")
+    .. " theme is built", tostring(world.w.themePath) .. ", scene " .. tostring(scene and scene.theme))
 end
 
 -- 8. A board whose API version is refused, plugged in after a link loss on the ground. It never
@@ -705,9 +698,13 @@ end
 -- 10. A change found while its reload waits reads only the file that moved. A setting saved from
 -- the settings screen while the helicopter is armed touches the model's file alone; its reload
 -- waits for the disarm and then reads that file, not the radio's as well. A change in the radio's
--- file while it waits is read too: both files then differ from the stamp last adopted.
-for _, case in ipairs({ "model", "both" }) do
-  local tag = case == "model" and "deferred model-only change" or "deferred change in both files"
+-- file while it waits is read too: both files then differ from the stamp last adopted. And a radio
+-- setting whose file keeps its size and time (the same length within one time slot of the card)
+-- is signalled by the reload request alone, which names no file: a model setting saved while that
+-- reload waits does not narrow it to the model's file -- both are read.
+for _, case in ipairs({ "model", "both", "seq" }) do
+  local tag = ({ model = "deferred model-only change", both = "deferred change in both files",
+    seq = "deferred change signalled by the reload request alone" })[case]
   if trace then print("scenario: " .. tag) end
   local world = newWorld()
   saveRadioSetting(world, 0)
@@ -736,17 +733,29 @@ for _, case in ipairs({ "model", "both" }) do
   Stubs.sensors["ARM"], Stubs.sensors["Gov"] = 1, 2
   passes(world, 20, "armed")
   world.prefReloads = 0
-  saveModelSetting(30)
+  if case == "seq" then
+    -- The radio's file is written with its stamp unchanged; only the reload request moves.
+    Stubs.prefsStat = { size = (Stubs.prefsStat.size or 1) + 1 }
+  else
+    saveModelSetting(30)
+  end
   passes(world, 15, "armed")
-  expect(world.w._reloadPending == true and world.prefReloads == 0,
+  expect(world.w._reloadPending and world.prefReloads == 0,
     "control: the change was found and its reload waits for the disarm (" .. tag .. ")",
     "pending=" .. tostring(world.w._reloadPending) .. ", " .. world.prefReloads .. " reload(s)")
   if case == "both" then saveRadioSetting(world, 45) end
+  if case == "seq" then saveModelSetting(30) end
   passes(world, 15, "armed")
   loads.global, loads.model = 0, 0
   Stubs.sensors["ARM"], Stubs.sensors["Gov"] = 0, 0
   passes(world, 60, "disarmed")
   expect(world.prefReloads == 1, tag .. ": the reload runs once after the disarm", world.prefReloads .. " reload(s)")
+  if case == "seq" then
+    -- And the request's new size is adopted with it: no second reload for the same signal.
+    passes(world, 30, "disarmed")
+    expect(world.prefReloads == 1, tag .. ": the reload request's change is taken once",
+      world.prefReloads .. " reload(s)")
+  end
   if case == "model" then
     expect(loads.model == 1 and loads.global == 0, tag .. ": only the model's file is read",
       "model " .. loads.model .. ", radio " .. loads.global)

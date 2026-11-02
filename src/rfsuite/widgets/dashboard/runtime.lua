@@ -2215,8 +2215,12 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     end
   end
 
+  -- A signal that names no file (the sequence file alone, a stamp that cannot say which half
+  -- moved) is remembered as such: a deferred reload does not stat again before it runs, and the
+  -- stamp it takes then would see only a later change -- a model save while it waited -- and read
+  -- that file alone, losing the change nobody could attribute.
   if signalReload then
-    self._reloadPending = true
+    self._reloadPending = (halves == nil or self._reloadPending == "both") and "both" or true
   end
 
   if not force and not signalReload and not self._reloadPending then
@@ -2263,13 +2267,13 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- the change was found, because a second change in the other file while it waited must be
   -- read too (both halves then differ and both are read). Taken before the reads, the stamp
   -- adopted below cannot cover a write that lands during them; such a write is found again on
-  -- the next stat.
+  -- the next stat. A change that named no file when it was found reads both, whatever moved since.
   if not force and currentStamp == nil and self._reloadPending then
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
     local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
     if stamp then
       currentStamp = stamp
-      halves = changedHalves(self._lastPrefsStamp, stamp)
+      if self._reloadPending ~= "both" then halves = changedHalves(self._lastPrefsStamp, stamp) end
     end
   end
 
@@ -4385,7 +4389,7 @@ function Runtime.new(zone, options)
     -- hold the splash back. Such an instance has not loaded a theme yet, so its first load is
     -- marked as a change of folder (`false`): the release below then drops what the widget it
     -- replaced held and no widget uses any more, as the constructor's own load would have led to.
-    if self.connectionReady ~= true and MspRuntime and type(MspRuntime.isFblConnected) == "function"
+    if MspRuntime and type(MspRuntime.isFblConnected) == "function"
       and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
       local msp = MspRuntime.getState()
       if type(msp) == "table" and msp.uidReadSettled == false then
@@ -4843,11 +4847,11 @@ function Runtime.new(zone, options)
     -- the model's theme is read from the card and built again seconds later, when the UID arrives.
     -- So nothing is resolved until the read has settled -- answered, given up after its retries, or
     -- not possible on this link; the MSP runtime clears the flag whenever the link goes down or
-    -- comes up, so it is this link's. The splash stands meanwhile: the startup reads are not done.
-    -- The wait ends with the splash: once the dashboard is ready without the read (its soft
-    -- timeout), the theme is resolved -- the radio's, as before. A read that cannot go out does not
-    -- settle: arming takes it off the queue and MSP sends nothing more before the disarm.
-    if wantReload and isFblConnected and not ready and MspRuntime and type(MspRuntime.getState) == "function" then
+    -- comes up, so it is this link's. The splash stands meanwhile. A read that cannot go out does
+    -- not settle: arming takes it off the queue and MSP sends nothing more before the disarm, so a
+    -- model armed before its UID was read keeps the splash until the disarm, when the read is sent
+    -- again and settles.
+    if wantReload and isFblConnected and MspRuntime and type(MspRuntime.getState) == "function" then
       local msp = MspRuntime.getState()
       if type(msp) == "table" and msp.uidReadSettled == false then wantReload = false end
     end
