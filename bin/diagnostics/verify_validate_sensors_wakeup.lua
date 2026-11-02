@@ -85,13 +85,17 @@ _G.getSourceValue = function(name)
   return 1, sensor.live
 end
 
-local queue = { add = function() return true end }
+-- The MSP queue keeps what the page asks for, so a scenario can answer it.
+local queued = {}
+local queue = { add = function(_, request) queued[#queued + 1] = request; return true end }
+-- The real TELEMETRY_CONFIG parser: every writer of the configuration stores what it returns.
+local TelemetryApi = assert(loadfile("src/rfsuite/tasks/msp/api/telemetry_config.lua"))()
 local modules = {
   ["app/pages/settings/common.lua"] = {
     pageT = function() return function(_, _, fallback) return fallback end end
   },
   ["tasks/msp/runtime.lua"] = { getState = function() return { queue = queue } end },
-  ["tasks/msp/api/telemetry_config.lua"] = { command = 73, parse = function() return nil end },
+  ["tasks/msp/api/telemetry_config.lua"] = TelemetryApi,
   ["ui/loading_overlay.lua"] = { append = function() end }
 }
 _G.loadScript = function(path)
@@ -173,11 +177,39 @@ scenario("changed configuration", function()
   wakeup(page, 5)
   equal(rebuilds, 1, "a new slot configuration rebuilds on the next wakeup")
   equal(build(page), 30, "the rebuilt page shows the ten configured sensors")
-  -- And the configuration going away (a reconnect clears it) also shows at once.
+  -- And the configuration going away also shows at once.
   rebuilds = 0
   session.telemetry_config = nil
   wakeup(page, 5)
   equal(rebuilds, 1, "a cleared slot configuration rebuilds on the next wakeup")
+  page.closePage()
+end)
+
+scenario("the page's own read", function()
+  -- The page notices a new configuration by the table being a different one, which holds as
+  -- long as every writer stores what the parser returns. Here the parser is the real one, fed
+  -- the reply the page itself asked for.
+  rebuilds = 0
+  queued = {}
+  session.telemetry_config = nil
+  local ten = {}
+  for i = 1, 10 do ten[i] = FULL[i] end
+  radioHas(ten)
+  local reply = {}
+  for i = 1, 12 do reply[i] = 0 end
+  for i = 1, 40 do reply[12 + i] = ten[i] or 0 end
+  local first, second = TelemetryApi.parse(reply), TelemetryApi.parse(reply)
+  equal(type(first) == "table" and type(second) == "table" and first ~= second, true,
+    "the parser answers a new table on every reply")
+  local page = loadPage()
+  build(page)
+  equal(#queued, 1, "with no configuration stored, opening the page asks for one")
+  wakeup(page, 2)
+  queued[1].processReply(nil, reply)
+  rebuilds = 0
+  wakeup(page, 2)
+  equal(rebuilds, 1, "the configuration the page read shows on the next wakeup")
+  equal(build(page), 30, "the rebuilt page shows the ten sensors the reply names")
   page.closePage()
 end)
 
@@ -188,8 +220,10 @@ scenario("sensor stops arriving", function()
   local page = loadPage()
   openSettled(page)
   radio.Vbat.live = false
-  for _ = 1, 17 do wakeup(page, 5) end
-  equal(rebuilds, 1, "a sensor gone quiet shows within 0.8 s")
+  for _ = 1, 15 do wakeup(page, 5) end
+  equal(rebuilds, 0, "a sensor gone quiet is not shown before the 0.8 s refresh")
+  for _ = 1, 2 do wakeup(page, 5) end
+  equal(rebuilds, 1, "a sensor gone quiet shows at the first wakeup after 0.8 s")
   page.closePage()
 end)
 
