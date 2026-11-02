@@ -6,8 +6,7 @@
 -- host already built -- and every press runs through `ctx.run`: a pick with its option, the close
 -- box with the record's own `close`, handed back as the very table `ctx.entry` returned, which is
 -- how the host knows it for the close. The host answers RTN with its own picker's close and
--- decides when the picker opens. The drawing is battpick.lua's, so this picker and the one the
--- host hook used to call are one picture.
+-- decides when the picker opens. The drawing is battpick.lua's.
 
 local function requireModule(path)
   if _G.rfsuite and type(_G.rfsuite.require) == "function" then
@@ -55,7 +54,7 @@ function M.build(children, zone, state, ctx)
       packs[#packs + 1] = { name = option.label, sub = sub, selected = option.current == true, press = press }
     end
   end
-  -- NO BATTERY is the answer in force where no pack is, as the hook's picker marks it.
+  -- NO BATTERY is the answer in force where no pack is.
   if none ~= nil then none.selected = not anyCurrent end
 
   local closePress
