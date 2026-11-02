@@ -168,7 +168,7 @@ follows it.
 ![The ground surface: model check, FC slots, session, and the actions](../images/inflight/overlay-ground.png)
 
 One filled status panel shows **Model** (the setup verdict), **FC slots** (the number of parameters
-read from the board, plus skipped slots), and **Session** (the time this session's start values
+read from the board, plus skipped slots, or the slot that blocks tuning), and **Session** (the time this session's start values
 were read, for example **Start values 14:32**, a pending session end, or a not-read/refused status). Dim labels sit
 beside values. Each status takes one line on 480x272, 480x320 and 800x480 displays, and a second
 one only where its text needs it and the actions keep their room; where they would not, the status
@@ -263,8 +263,8 @@ ground and offers what it can step, so a layout made in the Configurator works a
 used when:
 
 - its enable channel is the bank channel and its value channel the value channel set under
-  *System* → *Settings* → *Dashboard* → *In-Flight Tuning* (by default channels 11 and 12). Slots on other
-  channels, such as your own profile switches, are left alone and are not shown;
+  *System* → *Settings* → *Dashboard* → *In-Flight Tuning* (by default channels 11 and 12). Slots with both
+  channels elsewhere, such as your own profile switches, are left alone and are not shown;
 - it steps. A continuous slot on these two channels is not offered;
 - the bank channel can be parked in its enable window without enabling another slot's window on
   the same channels. Otherwise the whole window is refused, with every slot in it;
@@ -274,6 +274,18 @@ used when:
 Slots that are left out this way are counted as skipped on the **FC slots** line. A step direction
 whose window would also fire a second slot, including a slot whose enable is always on, is refused;
 the function stays listed when its other direction is safe.
+
+A slot that uses only one of the two channels, or both the other way round, stops tuning
+altogether: for example a slot on the value channel that another switch enables, or a slot
+enabled by the bank channel that reads some other channel. The flight controller would step it
+beside the parameter on the screen, and the overlay cannot hold that other channel still. No
+parameter is offered until the slot is changed in the Configurator: **FC slots** names the slot,
+for example **Slot 40 blocks tuning**, numbered as the Adjustments page numbers its ranges, and the
+screen says to change it. **Set up suggested functions** clears it as well when it is one of the
+slots 3 to 38 that it overwrites. A slot whose function is off, or whose enable range the flight
+controller never reads, does not count. Nor does a slot that is enabled and stepped by the same
+channel while its enable range shares no value with its step ranges (for a continuous slot, its
+first range and the margin around it): the flight controller can never step it.
 
 Your functions get the Configurator's names and are grouped and ordered as above; a function the
 suite does not know is listed under **Other** as *Function* and its number. Profile selection
@@ -534,7 +546,7 @@ and telemetry reports retain both windows. Native encoder ordering, rendered lay
 behaviour and FC acceptance still need an isolated simulator/radio/FC retest. Historical screenshots
 show the former UI.
 
-An always-active adjustment slot on the tuning value channel can fire in every bank. A step direction whose pulse would also trigger that slot is unavailable; other safe directions remain available. The slot is included in the skipped count.
+An always-active adjustment slot on the tuning value channel can fire in every bank. A step direction whose pulse would also trigger that slot is unavailable; other safe directions remain available. The slot is included in the skipped count. For a continuous slot of that kind only its first range counts, widened the way the flight controller widens it: by the range width divided by twice the slot's value span, and at least 5 µs on each side. Its second range is never used by the flight controller and refuses nothing.
 
 Ground reads accept the firmware range of PID gains and rescue altitude P/I/D gains (0 to 1000) and of the governor head speed (0 to 50000), even when a value exceeds the Configurator's standard-slot range. Values outside the firmware range refuse the read with the function name and value. The standard-layout writer retains its Configurator limits.
 

@@ -68,6 +68,9 @@ jobs:
       - name: In-flight session and view lifetimes
         run: lua5.3 bin/dashboard/verify_inflight_lifetimes.lua
 
+      - name: In-flight slots that touch the tuning pair in part
+        run: lua5.3 bin/dashboard/verify_inflight_foreign_slots.lua
+
   startup-compile:
     # The configuration tool compiles the installed suite at start (src/rfsuite/lib/precompile.lua).
     # This runs the real module on an in-memory card across consecutive starts: a fresh install
