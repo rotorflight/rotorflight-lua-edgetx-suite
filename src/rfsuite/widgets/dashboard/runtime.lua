@@ -1793,22 +1793,24 @@ local function batteryPickLoadStep(self)
   if type(BatteryPick) ~= "table" then return true end
 
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-  local load = pick.load
-  if load == nil then
-    load = BatteryPick.newLoad(session, self.state.battery_config)
-    pick.load = load
-  end
+  -- Held on `pick` only between steps that returned: a step that raises leaves nothing behind
+  -- for the latch to keep alive.
+  local load = pick.load or BatteryPick.newLoad(session, self.state.battery_config)
+  pick.load = nil
   if not BatteryPick.loadStep(load) then
+    pick.load = load
     pick.loaded = false
     return true
   end
-  pick.load = nil
   local list = load.packs
   pick.candidates = list
 
+  -- The load noted the pack chosen when it started; the list is searched only for a choice that
+  -- has changed since.
   local id = BatteryPick.selectedId(session)
   pick.selectedId = id
-  local entry = batteryPickEntry(pick, id)
+  local entry = load.selected
+  if id ~= load.selectedId then entry = batteryPickEntry(pick, id) end
   pick.selectedName = entry and entry.name or nil
 
   -- Not raised while armed: a model armed before this step ran has already passed the arm edge
@@ -5522,11 +5524,14 @@ function Runtime.new(zone, options)
     -- The battery prompt's own work, last and only into a free slot: the registry read and the
     -- pick both touch the card, and neither is worth delaying a build for. The steady state
     -- past the load is three table reads. Both are one-shot jobs (see the dispatcher): neither is
-    -- armed on `built`, and each clears what arms it before it can raise.
+    -- armed on `built`, and each clears what arms it before it can raise. A load that has taken
+    -- its first step finishes before a pick is applied: the pick looks its pack up in the list
+    -- the load publishes, and would otherwise find no pack and write no profile.
     if self._job == nil then
-      if self._batteryPickRequest ~= nil then
+      local pick = self.state.batteryPick
+      if self._batteryPickRequest ~= nil and pick.load == nil then
         self._job = { kind = "battery_pick_apply", step = batteryPickApplyStep, oneShot = true }
-      elseif self.state.batteryPick.loaded ~= true and self.state.tasksDone == true then
+      elseif pick.loaded ~= true and self.state.tasksDone == true then
         self._job = { kind = "battery_pick_load", step = batteryPickLoadStep, oneShot = true }
       end
     end

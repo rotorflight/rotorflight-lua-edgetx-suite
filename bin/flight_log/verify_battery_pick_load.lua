@@ -204,6 +204,36 @@ check("no session and no board configuration: the packs for every model, no prof
   describe(noName) == "3/Any/3300/nil/nil/nil/nil | 5/Every model/9999/nil/40/nil/5 | 6/Empty list/4500/6/nil/nil/nil",
   describe(noName))
 
+local profiles = {}
+for k = 1, #list do profiles[k] = tostring(list[k].profile) end
+check("each pack keeps the registry's own profile field", table.concat(profiles, ",") == "nil,nil,nil,6,nil,nil",
+  table.concat(profiles, ","))
+
+-- The board configuration is taken as it stood when the load started: a change to the table the
+-- caller passed, between two steps, does not reach the packs after it.
+if type(BatteryPick.newLoad) == "function" then
+  local cfg = {}
+  for k, v in pairs(CFG) do cfg[k] = v end
+  local load = BatteryPick.newLoad(SESSION, cfg)
+  BatteryPick.loadStep(load, 3)
+  cfg.batteryCapacity_2, cfg.batteryCapacity_1 = 3300, 5000
+  repeat until BatteryPick.loadStep(load, 1)
+  check("a configuration changed during the load does not reach the packs after the change",
+    describe(load.packs) == expected(), describe(load.packs))
+
+  -- The pack chosen when the load started is noted on the way, so the caller need not search.
+  local chosen = BatteryPick.newLoad({ modelName = "goblin", flightlog = { batteryId = "6" } }, CFG)
+  repeat until BatteryPick.loadStep(chosen)
+  check("the pack chosen at the start is noted by the load", chosen.selected ~= nil and chosen.selected.id == "6"
+    and chosen.selected == chosen.packs[5], chosen.selected and chosen.selected.id)
+  local gone = BatteryPick.newLoad({ modelName = "goblin", flightlog = { batteryId = "4" } }, CFG)
+  repeat until BatteryPick.loadStep(gone)
+  check("a chosen pack the model is not offered is not noted", gone.selected == nil and gone.selectedId == "4")
+else
+  check("a configuration changed during the load does not reach the packs after the change", false, "no stepped load")
+  check("the pack chosen at the start is noted by the load", false, "no stepped load")
+end
+
 local registry = FlightLog.loadRegistry()
 local ids = {}
 for i = 1, #registry do ids[i] = registry[i].id end

@@ -60,8 +60,9 @@ local FC = assert(loadfile(ROOT .. "/bin/accounting/stubs/fc.lua"))()
 local count = 0
 local function hook() count = count + 1 end
 
---- A widget on a fresh card holding a registry of `packs` packs for the model.
-local function newWidget(packs)
+--- A widget on a fresh card holding a registry of `packs` packs for every model; `line` formats
+--- one registry line from the pack's number.
+local function newWidget(packs, line)
   Stubs.install(ROOT)
   FC.install(Stubs)
   Stubs.reset()
@@ -71,7 +72,7 @@ local function newWidget(packs)
   local FlightLog = _G.rfsuite.require("lib/flight_log.lua")
   local lines = { "# packs\n" }
   for n = 1, packs do
-    lines[#lines + 1] = string.format("id=%d;name=Pack %d;cap=5000;cells=6;cycles=%d\n", n, n, n)
+    lines[#lines + 1] = line and line(n) or string.format("id=%d;name=Pack %d;cap=5000;cells=6;cycles=%d\n", n, n, n)
   end
   local f = assert(io.open(FlightLog.registryPath(), "w"))
   io.write(f, table.concat(lines))
@@ -123,17 +124,29 @@ do
   print(string.format("%d packs: %d load passes, the worst %d instructions", PACKS, seen.loads, seen.worst))
 end
 
--- A load step that raises stays latched.
+-- A load step that raises, after one that did not, stays latched and leaves nothing behind.
 do
   local widget = newWidget(PACKS)
   local BatteryPick = _G.rfsuite.require("lib/battery_pick.lua")
-  local raises = 0
+  local raises, calls = 0, 0
   local function boom() raises = raises + 1; error("a load step that raises") end
-  if type(BatteryPick.loadStep) == "function" then BatteryPick.loadStep = boom else BatteryPick.candidates = boom end
+  local stepped = type(BatteryPick.loadStep) == "function"
+  if stepped then
+    local real = BatteryPick.loadStep
+    BatteryPick.loadStep = function(...)
+      calls = calls + 1
+      if calls == 2 then boom() end
+      return real(...)
+    end
+  else
+    BatteryPick.candidates = boom
+  end
   local seen = drive(widget, PASSES, function(_, _, s) s.expect = PACKS end)
-  check("a raising load step runs once and is not enqueued again", raises == 1 and seen.loads == 1,
+  local pick = widget.state.batteryPick
+  check("a raising load step is not enqueued again", raises == 1 and seen.loads == (stepped and 2 or 1),
     string.format("%d raises over %d load passes", raises, seen.loads))
-  check("a raising load step publishes nothing", #widget.state.batteryPick.candidates == 0)
+  check("a raising load step publishes nothing", #pick.candidates == 0)
+  check("a raising load step leaves no load held", pick.load == nil)
 end
 
 -- The reconnect edge replaces the prompt's state while a load is part-way: the next load starts over.
@@ -148,10 +161,55 @@ do
     end
   end)
   local pick = widget.state.batteryPick
-  check("a load dropped part-way starts over and publishes every pack once",
-    replaced and #pick.candidates == PACKS and pick.candidates[1].id == "1" and pick.candidates[PACKS].id == tostring(PACKS),
+  local inOrder = #pick.candidates == PACKS
+  for n = 1, #pick.candidates do
+    if pick.candidates[n].id ~= tostring(n) then inOrder = false end
+  end
+  check("a load dropped part-way starts over and publishes every pack once, in order", replaced and inOrder,
     string.format("replaced=%s packs=%d", tostring(replaced), #pick.candidates))
   check("nothing of the dropped load is shown", not seen.partial)
+end
+
+-- A pick requested while the load is part-way is applied once the load has published the list,
+-- so it finds its pack and goes on to the board profile the pack names.
+do
+  local widget = newWidget(PACKS, function(n)
+    return string.format("id=%d;name=Pack %d;cap=5000;cells=6;profile=2\n", n, n)
+  end)
+  widget.preferences.flightlog.set_fc_profile = true
+  local requested, applyBeforeLoadEnd = false, false
+  drive(widget, PASSES, function(w, _, s)
+    s.expect = PACKS
+    if not requested and s.loads == 1 then
+      requested = true
+      w._batteryPickRequest = "25"
+    end
+    if requested and w._job ~= nil and w._job.kind == "battery_pick_apply" and #w.state.batteryPick.candidates == 0 then
+      applyBeforeLoadEnd = true
+    end
+  end)
+  local pick = widget.state.batteryPick
+  check("a pick requested mid-load waits for the list", requested and not applyBeforeLoadEnd)
+  check("a pick requested mid-load finds its pack and reaches the profile step",
+    pick.selectedId == "25" and pick.selectedName == "Pack 25" and pick.applied ~= nil,
+    string.format("selected=%s name=%s applied=%s", tostring(pick.selectedId), tostring(pick.selectedName),
+      tostring(pick.applied)))
+end
+
+-- Two thousand one-field lines, the last one the pack chosen before: the step that publishes the
+-- list does not search all of it for the chosen pack.
+do
+  local MANY = 2000
+  local widget = newWidget(MANY, function(n) return string.format("id=%d\n", n) end)
+  local seen = drive(widget, 1400, function(_, _, s)
+    s.expect = MANY
+    _G.rfsuite.session.flightlog = { batteryId = tostring(MANY) }
+  end)
+  local pick = widget.state.batteryPick
+  check(string.format("%d packs, the last one chosen: no load pass costs more than %d instructions", MANY, PASS_LIMIT),
+    seen.worst <= PASS_LIMIT and #pick.candidates == MANY and pick.selectedId == tostring(MANY),
+    string.format("worst load pass %d over %d load passes, %d packs, selected %s", seen.worst, seen.loads,
+      #pick.candidates, tostring(pick.selectedId)))
 end
 
 Stubs.releaseCard()
