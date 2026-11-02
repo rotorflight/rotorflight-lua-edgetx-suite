@@ -15,6 +15,7 @@ rfsuite.session.flight = {
   last         = { maxRpm = 2210, minVoltage = 21.9, ... },  -- the flight before it
   seconds      = 128.4,   -- armed seconds of the flight in progress
   lastSeconds  = 301.2,   -- armed seconds of the flight that ended
+  lastCells    = 6,       -- the pack's cell count the flight that ended was flown with, or nil
   flights      = 37,      -- flights the flight controller counts
   totalSeconds = 44210,   -- armed seconds the flight controller counts, plus the live flight
   armed        = true,    -- whether a record is open
@@ -62,6 +63,9 @@ The cell count is the flight controller's own where it has one; a configured cou
 the board detects it itself, and then telemetry answers instead. Where neither answers, or where
 the board has not reported a minimum cell voltage, **nothing is judged**: `sagCount` is absent
 rather than `0`, which is how a reader tells "watched, none" from "could not watch".
+The count itself is kept even where the minimum cell voltage is missing, and the flight that ends
+is closed with it as `lastCells`; the Flight Log divides its per-cell columns by it, so a board set
+to detect the count gets them too, without a further sensor read.
 
 **The resolution is the sampling interval.** The statistics are read every 0.5 s, so a dip
 shorter than that can fall between two samples and be missed entirely, and the deepest voltage is
