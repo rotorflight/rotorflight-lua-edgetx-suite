@@ -280,7 +280,9 @@ parameter is offered until the slot is changed in the Configurator: **FC slots**
 for example **Slot 40 blocks tuning**, numbered as the Adjustments page numbers its ranges, and the
 screen says to change it. **Set up suggested functions** clears it as well when it is one of the
 slots 3 to 38 that it overwrites. A slot whose function is off, or whose enable range the flight
-controller never reads, does not count.
+controller never reads, does not count. Nor does a slot that is enabled and stepped by the same
+channel while its enable range shares no value with its step ranges (for a continuous slot, its
+first range and the margin around it): the flight controller can never step it.
 
 Your functions get the Configurator's names and are grouped and ordered as above; a function the
 suite does not know is listed under **Other** as *Function* and its number. Profile selection

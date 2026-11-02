@@ -4,6 +4,8 @@
 -- (fc/rc_adjustments.c, processRcAdjustments):
 --   * a slot whose enable is active fires whatever the overlay names, so a slot with one channel
 --     on the pair and the other elsewhere refuses the whole set, and the ground screen names it;
+--   * a slot whose one channel does both jobs refuses it only when its enable window overlaps a
+--     step window, since it cannot step otherwise;
 --   * a continuous slot fires within a margin around its first range and never reads its second.
 -- Usage: lua5.3 bin/dashboard/verify_inflight_foreign_slots.lua
 local Stubs = dofile("bin/accounting/stubs/edgetx.lua")
@@ -79,8 +81,46 @@ do
   check(inert ~= nil, "a slot with function 0 refuses nothing (the firmware's NONE entry sets nothing)")
   local never = Prime.deriveSet(board(slot({enaRange = {start = 1500, ["end"] = 1500}})), nil, BANK, VALUE)
   check(never ~= nil, "a foreign enable window the firmware never reads refuses nothing")
-  local onValue = select(3, Prime.deriveSet(board(slot({enaChannel = VALUE_FIELD})), nil, BANK, VALUE))
-  check(onValue == SLOT, "a slot enabled and stepped by the value channel alone refuses the set")
+end
+
+-- 1b. One channel doing both jobs: the firmware looks at the step windows only while the enable
+-- window holds that same channel, so the slot steps only where the two overlap. Windows are half
+-- open (fc/rc_modes.h, isRangeActive).
+do
+  local function refuses(fields)
+    return select(3, Prime.deriveSet(board(slot(fields)), nil, BANK, VALUE)) == SLOT
+  end
+  local function ignored(fields)
+    local derived, skipped, conflict = Prime.deriveSet(board(slot(fields)), nil, BANK, VALUE)
+    return derived ~= nil and conflict == nil and #skipped == 0
+  end
+  -- The default windows: enable 1300..1700, steps 1000..1100 and 1900..2000.
+  check(ignored({enaChannel = VALUE_FIELD}),
+    "a slot on the value channel alone whose enable window holds none of its step windows never steps and refuses nothing")
+  check(refuses({enaChannel = VALUE_FIELD, adjRange1 = {start = 1600, ["end"] = 1700}}),
+    "a slot on the value channel alone whose enable window overlaps a step window refuses the set")
+  check(ignored({enaChannel = VALUE_FIELD, adjRange2 = {start = 1700, ["end"] = 1800}}),
+    "a step window that starts where the enable window ends never shares a value with it and refuses nothing")
+  check(refuses({enaChannel = VALUE_FIELD, adjRange2 = {start = 1695, ["end"] = 1800}}),
+    "control: a step window that starts 5 us inside the enable window refuses the set")
+  check(ignored({enaChannel = BANK_FIELD, adjChannel = BANK_FIELD}),
+    "a slot on the bank channel alone whose enable window holds none of its step windows refuses nothing")
+  check(refuses({enaChannel = BANK_FIELD, adjChannel = BANK_FIELD, adjRange2 = {start = 1500, ["end"] = 2000}}),
+    "a slot on the bank channel alone whose enable window overlaps a step window refuses the set")
+  check(ignored({enaChannel = VALUE_FIELD, adjRange1 = {start = 1500, ["end"] = 1500},
+    adjRange2 = {start = 1500, ["end"] = 1500}}),
+    "a stepped slot on one channel whose step windows the firmware never reads refuses nothing")
+  -- A continuous slot steps within its first range widened by MAX(5, rangeWidth / (valueWidth * 2)).
+  local function continuous(adjMin, adjMax, start)
+    return {enaChannel = VALUE_FIELD, adjStep = 0, adjRange1 = {start = start, ["end"] = start + 200},
+      adjMin = adjMin, adjMax = adjMax}
+  end
+  check(refuses(continuous(0, 5, 1715)),
+    "a continuous slot on one channel whose margin (20 us) reaches into its enable window refuses the set")
+  check(ignored(continuous(0, 1000, 1715)),
+    "control: the same continuous slot with a margin of 5 us stays clear of its enable window and refuses nothing")
+  check(ignored(continuous(7, 7, 1400)),
+    "a continuous slot on one channel with no value width never sets anything and refuses nothing")
 end
 
 -- 2. The mirror: enabled in a bank, value on another channel.
@@ -95,6 +135,11 @@ do
   check(swapped == SLOT, "a slot with the two roles swapped refuses the set")
   local always = select(3, Prime.deriveSet(board(slot({enaChannel = 255, adjChannel = BANK_FIELD})), nil, BANK, VALUE))
   check(always == SLOT, "an always-on slot reading the bank channel refuses the set")
+  local valueEnabled = select(3, Prime.deriveSet(board(slot({enaChannel = VALUE_FIELD, adjChannel = OTHER_FIELD})),
+    nil, BANK, VALUE))
+  check(valueEnabled == SLOT, "a slot enabled by the value channel that reads another channel refuses the set")
+  local bankRead = select(3, Prime.deriveSet(board(slot({adjChannel = BANK_FIELD})), nil, BANK, VALUE))
+  check(bankRead == SLOT, "a slot enabled by another channel that reads the bank channel refuses the set")
   local both, _, none = Prime.deriveSet(board(slot({adjChannel = OTHER_FIELD})), nil, BANK, VALUE)
   check(both ~= nil and none == nil, "a slot with both channels elsewhere refuses nothing")
 end
