@@ -221,8 +221,8 @@ local w = world()
 check(w.timed,"timeout capability proved per override parser")
 eq(q.sent[1].command,99,"arming disabled before configuration writes")
 eq(q.sent[1].payload[1],1,"arming disabled payload")
-local steps = { "sensors","receiver","modes","profiles","rates","swash","servoType","governor","motor","connect",
-  "escTelemetry","throttle","servos","direction","level","pitch","tail","gyro","finish" }
+local steps = { "sensors","receiver","modes","profiles","rates","swash","servoType","governor","motor","escTelemetry",
+  "connect","throttle","servos","direction","level","pitch","tail","gyro","finish" }
 local view = load(PATH .. "view.lua")
 local diagrams = load(PATH .. "diagrams.lua")
 for i=1,#arg do if arg[i]=="--view" then view=assert(loadfile(arg[i+1]))() end end

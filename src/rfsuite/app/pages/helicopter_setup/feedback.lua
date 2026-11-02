@@ -10,7 +10,7 @@ function M.attach(w, state, sensors)
     local now = getTime()
     if now < due then return end
     due = now + 25
-    if self.step == 11 and sensors.getLiveValue then self.escSignature = sensors.getLiveValue("Esc#") end
+    if self.step == 10 and sensors.getLiveValue then self.escSignature = sensors.getLiveValue("Esc#") end
     local value = state.read(sensors, source)
     self.systemReads = (self.systemReads or 0) + 1
     if source == "system_status" then self.systemStatus = value; source = "system_config"

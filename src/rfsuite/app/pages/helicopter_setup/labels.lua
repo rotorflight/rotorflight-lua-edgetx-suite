@@ -530,6 +530,9 @@ local L = {
   motorDoneHint = "@i18n(app.modules.helicopter_setup.motorDoneHint)@",
   servoCustom = "@i18n(app.modules.helicopter_setup.servoCustom)@",
   servoFrameRate = "@i18n(app.modules.helicopter_setup.servoFrameRate)@",
+  batteryOff = "@i18n(app.modules.helicopter_setup.batteryOff)@",
+  unplugBatteryHint = "@i18n(app.modules.helicopter_setup.unplugBatteryHint)@",
+  unplugBatteryShort = "@i18n(app.modules.helicopter_setup.unplugBatteryShort)@",
   rescueEnable = "@i18n(app.pages.flight_tuning_advanced_rescue.mode_enable)@",
   rescueFlip = "@i18n(app.pages.flight_tuning_advanced_rescue.flip_upright)@",
   rescueHint = "@i18n(app.modules.helicopter_setup.rescueHint)@",
@@ -790,7 +793,7 @@ local L = {
   percent = "@i18n(app.modules.helicopter_setup.percent)@",
 }
 L.steps = { L.sensors, L.receiver, L.modeSwitches, L.profiles, L.rates, L.swash, L.servoType, L.governor, L.motor,
-  L.connect, L.escTelemetry, L.spinTest, L.servoDirectionCentre, L.controlDirections, L.level, L.bladePitch, L.tail, L.gyroCheck, L.finish }
+  L.escTelemetry, L.connect, L.spinTest, L.servoDirectionCentre, L.controlDirections, L.level, L.bladePitch, L.tail, L.gyroCheck, L.finish }
 -- The step chooser numbers its entries the way the Configurator wizard does.
 L.numberedSteps = {}
 for i, name in ipairs(L.steps) do L.numberedSteps[i] = i .. ". " .. name end

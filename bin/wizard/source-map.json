@@ -857,7 +857,7 @@
         "CORE.history-lua-record",
         "CORE.esc-before-spin"
       ],
-      "adaptation": "The complete path keeps all 19 source steps. Suite entries share one lazy page and load only the selected step, with preparation before holds, save/discard, and return to the Suite. Informational per-FC history has explicit reset and advisory prerequisites; no saved bit replaces fresh physical answers. Telemetry-sized indexed startup replaces USB bulk reads. Cached packed-state hints never replace MSP acknowledgements or lock readbacks. Native light palette and responsive diagrams replace browser scenes. An unnumbered current-radio-model confirmation precedes new setup visits; template use alone does not pass it and history cannot retain it. Deliberate deviation from PR 491: ESC telemetry is step 11 and the spin test is step 12, so the ESC link and live values are established before motor spin. Menu IDs and stored history bits remain positional; no history migration is performed."
+      "adaptation": "The complete path keeps all 19 source steps. Suite entries share one lazy page and load only the selected step, with preparation before holds, save/discard, and return to the Suite. Informational per-FC history has explicit reset and advisory prerequisites; no saved bit replaces fresh physical answers. Telemetry-sized indexed startup replaces USB bulk reads. Cached packed-state hints never replace MSP acknowledgements or lock readbacks. Native light palette and responsive diagrams replace browser scenes. An unnumbered current-radio-model confirmation precedes new setup visits; template use alone does not pass it and history cannot retain it. Deliberate deviation from PR 491: ESC telemetry is step 10, before servo connection at step 11 and the spin test at step 12, so its port restart happens with the servos unplugged and the ESC link and live values are established before motor spin. Menu IDs and stored history bits remain positional; no history migration is performed."
     },
     {
       "source": "tabs/setup_wizard/StepConnect.svelte",
@@ -921,7 +921,7 @@
         "S09-S12.versioned-esc-and-ports",
         "S11.card-order-and-save"
       ],
-      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. Deliberate deviation: moved before the spin test to step 11, starting with a flight-battery connection card while main and tail blades remain removed."
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. Deliberate deviation: moved before servo connection and the spin test to step 10, so its restart happens with the servos unplugged, starting with a flight-battery connection card while main and tail blades remain removed."
     },
     {
       "source": "tabs/setup_wizard/StepFinish.svelte",

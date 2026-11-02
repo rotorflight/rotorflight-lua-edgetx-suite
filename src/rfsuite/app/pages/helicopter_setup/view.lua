@@ -403,7 +403,7 @@ function M.new(w, ctx, diagrams)
         end
       end
     end
-    local function nextText() return simpleNext and w.L.continue or restartNext and w.L.reboot or w.trial and w.trial.success and w.L.saveReboot or step == 10 and w.rebootPending and w.L.reboot or step == 19 and not w.singleStep and w.L.finish or
+    local function nextText() return simpleNext and w.L.continue or restartNext and w.L.reboot or w.trial and w.trial.success and w.L.saveReboot or (step == 10 or step == 11) and finalCard and w.rebootPending and w.L.reboot or step == 19 and not w.singleStep and w.L.finish or
       finalCard and (w.singleStep and (next(w.dirty) and w.L.saveStep or (w.returnToSuite and w.L.backToSuite or w.L.backToSteps)) or w.L.saveNext) or w.L.continue end
     if not w.historyMode then
     button(width-math.floor(width*0.42)-8, height-controlH-6, math.floor(width*0.42), nextText,

@@ -5,7 +5,7 @@ title: Helicopter Setup
 # Helicopter Setup
 
 A guided helicopter setup based on the Configurator wizard, with ESC telemetry
-before the spin test in the 19-step sequence.
+before servo connection and the spin test in the 19-step sequence.
 See the [generated wizard flow](../reference/helicopter-wizard-flow.md) for cards, pilot actions, gates and MSP traffic.
 It is the only entry in the Wizards menu; the old Setup Assistant code and templates remain. Remove the main
 and tail blades before bench work. Keep servos unplugged until the connection gate.
@@ -96,9 +96,10 @@ The confirmation is deliberately not stored in per-FC history, because a board c
 be used with another transmitter model. It is required again on every new complete
 or individual setup visit, before loading the selected step or entering holds. The
 history/reset page needs no model-configuration confirmation. The 19 numbered steps
-deliberately deviate from the Configurator's order: ESC telemetry is step 11 and
-the spin test is step 12, so the ESC link and its live values exist before the
-motor first spins.
+deliberately deviate from the Configurator's order: ESC telemetry is step 10,
+before Connect the servos at step 11 and the spin test at step 12. Its port
+restart therefore happens while the servos are still unplugged, and the ESC link
+and its live values exist before the motor first spins.
 
 The same card checks two prerequisites up front: the Rotorflight telemetry sensors
 *System Status* and *System Config*. Each row reads **Live**, **Checking** or, after
@@ -135,7 +136,7 @@ Direct configuration steps ask for blades removed and servos unplugged; direct
 servo/control tests, including a servo tail, ask for blades removed and the servo
 type/rate checked before entering their holds. Motor tests retain their own gates.
 These confirmations do not validate the mechanics. An existing restart requirement
-is handled before direct entry to a test after the connection gate: remove blades,
+is handled before direct entry to ESC telemetry or to a test after the connection gate: remove blades,
 unplug servos, restart, then confirm the test prerequisites.
 
 | Control | What it does |
@@ -143,7 +144,7 @@ unplug servos, restart, then confirm the test prerequisites.
 | Back | Previous task. At the start of a step entered from the Suite, return to its menu, with Save/Discard when changes are pending. RTN/EXIT follows the same route. |
 | Continue | Next task within this step; no EEPROM write. |
 | Save & next | Commit this step and write EEPROM only when something changed. A refused or missing reply blocks advance. |
-| Reboot | At the connection gate, keep servos unplugged until restart completes. |
+| Reboot | At ESC telemetry and the connection gate, keep servos unplugged until restart completes. |
 | Finish | Save pending settings, release overrides, restore arming availability and leave. It never arms the model. |
 | Hold | A momentary motor control. Releasing the button stops the motor; motor overrides also lapse in firmware without refresh. |
 | ? | Full instructions for the current task and the navigation help. |
@@ -212,8 +213,8 @@ The short instruction area may show only its first lines; **?** opens the full t
 | 7 | Servo type | One card per group, the swash servos and, with a servo tail, the tail servo; a motorised tail has no tail card. Only the PWM servos belonging to the selected swash/tail are used; bus channels are excluded. Servos must be unplugged before a type is chosen. Each group offers the types made for it: swash servos Analog (1520 µs, 50 Hz), Digital (1520 µs, 165 Hz), Hi-end digital (1520 µs, 333 Hz) and Narrow band (760 µs, 560 Hz); tail servo Digital (1520 µs, 200 Hz), Specific digital (760 µs, 333 Hz) and Hi-end specific digital (760 µs, 560 Hz). Use a type your servo maker allows: too fast a frame rate can burn a servo out. A type sets the centre pulse and frame rate of every servo in the group; changing the pulse band resets centre, travel and scale to the band's defaults, while a centre trimmed within the band keeps its type. Frame-rate changes require a restart, and the firmware may lower a rate for pulse limits or shared timers, so check the values after the restart. The type list stays locked until Servos unplugged is confirmed again after a restart. **Custom** is always the last entry: servos that share a centre band and a frame rate that no type has read Custom, and picking it changes nothing. **Frame rate (Hz)** sets a rate by hand for every servo of the group, within the band: 50–333 Hz for wide band (1520 µs), 200–560 Hz for narrow band (760 µs); it also needs a restart. A group whose servos differ opens the list on *Not set* and takes no hand-set rate until a type is chosen; nothing is written until a type or a rate is set. The picture shows the type's servo with its pulse train above it, drawn to scale over 20 ms, and the type's name and values below; for Custom it shows the nearest type of the band, captioned Custom with the servos' values; a group whose servos differ shows the live pulse train of what the servos hold, captioned *No type chosen*. The same card switches geometry correction for its group (bit 1; the reverse bit is kept). It turns the servo arm's arc into straight link movement. Use it with the arm at 90 degrees to the link at centre and large servo travel. Leave it off if the arm is not at 90 degrees at centre, a bellcrank or the mechanics already make the movement linear, or the helicopter manual says so. It changes travel near the end stops: recheck blade pitch and tail limits after switching it. No restart is needed. |
 | 8 | Governor | Governor Mode offers Off, Limit, Direct, Electric or Nitro. While on, it is followed by **RPM source**, then Throttle Type (Normal, Switch or Function; Switch requires Electric or Nitro). Choose **RPM wire (frequency sensor)** or **Bidirectional DShot**. The two are never on together: RPM wire enables the frequency-sensor feature without changing pin/resource mapping and turns bidirectional DShot off; DShot disables that feature and enables bidirectional telemetry. Both need Save and reboot. Zero motor poles and a DShot selection with a protocol outside 6..8 (DShot 300, DShot 600, ProShot) point to the Motor step first; DShot 150 sends no bidirectional DShot RPM. Pending feature/motor changes report the required restart. After reboot, Electric/Nitro report the FC RPM_SIGNAL verdict, including a missing RPM wire/pin; Limit/Direct report configuration only. Serial ESC telemetry is too slow for the governor. Check actual live RPM in the ESC telemetry step with the motor running and all blades removed. The Finish fast-RPM row follows the same checks. |
 | 9 | Motor & ESC | Throttle Protocol holds the protocol, bidirectional DShot and blades confirmation. The protocol list starts with PWM, DShot 150 and DShot 300, the usual heli protocols; DShot 600 (fussy about long, noisy ESC leads) and the rest follow. DShot 150 gives no motor RPM: choosing it turns bidirectional DShot off, and the card says that the governor and the RPM filter then need DShot 300 or an RPM sensor. With the governor on, a protocol change also sets the RPM source: DShot 300 and DShot 600 take bidirectional DShot, every other protocol the RPM wire. Switching bidirectional DShot on turns the RPM wire off. **Motor poles** holds the main motor's magnet poles. **Main gear ratio** asks for the gear train: **One stage** (pinion : main gear), **Two stages** (pinion : intermediate gear, then intermediate pinion : main gear, as on a SAB Goblin) or **Ratio only** (for example 9.70:1). Each pair of tooth counts sits on one row, a : b, under the gearing picture. The flight controller keeps two numbers per rotor, so two stages are stored as products (pinion × intermediate pinion, intermediate gear × main gear) and a ratio as the smallest whole pair (9.70:1 as 10:97); a count whose product passes 50000 is refused. Switching between one and two stages keeps the ratio. **Tail gear ratio** asks where the tail is driven from: the **Main shaft** (drive gear : tail rotor gear), the **Intermediate shaft** (intermediate pinion : main gear, then pulley : tail rotor pulley; not with Ratio only) or **Ratio only**; the ratio is always counted from the main rotor shaft. A motor tail asks for the tail motor poles instead. The tooth counts are kept while the wizard is open; opened again, it starts from the stored ratios as one stage. **Motor & ESC set** closes the step with the protocol, poles, gear train, main ratio and tail ratio (or tail motor poles). Castle telemetry and the ESC_SENSOR feature are kept consistent. Set up a new ESC first (BEC voltage, motor timing, ESC governor off with the FC governor, and direction) under Configuration > Setup > ESC & Motors > ESC Tools for AM32, BLHeli_S, Bluejay, Flyrotor, Hobbywing V5, OMP, Scorpion, XDFly, YGE and ZTW; entries are available when the FC's ESC telemetry protocol matches. Where the Suite can open pages from a page, an **Open ESC Tools** button goes there; an unsaved change in the wizard has to be saved or discarded first. |
-| 10 | Connect the servos | After the unchanged restart gate, Plug the servos in lists the outputs and connection confirmations. Battery then says to leave the battery unplugged until the next step. One restart applies pending board, servo-rate, mixer, governor and motor settings. Keep servos unplugged during it. Afterwards, check that the required main/tail motor outputs exist, that all required servo outputs exist, and confirm servos connected/powered with blades still removed. The restart gate and servo connection card show the Configurator servo picture. |
-| 11 | ESC telemetry | First connect the flight battery with the main and tail blades still removed to power the ESC. ESC telemetry then selects the protocol; Castle explains its throttle-wire telemetry. Port appears only for a protocol using a telemetry port. Check shows voltage and temperature with Detect wiring; Telemetry readings continues with current, RPM and reception status. Optional protocol and free/current ESC UART, wiring detection when supported, and Save & reboot. Turning ESC telemetry on with no port chosen takes the first free port; a port already chosen is kept. Check live volts, amperes, temperature and RPM. Known board designs show the printed socket name with the UART name, for example Port A [UART4]; unknown designs keep the UART name. Off needs no serial ESC telemetry; Castle uses its throttle wire. The battery-connection card shows the Configurator ESC picture. |
+| 10 | ESC telemetry | First connect the flight battery with the main and tail blades still removed to power the ESC. ESC telemetry then selects the protocol; Castle explains its throttle-wire telemetry. Port appears only for a protocol using a telemetry port. Check shows voltage and temperature with Detect wiring; Telemetry readings continues with current, RPM and reception status. Optional protocol and free/current ESC UART, wiring detection when supported, and Save & reboot. Turning ESC telemetry on with no port chosen takes the first free port; a port already chosen is kept. Check live volts, amperes, temperature and RPM. Known board designs show the printed socket name with the UART name, for example Port A [UART4]; unknown designs keep the UART name. Off needs no serial ESC telemetry; Castle uses its throttle wire. The battery-connection card shows the Configurator ESC picture. |
+| 11 | Connect the servos | After the unchanged restart gate, the first card asks to unplug the flight battery, which ESC telemetry needed: a powered ESC or BEC could move the servos as they are plugged in, so the step does not complete before **Flight battery unplugged** is confirmed. Plug the servos in then lists the outputs and connection confirmations. Battery then says to leave the battery unplugged until the next step. One restart applies pending board, servo-rate, mixer, governor and motor settings. Keep servos unplugged during it. Afterwards, check that the required main/tail motor outputs exist, that all required servo outputs exist, and confirm servos connected/powered with blades still removed. The restart gate and servo connection card show the Configurator servo picture. |
 | 12 | ESC & spin test | PWM calibration has three cards: Full throttle (unplug the flight battery first; blades off and the pinion out of mesh or the helicopter held down, because an ESC that does not enter calibration may run the motor at full throttle; battery unplugged, FC on USB, with live output), Connect the battery (wait for the ESC tones, then Low throttle), and Low throttle (confirm the tones and stored range; the motor must not run). Other protocols have one Connect the battery card reminding the pilot to keep it connected, or connect it now if unplugged. The spin test and motor-direction check follow. The full-throttle hold continues from the first calibration card to the battery card without a wizard-side deadline; Cancel, Low throttle, Back, other navigation, Exit, link loss or an error release it. Low throttle requires at least 99.5% actual output; calibration confirmation requires a positive output at or below 1005 µs. For the spin test, confirm blades removed, hold the helicopter down with hands clear of the head and gears, and hold at 5–50%, initially 10%. Release to stop, then confirm actual rotor direction. The first card shows the Configurator ESC picture. |
 | 13 | Servo direction & centre | An intro card shows the servo-arm picture and three steps: fit the arms square, test the upward movement, then adjust the centres. Continue opens one card per swash servo, followed by the tail servo when a servo tail is fitted, on every screen class including 320x240. Each servo card shows its name and role, centre and offset, reversal, the servo-arm picture, and -10 / -1 / +1 / +10 us buttons. Swash cards offer Move up 20° and Yes / No (reverse); the tail card sets its centre only. All servos are held at centre while a servo card is open; only its servo moves for the test. An offset beyond 100 us uses the warning colour and shows the full spline warning on that card. Back and Continue move freely between servo cards; Save & next on the last card requires all swash directions confirmed and all centres within 100 us, naming the blocking servo and role if refused. Back from the first servo returns to the intro and releases the holds. In an individual step, Before this step still precedes the intro. |
 | 14 | Control directions | Roll, pitch and collective use mixer passthrough. Check live RC commands and physical swash response. Wrong reverses the corresponding mixer input rate. The first row names the input the check needs and shows where the stick is now (a direction and its travel in percent, or centre); the expected movement stays visible below it; roll is viewed from behind, pitch from the side with the nose right. Confirm each axis. Roll, pitch and collective show their Configurator swash-motion pictures with the live input meters. |
@@ -224,9 +225,9 @@ The short instruction area may show only its first lines; **?** opens the full t
 | 19 | Finish | Review readable swash, rotor direction, tail, collective/cyclic limits, ESC protocol, telemetry, governor/throttle type, fast RPM and ARM assignment. Confirm the final checks, then Finish. Check failsafe, governor behaviour and every control before flight. |
 
 <!-- radio pictures: begin -->
-## Power and battery cards (step 11)
+## Power and battery cards (step 10)
 
-After **Check** and **Telemetry readings**, step 11 adds Voltage Source, Current
+After **Check** and **Telemetry readings**, step 10 adds Voltage Source, Current
 Source, Battery, two Capacity cards and SmartFuel Mode. Each card has at most
 three rows and fits at 480x320 without scrolling. The existing ESC throttle-range
 and operating-mode cards follow this block. Settings use the wizard's normal
@@ -264,7 +265,7 @@ seconds; analog readings also retain the saved source IDs associated with their
 request. Voltage meter calibration is unchanged and voltage_meter_config is not
 read or written.
 
-## ESC throttle range and operating mode (step 11)
+## ESC throttle range and operating mode (step 10)
 
 Throttle range appears for PWM, ONESHOT125, ONESHOT42 and MULTISHOT. It is split
 into task cards and never scrolls. DShot, ProShot, Castle and SRXL2 omit the range
@@ -336,13 +337,13 @@ Smaller screens use the compact layouts described above.
 
 ![9. Motor & ESC](../images/helicopter_setup/radio/step-09.png)
 
-**10. Connect the servos** (first card, both checks answered)
+**10. ESC telemetry** (the protocol card, after the battery-connection card)
 
-![10. Connect the servos](../images/helicopter_setup/radio/step-10.png)
+![10. ESC telemetry](../images/helicopter_setup/radio/step-10.png)
 
-**11. ESC telemetry** (the protocol card, after the battery-connection card)
+**11. Connect the servos** (first card, both checks answered)
 
-![11. ESC telemetry](../images/helicopter_setup/radio/step-11.png)
+![11. Connect the servos](../images/helicopter_setup/radio/step-11.png)
 
 **12. ESC & spin test** (PWM ESC after its calibration, the main motor held at 10 %)
 
@@ -458,8 +459,9 @@ An armed transition, lost connection, refused operation or malformed response bl
 progress; it does not report a successful save. Retry is an explicit action.
 Returning to a physical-check step requires fresh answers.
 
-The connection gate batches the initial restart. Receiver wiring and later ESC
-telemetry can need their own restart, as in the Configurator sequence. Unsupported
+The connection gate batches the initial restart. Receiver wiring and ESC
+telemetry can need their own restart, as in the Configurator sequence; ESC
+telemetry restarts before the connection gate, while the servos are still unplugged. Unsupported
 automatic wiring/alignment commands do not prevent using the manual settings.
 If automatic board alignment is refused, the status line explicitly asks for the
 angles to be entered manually; that refusal does not change the current angles.
