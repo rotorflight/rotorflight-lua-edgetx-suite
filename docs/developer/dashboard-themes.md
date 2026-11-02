@@ -219,6 +219,28 @@ before. "In use" goes by folder: a theme that loads modules from another folder 
 `@aerc/common.lua`, a user copy of Urban with the shipped Urban's modules) does not keep that folder
 in use, so those modules are read from the card again on its next load after a release.
 
+On a reconnect the widget resolves no theme while the link is up and the board's UID read has no
+outcome yet, and a preferences reload that falls due in that window waits for it too: the model's
+preferences are loaded by that UID, and a theme resolved without them would be the radio's, release
+the model's theme and read it from the card again seconds later. The read has an outcome once it is
+answered or has given up after its retries; without a UID the radio's theme is resolved then.
+The connection screen's soft timeout does not end the wait. A read that cannot go out does not
+settle: arming takes a read still on the queue off it and MSP sends nothing while armed, so a model
+armed before its UID was read keeps the connection screen until the disarm, when the read is sent
+again and settles. A dashboard built during the wait waits as well: EdgeTX builds every widget again when it loads the
+screens' layout again (a model selected, the screens edited), and the link and the MSP runtime carry
+on through that, so the new widget starts without a theme and takes it through the same wait.
+Losing the link releases nothing either: the per-model file drops out of the widget's check of the
+preferences files when the board's id goes with the link, and that is not taken as a change. The
+model's preferences stay in hand until the next board connects -- a board whose API version is
+refused does not, so they also stay behind its refusal screen -- so its theme stays loaded across a
+disconnect on the ground as it does after a flight, and a reload for a radio setting saved while the
+link is down reads the radio's file alone. A change found while its reload waits (armed, offline
+after a flight, off screen, or for the UID) is not looked for again until the reload has run; the
+reload then checks the files once and reads only the one that moved since the last reload, as an
+undeferred reload does; both where both moved, the check cannot tell which, or a change was
+signalled only by the reload request, which names no file -- when it was found, or while it waited.
+
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be
 released with the rest, and the next load of the theme would pair it with fresh copies of the

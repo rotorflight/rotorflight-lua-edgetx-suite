@@ -2035,13 +2035,21 @@ local function stampOfEither(path)
   return ok and stampOf(info) or nil
 end
 
-local function preferencesStamp(modelPath)
+-- `keptStamp` is the stamp last adopted. The per-model half is the file of the board this session
+-- identified, and a link that goes takes the board's id with it: the half then has no file to
+-- stat, but nothing on the card changed. That half is unknown, not changed, so the kept one
+-- stands in for it and the global half is compared like with like until a model file can be
+-- addressed again.
+local function preferencesStamp(modelPath, keptStamp)
   if type(fstat) ~= "function" then return nil end
 
   local globalStamp = stampOfEither(preferencesFile())
   if not globalStamp then return nil end
 
-  if not modelPath then return globalStamp end
+  if not modelPath then
+    local kept = type(keptStamp) == "string" and string.match(keptStamp, "|(.+)$") or nil
+    return kept and (globalStamp .. "|" .. kept) or globalStamp
+  end
 
   local modelStamp = stampOfEither(modelPath)
   if not modelStamp then return nil end
@@ -2145,12 +2153,15 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- that is not a stamp difference -- the sequence file, a forced caller -- leaves it nil and
   -- both files are read, because those signals do not name a file.
   local halves = nil
-  if not force and (now - (self._lastPrefsStatAt or 0)) >= PREFS_STAT_INTERVAL then
+  -- A change already found and waiting for its reload is not looked for again: the reload stats
+  -- the files once when it runs (below) and adopts that stamp, so a stat and a log line every
+  -- second of a deferral would only find the same difference again.
+  if not force and not self._reloadPending and (now - (self._lastPrefsStatAt or 0)) >= PREFS_STAT_INTERVAL then
     self._lastPrefsStatAt = now
     -- The per-model file's path lives on the session rather than on `self` -- the same
     -- shape this file already uses to reach `modelPreferences` twice further down.
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-    local stamp = preferencesStamp(session and session.modelPreferencesFile)
+    local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
     if stamp then
       currentStamp = stamp
       if self._lastPrefsStamp == nil then
@@ -2204,8 +2215,14 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     end
   end
 
+  -- A signal that names no file (the sequence file alone, a stamp that cannot say which half
+  -- moved) is remembered as such: a deferred reload does not stat again before it runs, and the
+  -- stamp it takes then would see only a later change -- a model save while it waited -- and read
+  -- that file alone, losing the change nobody could attribute. The reload request's sizes seen
+  -- here are kept with it, for the same question about a save made while the reload waits.
   if signalReload then
-    self._reloadPending = true
+    self._reloadPending = (halves == nil or self._reloadPending == "both") and "both" or true
+    self._pendingSeqs = currentSeqs
   end
 
   if not force and not signalReload and not self._reloadPending then
@@ -2225,11 +2242,54 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     return
   end
 
+  -- While the link is up and its UID read has no outcome yet, the per-model half has no board to
+  -- load by: run now, it would adopt the stamp without that half, and the model's file appearing
+  -- once the UID is read would signal a second full reload and another theme build. Kept pending
+  -- instead, it runs once, with both halves, on the first pass after the read has settled. The
+  -- MSP runtime's own flags, not this widget's, because this runs before updateConnectionState()
+  -- has looked at the link on this pass.
+  if not force and MspRuntime and type(MspRuntime.isFblConnected) == "function"
+    and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+    local msp = MspRuntime.getState()
+    if type(msp) == "table" and msp.uidReadSettled == false then
+      logGv("reloadPreferencesIfNeeded: deferred until the UID read settles (pending=%s)", tostring(self._reloadPending))
+      return
+    end
+  end
+
   if isBackground and not force then
     -- During background passes (when widget is off-screen), defer heavy file I/O and theme
     -- compilation until widget returns to screen (refresh pass) to avoid EdgeTX CPU limit faults.
     logGv("reloadPreferencesIfNeeded: deferred due to background pass (pending=%s)", tostring(self._reloadPending))
     return
+  end
+
+  -- A change found on an earlier pass and deferred since: this pass did not stat, so which files
+  -- moved is taken now, once, against the stamp last adopted -- never against the one seen when
+  -- the change was found, because a second change in the other file while it waited must be
+  -- read too (both halves then differ and both are read). Taken before the reads, the stamp
+  -- adopted below cannot cover a write that lands during them; such a write is found again on
+  -- the next stat. A change that named no file when it was found reads both, whatever moved since,
+  -- and so does one where the reload request moved again while it waited: such a save names no
+  -- file either (a radio setting whose file kept its size and time). The sizes read for that are
+  -- the ones adopted below.
+  if not force and currentStamp == nil and self._reloadPending then
+    if self._reloadPending ~= "both" and type(fstat) == "function" and type(self._pendingSeqs) == "table" then
+      local reqPaths = reloadRequestPaths()
+      currentSeqs = {}
+      for i = 1, #reqPaths do
+        local ok, info = pcall(fstat, reqPaths[i])
+        local seq = (ok and type(info) == "table" and (info.size or 0) > 0) and info.size or 0
+        currentSeqs[reqPaths[i]] = seq
+        if seq ~= self._pendingSeqs[reqPaths[i]] then self._reloadPending = "both" end
+      end
+    end
+    local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+    local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
+    if stamp then
+      currentStamp = stamp
+      if self._reloadPending ~= "both" then halves = changedHalves(self._lastPrefsStamp, stamp) end
+    end
   end
 
   logGv("reloadPreferencesIfNeeded executing (force=%s signal=%s pending=%s armed=%s)", tostring(force), tostring(signalReload), tostring(self._reloadPending), tostring(self.state and self.state.armed))
@@ -2256,12 +2316,24 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- writers, and a save made from the settings screen touches the per-model one alone -- so
   -- re-reading the global file with it is a parse of bytes that have not changed, and that parse
   -- is the expensive half by a wide margin. Where the signal does not name a file -- a forced
-  -- caller, the sequence file, a shape change in the stamp -- `halves` is nil and both are read,
+  -- caller, the sequence file alone, a shape change in the stamp -- `halves` is nil and both are read,
   -- which is what this function always did.
   local doGlobal = (halves == nil) or halves.global
   local doModel = (halves == nil) or halves.model
   if not (doGlobal and doModel) then
     logGv("reloadPreferencesIfNeeded: reading global=%s model=%s", tostring(doGlobal), tostring(doModel))
+  end
+
+  -- Without a board id there is no per-model file to read: the link is down, or this link's board
+  -- has not identified itself. Clearing the model's preferences then would leave nothing in their
+  -- place, and the theme would fall back to the radio's and release the model's. The connect edge
+  -- drops them for a new board; a forced reload still reads both halves as before.
+  if doModel and not force then
+    local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+    if not (session and session.mcu_id) then
+      doModel = false
+      logGv("reloadPreferencesIfNeeded: no session.mcu_id, the model's preferences are kept")
+    end
   end
 
   -- Cleared only where it is about to be re-read. reloadActiveTheme reads self.modelPreferences
@@ -2333,7 +2405,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     self._lastPrefsStamp = currentStamp
   else
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-    local stamp = preferencesStamp(session and session.modelPreferencesFile)
+    local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
     if stamp then self._lastPrefsStamp = stamp end
   end
 
@@ -2353,6 +2425,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   end
 
   self._reloadPending = nil
+  self._pendingSeqs = nil
   self.preferencesLastLoadedAt = now
   return true
 end
@@ -4323,6 +4396,24 @@ function Runtime.new(zone, options)
     -- A reload carried over from a telemetry read pass is answered by this one, whoever called
     -- it. Cleared first, so a load that raises is retried by the same tests as it was before.
     self._themeReloadPending = nil
+    -- The wait for this link's UID read (see the pass below) holds for every caller, the
+    -- constructor at the end of Runtime.new included: EdgeTX builds every dashboard again when it
+    -- loads the screens' layout again -- a model selected, the screens edited -- and the link and
+    -- the MSP runtime, which all dashboards on the radio share, carry on through that. An instance
+    -- built while the read has no outcome resolves nothing; it has no theme, and its first pass
+    -- takes the reload through the same wait. Below the line above, so a carried reload does not
+    -- hold the splash back. Such an instance has not loaded a theme yet, so its first load is
+    -- marked as a change of folder (`false`): the release below then drops what the widget it
+    -- replaced held and no widget uses any more, as the constructor's own load would have led to.
+    if MspRuntime and type(MspRuntime.isFblConnected) == "function"
+      and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+      local msp = MspRuntime.getState()
+      if type(msp) == "table" and msp.uidReadSettled == false then
+        self.theme = nil
+        if self._themeFolder == nil then self._themeFolder = false end
+        return
+      end
+    end
     local modelPrefs = self.modelPreferences or (type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.session) == "table" and _G.rfsuite.session.modelPreferences) or nil
     local dashboardPrefs = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
     local selectedTheme = themePathFor(self, dashboardPrefs, modelPrefs, self.flightMode)
@@ -4766,6 +4857,21 @@ function Runtime.new(zone, options)
       or not self.theme
       or (modeChanged and self.themeStateKeys[nextMode] ~= self.themeStateKey)
 
+    -- On a reconnect the edge above has dropped the model's preferences, and until this link's UID
+    -- read has an outcome there is no board to load them by. A theme resolved in that window lands
+    -- on the radio's theme, releases the model's from the module cache (releaseUnusedThemes), and
+    -- the model's theme is read from the card and built again seconds later, when the UID arrives.
+    -- So nothing is resolved until the read has settled -- answered, given up after its retries, or
+    -- not possible on this link; the MSP runtime clears the flag whenever the link goes down or
+    -- comes up, so it is this link's. The splash stands meanwhile. A read that cannot go out does
+    -- not settle: arming takes it off the queue and MSP sends nothing more before the disarm, so a
+    -- model armed before its UID was read keeps the splash until the disarm, when the read is sent
+    -- again and settles.
+    if wantReload and isFblConnected and MspRuntime and type(MspRuntime.getState) == "function" then
+      local msp = MspRuntime.getState()
+      if type(msp) == "table" and msp.uidReadSettled == false then wantReload = false end
+    end
+
     -- A theme reload does not share a pass with the telemetry read: the two are the largest
     -- pieces of state work this runtime has, and on connect they land together with the connect
     -- chain. A reload that falls due in a read pass is carried to the next logic tick, and the
@@ -5170,7 +5276,17 @@ function Runtime.new(zone, options)
       local Views = viewsModule()
       explicitView = Views ~= nil and Views.top(self) ~= nil
     end
-    if not ready and self.flightMode ~= "postflight" and self.flightMode ~= "offline" and not explicitView and not tuningMode then
+    -- Past its soft timeout the splash counts as ready, but while this link's UID read has no
+    -- outcome no theme is resolved (performBackgroundWork), so there is nothing else to draw: the
+    -- splash stays, and is built again for the full screen and back as it was before the timeout.
+    local uidWait = false
+    if ready and not self.theme and not tuningMode and MspRuntime and type(MspRuntime.isFblConnected) == "function"
+      and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+      local msp = MspRuntime.getState()
+      uidWait = type(msp) == "table" and msp.uidReadSettled == false
+    end
+    if (not ready or uidWait) and self.flightMode ~= "postflight" and self.flightMode ~= "offline"
+      and not explicitView and not tuningMode then
       local statusLine = self.statusLine or "Please wait..."
       -- Full screen and the zone are two splashes, because only the first carries the tool control.
       local fullscreenSplash = event ~= nil
