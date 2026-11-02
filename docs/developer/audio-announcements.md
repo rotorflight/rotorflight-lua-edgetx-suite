@@ -191,10 +191,19 @@ the file your announcement was written against.
 
 To speak a number after the file, use the radio's own teller — `playNumber(value, unit, attribute, volume)`
 — rather than a spoken-number WAV. It follows the language set on the radio, which the pack does
-not. Inside `lib/audio.lua` pass `audio_volume` as the fourth argument, and from outside it call
+not. Inside `lib/audio.lua` pass `PlaybackState.level` as the fourth argument, and from outside it call
 `Audio.playNumber(value, unit)`, so the number is spoken at the WAV volume level the file before it
 plays at. A page that sounds one of the loose tones at the root of the pack (`/SOUNDS/rf/beep.wav`)
 calls `Audio.playRawFile(path)`, which plays a full path at the same level.
+
+Finding the file and the level live in `lib/audio_playback.lua`: the locale folders and their cache,
+the level the Volume page sets, and the window in which an alarm keeps the adjustment voices quiet.
+`lib/audio.lua` plays through it, and `Audio.playEventFile`, `Audio.playNumber`, `Audio.playRawFile`
+and `Audio.adjustmentAllowed` are that module's own functions. The adjustment teller loads
+`lib/audio_playback.lua` alone, so the background function script, which runs the teller and no
+announcement of its own, does not carry the rest of `lib/audio.lua`. Where both are loaded they
+share one instance through the module loader, so a level or an alarm window `lib/audio.lua` sets is
+the one the teller sees.
 
 **The file itself is generated, not recorded.** Add one entry to `bin/sound-generator/json/en.json`,
 run `update-missing-translations.py`, fill in the other languages, and build. See
