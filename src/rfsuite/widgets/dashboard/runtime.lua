@@ -2218,9 +2218,11 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- A signal that names no file (the sequence file alone, a stamp that cannot say which half
   -- moved) is remembered as such: a deferred reload does not stat again before it runs, and the
   -- stamp it takes then would see only a later change -- a model save while it waited -- and read
-  -- that file alone, losing the change nobody could attribute.
+  -- that file alone, losing the change nobody could attribute. The reload request's sizes seen
+  -- here are kept with it, for the same question about a save made while the reload waits.
   if signalReload then
     self._reloadPending = (halves == nil or self._reloadPending == "both") and "both" or true
+    self._pendingSeqs = currentSeqs
   end
 
   if not force and not signalReload and not self._reloadPending then
@@ -2267,8 +2269,21 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- the change was found, because a second change in the other file while it waited must be
   -- read too (both halves then differ and both are read). Taken before the reads, the stamp
   -- adopted below cannot cover a write that lands during them; such a write is found again on
-  -- the next stat. A change that named no file when it was found reads both, whatever moved since.
+  -- the next stat. A change that named no file when it was found reads both, whatever moved since,
+  -- and so does one where the reload request moved again while it waited: such a save names no
+  -- file either (a radio setting whose file kept its size and time). The sizes read for that are
+  -- the ones adopted below.
   if not force and currentStamp == nil and self._reloadPending then
+    if self._reloadPending ~= "both" and type(fstat) == "function" and type(self._pendingSeqs) == "table" then
+      local reqPaths = reloadRequestPaths()
+      currentSeqs = {}
+      for i = 1, #reqPaths do
+        local ok, info = pcall(fstat, reqPaths[i])
+        local seq = (ok and type(info) == "table" and (info.size or 0) > 0) and info.size or 0
+        currentSeqs[reqPaths[i]] = seq
+        if seq ~= self._pendingSeqs[reqPaths[i]] then self._reloadPending = "both" end
+      end
+    end
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
     local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
     if stamp then
@@ -2410,6 +2425,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   end
 
   self._reloadPending = nil
+  self._pendingSeqs = nil
   self.preferencesLastLoadedAt = now
   return true
 end
@@ -5260,7 +5276,17 @@ function Runtime.new(zone, options)
       local Views = viewsModule()
       explicitView = Views ~= nil and Views.top(self) ~= nil
     end
-    if not ready and self.flightMode ~= "postflight" and self.flightMode ~= "offline" and not explicitView and not tuningMode then
+    -- Past its soft timeout the splash counts as ready, but while this link's UID read has no
+    -- outcome no theme is resolved (performBackgroundWork), so there is nothing else to draw: the
+    -- splash stays, and is built again for the full screen and back as it was before the timeout.
+    local uidWait = false
+    if ready and not self.theme and not tuningMode and MspRuntime and type(MspRuntime.isFblConnected) == "function"
+      and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+      local msp = MspRuntime.getState()
+      uidWait = type(msp) == "table" and msp.uidReadSettled == false
+    end
+    if (not ready or uidWait) and self.flightMode ~= "postflight" and self.flightMode ~= "offline"
+      and not explicitView and not tuningMode then
       local statusLine = self.statusLine or "Please wait..."
       -- Full screen and the zone are two splashes, because only the first carries the tool control.
       local fullscreenSplash = event ~= nil

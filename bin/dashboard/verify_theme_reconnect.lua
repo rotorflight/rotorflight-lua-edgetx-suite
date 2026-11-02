@@ -15,11 +15,11 @@
 -- reconnect; a radio setting saved while the link is down is still picked up. A change found while
 -- its reload is deferred is found once, not again on every stat interval of the deferral, and when
 -- the reload runs it reads only the file that moved -- both where both moved while it waited, or
--- where the change was signalled by the reload request alone.
+-- where a change was signalled by the reload request alone, before the reload waited or while.
 --
 -- And the two ends of that wait: armed before the UID read has an answer, the read is not sent
 -- before the disarm, so no theme is resolved and the splash stays until then, past its soft
--- timeout; a board whose API version is refused never connects, so the model's theme stays in hand
+-- timeout and in full screen too; a board whose API version is refused never connects, so the model's theme stays in hand
 -- behind its refusal screen as while the link is down. And a dashboard built again while the read
 -- has no answer waits as well.
 --
@@ -188,6 +188,7 @@ local function newWorld()
   _G.lvgl.build = function(children, ...)
     local job = world.w and world.w._job
     world.trees[#world.trees + 1] = { pass = world.pass, kind = job and job.kind, children = children,
+      fullscreen = job and (job.fullscreenSplash or job.fullscreen) or false,
       theme = world.w and world.w.themePath, count = type(children) == "table" and #children or 0 }
     return build(children, ...)
   end
@@ -207,12 +208,12 @@ local function passes(world, n, label)
       -- Lua VM instructions of the pass, the unit bin/accounting/measure.lua prices passes in.
       local spent = 0
       debug.sethook(function() spent = spent + 1 end, "", 1)
-      world.w.refresh(world.w, nil, nil)
+      world.w.refresh(world.w, world.event, nil)
       debug.sethook()
       world.instructions = world.instructions + spent
       if spent > world.worstPass then world.worstPass = spent end
     else
-      world.w.refresh(world.w, nil, nil)
+      world.w.refresh(world.w, world.event, nil)
     end
     local after = modelThemeModules()
     if after < before then world.released = world.released + (before - after) end
@@ -557,6 +558,26 @@ for _, answer in ipairs({ "uid", "empty" }) do
   expect(scenes == 0 and onScreen ~= nil and onScreen.kind == "splash",
     tag .. ": no dashboard scene is built and the splash is what LVGL holds",
     scenes .. " scene build(s), on screen " .. tostring(onScreen and onScreen.kind))
+  -- The splash is still the splash when the dashboard is opened full screen past the timeout: it
+  -- is built again for the full screen, with its control, not left standing at the zone's size.
+  local treesBeforeFs = #world.trees
+  world.event = 0
+  passes(world, 10, "armed fullscreen")
+  world.event = nil
+  local fsSplash, fsScenes = false, 0
+  for i = treesBeforeFs + 1, #world.trees do
+    if world.trees[i].kind == "splash" and world.trees[i].fullscreen then fsSplash = true end
+    if world.trees[i].kind == "scene" then fsScenes = fsScenes + 1 end
+  end
+  expect(fsSplash and fsScenes == 0 and world.w.theme == nil,
+    tag .. ": opened full screen past the timeout, the full-screen splash is built",
+    "full-screen splash " .. tostring(fsSplash) .. ", " .. fsScenes .. " scene build(s)")
+  local treesAfterFs = #world.trees
+  passes(world, 10, "armed")
+  local back = #world.trees > treesAfterFs and world.trees[#world.trees] or nil
+  expect(back ~= nil and back.kind == "splash" and not back.fullscreen,
+    tag .. ": back from full screen, the zone's splash is built again",
+    back and (tostring(back.kind) .. ", full screen " .. tostring(back.fullscreen)) or "nothing built")
   -- The request the queue dropped is never answered; the read goes out again after the disarm.
   world.heldUid = {}
   world.holdUid = false
@@ -701,10 +722,13 @@ end
 -- file while it waits is read too: both files then differ from the stamp last adopted. And a radio
 -- setting whose file keeps its size and time (the same length within one time slot of the card)
 -- is signalled by the reload request alone, which names no file: a model setting saved while that
--- reload waits does not narrow it to the model's file -- both are read.
-for _, case in ipairs({ "model", "both", "seq" }) do
+-- reload waits does not narrow it to the model's file -- both are read; nor, the other way round,
+-- does a model setting found first hide such a radio setting saved while its reload waits. Every
+-- save moves the reload request, as every preferences writer bumps it.
+for _, case in ipairs({ "model", "both", "seq", "seqafter" }) do
   local tag = ({ model = "deferred model-only change", both = "deferred change in both files",
-    seq = "deferred change signalled by the reload request alone" })[case]
+    seq = "deferred change signalled by the reload request alone",
+    seqafter = "deferred model change, then one signalled by the reload request alone" })[case]
   if trace then print("scenario: " .. tag) end
   local world = newWorld()
   saveRadioSetting(world, 0)
@@ -712,9 +736,13 @@ for _, case in ipairs({ "model", "both", "seq" }) do
   local modelPath = _G.rfsuite.session.modelPreferencesFile
   expect(type(modelPath) == "string", "control: the model's preferences file is known (" .. tag .. ")",
     tostring(modelPath))
+  local function bumpReloadRequest()
+    Stubs.prefsStat = { size = (Stubs.prefsStat.size or 1) + 1 }
+  end
   local function saveModelSetting(second)
     world.stats[modelPath] = { size = 2, time = { year = 2026, mon = 11, day = 1, hour = 12, min = 0,
       sec = second } }
+    bumpReloadRequest()
   end
   saveModelSetting(0)
   passes(world, 30, "settle")
@@ -735,7 +763,7 @@ for _, case in ipairs({ "model", "both", "seq" }) do
   world.prefReloads = 0
   if case == "seq" then
     -- The radio's file is written with its stamp unchanged; only the reload request moves.
-    Stubs.prefsStat = { size = (Stubs.prefsStat.size or 1) + 1 }
+    bumpReloadRequest()
   else
     saveModelSetting(30)
   end
@@ -743,14 +771,15 @@ for _, case in ipairs({ "model", "both", "seq" }) do
   expect(world.w._reloadPending and world.prefReloads == 0,
     "control: the change was found and its reload waits for the disarm (" .. tag .. ")",
     "pending=" .. tostring(world.w._reloadPending) .. ", " .. world.prefReloads .. " reload(s)")
-  if case == "both" then saveRadioSetting(world, 45) end
+  if case == "both" then saveRadioSetting(world, 45); bumpReloadRequest() end
   if case == "seq" then saveModelSetting(30) end
+  if case == "seqafter" then bumpReloadRequest() end
   passes(world, 15, "armed")
   loads.global, loads.model = 0, 0
   Stubs.sensors["ARM"], Stubs.sensors["Gov"] = 0, 0
   passes(world, 60, "disarmed")
   expect(world.prefReloads == 1, tag .. ": the reload runs once after the disarm", world.prefReloads .. " reload(s)")
-  if case == "seq" then
+  if case == "seq" or case == "seqafter" then
     -- And the request's new size is adopted with it: no second reload for the same signal.
     passes(world, 30, "disarmed")
     expect(world.prefReloads == 1, tag .. ": the reload request's change is taken once",

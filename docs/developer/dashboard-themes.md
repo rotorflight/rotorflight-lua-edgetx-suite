@@ -238,8 +238,8 @@ disconnect on the ground as it does after a flight, and a reload for a radio set
 link is down reads the radio's file alone. A change found while its reload waits (armed, offline
 after a flight, off screen, or for the UID) is not looked for again until the reload has run; the
 reload then checks the files once and reads only the one that moved since the last reload, as an
-undeferred reload does; both where both moved, the check cannot tell which, or the change was
-signalled only by the reload request, which names no file.
+undeferred reload does; both where both moved, the check cannot tell which, or a change was
+signalled only by the reload request, which names no file -- when it was found, or while it waited.
 
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be
