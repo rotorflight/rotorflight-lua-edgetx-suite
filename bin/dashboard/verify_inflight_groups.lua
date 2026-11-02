@@ -11,7 +11,7 @@ _G.rfsuite = { preferences = { audio_events = { adjustment_events = true } }, re
     wanted = function() return debugInput end,
     emit = function(tag, message) if tag == "rfsuite.inflight.input" then inputTraces[#inputTraces + 1] = message end end
   } end
-  if path == "lib/audio.lua" then return {
+  if path == "lib/audio_playback.lua" then return {
     adjustmentAllowed = function() return audioAllowed end,
     playEventFile = function(path) sounds[#sounds + 1] = path end,
     playRawFile = function(path) sounds[#sounds + 1] = path end,
