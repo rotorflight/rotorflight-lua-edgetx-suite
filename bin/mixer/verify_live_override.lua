@@ -114,7 +114,11 @@ function loadScript(path)
   error("unexpected loadScript path: " .. tostring(path))
 end
 
-_G.rfsuite = { session = { apiVersion = "12.10", fblConnected = true } }
+-- The card roots, as lib/require.lua publishes them before any page is loaded.
+_G.rfsuite = {
+  session = { apiVersion = "12.10", fblConnected = true },
+  paths = dofile("src/rfsuite/lib/paths.lua")
+}
 
 -- MIXER_CONFIG: main_rotor_dir, tail_rotor_mode, tail_motor_idle, tail_center_trim (S16), ...
 local function mixerConfig(tailMode, trimRaw)

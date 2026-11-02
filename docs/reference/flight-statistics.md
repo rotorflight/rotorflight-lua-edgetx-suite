@@ -158,6 +158,12 @@ the MSP surface for other widgets. The record is kept by the event runtimes rath
 screen, so **a model with no dashboard placed still records its flights**, and a dashboard placed
 afterwards shows the last one.
 
+On a model that carries both widgets, the dashboard keeps the record and the service widget stands
+down, so the two widgets no longer both drive it. If the dashboard stops driving — taken off the
+model, or held up for more than half a second — the service widget takes over within about 0.6 s,
+inside the one-second step below, so a flight that stays armed through the change is credited the
+whole gap.
+
 The statistics are sampled every 0.5 s while a flight is running. The flight clock advances on
 every wakeup, so a flight's duration does not depend on how often the statistics are sampled, and
 a single step of that clock is capped at one second — a widget can be suspended for a whole tool
