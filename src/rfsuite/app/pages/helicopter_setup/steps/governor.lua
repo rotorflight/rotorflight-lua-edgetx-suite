@@ -144,18 +144,6 @@ return function(w)
       }, enter)
       cards[#cards].summary = L.headspeedSummary
     end
-    local rows = {}
-    for _, item in ipairs({{"gov_spoolup_time", L.spoolupTime}, {"gov_spooldown_time", L.spooldownTime},
-      {"gov_recovery_time", L.recoveryTime}}) do
-      local key, label = item[1], item[2]
-      local spec = fields[key]
-      local row = w:n("governor_config", key, label, spec.min, spec.max)
-      row.display = fields.seconds
-      row.enabled = governs
-      rows[#rows+1] = row
-    end
-    cards[#cards+1] = w:cardDef(L.rampTimes, L.rampHint, rows)
-    cards[#cards].summary = L.rampSummary
   end
   return cards
 end

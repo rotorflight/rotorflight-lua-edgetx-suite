@@ -23,7 +23,7 @@ MSP queue and API modules. It never opens another telemetry transport.
 | `get_adjustment_range` / `set_adjustment_range` | 156/53 | Read U8 index, reply one 14-byte record; all 42 slots are read sequentially. Bulk command 52 is not used. |
 | `rc_config` | 66/67 | A complete 12-byte RC configuration is required; truncated throttle/deflection data is refused. |
 | `governor_profile` | 148/149 | Per PID profile: U16 RPM target `governor_headspeed`. Read complete profiles through `profileLoop`, save only edited targets and preserve all other fields. Restore the active PID profile after reads/writes; profile 1 only when assignment is unknown. Never part of startup `READS`. |
-| `governor_config` | 142/143 | Existing shared configuration read. New U16 fields `gov_spoolup_time`, `gov_spooldown_time`, `gov_recovery_time` are deciseconds; display seconds with the same shared formatter/limits as the Governor ramp page. |
+| `governor_config` | 142/143 | Existing shared configuration read. The wizard changes only `gov_mode` and `gov_throttle_type`; the complete record is written back, so the ramp times (`gov_spoolup_time`, `gov_spooldown_time`, `gov_recovery_time`) keep their FC values. They are set on the Suite's Governor page. |
 | `filter_config` | 92 | Read-only `rpm_preset` after governor entry: 0 means CUSTOM; 1/2/3 mean Low/Medium/High. No command 93 from the wizard. |
 | `rpm_filter_v2` | 154 | Read-only CUSTOM check: request U8 axis 0/1/2, read 16 source/U16 center/Q records per axis. Any nonzero `notch_source_1..16` enables a custom notch. A complete 64-byte response is required. No command 155 from the wizard. |
 | `esc_parameters_yge` / `esc_parameters_hw5` | 217/218 | Additional Suite parameter-link integration beyond Configurator. Existing APIs alone parse, validate family signatures and encode complete blocks. `lib/esc_params.lua` owns read-before-write, changed-field overlay and matching readback. Read jobs use retryOnErrorReply, timeout 1 second, maxRetries 3. HW1128/HW1132 expose no flight_mode through the API's _supported metadata. |
@@ -329,16 +329,15 @@ extend the pinned Configurator wizard; they do not claim source parity.
 | `motor_config` | `use_dshot_telemetry` | Existing bidirectional DShot source control. |
 | `governor_config` | `gov_mode`, `gov_throttle_type` | Existing mode/type controls. |
 | `governor_profile` | `governor_headspeed` | **Addition beyond Configurator**: only edited configured PID profiles, Electric/Nitro only. |
-| `governor_config` | `gov_spoolup_time`, `gov_spooldown_time`, `gov_recovery_time` | **Additions beyond Configurator**: Electric/Nitro editors, shared limits 0–600 / 0–600 / 0–100 raw deciseconds. |
 | `set_pid_profile` | Selection byte | Existing sequential transaction reused for read-only entry and edited-profile saves; original selection restored. |
 | `eeprom_write` | Empty payload | Existing save boundary after successful configuration writes. |
 
-`bin/wizard/source-map.json` records all four additional writable fields and the
+`bin/wizard/source-map.json` records the additional writable field and the
 read-only filter dependencies. `audit_source.py` checks their API/source bindings
 and named contracts. Contracts verify exact payloads, untouched profile fields,
 profile selection/restoration, discard, failure before EEPROM and filter reads
-without filter writes. `lib/governor_fields.lua` holds the editor limits shared with the Governor pages
-(headspeed and ramp times) and the seconds formatter; wire parsing/encoding remains in the existing APIs.
+without filter writes. `lib/governor_fields.lua` holds the headspeed limits the wizard shares with the
+Governor page; wire parsing/encoding remains in the existing APIs.
 
 The host's `buildScene` recognizes `hideSuiteFrame = true` on a page module. It
 omits the native page/header while reserving space for its independent ARMED banner. Lifecycle, queue ownership

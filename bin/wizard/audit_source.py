@@ -51,8 +51,7 @@ def main():
                 if '..' not in field:
                     assert field in source and field in wizard, f'Untraceable added read: {api}.{field}'
                 read.add(f'{api}.{field}')
-    expected={'governor_profile.governor_headspeed','governor_config.gov_spoolup_time',
-              'governor_config.gov_spooldown_time','governor_config.gov_recovery_time',
+    expected={'governor_profile.governor_headspeed',
               'esc_parameters_yge.governor','esc_parameters_yge.stick_zero_us','esc_parameters_yge.stick_range_us',
               'esc_parameters_hw5.flight_mode','motor_config.mincommand','motor_config.minthrottle','motor_config.maxthrottle',
               'battery_config.voltageMeterSource','battery_config.currentMeterSource','battery_config.batteryCellCount',

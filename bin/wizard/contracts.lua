@@ -559,7 +559,7 @@ return function(h)
       for index,name in ipairs(h.stepNames) do
         local w=world();settle(w);w.step=index;w.wideScreen=size[1]>=700
         w.openPage=function() end
-        -- Include the governor's conditional RPM, headspeed and ramp cards.
+        -- Include the governor's conditional RPM and headspeed cards.
         if name=="governor" then
           w.data.feature_config.enabledFeatures=1<<26
           w.data.governor_config.gov_mode=3;w.governorRpmFilter=true
@@ -1817,15 +1817,23 @@ return function(h)
   end)
   case("S08.card-order-and-save",function()
     local w=world();settle(w);w.step=8;w.data.feature_config.enabledFeatures=0
+    local ramps={}
+    for _,key in ipairs({"gov_spoolup_time","gov_spooldown_time","gov_recovery_time"}) do
+      ramps[key]=w.data.governor_config[key]
+    end
     local c=step(w,"governor");cardOrder(c,{L.governorMode},"S08 Off")
     c[1].rows[1].set(4);c=step(w,"governor")
-    cardOrder(c,{L.governorMode,L.rpmSource,L.throttleType,string.format(L.headspeedProfile,1),L.rampTimes},"S08 On")
+    cardOrder(c,{L.governorMode,L.rpmSource,L.throttleType,string.format(L.headspeedProfile,1)},"S08 On")
     c[3].rows[1].set(2)
     eq(w.data.governor_config.gov_mode,3,"S08 Electric mode field")
     eq(w.data.governor_config.gov_throttle_type,1,"S08 Switch throttle field")
     check(w.rebootPending,"S08 mode still requires restart")
     q.sent={};w:save();settle(w)
     savedPayload(w,"governor_config","S08");savedPayload(w,"feature_config","S08")
+    -- The ramp times belong to the Governor page; the saved record carries the FC values unchanged.
+    for key,value in pairs(ramps) do
+      eq(w.data.governor_config[key],value,"S08 mode save keeps the FC ramp time: "..key)
+    end
     c=step(w,"governor");c[1].rows[1].set(1);c=step(w,"governor")
     cardOrder(c,{L.governorMode},"S08 disabled again")
   end)
@@ -2287,7 +2295,7 @@ return function(h)
     w.checks.unplugged=false;c[1].rows[2].set(4)
     eq(s.mid,1530,"S07 plugged servos block band change")
   end)
-  case("S08.headspeed-and-ramps",function()
+  case("S08.headspeed-targets",function()
     local w=world();settle(w);w.step=8
     for _,m in ipairs(q.sent) do
       check(m.command~=148 and m.command~=92 and m.command~=154,"S08 new reads stay outside startup")
@@ -2314,7 +2322,8 @@ return function(h)
     local queued=#w.bus.jobs
     local c=step(w,"governor")
     eq(#w.bus.jobs,queued,"S08 build queues no MSP reads")
-    eq(#c,7,"S08 offers exactly three configured PID cards and separate ramp card")
+    eq(#c,6,"S08 offers exactly three configured PID cards")
+    eq(c[#c].title,string.format(L.headspeedProfile,3),"S08 the last card is a headspeed target: no ramp card")
     check(not c[4].rows[1].enabled(),"S08 headspeed waits for per-profile readback")
     check(c[1].rows[#c[1].rows].kind~="button","S08 no Read all profiles button: entry reads every profile")
     c[1].enter();settle(w);c=step(w,"governor")
@@ -2324,7 +2333,7 @@ return function(h)
       while not scene.done do h.measure("governor view slice",function() scene:step() end) end
       h.measure("governor reactive",function() h.resolve(scene.children) end)
       for _,item in ipairs(scene.children) do
-        if item.y and item.h then check(item.y+item.h<=320,"S08 all target/ramp cards fit 480x320") end
+        if item.y and item.h then check(item.y+item.h<=320,"S08 all target cards fit 480x320") end
       end
     end
     eq(selected,original,"S08 entry restores the active PID profile")
@@ -2343,14 +2352,9 @@ return function(h)
       eq(row.max,fields.headspeed.max,"S08 shared headspeed maximum")
       eq(row.display(row.get()),tostring(values[i]),"S08 headspeed displays RPM without scaling")
     end
-    local keys={"gov_spoolup_time","gov_spooldown_time","gov_recovery_time"}
-    for i,key in ipairs(keys) do
-      local row=c[7].rows[i]
-      eq(row.get(),w.data.governor_config[key],"S08 ramp starts with FC value: "..key)
-      eq(row.display(row.get()),fields.seconds(row.get()),"S08 shared seconds conversion: "..key)
-      eq(row.min,fields[key].min,"S08 shared ramp minimum: "..key)
-      eq(row.max,fields[key].max,"S08 shared ramp maximum: "..key)
-      row.set(({123,87,34})[i])
+    local ramps={}
+    for _,key in ipairs({"gov_spoolup_time","gov_spooldown_time","gov_recovery_time"}) do
+      ramps[key]=w.data.governor_config[key]
     end
     c[4].rows[1].set(1817);c[6].rows[1].set(2561)
     q.sent={};w:save();settle(w)
@@ -2369,10 +2373,13 @@ return function(h)
     end
     eq(writes,2,"S08 saves only edited headspeed profiles")
     eq(table.concat(chosen,","),"0,2,1","S08 writes selected profiles then restores original")
-    savedPayload(w,"governor_config","S08 ramps")
-    eq(w.data.governor_config.gov_spoolup_time,123,"S08 spoolup writes deciseconds")
-    eq(w.data.governor_config.gov_spooldown_time,87,"S08 spooldown writes deciseconds")
-    eq(w.data.governor_config.gov_recovery_time,34,"S08 recovery writes deciseconds")
+    local configApi=load("tasks/msp/api/governor_config.lua")
+    for _,m in ipairs(q.sent) do
+      check(m.command~=configApi.writeCommand,"S08 headspeed save sends no governor_config write")
+    end
+    for key,value in pairs(ramps) do
+      eq(w.data.governor_config[key],value,"S08 save leaves the ramp time to the Governor page: "..key)
+    end
     check(w.governorChanged==nil,"S08 committed headspeed draft clears")
     -- Readback is per profile, and a discarded edit cannot return on the next visit.
     c=step(w,"governor");c[4].rows[1].set(1999)
@@ -2395,30 +2402,30 @@ return function(h)
     for _,mode in ipairs({0,1,2,3,4}) do
       w.data.governor_config.gov_mode=mode
       local c=step(w,"governor")
-      eq(#c,mode==0 and 1 or mode<3 and 3 or 6,"S08 headspeed and ramp cards only in Electric/Nitro")
+      eq(#c,mode==0 and 1 or mode<3 and 3 or 5,"S08 headspeed cards only in Electric/Nitro")
     end
     w.data.governor_config.gov_mode=3;w.data.status.pid_profile_count=1
-    eq(#step(w,"governor"),5,"S08 configured profile count is bounded by FC capacity")
+    eq(#step(w,"governor"),4,"S08 configured profile count is bounded by FC capacity")
     w.data.status.pid_profile_count=3;ranges[1]=H.mapped(2,1,1000,2000,2,3)
     local c=step(w,"governor")
     eq(c[4].title,string.format(L.headspeedProfile,2),"S08 respects configured first PID profile")
     w.data.status.pid_profile_count=6;ranges[1]=H.mapped(2,1,1000,2000,4,6)
     c=step(w,"governor")
-    eq(#c,7,"S08 three configured targets may use higher PID profile numbers")
+    eq(#c,6,"S08 three configured targets may use higher PID profile numbers")
     eq(c[4].title,string.format(L.headspeedProfile,4),"S08 higher configured first PID profile is retained")
     eq(c[6].title,string.format(L.headspeedProfile,6),"S08 higher configured last PID profile is retained")
     ranges[1]=H.mapped(2,1,1000,2000,1,6)
-    eq(#step(w,"governor"),7,"S08 offers at most the three positions supported by Profiles setup")
+    eq(#step(w,"governor"),6,"S08 offers at most the three positions supported by Profiles setup")
     ranges[1]=H.mapped(0,0,1500,1500,0,0)
     c=step(w,"governor")
-    eq(#c,5,"S08 unknown profile setup offers one target")
+    eq(#c,4,"S08 unknown profile setup offers one target")
     eq(c[4].title,string.format(L.headspeedProfile,1),"S08 unknown setup uses profile one, not the active profile")
     for _,locale in ipairs({"en","de"}) do
       local bundle=load("i18n/"..locale..".lua")
       local strings=bundle.app.modules.helicopter_setup
       local labels={headspeedHint={bundle.app.pages.flight_tuning_governor.full_headspeed},
-        rampHint={bundle.app.pages.setup_governor.spoolup_time,bundle.app.pages.setup_governor.spooldown_time,
-          bundle.app.pages.setup_governor.recovery_time},rpmFilterHint={bundle.app.pages.flight_tuning_advanced_filters.rpm_filter}}
+        rpmFilterHint={bundle.app.pages.flight_tuning_advanced_filters.rpm_filter}}
+      check(strings.rampHint==nil and strings.rampSummary==nil,"S08 the wizard carries no ramp-time help: "..locale)
       for key,expected in pairs(labels) do
         check(utf8.len(strings[key])<=600,"S08 new help stays within 600 characters: "..locale.." "..key)
         local i=0

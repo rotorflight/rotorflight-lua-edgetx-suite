@@ -470,7 +470,7 @@ angles to be entered manually; that refusal does not change the current angles.
 
 ## Feedback and detailed settings
 
-Governor headspeed and ramp cards appear only in **Electric** and **Nitro**, where
+Governor headspeed cards appear only in **Electric** and **Nitro**, where
 the FC governs. All editors start with values read from the FC. One headspeed card
 is offered for each PID profile selected by the Profiles & gain adjustment range,
 bounded by the configured positions (at most three) and the FC profile count.
@@ -480,11 +480,11 @@ active profile again, writing nothing; a target shows **--** until its read is b
 Save uses the same transaction for edited targets only.
 The native wizard editor retains exact RPM
 values, including values between the Governor page's 10-RPM increments.
+The wizard does not set the spoolup, spooldown and recovery times; they stay as
+they are on the FC and are set on the Suite's Governor page
+([Ramp Time](setup/governor/time.md)).
 
 - **Full headspeed (rpm)**: Full-throttle target for the named PID profile, 0–30000 RPM; no recommended target is substituted.
-- **Spoolup time**: Time to reach headspeed, 0–60.0 seconds in 0.1-second increments.
-- **Spooldown time**: Time to reduce headspeed, 0–60.0 seconds in 0.1-second increments.
-- **Recovery time**: Time to recover headspeed, 0–10.0 seconds in 0.1-second increments.
 - **RPM source**: Frequency sensor or bidirectional DShot for the governor and RPM filter. The card also appears with governor Off when RPM filtering is enabled.
 - **RPM filter**: A separate warning card says when filtering has no selected RPM source. Choose a source here or turn RPM filtering off on the Filters page. The wizard never changes filter settings.
 
