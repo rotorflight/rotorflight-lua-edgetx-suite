@@ -281,6 +281,9 @@ jobs:
       - name: Check per-model reset rollback
         run: lua5.3 bin/dashboard/verify_overrides_reset.lua
 
+      - name: Check the battery prompt's registry load per pass
+        run: lua5.3 bin/dashboard/verify_battery_pick_passes.lua
+
       - name: Check dashboard tile choices and theme key pages
         run: lua5.3 bin/dashboard/verify_field_choices.lua
 
@@ -545,6 +548,7 @@ jobs:
       - run: lua5.3 bin/flight_log/verify_free_id.lua
       - run: lua5.3 bin/flight_log/verify_registry_bak_fallback.lua
       - run: lua5.3 bin/flight_log/verify_page_refusal_message.lua
+      - run: lua5.3 bin/flight_log/verify_battery_pick_load.lua
 
   governor-effective-mode:
     name: Governor effective mode

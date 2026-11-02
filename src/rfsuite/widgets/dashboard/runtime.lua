@@ -1775,9 +1775,16 @@ end
 
 --- Read the registry and ask the board which profile it is on. Once per FBL session.
 --
+-- The registry is taken a few lines per step (BatteryPick.loadStep), one step per free job slot,
+-- so the cost of a pass does not grow with the number of packs. The load in progress is kept on
+-- `pick` and published in the last step only: the views read `candidates` in the reactive sweep,
+-- and a part of the list would raise the prompt with half the packs. A reconnect replaces `pick`,
+-- and with it a load that was not finished.
+--
 -- `loaded` is raised before the card is touched rather than after: a step that raises is caught
 -- by the dispatcher and the slot is cleared, so a flag set at the end would have this job
--- enqueued again on every pass for the rest of the session.
+-- enqueued again on every pass for the rest of the session. A step that returns with lines left
+-- lowers it again, which is what enqueues the next one.
 local function batteryPickLoadStep(self)
   local pick = self.state.batteryPick
   pick.loaded = true
@@ -1786,11 +1793,17 @@ local function batteryPickLoadStep(self)
   if type(BatteryPick) ~= "table" then return true end
 
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-  local list = BatteryPick.candidates(session)
-  local cfg = self.state.battery_config
-  for i = 1, #list do
-    list[i].targetProfile = BatteryPick.targetProfile(list[i], cfg)
+  local load = pick.load
+  if load == nil then
+    load = BatteryPick.newLoad(session, self.state.battery_config)
+    pick.load = load
   end
+  if not BatteryPick.loadStep(load) then
+    pick.loaded = false
+    return true
+  end
+  pick.load = nil
+  local list = load.packs
   pick.candidates = list
 
   local id = BatteryPick.selectedId(session)

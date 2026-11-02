@@ -1,0 +1,159 @@
+-- The battery prompt's registry load, through the real dashboard runtime, offline:
+--
+--   lua5.3 bin/dashboard/verify_battery_pick_passes.lua
+--   lua5.3 bin/dashboard/verify_battery_pick_passes.lua --verbose
+--   lua5.3 bin/dashboard/verify_battery_pick_passes.lua --runtime <other runtime.lua>
+--
+-- The accounting stubs supply EdgeTX, the flight controller and a temporary SD card; a registry
+-- of 100 packs for every model is written to that card. Runtime.new(...) and its refresh passes are
+-- real, and every pass is counted with debug.sethook at count 1. Checked:
+--
+-- * no pass that runs the load costs more than PASS_LIMIT instructions, and the load is spread
+--   over several passes with a pass between any two of them that runs no load;
+-- * the views never see part of the list: `candidates` holds no packs or all of them;
+-- * the prompt is raised with every pack once the load is done;
+-- * a load step that raises is not run again on the passes after it;
+-- * a load the reconnect edge drops (it replaces the prompt's state) starts over.
+--
+-- `--runtime` runs the same expectations against another runtime.lua, so a source that loads the
+-- whole registry in one pass can be shown to fail. These are controlled states on the stubs, not
+-- a hardware measurement. Exit status: 0 green, 1 failed expectations, 2 invalid arguments.
+
+local ROOT = "."
+do
+  local this = arg and arg[0]
+  local dir = type(this) == "string" and string.match(this, "^(.*)[/\\][^/\\]*$") or nil
+  if dir then ROOT = string.match(dir, "^(.*)[/\\]bin[/\\]dashboard$") or (dir .. "/../..") end
+end
+
+local PACKS = 100
+local PASS_LIMIT = 10000
+local PASSES = 600
+
+local runtimePath = ROOT .. "/src/rfsuite/widgets/dashboard/runtime.lua"
+local verbose = false
+local i = 1
+while i <= #arg do
+  if arg[i] == "--verbose" then
+    verbose = true
+  elseif arg[i] == "--runtime" and arg[i + 1] then
+    i = i + 1
+    runtimePath = arg[i]
+  else
+    io.stderr:write("usage: lua5.3 bin/dashboard/verify_battery_pick_passes.lua [--verbose] [--runtime <file>]\n")
+    os.exit(2)
+  end
+  i = i + 1
+end
+
+local failures = 0
+local function check(label, ok, detail)
+  if not ok then failures = failures + 1 end
+  if verbose or not ok then
+    print(string.format("%s: %s%s", ok and "PASS" or "FAIL", label, detail and (" (" .. tostring(detail) .. ")") or ""))
+  end
+end
+
+local Stubs = assert(loadfile(ROOT .. "/bin/accounting/stubs/edgetx.lua"))()
+local FC = assert(loadfile(ROOT .. "/bin/accounting/stubs/fc.lua"))()
+
+local count = 0
+local function hook() count = count + 1 end
+
+--- A widget on a fresh card holding a registry of `packs` packs for the model.
+local function newWidget(packs)
+  Stubs.install(ROOT)
+  FC.install(Stubs)
+  Stubs.reset()
+  FC.reset()
+  local Runtime = assert(loadfile(runtimePath))()
+  local widget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
+  local FlightLog = _G.rfsuite.require("lib/flight_log.lua")
+  local lines = { "# packs\n" }
+  for n = 1, packs do
+    lines[#lines + 1] = string.format("id=%d;name=Pack %d;cap=5000;cells=6;cycles=%d\n", n, n, n)
+  end
+  local f = assert(io.open(FlightLog.registryPath(), "w"))
+  io.write(f, table.concat(lines))
+  io.close(f)
+  widget.preferences = widget.preferences or {}
+  widget.preferences.flightlog = { enabled = true }
+  _G.rfsuite.session = _G.rfsuite.session or {}
+  _G.rfsuite.session.modelName = "goblin"
+  return widget
+end
+
+--- Run passes; `onPass(widget, i)` before each. Answers what the load passes did.
+local function drive(widget, passes, onPass)
+  local seen = { loads = 0, worst = 0, adjacent = false, partial = false, raisedAgain = 0, lastWasLoad = false }
+  for n = 1, passes do
+    Stubs.tick()
+    widget.state.tasksDone = true
+    if onPass then onPass(widget, n, seen) end
+    local isLoad = widget._job ~= nil and widget._job.kind == "battery_pick_load"
+    count = 0
+    debug.sethook(hook, "", 1)
+    local ok, err = pcall(widget.refresh, widget, nil, nil)
+    debug.sethook()
+    if not ok then error("pass " .. n .. " raised: " .. tostring(err)) end
+    if isLoad then
+      seen.loads = seen.loads + 1
+      if count > seen.worst then seen.worst = count end
+      if seen.lastWasLoad then seen.adjacent = true end
+    end
+    seen.lastWasLoad = isLoad
+    local shown = #widget.state.batteryPick.candidates
+    if shown ~= 0 and shown ~= seen.expect then seen.partial = true end
+  end
+  return seen
+end
+
+-- The load of 100 packs.
+do
+  local widget = newWidget(PACKS)
+  local seen = drive(widget, PASSES, function(_, _, s) s.expect = PACKS end)
+  local pick = widget.state.batteryPick
+  check(string.format("no load pass costs more than %d instructions", PASS_LIMIT), seen.worst <= PASS_LIMIT,
+    string.format("worst load pass %d over %d load passes", seen.worst, seen.loads))
+  check("the load is spread over several passes", seen.loads > 1, seen.loads .. " load passes")
+  check("a pass without load lies between any two load passes", not seen.adjacent)
+  check("the views never see part of the list", not seen.partial)
+  check("the prompt is raised with every pack", pick.loaded == true and #pick.candidates == PACKS and pick.pending == true,
+    string.format("loaded=%s packs=%d pending=%s", tostring(pick.loaded), #pick.candidates, tostring(pick.pending)))
+  print(string.format("%d packs: %d load passes, the worst %d instructions", PACKS, seen.loads, seen.worst))
+end
+
+-- A load step that raises stays latched.
+do
+  local widget = newWidget(PACKS)
+  local BatteryPick = _G.rfsuite.require("lib/battery_pick.lua")
+  local raises = 0
+  local function boom() raises = raises + 1; error("a load step that raises") end
+  if type(BatteryPick.loadStep) == "function" then BatteryPick.loadStep = boom else BatteryPick.candidates = boom end
+  local seen = drive(widget, PASSES, function(_, _, s) s.expect = PACKS end)
+  check("a raising load step runs once and is not enqueued again", raises == 1 and seen.loads == 1,
+    string.format("%d raises over %d load passes", raises, seen.loads))
+  check("a raising load step publishes nothing", #widget.state.batteryPick.candidates == 0)
+end
+
+-- The reconnect edge replaces the prompt's state while a load is part-way: the next load starts over.
+do
+  local widget = newWidget(PACKS)
+  local replaced = false
+  local seen = drive(widget, PASSES, function(w, _, s)
+    s.expect = PACKS
+    if not replaced and s.loads == 2 then
+      replaced = true
+      w.state.batteryPick = { loaded = false, pending = false, candidates = {}, dismissed = false }
+    end
+  end)
+  local pick = widget.state.batteryPick
+  check("a load dropped part-way starts over and publishes every pack once",
+    replaced and #pick.candidates == PACKS and pick.candidates[1].id == "1" and pick.candidates[PACKS].id == tostring(PACKS),
+    string.format("replaced=%s packs=%d", tostring(replaced), #pick.candidates))
+  check("nothing of the dropped load is shown", not seen.partial)
+end
+
+Stubs.releaseCard()
+print(string.format("%d failures", failures))
+os.exit(failures == 0 and 0 or 1)
