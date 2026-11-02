@@ -108,6 +108,10 @@ do
     string.format("vcel_min=%s vcel_max=%s", tostring(stats.vcel_min), tostring(stats.vcel_max)))
   check("configured 0, no valid minimum cell voltage: no sag figures", stats.sags == nil and stats.sag_min == nil,
     string.format("sags=%s sag_min=%s", tostring(stats.sags), tostring(stats.sag_min)))
+  -- The sag detector is never armed here, so the record asks the sensor on every sample -- as it
+  -- does on master; carrying the count on adds no read.
+  check("configured 0, no valid minimum cell voltage: the sensor is asked once per sample, as before",
+    world.reads.battery_cell_count == 25, tostring(world.reads.battery_cell_count))
 end
 
 -- A configured count answers without the sensor, as before.
@@ -129,6 +133,17 @@ do
     string.format("vcel_min=%s vcel_max=%s", tostring(stats.vcel_min), tostring(stats.vcel_max)))
   check("no count anywhere: positive control, the line was written with other statistics", stats.curr_max == 10,
     tostring(stats.curr_max))
+end
+-- Two flights on one connection: the second one, whose count never answers, does not inherit the
+-- first one's.
+do
+  local world = newWorld({ batteryCellCount = 0, vbatmincellvoltage = 330 }, sensors(6))
+  check("first of two flights: positive control, divided by 6", near(world:fly().vcel_min, 4.1))
+  world.sensors.battery_cell_count = nil
+  local stats = world:fly()
+  check("second flight on the same connection without a count: the per-cell columns stay empty",
+    stats.vcel_min == nil and world.session.flight.lastCells == nil,
+    string.format("vcel_min=%s lastCells=%s", tostring(stats.vcel_min), tostring(world.session.flight.lastCells)))
 end
 do
   local world = newWorld({ batteryCellCount = 0, vbatmincellvoltage = 330 }, sensors(6))
