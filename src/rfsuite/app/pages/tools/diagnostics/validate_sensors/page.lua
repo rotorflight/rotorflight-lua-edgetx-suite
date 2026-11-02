@@ -109,6 +109,7 @@ local state = {
   rows = {},
   rowSignature = "",
   lastSnapshot = "",
+  lastConfig = false,
   lastReadAttemptAt = 0,
   rebuild = nil,
 }
@@ -460,11 +461,22 @@ function M.wakeup()
   end
 
   local now = nowSeconds()
-  local snapshot = buildSnapshot()
-  if snapshot ~= state.lastSnapshot then
-    state.lastSnapshot = snapshot
-    refreshRows()
-    return
+  local session = getSession()
+
+  -- Every writer of session.telemetry_config (this page's own read, the Telemetry page's read
+  -- and save, the read on connect) stores a newly parsed table, so the slot list can only have
+  -- changed when the table has. Walking the 40 slots on every wakeup cost about 1 000
+  -- instructions a pass for nothing; a change made in place would still show at the 0.8 s
+  -- row refresh below, which reads the slots itself.
+  local cfg = type(session) == "table" and session.telemetry_config or nil
+  if cfg ~= state.lastConfig then
+    state.lastConfig = cfg
+    local snapshot = buildSnapshot()
+    if snapshot ~= state.lastSnapshot then
+      state.lastSnapshot = snapshot
+      refreshRows()
+      return
+    end
   end
 
   if not state.readPending and not state.loading and (now - (state.lastReadAttemptAt or 0)) >= 0.8 then
@@ -472,7 +484,6 @@ function M.wakeup()
     refreshRows()
   end
 
-  local session = getSession()
   if not state.readPending
     and not state.loading
     and (type(session) ~= "table" or type(session.telemetry_config) ~= "table")
@@ -496,6 +507,7 @@ function M.closePage()
   state.rows = {}
   state.rowSignature = ""
   state.lastSnapshot = ""
+  state.lastConfig = false
   state.lastReadAttemptAt = 0
   state.rebuild = nil
 

@@ -38,7 +38,7 @@ The three statuses answer three different questions, and the colour matches the 
 | `NO DATA` | orange | The radio has the sensor, but nothing current is arriving for it. | The model is off, the link is down, or the source of that one sensor — an ESC, a GPS receiver — is not reporting. |
 | `INVALID` | red | The radio has no sensor of that name at all — or, for a row that needs more than one, not all of them. | Let the radio discover the sensors: power the model up with telemetry running, then use *Discover new* on the radio's own Telemetry page. |
 
-Three points worth knowing before you read a row:
+Four points worth knowing before you read a row:
 
 - **`NO DATA` is not instant.** The radio marks a sensor as no longer current as soon as the
   whole link drops, but a single sensor that falls silent while the link stays up is only
@@ -52,5 +52,8 @@ Three points worth knowing before you read a row:
   which is their ordinary state, since the pair only moves when an adjustment fires; and
   `INVALID` as soon as one of the two is missing from the radio, because waiting will not
   produce it and discovery will.
+- **The rows keep themselves current while the page is open.** Each status is checked again
+  about every second, so a sensor that starts or stops arriving changes its row without
+  leaving the page (within the radio's own timeout above).
 
-*Documented against RFSuite 0.1.7.*
+*Documented against RFSuite 0.2.2.*
