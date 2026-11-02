@@ -1,1 +1,1 @@
-- Establish ESC telemetry before the spin test and clarify when to connect or unplug the flight battery for PWM calibration and other motor protocols (`helicopter_setup`).
+- Establish ESC telemetry before connecting the servos and before the spin test, so its port restart happens with the servos still unplugged; ask for the flight battery to be unplugged before the servos are connected, and clarify when to connect or unplug it for PWM calibration and other motor protocols (`helicopter_setup`).
