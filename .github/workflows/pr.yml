@@ -320,6 +320,9 @@ jobs:
       - name: Check dashboard standby integration
         run: lua5.3 bin/tests/dashboard_standby_integration_test.lua
 
+      - name: Check who drives the background work with dashboard and service widget
+        run: lua5.3 bin/dashboard/verify_background_driver.lua
+
       - name: Check shared ELRS configuration reads
         run: lua5.3 bin/tests/elrs_config_test.lua
 

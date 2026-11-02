@@ -20,7 +20,7 @@ Three things can, and at least one of them has to be running:
 | --- | --- |
 | The configuration tool | Only while it is open. Closing the tool stops it. |
 | The **RFSuite** dashboard widget | Whenever it is on one of the model's screens, also while that screen is not the one shown. EdgeTX calls every widget of the model on each refresh, visible or not, and the dashboard does the same background work in both cases. |
-| The **RFSuite Service** widget | Whenever it is on one of the model's screens, visible or not. It does nothing else besides drawing a small status tile. |
+| The **RFSuite Service** widget | Whenever it is on one of the model's screens, visible or not, and the dashboard is not running on the same model (see [Both widgets on one model](#both-widgets-on-one-model)). It does nothing else besides drawing a small status tile. |
 
 With none of them running — no widget on the model and the tool closed — there is no link: the
 custom sensors are not decoded, no connect events run, and no announcements are spoken.
@@ -32,7 +32,7 @@ with RFSuite.
 
 | You want … | Add | Setup of the background service |
 | --- | --- | --- |
-| The dashboard | **RFSuite** on a screen of the model | None. The dashboard runs it. Do not add *RFSuite Service* as well. |
+| The dashboard | **RFSuite** on a screen of the model | None. The dashboard runs it. *RFSuite Service* is not needed as well. |
 | No dashboard | **RFSuite Service** on a screen of the model (recommended) | None beyond placing the widget. |
 | Neither | — | The link, the sensors and the announcements only work while the tool is open. |
 
@@ -67,12 +67,18 @@ flight controller reports.
 | MSP API x.y not supported | The flight controller's firmware is older than RFSuite supports (see the requirements in the README). |
 | Connected | Linked, and the connect chain has finished. |
 
+## Both widgets on one model
+
+With *RFSuite* and *RFSuite Service* on the same model, the dashboard does the background work and
+writes the log to the card, and the service widget stands down: its tile still shows the status, but
+it runs nothing itself. The service widget is then not needed and can be removed.
+
+If the dashboard is taken off the model, or stops running, the service widget notices within about
+half a second and takes the work over, the log to the card included. A flight in progress keeps its
+full flight time across the change.
+
 ## What not to do
 
-- **Do not put RFSuite Service on a model that already has the dashboard.** Both widgets drive the
-  same background work, so with both on the model it runs twice on every tick and the widget
-  state spends noticeably more of its instruction budget, for no benefit. Remove the service
-  widget from models that use the dashboard.
 - **Do not rely on the tool alone if you want announcements or the custom sensors in flight.**
   Without one of the two widgets, everything stops when the tool is closed.
 - **Do not skip the restart after an install or an update.** The first start compiles the
