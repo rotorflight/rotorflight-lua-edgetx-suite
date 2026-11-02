@@ -397,7 +397,7 @@ def extract(source, path, labels, mapping, bindings=None, effects_only=False):
         if t.value == '{':
             fields = p.fields(start)
             kind = literal(fields.get('kind', []))
-            if kind in ('choice', 'number', 'text'):
+            if kind in ('choice', 'number', 'text', 'pair'):
                 add('pilot sets', label(fields.get('label', []), labels), start, p.pairs[start]+1)
             elif kind == 'toggle':
                 safety = any(t.value in ('bladesOff', 'checks') for part in fields.values() for t in part)

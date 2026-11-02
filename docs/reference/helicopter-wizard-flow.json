@@ -6,7 +6,7 @@
     "bin/wizard/source-map.json": "73fcb2f83c26053a3060c33160983b7493ef13e4e5b1832604aa075a6387d76f",
     "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "1750296f3f160c4c328b331cf34673bb803e936266f19712698dac996c6ea56a",
     "src/rfsuite/app/pages/helicopter_setup/controller.lua": "8062fa10844b6a7f62b989a6dd25a4f03b368ad1fea0431aa6f003d093372efd",
-    "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "015fba632ba4835d2f433ed11e6180cf330bf35b103c06b954f689fae2c74dac",
+    "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "7b4e1e1857c352d30ea7c8e271c37361cf3721fd895550ea19951c369c1b9f57",
     "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "2da65f54ecf424df2a75e37bdf7c4f8618429eb3c623a1bdf0939a21579431bf",
     "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "281da481f9e8406e760fc9c5d94809d661cb2df4060b05a3fb1430b5380ec71d",
     "src/rfsuite/app/pages/helicopter_setup/feedback.lua": "4f73ebe86a8b140a8960ec3d0af6d9e29373994545bb48afaf2827ca6a8a661e",
@@ -14,7 +14,7 @@
     "src/rfsuite/app/pages/helicopter_setup/help.lua": "210bc647674c7bdf88e1ac00cf623c53858bb0721623f089caa1f95465ac2c46",
     "src/rfsuite/app/pages/helicopter_setup/history.lua": "d5f7b4799e1a93821b1ebfaecf5e458a054e7cf904bdc5435ae8e985bea3350b",
     "src/rfsuite/app/pages/helicopter_setup/history_store.lua": "e98250cf48a8a360541abd967a4663d09fd33c7f936a94cf13ea67233442cda8",
-    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "d5f518d823d09e7461c0bd6d089dc5e6e156ef25bd915eeed188159185113f28",
+    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "28d36cd9b95b5c4f3aa4c46c8c6b671345104f589e35e5a8d31984215db9fb10",
     "src/rfsuite/app/pages/helicopter_setup/math.lua": "c4124f86de6988af6bb22e6fa1cb67e7e924eb78de38cffa5be107492caa14c1",
     "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "1e54a9965742d66c7454f7fe0e32ad7512fce7dfed931aee47353757b95ae4d3",
     "src/rfsuite/app/pages/helicopter_setup/page.lua": "a54a2992e14e607625b0722cf9e8772232cee015126510cc11c184555ee6ad5b",
@@ -23,31 +23,31 @@
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",
     "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "82cedd6ffa9eba2470fe649018019d0485ef59dd730a1dd1ef6cfb316f3d393a",
     "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua": "5375aced67797811c1a76847db7a41d1bd801ad15731ffa4e8c48214695c4699",
-    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "68e0fd6dc0859447b5a19f489cbb95ac69124b5bafe3e11a9488bdabccfdc500",
+    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "7177367e84dac15ae318b659f368119bffb11e1a75021f5054d4630d45c0d71c",
     "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua": "4bb2414076dfcb0bfce29665eae470f504945bf08dd85b16b55c7fb8946f6443",
-    "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "bfdd6556e85f9c0ea398d334b70ee1266c12b6f47a64af05724ddec25e951eeb",
+    "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "3a1f550f85705dd81b64e03eb21e437b3494f6e1745cd03afc21cb09d460126a",
     "src/rfsuite/app/pages/helicopter_setup/steps/gyro.lua": "c9751a300b355d699fc3689c61f379e0f20610dadaf9383573fff229d9a9c402",
     "src/rfsuite/app/pages/helicopter_setup/steps/level.lua": "8433f8d0799153b4c5a9c4dbd8c930e115e7c26486c9fb5cc19c936ebd54f3f5",
     "src/rfsuite/app/pages/helicopter_setup/steps/modes.lua": "de74bea00b5c837a16a2e83a36d3d4186f32ae73e39ad58e298e74773837038b",
-    "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "be6f98522f854283fcfba6ff37591d27e180af4421b9024902b4ee967d29ab14",
+    "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "04a39efea4b29e85aa487e1ead444f9b93f8152ef8871f48c8df0ec8ce82a021",
     "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "687354e0d60624d22e10ccd17e210cf6a6060319d30339cb2abbf0b9aa028fa3",
     "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "ed93eb19fbd356ba5b111c45365fe65eb2ba418578ef323262e7227bdd458a4b",
     "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "4157b1bd7bcd0136bfa3e744ff6d384595d7fcc246b1798e639ccba93b6d69b8",
     "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "d0af9c9ca4990baa9027bd76d327d5ef1170f07730c5d0be255c626ec7932623",
     "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua": "d725edcb37c5fcdc9c8ef4ba5bc688875fc7a4c84946dbaafb09860b72fa0df6",
-    "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua": "982dc33b5dac99f13736cfa689739b6a7a7afa121d8772cac26cd2b8d4721a48",
+    "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua": "073b6708bdf05c000309d7deb0ca39b04b3ff531000ab6777b8816c5e8e2972d",
     "src/rfsuite/app/pages/helicopter_setup/steps/servos.lua": "a257d4f4a155d6e93a333ce435e1462bbe659ed1ef85252fa415e16fab24124c",
-    "src/rfsuite/app/pages/helicopter_setup/steps/swash.lua": "201aa352353dff142883ce0d3980d9dc12e7dfcdbdf85398f872ef496d68d64e",
+    "src/rfsuite/app/pages/helicopter_setup/steps/swash.lua": "dbbfb700c2865f3d86326f3def736a527a25f643dacfb87178303aa9d98295dc",
     "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua": "4810aefafd236621fc3214bcc6361b29e3b5edeecebc9fd4ac362df45c2799f9",
     "src/rfsuite/app/pages/helicopter_setup/steps/throttle.lua": "477a6a94493f0ef71b1ce5c941f5e0fd6577a881583b891a8b3ce523efd4dd07",
     "src/rfsuite/app/pages/helicopter_setup/transport.lua": "a75fa8705f5c2c82eca0c356fc5d085e723d487fc9243ce3a1127a65805d1c91",
-    "src/rfsuite/app/pages/helicopter_setup/view.lua": "a7c174226329b022a05bf7745b962008c150108f57f63789e92a482682a2fda8",
+    "src/rfsuite/app/pages/helicopter_setup/view.lua": "9b0fa2360b45c766063fbed49a15feff59595c97bc0e269c80aaaa4403a6d554",
     "src/rfsuite/app/pages/helicopter_setup/workflow.lua": "d7a24987575021a428756b724dc4b155a89689372886fc07c78842d2bc0f1b1e",
     "src/rfsuite/app/pages/setup/esc_motors/throttle/page.lua": "b26b2956996f57090bca476e02adc1444831a243da8d6bb3b26959a96aced8d5",
     "src/rfsuite/app/pages/setup/power/battery/page.lua": "bfb796400d4ca5ddb22e28c873b51bb83996ce71ac4fa0dc2dec1d9eac1cddf2",
     "src/rfsuite/app/pages/setup/power/smartfuel/page.lua": "a54aa47ca36a3edff3150f5bede2681651327b593542c49843afcdbc119f2dbc",
     "src/rfsuite/app/pages/setup/power/sources/page.lua": "b3d26e561be0c6cf64df60eba5fdc0ece2c96e7f1fdb4a9b42f63f57a7eb6f62",
-    "src/rfsuite/i18n/en.lua": "225a4e066e1e92ed9130a203481a70802d7d2f902856b7a7a4af58a9e1d35edb",
+    "src/rfsuite/i18n/en.lua": "c5d373c9ff3106fafe00509d7c751af804c89c6dbb690e56de7e667fb1910971",
     "src/rfsuite/lib/esc_params.lua": "2a9f2fb0fd6f762ef396ed20da5a48081a5583687bb2803b870a34ca2635eeaf",
     "src/rfsuite/lib/governor_fields.lua": "2c7407a6d75e7b00de9002dbb4be49696a6a3468b2d76013e1998549a2932a3c",
     "src/rfsuite/lib/power_fields.lua": "2204f3bd87281732a784d9aacd45a432d91cd3ab99a7a649c5976192c345c41e",
@@ -4014,7 +4014,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/swash.lua",
-              "expression": "{ kind = \"choice\" , label = L . servoOnePosition , values = { L . frontPosition , L . rearPosition } , get = function ( ) return w . swashRear and 2 or 1 end , set = function ( v ) w . swashRear = v == 2 end , enabled = function ( ) local s = w . data . mixer_config . swash_type ; return s >= 2 and s <= 4 end }"
+              "expression": "{ kind = \"choice\" , label = L . servoOnePosition , values = { L . frontPosition , L . rearPosition } , get = function ( ) return w . swashRear ~= false and 2 or 1 end , set = function ( v ) w . swashRear = v == 2 end , enabled = function ( ) local s = w . data . mixer_config . swash_type ; return s >= 2 and s <= 4 end }"
             },
             {
               "kind": "MSP write",
@@ -4531,6 +4531,40 @@
             },
             {
               "kind": "pilot sets",
+              "label": "Swash servos",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ServoArt.svelte",
+                "tabs/setup_wizard/StepServoType.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
+              "expression": "{ kind = \"choice\" , label = L . cyclicServos , enabled = unplugged , values = string . format ( L . servoSpec , first . mid , first . rate ) , allowUnset = true , get = function ( ) local kind = current ( false ) if kind == 0 and uniform ( false ) then return # string . format ( L . servoSpec , first . mid , first . rate ) end return kind end , set = function ( v ) if v < # string . format ( L . servoSpec , first . mid , first . rate ) and string . format ( L . servoSpec , first . mid , first . rate ) [ v ] then apply ( false , v ) end end }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Frame rate (Hz)",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ServoArt.svelte",
+                "tabs/setup_wizard/StepServoType.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
+              "expression": "{ kind = \"number\" , label = L . servoFrameRate , min = range . min , max = range . max , enabled = function ( ) return unplugged ( ) and uniform ( false ) end , get = function ( ) return first ( ) . rate end , set = function ( v ) if not w . checks . unplugged then w . message = L . confirmCheck ; return end local r = BAND_HZ [ band ( first ( ) ) ] if v < r . min or v > r . max then return end for _ , index in ipairs ( members [ tail ] ) do local servo = w . data . servo_configurations . servos [ index ] if servo . rate ~= v then servo . rate = v ; w . rebootPending = true end end w : touch ( \"servo_configurations\" , false , true ) if w . refreshPulse then w . refreshPulse ( ) end end }"
+            },
+            {
+              "kind": "pilot sets",
               "label": "Geometry correction",
               "api": null,
               "field": null,
@@ -4746,6 +4780,57 @@
             },
             {
               "kind": "pilot sets",
+              "label": "Tail servo",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ServoArt.svelte",
+                "tabs/setup_wizard/StepServoType.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
+              "expression": "{ kind = \"choice\" , label = L . tailServo , enabled = unplugged , values = string . format ( L . servoSpec , first . mid , first . rate ) , allowUnset = true , get = function ( ) local kind = current ( true ) if kind == 0 and uniform ( true ) then return # string . format ( L . servoSpec , first . mid , first . rate ) end return kind end , set = function ( v ) if v < # string . format ( L . servoSpec , first . mid , first . rate ) and string . format ( L . servoSpec , first . mid , first . rate ) [ v ] then apply ( true , v ) end end }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Frame rate (Hz)",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ServoArt.svelte",
+                "tabs/setup_wizard/StepServoType.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
+              "expression": "{ kind = \"number\" , label = L . servoFrameRate , min = range . min , max = range . max , enabled = function ( ) return unplugged ( ) and uniform ( true ) end , get = function ( ) return first ( ) . rate end , set = function ( v ) if not w . checks . unplugged then w . message = L . confirmCheck ; return end local r = BAND_HZ [ band ( first ( ) ) ] if v < r . min or v > r . max then return end for _ , index in ipairs ( members [ tail ] ) do local servo = w . data . servo_configurations . servos [ index ] if servo . rate ~= v then servo . rate = v ; w . rebootPending = true end end w : touch ( \"servo_configurations\" , false , true ) if w . refreshPulse then w . refreshPulse ( ) end end }"
+            },
+            {
+              "kind": "gate",
+              "label": "reboot pending",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ServoArt.svelte",
+                "tabs/setup_wizard/StepServoType.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
+              "expression": "rebootPending"
+            },
+            {
+              "kind": "pilot sets",
               "label": "Geometry correction",
               "api": null,
               "field": null,
@@ -4760,6 +4845,23 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
               "expression": "{ kind = \"choice\" , label = L . geometryCorrection , values = { L . off , L . on } , allowUnset = true , get = function ( ) local result for _ , index in ipairs ( indices ) do local on = ( w . data . servo_configurations . servos [ index ] . flags & 2 ) ~= 0 and 2 or 1 if result and result ~= on then return 0 end result = on end return result or 0 end , set = function ( v ) if v ~= 1 and v ~= 2 then return end for _ , index in ipairs ( indices ) do local s = w . data . servo_configurations . servos [ index ] s . flags = v == 2 and ( s . flags | 2 ) or ( s . flags & ~ 2 ) end w : touch ( \"servo_configurations\" , false , true ) end }"
+            },
+            {
+              "kind": "MSP write",
+              "label": "servo_configurations.rate",
+              "api": "servo_configurations",
+              "field": "rate",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ServoArt.svelte",
+                "tabs/setup_wizard/StepServoType.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
+              "expression": "servo . rate ="
             },
             {
               "kind": "MSP write",
@@ -4809,40 +4911,6 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
               "expression": "w : value ( L . servo , function ( ) return L . unavailable end )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Swash servos",
-              "api": null,
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/ServoArt.svelte",
-                "tabs/setup_wizard/StepServoType.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
-              "expression": "{ kind = \"choice\" , label = L . cyclicServos , enabled = unplugged , values = string . format ( L . servoSpec , first . mid , first . rate ) , allowUnset = true , get = function ( ) return current ( false ) end , set = function ( v ) if string . format ( L . servoSpec , first . mid , first . rate ) [ v ] then apply ( false , v ) end end }"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Tail servo",
-              "api": null,
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/ServoArt.svelte",
-                "tabs/setup_wizard/StepServoType.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua",
-              "expression": "{ kind = \"choice\" , label = L . tailServo , enabled = unplugged , values = string . format ( L . servoSpec , first . mid , first . rate ) , allowUnset = true , get = function ( ) return current ( true ) end , set = function ( v ) if string . format ( L . servoSpec , first . mid , first . rate ) [ v ] then apply ( true , v ) end end }"
             }
           ]
         }
@@ -5556,24 +5624,6 @@
           ],
           "rows": [
             {
-              "kind": "read",
-              "label": "MSP governor_profile",
-              "api": "governor_profile",
-              "field": null,
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepGovernor.svelte"
-              ],
-              "additions": [
-                "governor-targets-ramps-and-filter-signal"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua",
-              "expression": "w : read ( \"governor_profile\" , function ( d ) if not ( w . governorChanged and w . governorChanged [ index ] ) then w . governorSpeeds [ index ] = d . governor_headspeed end end )"
-            },
-            {
               "kind": "MSP write",
               "label": "governor_profile (record/payload)",
               "api": "governor_profile",
@@ -5964,7 +6014,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : enum ( \"motor_config\" , \"motor_pwm_protocol\" , L . protocol , w : motorProtocols ( ) , true )"
+              "expression": "w : enum ( \"motor_config\" , \"motor_pwm_protocol\" , L . protocol , protocols , true )"
             },
             {
               "kind": "MSP write",
@@ -5981,7 +6031,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : enum ( \"motor_config\" , \"motor_pwm_protocol\" , L . protocol , w : motorProtocols ( ) , true )"
+              "expression": "w : enum ( \"motor_config\" , \"motor_pwm_protocol\" , L . protocol , protocols , true )"
             },
             {
               "kind": "pilot confirms",
@@ -6197,8 +6247,8 @@
           ]
         },
         {
-          "title": "Motor and gearing",
-          "title_expression": "L . motorGearing",
+          "title": "Main motor poles",
+          "title_expression": "L . motorPoles",
           "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
           "configurator_reference": [
             "tabs/setup_wizard/MotorGearArt.svelte",
@@ -6242,24 +6292,22 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
               "expression": "w : n ( \"motor_config\" , \"motor_pole_count_0\" , L . motorPoles , 2 , 255 , true )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Motor pinion teeth",
-              "api": "motor_config",
-              "field": "main_rotor_gear_ratio_0",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/MotorGearArt.svelte",
-                "tabs/setup_wizard/StepMotor.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : n ( \"motor_config\" , \"main_rotor_gear_ratio_0\" , L . motorPinion , 1 , 50000 , true )"
-            },
+            }
+          ]
+        },
+        {
+          "title": "Main gear ratio",
+          "title_expression": "L . mainGearRatio",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/MotorGearArt.svelte",
+            "tabs/setup_wizard/StepMotor.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
             {
               "kind": "MSP write",
               "label": "motor_config.main_rotor_gear_ratio_0",
@@ -6275,24 +6323,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : n ( \"motor_config\" , \"main_rotor_gear_ratio_0\" , L . motorPinion , 1 , 50000 , true )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Main gear teeth",
-              "api": "motor_config",
-              "field": "main_rotor_gear_ratio_1",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/MotorGearArt.svelte",
-                "tabs/setup_wizard/StepMotor.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : n ( \"motor_config\" , \"main_rotor_gear_ratio_1\" , L . mainGear , 1 , 50000 , true )"
+              "expression": "w : field ( \"motor_config\" , \"main_rotor_gear_ratio_0\" , p0 , true )"
             },
             {
               "kind": "MSP write",
@@ -6309,11 +6340,45 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : n ( \"motor_config\" , \"main_rotor_gear_ratio_1\" , L . mainGear , 1 , 50000 , true )"
+              "expression": "w : field ( \"motor_config\" , \"main_rotor_gear_ratio_1\" , p1 , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "motor_config.tail_rotor_gear_ratio_0",
+              "api": "motor_config",
+              "field": "tail_rotor_gear_ratio_0",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "w : field ( \"motor_config\" , \"tail_rotor_gear_ratio_0\" , t0 , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "motor_config.tail_rotor_gear_ratio_1",
+              "api": "motor_config",
+              "field": "tail_rotor_gear_ratio_1",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "w : field ( \"motor_config\" , \"tail_rotor_gear_ratio_1\" , t1 , true )"
             },
             {
               "kind": "read",
-              "label": "Reduction ratio",
+              "label": "Main ratio",
               "api": null,
               "field": null,
               "deviation": false,
@@ -6326,13 +6391,98 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : value ( L . ratio , function ( ) local d = w . data . motor_config return string . format ( \"%.3f\" , d . main_rotor_gear_ratio_1 / math . max ( 1 , d . main_rotor_gear_ratio_0 ) ) end )"
+              "expression": "w : value ( L . mainRatio , mainRatio )"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Gear train",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "{ kind = \"choice\" , label = L . gearTrain , values = { L . stagesOne , L . stagesTwo , L . ratioOnly } , get = function ( ) return g . stages end , set = setStages }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Gear ratio",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "{ kind = \"number\" , label = L . gearRatio , min = 100 , max = 10000 , display = ratioDisplay , get = r . get , set = r . set }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Pinion : intermediate",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "{ kind = \"pair\" , label = L . pairStage1 , min = 1 , max = 50000 , left = value ( g , \"pinion\" ) , right = value ( g , \"pinionSide\" ) }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Intermediate : main gear",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "{ kind = \"pair\" , label = L . pairStage2 , min = 1 , max = 50000 , left = value ( g , \"mainSide\" ) , right = value ( g , \"main\" ) }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Pinion : main gear",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "{ kind = \"pair\" , label = L . pairSingle , min = 1 , max = 50000 , left = value ( g , \"pinion\" ) , right = value ( g , \"main\" ) }"
             }
           ]
         },
         {
-          "title": "Motor and gearing (cont.)",
-          "title_expression": "L . motorGearingTail",
+          "title": "Tail gear ratio",
+          "title_expression": "L . tailGearRatio",
           "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
           "configurator_reference": [
             "tabs/setup_wizard/MotorGearArt.svelte",
@@ -6378,10 +6528,10 @@
               "expression": "w : n ( \"motor_config\" , \"motor_pole_count_1\" , L . tailMotorPoles , 2 , 255 , true )"
             },
             {
-              "kind": "pilot sets",
-              "label": "Tail input gear teeth",
-              "api": "motor_config",
-              "field": "tail_rotor_gear_ratio_0",
+              "kind": "read",
+              "label": "Tail ratio",
+              "api": null,
+              "field": null,
               "deviation": false,
               "configurator_status": [
                 "same"
@@ -6392,30 +6542,13 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : n ( \"motor_config\" , \"tail_rotor_gear_ratio_0\" , L . tailInputGear , 1 , 50000 , true )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "motor_config.tail_rotor_gear_ratio_0",
-              "api": "motor_config",
-              "field": "tail_rotor_gear_ratio_0",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/MotorGearArt.svelte",
-                "tabs/setup_wizard/StepMotor.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : n ( \"motor_config\" , \"tail_rotor_gear_ratio_0\" , L . tailInputGear , 1 , 50000 , true )"
+              "expression": "w : value ( L . tailRatio , tailRatio )"
             },
             {
               "kind": "pilot sets",
-              "label": "Tail output gear teeth",
-              "api": "motor_config",
-              "field": "tail_rotor_gear_ratio_1",
+              "label": "Tail drive from",
+              "api": null,
+              "field": null,
               "deviation": false,
               "configurator_status": [
                 "same"
@@ -6426,13 +6559,13 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : n ( \"motor_config\" , \"tail_rotor_gear_ratio_1\" , L . tailOutputGear , 1 , 50000 , true )"
+              "expression": "{ kind = \"choice\" , label = L . tailDriveFrom , values = { L . tailFromMain , L . tailFromIntermediate , L . ratioOnly } , get = function ( ) return t . from end , set = function ( v ) if v == t . from then return end if v == 2 and g . stages == 3 then w . message = L . tailNeedsTeeth ; return end local before = t . from ; t . from = v if v == 3 then t . ratio = hundredths ( m . tail_rotor_gear_ratio_0 , m . tail_rotor_gear_ratio_1 ) end if not apply ( ) then t . from = before end w . buildRequested = true ; w : rebuild ( ) end }"
             },
             {
-              "kind": "MSP write",
-              "label": "motor_config.tail_rotor_gear_ratio_1",
-              "api": "motor_config",
-              "field": "tail_rotor_gear_ratio_1",
+              "kind": "pilot sets",
+              "label": "Gear ratio",
+              "api": null,
+              "field": null,
               "deviation": false,
               "configurator_status": [
                 "same"
@@ -6443,7 +6576,175 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "w : n ( \"motor_config\" , \"tail_rotor_gear_ratio_1\" , L . tailOutputGear , 1 , 50000 , true )"
+              "expression": "{ kind = \"number\" , label = L . gearRatio , min = 100 , max = 10000 , display = ratioDisplay , get = r . get , set = r . set }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Intermediate : main gear",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "{ kind = \"pair\" , label = L . pairMainMesh , min = 1 , max = 50000 , left = g . stages == 2 and value ( g , \"mainSide\" ) or value ( t , \"mesh\" ) , right = value ( g , \"main\" ) }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Pulley : tail rotor pulley",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "{ kind = \"pair\" , label = L . pairTailShaft , min = 1 , max = 50000 , left = value ( t , \"a\" ) , right = value ( t , \"b\" ) }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Drive : tail rotor gear",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "{ kind = \"pair\" , label = L . pairTail , min = 1 , max = 50000 , left = value ( t , \"a\" ) , right = value ( t , \"b\" ) }"
+            }
+          ]
+        },
+        {
+          "title": "Motor & ESC set",
+          "title_expression": "L . motorDone",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/MotorGearArt.svelte",
+            "tabs/setup_wizard/StepMotor.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
+            {
+              "kind": "read",
+              "label": "Protocol",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "w : value ( L . protocol , function ( ) for _ , e in ipairs ( protocols ) do if e [ 1 ] == m . motor_pwm_protocol then return e [ 2 ] end end return tostring ( m . motor_pwm_protocol ) end )"
+            },
+            {
+              "kind": "read",
+              "label": "Main motor poles",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "w : value ( L . motorPoles , function ( ) return m . motor_pole_count_0 end )"
+            },
+            {
+              "kind": "read",
+              "label": "Gear train",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "w : value ( L . gearTrain , function ( ) return ( { L . stagesOne , L . stagesTwo , L . ratioOnly } ) [ g . stages ] end )"
+            },
+            {
+              "kind": "read",
+              "label": "Main ratio",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "w : value ( L . mainRatio , mainRatio )"
+            },
+            {
+              "kind": "read",
+              "label": "Tail motor poles",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "w : value ( L . tailMotorPoles , function ( ) return m . motor_pole_count_1 end )"
+            },
+            {
+              "kind": "read",
+              "label": "Tail ratio",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MotorGearArt.svelte",
+                "tabs/setup_wizard/StepMotor.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
+              "expression": "w : value ( L . tailRatio , tailRatio )"
             }
           ]
         }
@@ -6460,9 +6761,9 @@
         "motor_config.motor_pole_count_0",
         "motor_config.main_rotor_gear_ratio_0",
         "motor_config.main_rotor_gear_ratio_1",
-        "motor_config.motor_pole_count_1",
         "motor_config.tail_rotor_gear_ratio_0",
-        "motor_config.tail_rotor_gear_ratio_1"
+        "motor_config.tail_rotor_gear_ratio_1",
+        "motor_config.motor_pole_count_1"
       ],
       "configurator_status": [
         "same"

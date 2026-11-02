@@ -1838,12 +1838,12 @@ return function(h)
     for _,tail in ipairs({0,1}) do
       local w=world();settle(w);w.step=9;w.data.mixer_config.tail_rotor_mode=tail
       local c=step(w,"motor")
-      cardOrder(c,{L.throttleProtocol,L.motorGearing,L.motorGearingTail},"S09 tail "..tail)
+      cardOrder(c,{L.throttleProtocol,L.motorPoles,L.mainGearRatio,L.tailGearRatio,L.motorDone},"S09 tail "..tail)
       c[1].rows[1].set(3);c[1].rows[2].set(2)
-      c[2].rows[1].set(14);c[2].rows[2].set(12);c[2].rows[3].set(120)
-      eq(c[2].rows[4].get(),"10.000","S09 ratio still follows tooth counts")
-      if tail==0 then c[3].rows[1].set(20);c[3].rows[2].set(90)
-      else c[3].rows[1].set(8) end
+      c[2].rows[1].set(14);c[3].rows[2].left.set(12);c[3].rows[2].right.set(120)
+      eq(c[3].rows[3].get(),"10.00:1","S09 ratio still follows tooth counts")
+      if tail==0 then c[4].rows[2].right.set(20);c[4].rows[2].left.set(90)
+      else c[4].rows[1].set(8) end
       eq(w.data.motor_config.motor_pwm_protocol,6,"S09 protocol wire ID")
       eq(w.data.motor_config.use_dshot_telemetry,1,"S09 DShot field")
       eq(w.data.motor_config.motor_pole_count_0,14,"S09 main pole field")
@@ -1853,10 +1853,80 @@ return function(h)
         eq(w.data.motor_config.tail_rotor_gear_ratio_0,20,"S09 tail input field")
         eq(w.data.motor_config.tail_rotor_gear_ratio_1,90,"S09 tail output field")
       else eq(w.data.motor_config.motor_pole_count_1,8,"S09 tail pole field") end
-      eq(c[2].art,"motorGears","S09 gearing has its own picture")
+      eq(c[3].art,"motorGears","S09 gearing has its own picture")
+      eq(c[5].rows[4].get(),"10.00:1","S09 summary shows the main ratio")
       q.sent={};w:save();settle(w)
       savedPayload(w,"motor_config","S09");savedPayload(w,"feature_config","S09")
     end
+  end)
+  case("S11.telemetry-on-takes-first-free-port",function()
+    local w=world();settle(w);w.step=11;w.data.motor_config.motor_pwm_protocol=0
+    local sc=w.data.serial_config
+    w.data.esc_sensor_config.protocol=0
+    local free
+    for i=1,12 do
+      local id,key=sc["port_"..i.."_identifier"],"port_"..i.."_function_mask"
+      if sc[key] then sc[key]=sc[key]&(~1024) end
+      if not free and id and id~=20 and sc[key]==0 then free=i end
+    end
+    check(free~=nil,"S11 the fixture has a free port")
+    local c=step(w,"escTelemetry")
+    c[2].rows[1].set(2)
+    eq(sc["port_"..free.."_function_mask"],1024,"S11 turning ESC telemetry on takes the first free port")
+    check(w.dirty.serial_config,"S11 the chosen port is saved with the step")
+    local other
+    for i=1,12 do if i~=free and sc["port_"..i.."_identifier"] and sc["port_"..i.."_identifier"]~=20 and sc["port_"..i.."_function_mask"]==0 then other=i;break end end
+    if other then
+      c[2].rows[1].set(1);c=step(w,"escTelemetry")
+      sc["port_"..other.."_function_mask"]=1024;c[2].rows[1].set(3)
+      eq(sc["port_"..other.."_function_mask"],1024,"S11 a port already chosen is kept")
+    end
+  end)
+  case("S09.gear-stages-and-tail-drive",function()
+    local w=world();settle(w);w.step=9;w.data.mixer_config.tail_rotor_mode=0;w.gear=nil
+    local m=w.data.motor_config
+    m.main_rotor_gear_ratio_0,m.main_rotor_gear_ratio_1,m.tail_rotor_gear_ratio_0,m.tail_rotor_gear_ratio_1=12,120,20,90
+    local c=step(w,"motor")
+    eq(c[3].rows[1].get(),1,"S09 FC products open as one stage")
+    eq(c[3].rows[2].kind,"pair","S09 one stage is one tooth pair")
+    eq(c[4].rows[1].get(),1,"S09 tail opens as driven from the main shaft")
+    eq(c[4].rows[2].left.get(),90,"S09 tail pair shows the drive gear first")
+    eq(c[4].rows[2].right.get(),20,"S09 tail pair shows the tail rotor gear second")
+    c[3].rows[1].set(2);c=step(w,"motor")
+    eq(m.main_rotor_gear_ratio_0*10,m.main_rotor_gear_ratio_1,"S09 two stages keep the ratio at a 1:1 intermediate")
+    c[3].rows[2].left.set(13);c[3].rows[2].right.set(60);c[3].rows[3].left.set(20);c[3].rows[3].right.set(100)
+    eq(m.main_rotor_gear_ratio_0,13*20,"S09 two stages store pinion x intermediate pinion")
+    eq(m.main_rotor_gear_ratio_1,60*100,"S09 two stages store intermediate gear x main gear")
+    eq(c[3].rows[4].get(),string.format("%.2f:1",6000/260),"S09 two-stage ratio shown")
+    c[4].rows[1].set(2);c=step(w,"motor")
+    eq(c[4].rows[2].left.get(),20,"S09 intermediate tail shares the intermediate pinion")
+    c[4].rows[3].left.set(50);c[4].rows[3].right.set(21)
+    eq(m.tail_rotor_gear_ratio_0,20*21,"S09 intermediate tail stores intermediate pinion x tail pulley")
+    eq(m.tail_rotor_gear_ratio_1,100*50,"S09 intermediate tail stores main gear x drive pulley")
+    c[3].rows[3].right.set(30000)
+    eq(m.main_rotor_gear_ratio_1,60*100,"S09 a product above the FC limit is refused")
+    eq(w.message,L.gearTooLarge,"S09 the refusal is said")
+    c[3].rows[1].set(1);c=step(w,"motor")
+    eq(m.main_rotor_gear_ratio_1/m.main_rotor_gear_ratio_0,6000/260,"S09 back to one stage keeps the ratio")
+    eq(c[4].rows[2].left.get(),20,"S09 one stage keeps the intermediate pinion for the tail drive")
+    eq(m.tail_rotor_gear_ratio_0,20*21,"S09 tail products stay with the kept mesh")
+    c[3].rows[1].set(3);c=step(w,"motor")
+    eq(c[4].rows[1].get(),3,"S09 ratio only turns an intermediate tail drive into a tail ratio")
+    c[3].rows[2].set(970)
+    eq(m.main_rotor_gear_ratio_0,10,"S09 ratio only stores the smallest whole pair")
+    eq(m.main_rotor_gear_ratio_1,97,"S09 ratio only 9.70 is 10:97")
+    c[4].rows[1].set(2)
+    eq(w.message,L.tailNeedsTeeth,"S09 an intermediate tail drive needs main gear teeth")
+    c[4].rows[2].set(476)
+    eq(m.tail_rotor_gear_ratio_0,25,"S09 tail ratio only stores the smallest whole pair")
+    eq(m.tail_rotor_gear_ratio_1,119,"S09 tail ratio only 4.76 is 25:119")
+    eq(c[5].rows[3].get(),L.ratioOnly,"S09 summary names the gear train")
+    local v=world();settle(v);v.step=9;v.data.mixer_config.tail_rotor_mode=1;v.gear=nil
+    local t0=v.data.motor_config.tail_rotor_gear_ratio_0
+    local d=step(v,"motor");d[3].rows[1].set(2)
+    eq(v.data.motor_config.tail_rotor_gear_ratio_0,t0,"S09 a motorised tail keeps its tail gear fields")
+    eq(d[4].rows[1].label,L.tailMotorPoles,"S09 a motorised tail asks only for its poles")
+    eq(d[5].rows[5].label,L.tailMotorPoles,"S09 summary shows the tail motor poles")
   end)
   local function noConfigWrites(w,id)
     q.sent={};w:save();settle(w)
@@ -2045,11 +2115,12 @@ return function(h)
   case("REVIEW.servo-types-per-group",function()
     local w=world();local c=step(w,"servoType")
     local cyclic,tail=c[1].rows[2],c[2].rows[2]
-    for _,r in ipairs(c[1].rows) do check(r.kind~="number","REVIEW servo type has no frame-rate field") end
-    eq(table.concat(cyclic.values,"|"),table.concat({L.servoAnalog,L.servoDigital,L.servoHiendDigital,L.servoNarrowBand},"|"),
-      "REVIEW cyclic servo types, and nothing else")
-    eq(table.concat(tail.values,"|"),table.concat({L.servoDigital,L.servoSpecificDigital,L.servoHiendSpecificDigital},"|"),
-      "REVIEW tail servo types, and nothing else")
+    local rate=c[1].rows[3]
+    eq(rate.kind,"number","REVIEW servo type has a frame-rate field");eq(rate.label,L.servoFrameRate,"REVIEW the frame-rate field is labelled")
+    eq(table.concat(cyclic.values,"|"),table.concat({L.servoAnalog,L.servoDigital,L.servoHiendDigital,L.servoNarrowBand,L.servoCustom},"|"),
+      "REVIEW cyclic servo types, then Custom")
+    eq(table.concat(tail.values,"|"),table.concat({L.servoDigital,L.servoSpecificDigital,L.servoHiendSpecificDigital,L.servoCustom},"|"),
+      "REVIEW tail servo types, then Custom")
     check(cyclic.allowUnset and tail.allowUnset,"REVIEW servos matching no type open on the neutral placeholder")
     local servos=w.data.servo_configurations.servos
     local original=servos[0].rate;cyclic.set(2)
@@ -2062,8 +2133,19 @@ return function(h)
     tail.set(2)
     eq(servos[3].rate,333,"REVIEW the tail has its own types");eq(servos[3].mid,760,"REVIEW Specific digital is a 760 us servo")
     eq(servos[0].rate,165,"REVIEW a tail type leaves the cyclic servos unchanged")
-    cyclic.set(0);cyclic.set(5);eq(servos[0].rate,165,"REVIEW only a listed type is written")
-    servos[1].rate=210;eq(cyclic.get(),0,"REVIEW servos matching no type show no type")
+    cyclic.set(0);cyclic.set(5);eq(servos[0].rate,165,"REVIEW picking Custom writes nothing")
+    eq(rate.min,50,"REVIEW wide-band frame rate minimum");eq(rate.max,333,"REVIEW wide-band frame rate maximum")
+    rate.set(250)
+    for i=0,2 do eq(servos[i].rate,250,"REVIEW a hand-set frame rate sets every cyclic servo") end
+    eq(servos[3].rate,333,"REVIEW a hand-set cyclic rate leaves the tail unchanged")
+    eq(cyclic.get(),5,"REVIEW a hand-set rate reads Custom")
+    rate.set(400);eq(servos[0].rate,250,"REVIEW a rate outside the band is refused")
+    local tailRate=step(w,"servoType")[2].rows[3]
+    eq(tailRate.min,200,"REVIEW narrow-band frame rate minimum");eq(tailRate.max,560,"REVIEW narrow-band frame rate maximum")
+    eq(c[1].servoPicture(),"servo-cyclic-hiend-digital","REVIEW Custom pictures the nearest type of its band")
+    cyclic.set(2)
+    servos[1].rate=210;eq(cyclic.get(),0,"REVIEW servos that differ show no type")
+    check(not rate.enabled(),"REVIEW servos that differ take no hand-set rate")
     w.cards=c;w.card=1
     local scene=h.view.new(w,{w=480,h=272},h.diagrams)
     while not scene:step() do end
@@ -2201,9 +2283,7 @@ return function(h)
     eq(#w.bus.jobs,queued,"S08 build queues no MSP reads")
     eq(#c,7,"S08 offers exactly three configured PID cards and separate ramp card")
     check(not c[4].rows[1].enabled(),"S08 headspeed waits for per-profile readback")
-    local readAll=c[1].rows[#c[1].rows]
-    check(readAll.kind=="button" and type(readAll.label)=="string" and readAll.label==L.readAllProfiles and L.readAllProfiles~=nil,
-      "S08 the read-all-profiles button carries its label")
+    check(c[1].rows[#c[1].rows].kind~="button","S08 no Read all profiles button: entry reads every profile")
     c[1].enter();settle(w);c=step(w,"governor")
     for card=1,#c do
       w.cards,w.card=c,card
@@ -2214,29 +2294,15 @@ return function(h)
         if item.y and item.h then check(item.y+item.h<=320,"S08 all target/ramp cards fit 480x320") end
       end
     end
-    eq(selected,original,"S08 entry retains active PID profile")
-    check(w.restoreProfile==nil and not w.transition,"S08 entry completes active profile read before editing")
-    check(w.profileOriginal==nil,"S08 active profile read creates no rollback writes")
+    eq(selected,original,"S08 entry restores the active PID profile")
+    check(w.restoreProfile==nil and not w.transition,"S08 entry completes every profile read before editing")
+    check(w.profileOriginal==nil,"S08 profile reads create no rollback writes")
     local selections={}
     for _,m in ipairs(q.sent) do
       if m.command==210 then selections[#selections+1]=m.payload[1] end
-      check(m.command~=210,"S08 entering governor sends no set_pid_profile")
       check(m.command~=149 and m.command~=93 and m.command~=155,"S08 entry never writes profiles or filters")
     end
-    eq(#selections,0,"S08 entry makes no profile selections")
-    for i=1,3 do
-      local row=c[3+i].rows[1]
-      eq(row.display(row.get()),i-1==original and tostring(values[i]) or "--","S08 unread profiles display placeholders")
-      eq(row.enabled(),i-1==original,"S08 only the read active profile is editable")
-    end
-    eq(c[1].rows[2].label,L.readAllProfiles,"S08 explicit Read all profiles button")
-    q.sent={};c[1].rows[2].press();settle(w);c=step(w,"governor")
-    selections={}
-    for _,m in ipairs(q.sent) do
-      if m.command==210 then selections[#selections+1]=m.payload[1] end
-      check(m.command~=149,"S08 Read all profiles never writes profile settings")
-    end
-    eq(table.concat(selections,","),"0,1,2,1","S08 explicit read walks profiles then restores selection")
+    eq(table.concat(selections,","),"0,1,2,"..original,"S08 entry walks the profiles then restores the selection")
     for i=1,3 do
       local row=c[3+i].rows[1]
       eq(row.get(),values[i],"S08 shows exact FC RPM, including non-tens values")
@@ -2280,7 +2346,6 @@ return function(h)
     w:discard(function() end);settle(w)
     check(w.governorSpeeds==nil and w.governorChanged==nil,"S08 discarded headspeed draft is removed")
     c=step(w,"governor");c[1].enter();settle(w);c=step(w,"governor")
-    c[1].rows[2].press();settle(w);c=step(w,"governor")
     eq(c[4].rows[1].get(),1817,"S08 discarded headspeed cannot return")
     c[4].rows[1].set(1919);h.setFailCommand(149)
     q.sent={};w:save();settle(w);h.setFailCommand(nil);drain(w)
@@ -3467,7 +3532,7 @@ return function(h)
     w.rateStyles[profile]=1;expect(picture,"rate-trainer-cyclic")
     w.rateStyles={};w.rateMatched={}
     check(not picture.visible(),"VISUAL removing the match restores the rates sketch")
-    job,picture=scene("motor",2);expect(picture,"motor-gears")
+    job,picture=scene("motor",3);expect(picture,"motor-gears")
     w.rebootPending=true;job,picture=scene("connect");expect(picture,"servo");w.rebootPending=nil
     w.data.mixer_config.tail_rotor_mode=1
     job,picture=scene("tail");local count=#job.children
@@ -3502,17 +3567,23 @@ return function(h)
           w.refreshPulse();expect(picture,preset[3])
           check(picture.visible() and not wave.visible(),"VISUAL preset shows only its picture")
           local shapes={}
-          -- A rate no type has, in either band: Custom draws the waveform of what the servos hold.
+          -- A rate no type has, in either band. A group that now differs draws the waveform of what
+          -- the servos hold; a single-servo group is Custom and pictures the nearest type of its band.
           for _,custom in ipairs({{210,preset[2]},{210,preset[2]==1520 and 760 or 1520}}) do
             local first=w.data.servo_configurations.servos[card.servoIndex]
             first.rate,first.mid=custom[1],custom[2];w.refreshPulse()
-            check(not picture.visible() and wave.visible(),"VISUAL custom Hz or width uses the waveform")
-            eq(wave.pts(),points,"VISUAL custom values retain waveform points")
-            local shape={}
-            for i,pt in ipairs(wave.pts()) do shape[i]=pt[1]..","..pt[2] end
-            shapes[#shapes+1]=table.concat(shape,";")
+            if #card.servoIndices>1 then
+              check(not picture.visible() and wave.visible(),"VISUAL custom Hz or width uses the waveform")
+              eq(wave.pts(),points,"VISUAL custom values retain waveform points")
+              local shape={}
+              for i,pt in ipairs(wave.pts()) do shape[i]=pt[1]..","..pt[2] end
+              shapes[#shapes+1]=table.concat(shape,";")
+            else
+              check(picture.visible() and not wave.visible(),"VISUAL a Custom group pictures the nearest type")
+              expect(picture,custom[2]==760 and "servo-tail-specific-digital" or "servo-tail-digital")
+            end
           end
-          check(shapes[1]~=shapes[2],"VISUAL a custom rate or width redraws the waveform")
+          if #card.servoIndices>1 then check(shapes[1]~=shapes[2],"VISUAL a custom rate or width redraws the waveform") end
           for _,servo in ipairs(card.servoIndices) do
             local member=w.data.servo_configurations.servos[servo]
             member.rate,member.mid=preset[1],preset[2]

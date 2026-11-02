@@ -44,8 +44,9 @@ return function(w)
       local previous = w.governorSpeeds or {}
       w.governorSpeeds = {}
       for index in pairs(w.governorChanged or {}) do w.governorSpeeds[index] = previous[index] end
-      local index = w.data.status.current_pid_profile_index
-      w:read("governor_profile", function(d)
+      -- Every configured profile's headspeed is read on entry; the loop selects each profile
+      -- and then the active one again, and writes nothing.
+      w:profileLoop("pid", #profiles, nil, profiles, function(d, index)
         if not (w.governorChanged and w.governorChanged[index]) then
           w.governorSpeeds[index] = d.governor_headspeed
         end
@@ -56,18 +57,6 @@ return function(w)
         if w.governorFilterLoaded then w.transition = nil; w.buildRequested = true; w:rebuild() end
       end)
     end
-  end
-  local function readAll()
-    if not governs() or w.transition then return end
-    w.transition = true
-    w:profileLoop("pid", #profiles, nil, profiles, function(d, index)
-      if not (w.governorChanged and w.governorChanged[index]) then
-        w.governorSpeeds[index] = d.governor_headspeed
-      end
-    end)
-    w:run(function()
-      w.transition = nil; w.buildRequested = true; w:rebuild()
-    end)
   end
   w.commit = function()
     local chosen = {}
@@ -100,10 +89,6 @@ return function(w)
       get = function() return mode() + 1 end, set = setMode }
   }, enter) }
   cards[1].summary = L.governorSummary
-  if governs() then
-    cards[1].rows[#cards[1].rows+1] = w:button(L.readAllProfiles, readAll,
-      function() return w.governorLoaded == true and not w.transition end)
-  end
   if mode()>0 or w.governorRpmFilter then
     cards[#cards+1]=w:cardDef(L.rpmSource, L.rpmSourceHint, {
       { kind = "choice", label = L.rpmSource, fullWidth = w.wideScreen, allowUnset = true, values = { L.rpmWire, L.bidirectionalDshot },

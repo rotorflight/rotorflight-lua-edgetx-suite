@@ -423,6 +423,8 @@ for _, size in ipairs({ {480,272},{480,320},{800,480} }) do
           end
           m.swash_type=3;w.swashRear=true;m.tail_rotor_mode=0
           check(string.find(picture() or "","/swash%-135%-rear%-tail%.png$")~=nil,"servo 1 behind and a servo tail show in the layout")
+          w.swashRear=nil
+          check(string.find(picture() or "","/swash%-135%-rear%-tail%.png$")~=nil,"servo 1 is shown at the rear until the pilot says otherwise")
           m.tail_rotor_mode,w.swashRear=tail,rear;m[field]=old
         end
       end

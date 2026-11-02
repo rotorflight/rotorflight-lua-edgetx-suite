@@ -370,25 +370,36 @@ function M.new(w, ctx, diagrams)
             value = r.get(), length = r.length or 16, active = enabled,
             set = function(v) w:applyEdit(function() if editable() then r.set(v) end end) end }
         else
-          local pendingEdit, pendingValue
-          local function get()
-            if pendingEdit and w.pendingEdit == pendingEdit and editable() then return pendingValue end
-            return r.get()
+          local function numberField(x, fieldW, field)
+            local pendingEdit, pendingValue
+            local function get()
+              if pendingEdit and w.pendingEdit == pendingEdit and editable() then return pendingValue end
+              return field.get()
+            end
+            local function set(v)
+              pendingEdit = function() if editable() then field.set(v) end end
+              pendingValue = v
+              w:applyEdit(pendingEdit)
+            end
+            -- update() reads get() when the native editor closes, before a queued
+            -- STATUS reply can authorize the final value. Keep that draft visible.
+            all[#all + 1] = { type = "numberEdit", x = x, y = y, w = fieldW, h = rowControlH,
+              min = r.min, max = r.max, get = get, set = set,
+              display = function(v)
+                if r.display then return r.display(v) end
+                if r.divisor then return string.format("%.1f", v / r.divisor) end
+                return tostring(v)
+              end, active = enabled }
           end
-          local function set(v)
-            pendingEdit = function() if editable() then r.set(v) end end
-            pendingValue = v
-            w:applyEdit(pendingEdit)
+          if r.kind == "pair" then
+            -- Two counts of one gear pair side by side, "a : b".
+            local half = math.floor((editW - 12) / 2)
+            numberField(formX+formW-editW, half, r.left)
+            all[#all + 1] = label(formX+formW-editW+half, y+3, 12, ":")
+            numberField(formX+formW-half, half, r.right)
+          else
+            numberField(formX+formW-editW, editW, r)
           end
-          -- update() reads get() when the native editor closes, before a queued
-          -- STATUS reply can authorize the final value. Keep that draft visible.
-          all[#all + 1] = { type = "numberEdit", x = formX+formW-editW, y = y, w = editW, h = rowControlH,
-            min = r.min, max = r.max, get = get, set = set,
-            display = function(v)
-              if r.display then return r.display(v) end
-              if r.divisor then return string.format("%.1f", v / r.divisor) end
-              return tostring(v)
-            end, active = enabled }
         end
       end
     end

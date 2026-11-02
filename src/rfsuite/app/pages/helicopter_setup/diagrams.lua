@@ -229,7 +229,7 @@ function M.append(children, w, card, x, y, width, height)
       -- swash_type 1..6 is Direct..90V (0, none, draws as Direct).
       local s = math.max(1, math.min(6, m.swash_type or 1))
       local name = "swash-" .. SWASH[s]
-      if s >= 2 and s <= 4 then name = name .. (w.swashRear and "-rear" or "-front") end
+      if s >= 2 and s <= 4 then name = name .. (w.swashRear ~= false and "-rear" or "-front") end
       if m.tail_rotor_mode == 0 then name = name .. "-tail" end
       return name
     end

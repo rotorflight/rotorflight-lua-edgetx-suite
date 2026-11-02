@@ -52,7 +52,8 @@ return function(w)
   local cards = { w:cardDef(L.swashType, L.swashTypeHint, {
     w:c("mixer_config", "swash_type", L.swashType, { L.direct, "120", "135", "140", "90L", "90V" }, true, true, 1),
     {kind="choice",label=L.servoOnePosition,values={L.frontPosition,L.rearPosition},
-      get=function() return w.swashRear and 2 or 1 end,
+      -- Servo 1 at the rear is the usual layout, so an unanswered choice shows it there.
+      get=function() return w.swashRear~=false and 2 or 1 end,
       set=function(v) w.swashRear=v==2 end,
       enabled=function() local s=w.data.mixer_config.swash_type;return s>=2 and s<=4 end}
   }, nil, "swashType"), w:cardDef(L.rotorDirection, L.rotorDirectionHint, {

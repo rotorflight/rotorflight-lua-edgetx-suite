@@ -8,6 +8,7 @@ return function(w)
   local function motor() return w.data.motor_telemetry and w.data.motor_telemetry.motors[1] end
   w.commit = function() w:fixMotor() end
   local protocol = w:enum("esc_sensor_config", "protocol", L.protocol, w:telemetryProtocols(), true)
+  local port=w:port(L.port,1024)
   local set = protocol.set
   protocol.set = function(v)
     local previous = w.data.esc_sensor_config.protocol
@@ -15,6 +16,8 @@ return function(w)
     if w.data.esc_sensor_config.protocol == previous then return end
     w.escParams,w.escAttempted,w.escResultKey,w.escBusy=nil,nil,nil,nil
     w.rangeChoice,w.rangeSource,w.escRangeExpected=nil,nil,nil
+    -- Turned on without a telemetry port: the first free port is taken, as the pilot would.
+    if previous == 0 and port.get() == 0 and port.values[1] ~= L.noPort then port.set(1) end
     if w.data.esc_sensor_config.protocol == 0 then
       for i=1,12 do
         local key="port_"..i.."_function_mask"
@@ -26,7 +29,6 @@ return function(w)
   end
   local castle=w.data.motor_config.motor_pwm_protocol==9
   protocol.enabled=function() return not castle and not w.trial and not w.escBusy end
-  local port=w:port(L.port,1024)
   port.enabled=function() return not castle and not w.trial and not w.escBusy and w.data.esc_sensor_config.protocol>0 end
   local cards={
     w:cardDef(L.connectBattery, L.telemetryBatteryHint, {}, nil, "esc"),
