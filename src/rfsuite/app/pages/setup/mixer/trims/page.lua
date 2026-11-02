@@ -411,6 +411,7 @@ function M.getHeaderActions()
     -- Switching the override on waits for this visit's read, as Save does (M.canSave below):
     -- until then the live write sends nothing. Switching it off is always offered.
     star = ui.inOverride or M.canSave(),
+    help = true,
     menu = true
   }
 end
@@ -479,7 +480,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_roll_trim",
+        "Swashplate roll trim; use it only when the linkages cannot be adjusted.")
     }
   )
 
@@ -498,7 +501,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_pitch_trim",
+        "Swashplate pitch trim; use it only when the linkages cannot be adjusted.")
     }
   )
 
@@ -517,7 +522,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_collective_trim",
+        "Swashplate collective trim; use it only when the linkages cannot be adjusted.")
     }
   )
 
@@ -537,7 +544,9 @@ function M.build(ctx)
           end
         end,
         display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-        suffix = "%"
+        suffix = "%",
+        helpText = pageText(i18n, "help_yaw_trim",
+          "Tail blade pitch at zero yaw command; the same value as Yaw Center Trim on the Tail page.")
       }
     )
   end

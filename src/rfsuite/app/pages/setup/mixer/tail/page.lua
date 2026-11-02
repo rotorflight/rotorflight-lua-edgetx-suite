@@ -375,6 +375,7 @@ function M.getHeaderActions()
   return {
     save = true,
     reload = true,
+    help = true,
     menu = true
   }
 end
@@ -446,7 +447,9 @@ function M.build(ctx)
           ui.runtime.requestRebuild()
         end
       end
-    end
+    end,
+    { helpText = pageText(i18n, "help_tail_rotor_mode",
+        "Variable pitch: a tail servo (Servo 4). Motorised: a tail motor (Motor 2). Bidirectional: a reversible tail motor. Changing it restarts the flight controller on Save.") }
   )
 
   -- 2) Yaw Direction
@@ -463,7 +466,9 @@ function M.build(ctx)
         ui.config.yaw_direction = newVal
         ui.dirty = true
       end
-    end
+    end,
+    { helpText = pageText(i18n, "help_yaw_direction",
+        "Reverse it when the tail moves the wrong way for a yaw input; it depends on the tail rotor direction and the servo or ESC setup.") }
   )
 
   local isMotor = isTailMotorizedMode()
@@ -474,6 +479,10 @@ function M.build(ctx)
   local trimMin = isMotor and -500 or -250
   local trimMax = isMotor and 500 or 250
   local trimSuffix = isMotor and "%" or "°"
+  local trimHelp = isMotor
+    and pageText(i18n, "help_tail_center_offset", "Tail motor throttle at zero yaw command.")
+    or pageText(i18n, "help_yaw_center_trim",
+      "Tail blade pitch at zero yaw command. With * on, the tail moves to it about half a second after the last change; Save stores it.")
   cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
     trimLabel,
     {
@@ -488,7 +497,8 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. trimSuffix end,
-      suffix = trimSuffix
+      suffix = trimSuffix,
+      helpText = trimHelp
     }
   )
 
@@ -507,7 +517,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_yaw_calibration",
+        "Yaw gain matched to the tail mechanics; usually 50-150% for a servo tail, and quite different for a motorised tail.")
     }
   )
 
@@ -528,7 +540,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
-      suffix = limitSuffix
+      suffix = limitSuffix,
+      helpText = pageText(i18n, "help_yaw_cw_limit",
+        "Limit for clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
     }
   )
 
@@ -547,7 +561,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
-      suffix = limitSuffix
+      suffix = limitSuffix,
+      helpText = pageText(i18n, "help_yaw_ccw_limit",
+        "Limit for counter-clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
     }
   )
 
@@ -567,7 +583,9 @@ function M.build(ctx)
           end
         end,
         display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-        suffix = "%"
+        suffix = "%",
+        helpText = pageText(i18n, "help_tail_motor_idle",
+          "Lowest throttle sent to the tail motor; set it just high enough that the motor does not stop.")
       }
     )
   end
