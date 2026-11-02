@@ -73,19 +73,21 @@ function rename(from, to)
   return 0
 end
 function getTime() return 100 end
+-- The card roots, as every Lua state of the suite has them before its first module loads.
+local PATHS = dofile("src/rfsuite/lib/paths.lua")
 function loadScript(path)
-  local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$") or path
+  local relative = string.sub(path, 1, #PATHS.core + 1) == PATHS.core .. "/" and string.sub(path, #PATHS.core + 2) or path
   return assert(loadfile("src/rfsuite/" .. relative))
 end
 
 local modules = {}
 local function require_(path)
   if modules[path] == nil then
-    modules[path] = assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path))()
+    modules[path] = assert(loadScript(PATHS.core .. "/" .. path))()
   end
   return modules[path]
 end
-_G.rfsuite = { require = require_, log_history = {}, log_history_seq = 0, session = {} }
+_G.rfsuite = { paths = PATHS, require = require_, log_history = {}, log_history_seq = 0, session = {} }
 -- No flight controller: the profile read and write find no queue and say so.
 modules["tasks/msp/runtime.lua"] = { getState = function() return nil end }
 
