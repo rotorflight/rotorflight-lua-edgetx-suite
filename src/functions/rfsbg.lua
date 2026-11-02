@@ -168,7 +168,7 @@ end
 local NO_PREFERENCES_FILE = "absent"
 
 --- The settings file as seen from outside -- its size and modification time -- or nil where
---- that cannot be established because the radio has no fstat.
+--- that cannot be established because the radio has no fstat. Answers the file's path as well.
 --
 -- The same two signals the service widget's and the dashboard's re-reads watch: this stamp, and
 -- the rotating reload request below. fstat answers the time as a table, so the stamp is built
@@ -182,15 +182,40 @@ local function preferencesStamp()
 
   local ok, info = pcall(fstat, path)
   if not ok then return nil end
-  if type(info) ~= "table" then return NO_PREFERENCES_FILE end
+  if type(info) ~= "table" then return NO_PREFERENCES_FILE, path end
 
   local t = info.time
   if type(t) ~= "table" then
-    return tostring(info.size) .. ":" .. tostring(t)
+    return tostring(info.size) .. ":" .. tostring(t), path
   end
   return string.format("%s:%s-%s-%s.%s.%s.%s",
     tostring(info.size), tostring(t.year), tostring(t.mon), tostring(t.day),
-    tostring(t.hour), tostring(t.min), tostring(t.sec))
+    tostring(t.hour), tostring(t.min), tostring(t.sec)), path
+end
+
+--- Whether a read that returned can be taken as the card's answer for the stamp taken before it.
+--
+-- A returned load is not yet a read: lib/config_store.lua answers the declared defaults rather
+-- than raising when the card does not hand the file over, and reads the former file in place of
+-- one it could not bring across. Kept, either would stand until the next save. So the signals are
+-- kept only where what was read matches what was there -- a file that was read, or no file and
+-- nothing read in its place -- and no former file is left on the card beside it, which is a
+-- bring-across (or the setting aside of the former file) still owed.
+local function readSettled(stamp, path, found)
+  if stamp == NO_PREFERENCES_FILE then
+    if found then return false end
+  elseif not found then
+    return false
+  end
+
+  local okStore, ConfigStore = pcall(loadModule, "lib/config_store.lua")
+  local legacy = okStore and type(ConfigStore) == "table" and type(ConfigStore.legacyPath) == "function"
+    and ConfigStore.legacyPath(path) or nil
+  if type(legacy) == "string" and legacy ~= path then
+    local ok, info = pcall(fstat, legacy)
+    if ok and type(info) == "table" then return false end
+  end
+  return true
 end
 
 --- The sizes of the reload request every save of the suite bumps (lib/model_preferences.lua),
@@ -230,12 +255,12 @@ end
 --
 -- - The first read of the state always happens, and it is the one that brings a card written
 --   by an earlier release across (lib/config_store.lua's migrate, allowed in this state).
--- - The signals are taken BEFORE the read and kept only once it has succeeded, so a write that
---   lands during the read is found on the next interval, and a read that raised is tried again
---   then.
+-- - The signals are taken BEFORE the read and kept only once it has settled (readSettled above),
+--   so a write that lands during the read is found on the next interval, and a read that raised,
+--   a file the card did not hand over and a bring-across still owed are tried again then, as
+--   every interval did before.
 -- - A settings file that is not on the card is kept as a state, so it is not read again until it
---   appears -- except where the read found the former file in its place: that is a bring-across
---   still owed (its write failed), and it is tried on every interval as before.
+--   appears.
 -- - A save that keeps the file's size and time is seen through the reload request.
 -- - Without fstat nothing can be told apart, so the file is read on every interval as before.
 local function refreshPreferences(now)
@@ -243,7 +268,7 @@ local function refreshPreferences(now)
   if lastPreferencesLoad and (now - lastPreferencesLoad) < PREFERENCES_INTERVAL_SECONDS then return end
   lastPreferencesLoad = now
 
-  local stamp = preferencesStamp()
+  local stamp, path = preferencesStamp()
   local seqs = reloadSequences()
   if stamp ~= nil and lastPreferencesStamp ~= nil
     and stamp == lastPreferencesStamp and not sequencesMoved(seqs) then
@@ -254,11 +279,10 @@ local function refreshPreferences(now)
   if ok and type(prefs) == "table" then
     _G.rfsuite = _G.rfsuite or {}
     _G.rfsuite.preferences = prefs
-    if stamp == NO_PREFERENCES_FILE and found then
-      -- Read from the former file: nothing is kept, so the bring-across is tried again.
-      lastPreferencesStamp, lastReloadSeqs = nil, nil
-    else
+    if stamp ~= nil and readSettled(stamp, path, found) then
       lastPreferencesStamp, lastReloadSeqs = stamp, seqs
+    else
+      lastPreferencesStamp, lastReloadSeqs = nil, nil
     end
   end
 end

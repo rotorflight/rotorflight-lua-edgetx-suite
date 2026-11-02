@@ -13,8 +13,10 @@
 --   3. no settings file on the card: the defaults are there, a missing file is not probed again
 --      on every interval, and the first save is picked up;
 --   4. a card from an earlier release: the former file is brought across on the first read, and a
---      bring-across whose write failed is tried again on the next interval;
---   5. a read that raised: nothing is adopted, and the next interval reads the change;
+--      bring-across whose write failed is tried again on the next interval -- also where an empty
+--      settings file stands in the new file's place;
+--   5. a read that raised, or a settings file the card did not hand over: nothing is adopted, and
+--      the next interval reads the file again;
 --   6. a write that keeps the file's size and time: the reload request beside it carries it;
 --   7. a radio without fstat: the file is read on every interval, as before;
 --   8. a settings file that does not compile: the defaults are used, it is not read again on every
@@ -47,6 +49,7 @@ local reads     -- path -> io.read calls
 local stats     -- fstat calls
 local failWrite -- path -> true: io.open(path, "w") answers nil
 local raiseRead -- path -> true: the next io.open(path, "r") raises
+local nilOpen   -- path -> true: the next io.open(path, "r") answers nil although the file is there
 local clock     -- getTime() ticks
 local frozenRtc -- a card time every write gets, for a radio without a running clock
 
@@ -60,7 +63,7 @@ end
 
 local function resetCard()
   files, opens, reads, stats = {}, {}, {}, 0
-  failWrite, raiseRead = {}, {}
+  failWrite, raiseRead, nilOpen = {}, {}, {}
   clock, frozenRtc = 1000, nil
 end
 
@@ -80,6 +83,10 @@ _G.io = {
     if raiseRead[path] then
       raiseRead[path] = nil
       error("simulated card error reading " .. path)
+    end
+    if nilOpen[path] then
+      nilOpen[path] = nil
+      return nil, "simulated card that did not answer"
     end
     local f = files[path]
     if not f then return nil, "not found" end
@@ -311,6 +318,28 @@ do
   check(adjustmentEvents() == true, "4: after the retried bring-across the value is still there")
 end
 
+do
+  -- An empty settings file in the new file's place: the store treats it as not there, so the
+  -- former file is still the one to bring across.
+  resetCard()
+  files[PREFS] = { data = "", time = cardTime() }
+  files[LEGACY] = { data = LEGACY_TEXT, time = cardTime() }
+  failWrite[PREFS .. ".tmp"] = true
+  failWrite[PREFS] = true
+  local script = boot()
+  runFor(script, 1)
+  check(files[PREFS].data == "" and files[LEGACY] ~= nil,
+    "4: with an empty settings file and the write refused the former file stays in place")
+  check(adjustmentEvents() == true, "4: with an empty settings file the former file's values are read")
+
+  failWrite = {}
+  local took = runUntil(script, INTERVAL + 1, function() return files[PREFS].data ~= "" end)
+  check(took ~= nil, "4: over an empty settings file a bring-across whose write failed is tried again"
+    .. " within one interval (took " .. tostring(took) .. ")")
+  check(files[LEGACY] == nil and adjustmentEvents() == true,
+    "4: over an empty settings file the retried bring-across sets the former file aside and keeps the value")
+end
+
 -- ------------------------------------------------------------------------------- 5
 
 do
@@ -330,6 +359,23 @@ do
   local took = runUntil(script, INTERVAL + 1, function() return adjustmentEvents() == true end)
   check(took ~= nil, "5: the interval after a read that raised reads the change (took "
     .. tostring(took) .. ")")
+end
+
+do
+  -- A save is seen, but on the interval that reads it the card does not hand the file over: the
+  -- store answers the declared defaults without raising.
+  resetCard()
+  toolSave(function(p) p.audio_events.adjustment_events = false end)
+  local script = boot()
+  runFor(script, 2 * INTERVAL + 1)
+
+  toolSave(function(p) p.audio_events.adjustment_events = true end)
+  nilOpen[PREFS] = true
+  local missed = runUntil(script, INTERVAL + 1, function() return nilOpen[PREFS] == nil end)
+  check(missed ~= nil, "5: the read on the next interval is the one the card does not answer (control)")
+  local took = runUntil(script, INTERVAL + 1, function() return adjustmentEvents() == true end)
+  check(took ~= nil, "5: after a settings file the card did not hand over, the next interval reads it"
+    .. " again (took " .. tostring(took) .. ")")
 end
 
 -- ------------------------------------------------------------------------------- 6
