@@ -43,9 +43,24 @@ function M.wakeup(carry)
         Smart = loadModule("tasks/events/telemetry_bg/smart.lua") or false
         return
     end
+    -- The teller only while adjustment announcements are on, which they are not by default; the
+    -- switch is read again on every pass until then, so turning it on loads it on a pass of its
+    -- own. The in-flight tuning overlay may have loaded it already for its own speech, and that
+    -- one instance is taken over rather than loaded again, so the step-aside reset below still
+    -- reaches it.
     if Adjustments == nil then
-        Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua") or false
-        return
+        local root = _G.rfsuite
+        local shared = root and root.adjustmentAnnouncer
+        if type(shared) == "table" then
+            Adjustments = shared
+        else
+            local prefs = root and root.preferences
+            local events = prefs and prefs.audio_events
+            if events and events.adjustment_events == true then
+                Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua") or false
+                return
+            end
+        end
     end
 
     local now = nowSeconds()
@@ -82,7 +97,7 @@ function M.wakeup(carry)
     end
 
     -- After the decode, never before it: what the teller reads is what the drain has just
-    -- published, so the other order would announce one pass behind.
+    -- decoded, so the other order would announce one pass behind.
     --
     -- The teller is reset when it steps aside, so that when it takes over again it starts as a
     -- new teller does: a report still standing at that moment is one the script has already

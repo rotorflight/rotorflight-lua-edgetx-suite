@@ -653,6 +653,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/telemetry/verify_telemetry_sync_slots.lua
 
+  adjustment-teller-source:
+    name: Adjustment teller from the decoder
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/telemetry/verify_adjustment_teller_source.lua
+
   power-saves:
     name: Power page saves
     runs-on: ubuntu-latest

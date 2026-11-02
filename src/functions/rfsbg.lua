@@ -107,8 +107,30 @@ local function init()
   -- such module and this script must still run against it.
   pcall(function() return loadModule("lib/config_store.lua").allowMigration() end)
   Drain = loadModule("tasks/events/telemetry_bg/drain.lua")
-  Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua")
   initialized = true
+end
+
+-- The adjustment teller, loaded the first time adjustment announcements are on and never before.
+--
+-- Not in init() above, for the reason the card sink below is not: the setting is off on a shipped
+-- radio, and a module this state never calls should not sit in a heap the firmware bills against
+-- the same ceiling as every widget. Read through the preferences this state reloads, so turning
+-- it on in the tool takes effect with that reload. The pass that loads it does nothing else with
+-- it; a teller that starts then joins whatever report is standing, as one loaded at init would.
+--
+-- Once loaded it stays; switched off again, the teller itself goes quiet. A failed load is not
+-- asked for again on every cycle.
+local function ensureTeller()
+  if Adjustments ~= nil then
+    return Adjustments or nil
+  end
+  local prefs = _G.rfsuite and _G.rfsuite.preferences
+  local events = type(prefs) == "table" and prefs.audio_events or nil
+  if not (type(events) == "table" and events.adjustment_events == true) then
+    return nil
+  end
+  Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua") or false
+  return nil
 end
 
 -- What this state writes to the card is a DEBUG-level record, and it is gated like one.
@@ -295,9 +317,10 @@ local function run()
   end
 
   -- After the decode, never before it: what the teller reads is what the drain has just
-  -- published, so the other order would announce one pass behind.
-  if Adjustments and type(Adjustments.wakeup) == "function" then
-    Adjustments.wakeup()
+  -- decoded, so the other order would announce one pass behind.
+  local teller = ensureTeller()
+  if teller and type(teller.wakeup) == "function" then
+    teller.wakeup()
   end
 
   local sink = ensureLogSink()
