@@ -65,7 +65,7 @@ flowchart LR
     S2 --> S3
     subgraph S4["4. Profiles #amp; gain"]
       direction TB
-      S4c0["<b>Profiles #amp; gain</b><br/>sets: Profile switch<br/>reads: Detected positions, MSP status, MSP r...<br/>writes: adjustment_ranges, set_adjustment_range"]:::k3
+      S4c0["<b>Profiles #amp; gain</b><br/>sets: Profile switch<br/>reads: Detected positions, MSP rescue_profil...<br/>writes: adjustment_ranges, set_adjustment_ran..."]:::k3
       S4c1["<b>Master gain</b><br/>sets: Method<br/>reads: Channel, Gain now"]:::k0
       S4c0 --> S4c1
       S4c2["<b>Trim-button guide</b><br/>reads: Cyclic gain down, Cyclic gain up, Yaw..."]:::k1
@@ -74,6 +74,8 @@ flowchart LR
       S4c2 --> S4c3
       S4c4["<b>Channel use</b>"]:::k4
       S4c3 --> S4c4
+      S4c5["<b>Rescue</b><br/>sets: Rescue mode enable, Flip to upright<br/>reads: Rescue switch, MSP rescue_profile<br/>writes: rescue_profile"]:::k3
+      S4c4 --> S4c5
     end
     S3 --> S4
     subgraph S5["5. Rates"]
@@ -329,7 +331,7 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | 1. Board orientation | Board orientation<br/>Calibrate the accelerometer<br/>Check orientation | Roll<br/>Pitch<br/>Yaw | All blades removed<br/>Servos unplugged<br/>Direction is correct | status<br/>attitude<br/>servo<br/>board_auto_align | acc_calibration<br/>board_auto_align<br/>board_alignment_config.roll_degrees<br/>board_alignment_config.pitch_degrees<br/>board_alignment_config.yaw_degrees | same |
 | 2. Receiver | Receiver<br/>Channel order<br/>Check sticks<br/>Throttle range<br/>ELRS link | Protocol<br/>Advanced<br/>Standard channel order<br/>Minimum (us)<br/>Maximum (us) | — | status<br/>servo<br/>rx_channels | rx_config.serialrx_provider<br/>rx_config<br/>feature_config<br/>feature_config.enabledFeatures<br/>rx_map<br/>rc_config.rc_min_throttle<br/>rc_config.rc_max_throttle | same |
 | 3. Mode switches | Arm switch<br/>Rescue switch<br/>Trainer switch<br/>Switches done | — | — | status<br/>rc<br/>servo | mode_ranges<br/>set_mode_range<br/>set_adjustment_range | same |
-| 4. Profiles & gain | Profiles & gain<br/>Master gain<br/>Trim-button guide<br/>Channel use | Profile switch<br/>Method | — | status<br/>rc<br/>servo | adjustment_ranges<br/>set_adjustment_range | same |
+| 4. Profiles & gain | Profiles & gain<br/>Master gain<br/>Trim-button guide<br/>Channel use<br/>Rescue | Profile switch<br/>Method<br/>Rescue mode enable<br/>Flip to upright | — | rescue_profile<br/>status<br/>rc<br/>servo | adjustment_ranges<br/>set_adjustment_range<br/>set_pid_profile<br/>rescue_profile<br/>rescue_profile.rescue_mode<br/>rescue_profile.rescue_flip_mode | same |
 | 5. Rates | Switch position {n} · rate profile {n} / Rate profile {n}<br/>Rates set | — | — | rc_tuning<br/>status<br/>servo | set_pid_profile<br/>rc_tuning | same |
 | 6. Swashplate | Swash type<br/>Rotor direction<br/>Tail type<br/>Swashplate set | Swash type<br/>Servo 1<br/>Rotor direction<br/>Tail type | — | governor_profile<br/>status<br/>servo | tail_motor_output.action<br/>mixer_input<br/>mixer_config.swash_type<br/>mixer_input.rate<br/>set_pid_profile<br/>governor_profile<br/>governor_profile.governor_tta_gain<br/>mixer_config.main_rotor_dir<br/>mixer_config.tail_rotor_mode | same |
 | 7. Servo type | Swash servos<br/>Tail servo<br/>Servo type | Geometry correction<br/>Swash servos<br/>Tail servo | Servos unplugged | status<br/>servo | servo_configurations<br/>servo_configurations.mid<br/>servo_configurations.min<br/>servo_configurations.max<br/>servo_configurations.rneg<br/>servo_configurations.rpos<br/>servo_configurations.rate<br/>servo_configurations.flags | same |
@@ -346,4 +348,4 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | 18. Gyro check | Roll<br/>Pitch<br/>Yaw | — | Corrects against movement | status<br/>servo | — | same |
 | 19. Finish | Finish | — | Final checks understood | status<br/>servo | — | same |
 
-Diagram: 97 nodes; 19 numbered steps plus the model card.
+Diagram: 98 nodes; 19 numbered steps plus the model card.

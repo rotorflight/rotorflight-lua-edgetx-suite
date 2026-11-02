@@ -7,6 +7,9 @@ local READS = { "status", "boxids", "mode_ranges", "mode_ranges_extra", "adjustm
   "battery_config", "battery_profile", "smartfuel_config" }
 local STEPS = { "sensors", "receiver", "modes", "profiles", "rates", "swash", "servoType", "governor", "motor",
   "connect", "escTelemetry", "throttle", "servos", "direction", "level", "pitch", "tail", "gyro", "finish" }
+-- The per-profile APIs (profileLoop's kinds pid, rates and rescue). These are written by the
+-- loop itself, never by the generic dirty-API save.
+local PROFILE_APIS = { governor_profile = true, rc_tuning = true, rescue_profile = true }
 local function copy(v)
   if type(v) ~= "table" then return v end
   local out = {}; for k, x in pairs(v) do out[k] = copy(x) end; return out
@@ -439,7 +442,7 @@ function M.new(runtime, transport, mathModule, labels)
     -- A nil apply reads profiles without profile writes or rollback snapshots; selection still restores.
     local status = self.data.status
     local original = kind == "rates" and status.current_control_rate_profile_index + 128 or status.current_pid_profile_index
-    local api = kind == "rates" and "rc_tuning" or "governor_profile"
+    local api = kind == "rates" and "rc_tuning" or kind == "rescue" and "rescue_profile" or "governor_profile"
     self.restoreProfile = original
     for i = 0, math.min(indexes and #indexes or count, 6) - 1 do
       local index = indexes and indexes[i+1] or i
@@ -473,7 +476,7 @@ function M.new(runtime, transport, mathModule, labels)
     self:release()
     if self.commit then self.commit() end
     for api in pairs(self.dirty) do
-      if api ~= "rc_tuning" and api ~= "governor_profile" and api ~= "tail_motor_output" then self:sendDirty(api) end
+      if not PROFILE_APIS[api] and api ~= "tail_motor_output" then self:sendDirty(api) end
     end
     local written
     self:write("eeprom_write", {}, function()
@@ -525,7 +528,11 @@ function M.new(runtime, transport, mathModule, labels)
       if self.escParams then self.escParams.block = nil end
       self.escAttempted,self.escBusy,self.escResultKey=nil,nil,nil
     end
-    if step == 4 then self.profile = nil end
+    if step == 4 then
+      self.profile = nil
+      -- Staged rescue settings stay until saved or discarded; read anew otherwise.
+      if self.rescue and not self.rescue.chosen then self.rescue = nil end
+    end
     if step == 5 then self.rateStyles, self.rateLoaded = {}, nil end
     if step == 8 then self.governorLoaded, self.governorFilterLoaded = nil, nil end
     -- Stick travel is measured anew on every visit to the receiver step.
@@ -655,7 +662,7 @@ function M.new(runtime, transport, mathModule, labels)
     for kind, profiles in pairs(self.profileOriginal or {}) do
       for index, original in pairs(profiles) do
         self:action("set_pid_profile", { index + (kind == "rates" and 128 or 0) })
-        self:write(kind == "rates" and "rc_tuning" or "governor_profile", original)
+        self:write(kind == "rates" and "rc_tuning" or kind == "rescue" and "rescue_profile" or "governor_profile", original)
       end
       local status = self.data.status
       self:action("set_pid_profile", { kind == "rates" and status.current_control_rate_profile_index + 128 or status.current_pid_profile_index })
@@ -664,7 +671,7 @@ function M.new(runtime, transport, mathModule, labels)
       if self.saved[api] then
         if api == "tail_motor_output" then
           self:write(api, { action = self.saved[api].output + 1 })
-        elseif api ~= "rc_tuning" and api ~= "governor_profile" then self:sendDirty(api, self.saved) end
+        elseif not PROFILE_APIS[api] then self:sendDirty(api, self.saved) end
       end
     end
     if after then
@@ -680,6 +687,7 @@ function M.new(runtime, transport, mathModule, labels)
         self.pitchFull,self.pitchFullChanged,self.rateProfile,self.rateLoaded=nil,nil,nil,nil
         self.rateStyles,self.rateTunings,self.rateMatched=nil,nil,nil
         self.governorLoaded,self.governorSpeeds,self.governorChanged,self.governorFilterLoaded=nil,nil,nil,nil
+        self.rescue=nil
         self.startTail=self.data.mixer_config.tail_rotor_mode
         self.rebootPending, self.transition = self.savedRebootPending, nil
         if self.logInfo then self:log("info", "discard done") end
@@ -705,6 +713,7 @@ function M.new(runtime, transport, mathModule, labels)
     self.preparationDone,self.preparationCard=nil,nil
     self.tailPinRefused,self.tailPinNotice,self.stayNotice=nil,nil,nil
     self.governorLoaded,self.governorSpeeds,self.governorChanged,self.governorFilterLoaded=nil,nil,nil,nil
+    self.rescue=nil
     self.data.battery_config, self.data.battery_profile, self.data.smartfuel_config = nil, nil, nil
     self.data.analog, self.analogAt = nil, nil
     self.statusQueued, self.statusWaiting, self.beforeStatusWait = nil, nil, nil

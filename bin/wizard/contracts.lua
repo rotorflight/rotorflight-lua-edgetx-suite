@@ -1661,6 +1661,60 @@ return function(h)
     end
     eq(count,1,id.." writes "..name.." once")
   end
+  case("S04.rescue-every-profile",function()
+    local w=world();settle(w);w.step=4
+    w.data.status.pid_profile_count=3
+    local selected=w.data.status.current_pid_profile_index
+    local original=selected
+    local api=load("tasks/msp/api/rescue_profile.lua")
+    local records={}
+    for i=0,2 do
+      local record={};for n,v in ipairs(api.simulatorResponse) do record[n]=v end
+      record[1],record[2]=i==1 and 0 or 1,0
+      records[i]=record
+    end
+    local fixtures=h.fixtures
+    fixtures[210]=function(m) selected=m.payload[1];return {} end
+    fixtures[146]=function() return records[selected] end
+    fixtures[147]=function(m) records[selected]=m.payload;return {} end
+    local ranges=w.data.mode_ranges.mode_ranges
+    for _,r in ipairs(ranges) do if r.id==53 then r.range.start,r.range["end"]=900,900 end end
+    local function rescueCard(c) for _,card in ipairs(c) do if card.title==L.rescueName then return card end end end
+    q.sent={}
+    local queued=#w.bus.jobs
+    local c=step(w,"profiles");local card=rescueCard(c)
+    check(card~=nil and c[#c]==card,"S04 rescue is the last card of the profiles step")
+    eq(#w.bus.jobs,queued,"S04 rescue build queues no MSP reads")
+    check(not card.rows[1].enabled(),"S04 rescue waits for the per-profile read")
+    card.enter();settle(w);c=step(w,"profiles");card=rescueCard(c)
+    eq(selected,original,"S04 rescue read selects the active profile again")
+    eq(card.rows[1].get(),original==1 and 1 or 2,"S04 rescue shows the active profile")
+    eq(card.rows[3].get(),L.rescueNoSwitch,"S04 rescue names the missing switch")
+    check(not card.rows[1].enabled(),"S04 rescue needs a rescue switch")
+    card.rows[1].set(1);check(not w.dirty.rescue_profile,"S04 rescue without a switch stages nothing")
+    local slot=ranges[1];slot.id,slot.auxChannelIndex,slot.range.start,slot.range["end"]=53,2,1700,2100
+    check(card.rows[1].enabled(),"S04 rescue with a switch can be set")
+    eq(card.rows[3].get(),"CH"..w:channelNumber(2),"S04 rescue names the switch channel")
+    card.rows[1].set(2)
+    check(card.rows[2].enabled(),"S04 flip is offered while rescue is on")
+    card.rows[2].set(2)
+    check(w.dirty.rescue_profile,"S04 rescue change is staged for save")
+    for i=0,2 do eq(records[i][2],0,"S04 nothing written before save "..i) end
+    q.sent={};w:save();settle(w)
+    for i=0,2 do
+      eq(records[i][1],1,"S04 rescue on written to profile "..i)
+      eq(records[i][2],1,"S04 flip written to profile "..i)
+      eq(records[i][3],api.simulatorResponse[3],"S04 other rescue fields kept on profile "..i)
+    end
+    eq(selected,original,"S04 rescue save selects the active profile again")
+    eq(card.rows[2].get(),2,"S04 saved rescue setting is shown")
+    card.rows[1].set(1)
+    check(not card.rows[2].enabled(),"S04 flip is not offered while rescue is off")
+    w:discard(function() end);settle(w)
+    for i=0,2 do eq(records[i][1],1,"S04 discard writes nothing to profile "..i) end
+    check(w.rescue==nil,"S04 discard drops the staged rescue setting")
+    fixtures[146],fixtures[147],fixtures[210]=nil,nil,nil
+  end)
   case("S05.profile-cards-and-save",function()
     local w=world();settle(w);w.step=5
     local ranges=w.data.adjustment_ranges.adjustment_ranges

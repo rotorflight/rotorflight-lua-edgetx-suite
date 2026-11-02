@@ -81,7 +81,13 @@ def resolve(ts, env):
         if len(parts) > 1:
             first = resolve(parts[0], {})
             if first and first[0].value in ('false', 'nil') and len(first) == 1:
-                return resolve([t for part in parts[1:] for t in part], {}) if len(parts) == 2 else out
+                # A false first alternative leaves the rest of the chain: a and x or b and y or z.
+                rest = []
+                for part in parts[1:]:
+                    if rest:
+                        rest.append(Token('or', part[0].offset, part[0].line))
+                    rest.extend(part)
+                return resolve(rest, {})
             if literal(first) is not None or (len(first)==1 and first[0].value == 'true'):
                 return first
         parts = p.split(0, len(out), 'and')

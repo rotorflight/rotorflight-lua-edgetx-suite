@@ -174,5 +174,56 @@ return function(w)
     if #rows==7 then addPlan() end
   end
   if #rows>0 then addPlan() end
+  -- Rescue: on or off, and whether it flips the helicopter upright. The flight controller keeps
+  -- these per PID profile; the wizard sets every profile the same way and shows the active one.
+  local function rescueSwitch()
+    for _,r in ipairs(w.data.mode_ranges.mode_ranges) do
+      if r.id==53 and r.range.start<r.range["end"] then return r end
+    end
+  end
+  local function rescueGet(i)
+    local r=w.rescue
+    if not (r and r.loaded) then return nil end
+    return (r.chosen or r.value)[i]
+  end
+  local function rescueSet(i,value)
+    local r=w.rescue
+    if not (r and r.loaded) or not rescueSwitch() or rescueGet(i)==value then return end
+    r.chosen=r.chosen or {rescueGet(1) or 0,rescueGet(2) or 0}
+    r.chosen[i]=value;w:touch("rescue_profile")
+    w.buildRequested=true;w:rebuild()
+  end
+  -- Only the active profile is read for display; the save loop reads each profile before it
+  -- writes it, so every other rescue field is kept.
+  local function rescueEnter()
+    if w.rescue or w.transition then return end
+    w.rescue={};w.transition=true
+    w:read("rescue_profile",function(d) w.rescue.value={d.rescue_mode,d.rescue_flip_mode} end)
+    w:run(function() w.rescue.loaded=true;w.transition=nil;w.buildRequested=true;w:rebuild() end)
+  end
+  local function rescueReady() return w.rescue~=nil and w.rescue.loaded==true and rescueSwitch()~=nil end
+  local rescueCard=w:cardDef(L.rescueName,L.rescueHint,{
+    {kind="choice",label=L.rescueEnable,values={L.off,L.on},allowUnset=true,
+      get=function() local v=rescueGet(1);return v and v+1 or 0 end,
+      set=function(v) rescueSet(1,v-1) end,enabled=rescueReady},
+    {kind="choice",label=L.rescueFlip,values={L.no,L.yes},allowUnset=true,
+      get=function() local v=rescueGet(2);return v and v+1 or 0 end,
+      set=function(v) rescueSet(2,v-1) end,enabled=function() return rescueReady() and rescueGet(1)==1 end},
+    w:value(L.rescue,function()
+      local r=rescueSwitch()
+      return r and "CH"..w:channelNumber(r.auxChannelIndex) or L.rescueNoSwitch
+    end)
+  },rescueEnter)
+  rescueCard.summary=L.rescueSummary
+  cards[#cards+1]=rescueCard
+  w.commit=function()
+    local r=w.rescue
+    if not (r and r.chosen) then return end
+    local c=r.chosen
+    w:profileLoop("rescue",w.data.status.pid_profile_count,function(d)
+      d.rescue_mode=c[1];d.rescue_flip_mode=c[2]
+    end)
+    w:run(function() r.value,r.chosen={c[1],c[2]},nil end)
+  end
   return cards
 end

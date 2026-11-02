@@ -64,7 +64,7 @@ local byCommand = {}
 for _, name in ipairs({ "board_info","telemetry_config","status","boxnames","boxids","mode_ranges","mode_ranges_extra","adjustment_ranges",
   "feature_config","board_alignment_config","serial_config","rx_map","rx_config","rc_config","motor_config",
   "esc_sensor_config","governor_config","mixer_config","mixer_input","servo_configurations","servo","rc_tuning",
-  "battery_config","battery_profile","smartfuel_config","analog","tail_motor_output","governor_profile","filter_config","rpm_filter_v2","rc","attitude","motor","motor_telemetry","rx_channels","rc_command" }) do
+  "battery_config","battery_profile","smartfuel_config","analog","tail_motor_output","governor_profile","rescue_profile","filter_config","rpm_filter_v2","rc","attitude","motor","motor_telemetry","rx_channels","rc_command" }) do
   local a = api(name); byCommand[a.command] = a
 end
 local defaultRx, rxSweep = fixtures[114], false
