@@ -551,8 +551,10 @@ function M.build(ctx)
   end
 
   local displayTitle = ui.baseTitle or getBaseTitle()
-  -- While the override holds the tail, only the trim can be edited: the rest stays as read, so
-  -- the live write -- the whole record -- changes nothing but the trim.
+  -- While the override holds the tail, the page shows the trim and nothing else: the rest stays as
+  -- read, so the live write -- the whole record -- changes nothing but the trim. The other rows are
+  -- left out rather than drawn disabled: after the rebuild the focus lands on the first control, and
+  -- a disabled one there holds EXIT, so the page could not be left until the rotary was turned.
   local locked = overrideActive()
   if locked then
     displayTitle = displayTitle .. " *"
@@ -579,54 +581,55 @@ function M.build(ctx)
 
   cursorY = cursorY + 10
 
-  -- 1) Tail Mode
-  local tailModeChoices = {
-    { value = 0, label = pageText(i18n, "tbl_tail_variable_pitch", "Variable Pitch") },
-    { value = 1, label = pageText(i18n, "tbl_tail_motororized_tail", "Motorized Tail") },
-    { value = 2, label = pageText(i18n, "tbl_tail_bidirectional", "Bidirectional Motor") }
-  }
-  cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
-    pageText(i18n, "tail_rotor_mode", "Tail Mode"),
-    tailModeChoices,
-    ui.config.tail_rotor_mode,
-    function(newVal)
-      if ui.config.tail_rotor_mode ~= newVal then
-        ui.config.tail_rotor_mode = newVal
-        -- A tail mode change starts Yaw Calibration from the value that mode is set up with, as
-        -- the Rotorflight Configurator does on the same change: 100 % for a motorised or
-        -- bidirectional tail, 25 % for variable pitch. The direction is kept.
-        ui.config.yaw_calibration = (newVal >= 1) and 1000 or 250
-        ui.dirty = true
-        if type(ui.runtime.requestRebuild) == "function" then
-          ui.runtime.requestRebuild()
+  if not locked then
+    -- 1) Tail Mode
+    local tailModeChoices = {
+      { value = 0, label = pageText(i18n, "tbl_tail_variable_pitch", "Variable Pitch") },
+      { value = 1, label = pageText(i18n, "tbl_tail_motororized_tail", "Motorized Tail") },
+      { value = 2, label = pageText(i18n, "tbl_tail_bidirectional", "Bidirectional Motor") }
+    }
+    cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+      pageText(i18n, "tail_rotor_mode", "Tail Mode"),
+      tailModeChoices,
+      ui.config.tail_rotor_mode,
+      function(newVal)
+        if ui.config.tail_rotor_mode ~= newVal then
+          ui.config.tail_rotor_mode = newVal
+          -- A tail mode change starts Yaw Calibration from the value that mode is set up with, as
+          -- the Rotorflight Configurator does on the same change: 100 % for a motorised or
+          -- bidirectional tail, 25 % for variable pitch. The direction is kept.
+          ui.config.yaw_calibration = (newVal >= 1) and 1000 or 250
+          ui.dirty = true
+          if type(ui.runtime.requestRebuild) == "function" then
+            ui.runtime.requestRebuild()
+          end
         end
-      end
-    end,
-    { active = not locked,
-      helpText = pageText(i18n, "help_tail_rotor_mode",
-        "A tail servo (Servo 4), a tail motor (Motor 2) or a reversible tail motor; changing it restarts the flight controller on Save.") }
-  )
+      end,
+      { helpText = pageText(i18n, "help_tail_rotor_mode",
+          "A tail servo (Servo 4), a tail motor (Motor 2) or a reversible tail motor; changing it restarts the flight controller on Save.") }
+    )
 
-  -- 2) Yaw Direction
-  local dirChoices = {
-    { value = 0, label = pageText(i18n, "tbl_reversed", "Reversed") },
-    { value = 1, label = pageText(i18n, "tbl_normal", "Normal") }
-  }
-  cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
-    pageText(i18n, "yaw_direction", "Yaw Direction"),
-    dirChoices,
-    ui.config.yaw_direction,
-    function(newVal)
-      if ui.config.yaw_direction ~= newVal then
-        ui.config.yaw_direction = newVal
-        ui.dirty = true
-        afterEdit()
-      end
-    end,
-    { active = not locked,
-      helpText = pageText(i18n, "help_yaw_direction",
-        "Reverse it when the tail moves the wrong way for a yaw input; it depends on the tail rotor direction and the servo or ESC setup.") }
-  )
+    -- 2) Yaw Direction
+    local dirChoices = {
+      { value = 0, label = pageText(i18n, "tbl_reversed", "Reversed") },
+      { value = 1, label = pageText(i18n, "tbl_normal", "Normal") }
+    }
+    cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+      pageText(i18n, "yaw_direction", "Yaw Direction"),
+      dirChoices,
+      ui.config.yaw_direction,
+      function(newVal)
+        if ui.config.yaw_direction ~= newVal then
+          ui.config.yaw_direction = newVal
+          ui.dirty = true
+          afterEdit()
+        end
+      end,
+      { helpText = pageText(i18n, "help_yaw_direction",
+          "Reverse it when the tail moves the wrong way for a yaw input; it depends on the tail rotor direction and the servo or ESC setup.") }
+    )
+
+  end
 
   local isMotor = isTailMotorizedMode()
 
@@ -659,6 +662,7 @@ function M.build(ctx)
       helpText = trimHelp
     }
   )
+  if locked then return end
 
   -- 4) Yaw Calibration
   cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
@@ -676,7 +680,6 @@ function M.build(ctx)
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
       suffix = "%",
-      enabled = not locked,
       edited = afterEdit,
       helpText = pageText(i18n, "help_yaw_calibration",
         "Yaw gain matched to the tail mechanics; usually 50-150% for a servo tail, and quite different for a motorised tail.")
@@ -701,7 +704,6 @@ function M.build(ctx)
       end,
       display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
       suffix = limitSuffix,
-      enabled = not locked,
       edited = afterEdit,
       helpText = pageText(i18n, "help_yaw_cw_limit",
         "Limit for clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
@@ -724,7 +726,6 @@ function M.build(ctx)
       end,
       display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
       suffix = limitSuffix,
-      enabled = not locked,
       edited = afterEdit,
       helpText = pageText(i18n, "help_yaw_ccw_limit",
         "Limit for counter-clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
@@ -748,7 +749,6 @@ function M.build(ctx)
         end,
         display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
         suffix = "%",
-        enabled = not locked,
         edited = afterEdit,
         helpText = pageText(i18n, "help_tail_motor_idle",
           "Lowest throttle sent to the tail motor; set it just high enough that the motor does not stop.")
@@ -801,7 +801,7 @@ function M.onStar(ctx)
   if switchingOn then
     title = pageText(i18n, "enable_tail_override", "Enable tail override")
     message = pageText(i18n, "enable_tail_override_message",
-      "The flight controller holds the yaw input at centre while the trim is set. Changes are sent live; Save stores them.\n\nThe other settings are locked while it is on.")
+      "The flight controller holds the yaw input at centre while the trim is set. Changes are sent live; Save stores them.\n\nOnly the trim is shown while it is on.")
   else
     title = pageText(i18n, "disable_tail_override", "Disable tail override")
     message = pageText(i18n, "disable_tail_override_message", "Return the yaw input to the flight controller.")

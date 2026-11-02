@@ -40,7 +40,8 @@ Mode changes how they read (degrees or percent), not what Save writes.
 1. Make sure the page shows the tail as the flight controller has it: Tail Mode *Variable Pitch*
    and nothing edited. Otherwise `*` is greyed out; Save or Reload first.
 2. Press `*` and confirm. The flight controller holds the yaw input at centre, and the title
-   shows a `*`. Every setting except Yaw Center Trim is locked.
+   shows a `*`. The page shows only Yaw Center Trim until `*` is pressed again or the page is
+   left; the other settings stay as they are.
 3. Change Yaw Center Trim until the tail blades sit at zero pitch. About half a second after the
    last change, the value is sent to the flight controller, which applies it at once without
    writing it to EEPROM.

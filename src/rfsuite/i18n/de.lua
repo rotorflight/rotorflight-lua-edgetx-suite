@@ -385,7 +385,7 @@ return {
         help_collective_trim = "Kollektiv-Trimmung der Taumelscheibe; nur nutzen, wenn sich die Anlenkungen nicht verstellen lassen.",
         help_yaw_trim = "Heckblattwinkel bei Heckeingang null; derselbe Wert wie die Heck-Mitten-Trimmung auf der Heck-Seite.",
         enable_tail_override = "Heck-Override aktivieren",
-        enable_tail_override_message = "Der Flugcontroller hält den Heckeingang in der Mitte, während die Trimmung eingestellt wird. Änderungen werden sofort gesendet; Speichern übernimmt sie.\n\nDie übrigen Einstellungen sind solange gesperrt.",
+        enable_tail_override_message = "Der Flugcontroller hält den Heckeingang in der Mitte, während die Trimmung eingestellt wird. Änderungen werden sofort gesendet; Speichern übernimmt sie.\n\nSolange wird nur die Trimmung angezeigt.",
         disable_tail_override = "Heck-Override deaktivieren",
         disable_tail_override_message = "Den Heckeingang wieder an den Flugcontroller übergeben.",
         override_armed_unknown = "Der Flugcontroller meldet nicht, ob er scharf ist. Sicherstellen, dass sich die Rotoren nicht drehen können."

@@ -192,11 +192,14 @@ do
   clearQueue()
 
   build(page)
-  equal(fields["Tail Mode"].opts.active, false, "tail: Tail Mode locked while the override is on")
-  equal(fields["Yaw Direction"].opts.active, false, "tail: Yaw Direction locked")
-  equal(fields["Yaw Calibration"].opts.enabled, false, "tail: Yaw Calibration locked")
-  equal(fields["Yaw CW Limit"].opts.enabled, false, "tail: Yaw CW Limit locked")
-  check(fields["Yaw Center Trim"].opts.enabled ~= false, "tail: Yaw Center Trim stays editable")
+  -- Only the trim is drawn: a disabled control that takes the focus after the rebuild holds EXIT.
+  equal(fields["Tail Mode"], nil, "tail: Tail Mode not drawn while the override is on")
+  equal(fields["Yaw Direction"], nil, "tail: Yaw Direction not drawn")
+  equal(fields["Yaw Calibration"], nil, "tail: Yaw Calibration not drawn")
+  equal(fields["Yaw CW Limit"], nil, "tail: Yaw CW Limit not drawn")
+  equal(fields["Yaw CCW Limit"], nil, "tail: Yaw CCW Limit not drawn")
+  check(fields["Yaw Center Trim"] ~= nil and fields["Yaw Center Trim"].opts.enabled ~= false,
+    "tail: Yaw Center Trim drawn and editable")
 
   -- 12 = 1.2 degrees -> raw round(12 * 100 / 24) = 50
   fields["Yaw Center Trim"].opts.set(12)
