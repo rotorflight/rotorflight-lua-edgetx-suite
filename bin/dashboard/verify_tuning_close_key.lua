@@ -29,8 +29,8 @@
 --   rtnfs6   the same with six passes (the full-screen theme built before the exit)
 -- Each counts the builds that complete after the surface is left and records their keys. Expected:
 -- exactly one, carrying the moved bounds. The control moves nothing and expects one build as well.
--- Two more cases check that a theme without a key of its own stays on the 2 Hz throttle (see
--- zoneViewCase below).
+-- Three more cases check that a theme without a key of its own stays on the 2 Hz throttle, and
+-- that a key of false is still told from nil (see zoneViewCase below).
 -- Exit status: 0 green, 1 failed expectations, 2 invalid arguments.
 
 local ROOT = "."
@@ -200,9 +200,10 @@ end
 -- zone views' conditions, asked on each stamp, would run at the pass rate instead of 2 Hz. The
 -- theme is served from the user directory; its one zone view counts the calls of its condition
 -- over PASSES zone passes (100 ms each). The control is the same theme with a key, which the
--- throttle holds to the same count.
+-- throttle holds to the same count. A third theme's key is nil while it settles and turns false
+-- after that: a key of false is a key like any other, so the scene is built once more.
 local PASSES = 50
-local function zoneViewCase(withKey)
+local function zoneViewCase(variant)
   Stubs.install(ROOT)
   FC.install(Stubs)
   Stubs.reset()
@@ -213,7 +214,9 @@ local function zoneViewCase(withKey)
     views = { { id = "zv", module = "zv.lua", where = "zone",
       openWhen = function() asks = asks + 1; return true end } } }
   local theme = { build = function() return {} end }
-  if withKey then theme.renderKey = function() return "zv-test" end end
+  local flipped = nil
+  if variant == "key" then theme.renderKey = function() return "zv-test" end end
+  if variant == "flip" then theme.renderKey = function() return flipped end end
   local zoneView = { build = function() end }
   local prefix = "/SCRIPTS/TOOLS/rfsuite.user/dashboard/zv-test/"
   local realLoadScript = _G.loadScript
@@ -241,25 +244,31 @@ local function zoneViewCase(withKey)
     return nil, "positive control: the theme's zone view never came up (theme " .. tostring(w.themePath) .. ")"
   end
   asks = 0
-  local stamps, last = 0, w._lastUIRefresh
+  if variant == "flip" then flipped = false end
+  local stamps, last, builds = 0, w._lastUIRefresh, 0
   for _ = 1, PASSES do
-    pass(w, nil)
+    if pass(w, nil) == "scene" then builds = builds + 1 end
     if w._lastUIRefresh ~= last then stamps, last = stamps + 1, w._lastUIRefresh end
   end
-  return asks, stamps
+  return asks, stamps, builds
 end
 
 -- The throttle opens every fifth pass; a margin of two either way for the phase it starts in.
 local lo, hi = PASSES // 5 - 2, PASSES // 5 + 2
-for _, withKey in ipairs({ false, true }) do
+local LABELS = { nokey = "zone view, theme without a key", key = "zone view, theme with a key (control)",
+  flip = "zone view, theme key from nil to false" }
+for _, variant in ipairs({ "nokey", "key", "flip" }) do
   cases = cases + 1
-  local label = withKey and "zone view, theme with a key (control)" or "zone view, theme without a key"
-  local asks, stamps = zoneViewCase(withKey)
+  local label = LABELS[variant]
+  local asks, stamps, builds = zoneViewCase(variant)
+  local wantBuilds = variant == "flip" and 1 or 0
   local ok, why = false, stamps
   if asks ~= nil then
     if asks < lo or asks > hi or stamps < lo or stamps > hi then
       why = string.format("the condition was asked %d times and the throttle stamped %d times in %d passes, expected %d..%d",
         asks, stamps, PASSES, lo, hi)
+    elseif builds ~= wantBuilds then
+      why = string.format("%d scene builds in %d passes, expected %d", builds, PASSES, wantBuilds)
     else
       ok = true
     end
@@ -267,7 +276,7 @@ for _, withKey in ipairs({ false, true }) do
   if not ok then failures = failures + 1 end
   if verbose or not ok then
     print((ok and "PASS " or "FAIL ") .. label .. ": " ..
-      (ok and string.format("%d asks, %d stamps in %d passes", asks, stamps, PASSES) or tostring(why)))
+      (ok and string.format("%d asks, %d stamps, %d builds in %d passes", asks, stamps, builds, PASSES) or tostring(why)))
   end
 end
 Stubs.releaseCard()

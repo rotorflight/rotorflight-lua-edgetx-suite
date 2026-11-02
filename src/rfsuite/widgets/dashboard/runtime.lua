@@ -2248,6 +2248,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   self.built = false
   self.renderKey = nil
   self._cachedRenderKey = nil
+  self._renderKeyCached = nil
   self.lastModelPreferences = nil
   self.lastModelPrefsSignature = nil
   -- Clear self.modelPreferences NOW, before the disk reads below. reloadActiveTheme
@@ -4195,6 +4196,7 @@ function Runtime.new(zone, options)
       self.built = false
       self.renderKey = nil
       self._cachedRenderKey = nil
+      self._renderKeyCached = nil
       -- refresh() computes the render key under a 2 Hz throttle and hands on the cached key while
       -- it is closed, which is nil now; a scene queued under that would be built again once the
       -- throttle computed the real key. Opening it keys the scene on the new bounds in this pass.
@@ -4663,6 +4665,7 @@ function Runtime.new(zone, options)
       self.built = false
       self.renderKey = nil
       self._cachedRenderKey = nil
+      self._renderKeyCached = nil
       self._job = nil
       if Sensors and type(Sensors.reset) == "function" then
         Sensors.reset()
@@ -4819,6 +4822,7 @@ function Runtime.new(zone, options)
     self.built = false
     self.renderKey = nil
     self._cachedRenderKey = nil
+    self._renderKeyCached = nil
     self._lastUIRefresh = 0
     -- Reporting starts over, which is what makes switching tracing on mid-session work: changing
     -- the debug level rewrites the settings file, which reloadPreferencesIfNeeded watches,
@@ -5301,13 +5305,12 @@ function Runtime.new(zone, options)
       -- Throttle dashboard rendering to max 2Hz (0.5s) to save CPU
       if not self._lastUIRefresh then self._lastUIRefresh = 0 end
       local now = nowSeconds()
-      -- A cached key of nil is one an invalidation dropped (applyThemeConfig, a reload): it is
+      -- A key an invalidation dropped (applyThemeConfig, a reload: `_renderKeyCached` cleared) is
       -- computed at once rather than handed on, since another surface -- the full-screen theme,
       -- the tuning surface -- may have spent the throttle since, and a scene queued under nil is
-      -- built again as soon as the throttle next opens. A theme that has no key (a free-form
-      -- theme with a build and no renderKey) computes nil every time; that is cached as false,
-      -- so such a theme stays on the 2 Hz throttle and hands on nil as it always did.
-      if (now - self._lastUIRefresh) >= 0.5 or self._cachedRenderKey == nil then
+      -- built again as soon as the throttle next opens. The flag, not the value, says whether the
+      -- key was computed: a theme without a key of its own computes nil, and stays on 2 Hz.
+      if (now - self._lastUIRefresh) >= 0.5 or not self._renderKeyCached then
         self._lastUIRefresh = now
         local newKey = nil
         if type(self.theme.renderKey) == "function" then
@@ -5315,10 +5318,10 @@ function Runtime.new(zone, options)
         elseif self.dashboardEngine and (type(self.theme.layout) == "table" or type(self.theme.boxes) == "table" or type(self.theme.boxes) == "function") then
           newKey = self.dashboardEngine.renderKey(self.state, self.boxSources)
         end
-        if newKey == nil then newKey = false end
         self._cachedRenderKey = newKey
+        self._renderKeyCached = true
       end
-      nextRenderKey = self._cachedRenderKey or nil
+      nextRenderKey = self._cachedRenderKey
     end
 
     self._snapshotSources = viewSources
