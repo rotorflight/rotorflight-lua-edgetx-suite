@@ -12,10 +12,9 @@ return function(ctx)
   local t = Common and Common.pageT("setup_mixer") or function(_, _, fb) return fb end
   local i18n = ctx.i18n
 
-  local message = t(i18n, "help_trims", "Swashplate and tail trims for linkages that cannot be adjusted. With * on, the servos are held at centre and every change is sent live; Save stores it.")
+  local message = t(i18n, "help_trims", "Swashplate and tail trims for linkages that cannot be adjusted, where * holds the servos at centre and sends every change live until Save stores it.")
 
   return {
-    title = t(i18n, "trims", "Servo Trims"),
     message = message
   }
 end

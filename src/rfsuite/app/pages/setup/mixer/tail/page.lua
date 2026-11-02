@@ -16,7 +16,17 @@ local MspRuntime = nil
 local MixerConfigApi = nil
 local MixerInputYawApi = nil
 local LoadingOverlay = nil
+local LiveOverride = nil
 local t = nil
+
+local MSP_SET_MIXER_OVERRIDE = 191
+local MIXER_OVERRIDE_OFF = 2501
+local MIXER_OVERRIDE_ON = 0
+-- MIXER_IN_STABILIZED_YAW: only the tail is held at centre while its trim is set.
+local OVERRIDE_INPUTS = { 3 }
+-- The trim goes out once it has been left unchanged this long, so the tail moves to the value the
+-- pilot stopped at rather than through every step on the way.
+local LIVE_SETTLE = 0.5
 
 
 local function u16_to_s16(u)
@@ -63,6 +73,9 @@ local ui = {
     yaw_ccw_limit = 1250
   },
   apiData = {},
+  -- The visit's override, from app/pages/lib/live_override.lua: it holds what the board has as far
+  -- as this page knows (the read, or the last save that reached EEPROM) and what went out live.
+  override = nil,
   runtime = {
     readPending = false,
     requestRebuild = nil
@@ -81,6 +94,7 @@ local function ensureDeps()
   if not MixerConfigApi then MixerConfigApi = loadModule("tasks/msp/api/mixer_config.lua") end
   if not MixerInputYawApi then MixerInputYawApi = loadModule("tasks/msp/api/get_mixer_input_yaw.lua") end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
+  if not LiveOverride then LiveOverride = loadModule("app/pages/lib/live_override.lua") end
   if not t then t = Common and Common.pageT("setup_mixer") or nil end
 
   if type(ui.runtime) ~= "table" then
@@ -170,6 +184,79 @@ local function copyRecord(record)
   return copy
 end
 
+local function getQueue()
+  if not MspRuntime or type(MspRuntime.getState) ~= "function" then return nil end
+  local mspState = MspRuntime.getState()
+  local queue = mspState and mspState.queue
+  if not queue or type(queue.add) ~= "function" then return nil end
+  return queue
+end
+
+-- The one value the live loop sends.
+local function trimValues()
+  return { tail_center_trim = ui.config.tail_center_trim or 0 }
+end
+
+local function overrideActive()
+  return ui.override ~= nil and ui.override.active == true
+end
+
+-- The override is offered for a variable-pitch tail only, as the board has it and as the page shows
+-- it, with nothing else edited. A disarmed flight controller drives motors from motor override
+-- alone (motorUpdate()), so a motorised tail would not move; and the live write carries the whole
+-- MIXER_CONFIG record, so an unsaved Tail Mode would reach the board's RAM without the restart a
+-- mode change needs.
+local function canStartOverride()
+  local read = ui.apiData.MIXER_CONFIG
+  return M.canSave() and type(read) == "table" and read.tail_rotor_mode == 0
+    and ui.config.tail_rotor_mode == 0 and not ui.dirty
+end
+
+-- One live write: the record read, with the trim on screen. The board applies it at once
+-- (mixerInitConfig() ends the firmware's MSP_SET_MIXER_CONFIG handler) and keeps it in RAM only
+-- until Save writes it to EEPROM.
+local function sendLive(values)
+  local queue = getQueue()
+  if not queue or not MixerConfigApi then return false end
+  if type(queue.isProcessed) == "function" and not queue:isProcessed() then return false end
+  local read = ui.apiData.MIXER_CONFIG
+  if not M.canSave() or type(read) ~= "table" then return false end
+  local record = copyRecord(read)
+  record.tail_center_trim = values.tail_center_trim
+  local override = ui.override
+  queue:add({
+    command = MixerConfigApi.writeCommand,
+    payload = MixerConfigApi.buildWritePayload(record),
+    isWrite = true,
+    processReply = function() end,
+    errorHandler = function(_, reason) if override then override:writeFailed(reason) end end
+  })
+  return true
+end
+
+--- Leaving without Save, or Reload: a trim sent live goes back to the board's record, on screen and
+--- in the session copy. The payload is built here, not in a reply, because onClose drops this
+--- page's modules right after.
+local function rollbackLiveChanges()
+  if not ui.override or not MixerConfigApi then return false end
+  local queue = getQueue()
+  if not queue then return false end
+  local orig = ui.override:rollback(function(record)
+    queue:add({
+      command = MixerConfigApi.writeCommand,
+      payload = MixerConfigApi.buildWritePayload(record),
+      isWrite = true,
+      processReply = function() end
+    })
+    return true
+  end)
+  if not orig then return false end
+  ui.apiData.MIXER_CONFIG = copyRecord(orig.record)
+  ui.config.tail_center_trim = orig.values.tail_center_trim
+  saveToSession()
+  return true
+end
+
 local function queueTailRead(isAutoReload)
   if ui.runtime.readPending then return false, "read_pending" end
   ui.runtime.readComplete = false
@@ -230,6 +317,9 @@ local function queueTailRead(isAutoReload)
           end
 
           saveToSession()
+
+          -- What the board holds as of this read: leaving without Save puts it back.
+          if ui.override then ui.override:snapshot(ui.apiData.MIXER_CONFIG, trimValues()) end
 
           ui.runtime.readPending = false
           ui.runtime.readComplete = true
@@ -299,7 +389,10 @@ local function queueTailWrite()
   writeYaw.min_stabilized_yaw = s16_to_u16(-math.abs(ui.config.yaw_cw_limit or 0))
   writeYaw.max_stabilized_yaw = s16_to_u16(math.abs(ui.config.yaw_ccw_limit or 0))
 
-  return SavePipeline.start({
+  local values = trimValues()
+  local override = ui.override
+
+  local ok, reason = SavePipeline.start({
     pageId = "setup_mixer_tail",
     steps = {
       {
@@ -314,9 +407,12 @@ local function queueTailWrite()
       }
     },
     reboot = tailModeChanged,
-    invalidateSessionKeys = { "setup_mixer_tail" },
+    -- The Trims page shows the same centre trim from its own copy.
+    invalidateSessionKeys = { "setup_mixer_tail", "setup_mixer_trims" },
     onSaved = function()
       ui.dirty = false
+      -- Stored: from now on this is what leaving without Save puts back.
+      if override then override:stored(writeConfig, values) end
     end,
     onDone = function(result)
       if result.status == "done" then
@@ -331,6 +427,9 @@ local function queueTailWrite()
       end
     end
   })
+  -- The save sends what is on screen, so the live loop has nothing to send until it changes.
+  if ok and override then override:markSent(values) end
+  return ok, reason
 end
 
 local function buildSessionSignature()
@@ -352,6 +451,14 @@ local function ensureLoaded()
   loadFromSession()
   ui.loaded = true
   ui.dirty = false
+  ui.override = LiveOverride and LiveOverride.new({
+    command = MSP_SET_MIXER_OVERRIDE,
+    inputs = OVERRIDE_INPUTS,
+    on = MIXER_OVERRIDE_ON,
+    off = MIXER_OVERRIDE_OFF,
+    cadence = "settle",
+    interval = LIVE_SETTLE
+  }) or nil
   ui.runtime.lastSessionSignature = buildSessionSignature()
   ui.baseTitle = getBaseTitle()
   queueTailRead(false)
@@ -369,12 +476,19 @@ function M.wakeup(ctx)
     ui.runtime.lastSessionSignature = signature
     queueTailRead(false)
   end
+
+  if overrideActive() and ui.dirty then
+    ui.override:tick(trimValues(), sendLive)
+  end
 end
 
 function M.getHeaderActions()
   return {
     save = true,
     reload = true,
+    -- Offered for a variable-pitch tail with nothing else edited (canStartOverride above);
+    -- switching it off is always offered.
+    star = overrideActive() or canStartOverride(),
     help = true,
     menu = true
   }
@@ -412,6 +526,21 @@ function M.build(ctx)
   end
 
   local displayTitle = ui.baseTitle or getBaseTitle()
+  -- While the override holds the tail, only the trim can be edited: the rest stays as read, so
+  -- the live write -- the whole record -- changes nothing but the trim.
+  local locked = overrideActive()
+  if locked then
+    displayTitle = displayTitle .. " *"
+  end
+  -- The header reads its actions when the page is built. The first edit takes the * away, so the
+  -- page is built once more when that happens rather than leaving a * that would do nothing.
+  ui.runtime.starOffered = canStartOverride()
+  local function afterEdit()
+    if ui.runtime and ui.runtime.starOffered and not canStartOverride()
+        and type(ui.runtime.requestRebuild) == "function" then
+      ui.runtime.requestRebuild()
+    end
+  end
 
   if type(ui.runtime) == "table" and type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(displayTitle, M.getHeaderActions())
@@ -448,8 +577,9 @@ function M.build(ctx)
         end
       end
     end,
-    { helpText = pageText(i18n, "help_tail_rotor_mode",
-        "Variable pitch: a tail servo (Servo 4). Motorised: a tail motor (Motor 2). Bidirectional: a reversible tail motor. Changing it restarts the flight controller on Save.") }
+    { active = not locked,
+      helpText = pageText(i18n, "help_tail_rotor_mode",
+        "A tail servo (Servo 4), a tail motor (Motor 2) or a reversible tail motor; changing it restarts the flight controller on Save.") }
   )
 
   -- 2) Yaw Direction
@@ -465,9 +595,11 @@ function M.build(ctx)
       if ui.config.yaw_direction ~= newVal then
         ui.config.yaw_direction = newVal
         ui.dirty = true
+        afterEdit()
       end
     end,
-    { helpText = pageText(i18n, "help_yaw_direction",
+    { active = not locked,
+      helpText = pageText(i18n, "help_yaw_direction",
         "Reverse it when the tail moves the wrong way for a yaw input; it depends on the tail rotor direction and the servo or ESC setup.") }
   )
 
@@ -498,6 +630,7 @@ function M.build(ctx)
       end,
       display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. trimSuffix end,
       suffix = trimSuffix,
+      edited = afterEdit,
       helpText = trimHelp
     }
   )
@@ -518,6 +651,8 @@ function M.build(ctx)
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
       suffix = "%",
+      enabled = not locked,
+      edited = afterEdit,
       helpText = pageText(i18n, "help_yaw_calibration",
         "Yaw gain matched to the tail mechanics; usually 50-150% for a servo tail, and quite different for a motorised tail.")
     }
@@ -541,6 +676,8 @@ function M.build(ctx)
       end,
       display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
       suffix = limitSuffix,
+      enabled = not locked,
+      edited = afterEdit,
       helpText = pageText(i18n, "help_yaw_cw_limit",
         "Limit for clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
     }
@@ -562,6 +699,8 @@ function M.build(ctx)
       end,
       display = function(v) return string.format("%.1f", (tonumber(v) or 0) / 10) .. limitSuffix end,
       suffix = limitSuffix,
+      enabled = not locked,
+      edited = afterEdit,
       helpText = pageText(i18n, "help_yaw_ccw_limit",
         "Limit for counter-clockwise yaw: a blade angle on a servo tail, a throttle on a motorised tail.")
     }
@@ -584,6 +723,8 @@ function M.build(ctx)
         end,
         display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
         suffix = "%",
+        enabled = not locked,
+        edited = afterEdit,
         helpText = pageText(i18n, "help_tail_motor_idle",
           "Lowest throttle sent to the tail motor; set it just high enough that the motor does not stop.")
       }
@@ -615,6 +756,8 @@ end
 function M.onReload(ctx)
   local session = getSession()
   if session then
+    -- Before the read, so the read is queued behind the rollback and shows the board's value.
+    if ui.dirty then rollbackLiveChanges() end
     loadFromSession()
     ui.dirty = false
     queueTailRead(false)
@@ -622,8 +765,56 @@ function M.onReload(ctx)
   return true
 end
 
+function M.onStar(ctx)
+  if not ui.override then return false end
+  local switchingOn = not overrideActive()
+  if switchingOn and not canStartOverride() then return false end
+
+  local i18n = ctx and ctx.i18n
+  local title
+  local message
+  if switchingOn then
+    title = pageText(i18n, "enable_tail_override", "Enable tail override")
+    message = pageText(i18n, "enable_tail_override_message",
+      "The flight controller holds the yaw input at centre while the trim is set. Changes are sent live; Save stores them.\n\nThe other settings are locked while it is on.")
+  else
+    title = pageText(i18n, "disable_tail_override", "Disable tail override")
+    message = pageText(i18n, "disable_tail_override_message", "Return the yaw input to the flight controller.")
+  end
+
+  ui.override:confirm({
+    title = title,
+    message = message,
+    uncertainText = pageText(i18n, "override_armed_unknown",
+      "The flight controller does not report whether it is armed. Make sure the rotors cannot spin."),
+    onConfirm = function()
+      local override = ui.override
+      if not override then return end
+      if not override.active then
+        -- Checked again: Yes comes later than the press, and the page may have changed since.
+        if not canStartOverride() then return end
+        override:enable(getQueue())
+      else
+        override:disable(getQueue())
+      end
+      if ui.runtime and type(ui.runtime.requestRebuild) == "function" then
+        ui.runtime.requestRebuild()
+      end
+    end
+  })
+  return true
+end
 
 function M.onClose()
+  -- An unsaved trim sent live is taken back first, while the override still holds the tail.
+  -- Queued ahead of the override write on purpose: should the close end before every write is
+  -- out, a lost override write leaves a board that refuses to arm, a lost rollback a trial trim
+  -- the model would fly with. Save clears dirty, so a save still on its way is not undone here.
+  if ui.dirty then rollbackLiveChanges() end
+  if overrideActive() then
+    ui.override:disable(getQueue())
+  end
+  ui.override = nil
   if Common and type(Common.resetPageState) == "function" then
     Common.resetPageState(ui, {
       resetLoaded = true,
@@ -636,6 +827,7 @@ function M.onClose()
   MixerConfigApi = nil
   MixerInputYawApi = nil
   LoadingOverlay = nil
+  LiveOverride = nil
   t = nil
 end
 
