@@ -5,7 +5,8 @@
 -- receiver bound.
 --
 -- What is checked: the widget ends on the model's theme, and no scene is built for it before the
--- readings its boxes name are collected; the pass that reads the model's preferences off the card
+-- readings its boxes name are collected, nor without every reading its module declares; the readings
+-- are collected with the first snapshot of them; the pass that reads the model's preferences off the card
 -- does not also load the theme's modules; and no pass both loads the theme's modules and collects
 -- those readings and builds the first snapshot of them. The same holds where the theme is changed
 -- while connected -- a model theme saved from the tool, which reloads the preferences and then the
@@ -67,7 +68,7 @@ local function newWorld()
     ["ARMD"] = 0, ["Gov"] = 0 }) do Stubs.sensors[k] = v end
   _G.getRSSI = function() return 100 end
 
-  local world = { pass = 0, loads = {}, modelLoad = {}, sources = {}, builds = {}, count = {} }
+  local world = { pass = 0, loads = {}, modelLoad = {}, sources = {}, snapshot = {}, builds = {}, count = {} }
 
   -- Which theme's modules a pass reads from the card. A theme module's own chunk is what costs:
   -- loading a theme runs its phase module and every shared file that one requires.
@@ -105,7 +106,20 @@ local function newWorld()
     local w = world.w
     local job = w and w._job
     if job and (job.kind == "scene" or job.build or job.swap) then
-      world.builds[#world.builds + 1] = { pass = world.pass, theme = w.themePath, sources = w.boxSources }
+      -- The readings the module declares, which the list collected for it has to hold.
+      local declared = w.theme and w.theme.sources
+      if type(declared) == "function" then
+        local ok, list = pcall(declared, nil, w.state)
+        declared = ok and list or nil
+      end
+      local have, missing, named = {}, {}, 0
+      for _, src in ipairs(w.boxSources or {}) do have[src] = true end
+      for _, src in ipairs(type(declared) == "table" and declared or {}) do
+        named = named + 1
+        if not have[src] then missing[#missing + 1] = tostring(src) end
+      end
+      world.builds[#world.builds + 1] = { pass = world.pass, theme = w.themePath, sources = w.boxSources,
+        declared = named, missing = missing }
     end
     return build(children, ...)
   end
@@ -119,6 +133,7 @@ local function passes(world, n, label)
     world.pass = world.pass + 1
     local w = world.w
     local sourcesBefore = w.boxSources
+    local derivedBefore = w.state and w.state.derived
     local prefsBefore = _G.rfsuite.session.modelPreferences
     local keyBefore = w.renderKey
     Stubs.tick()
@@ -127,7 +142,10 @@ local function passes(world, n, label)
     w.refresh(w, nil, nil)
     debug.sethook()
     world.count[world.pass] = spent
-    if w.boxSources ~= sourcesBefore then world.sources[world.pass] = w.themePath end
+    if w.boxSources ~= sourcesBefore then
+      world.sources[world.pass] = w.themePath
+      world.snapshot[world.pass] = (w.state.derived ~= derivedBefore)
+    end
     local prefs = _G.rfsuite.session.modelPreferences
     if prefs ~= prefsBefore and type(prefs) == "table" then world.modelLoad[world.pass] = true end
     if trace and w.renderKey ~= keyBefore and keyBefore ~= nil then
@@ -161,6 +179,8 @@ local function checkPasses(world, themePath, first, last, label)
   end
   expect(loadedAt ~= nil, "control (" .. label .. "): the theme's modules were loaded")
   expect(collectedAt ~= nil, "control (" .. label .. "): the theme's readings were collected")
+  expect(collectedAt == nil or world.snapshot[collectedAt] == true, label .. ": the pass that collects the"
+    .. " theme's readings also builds the first snapshot of them", "pass " .. tostring(collectedAt))
   return loadedAt, collectedAt
 end
 
@@ -169,8 +189,11 @@ end
 -- the passes of one build follow each other.
 local function checkBuilds(world, themePath, first, collectedAt, one, label)
   local scenes, early, last = 0, 0, nil
+  local named, missing = 0, {}
   for _, b in ipairs(world.builds) do
     if b.pass >= first and b.theme == themePath then
+      named = math.max(named, b.declared)
+      for _, m in ipairs(b.missing) do missing[#missing + 1] = m end
       if trace then print(string.format("    build pass %d theme %s", b.pass, tostring(b.theme))) end
       if last == nil or b.pass > last + 1 then scenes = scenes + 1 end
       last = b.pass
@@ -183,6 +206,9 @@ local function checkBuilds(world, themePath, first, collectedAt, one, label)
   end
   expect(early == 0, label .. ": no scene is built before the theme's readings are collected",
     early .. " build passes before")
+  expect(named > 0, "control (" .. label .. "): the theme's module declares readings of its own")
+  expect(#missing == 0, label .. ": every scene is built with the readings the module declares",
+    "missing " .. table.concat(missing, ","))
 end
 
 -- Case 1: from cold. The radio's theme stands from the build; the model's replaces it at connect.
