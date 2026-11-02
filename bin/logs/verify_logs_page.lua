@@ -1203,7 +1203,8 @@ do
         if type(v) ~= "boolean" and math.tointeger(v) == nil then
           return false, "child " .. i .. " visible() gave " .. tostring(v)
         end
-        shown = v == true or (type(v) == "number" and v ~= 0)
+        -- The firmware takes a boolean as it is and anything else as an integer, non-zero shown.
+        if type(v) == "boolean" then shown = v else shown = math.tointeger(v) ~= 0 end
       end
       if shown and type(ch.pos) == "function" then
         local okp, px, py = pcall(ch.pos)
