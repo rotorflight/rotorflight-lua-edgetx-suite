@@ -16,7 +16,8 @@
 --     and joins a report already standing rather than announcing it;
 --   * the first-reading join, the 0 between adjustments, the 1.0 s settle and the step-aside
 --     reset behave as before -- also at the flight controller's real cadence, where an unchanged
---     ADJ row comes only every 3 s: a teller loaded or reset in between still knows the last 0.
+--     ADJ row comes only every 3 s: a teller loaded or reset in between still knows the last 0;
+--   * the function script asks again, once a second, for a teller that did not load.
 -- Exit status: 0 green, 1 a FAIL line was printed.
 
 local ROOT = "."
@@ -122,6 +123,7 @@ local function newWorld(host, opts)
     local relative = string.sub(path, #CORE + 1)
     W.loads[relative] = (W.loads[relative] or 0) + 1
     W.loadPass[relative] = W.loadPass[relative] or W.passes
+    if relative == TELLER and W.failTeller then return nil end
     if standIns[relative] then return standIns[relative] end
     return loadfile(ROOT .. "/src/rfsuite/" .. relative)
   end
@@ -455,6 +457,24 @@ do
   seconds(2.0)
   check(not said("inflight/group/cyclic.wav"),
     "widget: a selection pending when the widget stepped aside survived the reset")
+end
+
+-- The function script only: a teller that did not load is asked for again once a second -- not on
+-- every run, and not never -- and once it loads, it announces.
+do
+  newWorld("rfsbg", { enabled = true })
+  W.failTeller = true
+  W.adj = { 0, 0 }
+  seconds(2.0)
+  local loads = W.loads[TELLER] or 0
+  W.failTeller = false
+  seconds(1.5)
+  check(_G.rfsuite.adjustmentAnnouncer ~= nil and loads > 0 and loads <= 6,
+    "rfsbg: a teller that did not load is asked for again once a second (" .. loads .. " loads in 2 s, "
+    .. (_G.rfsuite.adjustmentAnnouncer and "loaded" or "never loaded") .. " after)")
+  W.adj = { 14, 100 }
+  seconds(2.0)
+  check(said("inflight/fn/14.wav") and said("#100"), "rfsbg: a teller loaded after a failed load announces")
 end
 
 -- The decoder itself (lib/rf2tlm_sensors.lua): the suite's own load holds every decoded ADJ pair

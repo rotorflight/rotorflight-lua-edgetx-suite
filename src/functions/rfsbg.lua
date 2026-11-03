@@ -118,18 +118,33 @@ end
 -- it on in the tool takes effect with that reload. The pass that loads it does nothing else with
 -- it; a teller that starts then joins whatever report is standing, as one loaded at init would.
 --
--- Once loaded it stays; switched off again, the teller itself goes quiet. A failed load is not
--- asked for again on every cycle.
-local function ensureTeller()
+-- Once loaded it stays; switched off again, the teller itself goes quiet.
+--
+-- A failed load is asked for again after TELLER_RETRY_SECONDS, not on every cycle and not never:
+-- this function runs on every radio cycle, and a load can fail without the file being broken --
+-- the loader's pcall also catches an error raised while the module's chunk runs, such as the Lua
+-- heap this state shares with every widget running short for a moment.
+local TELLER_RETRY_SECONDS = 1
+local tellerRetryAt = 0
+
+local function ensureTeller(now)
   if Adjustments ~= nil then
-    return Adjustments or nil
+    return Adjustments
   end
   local prefs = _G.rfsuite and _G.rfsuite.preferences
   local events = type(prefs) == "table" and prefs.audio_events or nil
   if not (type(events) == "table" and events.adjustment_events == true) then
     return nil
   end
-  Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua") or false
+  if now < tellerRetryAt then
+    return nil
+  end
+  local teller = loadModule("tasks/events/telemetry_bg/adjustments.lua")
+  if teller then
+    Adjustments = teller
+  else
+    tellerRetryAt = now + TELLER_RETRY_SECONDS
+  end
   return nil
 end
 
@@ -318,7 +333,7 @@ local function run()
 
   -- After the decode, never before it: what the teller reads is what the drain has just
   -- decoded, so the other order would announce one pass behind.
-  local teller = ensureTeller()
+  local teller = ensureTeller(now)
   if teller and type(teller.wakeup) == "function" then
     teller.wakeup()
   end
