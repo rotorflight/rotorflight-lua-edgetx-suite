@@ -1786,6 +1786,34 @@ do
     widestFile .. ", " .. #widest.simulatorResponse .. " bytes")
 end
 
+-- The dashboard's preferences reload, forced, the half that reads the radio-wide settings: the file
+-- loaded, the language resolved and the widget's i18n context built again. It runs once per
+-- saved settings change, not per frame, and the pass it lands in is a STATE pass. The settings
+-- are written through the suite's own writer with no language chosen -- Automatic, the default --
+-- and the card is emptied again right after, because no other row reads a settings file. There
+-- is no board, so the per-model half reads nothing. Forced (widget.reload's way in) so that no
+-- stamp has to move first; a pass that finds a saved change runs the same reads.
+World.reset()
+do
+  local Preferences = World.require("lib/preferences.lua")
+  if not Preferences.save(Preferences.defaults()) then
+    error("accounting: the settings could not be written; the row would price a missing file")
+  end
+  local Runtime = World.require("widgets/dashboard/runtime.lua")
+  local widget = Runtime.new(ZONE, {})
+  local reload = nil
+  for i = 1, 255 do
+    local name, value = debug.getupvalue(widget.reload, i)
+    if name == nil then break end
+    if name == "reloadPreferencesIfNeeded" then reload = value break end
+  end
+  if type(reload) ~= "function" then
+    error("accounting: `reloadPreferencesIfNeeded` is no longer an upvalue of the widget's reload")
+  end
+  addRow("unit.preferences.reload", count(reload, widget, true), "forced, the radio-wide settings, Automatic")
+  Stubs.clearCard()
+end
+
 ------------------------------------------------------------------------------
 -- The in-flight tuning overlay: the pass that drives it, the pass a reply lands on, and the
 -- builds of its two screens.

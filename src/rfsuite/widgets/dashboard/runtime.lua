@@ -2139,10 +2139,20 @@ end
 -- language is such a setting, and without this the theme's t(), the object layer's title
 -- normaliser and the widget's own context below each keep answering with the language the widget
 -- started with -- the object layer's memo had no invalidation at all until this.
-local function invalidateLocale()
+--
+-- `prefs` is the radio-wide settings the reload has just read. The language they resolve to is
+-- handed to the memo as it is dropped, so the context built next does not read the same file a
+-- second time to find it. Resolved for "en", the default buildI18nContext asks with: the memo
+-- answers only a caller with the same default, so the two must stay the same.
+local function invalidateLocale(prefs)
   local mod = localeModule()
   if mod and type(mod.invalidateLanguage) == "function" then
-    pcall(mod.invalidateLanguage)
+    local resolved = nil
+    if type(prefs) == "table" and type(mod.resolveFromPreferences) == "function" then
+      local ok, lang = pcall(mod.resolveFromPreferences, prefs, "en")
+      if ok then resolved = lang end
+    end
+    pcall(mod.invalidateLanguage, resolved, "en")
   end
 end
 
@@ -2376,7 +2386,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     -- context below is built from the language as it is now and not from the one just dropped.
     -- Gated on doGlobal because a save made from the settings screen can touch the per-model file
     -- alone, and that file carries no language.
-    invalidateLocale()
+    invalidateLocale(prefs)
     local ctx = buildI18nContext()
     if ctx then
       self.i18n = ctx
