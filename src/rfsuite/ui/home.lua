@@ -1615,6 +1615,7 @@ local function updateRuntimeMenuConditions()
   if state.menu._conditionsVersion ~= initialVersion then
     scheduleBuildUI(false)
   end
+  logf("trace", "escProto conditions set for protocol %s", tostring(proto))
   state.menu._escProtoApplied = applied
 end
 

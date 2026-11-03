@@ -78,7 +78,19 @@ _G.getTime = function() return 100 end
 _G.SMLSIZE = 1
 
 local queued, fields, saveRequest = {}, {}, nil
+local logs = {}
+local function logged(level, needle)
+  for i = 1, #logs do
+    if logs[i].level == level and string.find(logs[i].text, needle, 1, true) then return true end
+  end
+  return false
+end
 local modules = {
+  ["lib/log.lua"] = {
+    emitf = function(tag, level, fmt, ...)
+      logs[#logs + 1] = { tag = tag, level = level, text = string.format(fmt, ...) }
+    end
+  },
   ["app/pages/settings/common.lua"] = Common,
   ["ui/palette.lua"] = Palette,
   ["ui/controls.lua"] = {
@@ -181,6 +193,8 @@ do
     check("Save writes 4 bytes: the rate as read, then the edits",
       #p == 4 and p[1] == 0x4D and p[2] == 0x01 and p[3] == 0 and p[4] == 4, table.concat(p, ","))
     check("Save reboots the flight controller", saveRequest.reboot == true)
+    check("the read and the save are logged at debug",
+      logged("debug", "read: throttle_rate_hz=333") and logged("debug", "save: throttle_rate_hz=333"))
   end
 end
 
@@ -201,6 +215,7 @@ do
   check("Save is refused", ok == false and saveRequest == nil)
   check("the refusal names the firmware",
     reported ~= nil and string.find(reported.message or "", "does not offer", 1, true) ~= nil)
+  check("a firmware without the message is logged at info", logged("info", "does not offer MSP2_GET_SRXL2_ESC_CONFIG"))
 
   -- The same answer when the error reply arrives only after the retries (reason "refused").
   page.onClose()
@@ -226,6 +241,7 @@ do
   read.processReply(read, { 2, 0x4D, 0x01, 9, 0 })
   build()
   check("a reply of another version draws no rows", #fields == 0, #fields)
+  check("an undecoded reply is logged at warn", logged("warn", "reply not decoded (len=5 version=2)"))
   check("Save is refused after an undecodable reply", trySave() == false and saveRequest == nil)
 
   page.onReload()

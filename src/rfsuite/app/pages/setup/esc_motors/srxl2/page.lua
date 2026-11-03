@@ -17,9 +17,11 @@ local MspRuntime = nil
 local Srxl2EscConfigApi = nil
 local LoadingOverlay = nil
 local SavePipeline = nil
+local Log = nil
 local t = nil
 
 local PAGE_ID = "setup_esc_motors_srxl2"
+local LOG_TAG = "rfsuite.srxl2_esc"
 
 local function newRuntime()
   return {
@@ -47,7 +49,13 @@ local function ensureDeps()
   if not Srxl2EscConfigApi then Srxl2EscConfigApi = loadModule("tasks/msp/api/srxl2_esc_config.lua") end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
   if not t then t = Common and Common.pageT("setup_esc_motors") or nil end
+  if Log == nil then Log = (_G.rfsuite and _G.rfsuite.require or loadModule)("lib/log.lua") or false end
   if type(ui.runtime) ~= "table" then ui.runtime = newRuntime() end
+end
+
+-- Formats only when the level passes (Log.emitf), so the lines cost nothing at the default level.
+local function logf(level, fmt, ...)
+  if Log and type(Log.emitf) == "function" then Log.emitf(LOG_TAG, level, fmt, ...) end
 end
 
 local function pageText(i18n, key, fallback)
@@ -68,6 +76,12 @@ end
 -- without the SRXL2 ESC driver, answers it. A timeout, a cleared request or a reply this page
 -- cannot decode says nothing about the firmware and is shown as a failed read.
 local function finishRead(config, unsupported)
+  if config then
+    logf("debug", "read: throttle_rate_hz=%s telem_interval_frames=%s motor2_channel=%s",
+      tostring(config.throttle_rate_hz), tostring(config.telem_interval_frames), tostring(config.motor2_channel))
+  elseif unsupported then
+    logf("info", "read: the firmware does not offer MSP2_GET_SRXL2_ESC_CONFIG (error reply)")
+  end
   ui.runtime.readPending = false
   ui.loading = false
   ui.config = config
@@ -81,10 +95,17 @@ local function finishRead(config, unsupported)
 end
 
 local function queueRead()
-  if ui.runtime.readPending then return false end
+  if ui.runtime.readPending then
+    logf("trace", "read: already pending, not queued again")
+    return false
+  end
   local mspState = MspRuntime and type(MspRuntime.getState) == "function" and MspRuntime.getState()
   local queue = mspState and mspState.queue
-  if not Srxl2EscConfigApi or not queue or type(queue.add) ~= "function" then return false end
+  if not Srxl2EscConfigApi or not queue or type(queue.add) ~= "function" then
+    logf("warn", "read: no MSP queue or module (api=%s queue=%s)", tostring(Srxl2EscConfigApi ~= nil), tostring(queue ~= nil))
+    return false
+  end
+  logf("trace", "read: queue MSP2_GET_SRXL2_ESC_CONFIG")
 
   ui.runtime.readPending = true
   ui.loading = true
@@ -105,9 +126,15 @@ local function queueRead()
         finishRead(nil, true)
         return
       end
-      finishRead(Srxl2EscConfigApi.parse(buf))
+      local config = Srxl2EscConfigApi.parse(buf)
+      if not config then
+        logf("warn", "read: reply not decoded (len=%d version=%s)", type(buf) == "table" and #buf or -1,
+          tostring(type(buf) == "table" and buf[1] or nil))
+      end
+      finishRead(config)
     end,
     errorHandler = function(_, reason)
+      logf(reason == "refused" and "info" or "warn", "read: given up (%s)", tostring(reason))
       finishRead(nil, reason == "refused")
     end
   })
@@ -116,8 +143,13 @@ end
 
 local function queueWrite()
   if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
-  if not SavePipeline or not Srxl2EscConfigApi then return false, "msp_runtime_unavailable" end
+  if not SavePipeline or not Srxl2EscConfigApi then
+    logf("warn", "save: save pipeline or module unavailable")
+    return false, "msp_runtime_unavailable"
+  end
 
+  logf("debug", "save: throttle_rate_hz=%s (as read) telem_interval_frames=%s motor2_channel=%s, then reboot",
+    tostring(ui.config.throttle_rate_hz), tostring(ui.config.telem_interval_frames), tostring(ui.config.motor2_channel))
   return SavePipeline.start({
     pageId = PAGE_ID,
     steps = {
@@ -130,10 +162,14 @@ local function queueWrite()
     -- The ESC driver reads these settings at boot only, and latches the motor 2 channel there.
     reboot = true,
     onSaved = function()
+      logf("info", "save: stored, the flight controller reboots")
       ui.dirty = false
     end,
     onDone = function(result)
-      if result.status ~= "done" then ui.dirty = true end
+      if result.status ~= "done" then
+        logf("warn", "save: ended %s", tostring(result.status))
+        ui.dirty = true
+      end
       requestRebuild()
     end
   })
@@ -233,7 +269,10 @@ function M.build(ctx)
   -- unsaved notice is drawn once the editor has closed, and only when it is not on screen yet.
   local noticeShown = ui.dirty
   local function afterEdit()
-    if ui.dirty and not noticeShown then requestRebuild() end
+    if ui.dirty and not noticeShown then
+      logf("trace", "edit closed: rebuild for the unsaved notice")
+      requestRebuild()
+    end
   end
 
   local label = pageText(i18n, "srxl2_telem_interval", "Telemetry Interval")
@@ -290,6 +329,7 @@ end
 function M.onSave(ctx)
   local i18n = ctx and ctx.i18n
   if not ui.config then
+    logf("info", "save: refused, nothing read (unsupported=%s)", tostring(ui.unsupported))
     if ctx and type(ctx.reportSave) == "function" then
       local message = "@i18n(app.read_failed)@"
       if ui.unsupported then
@@ -350,6 +390,7 @@ function M.onClose()
   Srxl2EscConfigApi = nil
   LoadingOverlay = nil
   SavePipeline = nil
+  Log = nil
   t = nil
 end
 
