@@ -221,8 +221,16 @@ do
   read = queued[#queued]
   check("Reload reads again", read ~= nil and read.command == 0x5F16)
   if read then read.processReply(read, { 1, 250, 0, 7, 0 }) end
-  build()
+  local children = build()
   check("a later good read draws the rows", #fields == 2, #fields)
+  check("a fresh read shows no unsaved notice", not hasText(children, "Unsaved changes"))
+  -- The Motor 2 row on its own, with no notice on screen yet.
+  local motor2 = fields[2]
+  rebuilds = 0
+  if motor2 then motor2.opts.set(3) end
+  check("closing the Motor 2 editor rebuilds so the unsaved notice shows",
+    motor2 ~= nil and type(motor2.opts.edited) == "function" and (motor2.opts.edited() or true) and rebuilds == 1,
+    rebuilds)
 end
 
 print("menu: the tile")
