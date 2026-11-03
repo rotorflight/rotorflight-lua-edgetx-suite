@@ -107,7 +107,7 @@ local function newWorld(host, opts)
     playRawFile = function(file) W.spoken[#W.spoken + 1] = file end,
   }
   local standIns = {
-    ["lib/audio.lua"] = function() return audio end,
+    ["lib/audio_playback.lua"] = function() return audio end,
     ["lib/preferences.lua"] = function()
       return { load = function() return copy(W.prefs) end }
     end,

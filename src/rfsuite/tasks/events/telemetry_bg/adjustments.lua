@@ -15,9 +15,11 @@
 -- placement would be reading one pass behind. Its hosts load it only while the switch is on.
 --
 -- The word files are already in the tree -- `SOUNDS/rf/<locale>/adj/` -- and are resolved
--- through `lib/audio.lua`, which owns the locale fallback. That module is loaded LAZILY, on the
--- first announcement rather than on the first pass, so a model that never touches an adjustment
--- never pays for it.
+-- through `lib/audio_playback.lua`, which owns the locale folders and the level, and which
+-- `lib/audio.lua` plays through as well. Only that module: a Lua state that runs the teller and
+-- no dashboard -- the background function script -- does not load the rest of the announcements.
+-- It is loaded LAZILY, on the first announcement rather than on the first pass, so a model that
+-- never touches an adjustment never pays for it.
 
 -- The telemetry task can load this file directly while a widget reaches it through the module
 -- memoizer. loadScript creates a fresh table each time, so the Lua state's root owns this one
@@ -141,7 +143,7 @@ end
 -- with the require memoizer the second call is a table lookup.
 local function ensureAudio()
   if Audio then return Audio end
-  local mod = requireModule("lib/audio.lua")
+  local mod = requireModule("lib/audio_playback.lua")
   if type(mod) == "table" and type(mod.playEventFile) == "function" then
     Audio = mod
   end

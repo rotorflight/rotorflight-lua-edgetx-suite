@@ -15,10 +15,33 @@ local function setGlobalLowVoltageAt(val)
   end
 end
 
-local AUDIO_PACK_BASE = "/SOUNDS/"
-local AUDIO_DEFAULT_FALLBACK = "en"
+-- Finding a file of the sound pack, the level it is played at and the alarm window live in
+-- lib/audio_playback.lua, which the adjustment teller loads without this module. This module and
+-- the teller in one Lua state share one instance of it -- one level, one path cache, one alarm
+-- window -- which that module keeps on the state's root. The suite's module loader first, and a
+-- plain load where there is none or where it answered with nothing.
+local Playback = nil
+do
+  local root = _G.rfsuite
+  local ok = false
+  if type(root.require) == "function" then ok, Playback = pcall(root.require, "lib/audio_playback.lua") end
+  if not ok or type(Playback) ~= "table" then
+    Playback = assert(loadScript(root.paths.core .. "/lib/audio_playback.lua", root.loadMode or "bt"))()
+  end
+end
+-- What this module writes there: the level, whether this state drives it, and the two windows.
+local PlaybackState = Playback.state
+local nowSeconds = Playback.nowSeconds
+local emitLog = Playback.emitLog
+local rf_link_up = Playback.rfLinkUp
+local boost_active = Playback.boostActive
+local getVolumeRules = Playback.volumeRules
+local resolve_volume_mode = Playback.volumeMode
+local resolveEventPath = Playback.resolveEventPath
+local playResolvedEventFile = Playback.playResolvedEventFile
+local playRawFile = Playback.playRawFileAtLevel
+
 local AUDIO_ROOT_BASE = "/audio/"
-local localeModule = nil
 -- lib/elrs_config.lua and lib/crsf.lua, loaded the first time the TX power alert is on, so a radio
 -- that never switches it on never loads either.
 local elrsConfigModule = nil
@@ -35,10 +58,6 @@ local ARM_FILE_MAP = {
   [3] = "armed.wav"
 }
 
--- The level set under Settings > Audio > Volume (1..5), or nil for the radio's own Wav volume.
--- EdgeTX takes it as the second argument of playFile and as the FOURTH of playNumber, after the
--- attributes (radio/src/lua/api_general.cpp); in third place it would be read as attributes.
-local audio_volume = nil
 local master_gvar_idx = nil
 local master_gvar_last = nil
 local VOL_GVAR_OFF = -1024
@@ -49,10 +68,6 @@ local VOL_GVAR_OFF = -1024
 -- length: there is no Lua query for whether the radio is still playing (radio/src/lua/api_general.cpp
 -- exports play and flush calls only). A critical announcement inside the window extends it.
 local BOOST_SECONDS = 8
--- When the Alert Level ends, on this Lua state's clock (nowSeconds); before it, every refresh of
--- the master volume asks for the Alert Level. 0 until the first critical announcement.
-local boost_until = 0
-local adjustment_quiet_until = 0
 
 -- The dashboard widget and the tool started from the radio's tool list each run their own copy of
 -- this module, and EdgeTX never runs the two at the same time: it stops refreshing widgets while a
@@ -84,17 +99,6 @@ local CONNECTION_RECOVERY_WINDOW = 120
 -- lost.
 local TELEMETRY_QUIET_SECONDS = 6
 
--- The RF link as the radio sees it: the reading the MSP runtime's connection test takes
--- (tasks/msp/runtime.lua, isConnected), asked at the moment it matters rather than through a
--- state that is one tick behind it.
-local function rf_link_up()
-  local readRssi = _G.getRSSI
-  if type(readRssi) ~= "function" then return true end
-  local ok, rssi = pcall(readRssi)
-  if not ok or type(rssi) ~= "number" then return true end
-  return rssi > 0
-end
-
 local function is_rf_connected(self)
   if self and self.state and self.state.rfConnected ~= nil then
     return self.state.rfConnected == true
@@ -112,42 +116,11 @@ local function pct_to_vol_raw(pct)
   return raw
 end
 
-local function boost_active(now)
-  return now < boost_until
-end
-
--- Set by the first refresh_volume_state in this Lua state. The dashboard and the tool reach it on
--- their audio passes; the background function script (src/functions/rfsbg.lua) and the service
--- widget run the adjustment teller without them and never do.
-local volume_driven = false
-
--- What Settings > Audio > Volume asks for: one mode, and whether it waits for the link
--- (lib/audio_volume.lua, which the page reads too). Loaded on the first refresh of this Lua state
--- and kept, a failed load as well, so a broken install does not reach for the card on every pass.
--- The two mode numbers are that module's LEVEL and MASTER.
+-- What Settings > Audio > Volume asks for (lib/audio_volume.lua, read through
+-- lib/audio_playback.lua): one mode, and whether it waits for the link. The two mode numbers are
+-- that module's LEVEL and MASTER.
 local VOLUME_MODE_LEVEL = 1
 local VOLUME_MODE_MASTER = 2
-local volumeRules = nil
-
-local function getVolumeRules()
-  if volumeRules ~= nil then return volumeRules or nil end
-  volumeRules = false
-  local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/audio_volume.lua", mode)
-  if chunk then
-    local ok, mod = pcall(chunk)
-    if ok and type(mod) == "table" then volumeRules = mod end
-  end
-  return volumeRules or nil
-end
-
--- The mode and the link rule for one settings table. With the rules missing nothing is driven.
-local function resolve_volume_mode(prefs)
-  local rules = prefs and getVolumeRules()
-  if not rules then return 0, false end
-  local mode = rules.mode(prefs)
-  return mode, rules.connectedOnly(prefs, mode)
-end
 
 -- Whether the board has the global variable the settings name, asked once per variable: the
 -- answer cannot change while the radio runs, and the question allocates a table.
@@ -164,7 +137,7 @@ local function master_gvar_usable(gv)
 end
 
 local function refresh_volume_state(self, isCritical, now)
-  volume_driven = true
+  PlaybackState.driven = true
   -- The first refresh of this state, or the first after a pause: the variable may hold what the
   -- other state wrote (see VOLUME_GAP_SECONDS), so it is asked below rather than trusted.
   local stale = volume_refreshed_at == nil or now - volume_refreshed_at > VOLUME_GAP_SECONDS
@@ -180,12 +153,12 @@ local function refresh_volume_state(self, isCritical, now)
   local v = mode == VOLUME_MODE_LEVEL and tonumber(prefs.level) or 0
   if v ~= nil and v > 0 then
     if connectedOnly and not linkUp then
-      audio_volume = nil
+      PlaybackState.level = nil
     else
-      audio_volume = v
+      PlaybackState.level = v
     end
   else
-    audio_volume = nil
+    PlaybackState.level = nil
   end
 
   -- Master volume, through the global variable, in its own mode only.
@@ -222,24 +195,6 @@ local function refresh_volume_state(self, isCritical, now)
     if pcall(model.setGlobalVariable, master_gvar_idx, 0, raw) then
       master_gvar_last = raw
     end
-  end
-end
-
--- The level in a Lua state where nothing calls refresh_volume_state: the callout level only, since
--- the master-volume global variable belongs to the widget and the tool. Read on every call rather
--- than kept, because the background function script replaces its preferences table whenever it
--- reloads the file. Connected only asks the radio whether the RF link is up, because the
--- background function script keeps no connection state of its own.
-local function resolve_undriven_level()
-  if volume_driven then return end
-  local root = _G.rfsuite
-  local prefs = root and root.preferences and root.preferences.audio
-  local mode, connectedOnly = resolve_volume_mode(prefs)
-  local v = mode == VOLUME_MODE_LEVEL and tonumber(prefs.level) or 0
-  if v > 0 and not (connectedOnly and not rf_link_up()) then
-    audio_volume = v
-  else
-    audio_volume = nil
   end
 end
 
@@ -465,21 +420,6 @@ local ALERT_CATEGORY = {
   esc_load        = "esc",
   fuel_empty      = "fuel"
 }
-
-local function nowSeconds()
-  if getTime then
-    local ok, value = pcall(getTime)
-    if ok and type(value) == "number" then
-      return value / 100
-    end
-  end
-
-  if os and type(os.clock) == "function" then
-    return os.clock()
-  end
-
-  return 0
-end
 
 local function isTruthy(value)
   return value == true or value == 1 or value == "1" or value == "true"
@@ -793,12 +733,6 @@ local function precOne()
   return 0
 end
 
-local function emitLog(opts, msg, level)
-  if opts and type(opts.log) == "function" then
-    opts.log(msg, level)
-  end
-end
-
 -- Speak a voltage through the radio's own number teller, so that the digits and the unit come
 -- out in the language the pilot set on the radio rather than in the language of the sound pack.
 -- `decimals` is 1 for a pack or BEC reading and 2 for a per-cell one; on a firmware that
@@ -815,7 +749,7 @@ local function playVoltage(volts, decimals, opts)
   else
     spoken = math.floor((volts * 10) + 0.5)
   end
-  local ok, err = pcall(playNumber, spoken, unitVolts(), attribute, audio_volume)
+  local ok, err = pcall(playNumber, spoken, unitVolts(), attribute, PlaybackState.level)
   if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
 end
 
@@ -876,61 +810,6 @@ local function initialFuelWanted(events)
   return prefEnabled(events, "initial_fuel", true)
 end
 
-local function getLocaleModule()
-  if localeModule then
-    return localeModule
-  end
-
-  if type(_G) == "table" and type(_G.__rfsuite_system_locale_module) == "table" then
-    localeModule = _G.__rfsuite_system_locale_module
-    return localeModule
-  end
-
-  local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/system_locale.lua", mode)
-  if chunk then
-    local ok, mod = pcall(chunk)
-    if ok and type(mod) == "table" then
-      localeModule = mod
-      return localeModule
-    end
-  end
-
-  return nil
-end
-
-local resolvedEventPaths = {}
-
-local function resolveEventPath(relativePath)
-  if resolvedEventPaths[relativePath] ~= nil then
-    return resolvedEventPaths[relativePath] or nil
-  end
-
-  local locale = (getLocaleModule() and type(getLocaleModule().resolveSystemLanguage) == "function") and getLocaleModule().resolveSystemLanguage("en") or AUDIO_DEFAULT_FALLBACK
-  
-  -- 1. Try namespaced folder (Rotorflight standard)
-  local rfPath = AUDIO_PACK_BASE .. "rf/" .. locale .. "/" .. relativePath
-  local f = io.open(rfPath, "r")
-  if f then
-    io.close(f)
-    resolvedEventPaths[relativePath] = rfPath
-    return rfPath
-  end
-
-  -- 2. Fallback to standard language folder
-  local localePath = AUDIO_PACK_BASE .. locale .. "/" .. relativePath
-  f = io.open(localePath, "r")
-  if f then
-    io.close(f)
-    resolvedEventPaths[relativePath] = localePath
-    return localePath
-  end
-
-  -- 3. If file not found in any locale, return nil to indicate failure
-  resolvedEventPaths[relativePath] = false
-  return nil
-end
-
 -- The first candidate a sound pack actually carries. Every candidate is probed at most once
 -- per session, because resolveEventPath caches its answer, the misses included.
 local function firstResolvedSound(candidates)
@@ -945,40 +824,8 @@ end
 -- announcement that meets one is done with; a cooldown or a failed hand-over is worth another
 -- try on the next pass. announcementDone below is that rule.
 local PLAY_COOLDOWN = "cooldown"
-local PLAY_NO_FILE = "nofile"
+local PLAY_NO_FILE = Playback.PLAY_NO_FILE
 local PLAY_FAILED = "failed"
-
--- The files already reported missing, so a sound pack without one says so once rather than at
--- every announcement that asks for it.
-local missingFileLogged = {}
-
---- Returns true when the file was handed to playFile; false and PLAY_NO_FILE when the sound pack
---- has no such file; false alone when playFile is missing or raised.
-local function playResolvedEventFile(relativePath, opts)
-  local path = resolveEventPath(relativePath)
-  if not path then
-    if not missingFileLogged[relativePath] then
-      missingFileLogged[relativePath] = true
-      emitLog(opts, "playFile: file not found for " .. tostring(relativePath), "warn")
-    end
-    return false, PLAY_NO_FILE
-  end
-  if type(playFile) == "function" then
-    emitLog(opts, "playFile -> " .. tostring(path) .. (audio_volume and (" @" .. audio_volume) or ""), "debug")
-    local ok, err = pcall(playFile, path, audio_volume)
-    if not ok then emitLog(opts, "playFile error: " .. tostring(err), "error") end
-    return ok
-  end
-  return false
-end
-
-local function playRawFile(path, opts)
-  if type(playFile) == "function" then
-    local ok, _ = pcall(playFile, path, audio_volume)
-    return ok
-  end
-  return false
-end
 
 local function scheduleAudioCooldown(audioState, now, seconds)
   audioState.nextAllowedAt = now + (seconds or 0.25)
@@ -1062,12 +909,12 @@ local RAISE_OFF_BY_DEFAULT = { dropouts = true }
 --- tryPlayEventFile returns, the reason included.
 local function tryPlayAlertFile(self, audioState, events, now, relativePath, opts, alertKey, critical)
   if critical and now >= (audioState.nextAllowedAt or 0) and resolveEventPath(relativePath) then
-    adjustment_quiet_until = now + BOOST_SECONDS
+    PlaybackState.quietUntil = now + BOOST_SECONDS
   end
   if critical and now >= (audioState.nextAllowedAt or 0) then
     local key = RAISE_KEYS[alertKey]
     if key and prefEnabled(events, key, not RAISE_OFF_BY_DEFAULT[alertKey]) and resolveEventPath(relativePath) then
-      boost_until = now + BOOST_SECONDS
+      PlaybackState.boostUntil = now + BOOST_SECONDS
       refresh_volume_state(self, true, now)
     end
   end
@@ -1115,7 +962,7 @@ local function announceTemperatureLevel(self, audioState, events, opts, now, ale
       if announcementDone(played, why) then
         if played and type(playNumber) == "function" then
           local value, unit = spokenTemperature(self, temp)
-          local ok, err = pcall(playNumber, value, unit, 0, audio_volume)
+          local ok, err = pcall(playNumber, value, unit, 0, PlaybackState.level)
           if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
         end
         -- Booked without a file as well, the level included: a level left unbooked would count
@@ -1326,7 +1173,7 @@ local function announceProfileEvent(self, eventKey, value, soundFile, opts)
     tryPlayEventFile(audioState, now, soundFile, opts)
     if type(playNumber) == "function" then
       emitLog(opts, "playNumber -> " .. tostring(rounded), "info")
-      local ok, err = pcall(playNumber, rounded, 0, 0, audio_volume)
+      local ok, err = pcall(playNumber, rounded, 0, 0, PlaybackState.level)
       if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
     end
     audioState.lastValues[eventKey] = rounded
@@ -1517,14 +1364,14 @@ local function announceBatteryCapacityEvent(self, opts)
     tryPlayEventFile(audioState, now, "evt/battery.wav", opts)
     if type(playNumber) == "function" then
       emitLog(opts, "playNumber -> " .. tostring(capacity) .. " mAh", "info")
-      local ok, err = pcall(playNumber, capacity, unitMah(), 0, audio_volume)
+      local ok, err = pcall(playNumber, capacity, unitMah(), 0, PlaybackState.level)
       if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
     end
   else
     emitLog(opts, "battery profile change value=" .. tostring(profile) .. " file=evt/battery.wav", "info")
     tryPlayEventFile(audioState, now, "evt/battery.wav", opts)
     if type(playNumber) == "function" then
-      local ok, err = pcall(playNumber, configIndex, 0, 0, audio_volume)
+      local ok, err = pcall(playNumber, configIndex, 0, 0, PlaybackState.level)
       if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
     end
   end
@@ -1909,7 +1756,7 @@ local function linkHeadroomAlert(self, audioState, events, alert, headroom, hyst
       local played, why = tryPlayAlertFile(self, audioState, events, now, alert.sound, opts, key, level >= 2)
       if announcementDone(played, why) then
         if played and type(playNumber) == "function" then
-          local ok, err = pcall(playNumber, headroom, unitPercent(), 0, audio_volume)
+          local ok, err = pcall(playNumber, headroom, unitPercent(), 0, PlaybackState.level)
           if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
         end
         alertSpoken(audioState, events, key, now, played and level >= 2)
@@ -2282,7 +2129,7 @@ local function txPowerAlert(self, audioState, events, now, opts)
         level >= 2)
       if announcementDone(played, why) then
         if played and type(playNumber) == "function" then
-          local ok, err = pcall(playNumber, share, unitPercent(), 0, audio_volume)
+          local ok, err = pcall(playNumber, share, unitPercent(), 0, PlaybackState.level)
           if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
         end
         alertSpoken(audioState, events, "tpwr", now, played and level >= 2)
@@ -2354,46 +2201,12 @@ function Audio.announceConnectionLost(self, rfLinkUp, opts)
   end
 end
 
---- Play one file out of the audio pack, by its path below `SOUNDS/rf/<locale>/`.
---
--- Exported because the locale fallback lives here and should live in exactly one place. The
--- adjustment teller runs on the telemetry pass, where none of the rest of this module is
--- reachable, and a second copy of `resolveEventPath` is the thing worth avoiding.
---
--- Returns true when a file was found and handed to playFile.
-function Audio.playEventFile(relativePath, opts)
-  if type(relativePath) ~= "string" or relativePath == "" then return false end
-  resolve_undriven_level()
-  return playResolvedEventFile(relativePath, opts) == true
-end
-
--- Adjustment names and values are advisory. Leave the alarm window clear even when raising the
--- master volume is disabled; the priority belongs to the alarm, not to its volume setting.
-function Audio.adjustmentAllowed()
-  return nowSeconds() >= adjustment_quiet_until and not boost_active(nowSeconds())
-end
-
---- Speak a whole number through the radio's own number teller, at the level the files above
---- play at. Exported for the same caller: its words come through playEventFile, and a
---- playNumber of its own would speak the value after them at the radio's Wav volume instead.
----
---- Returns true when the call was handed to playNumber without an error.
-function Audio.playNumber(value, unit)
-  if type(playNumber) ~= "function" then return false end
-  resolve_undriven_level()
-  return (pcall(playNumber, value, unit or 0, 0, audio_volume)) == true
-end
-
---- Play a sound file by its full path (`/SOUNDS/rf/beep.wav`), at the level the announcements play
---- at. For a page that sounds a tone of its own: the tones at the root of the pack sit in no
---- locale folder, so playEventFile cannot resolve them.
----
---- Returns true when the file was handed to playFile without an error.
-function Audio.playRawFile(path)
-  if type(path) ~= "string" or path == "" then return false end
-  resolve_undriven_level()
-  return playRawFile(path) == true
-end
+-- The four calls the adjustment teller makes, which play through lib/audio_playback.lua and are
+-- that module's own functions, so a caller of this module and the teller play through one path.
+Audio.playEventFile = Playback.playEventFile
+Audio.adjustmentAllowed = Playback.adjustmentAllowed
+Audio.playNumber = Playback.playNumber
+Audio.playRawFile = Playback.playRawFile
 
 --- The value a master-volume percentage is written to the global variable as: 0..100 % onto
 --- -1024..1024, the span the Volume special function reads. Exported for the Volume page's
@@ -2914,7 +2727,7 @@ function Audio.process(self, opts)
               level >= 2)
             if announcementDone(played, why) then
               if played and type(playNumber) == "function" then
-                local ok, err = pcall(playNumber, math.floor(load + 0.5), unitPercent(), 0, audio_volume)
+                local ok, err = pcall(playNumber, math.floor(load + 0.5), unitPercent(), 0, PlaybackState.level)
                 if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
               end
               alertSpoken(audioState, events, "esc_load", now, played and level >= 2)
@@ -2968,7 +2781,7 @@ function Audio.process(self, opts)
           local played, why = tryPlayAlertFile(self, audioState, events, now, "stat/alerts/lq.wav", opts, "lq", level >= 2)
           if announcementDone(played, why) then
             if played and type(playNumber) == "function" then
-              local ok, err = pcall(playNumber, math.floor(lq + 0.5), unitPercent(), 0, audio_volume)
+              local ok, err = pcall(playNumber, math.floor(lq + 0.5), unitPercent(), 0, PlaybackState.level)
               if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
             end
             -- The warning level does not buzz even when the category is set to, which is the
@@ -3215,7 +3028,7 @@ function Audio.process(self, opts)
               local played, why = tryPlayEventFile(audioState, now, calloutSound, opts)
               if played and type(playNumber) == "function" then
                 emitLog(opts, "fuel callout playNumber -> " .. tostring(lowestCrossed), "info")
-                local ok, err = pcall(playNumber, lowestCrossed, unitPercent(), 0, audio_volume)
+                local ok, err = pcall(playNumber, lowestCrossed, unitPercent(), 0, PlaybackState.level)
                 if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
               end
               -- The step is passed only once it was spoken, or once the sound pack turned out to
@@ -3285,10 +3098,10 @@ function Audio.process(self, opts)
           -- longer change: the model type is set explicitly, the battery configuration has been
           -- read, or the pack carries neither file. Until then a model of undecided type may still
           -- turn out to need the other file, so it is tried again as before. Checked only when the
-          -- file is missing. resolveEventPath caches its misses for as long as this module is
-          -- loaded, so no later pass has anything to play either; without the latch this block
+          -- file is missing. resolveEventPath caches its misses for as long as lib/audio_playback.lua
+          -- is loaded, so no later pass has anything to play either; without the latch this block
           -- would run again on every audio pass and log two warnings each time. Nothing clears
-          -- resolvedEventPaths, not a reconnect and not a change of language or sound pack, so a
+          -- that cache, not a reconnect and not a change of language or sound pack, so a
           -- file added to the card later is not found until the script is loaded again. The latch
           -- depends on that cache staying as it is.
           local hasSound = resolveEventPath(calloutSound) ~= nil
@@ -3306,7 +3119,7 @@ function Audio.process(self, opts)
               -- The fuel percentage is no longer rounded on its way here, so without this the
               -- alert tone would play and the percentage behind it would go unspoken. Same
               -- rounding as the MCU temperature and the link quality above.
-              local ok, err = pcall(playNumber, math.floor(fuel + 0.5), unitPercent(), 0, audio_volume)
+              local ok, err = pcall(playNumber, math.floor(fuel + 0.5), unitPercent(), 0, PlaybackState.level)
               if not ok then emitLog(opts, "playNumber error: " .. tostring(err), "error") end
             end
             audioState.initialFuelAnnounced = true
