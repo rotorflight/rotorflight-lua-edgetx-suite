@@ -4403,7 +4403,7 @@ function Runtime.new(zone, options)
 
   -- The second half of a theme load: the pilot's field choices on the module just loaded, the
   -- readings its boxes and declarations name, and the first snapshot of them. A switch of theme in
-  -- the background work runs it on the logic tick after the module's own (reloadActiveTheme): the
+  -- the background work runs it on a later logic tick than the module's own (reloadActiveTheme): the
   -- two halves are the largest pieces of a theme switch, and in one widget call, beside the connect
   -- chain that brings a model's own theme in, they come near the instruction limit.
   local function finishThemeLoad(self, nextConfig)
@@ -4929,10 +4929,11 @@ function Runtime.new(zone, options)
       self.flightMode = nextMode
       -- A switch of theme is staged over two logic ticks: the theme's module on this one, its field
       -- choices, readings and first snapshot on the next (finishThemeLoad). A reload that falls
-      -- due before the second half has run replaces it.
+      -- due before the second half has run replaces it. The second half keeps off a telemetry read
+      -- pass by the rule the announcements follow above: put off once, never twice in a row.
       if wantReload then
         reloadActiveTheme(self, true)
-      elseif self._themeSourcesPending then
+      elseif self._themeSourcesPending and not (readThisPass and sinceLastTick < TELEMETRY_READ_SECONDS) then
         local config = self._themeSourcesPending
         self._themeSourcesPending = nil
         finishThemeLoad(self, config)

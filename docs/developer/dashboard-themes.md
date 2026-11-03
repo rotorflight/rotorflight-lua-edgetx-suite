@@ -160,8 +160,8 @@ nothing at runtime except what they both read off the state table.
 
 A reload that moves to another theme is spread over two logic ticks of the widget's background
 work: the module is loaded on the first — with the shared modules of the new theme — and the
-readings its boxes and `sources` name are collected, with the first snapshot of them, on the next;
-no scene is queued in between. A phase change within one theme loads in one tick. A reload that
+readings its boxes and `sources` name are collected, with the first snapshot of them, on the next,
+or on the one after it where the next reads the telemetry; no scene is queued in between. A phase change within one theme loads in one tick. A reload that
 falls due in the tick that reads the telemetry, or in the one that brought the model's preferences
 in — at connect, a model with a theme of its own — is carried to the next tick; it is carried at
 most twice, so where ticks come further apart than the telemetry read it still runs beside a read.
