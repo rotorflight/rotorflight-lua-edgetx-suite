@@ -7,8 +7,9 @@
 -- What is checked: the widget ends on the model's theme, and no scene is built for it before the
 -- readings its boxes name are collected, nor without every reading its module declares; the readings
 -- are collected with the first snapshot of them; the pass that reads the model's preferences off the card
--- does not also load the theme's modules; and no pass both loads the theme's modules and collects
--- those readings and builds the first snapshot of them. The same holds where the theme is changed
+-- does not also load the theme's modules; no pass both loads the theme's modules and collects
+-- those readings and builds the first snapshot of them; and none both collects them and reads the
+-- telemetry. The same holds where the theme is changed
 -- while connected -- a model theme saved from the tool, which reloads the preferences and then the
 -- theme -- and there exactly one scene is built for the new theme.
 --
@@ -68,7 +69,8 @@ local function newWorld()
     ["ARMD"] = 0, ["Gov"] = 0 }) do Stubs.sensors[k] = v end
   _G.getRSSI = function() return 100 end
 
-  local world = { pass = 0, loads = {}, modelLoad = {}, sources = {}, snapshot = {}, builds = {}, count = {} }
+  local world = { pass = 0, loads = {}, modelLoad = {}, sources = {}, snapshot = {}, builds = {}, count = {},
+    reads = {}, snapshotArgs = {} }
 
   -- Which theme's modules a pass reads from the card. A theme module's own chunk is what costs:
   -- loading a theme runs its phase module and every shared file that one requires.
@@ -98,6 +100,18 @@ local function newWorld()
 
   local Runtime = assert(loadfile(runtimePath))()
   world.w = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
+
+  -- The source lists each snapshot of a pass is built from. A telemetry read builds one too, from
+  -- the list standing before the pass, so a snapshot of the readings just collected is told apart
+  -- by the list it was handed rather than by the state having a new one.
+  local Derived = _G.rfsuite.require("widgets/dashboard/derived.lua")
+  local derivedBuild = Derived.build
+  Derived.build = function(state, sources, ...)
+    local args = world.snapshotArgs[world.pass] or {}
+    args[#args + 1] = sources
+    world.snapshotArgs[world.pass] = args
+    return derivedBuild(state, sources, ...)
+  end
 
   -- Every scene the widget hands to LVGL, with the theme it was built for and the readings that
   -- theme had collected when it was built.
@@ -133,7 +147,7 @@ local function passes(world, n, label)
     world.pass = world.pass + 1
     local w = world.w
     local sourcesBefore = w.boxSources
-    local derivedBefore = w.state and w.state.derived
+    local readBefore = w._lastTelemetryReadAt
     local prefsBefore = _G.rfsuite.session.modelPreferences
     local keyBefore = w.renderKey
     Stubs.tick()
@@ -142,9 +156,14 @@ local function passes(world, n, label)
     w.refresh(w, nil, nil)
     debug.sethook()
     world.count[world.pass] = spent
+    world.reads[world.pass] = (w._lastTelemetryReadAt ~= readBefore)
     if w.boxSources ~= sourcesBefore then
       world.sources[world.pass] = w.themePath
-      world.snapshot[world.pass] = (w.state.derived ~= derivedBefore)
+      local built = false
+      for _, list in ipairs(world.snapshotArgs[world.pass] or {}) do
+        if list == w.boxSources then built = true end
+      end
+      world.snapshot[world.pass] = built
     end
     local prefs = _G.rfsuite.session.modelPreferences
     if prefs ~= prefsBefore and type(prefs) == "table" then world.modelLoad[world.pass] = true end
@@ -154,9 +173,10 @@ local function passes(world, n, label)
     if trace and (world.loads[world.pass] or world.sources[world.pass] or world.modelLoad[world.pass]) then
       local folders = {}
       for f in pairs(world.loads[world.pass] or {}) do folders[#folders + 1] = f end
-      print(string.format("  [%s %4d] %6d instr  theme=%-14s modules=%s sources=%s prefs=%s", label,
+      print(string.format("  [%s %4d] %6d instr  theme=%-14s modules=%s sources=%s prefs=%s read=%s", label,
         world.pass, spent, tostring(w.themePath), table.concat(folders, ","),
-        tostring(world.sources[world.pass] ~= nil), tostring(world.modelLoad[world.pass] == true)))
+        tostring(world.sources[world.pass] ~= nil), tostring(world.modelLoad[world.pass] == true),
+        tostring(world.reads[world.pass])))
     end
   end
 end
@@ -175,7 +195,11 @@ local function checkPasses(world, themePath, first, last, label)
       expect(not world.modelLoad[p], label .. ": the pass that reads the model's preferences does not"
         .. " also load the theme's modules", "pass " .. p .. ", " .. tostring(world.count[p]) .. " instructions")
     end
-    if world.sources[p] == themePath then collectedAt = collectedAt or p end
+    if world.sources[p] == themePath then
+      collectedAt = collectedAt or p
+      expect(not world.reads[p], label .. ": the pass that collects the theme's readings does not also"
+        .. " read the telemetry", "pass " .. p .. ", " .. tostring(world.count[p]) .. " instructions")
+    end
   end
   expect(loadedAt ~= nil, "control (" .. label .. "): the theme's modules were loaded")
   expect(collectedAt ~= nil, "control (" .. label .. "): the theme's readings were collected")
