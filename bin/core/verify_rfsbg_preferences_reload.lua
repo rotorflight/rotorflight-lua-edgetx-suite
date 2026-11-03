@@ -16,7 +16,9 @@
 --      bring-across whose write failed is tried again on the next interval -- also where an empty
 --      settings file stands in the new file's place;
 --   5. a read that raised, a settings file the card did not hand over, or an interrupted save the
---      read could not finish putting in place: nothing is adopted, and the next interval reads again;
+--      read could not finish putting in place: the file's stamp is not kept, so the next interval
+--      reads again; until then the settings are what that read returned (after a read that raised,
+--      the ones already held);
 --   6. a write that keeps the file's size and time: the reload request beside it carries it;
 --   7. a radio without fstat: the file is read on every interval, as before;
 --   8. a settings file that does not compile: the defaults are used, it is not read again on every
