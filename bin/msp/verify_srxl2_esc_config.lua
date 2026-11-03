@@ -189,7 +189,10 @@ do
   page.onClose()
   local read = open()
   check("reopening after close reads again", read ~= nil and read.command == 0x5F16)
-  read.errorHandler(read, "refused")
+  check("the first error reply completes the read", read.completeOnErrorReplyAttempt == 1)
+  -- What the queue hands over for an error reply: the reply bytes with __errorReply set.
+  read.__errorReply = true
+  read.processReply(read, { 1 })
   local children = build()
   check("no rows are drawn", #fields == 0, #fields)
   check("the page says the firmware does not offer the settings",
@@ -198,6 +201,14 @@ do
   check("Save is refused", ok == false and saveRequest == nil)
   check("the refusal names the firmware",
     reported ~= nil and string.find(reported.message or "", "does not offer", 1, true) ~= nil)
+
+  -- The same answer when the error reply arrives only after the retries (reason "refused").
+  page.onClose()
+  read = open()
+  read.errorHandler(read, "refused")
+  children = build()
+  check("a refusal after the retries shows the same notice",
+    #fields == 0 and hasText(children, "does not offer the SRXL2 ESC settings"))
 end
 
 print("page: a read that fails or cannot be decoded")

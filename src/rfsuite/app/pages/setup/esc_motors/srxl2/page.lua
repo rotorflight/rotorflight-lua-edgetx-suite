@@ -96,7 +96,15 @@ local function queueRead()
   queue:add({
     command = Srxl2EscConfigApi.command,
     simulatorResponse = Srxl2EscConfigApi.simulatorResponse,
-    processReply = function(_, buf)
+    -- A firmware without the message answers with the MSP error flag. That is an answer, not a
+    -- lost reply, so the first one completes the read (the queue marks it `__errorReply`)
+    -- instead of being sent again until the retries run out.
+    completeOnErrorReplyAttempt = 1,
+    processReply = function(msg, buf)
+      if msg and msg.__errorReply then
+        finishRead(nil, true)
+        return
+      end
       finishRead(Srxl2EscConfigApi.parse(buf))
     end,
     errorHandler = function(_, reason)
