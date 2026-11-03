@@ -593,6 +593,11 @@ Record.ensure = ensureFlight
 --- beside these two need it even where the board's minimum cell voltage leaves the detector off.
 --- Where neither answers, nothing is resolved and the detector stays silent rather than dividing
 --- by a guess.
+---
+--- The count is taken once per flight: the first positive answer is kept, and the caller does not
+--- ask again while `packCells` holds it. Without that, a minimum cell voltage outside the range
+--- leaves the detector off, so the pack would be resolved on every sample -- the sensor read each
+--- time, and the flight closed with whatever the last sample said.
 local function resolvePack(get)
   local session = _G.rfsuite and _G.rfsuite.session
   local config = session and (session.batteryConfig or session.battery_config) or nil
@@ -603,6 +608,11 @@ local function resolvePack(get)
   if cells == nil or cells <= 0 then return end
   cells = math.floor(cells + 0.5)
   values.packCells = cells
+  local Log = loadModule("lib/log.lua")
+  if type(Log) == "table" and type(Log.emit) == "function" then
+    pcall(Log.emit, "rfsuite.flight_record", "pack " .. tostring(cells) .. " cell(s) from "
+      .. ((tonumber(config.batteryCellCount) or 0) > 0 and "the board" or "telemetry"), "debug")
+  end
 
   -- Centi-volts, as tasks/msp/api/battery_config.lua parses it and the Battery page displays it.
   -- Outside the range that page and the flight controller allow (1.00 to 5.00 V), the value is not
@@ -741,7 +751,7 @@ local function readSources()
   end
   if type(voltage) == "number" then values.voltage = voltage end
 
-  if values.cells == 0 then resolvePack(get) end
+  if values.cells == 0 and values.packCells == nil then resolvePack(get) end
 
   -- The governor state decides the powered gate below, so it is held to being a number here
   -- rather than tested on every comparison the gate makes.

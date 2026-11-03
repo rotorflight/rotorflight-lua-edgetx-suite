@@ -30,7 +30,7 @@ local disarmChunk = assert(loadfile("src/rfsuite/tasks/events/ondisarm/tasks/fli
 --- One connection: a record, a session, sensors that count their reads, and a data core that keeps
 --- what the disarm task appends.
 local function newWorld(config, sensors)
-  local world = { now = 0, reads = {}, appended = nil, sensors = sensors }
+  local world = { now = 0, reads = {}, appended = nil, sensors = sensors, logs = {} }
   local core = {
     storedBatteryId = function() return nil end,
     appendFlight = function(_, _, _, _, stats)
@@ -43,7 +43,9 @@ local function newWorld(config, sensors)
       world.reads[name] = (world.reads[name] or 0) + 1
       return world.sensors[name]
     end },
-    ["lib/log.lua"] = { emit = function() end },
+    ["lib/log.lua"] = { emit = function(tag, msg, level)
+      world.logs[#world.logs + 1] = { tag = tag, msg = msg, level = level }
+    end },
   }
   _G.getTime = function() return world.now * 100 end
   _G.loadScript = function(path)
@@ -61,11 +63,12 @@ local function newWorld(config, sensors)
 
   --- Arm, 25 samples 0.5 s apart, disarm; then the disarm task writes the flight's line.
   function world:fly()
-    self.reads, self.appended = {}, nil
+    self.reads, self.appended, self.logs = {}, nil, {}
     self.session.flightlog = { open = true, startTicks = self.now * 100, startDate = { year = 2026, mon = 11, day = 2 },
       model = "goblin" }
     self.record.open()
     for sample = 1, 25 do
+      if self.onSample then self.onSample(sample) end
       self.record.wakeup(true, true)
       if sample < 25 then self.now = self.now + 0.5 end
     end
@@ -108,10 +111,36 @@ do
     string.format("vcel_min=%s vcel_max=%s", tostring(stats.vcel_min), tostring(stats.vcel_max)))
   check("configured 0, no valid minimum cell voltage: no sag figures", stats.sags == nil and stats.sag_min == nil,
     string.format("sags=%s sag_min=%s", tostring(stats.sags), tostring(stats.sag_min)))
-  -- The sag detector is never armed here, so the record asks the sensor on every sample -- as it
-  -- does on master; carrying the count on adds no read.
-  check("configured 0, no valid minimum cell voltage: the sensor is asked once per sample, as before",
-    world.reads.battery_cell_count == 25, tostring(world.reads.battery_cell_count))
+  -- The sag detector is never armed here. The count is still taken once per flight: master asked
+  -- the sensor on every sample on this path, and the latch stops that.
+  check("configured 0, no valid minimum cell voltage: the sensor is asked once per flight",
+    world.reads.battery_cell_count == 1, tostring(world.reads.battery_cell_count))
+  local mine = {}
+  for _, line in ipairs(world.logs) do
+    if line.tag == "rfsuite.flight_record" then mine[#mine + 1] = line end
+  end
+  check("configured 0: one debug line names the count and where it came from",
+    #mine == 1 and mine[1].level == "debug" and mine[1].msg == "pack 6 cell(s) from telemetry",
+    #mine .. " line(s)" .. (mine[1] and (": " .. mine[1].level .. " " .. mine[1].msg) or ""))
+end
+
+-- The telemetry count changes during the flight (a late or different reading before disarm): the
+-- per-cell columns keep the count the flight started with.
+do
+  local world = newWorld({ batteryCellCount = 0, vbatmincellvoltage = 0 }, sensors(6))
+  world.onSample = function(sample)
+    if sample == 25 then world.sensors.battery_cell_count = 12 end
+  end
+  local stats = world:fly()
+  check("count changes on the last sample: the flight keeps the first count, 6",
+    world.session.flight.lastCells == 6 and near(stats.vcel_min, 4.1),
+    string.format("lastCells=%s vcel_min=%s", tostring(world.session.flight.lastCells), tostring(stats.vcel_min)))
+  world.onSample = nil
+  world.sensors.battery_cell_count = 12
+  local next_ = world:fly()
+  check("count changes on the last sample: the next flight starts fresh and takes 12",
+    world.session.flight.lastCells == 12 and near(next_.vcel_min, 2.05),
+    string.format("lastCells=%s vcel_min=%s", tostring(world.session.flight.lastCells), tostring(next_.vcel_min)))
 end
 
 -- A configured count answers without the sensor, as before.

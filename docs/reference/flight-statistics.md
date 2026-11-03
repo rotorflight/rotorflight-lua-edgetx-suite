@@ -65,7 +65,9 @@ the board has not reported a minimum cell voltage, **nothing is judged**: `sagCo
 rather than `0`, which is how a reader tells "watched, none" from "could not watch".
 The count itself is kept even where the minimum cell voltage is missing, and the flight that ends
 is closed with it as `lastCells`; the Flight Log divides its per-cell columns by it, so a board set
-to detect the count gets them too, without a further sensor read.
+to detect the count gets them too, without a further sensor read. The count is taken once per
+flight: the first answer is kept until the flight ends, so a different reading late in the flight
+does not change the columns, and the sensor is not asked again on every sample.
 
 **The resolution is the sampling interval.** The statistics are read every 0.5 s, so a dip
 shorter than that can fall between two samples and be missed entirely, and the deepest voltage is
