@@ -1268,6 +1268,8 @@ do
   st.pickCurves = false
   rebuildView(); untilRebuild(); rebuildView()
   check(not G.isBusy() and #G.getPoints(1) > 0, "cursor step: plot drawn")
+  -- The build fills the row itself, before any step does.
+  checkSlots(G, "cursor step: after the build", G.getReadout())
   local c = cursor()
   check(c ~= nil, "cursor step: the cursor's position is a function of the scene")
   for i, dir in ipairs({ 1, 1, 1, -1 }) do
@@ -1322,6 +1324,7 @@ do
     check(G.applyColumns({ 3, 4, 5, 6 }), "four curves: applied")
     rebuildView(); untilRebuild(); rebuildView()
     check(not G.isBusy() and not G.isCurveEmpty(4), "four curves: plot drawn")
+    checkSlots(G, "four curves: after the build", G.getReadout())
     asked = 0
     button(ctx, ">").press()
     check(asked == 0, "four curves: a step asks for no build", asked)
@@ -1345,7 +1348,10 @@ do
     check(partial[1] and partial[1].value ~= nil and partial[2] and partial[2].value == nil,
       "a curve without a reading: curve 2 has none at the cursor, curve 1 has one")
     checkSlots(G, "a curve without a reading", partial)
-    rebuildView()
+    -- Back to the two curves the checks below were written for.
+    check(G.applyColumns({ 3, 4 }), "four curves: the two curves restored")
+    rebuildView(); untilRebuild(); rebuildView()
+    check(not G.isBusy() and #G.getCurves() == 2, "four curves: two curves plotted again", #G.getCurves())
   end
   asked = 0
   button(ctx, "+").press()
