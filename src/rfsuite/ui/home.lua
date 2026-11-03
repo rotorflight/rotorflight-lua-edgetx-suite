@@ -1497,12 +1497,13 @@ local function returnToRootOnDisconnect()
   end
 end
 
--- The ESC protocols the ESC tools menu has an entry for. Built once and kept for as long as
+-- The ESC protocols an entry of the ESC tools menu, or of ESC & Motors, is enabled for (14 is
+-- SRXL2 from MSP API 12.10; that entry carries the version floor itself). Built once and kept for as long as
 -- this file is loaded: the function below runs on every pass of run(), on every page, and a
 -- constructor inside it would build a new table on every pass whether or not a flight controller
 -- is connected.
-local ESC_PROTOCOLS = {1, 3, 4, 6, 7, 9, 10, 12}
--- getTime() ticks (10 ms) before the ESC tools menu asks again for a protocol it failed to read.
+local ESC_PROTOCOLS = {1, 3, 4, 6, 7, 9, 10, 12, 14}
+-- getTime() ticks (10 ms) before either menu asks again for a protocol it failed to read.
 local ESC_PROTO_RETRY_TICKS = 500
 
 local function updateRuntimeMenuConditions()
@@ -1536,7 +1537,8 @@ local function updateRuntimeMenuConditions()
   end
 
   local currentMenuId = state.menu.getCurrentMenuId()
-  if currentMenuId ~= "esc_tools_menu" then
+  local escProtoMenu = currentMenuId == "esc_tools_menu" or currentMenuId == "esc_motors_menu"
+  if not escProtoMenu then
     state.escProtoCheckPending = false
     state.escProtoRetryAt = nil
   end
@@ -1548,7 +1550,7 @@ local function updateRuntimeMenuConditions()
   -- ESC_PROTO_RETRY_TICKS; leaving the menu and coming back asks at once. It waits until
   -- syncActivePageModule has taken the menu over, so the request is filed under the menu's own
   -- MSP client rather than under the one the leaving menu's reads are dropped with.
-  if currentMenuId == "esc_tools_menu" and state.activePageMenuId == currentMenuId
+  if escProtoMenu and state.activePageMenuId == currentMenuId
     and state.fblConnected == true and session
     and session.esc4WayDetectedProto == nil and not state.escProtoCheckPending
     and (state.escProtoRetryAt == nil or (getTime and getTime() or 0) >= state.escProtoRetryAt) then
