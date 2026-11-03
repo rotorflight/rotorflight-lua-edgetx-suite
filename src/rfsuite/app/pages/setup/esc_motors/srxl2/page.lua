@@ -309,7 +309,12 @@ function M.onHelp(ctx)
   if type(help) == "function" then
     return help(ctx)
   end
-  return { title = "Help", message = "No help available" }
+  local i18n = ctx and ctx.i18n
+  return {
+    title = pageText(i18n, "help_title_srxl2", "SRXL2 ESC Help"),
+    message = pageText(i18n, "help_p1_srxl2",
+      "Settings of a Spektrum Smart ESC on the SRXL2 ESC port; saving reboots the flight controller, and each row's ? explains its setting.")
+  }
 end
 
 function M.onClose()
