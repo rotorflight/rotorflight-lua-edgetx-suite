@@ -109,13 +109,15 @@ _G.loadScript = function(path)
 end
 
 local page = pageChunk()
-local ctx = { requestRebuild = function() end, i18n = {} }
+local rebuilds = 0
+local function onRebuild() rebuilds = rebuilds + 1 end
+local ctx = { requestRebuild = onRebuild, i18n = {} }
 
 local function build()
   fields = {}
   local children = {}
   page.build({ children = children, x = 0, y = 0, w = 480, h = 320, i18n = {},
-    requestRebuild = function() end })
+    requestRebuild = onRebuild })
   return children
 end
 
@@ -156,8 +158,18 @@ do
     check("both rows carry an inline help text",
       type(interval.opts.helpText) == "string" and type(motor2.opts.helpText) == "string")
     check("the values shown are the board's", interval.opts.get() == 9 and motor2.opts.get() == 0)
+    rebuilds = 0
     interval.opts.set(0)
+    check("an edit does not rebuild while the editor is open", rebuilds == 0, rebuilds)
+    check("closing the editor rebuilds so the unsaved notice shows",
+      type(interval.opts.edited) == "function" and (interval.opts.edited() or true) and rebuilds == 1, rebuilds)
+    local children = build()
+    check("the unsaved notice is drawn", hasText(children, "Unsaved changes"))
+    motor2 = fields[2]
+    rebuilds = 0
     motor2.opts.set(4)
+    if type(motor2.opts.edited) == "function" then motor2.opts.edited() end
+    check("a second edit with the notice already shown does not rebuild again", rebuilds == 0, rebuilds)
     check("an edit marks the page unsaved", page.hasUnsavedChanges() == true)
   end
   local ok = trySave()

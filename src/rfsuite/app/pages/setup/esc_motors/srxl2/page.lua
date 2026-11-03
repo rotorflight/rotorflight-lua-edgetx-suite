@@ -221,6 +221,12 @@ function M.build(ctx)
     if type(openHelp) == "function" and type(text) == "string" and text ~= "" then openHelp(text, label) end
   end
   local offText = pageText(i18n, "srxl2_off", "Off")
+  -- `set` runs on every click while the editor is open and a rebuild would close it, so the
+  -- unsaved notice is drawn once the editor has closed, and only when it is not on screen yet.
+  local noticeShown = ui.dirty
+  local function afterEdit()
+    if ui.dirty and not noticeShown then requestRebuild() end
+  end
 
   local label = pageText(i18n, "srxl2_telem_interval", "Telemetry Interval")
   cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w, label, {
@@ -231,6 +237,7 @@ function M.build(ctx)
     min = 0,
     max = 255,
     display = offOrNumber(offText),
+    edited = afterEdit,
     get = function() return ui.config.telem_interval_frames end,
     set = function(v)
       ui.config.telem_interval_frames = tonumber(v) or 0
@@ -247,6 +254,7 @@ function M.build(ctx)
     min = 0,
     max = 31,
     display = offOrNumber(offText),
+    edited = afterEdit,
     get = function() return ui.config.motor2_channel end,
     set = function(v)
       ui.config.motor2_channel = tonumber(v) or 0
