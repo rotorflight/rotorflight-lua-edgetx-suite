@@ -68,6 +68,8 @@ time -- from the card, unless the tool already holds its compiled chunk (see bel
   takes nothing off the link. A load can fail without the file being broken -- the loader's
   `pcall` also catches the radio's instruction limit when it stops a pass while the module's chunk
   runs -- so a failure that does not last costs about a second.
+- The background function script (`functions/rfsbg.lua`) waits the same second before it asks
+  again for the adjustment teller, which it loads only while *Adjustment events* is on.
 
 ## Reloading and releasing
 
