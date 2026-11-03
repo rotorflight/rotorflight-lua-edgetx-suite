@@ -1206,17 +1206,26 @@ do
     for i = 2, #row do slots[#slots + 1] = row[i] end
     return slots, row[1]
   end
+  -- Every slot the row has is checked, not only those of the selected curves: a slot past the
+  -- last selected curve stays empty, so a reading repeated into it is caught as well.
   local function checkSlots(G, label, readout)
     local slots, timeLabel = readoutSlots()
     check(timeLabel ~= nil and value(timeLabel.text) == G.getCursorTimeText(),
       label .. ": the time stands left of the readings", timeLabel and value(timeLabel.text))
-    check(#slots >= #readout, label .. ": a readout slot per curve", #slots)
-    for k = 1, #readout do
+    check(#slots == G.MAX_CURVES, label .. ": a readout slot per possible curve", #slots)
+    for k = 1, math.max(#slots, #readout) do
       local r = readout[k]
-      local want = r.value ~= nil and string.format("%s %g%s", r.name, r.value, r.unit or "") or (r.name .. " -")
+      local want = ""
+      if r ~= nil then
+        want = r.value ~= nil and string.format("%s %g%s", r.name, r.value, r.unit or "") or (r.name .. " -")
+      end
       local s = slots[k]
       local got = s and value(s.text)
-      check(got == want, label .. ": slot " .. k .. " shows curve " .. k .. "'s reading", tostring(got) .. " vs " .. want)
+      if r ~= nil then
+        check(got == want, label .. ": slot " .. k .. " shows curve " .. k .. "'s reading", tostring(got) .. " vs " .. want)
+      else
+        check(got == want, label .. ": slot " .. k .. " is empty, no curve " .. k .. " selected", tostring(got))
+      end
       check(s ~= nil and s.color == G.getCurveColor(k), label .. ": slot " .. k .. " is drawn in curve " .. k .. "'s colour")
     end
   end
@@ -1305,6 +1314,37 @@ do
       check(texts[want] == true, "cursor step after a plot without readings: curve " .. k .. " is shown", want)
     end
     checkSlots(G, "cursor step after a plot without readings", readout)
+    rebuildView()
+  end
+  -- Four curves fill every slot, each with its own reading in its own colour; a curve with no
+  -- reading at the cursor shows its name and a dash in its slot, beside curves that have one.
+  do
+    check(G.applyColumns({ 3, 4, 5, 6 }), "four curves: applied")
+    rebuildView(); untilRebuild(); rebuildView()
+    check(not G.isBusy() and not G.isCurveEmpty(4), "four curves: plot drawn")
+    asked = 0
+    button(ctx, ">").press()
+    check(asked == 0, "four curves: a step asks for no build", asked)
+    local readout = G.getReadout()
+    check(#readout == 4, "four curves: a reading per curve", #readout)
+    for k = 1, #readout do
+      check(readout[k].value ~= nil, "four curves: curve " .. k .. " has a reading at the cursor")
+    end
+    checkSlots(G, "four curves", readout)
+    local realReadout = G.getReadout
+    G.getReadout = function()
+      local out = realReadout()
+      if out[2] then out[2] = { name = out[2].name, unit = out[2].unit, value = nil } end
+      return out
+    end
+    asked = 0
+    button(ctx, "<").press()
+    local partial = G.getReadout()
+    G.getReadout = realReadout
+    check(asked == 0, "a curve without a reading: a step asks for no build", asked)
+    check(partial[1] and partial[1].value ~= nil and partial[2] and partial[2].value == nil,
+      "a curve without a reading: curve 2 has none at the cursor, curve 1 has one")
+    checkSlots(G, "a curve without a reading", partial)
     rebuildView()
   end
   asked = 0
