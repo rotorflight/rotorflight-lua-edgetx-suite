@@ -5523,15 +5523,16 @@ function Runtime.new(zone, options)
     -- The battery prompt's own work, last and only into a free slot: the registry read and the
     -- pick both touch the card, and neither is worth delaying a build for. The steady state
     -- past the load is three table reads. Both are one-shot jobs (see the dispatcher): neither is
-    -- armed on `built`, and each clears what arms it before it can raise. A load that has taken
-    -- its first step finishes before a pick is applied: the pick looks its pack up in the list
-    -- the load publishes, and would otherwise find no pack and write no profile. A load that is
-    -- held but latched -- a step stopped by the instruction limit after it was handed back -- is
-    -- never continued, so it is let go here and holds no pick up.
+    -- armed on `built`, and each clears what arms it before it can raise. A pick is applied only
+    -- once the load has published the list -- also a pick requested before the load's first step,
+    -- through rfsuite.batteryPick: the pick looks its pack up in that list, and would otherwise
+    -- find no pack and write no profile. A load that is held but latched -- a step stopped by the
+    -- instruction limit after it was handed back -- is never continued, so it is let go here and
+    -- holds no pick up.
     if self._job == nil then
       local pick = self.state.batteryPick
       if pick.load ~= nil and pick.loaded == true then pick.load = nil end
-      if self._batteryPickRequest ~= nil and pick.load == nil then
+      if self._batteryPickRequest ~= nil and pick.loaded == true then
         self._job = { kind = "battery_pick_apply", step = batteryPickApplyStep, oneShot = true }
       elseif pick.loaded ~= true and self.state.tasksDone == true then
         self._job = { kind = "battery_pick_load", step = batteryPickLoadStep, oneShot = true }

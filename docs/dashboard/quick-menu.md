@@ -31,7 +31,7 @@ The other is the battery prompt. With *Write a flight log* on (the
 this model, full screen shows the battery picker instead of the quick menu once per connection,
 until the pilot has picked a pack, closed it or armed the model. The registry is read a dozen
 lines at a time once the connection is up, so with many packs the picker comes up a moment
-later, always with the whole list.
+later.
 
 The menu's colours are the radio's, not the dashboard theme's. It uses the same theme colours
 EdgeTX gives every script, so it looks the same whichever dashboard theme is selected.

@@ -196,6 +196,32 @@ do
       tostring(pick.applied)))
 end
 
+-- A pick requested before the load's first step (rfsuite.batteryPick.select on connecting) waits
+-- for the list as well, rather than being applied against the empty one.
+do
+  local widget = newWidget(PACKS, function(n)
+    return string.format("id=%d;name=Pack %d;cap=5000;cells=6;profile=2\n", n, n)
+  end)
+  widget.preferences.flightlog.set_fc_profile = true
+  local requested, applyBeforeLoadEnd = false, false
+  drive(widget, PASSES, function(w, _, s)
+    s.expect = PACKS
+    if not requested then
+      requested = true
+      w._batteryPickRequest = "25"
+    end
+    if w._job ~= nil and w._job.kind == "battery_pick_apply" and #w.state.batteryPick.candidates == 0 then
+      applyBeforeLoadEnd = true
+    end
+  end)
+  local pick = widget.state.batteryPick
+  check("a pick requested before the first load step waits for the list", requested and not applyBeforeLoadEnd)
+  check("a pick requested before the first load step finds its pack and queues the profile write",
+    pick.selectedId == "25" and pick.selectedName == "Pack 25" and pick.applied == "queued",
+    string.format("selected=%s name=%s applied=%s", tostring(pick.selectedId), tostring(pick.selectedName),
+      tostring(pick.applied)))
+end
+
 -- A step stopped by the instruction limit after it handed the load back leaves the load held and
 -- the latch raised. That load is not finished by anything, so it must not hold a pick up either.
 do

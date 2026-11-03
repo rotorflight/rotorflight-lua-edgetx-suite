@@ -85,7 +85,10 @@ function M.newLoad(session, cfg)
   end
   local load = { cfg = snapshot, packs = {}, byId = {} }
   local FlightLog = requireModule("lib/flight_log.lua")
-  if type(FlightLog) ~= "table" or type(FlightLog.newRegistryReader) ~= "function" then return load end
+  if type(FlightLog) ~= "table" or type(FlightLog.newRegistryReader) ~= "function" then
+    log("no registry reader in lib/flight_log.lua, no packs loaded", "warn")
+    return load
+  end
   load.flightLog = FlightLog
   load.reader = FlightLog.newRegistryReader()
   load.want = FlightLog.modelKey((type(session) == "table" and session.modelName) or "")
