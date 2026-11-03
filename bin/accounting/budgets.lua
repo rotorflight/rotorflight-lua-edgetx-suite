@@ -72,6 +72,12 @@ return {
     -- a budget anyone would call comfortable.
     ["pass.startup.worst"] = { target = 18000, measured = 12088 },
 
+    -- The connect of a model whose own dashboard theme differs from the radio's: the pass that
+    -- reads the model's preferences off the card and moves the widget to its theme, and the passes
+    -- right after it (runThemeSwitchScenario). Like the cold start it loads modules, so it is held
+    -- to the same ceiling rather than to the STATE pass's.
+    ["pass.connect.theme_switch"] = { target = 18000, measured = 16138 },
+
     -- The service widget's background pass: the same two runtimes, with no scene
     -- build and no sweep of a theme mixed into it.
     --

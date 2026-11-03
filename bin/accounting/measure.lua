@@ -727,6 +727,68 @@ local function runPhaseScenario(themePath, armPad, disarmPad)
   return passes
 end
 
+--- A model with a dashboard theme of its own, different from the radio's, connected from cold.
+--
+-- Every other scenario here sets the radio's theme after the widget is built and has no model
+-- preferences on the card, so the theme the widget settles on is the one it started with. On a
+-- radio the model's own theme replaces the radio's when the board's preferences arrive with its
+-- UID, and that pass loads the preferences, releases the radio's theme and loads the model's in
+-- one widget call -- a pass no other row prices. So both stores are written to the card first,
+-- the widget is built on the radio's theme as on a radio, and the passes from the one that loads
+-- the model's preferences are counted: the switch, and the passes right after it.
+local SWITCH_WINDOW = 10
+local function runThemeSwitchScenario(radioTheme, modelTheme)
+  World.reset()
+  local Uid = World.require("tasks/msp/api/uid.lua")
+  local mcuId = Uid.parse(Uid.simulatorResponse).mcuId
+  local Preferences = World.require("lib/preferences.lua")
+  local prefs = Preferences.load()
+  prefs.dashboard = prefs.dashboard or {}
+  prefs.dashboard.theme_preflight = radioTheme
+  if Preferences.save(prefs) == false then error("accounting: the radio's preferences were not written") end
+  local ModelPreferences = World.require("lib/model_preferences.lua")
+  local saved, why = ModelPreferences.saveByMcuId(mcuId,
+    { dashboard = { overrides = true, model_theme_preflight = modelTheme } })
+  if not saved then error("accounting: the model's preferences were not written: " .. tostring(why)) end
+
+  -- A fresh world reads both stores off the card, as a radio switched on does.
+  World.reset()
+  local sensorIds = World.sensorIds
+  local Runtime = World.require("widgets/dashboard/runtime.lua")
+  local widget = Runtime.new(ZONE, {})
+  if widget.themePath ~= radioTheme then
+    error("accounting: the widget started on " .. tostring(widget.themePath) .. ", not on the radio's "
+      .. radioTheme)
+  end
+
+  local session = _G.rfsuite.session
+  local worst, worstAt, from, movedAt = 0, 0, nil, nil
+  for i = 1, 400 do
+    -- The window ends before its first pass past it runs, so a switch can only be counted, never
+    -- completed in a pass the row leaves out.
+    if from and i >= from + SWITCH_WINDOW then break end
+    feedLink(sensorIds, i)
+    local had = session.modelPreferences
+    local n = count(widget.refresh, widget, nil, nil)
+    if from == nil and had == nil and type(session.modelPreferences) == "table" then from = i end
+    if from then
+      if n > worst then worst, worstAt = n, i - from end
+      if movedAt == nil and widget.themePath == modelTheme then movedAt = i - from end
+    end
+  end
+  if from == nil then error("accounting: the model's preferences never arrived") end
+  if movedAt == nil or widget.themePath ~= modelTheme then
+    error("accounting: the widget did not move to the model's " .. modelTheme .. " within "
+      .. SWITCH_WINDOW .. " passes (" .. tostring(widget.themePath) .. ")")
+  end
+  -- The whole switch is inside the passes counted: the theme is loaded, and nothing of it is still
+  -- waiting for a later pass.
+  if widget.theme == nil or widget._themeReloadPending ~= nil or widget._themeSourcesPending ~= nil then
+    error("accounting: the switch to " .. modelTheme .. " did not finish within " .. SWITCH_WINDOW .. " passes")
+  end
+  return worst, worstAt
+end
+
 --- The worst pass and the sum of the passes `first`..`last` of one section of a phase run.
 local function phaseWindow(passes, tag, first, last)
   local w = { worst = 0, at = 0, read = false, sum = 0 }
@@ -2396,6 +2458,23 @@ do
     end
   end
   FC.unanswered = unanswered
+end
+
+-- The pass that moves a dashboard from the radio's theme to the model's own when the model's
+-- preferences arrive at connect, and the passes right after it (runThemeSwitchScenario). RF Status
+-- to Grid: a theme of boxes released for a free-form one, whose shared modules are read in the same
+-- load.
+--
+-- Last of the measurements, because it is the one that writes both preference stores to the card,
+-- and every world after it would read them; the card is emptied below before anything else runs.
+-- The flight controller's unanswered commands are kept as the page worlds left them, for the
+-- header's "answered empty" line.
+do
+  local unanswered = FC.unanswered
+  local worst, at = runThemeSwitchScenario("system/rfstatus", "system/grid")
+  FC.unanswered = unanswered
+  addRow("pass.connect.theme_switch", worst,
+    string.format("rfstatus to grid, worst of %d passes at +%d", SWITCH_WINDOW, at))
 end
 
 ------------------------------------------------------------------------------
