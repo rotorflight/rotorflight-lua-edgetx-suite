@@ -20,7 +20,12 @@
 --   6. a write that keeps the file's size and time: the reload request beside it carries it;
 --   7. a radio without fstat: the file is read on every interval, as before;
 --   8. a settings file that does not compile: the defaults are used, it is not read again on every
---      interval, and the save that replaces it is picked up.
+--      interval, and the save that replaces it is picked up;
+--   9. a look at the former file, or at an interrupted save's temporary file, that raised is not
+--      taken as its absence: what is still owed is tried again;
+--  10. a settings module that did not load once is loaded again, and the reload request is
+--      watched from then on;
+--  11. a look at the reload request that raised is not taken as an unchanged request.
 local checks, failures = 0, 0
 local function check(ok, label)
   checks = checks + 1
@@ -51,6 +56,8 @@ local failWrite -- path -> true: io.open(path, "w") answers nil
 local raiseRead -- path -> true: the next io.open(path, "r") raises
 local nilOpen   -- path -> true: the next io.open(path, "r") answers nil although the file is there
 local failDel   -- path -> true: the next del(path) is refused
+local raiseStat -- path -> true: fstat(path) raises
+local failLoad  -- module path -> true: loadScript answers nil for it
 local clock     -- getTime() ticks
 local frozenRtc -- a card time every write gets, for a radio without a running clock
 
@@ -65,6 +72,7 @@ end
 local function resetCard()
   files, opens, reads, stats = {}, {}, {}, 0
   failWrite, raiseRead, nilOpen, failDel = {}, {}, {}, {}
+  raiseStat, failLoad = {}, {}
   clock, frozenRtc = 1000, nil
 end
 
@@ -110,6 +118,7 @@ _G.io = {
 
 fstat = function(path)
   stats = stats + 1
+  if raiseStat[path] then error("simulated error looking at " .. path) end
   local f = files[path]
   if f then
     local t = f.time
@@ -163,6 +172,7 @@ loadScript = function(path)
   assert(string.sub(path, 1, #CORE) == CORE, "unexpected module path: " .. tostring(path))
   local relative = string.sub(path, #CORE + 1)
   if STAND_INS[relative] then return STAND_INS[relative] end
+  if failLoad[relative] then return nil end
   return loadfile("src/rfsuite/" .. relative)
 end
 
@@ -463,6 +473,91 @@ do
   toolSave(function(q) q.audio_events.adjustment_events = true end)
   local took = runUntil(script, INTERVAL + 1, function() return adjustmentEvents() == true end)
   check(took ~= nil, "8: the save that replaces it is picked up within one interval (took " .. tostring(took) .. ")")
+end
+
+-- ------------------------------------------------------------------------------- 9
+
+do
+  -- As the second case of 4, but the look at the former file raises: a bring-across is still owed.
+  resetCard()
+  files[PREFS] = { data = "", time = cardTime() }
+  files[LEGACY] = { data = LEGACY_TEXT, time = cardTime() }
+  failWrite[PREFS .. ".tmp"] = true
+  failWrite[PREFS] = true
+  raiseStat[LEGACY] = true
+  local script = boot()
+  runFor(script, 1)
+  check(files[PREFS].data == "" and files[LEGACY] ~= nil and adjustmentEvents() == true,
+    "9: with the write refused the former file stays in place and its values are read (control)")
+  failWrite = {}
+  local took = runUntil(script, INTERVAL + 1, function() return files[PREFS].data ~= "" end)
+  check(took ~= nil, "9: with the look at the former file raising, a bring-across whose write failed is"
+    .. " tried again within one interval (took " .. tostring(took) .. ")")
+end
+
+do
+  -- As the third case of 5, but the look at the temporary file raises.
+  resetCard()
+  toolSave(function(p) p.audio_events.adjustment_events = true end)
+  files[PREFS .. ".tmp"] = files[PREFS]
+  files[PREFS] = { data = "", time = cardTime() }
+  failDel[PREFS] = true
+  raiseStat[PREFS .. ".tmp"] = true
+  local script = boot()
+  runFor(script, 1)
+  check(failDel[PREFS] == nil and files[PREFS .. ".tmp"] ~= nil,
+    "9: the first read could not put the interrupted save in place (control)")
+  local took = runUntil(script, INTERVAL + 1, function() return files[PREFS .. ".tmp"] == nil end)
+  check(took ~= nil and files[PREFS].data ~= "", "9: with the look at the temporary file raising, an"
+    .. " interrupted save is put in place within one interval (took " .. tostring(took) .. ")")
+end
+
+-- ------------------------------------------------------------------------------- 10
+
+do
+  resetCard()
+  frozenRtc = { year = 2026, mon = 1, day = 1, hour = 0, min = 0, sec = 0 }
+  toolSave(function(p) p.audio_events.adjustment_events = false end)
+  failLoad["lib/model_preferences.lua"] = true
+  local script = boot()
+  runFor(script, 1)
+  check(adjustmentEvents() == false, "10: the first read happens while the module does not load (control)")
+  failLoad = {}
+  runFor(script, 2 * INTERVAL + 1)
+
+  local before = files[PREFS]
+  local edited, n = string.gsub(before.data, "adjustment_events = false,", "adjustment_events = true, ")
+  assert(n == 1 and #edited == #before.data, "setup: the same-size edit did not apply")
+  files[PREFS] = { data = edited, time = before.time }
+  _G.rfsuite.require("lib/model_preferences.lua").bumpReloadCounter(USER)
+  local took = runUntil(script, INTERVAL + 1, function() return adjustmentEvents() == true end)
+  check(took ~= nil, "10: after a module that did not load once, a write that keeps size and time is picked"
+    .. " up by the reload request (took " .. tostring(took) .. ")")
+end
+
+-- ------------------------------------------------------------------------------- 11
+
+do
+  -- No reload request on the card yet, so the one kept is 0.
+  resetCard()
+  frozenRtc = { year = 2026, mon = 1, day = 1, hour = 0, min = 0, sec = 0 }
+  toolSave(function(p) p.audio_events.adjustment_events = false end)
+  local REQ = USER .. "/reload.req"
+  files[REQ] = nil
+  local script = boot()
+  runFor(script, 2 * INTERVAL + 1)
+
+  local before = files[PREFS]
+  local edited, n = string.gsub(before.data, "adjustment_events = false,", "adjustment_events = true, ")
+  assert(n == 1 and #edited == #before.data, "setup: the same-size edit did not apply")
+  files[PREFS] = { data = edited, time = before.time }
+  _G.rfsuite.require("lib/model_preferences.lua").bumpReloadCounter(USER)
+  check(files[REQ] ~= nil, "11: the save creates the reload request (control)")
+  -- Set after the bump: the save looks at the request too.
+  raiseStat[REQ] = true
+  local took = runUntil(script, INTERVAL + 1, function() return adjustmentEvents() == true end)
+  check(took ~= nil, "11: with the look at the reload request raising, a write that keeps size and time is"
+    .. " read within one interval (took " .. tostring(took) .. ")")
 end
 
 print(string.format("%d checks, %d failures", checks, failures))

@@ -202,7 +202,7 @@ end
 -- nothing read in its place -- and no former file is left on the card beside it, which is a
 -- bring-across (or the setting aside of the former file) still owed, nor an interrupted save
 -- under the temporary name the store saves through (its TMP_SUFFIX), which the read could not
--- finish putting in place.
+-- finish putting in place. A look at either that raised is not taken as an answer.
 local function readSettled(stamp, path, found)
   if stamp == NO_PREFERENCES_FILE then
     if found then return false end
@@ -215,11 +215,11 @@ local function readSettled(stamp, path, found)
     and ConfigStore.legacyPath(path) or nil
   if type(legacy) == "string" and legacy ~= path then
     local ok, info = pcall(fstat, legacy)
-    if ok and type(info) == "table" then return false end
+    if not ok or type(info) == "table" then return false end
   end
 
   local okTmp, tmp = pcall(fstat, path .. ".tmp")
-  if okTmp and type(tmp) == "table" then return false end
+  if not okTmp or type(tmp) == "table" then return false end
   return true
 end
 
@@ -228,8 +228,10 @@ end
 --- the new file's size, which is the case the stamp alone cannot see. Read, never written.
 local function reloadSequences()
   if type(fstat) ~= "function" then return nil end
-  if ModelPreferences == nil then
-    ModelPreferences = loadModule("lib/model_preferences.lua") or false
+  -- Not remembered as missing: a load that did not answer once is tried again on the next
+  -- interval, as lib/preferences.lua does for the same module.
+  if not ModelPreferences then
+    ModelPreferences = loadModule("lib/model_preferences.lua")
   end
   local paths = ModelPreferences and type(ModelPreferences.reloadRequestPaths) == "function"
     and ModelPreferences.reloadRequestPaths() or nil
@@ -237,16 +239,24 @@ local function reloadSequences()
 
   local seqs = {}
   for i = 1, #paths do
+    -- A request that is not there is 0, as before its first save; a look that raised is false,
+    -- which is never taken as unchanged.
     local ok, info = pcall(fstat, paths[i])
-    seqs[paths[i]] = (ok and type(info) == "table" and info.size) or 0
+    if not ok then
+      seqs[paths[i]] = false
+    else
+      seqs[paths[i]] = (type(info) == "table" and info.size) or 0
+    end
   end
   return seqs
 end
 
 local function sequencesMoved(seqs)
-  if not seqs or not lastReloadSeqs then return false end
+  if not seqs then return false end
+  -- Kept from a read before the requests could be looked at: nothing yet to compare against.
+  if not lastReloadSeqs then return true end
   for path, seq in pairs(seqs) do
-    if lastReloadSeqs[path] ~= seq then return true end
+    if seq == false or lastReloadSeqs[path] ~= seq then return true end
   end
   return false
 end
