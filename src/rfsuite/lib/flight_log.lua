@@ -169,73 +169,113 @@ end
 -- Registry
 -- ---------------------------------------------------------------------------
 
--- Returns an array of { id, name, cap, cells, models (lower case), profile, cycles, last }. A missing
--- file is an empty registry, not an error; one a replace cut short left only as `.bak` is read
--- from there (readPathFor). Duplicate ids: the first line wins, because the
--- format declares the id unique and keeping both would show two packs of which only one is
--- ever stamped.
+-- One registry line as a pack: { id, name, cap, cells, models (lower case), profile, cycles, last },
+-- or nil for a comment and for a line with no `key=value` in it.
+local function parseRegistryLine(line)
+  if string.match(line, "^%s*#") ~= nil or string.find(line, "=", 1, true) == nil then return nil end
+  local entry = {}
+  -- The loop variables of a generic for are constants, so the key and the value are
+  -- normalised into locals of their own rather than reassigned.
+  for rawKey, rawValue in string.gmatch(line, "([%w_]+)%s*=%s*([^;]*)") do
+    local key = string.lower(rawKey)
+    local value = trim(rawValue)
+    if key == "id" then
+      entry.id = value
+    elseif key == "name" then
+      entry.name = value
+    elseif key == "cap" then
+      entry.cap = tonumber(value)
+    elseif key == "cells" then
+      entry.cells = tonumber(value)
+    elseif key == "models" then
+      local models = {}
+      for name in string.gmatch(value, "[^,]+") do
+        local normalized = string.lower(trim(name))
+        if normalized ~= "" then models[#models + 1] = normalized end
+      end
+      entry.models = models
+    elseif key == "profile" then
+      entry.profile = tonumber(value)
+    elseif key == "cycles" then
+      entry.cycles = tonumber(value) or 0
+    elseif key == "last" then
+      entry.last = value
+    end
+  end
+  return entry
+end
+
+--- A read of the registry that can be taken one line at a time (registryNext).
+--
+-- The file is read here, whole and once, under the same cap as every other registry read. The
+-- reader keeps that text, a position and the ids already seen, and no file handle, so a reader
+-- dropped part-way leaves nothing open.
+function M.newRegistryReader()
+  local data = readAll(readPathFor(M.registryPath()), READ_CAP) or ""
+  return { data = data, pos = 1, seen = {}, ended = string.find(data, "[^\r\n]") == nil }
+end
+
+--- The next line of a registry read: the pack it adds, `false` for a line that adds none (a
+--- comment, a line without an id, an id an earlier line already had), or nil once the whole
+--- registry has been read. The text is let go with the last line.
+--
+-- Duplicate ids: the first line wins, because the format declares the id unique and keeping
+-- both would show two packs of which only one is ever stamped.
+function M.registryNext(reader)
+  if reader.ended then return nil end
+  local data = reader.data
+  local first, last = string.find(data, "[^\r\n]+", reader.pos)
+  if first == nil then
+    reader.ended, reader.data = true, nil
+    return nil
+  end
+  reader.pos = last + 1
+  if string.find(data, "[^\r\n]", reader.pos) == nil then
+    reader.ended, reader.data = true, nil
+  end
+  local entry = parseRegistryLine(string.sub(data, first, last))
+  if entry == nil or entry.id == nil or entry.id == "" or reader.seen[entry.id] then return false end
+  reader.seen[entry.id] = true
+  return entry
+end
+
+-- Returns the registry as an array of packs (parseRegistryLine), in file order. A missing file
+-- is an empty registry, not an error; one a replace cut short left only as `.bak` is read from
+-- there (readPathFor).
 function M.loadRegistry()
   local list = {}
-  local seen = {}
-  local data = readAll(readPathFor(M.registryPath()), READ_CAP) or ""
-  for line in string.gmatch(data, "[^\r\n]+") do
-    if string.match(line, "^%s*#") == nil and string.find(line, "=", 1, true) ~= nil then
-      local entry = {}
-      -- The loop variables of a generic for are constants, so the key and the value are
-      -- normalised into locals of their own rather than reassigned.
-      for rawKey, rawValue in string.gmatch(line, "([%w_]+)%s*=%s*([^;]*)") do
-        local key = string.lower(rawKey)
-        local value = trim(rawValue)
-        if key == "id" then
-          entry.id = value
-        elseif key == "name" then
-          entry.name = value
-        elseif key == "cap" then
-          entry.cap = tonumber(value)
-        elseif key == "cells" then
-          entry.cells = tonumber(value)
-        elseif key == "models" then
-          local models = {}
-          for name in string.gmatch(value, "[^,]+") do
-            local normalized = string.lower(trim(name))
-            if normalized ~= "" then models[#models + 1] = normalized end
-          end
-          entry.models = models
-        elseif key == "profile" then
-          entry.profile = tonumber(value)
-        elseif key == "cycles" then
-          entry.cycles = tonumber(value) or 0
-        elseif key == "last" then
-          entry.last = value
-        end
-      end
-      if entry.id ~= nil and entry.id ~= "" and not seen[entry.id] then
-        seen[entry.id] = true
-        list[#list + 1] = entry
-      end
-    end
+  local reader = M.newRegistryReader()
+  while true do
+    local entry = M.registryNext(reader)
+    if entry == nil then break end
+    if entry then list[#list + 1] = entry end
   end
   return list
 end
 
--- The packs offered for one craft: a pack matches when its model list holds the craft's name
--- case-insensitively, holds "*", or is empty -- an empty list means every model.
+--- A craft's name in the form isForModel compares it in: trimmed and lower case.
+function M.modelKey(modelName)
+  return string.lower(trim(modelName))
+end
+
+--- Whether a pack is offered for the craft whose modelKey is `want`: its model list holds that
+--- name, holds "*", or is empty -- an empty list means every model.
+function M.isForModel(entry, want)
+  local models = entry.models
+  if models == nil or #models == 0 then return true end
+  for j = 1, #models do
+    if models[j] == "*" or (want ~= "" and models[j] == want) then return true end
+  end
+  return false
+end
+
+-- The packs offered for one craft (isForModel); the name is matched case-insensitively.
 function M.forModel(registry, modelName)
-  local want = string.lower(trim(modelName))
+  local want = M.modelKey(modelName)
   local out = {}
   for i = 1, #(registry or {}) do
     local entry = registry[i]
-    local models = entry.models
-    local hit = (models == nil or #models == 0)
-    if not hit then
-      for j = 1, #models do
-        if models[j] == "*" or (want ~= "" and models[j] == want) then
-          hit = true
-          break
-        end
-      end
-    end
-    if hit then out[#out + 1] = entry end
+    if M.isForModel(entry, want) then out[#out + 1] = entry end
   end
   return out
 end

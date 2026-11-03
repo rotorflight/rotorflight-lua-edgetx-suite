@@ -1756,6 +1756,7 @@ local function newBatteryPickState()
     loaded = false,
     pending = false,
     candidates = {},
+    byId = {},
     selectedId = nil,
     selectedName = nil,
     boardProfile = nil,
@@ -1764,20 +1765,25 @@ local function newBatteryPickState()
   }
 end
 
+-- A pack of the published list by its id, through the index the load built beside the list, so a
+-- lookup does not cost a pass that grows with the registry.
 local function batteryPickEntry(pick, id)
-  if id == nil then return nil end
-  local list = pick.candidates
-  for i = 1, #list do
-    if list[i].id == id then return list[i] end
-  end
-  return nil
+  if id == nil or type(pick.byId) ~= "table" then return nil end
+  return pick.byId[id]
 end
 
 --- Read the registry and ask the board which profile it is on. Once per FBL session.
 --
+-- The registry is taken a few lines per step (BatteryPick.loadStep), one step per free job slot,
+-- so the cost of a pass does not grow with the number of packs. The load in progress is kept on
+-- `pick` and published in the last step only: the views read `candidates` in the reactive sweep,
+-- and a part of the list would raise the prompt with half the packs. A reconnect replaces `pick`,
+-- and with it a load that was not finished.
+--
 -- `loaded` is raised before the card is touched rather than after: a step that raises is caught
 -- by the dispatcher and the slot is cleared, so a flag set at the end would have this job
--- enqueued again on every pass for the rest of the session.
+-- enqueued again on every pass for the rest of the session. A step that returns with lines left
+-- lowers it again, which is what enqueues the next one.
 local function batteryPickLoadStep(self)
   local pick = self.state.batteryPick
   pick.loaded = true
@@ -1786,11 +1792,19 @@ local function batteryPickLoadStep(self)
   if type(BatteryPick) ~= "table" then return true end
 
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-  local list = BatteryPick.candidates(session)
-  local cfg = self.state.battery_config
-  for i = 1, #list do
-    list[i].targetProfile = BatteryPick.targetProfile(list[i], cfg)
+  -- Held on `pick` only between steps that returned: a step that raises leaves nothing behind
+  -- for the latch to keep alive.
+  local load = pick.load or BatteryPick.newLoad(session, self.state.battery_config)
+  pick.load = nil
+  if not BatteryPick.loadStep(load) then
+    pick.load = load
+    pick.loaded = false
+    return true
   end
+  -- The index before the list: a step stopped between the two then shows no packs yet, rather than
+  -- packs a pick could not find.
+  local list = load.packs
+  pick.byId = load.byId
   pick.candidates = list
 
   local id = BatteryPick.selectedId(session)
@@ -5509,11 +5523,18 @@ function Runtime.new(zone, options)
     -- The battery prompt's own work, last and only into a free slot: the registry read and the
     -- pick both touch the card, and neither is worth delaying a build for. The steady state
     -- past the load is three table reads. Both are one-shot jobs (see the dispatcher): neither is
-    -- armed on `built`, and each clears what arms it before it can raise.
+    -- armed on `built`, and each clears what arms it before it can raise. A pick is applied only
+    -- once the load has published the list -- also a pick requested before the load's first step,
+    -- through rfsuite.batteryPick: the pick looks its pack up in that list, and would otherwise
+    -- find no pack and write no profile. A load that is held but latched -- a step stopped by the
+    -- instruction limit after it was handed back -- is never continued, so it is let go here and
+    -- holds no pick up.
     if self._job == nil then
-      if self._batteryPickRequest ~= nil then
+      local pick = self.state.batteryPick
+      if pick.load ~= nil and pick.loaded == true then pick.load = nil end
+      if self._batteryPickRequest ~= nil and pick.loaded == true then
         self._job = { kind = "battery_pick_apply", step = batteryPickApplyStep, oneShot = true }
-      elseif self.state.batteryPick.loaded ~= true and self.state.tasksDone == true then
+      elseif pick.loaded ~= true and self.state.tasksDone == true then
         self._job = { kind = "battery_pick_load", step = batteryPickLoadStep, oneShot = true }
       end
     end
