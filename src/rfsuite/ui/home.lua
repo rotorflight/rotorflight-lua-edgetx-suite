@@ -1599,11 +1599,11 @@ local function updateRuntimeMenuConditions()
 
   -- The escProto conditions follow the protocol alone and nothing else sets them, so they are
   -- set again only when the protocol differs from the one this menu was last given (`false`
-  -- stands for none). This runs on every pass of every page.
+  -- stands for none). This runs on every pass of every page. The mark is written last, so a pass
+  -- stopped part-way (the CPU limit) leaves it unwritten and the next pass sets them all again.
   local proto = session and session.esc4WayDetectedProto
   local applied = proto or false
   if state.menu._escProtoApplied == applied then return end
-  state.menu._escProtoApplied = applied
   local initialVersion = state.menu._conditionsVersion
   for _, p in ipairs(ESC_PROTOCOLS) do
     local isEnabled = false
@@ -1615,6 +1615,7 @@ local function updateRuntimeMenuConditions()
   if state.menu._conditionsVersion ~= initialVersion then
     scheduleBuildUI(false)
   end
+  state.menu._escProtoApplied = applied
 end
 
 local function maybeRefreshInfoPageFromSession()
