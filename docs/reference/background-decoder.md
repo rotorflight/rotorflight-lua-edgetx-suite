@@ -49,6 +49,11 @@ and nothing needs to be configured.
   second and takes the decoding back, and the tool decodes from its own first pass -- including
   while it is still reading the flight controller's configuration, which is when it has to be
   able to see the model arm.
+- **A setting changed in the tool reaches it within about 30 seconds** of the tool being closed
+  (the tool pauses it, above), for example switching the adjustment announcements on or off.
+  Every 30 seconds it looks at the settings file and at the `reload.req` beside it, and reads
+  the settings again only when one of them has moved since its last read, so a radio whose
+  settings stay as they are does not pay for the read.
 - **It cannot be seen from the suite if it is configured as a global function** rather than on
   the model. The radio offers no way for a script to read the global special functions, so a
   background decoder installed there is invisible to the check above.

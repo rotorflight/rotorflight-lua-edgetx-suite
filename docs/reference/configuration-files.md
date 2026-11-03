@@ -158,11 +158,12 @@ finish. The tool and the background decoder are not stopped that way.
   kept by hand or from the page. It is saved the same way as the Tune Advisor's flights, with the previous version kept
   as `batteries.cfg.bak`. If a save is cut short after the old file was renamed to `.bak` and before the new one was in
   place, the registry is read from the `.bak` and the next edit or counted flight writes it back. To start an empty
-  registry, delete the file and its `.bak`. The dashboard's battery prompt reads it a dozen lines per
+  registry, delete the file and its .bak. The dashboard's battery prompt reads it a dozen lines per
   widget call, so a long registry does not hold the dashboard up.
-- `reload.req` — a few bytes the tool writes when you save, so the dashboard widget knows to
-  re-read the settings. Unchanged by the move to Lua files. Do not delete it while the suite is
-  running.
+- 
+eload.req — a few bytes the tool writes when you save, so the dashboard widget, the service
+  widget and the background decoder know to re-read the settings. Unchanged by the move to Lua
+  files. Do not delete it while the suite is running.
 - `model_name_restore.lua` — the model names the suite has renamed while a craft was connected
   and has to put back afterwards, one entry per model of the radio, named after the model file
   it belongs to. The same Lua data as the two above, written and read the same way, and a card
