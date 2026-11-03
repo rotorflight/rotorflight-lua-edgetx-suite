@@ -201,6 +201,14 @@ for _, host in ipairs(HOSTS) do
   check(adjReads() == 0, host .. ": the teller reads AdjF/AdjV by name ("
     .. adjReads() .. " getValue calls, " .. (adjReads() - readsBefore) .. " of them in 40 passes)")
 
+  -- A value below zero is spoken with its sign.
+  newWorld(host, { enabled = true })
+  W.adj = { 0, 0 }
+  warm()
+  W.adj = { 14, -100 }
+  seconds(2.0)
+  check(said("inflight/fn/14.wav") and said("#-100"), host .. ": a negative adjustment is announced with its sign")
+
   -- The value has to stand still for 1.0 s before it is spoken, and the 0 the flight controller
   -- reports between adjustments is never spoken.
   newWorld(host, { enabled = true })
@@ -217,6 +225,10 @@ for _, host in ipairs(HOSTS) do
   W.adj = { 0, 0 }
   seconds(2.0)
   check(#W.spoken == count, host .. ": the 0 between adjustments is not spoken")
+  -- Only function 0 is the idle report: an adjustment whose new value is 0 is spoken, value included.
+  W.adj = { 15, 0 }
+  seconds(2.0)
+  check(said("inflight/fn/15.wav") and said("#0"), host .. ": an adjustment to the value 0 is announced")
 
   -- A report already standing when the teller starts is joined, not announced.
   newWorld(host, { enabled = true })
@@ -404,17 +416,18 @@ do
 end
 
 -- The settle is 1.0 s from the first decoded row of the new value: nothing before, the value at
--- the first pass after.
+-- the first pass after. The row is decoded on the first pass after adjust(); twenty passes of 50 ms
+-- later, on pass 21, it has stood 1.0 s -- so pass 20 is silent and pass 21 speaks.
 for _, host in ipairs(HOSTS) do
   newWorld(host, { enabled = true })
   W.adj = { 0, 0 }
   warm()
   adjust(14, 100)
   pass(1)
-  pass(18)
+  pass(19)
   check(#W.spoken == 0, host .. ": nothing is spoken before the value has stood 1.0 s")
-  pass(3)
-  check(said("#100"), host .. ": the value is spoken once it has stood 1.0 s")
+  pass(1)
+  check(said("#100"), host .. ": the value is spoken on the first pass at which it has stood 1.0 s")
 end
 
 -- Widget only: taking over from another Lua state while a report stands, when its next row is
@@ -493,6 +506,11 @@ do
   check(pos == 7, "decoder: the ADJ row is six bytes")
   check(held() == "14/-100", "decoder: a decoded pair the throttle declines is still held for the teller ("
     .. held() .. ")")
+  -- And one it lets through is still published as the two sensors, for the in-flight tuning overlay.
+  W.allowRows, W.rows = true, {}
+  chunk(nil, function() return true end)[0x1220].dec(data, 1)
+  check(W.rows.AdjF == 14 and W.rows.AdjV == -100, "decoder: the ADJ pair is published as AdjF and AdjV ("
+    .. tostring(W.rows.AdjF) .. "/" .. tostring(W.rows.AdjV) .. ")")
   _G.rfsuite.adjustmentReport = nil
   local discovered = chunk({ 99 })
   check(type(discovered[0x1220]) == "table", "decoder: discovery returns the ADJ row")
