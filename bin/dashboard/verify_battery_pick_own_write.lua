@@ -14,6 +14,8 @@
 --     AFTER it, before the dashboard has looked at the files again -- the radio's settings and the
 --     model's store alike -- also where that other writer could not stat the reload request and
 --     wrote it to the very size the pick had left it at;
+--   * where the dashboard cannot stat the radio's settings file just before its own pick, it does
+--     not take the save as its own and reloads once;
 --   * the board profile a pack belongs to is worked out once per pack when the list is loaded,
 --     and once more for the pack picked, against the configuration in hand then.
 --
@@ -284,7 +286,7 @@ do
   expect(world.resolves == 0, "own pick: the theme is not resolved again", world.resolves .. " resolve(s)")
   -- The one build left is the zone without the prompt, which the answer changes; the second pick
   -- below, with no prompt up, shows that nothing else is built.
-  expect(world.builds <= 1, "own pick: nothing but the answered prompt is built", world.builds .. " build(s)")
+  expect(world.builds == 1, "own pick: the zone without the prompt is built once", world.builds .. " build(s)")
   expect(world.matched == 1, "control: the picked pack's profile is worked out once at the pick",
     world.matched .. " line(s)")
   expect(world.w._reloadPending == nil, "own pick: no reload is left pending", tostring(world.w._reloadPending))
@@ -322,9 +324,13 @@ local CASES = {
   { which = "radio", order = "after" },
   { which = "model", order = "after" },
   { which = "model", order = "after", blind = true, requestSize = 32 },
+  -- No save from elsewhere: the dashboard's look at the radio's settings file just before its save
+  -- fails, so it cannot tell the files from how it last saw them, takes nothing, and reloads.
+  { unstatable = true },
 }
 for _, case in ipairs(CASES) do
-  local name = case.which .. " save " .. case.order .. " the pick" .. (case.blind and ", request not stat-able" or "")
+  local name = case.unstatable and "pick with the radio's settings not stat-able"
+    or (case.which .. " save " .. case.order .. " the pick" .. (case.blind and ", request not stat-able" or ""))
   if trace then print("scenario: " .. name) end
   local world = newWorld(case.requestSize)
   connectAndLoad(world)
@@ -339,14 +345,24 @@ for _, case in ipairs(CASES) do
   statAt = world.w._lastPrefsStatAt
   window(world)
   local function foreign()
-    if case.which == "radio" then foreignRadioSave(world, 45) else foreignSave(world, case.blind) end
+    if case.which == "radio" then foreignRadioSave(world, 45) elseif case.which == "model" then foreignSave(world, case.blind) end
   end
   if case.order == "before" then foreign() end
+  local stat = _G.fstat
+  if case.unstatable then
+    -- Until the pick takes its request: the look before the save, and not the one after it.
+    _G.fstat = function(path)
+      if world.w._batteryPickRequest ~= nil and type(path) == "string"
+          and string.find(path, "rfsuite.user/preferences.", 1, true) then return nil end
+      return stat(path)
+    end
+  end
   _G.rfsuite.batteryPick.select("p1000")
   for _ = 1, 5 do
     passes(world, 1)
     if world.w._batteryPickRequest == nil then break end
   end
+  _G.fstat = stat
   if case.order == "after" then foreign() end
   expect(world.w._batteryPickRequest == nil and world.w._lastPrefsStatAt == statAt,
     "control: the pick and the save landed before the next look at the files (" .. name .. ")",
