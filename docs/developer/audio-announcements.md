@@ -202,8 +202,8 @@ the level the Volume page sets, and the window in which an alarm keeps the adjus
 and `Audio.adjustmentAllowed` are that module's own functions. The adjustment teller loads
 `lib/audio_playback.lua` alone, so the background function script, which runs the teller and no
 announcement of its own, does not carry the rest of `lib/audio.lua`. Where both are loaded they
-share one instance through the module loader, so a level or an alarm window `lib/audio.lua` sets is
-the one the teller sees.
+share one instance, which the module keeps on `rfsuite.audioPlayback` whichever loader brought it in,
+so a level or an alarm window `lib/audio.lua` sets is the one the teller sees.
 
 **The file itself is generated, not recorded.** Add one entry to `bin/sound-generator/json/en.json`,
 run `update-missing-translations.py`, fill in the other languages, and build. See

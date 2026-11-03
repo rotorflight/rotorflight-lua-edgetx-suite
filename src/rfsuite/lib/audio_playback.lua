@@ -6,8 +6,9 @@
 -- adjustment teller (tasks/events/telemetry_bg/adjustments.lua), which needs nothing else of
 -- lib/audio.lua. A Lua state that runs only the teller -- the background function script, or a
 -- service widget without the dashboard -- therefore loads this module alone. Where both are
--- loaded they share this one instance through the module loader, so the level lib/audio.lua sets
--- is the level the teller speaks at, and an alarm lib/audio.lua plays keeps the teller quiet.
+-- loaded they share this one instance, which the module keeps on rfsuite.audioPlayback whichever
+-- loader brought it in, so the level lib/audio.lua sets is the level the teller speaks at, and an
+-- alarm lib/audio.lua plays keeps the teller quiet.
 
 -- One instance per Lua state, whichever loader arrives: the module loader, or a plain load where
 -- the loader answered with nothing. A second instance would keep a level and an alarm window of
