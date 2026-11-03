@@ -248,7 +248,7 @@ theme resolve. A save made elsewhere since its last look (once a second) that th
 reload request, or a preference file's size or time, moved -- leaves nothing taken, and the pick is
 reloaded with it; one made after the pick is found at the next look, as any save is. Where it cannot
 take its save as its own (a reload already waiting, a preference file it cannot stat), the pick is
-reloaded. Without `fstat` the dashboard sees no save at all, its own or another's, and reloads nothing.
+reloaded. Without `fstat` the dashboard sees no save at all, its own or another's, so no save is reloaded for.
 
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be
