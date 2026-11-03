@@ -75,6 +75,7 @@ local function newWorld(host, opts)
     reads = {},             -- getValue() calls by name
     loads = {},             -- loadScript() calls by core-relative path
     loadPass = {},          -- the host pass each path was first loaded on
+    tellerFailPasses = {},  -- the host pass of each attempt that found the teller missing
     passes = 0,
     spoken = {},
     shm = {},
@@ -123,7 +124,12 @@ local function newWorld(host, opts)
     local relative = string.sub(path, #CORE + 1)
     W.loads[relative] = (W.loads[relative] or 0) + 1
     W.loadPass[relative] = W.loadPass[relative] or W.passes
-    if relative == TELLER and W.failTeller then return nil end
+    if relative == TELLER and W.failTeller then
+      -- One attempt may ask twice (the memoizer, then the plain load), so a pass is one attempt.
+      local fails = W.tellerFailPasses
+      if fails[#fails] ~= W.passes then fails[#fails + 1] = W.passes end
+      return nil
+    end
     if standIns[relative] then return standIns[relative] end
     return loadfile(ROOT .. "/src/rfsuite/" .. relative)
   end
@@ -485,6 +491,17 @@ do
   check(_G.rfsuite.adjustmentAnnouncer ~= nil and loads > 0 and loads <= 6,
     "rfsbg: a teller that did not load is asked for again once a second (" .. loads .. " loads in 2 s, "
     .. (_G.rfsuite.adjustmentAnnouncer and "loaded" or "never loaded") .. " after)")
+  -- The attempts themselves are one second apart (TELLER_RETRY_SECONDS in src/functions/rfsbg.lua):
+  -- 20 passes of 50 ms, or 21 where the float sum of the retry time lands just past a pass.
+  local fails, gaps, spaced = W.tellerFailPasses, {}, true
+  for i = 2, #fails do
+    local gap = fails[i] - fails[i - 1]
+    gaps[#gaps + 1] = tostring(gap)
+    if gap < 20 or gap > 21 then spaced = false end
+  end
+  check(#fails >= 2 and spaced,
+    "rfsbg: the attempts on a teller that did not load are one second apart (" .. #fails
+    .. " attempts in 2 s, gaps in passes: " .. (#gaps > 0 and table.concat(gaps, ",") or "none") .. ")")
   W.adj = { 14, 100 }
   seconds(2.0)
   check(said("inflight/fn/14.wav") and said("#100"), "rfsbg: a teller loaded after a failed load announces")
