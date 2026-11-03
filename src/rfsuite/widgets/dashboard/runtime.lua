@@ -4929,8 +4929,10 @@ function Runtime.new(zone, options)
       self.flightMode = nextMode
       -- A switch of theme is staged over two logic ticks: the theme's module on this one, its field
       -- choices, readings and first snapshot on the next (finishThemeLoad). A reload that falls
-      -- due before the second half has run replaces it. The second half keeps off a telemetry read
-      -- pass by the rule the announcements follow above: put off once, never twice in a row.
+      -- due before the second half has run replaces it. The second half moves off a telemetry read
+      -- by the rule the announcements follow above: it waits one tick where this tick reads and the
+      -- next will not. Where every tick reads (ticks half a second or more apart) it runs beside the
+      -- read rather than wait without end.
       if wantReload then
         reloadActiveTheme(self, true)
       elseif self._themeSourcesPending and not (readThisPass and sinceLastTick < TELEMETRY_READ_SECONDS) then
