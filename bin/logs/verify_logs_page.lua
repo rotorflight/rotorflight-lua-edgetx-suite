@@ -1193,6 +1193,33 @@ do
     end
     return out
   end
+  -- The readout row's labels, left to right: the time first, then one slot per curve. They are
+  -- the labels whose text is read on every refresh; the slots are told apart by where they stand,
+  -- so a reading drawn in another curve's slot (or colour) is caught, not only a missing one.
+  local function readoutSlots()
+    local row = {}
+    for _, c in ipairs(ctx.children) do
+      if c.type == "label" and type(c.text) == "function" then row[#row + 1] = c end
+    end
+    table.sort(row, function(a, b) return a.x < b.x end)
+    local slots = {}
+    for i = 2, #row do slots[#slots + 1] = row[i] end
+    return slots, row[1]
+  end
+  local function checkSlots(G, label, readout)
+    local slots, timeLabel = readoutSlots()
+    check(timeLabel ~= nil and value(timeLabel.text) == G.getCursorTimeText(),
+      label .. ": the time stands left of the readings", timeLabel and value(timeLabel.text))
+    check(#slots >= #readout, label .. ": a readout slot per curve", #slots)
+    for k = 1, #readout do
+      local r = readout[k]
+      local want = r.value ~= nil and string.format("%s %g%s", r.name, r.value, r.unit or "") or (r.name .. " -")
+      local s = slots[k]
+      local got = s and value(s.text)
+      check(got == want, label .. ": slot " .. k .. " shows curve " .. k .. "'s reading", tostring(got) .. " vs " .. want)
+      check(s ~= nil and s.color == G.getCurveColor(k), label .. ": slot " .. k .. " is drawn in curve " .. k .. "'s colour")
+    end
+  end
   -- One refresh as the firmware makes it: `visible` first; only a shown object has its `pos`
   -- read, as two non-negative integers, and a shown label its `text`, as a string. Anything else
   -- is an error on the radio that takes the scene down.
@@ -1257,6 +1284,7 @@ do
       local want = r.value ~= nil and string.format("%s %g%s", r.name, r.value, r.unit or "") or (r.name .. " -")
       check(texts[want] == true, label .. ": the reading of curve " .. k .. " follows the cursor", want)
     end
+    checkSlots(G, label, readout)
   end
   -- A plot built while it has no readings yet (its cursor not set: a curve change cut short by the
   -- instruction limit leaves it so) gets them from the first step, without a build.
@@ -1276,6 +1304,7 @@ do
       local want = r.value ~= nil and string.format("%s %g%s", r.name, r.value, r.unit or "") or (r.name .. " -")
       check(texts[want] == true, "cursor step after a plot without readings: curve " .. k .. " is shown", want)
     end
+    checkSlots(G, "cursor step after a plot without readings", readout)
     rebuildView()
   end
   asked = 0
