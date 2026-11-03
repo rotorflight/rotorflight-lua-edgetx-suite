@@ -83,6 +83,7 @@ local entries = {
   setup_esc_motors_telemetry_page = definePage("setup/esc_motors/telemetry"),
   setup_esc_motors_rpm_page = definePage("setup/esc_motors/rpm"),
   setup_esc_motors_motor_override_page = definePage("setup/esc_motors/motor_override"),
+  setup_esc_motors_srxl2_page = definePage("setup/esc_motors/srxl2"),
   setup_esc_motors_esc_tools_page = definePage("setup/esc_motors/esc_tools"),
   setup_esc_motors_esc_tools_am32_page = definePage("setup/esc_motors/esc_tools/escmfg/am32"),
   setup_esc_motors_esc_tools_blheli_s_page = definePage("setup/esc_motors/esc_tools/escmfg/blheli_s"),

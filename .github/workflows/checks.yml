@@ -416,6 +416,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_esc_parameters_pack.lua
       - run: lua5.3 bin/msp/verify_esc_readback_after_save.lua
+      - run: lua5.3 bin/msp/verify_srxl2_esc_config.lua
       - run: lua5.3 bin/ui/verify_confirm_dialog_no_retain.lua
 
   esc-yge-flag-bit3:
