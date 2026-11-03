@@ -148,12 +148,15 @@ local function newWorld(case)
   world.locale = _G.__rfsuite_system_locale_module
   assert(type(world.locale) == "table", "the locale module is not registered")
 
-  -- The language every i18n context is built for, as the widget asks for it.
+  -- The language every i18n context is built for, as the widget asks for it, and the last context
+  -- built, which the widget has to take.
   local I18n = upvalue(upvalue(world.reloadPrefs, "buildI18nContext"), "I18nModule")
   local new = I18n.new
   I18n.new = function(locale, ...)
     world.contexts[#world.contexts + 1] = locale
-    return new(locale, ...)
+    local ctx = new(locale, ...)
+    world.lastCtx = ctx
+    return ctx
   end
   world.restoreI18n = function() I18n.new = new end
 
@@ -169,6 +172,7 @@ local function reloadAfterSave(world, language)
   for _ = 1, 30 do Stubs.tick() end
   world.opens = 0
   world.contexts = {}
+  world.lastCtx = nil
   world.counting = true
   local ran = world.reloadPrefs(world.w, false, false)
   world.counting = false
@@ -188,6 +192,7 @@ local function runCase(name, case, saveAs, expected, extra)
   local moved = world.locale.localeGeneration - generation
   local opens = world.opens
   local built = world.contexts[#world.contexts]
+  local adopted = type(world.lastCtx) == "table" and world.w.i18n == world.lastCtx
   local answer = world.locale.resolveSystemLanguage("en")
 
   -- What the resolution gives with nothing remembered, read on the same card after the reload.
@@ -203,6 +208,7 @@ local function runCase(name, case, saveAs, expected, extra)
   expect(fresh == expected, name .. ": a fresh resolution gives the expected language",
     tostring(fresh) .. " vs " .. tostring(expected))
   expect(built == expected, name .. ": the context is built for that language", tostring(built))
+  expect(adopted, name .. ": the widget takes the context the reload built", tostring(adopted))
   expect(answer == expected, name .. ": the resolution after the reload answers it", tostring(answer))
   expect(moved == 1, name .. ": the reload moved the locale generation once", tostring(moved))
   if extra then extra(world) end
