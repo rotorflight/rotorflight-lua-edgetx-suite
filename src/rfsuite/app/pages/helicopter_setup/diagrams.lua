@@ -235,6 +235,9 @@ function M.append(children, w, card, x, y, width, height)
     end
     image(picture)
     text(5,0,210,(kind=="tailKind" or kind=="tailMotor") and L.artSide or L.artTop)
+  elseif kind == "rescue" then
+    -- Follows the flip answer: upside down with a turn arrow, or the helicopter levelled.
+    image(function() return card.rescueFlip() and "rescue-flip" or "rescue-up" end)
   elseif kind == "swashRoll" or kind == "swashPitch" or kind == "swashLift"
     or kind == "gyroRoll" or kind == "gyroPitch" or kind == "gyroYaw"
     or kind == "tail" or kind == "tailMove" or kind == "pitch" or kind == "level"

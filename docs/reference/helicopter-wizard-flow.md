@@ -24,10 +24,10 @@ flowchart LR
     end
     subgraph S1["1. Board orientation"]
       direction TB
-      S1c0["<b>Board orientation</b><br/>confirms: All blades removed, Servos unplugged<br/>reads: MSP status, MSP attitude, MSP servo"]:::k2
+      S1c0["<b>Board orientation</b><br/>sets: {label}<br/>confirms: All blades removed, Servos unplugged<br/>writes: board_alignment_config.{key}"]:::k3
       S1c1["<b>Calibrate the accelerometer</b><br/>reads: Accelerometer, Calibrated<br/>writes: acc_calibration"]:::k3
       S1c0 --> S1c1
-      S1c2["<b>Board orientation</b><br/>sets: Roll, Pitch, Yaw<br/>reads: MSP board_auto_align (trial)<br/>writes: board_auto_align, board_alignment_config"]:::k3
+      S1c2["<b>Board orientation</b><br/>reads: MSP board_auto_align (trial)<br/>writes: board_auto_align"]:::k3
       S1c1 --> S1c2
       S1c3["<b>Check orientation</b><br/>confirms: Direction is correct<br/>blocks until: Direction is correct"]:::k2
       S1c2 --> S1c3
@@ -44,8 +44,10 @@ flowchart LR
       S2c2 --> S2c3
       S2c4["<b>ELRS link</b><br/>reads: Status"]:::k1
       S2c3 --> S2c4
+      S2c5["<b>Receiver done</b><br/>reads: Protocol, Channel order, Throttle range"]:::k1
+      S2c4 --> S2c5
       S2gate{"Advance?<br/>validation passes"}:::k4
-      S2c4 --> S2gate
+      S2c5 --> S2gate
       S2gate -->|blocked| S2gate
     end
     S1 --> S2
@@ -261,9 +263,15 @@ flowchart LR
     S13 --> S14
     subgraph S15["15. Level the swash"]
       direction TB
-      S15c0["<b>Level the swash</b><br/>sets: Roll, Pitch, Collective<br/>reads: MSP status, MSP servo<br/>writes: mixer_config, mixer_override"]:::k3
-      S15c1["<b>Check swash level</b><br/>confirms: Swash is level<br/>blocks until: Swash is level"]:::k2
+      S15c0["<b>Level the swash</b><br/>reads: MSP status, MSP servo<br/>writes: mixer_override"]:::k3
+      S15c1["<b>Motor unplugged</b><br/>confirms: Motor unplugged"]:::k2
       S15c0 --> S15c1
+      S15c2["<b>Level the swash</b><br/>sets: Roll, Pitch, Collective<br/>writes: mixer_config.swash_trim_0, mixer_conf..."]:::k3
+      S15c1 --> S15c2
+      S15c3["<b>Check swash level</b><br/>confirms: Swash is level"]:::k2
+      S15c2 --> S15c3
+      S15c4["<b>Blades at zero</b><br/>confirms: Blade pitch is 0 degrees<br/>blocks until: Motor unplugged, Swash is level, Blad..."]:::k2
+      S15c3 --> S15c4
     end
     S14 --> S15
     subgraph S16["16. Blade pitch"]
@@ -271,10 +279,16 @@ flowchart LR
       S16c0["<b>Collective</b><br/>sets: Measured (deg), Mixer rate (%)<br/>reads: MSP rc_tuning, MSP status, MSP servo<br/>writes: mixer_input, mixer_override, set_pid_..."]:::k3
       S16c1["<b>Cyclic</b><br/>sets: Measured (deg), Mixer rate (%)<br/>writes: mixer_input, mixer_input.rate"]:::k3
       S16c0 --> S16c1
-      S16c2["<b>Blade pitch limits</b><br/>sets: Cyclic (deg), Collective (deg), Total...<br/>writes: mixer_input, mixer_config"]:::k3
+      S16c2["<b>Cyclic (deg)</b><br/>sets: Cyclic (deg)<br/>writes: mixer_input, mixer_input.min, mixer_i..."]:::k3
       S16c1 --> S16c2
-      S16c3["<b>Full-stick collective</b><br/>sets: Degrees<br/>writes: rc_tuning<br/>blocks until: Full travel without binding"]:::k3
+      S16c3["<b>Collective (deg)</b><br/>sets: Collective (deg)<br/>writes: mixer_input, mixer_input.min, mixer_i..."]:::k3
       S16c2 --> S16c3
+      S16c4["<b>Total (deg)</b><br/>sets: Total (deg)<br/>writes: mixer_config.swash_pitch_limit"]:::k3
+      S16c3 --> S16c4
+      S16c5["<b>Full-stick collective</b><br/>sets: Rate profile {n}<br/>writes: rc_tuning"]:::k3
+      S16c4 --> S16c5
+      S16c6["<b>End stops</b><br/>confirms: Full travel without binding<br/>blocks until: Full travel without binding"]:::k2
+      S16c5 --> S16c6
     end
     S15 --> S16
     subgraph S17["17. Tail rotor"]
@@ -308,8 +322,10 @@ flowchart LR
       S19c0 --> S19c1
       S19c2["<b>Finish</b><br/>confirms: Final checks understood<br/>reads: Throttle Type, Fast RPM source, Arm s..."]:::k2
       S19c1 --> S19c2
-      S19c3["<b>Finish</b><br/>reads: Throttle range<br/>blocks until: Final checks understood"]:::k1
+      S19c3["<b>Before the first flight</b>"]:::k4
       S19c2 --> S19c3
+      S19c4["<b>Finish</b><br/>reads: Throttle range<br/>blocks until: Final checks understood"]:::k1
+      S19c3 --> S19c4
     end
     S18 --> S19
   end
@@ -327,8 +343,8 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | Step | Cards | Pilot sets | Pilot confirms | MSP reads | MSP writes | Configurator status |
 | --- | --- | --- | --- | --- | --- | --- |
 | Model. Prepare the radio model | Interrupted session<br/>Prepare the radio model | FC name | FC power-cycled<br/>Model checked | — | name.name<br/>telemetry_config<br/>telemetry_config.buffer | differs from the Configurator |
-| 1. Board orientation | Board orientation<br/>Calibrate the accelerometer<br/>Check orientation | Roll<br/>Pitch<br/>Yaw | All blades removed<br/>Servos unplugged<br/>Direction is correct | status<br/>attitude<br/>servo<br/>board_auto_align | acc_calibration<br/>board_auto_align<br/>board_alignment_config.roll_degrees<br/>board_alignment_config.pitch_degrees<br/>board_alignment_config.yaw_degrees | same |
-| 2. Receiver | Receiver<br/>Channel order<br/>Check sticks<br/>Throttle range<br/>ELRS link | Protocol<br/>Advanced<br/>Standard channel order<br/>Minimum (us)<br/>Maximum (us) | — | status<br/>servo<br/>rx_channels | rx_config.serialrx_provider<br/>rx_config<br/>feature_config<br/>feature_config.enabledFeatures<br/>rx_map<br/>rc_config.rc_min_throttle<br/>rc_config.rc_max_throttle | same |
+| 1. Board orientation | Board orientation<br/>Calibrate the accelerometer<br/>Check orientation | {label} | All blades removed<br/>Servos unplugged<br/>Direction is correct | status<br/>attitude<br/>servo<br/>board_auto_align | board_alignment_config.{key}<br/>acc_calibration<br/>board_auto_align | same |
+| 2. Receiver | Receiver<br/>Channel order<br/>Check sticks<br/>Throttle range<br/>ELRS link<br/>Receiver done | Protocol<br/>Advanced<br/>Standard channel order<br/>Minimum (us)<br/>Maximum (us) | — | status<br/>servo<br/>rx_channels | rx_config.serialrx_provider<br/>rx_config<br/>feature_config<br/>feature_config.enabledFeatures<br/>rx_map<br/>rc_config.rc_min_throttle<br/>rc_config.rc_max_throttle | same |
 | 3. Mode switches | Arm switch<br/>Rescue switch<br/>Trainer switch<br/>Switches done | — | — | status<br/>rc<br/>servo | mode_ranges<br/>set_mode_range<br/>set_adjustment_range | same |
 | 4. Profiles & gain | Profiles & gain<br/>Master gain<br/>Trim-button guide<br/>Channel use<br/>Rescue | Profile switch<br/>Method<br/>Rescue mode enable<br/>Flip to upright | — | rescue_profile<br/>status<br/>rc<br/>servo | adjustment_ranges<br/>set_adjustment_range<br/>set_pid_profile<br/>rescue_profile<br/>rescue_profile.rescue_mode<br/>rescue_profile.rescue_flip_mode | same |
 | 5. Rates | Switch position {n} · rate profile {n} / Rate profile {n}<br/>Rates set | — | — | rc_tuning<br/>status<br/>servo | set_pid_profile<br/>rc_tuning | same |
@@ -341,10 +357,10 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | 12. ESC & spin test | Full throttle<br/>Connect the battery<br/>Low throttle<br/>Throttle<br/>Main rotor direction | Power (%) | All blades removed<br/>Direction is correct | status<br/>servo<br/>motor | motor_override.index<br/>motor_override.value | differs from the Configurator |
 | 13. Servo direction & centre | Servo arms<br/>{c . title .. " " .. c . role}<br/>{nil . title .. " " .. nil . role} | — | Servo arms | status<br/>servo | servo_configurations<br/>servo_configurations.flags<br/>servo_configurations.mid<br/>servo_override | same |
 | 14. Control directions | Roll right<br/>Pitch forward<br/>Collective up | — | Direction is correct | status<br/>servo<br/>rc_command | mixer_input<br/>mixer_input.rate<br/>mixer_override | same |
-| 15. Level the swash | Level the swash<br/>Check swash level | Roll<br/>Pitch<br/>Collective | Swash is level | status<br/>servo | mixer_config.swash_trim_0<br/>mixer_config.swash_trim_1<br/>mixer_config.swash_trim_2<br/>mixer_override | same |
-| 16. Blade pitch | Collective<br/>Cyclic<br/>Blade pitch limits<br/>Full-stick collective | Measured (deg)<br/>Mixer rate (%)<br/>Cyclic (deg)<br/>Collective (deg)<br/>Total (deg)<br/>Degrees | Full travel without binding | rc_tuning<br/>status<br/>servo | mixer_input<br/>mixer_input.rate<br/>mixer_override<br/>set_pid_profile<br/>rc_tuning<br/>mixer_config.swash_pitch_limit<br/>mixer_input.min<br/>mixer_input.max | same |
+| 15. Level the swash | Level the swash<br/>Motor unplugged<br/>Check swash level<br/>Blades at zero | Roll<br/>Pitch<br/>Collective | Motor unplugged<br/>Swash is level<br/>Blade pitch is 0 degrees | status<br/>servo | mixer_override<br/>mixer_config.swash_trim_0<br/>mixer_config.swash_trim_1<br/>mixer_config.swash_trim_2 | same |
+| 16. Blade pitch | Collective<br/>Cyclic<br/>Cyclic (deg)<br/>Collective (deg)<br/>Total (deg)<br/>Full-stick collective<br/>End stops | Measured (deg)<br/>Mixer rate (%)<br/>Cyclic (deg)<br/>Collective (deg)<br/>Total (deg)<br/>Rate profile {n} | Full travel without binding | rc_tuning<br/>status<br/>servo | mixer_input<br/>mixer_input.rate<br/>mixer_override<br/>set_pid_profile<br/>rc_tuning<br/>mixer_input.min<br/>mixer_input.max<br/>mixer_config.swash_pitch_limit | same |
 | 17. Tail rotor | Tail rotor<br/>Tail motor idle<br/>Tail centre<br/>Tail control direction<br/>Tail pitch calibration<br/>Tail pitch limits | Power (%)<br/>Idle (%)<br/>Centre trim (deg)<br/>Mixer rate (%)<br/>CW limit (deg)<br/>CCW limit (deg) | All blades removed<br/>Tail neutral pitch checked<br/>Direction is correct | status<br/>servo<br/>motor<br/>rc_command | motor_override.index<br/>motor_override.value<br/>mixer_override<br/>mixer_input<br/>mixer_input.rate<br/>mixer_config.tail_motor_idle<br/>mixer_config.tail_center_trim | same |
 | 18. Gyro check | Roll<br/>Pitch<br/>Yaw | — | Corrects against movement | status<br/>servo | — | same |
-| 19. Finish | Finish | — | Final checks understood | status<br/>servo | — | same |
+| 19. Finish | Finish<br/>Before the first flight | — | Final checks understood | status<br/>servo | — | same |
 
-Diagram: 98 nodes; 19 numbered steps plus the model card.
+Diagram: 106 nodes; 19 numbered steps plus the model card.

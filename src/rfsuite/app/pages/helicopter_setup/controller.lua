@@ -680,7 +680,11 @@ function M.new(runtime, transport, mathModule, labels)
     end
     self:afterRelease(function()
       self:write("arming_disable",{disabled=false},function()
-        self.active=false;if self.requestClose then self.requestClose() end
+        self.active=false
+        local target=self.leaveTarget
+        self.leaveTarget=nil
+        if target and self.openPage then self.openPage(target)
+        elseif self.requestClose then self.requestClose() end
       end)
     end)
   end

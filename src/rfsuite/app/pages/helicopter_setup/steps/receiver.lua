@@ -29,6 +29,32 @@ return function(w)
     for n = 1, 4 do parts[#parts + 1] = tostring(map[keys[n]]) end
     return table.concat(parts, ",")
   end
+  -- The next control of the detection: a channel found for this one, or none when it is skipped.
+  local function advance(found, channels)
+    local s = r.detect
+    if found then s.found[order[s.index]], s.exclude[found] = found - 1, true end
+    s.index, s.baseline, s.peaks = s.index + 1, channels, {}
+    if w.logDebug then w:log("debug", "detect next %s, channel %s", s.index, tostring(found)) end
+    if s.index <= #order then
+      w.message = found and string.format(L.channelDetected, found) .. "  " .. detectPrompt() or detectPrompt()
+      if w.logInfo then w:keyMessage(found and "channelDetected" or "move") end
+      return
+    end
+    local used = {}; for _, c in pairs(s.found) do used[c] = true end
+    local nextChannel = 0
+    for n = 1, 8 do
+      local channel = s.found[n]
+      if channel == nil then
+        while used[nextChannel] do nextChannel = nextChannel + 1 end
+        channel, used[nextChannel] = nextChannel, true
+      end
+      w.data.rx_map[keys[n]] = channel
+    end
+    -- Detection movements belong to learning the map, not to the guided end-stop check.
+    r.travel, r.travelSig = { {0, 0}, {0, 0}, {0, 0}, {0, 0} }, travelSig()
+    r.guideKey, r.wrong = nil, nil
+    r.detect = nil; w:touch("rx_map"); w.message = L.detected
+  end
   -- The guide's next end stop. A local of this visit, never kept on w.rx: the measurement
   -- stays for the whole wizard, the step's code leaves with the step.
   local target
@@ -83,28 +109,7 @@ return function(w)
       s.peaks[i] = math.max(s.peaks[i] or 0, math.abs(d.channels[i] - (s.baseline[i] or d.channels[i])))
     end
     local i = H.moved(s.peaks, s.exclude)
-    if not i then return end
-    s.found[order[s.index]], s.exclude[i] = i - 1, true
-    s.index, s.baseline, s.peaks = s.index + 1, d.channels, {}
-    if s.index <= #order then
-      w.message = string.format(L.channelDetected,i).."  "..detectPrompt()
-      if w.logInfo then w:keyMessage("channelDetected") end
-      return
-    end
-    local used = {}; for _, c in pairs(s.found) do used[c] = true end
-    local nextChannel = 0
-    for n = 1, 8 do
-      local channel = s.found[n]
-      if channel == nil then
-        while used[nextChannel] do nextChannel = nextChannel + 1 end
-        channel, used[nextChannel] = nextChannel, true
-      end
-      map[keys[n]] = channel
-    end
-    -- Detection movements belong to learning the map, not to the guided end-stop check.
-    r.travel, r.travelSig = { {0, 0}, {0, 0}, {0, 0}, {0, 0} }, travelSig()
-    r.guideKey, r.wrong = nil, nil
-    r.detect = nil; w:touch("rx_map"); w.message = L.detected
+    if i then advance(i, d.channels) end
   end
   -- Stick travel: the furthest each control has gone either way, in percent of the FC's stick
   -- range, the way the firmware scales it (rc.c: (rcInput - rc_center) / rc_deflection).
@@ -177,6 +182,15 @@ return function(w)
     if zero == 0 then zero = H.round(w.data.rc_config.rc_center - 0.9 * w.data.rc_config.rc_deflection) end
     return v > 0 and v < zero - 5 and string.format(L.throttleLowNow, v) or tostring(v)
   end
+  local PRESET_NAMES = { "ELRS", "FrSky", "Futaba / Hitec", "DSM / Graupner / JR" }
+  local PRESETS = { {0,1,3,2,5,4,6,7}, {0,1,3,4,2,5,6,7}, {0,1,3,5,2,4,6,7}, {1,2,3,5,0,4,6,7} }
+  local function presetIndex()
+    for i, preset in ipairs(PRESETS) do
+      local match = true; for n, k in ipairs(keys) do if w.data.rx_map[k] ~= preset[n] then match = false end end
+      if match then return i end
+    end
+    return 0
+  end
   local cards = {
     w:cardDef(L.receiver, L.receiverHint, {
       { kind = "toggle", label = L.advanced, values = { L.no, L.yes },
@@ -187,18 +201,14 @@ return function(w)
     }, nil, "receiver"),
     w:cardDef(L.channelOrder, L.channelHint, {
       locked(w:button(function() return r.detect and L.cancelDetect or L.detect end, detect)),
-      { kind="choice",label=L.standardOrder,allowUnset=true,values={"ELRS","FrSky","Futaba / Hitec","DSM / Graupner / JR"},
-        get=function()
-          for i,preset in ipairs({{0,1,3,2,5,4,6,7},{0,1,3,4,2,5,6,7},{0,1,3,5,2,4,6,7},{1,2,3,5,0,4,6,7}}) do
-            local match=true;for n,k in ipairs(keys) do if w.data.rx_map[k]~=preset[n] then match=false end end
-            if match then return i end
-          end;return 0
-        end,
+      { kind="choice",label=L.standardOrder,allowUnset=true,values=PRESET_NAMES,
+        get=presetIndex,
         set=function(v)
-          local preset=({{0,1,3,2,5,4,6,7},{0,1,3,4,2,5,6,7},{0,1,3,5,2,4,6,7},{1,2,3,5,0,4,6,7}})[v]
+          local preset=PRESETS[v]
           if not preset then return end
           r.detect=nil;for i,k in ipairs(keys) do w.data.rx_map[k]=preset[i] end;w:touch("rx_map")
-        end, enabled=unlocked }
+        end, enabled=unlocked },
+      w:button(L.detectSkip, function() if r.detect then advance(nil, nil) end end, function() return r.detect ~= nil end)
     }, nil, "stickDetect"),
     w:cardDef(L.checkSticks, L.stickGuideHint, {
       w:button(L.travelReset, function() r.travel, r.guideKey = { {0, 0}, {0, 0}, {0, 0}, {0, 0} }, nil end)
@@ -219,9 +229,16 @@ return function(w)
         r.low,r.high,r.record=v,v,true;w.message=L.throttleSwitchRange
       end),
       w:n("rc_config", "rc_min_throttle", L.minimum, 0, 2100),
-      w:n("rc_config", "rc_max_throttle", L.maximum, 0, 2100)
+      w:n("rc_config", "rc_max_throttle", L.maximum, 0, 2100),
+      -- Zero makes the firmware fall back on its stick range.
+      w:button(L.throttleDefaults, function()
+        r.record = nil
+        w:field("rc_config", "rc_min_throttle", 0)
+        w:field("rc_config", "rc_max_throttle", 0)
+      end)
     },nil,"heliBladesOff")
   }
+  cards[4].dense = true
   cards[1].summary=function() return unlocked() and L.receiverUnlocked or L.receiverWarning end
   cards[1].summaryColor, cards[1].summaryBold = "warning", true
   cards[2].summary=function() return r.detect and detectPrompt() or unlocked() and L.channelQuick or L.receiverLocked end
@@ -281,5 +298,21 @@ return function(w)
     end
     cards[#cards+1]=card
   end
+  -- The step closes on what it has set; the text says whether Save & next has anything to store.
+  local rangeMin, rangeMax, rangeText
+  local done = w:cardDef(L.receiverDone, L.receiverDoneHint, {
+    w:value(L.protocol, function() return protocol.values[protocol.get()] or L.notSet end),
+    w:value(L.channelOrder, function() return PRESET_NAMES[presetIndex()] or L.servoCustom end),
+    w:value(L.throttleRange, function()
+      local rc = w.data.rc_config
+      if rc.rc_min_throttle ~= rangeMin or rc.rc_max_throttle ~= rangeMax then
+        rangeMin, rangeMax = rc.rc_min_throttle, rc.rc_max_throttle
+        rangeText = (rangeMin == 0 and rangeMax == 0) and L.throttleDefaults or string.format(L.rangeUs, rangeMin, rangeMax)
+      end
+      return rangeText
+    end)
+  }, nil, "receiver")
+  done.summary = function() return next(w.dirty) and L.stepChanged or L.stepUnchanged end
+  cards[#cards+1] = done
   return cards
 end

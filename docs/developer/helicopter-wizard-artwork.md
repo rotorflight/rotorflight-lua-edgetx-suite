@@ -24,6 +24,10 @@ bench tests) is unchanged.
 the package, that its frame keeps the 220 by 160 aspect, and that a small picture is drawn
 exactly when the frame is no larger than 154 by 112.
 
+The two rescue pictures (`rescue-flip`, `rescue-up`) come from rotorflight-lua-ethos-suite commit
+`69b6060e`, `src/rfsuite/app/gfx/setup_wizard/`, GPL-3.0, at their 220 by 160 size and scaled down
+for `small/`; they have no SVG source here.
+
 The rate-curve and pulse-train images are fixed examples (the Trainer, Sport and 3D presets;
 50/1520, 333/1520 and 560/760 microseconds). They are pictures for explanation, not a display
 of the flight controller's live settings.

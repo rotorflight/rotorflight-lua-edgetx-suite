@@ -13,8 +13,8 @@ MSP queue and API modules. It never opens another telemetry transport.
 | `rc_command` | 113 | Signed S16 roll, pitch, yaw, collective and throttle commands. |
 | `rx_channels` | 114 | Raw receiver channels as U16, before function mapping. |
 | `motor_telemetry` | 139 | U8 count, then 16 bytes per motor: U32 RPM; U16 invalid ratio, mV, mA and mAh; S16 tenths of degrees for two temperatures. |
-| `tail_motor_output` | `0x5F14` | U8 action 0/read, 1/SERVO 4, 2/MOTOR 2. Reply is U8 output plus U8 result; movement is unsaved until EEPROM/reboot. |
-| `arming_disable` | 99 | U8 1 on wizard entry; verify MSP disable bit 16 in STATUS before enabling controls. U8 0 after cleanup on exit. Reassert after reboot. |
+| `tail_motor_output` | `0x5F14` | U8 action 0/read, 1/SERVO 4, 2/MOTOR 2. Reply is U8 output plus U8 result 0-8 (7 a taken DMA stream, 8 armed); movement is unsaved until EEPROM/reboot. |
+| `arming_disable` | 99 | U8 1 on wizard entry, sent only after BOXIDS and STATUS show the flight controller disarmed, because this message disarms an armed model; armed or unknown stops the visit with Retry. Verify MSP disable bit 16 in STATUS before enabling controls. U8 0 after cleanup on exit. Reassert after reboot. |
 | `servo_override` | 192/193 | Read eight U16 values; write U8 index + U16 value, with optional U16 timeout. OFF = 2001. |
 | `servo_override_all` | 196 | U16 value, optionally U16 timeout. Kept as a direct all-servo API; not used to infer mixer support. |
 | `mixer_override` | 190/191 | Read 29 U16 values; write one U8 index + U16 value, optionally U16 timeout. OFF = 2501; passthrough = 2502. |

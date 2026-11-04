@@ -1711,6 +1711,72 @@ return function(h)
     check(H.narrowServo(960) and not H.narrowServo(1120),"D12 the limit lies between the bands")
     s.mid=1120;c=step(w,"servos");c[2].servo.nudge(-1);eq(s.mid,1120,"D12 the wide band's edge holds")
   end)
+  case("W12.receiver-skip-defaults-and-summary",function()
+    local w=world();settle(w);w.step=2;w.rx={advanced=true}
+    w.data.rx_channels={channels={1500,1500,1500,1500,1500,1000,1000,1000}};w.rxChannelsAt=getTime()
+    local c=step(w,"receiver")
+    local skip=c[2].rows[3]
+    eq(skip.label,L.detectSkip,"W12 the skip button sits with the detection")
+    check(not skip.enabled(),"W12 no skip before a detection runs")
+    c[2].rows[1].press();check(w.rx.detect~=nil and skip.enabled(),"W12 skip is offered during a detection")
+    local first=w.rx.detect.index
+    skip.press();eq(w.rx.detect.index,first+1,"W12 skip moves on to the next control")
+    for _=1,10 do if w.rx.detect then skip.press() end end
+    check(w.rx.detect==nil and w.dirty.rx_map,"W12 skipping every control still ends with a full map")
+    local seen={};for _,k in ipairs({"aileron","elevator","rudder","collective","throttle","aux1","aux2","aux3"}) do
+      local v=w.data.rx_map[k];check(v~=nil and not seen[v],"W12 the map has no gap or double");seen[v]=true end
+    local throttleCard=c[4]
+    w.data.rc_config.rc_min_throttle,w.data.rc_config.rc_max_throttle=1100,1900
+    throttleCard.rows[5].press()
+    eq(w.data.rc_config.rc_min_throttle,0,"W12 Defaults clears the minimum");eq(w.data.rc_config.rc_max_throttle,0,"W12 Defaults clears the maximum")
+    local done=c[#c]
+    eq(done.title,L.receiverDone,"W12 the step closes on its summary")
+    eq(done.rows[3].get(),L.throttleDefaults,"W12 the summary names the default range")
+    w.data.rc_config.rc_min_throttle,w.data.rc_config.rc_max_throttle=1100,1900
+    eq(done.rows[3].get(),string.format(L.rangeUs,1100,1900),"W12 the summary names the set range")
+  end)
+  case("W12.channel-list-and-beyond-eight",function()
+    local w=world();settle(w);w.step=4
+    w.data.mode_ranges.mode_ranges[1]={id=0,auxChannelIndex=0,range={start=1800,["end"]=2100}}
+    w.data.rc={channels={1500,1500,1500,1500,1000,2000,1000,1000}}
+    local c=step(w,"profiles")
+    local plan
+    for _,card in ipairs(c) do if card.title==L.channelPlan and not plan then plan=card end end
+    check(plan.summary~=L.beyondEight,"W12 no note while eight channels are enough")
+    local arm=plan.rows[3].get()
+    check(string.find(arm,L.arm.." "..L.stateOn,1,true)~=nil,"W12 the list shows a mode's live state ON")
+    w.data.rc={channels={1500,1500,1500,1500,1000,1000,1000,1000}}
+    check(string.find(plan.rows[3].get(),L.arm.." "..L.stateOff,1,true)~=nil,"W12 the list shows a mode's live state OFF")
+    w.data.mode_ranges.mode_ranges[2]={id=53,auxChannelIndex=7,range={start=1800,["end"]=2100}}
+    c=step(w,"profiles")
+    for _,card in ipairs(c) do if card.title==L.channelPlan then plan=card;break end end
+    eq(plan.summary,L.beyondEight,"W12 a channel past the eighth is named")
+  end)
+  case("W12.rescue-picture-follows-flip",function()
+    local w=world();settle(w);w.step=4
+    w.data.mode_ranges.mode_ranges[2]={id=53,auxChannelIndex=1,range={start=1800,["end"]=2100}}
+    local c=step(w,"profiles");local card=c[#c]
+    eq(card.art,"rescue","W12 the rescue card has its picture")
+    w.rescue={loaded=true,value={1,0}}
+    check(not card.rescueFlip(),"W12 no flip shows the levelled helicopter")
+    w.rescue.value[2]=1;check(card.rescueFlip(),"W12 flip shows the turn")
+  end)
+  case("W12.finish-jumps-leave-cleanly",function()
+    local w=world();settle(w);w.step=19
+    local opened
+    w.openPage=function(id) opened=id end
+    w.checks.finish=true
+    local c=step(w,"finish")
+    local before
+    for _,card in ipairs(c) do if card.title==L.finishBeforeTitle then before=card end end
+    check(before~=nil,"W12 Finish offers the two pages")
+    q.sent={};before.rows[1].press();drain(w)
+    eq(opened,"setup_governor_general_page","W12 the page opens once the setup has left")
+    local last=q.sent[#q.sent]
+    eq(last and last.command,99,"W12 the last message unblocks arming")
+    eq(last and last.payload[1],0,"W12 arming is allowed again")
+    check(w.closing,"W12 the clean exit runs, so no power cycle is asked for")
+  end)
   case("S03.switch-settle",function()
     local w=world();w.data.boxids.box_ids={0}
     w.data.rc={channels={1500,1500,1500,1500,1000,1000}};w.rcAt=getTime()
@@ -2833,7 +2899,8 @@ return function(h)
     local esc
     for _,row in ipairs(motor[1].rows) do if row.label==L.openEscTools then esc=row end end
     check(esc~=nil,"HOST a host that opens pages gets an ESC Tools button")
-    esc.press();eq(opened,"esc_tools_menu","HOST the button opens ESC Tools")
+    esc.press();drain(w);eq(opened,"esc_tools_menu","HOST the button opens ESC Tools once the setup has left")
+    w.closing,w.active,w.transition=nil,true,nil
     w.openPage=nil
     local plain=step(w,"motor")
     for _,row in ipairs(plain[1].rows) do check(row.label~=L.openEscTools,"HOST without openPage there is no button") end
@@ -3546,7 +3613,7 @@ return function(h)
       local original=w.discard
       w.discard=function(self,after)
         local draft=self.pitchFull
-        return original(self,function() self.pitchFull,self.pitchFullChanged=draft,true;after() end)
+        return original(self,function() self.pitchFull,self.pitchFullChanged=draft,{[active]=true};after() end)
       end
     end
     w:discard(function() end);drain(w)

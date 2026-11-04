@@ -5,49 +5,49 @@
   "inputs": {
     "bin/wizard/source-map.json": "d673ac0530b60d8512b326cadbb43e0a68910957f043c36f47ad4871b0d5e1bc",
     "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "1750296f3f160c4c328b331cf34673bb803e936266f19712698dac996c6ea56a",
-    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "129435713b42e8cb58e924990b3b99b4c51c51cf96d80a933afa30312da182e7",
-    "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "58194e9f87dc84e6b276c45c92f9e08aa65ca8ee6528185a2f76aefa786c7d00",
+    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "eac7f05bf0e7d875ccb1de1d97fb25fc1693f36ecee3ae2c4af0908f436b9b98",
+    "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "cbc550ea2e412419e3560b258e008f6ad86c4a3dbaf7539089e29164f30b0c5a",
     "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "2da65f54ecf424df2a75e37bdf7c4f8618429eb3c623a1bdf0939a21579431bf",
     "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "281da481f9e8406e760fc9c5d94809d661cb2df4060b05a3fb1430b5380ec71d",
     "src/rfsuite/app/pages/helicopter_setup/feedback.lua": "4f73ebe86a8b140a8960ec3d0af6d9e29373994545bb48afaf2827ca6a8a661e",
-    "src/rfsuite/app/pages/helicopter_setup/forms.lua": "664e83046f195979b59fa0a2198f51f9d08e238f3a96f89987b6d7ced7e231ea",
+    "src/rfsuite/app/pages/helicopter_setup/forms.lua": "78735ce8adaba89f796d99db1c535ada8084252c5c9f7a44953052361e8d2362",
     "src/rfsuite/app/pages/helicopter_setup/help.lua": "210bc647674c7bdf88e1ac00cf623c53858bb0721623f089caa1f95465ac2c46",
     "src/rfsuite/app/pages/helicopter_setup/history.lua": "d4743ad45179841643ebc721d88c1ecfa7c113a987f4a476b04e3ce297221633",
     "src/rfsuite/app/pages/helicopter_setup/history_store.lua": "968b6be6187f4dd76ccd3c668faf2bbd9cd1e9a3ec6a121c62a78562f10d9bba",
-    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "bd536f440a3268999f5e9aa4169629a643448674e004d53969a3689c1862ba24",
-    "src/rfsuite/app/pages/helicopter_setup/math.lua": "c4124f86de6988af6bb22e6fa1cb67e7e924eb78de38cffa5be107492caa14c1",
-    "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "f8c4476d1c9de37f643ae83e3353d7bf1831dfefd3900b02038e3381c732a7c1",
+    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "153c7d35f6b1a18a8e5363fe1f73dc09fa720500bf469df7dd8040f8393d65b2",
+    "src/rfsuite/app/pages/helicopter_setup/math.lua": "f125cbdc577a170e8060688d69552d248e5ed6b092852c03139cc2d11d05b1a0",
+    "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "b5261edc1dd47c2568fbef2b50c04a82bf8de2158ce38ba9f797fa4d576b3b8f",
     "src/rfsuite/app/pages/helicopter_setup/page.lua": "008c151f29ff959e567b1772026653af1d237a47407bd40ca78180c7d384d7cd",
     "src/rfsuite/app/pages/helicopter_setup/palette.lua": "520252a85efdf156bc6b325b2f15331f433c76b7783fa18ef8a1d415d4c70a80",
     "src/rfsuite/app/pages/helicopter_setup/power_cards.lua": "a70479280c3977ac68d10c592d6c48529a8d6398e997e046ea7c24d00de7b024",
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",
-    "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "57ca31bced54fe70477443279dc12794d9118f8c27dee59d1f94def5213a826c",
-    "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua": "5375aced67797811c1a76847db7a41d1bd801ad15731ffa4e8c48214695c4699",
-    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "7177367e84dac15ae318b659f368119bffb11e1a75021f5054d4630d45c0d71c",
-    "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua": "4bb2414076dfcb0bfce29665eae470f504945bf08dd85b16b55c7fb8946f6443",
-    "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "98d010c46cee286f8813cdc26fd1d77291e83d2f0c7e6172fca22f45bd157ba2",
+    "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "68c7cd18ef415b3b0b0fd9ee59ad0cd4f56f71ddb9758c64092b2350ecb4a976",
+    "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua": "a423aa3c4712965c5d12a0a265d0476c82c8a6beda2b714284b80c3ba83548b2",
+    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "8438f3e0d5bef5e254f2ede833ee73e8956a389cb783a6c5df26bc61286193ac",
+    "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua": "14125159bcd7123906b4665811bfdb558481667ce17cdd03bd7e15458c733f94",
+    "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "a957d587c1e1ee25acdec871e57b2027df7907c7bd3097f54fda3407e63f60cf",
     "src/rfsuite/app/pages/helicopter_setup/steps/gyro.lua": "c9751a300b355d699fc3689c61f379e0f20610dadaf9383573fff229d9a9c402",
-    "src/rfsuite/app/pages/helicopter_setup/steps/level.lua": "8433f8d0799153b4c5a9c4dbd8c930e115e7c26486c9fb5cc19c936ebd54f3f5",
+    "src/rfsuite/app/pages/helicopter_setup/steps/level.lua": "53410315563fd35a28dbcaa04b9714db46a08bc1ac15cdcd647716290e63a100",
     "src/rfsuite/app/pages/helicopter_setup/steps/modes.lua": "b593074aa71836c6c0cd2a7ac96217d5cbddc2f7e432a987626399e478fbaf47",
-    "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "4a0ed908b09265d93f282a106d5d75ee250857c17d363ee0820c337d115c73c9",
-    "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "687354e0d60624d22e10ccd17e210cf6a6060319d30339cb2abbf0b9aa028fa3",
-    "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "42c2a28773bde9a0ca0d325b25e782971d3ed1c4bc122c77af837d59b1e766bd",
+    "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "b6d39ef46df09205bc90968705c951be8d0667af68de7922e0c88e79b10ab936",
+    "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "838c56c76dbe63ac63df0638f2e8ba76b3917bc7c5b43bbae4937bb39cf44372",
+    "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "0360117723d9b60c844989bdee23281d4687e0cc39293529534d67a244c26555",
     "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "4157b1bd7bcd0136bfa3e744ff6d384595d7fcc246b1798e639ccba93b6d69b8",
-    "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "d0af9c9ca4990baa9027bd76d327d5ef1170f07730c5d0be255c626ec7932623",
-    "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua": "d725edcb37c5fcdc9c8ef4ba5bc688875fc7a4c84946dbaafb09860b72fa0df6",
-    "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua": "073b6708bdf05c000309d7deb0ca39b04b3ff531000ab6777b8816c5e8e2972d",
-    "src/rfsuite/app/pages/helicopter_setup/steps/servos.lua": "a257d4f4a155d6e93a333ce435e1462bbe659ed1ef85252fa415e16fab24124c",
+    "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "429995fedc519c6fb9d884be9b7af9ec126218ae46f5f136bf369f7668c13d4c",
+    "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua": "b4c36fe87fe8c1f1099fab0ce7faec95e213cda3dec47ec61aff56c0efd0e500",
+    "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua": "4ce0e69ead8e524ceeade08c214debca4fa3b9dba2ca93a627642a9167662e21",
+    "src/rfsuite/app/pages/helicopter_setup/steps/servos.lua": "f74f99c4e6b2d7241b76c1dd6b44f81795d6ec9643607f6c8bf6bd4a498c0001",
     "src/rfsuite/app/pages/helicopter_setup/steps/swash.lua": "dbbfb700c2865f3d86326f3def736a527a25f643dacfb87178303aa9d98295dc",
-    "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua": "4810aefafd236621fc3214bcc6361b29e3b5edeecebc9fd4ac362df45c2799f9",
+    "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua": "18711c564edace6cf47e0b8887b0dd65ae377b64841e321730a35cd59ce8b8ce",
     "src/rfsuite/app/pages/helicopter_setup/steps/throttle.lua": "477a6a94493f0ef71b1ce5c941f5e0fd6577a881583b891a8b3ce523efd4dd07",
     "src/rfsuite/app/pages/helicopter_setup/transport.lua": "438e85ed5f1492f80876e1c9e94802df596764d258c2fc2486ec0b37db611c89",
     "src/rfsuite/app/pages/helicopter_setup/view.lua": "a63d421e3f27ff0f6fc3037eed6b6dfa839c2c027ef919c77d18ef3b322ae96c",
-    "src/rfsuite/app/pages/helicopter_setup/workflow.lua": "d7a24987575021a428756b724dc4b155a89689372886fc07c78842d2bc0f1b1e",
+    "src/rfsuite/app/pages/helicopter_setup/workflow.lua": "f5a7bbb50dd6ca8d312780fc026603c8c15d39cadaa18891af17e267b6543d12",
     "src/rfsuite/app/pages/setup/esc_motors/throttle/page.lua": "76542a5f84b98f8715c6ed938a463483e76e205912cd70f01555b7cf94fbe5aa",
     "src/rfsuite/app/pages/setup/power/battery/page.lua": "bb94e95ab8cac06d560110554faf9ba0b4ab634abc0eb8bba9fde032a6468949",
     "src/rfsuite/app/pages/setup/power/smartfuel/page.lua": "70eac48cbea056fe6b0644e7d4f980bd2af16f229e16a888330bbcbfcf2a5d5f",
     "src/rfsuite/app/pages/setup/power/sources/page.lua": "ff0846f7298aefacba5e522a01f2945e8111fe94110344dad9e4832c5cbc724e",
-    "src/rfsuite/i18n/en.lua": "e73132fca25caaefc5411808d6226edca177c7c5351e72636d4327802f054c8a",
+    "src/rfsuite/i18n/en.lua": "b68d39463a2937c486526a16870d227de92aa5f9daf2fd04883a9ca7fafb0b33",
     "src/rfsuite/lib/esc_params.lua": "2a9f2fb0fd6f762ef396ed20da5a48081a5583687bb2803b870a34ca2635eeaf",
     "src/rfsuite/lib/governor_fields.lua": "2c7407a6d75e7b00de9002dbb4be49696a6a3468b2d76013e1998549a2932a3c",
     "src/rfsuite/lib/power_fields.lua": "2204f3bd87281732a784d9aacd45a432d91cd3ab99a7a649c5976192c345c41e",
@@ -88,7 +88,7 @@
       "profileLoop": "local status = self . data . status local original = kind == \"rates\" and status . current_control_rate_profile_index + 128 or status . current_pid_profile_index local api = kind == \"rates\" and \"rc_tuning\" or kind == \"rescue\" and \"rescue_profile\" or \"governor_profile\" self . restoreProfile = original for i = 0 , math . min ( indexes and # indexes or count , 6 ) - 1 do local index = indexes and indexes [ i + 1 ] or i self : action ( \"set_pid_profile\" , { index + ( kind == \"rates\" and 128 or 0 ) } ) self : read ( api , function ( d ) self . profileData = d if loaded then loaded ( d , index ) end if apply then self . profileOriginal = self . profileOriginal or { } self . profileOriginal [ kind ] = self . profileOriginal [ kind ] or { } self . profileOriginal [ kind ] [ index ] = self . profileOriginal [ kind ] [ index ] or copy ( d ) end end ) if apply then self : write ( api , function ( ) if apply ( self . profileData , index ) == false then return false end return self . profileData end ) end end self : action ( \"set_pid_profile\" , { original } , function ( ) self . restoreProfile = nil end ) self : read ( api , function ( d ) self . data [ api ] = d end ) self : read ( \"status\" , function ( d ) self . data . status = d end )",
       "save": "if self . logInfo then local names = { } for api in pairs ( self . dirty ) do names [ # names + 1 ] = api end self : log ( \"info\" , \"save %s\" , table . concat ( names , \",\" ) ) end self . transition = true ; self . message = self . L . saving self . edits = self . edits + 1 self : release ( ) if self . commit then self . commit ( ) end for api in pairs ( self . dirty ) do if not PROFILE_APIS [ api ] and api ~= \"tail_motor_output\" then self : sendDirty ( api ) end end local written self : write ( \"eeprom_write\" , { } , function ( ) written = self . dirty if self . logInfo then self : log ( \"info\" , \"save ok\" ) end self . dirty , self . live , self . profileOriginal = { } , { } , nil self . savedRebootPending = self . rebootPending self . snapshotIndex = 1 end ) for _ , api in ipairs ( READS ) do local name = api self : run ( function ( ) if ( written and written [ name ] ) or not same ( self . saved [ name ] , self . data [ name ] ) then self . saved [ name ] = copy ( self . data [ name ] ) end end ) self : run ( function ( ) self : sentFromData ( name ) end ) end self : run ( function ( ) self . transition = nil if self . stayNotice then self . message , self . stayNotice = self . stayNotice , nil if self . logInfo then self : keyMessage ( self . stayNoticeKey ) end self : rebuild ( ) ; return end self . message = self . L . saved ; if after then after ( ) end end )",
       "next": "if self . escBusy then return end if not self : usable ( ) or not self . cards then return end if self . recoveryCard then if not self : ack ( \"recoveryPowerCycle\" ) then return end self : session ( ) . helicopterSetupRecovery = nil self . recoveryRequired , self . recoveryCard , self . cards = nil , nil , nil self . buildRequested = true ; self : rebuild ( ) ; return end if self . modelPreparationCard then if not self : ack ( \"modelReady\" ) then return end if self . systemStatus == nil or self . systemConfig == nil then self . message = self . L . sensorsRequired ; return end self . modelPreparationDone , self . modelPreparationCard = true , nil self . cards , self . buildRequested = nil , true ; self : rebuild ( ) ; return end if self . entryRebootGate then if self : ack ( \"unplugged\" ) and self : ack ( \"blades\" ) then self : reboot ( ) end return end if self . preparationCard then if not self : preparationComplete ( ) then return end self . preparationDone , self . preparationCard = true , nil self . cards , self . buildRequested = nil , true self : rebuild ( ) ; return end if self . trial then if self . trial . success then self : reboot ( ) else self . message = self . L . detecting end return end if self . step == 1 and ( not self : ack ( \"unplugged\" ) or not self : ack ( \"blades\" ) ) then return end local card = self . cards [ self . card ] if card and card . power and self . card < # self . cards and next ( self . dirty ) then local target = self . card + 1 self : save ( function ( ) self : navigate ( self . step , target ) end ) ; return end if self . card < # self . cards then self : navigate ( self . step , self . card + 1 ) ; return end if self . validate and not self . validate ( ) then return end if self . rebootPending and self . step >= 10 then self : reboot ( ) ; return end if not next ( self . dirty ) then if self . finishStep then self : finishStep ( ) elseif self . step == 19 then self : close ( ) else self : navigate ( self . step + 1 , 1 ) end return end self : save ( function ( ) if self . finishStep then self : finishStep ( ) elseif self . step == 19 then self : close ( ) else self : navigate ( self . step + 1 , 1 ) end end )",
-      "load": "if self . logInfo then self : log ( \"info\" , \"load start\" ) end self . ready , self . error , self . progress , self . transition = false , nil , 0 , true self . edits = self . edits + 1 self . checks , self . card , self . bladesOff , self . calibratedEsc = { } , 1 , false , nil if self . escParams then self . escParams . block = nil end self . escAttempted , self . escBusy , self . rangeSource = nil , nil , nil self . rangeNeedsVerification = self . rangeChoice == \"esc_link\" and self . escRangeExpected ~= nil self . preparationDone , self . preparationCard = nil , nil self . tailPinRefused , self . tailPinNotice , self . stayNotice = nil , nil , nil self . governorLoaded , self . governorSpeeds , self . governorChanged , self . governorFilterLoaded = nil , nil , nil , nil self . rescue = nil self . data . battery_config , self . data . battery_profile , self . data . smartfuel_config = nil , nil , nil self . data . analog , self . analogAt = nil , nil self . statusQueued , self . statusWaiting , self . beforeStatusWait = nil , nil , nil self . recoveryRequired = self : session ( ) . helicopterSetupRecovery == self : session ( ) . mcu_id self . loadingText , self . loadTotal = self . L . loading , # READS + 66 self . locked = false self : blockArming ( ) self : read ( \"status\" , function ( d ) if ( d . arming_disable_flags & ( 1 << 16 ) ) == 0 then self : fail ( \"arming_disable\" , \"not active\" ) ; return end local count = d . servo_count if count > 26 or ( count > 8 and count < 18 ) then self : fail ( \"status\" , \"servo count\" ) ; return end self . loadTotal = # READS + 40 + count self . locked = true ; self : acceptStatus ( d ) end ) if self . loadHistory then self : run ( function ( ) self : loadHistory ( ) end ) end if self . historyMode then self : run ( function ( ) self . ready , self . transition , self . buildRequested = true , nil , true if self . logInfo then self : log ( \"info\" , \"load ready, history only\" ) end self . message = self . L . ready ; self : rebuild ( ) end ) return end if not self : apiSupported ( ) then self : run ( function ( ) self . ready , self . transition , self . buildRequested , self . apiTooOld = true , nil , true , true if self . logInfo then self : log ( \"info\" , \"load stopped, API %s\" , self : session ( ) . apiVersion ) end self . message = self . L . apiTooOld ; self : rebuild ( ) end ) return end for _ , api in ipairs ( { \"servo_override\" , \"mixer_override\" , \"motor_override\" } ) do local name = api self : run ( function ( ) self . bus : load ( name ) end ) end self : run ( function ( ) self : release ( true ) end ) local servoCandidate , mixerCandidate = false , false self : write ( \"servo_override\" , { servo_id = 0 , action = 2001 , timeout = 500 } , function ( _ , err ) servoCandidate = err == nil end , true ) self : action ( \"servo_override\" , { 0 , 209 , 7 , 0 } , function ( _ , err ) self . timedServo = servoCandidate and err == \"refused\" end , true ) self : write ( \"mixer_override\" , { index = 0 , value = 2501 , timeout = 500 } , function ( _ , err ) mixerCandidate = err == nil end , true ) self : action ( \"mixer_override\" , { 0 , 197 , 9 , 0 } , function ( _ , err ) self . timedMixer = mixerCandidate and err == \"refused\" self . timed = self . timedServo and self . timedMixer end , true ) for _ , name in ipairs ( READS ) do local api = name if api == \"smartfuel_config\" and not self . powerFields . supportsSmartFuel ( self : session ( ) . apiVersion , self . powerApiVersion ) then self : run ( function ( ) self : loadProgress ( ) end ) elseif api == \"adjustment_ranges\" then self : readRecords ( api , \"get_adjustment_range\" , \"adjustment_range\" ) elseif api == \"servo_configurations\" then self : readRecords ( api , \"get_servo_config\" , \"servo_config\" , true ) else self : read ( api , function ( d , err ) if err and ( api == \"battery_config\" or api == \"battery_profile\" or api == \"smartfuel_config\" ) then d = nil end if api == \"board_alignment_config\" and d then for _ , key in ipairs ( { \"roll_degrees\" , \"pitch_degrees\" , \"yaw_degrees\" } ) do d [ key ] = self . math . signed ( d [ key ] ) end end self . data [ api ] = d ; self : loadProgress ( ) if api == \"status\" then self : acceptStatus ( d ) end end , api == \"tail_motor_output\" or api == \"board_info\" or api == \"telemetry_config\" or api == \"battery_config\" or api == \"battery_profile\" or api == \"smartfuel_config\" , api == \"tail_motor_output\" and { 0 } or nil ) end self : run ( function ( ) if not self . dirty [ api ] and not ( api == \"mode_ranges_extra\" and self . dirty . mode_ranges ) then self . saved [ api ] = copy ( self . data [ api ] ) end end ) self : run ( function ( ) self : sentFromData ( api ) end ) end self : read ( \"status\" , function ( d ) self : acceptStatus ( d ) end ) self : run ( function ( ) self . identity = self : session ( ) . mcu_id local inputs = self . data . mixer_input . inputs if not inputs [ 4 ] or not self . data . status . pid_profile_count or self . data . status . pid_profile_count < 1 then self : fail ( \"status\" , \"configuration\" ) ; return end self . startTail = self . data . mixer_config . tail_rotor_mode self . savedRebootPending = self . rebootPending self . ready , self . transition , self . buildRequested = true , nil , true if self . logInfo then self : log ( \"info\" , \"load ready\" ) end self . message = self . L . ready self : rebuild ( ) end )",
+      "load": "if self . logInfo then self : log ( \"info\" , \"load start\" ) end self . ready , self . error , self . progress , self . transition = false , nil , 0 , true self . edits = self . edits + 1 self . checks , self . card , self . bladesOff , self . calibratedEsc = { } , 1 , false , nil if self . escParams then self . escParams . block = nil end self . escAttempted , self . escBusy , self . rangeSource = nil , nil , nil self . rangeNeedsVerification = self . rangeChoice == \"esc_link\" and self . escRangeExpected ~= nil self . preparationDone , self . preparationCard = nil , nil self . tailPinRefused , self . tailPinNotice , self . stayNotice = nil , nil , nil self . governorLoaded , self . governorSpeeds , self . governorChanged , self . governorFilterLoaded = nil , nil , nil , nil self . rescue = nil if not self . pitchFullChanged then self . pitchLoaded , self . pitchFull = nil , nil end self . data . battery_config , self . data . battery_profile , self . data . smartfuel_config = nil , nil , nil self . data . analog , self . analogAt = nil , nil self . statusQueued , self . statusWaiting , self . beforeStatusWait = nil , nil , nil self . recoveryRequired = self : session ( ) . helicopterSetupRecovery == self : session ( ) . mcu_id self . loadingText , self . loadTotal = self . L . loading , # READS + 66 self . locked = false self : blockArming ( ) self : read ( \"status\" , function ( d ) if ( d . arming_disable_flags & ( 1 << 16 ) ) == 0 then self : fail ( \"arming_disable\" , \"not active\" ) ; return end local count = d . servo_count if count > 26 or ( count > 8 and count < 18 ) then self : fail ( \"status\" , \"servo count\" ) ; return end self . loadTotal = # READS + 40 + count self . locked = true ; self : acceptStatus ( d ) end ) if self . loadHistory then self : run ( function ( ) self : loadHistory ( ) end ) end if self . historyMode then self : run ( function ( ) self . ready , self . transition , self . buildRequested = true , nil , true if self . logInfo then self : log ( \"info\" , \"load ready, history only\" ) end self . message = self . L . ready ; self : rebuild ( ) end ) return end if not self : apiSupported ( ) then self : run ( function ( ) self . ready , self . transition , self . buildRequested , self . apiTooOld = true , nil , true , true if self . logInfo then self : log ( \"info\" , \"load stopped, API %s\" , self : session ( ) . apiVersion ) end self . message = self . L . apiTooOld ; self : rebuild ( ) end ) return end for _ , api in ipairs ( { \"servo_override\" , \"mixer_override\" , \"motor_override\" } ) do local name = api self : run ( function ( ) self . bus : load ( name ) end ) end self : run ( function ( ) self : release ( true ) end ) local servoCandidate , mixerCandidate = false , false self : write ( \"servo_override\" , { servo_id = 0 , action = 2001 , timeout = 500 } , function ( _ , err ) servoCandidate = err == nil end , true ) self : action ( \"servo_override\" , { 0 , 209 , 7 , 0 } , function ( _ , err ) self . timedServo = servoCandidate and err == \"refused\" end , true ) self : write ( \"mixer_override\" , { index = 0 , value = 2501 , timeout = 500 } , function ( _ , err ) mixerCandidate = err == nil end , true ) self : action ( \"mixer_override\" , { 0 , 197 , 9 , 0 } , function ( _ , err ) self . timedMixer = mixerCandidate and err == \"refused\" self . timed = self . timedServo and self . timedMixer end , true ) for _ , name in ipairs ( READS ) do local api = name if api == \"smartfuel_config\" and not self . powerFields . supportsSmartFuel ( self : session ( ) . apiVersion , self . powerApiVersion ) then self : run ( function ( ) self : loadProgress ( ) end ) elseif api == \"adjustment_ranges\" then self : readRecords ( api , \"get_adjustment_range\" , \"adjustment_range\" ) elseif api == \"servo_configurations\" then self : readRecords ( api , \"get_servo_config\" , \"servo_config\" , true ) else self : read ( api , function ( d , err ) if err and ( api == \"battery_config\" or api == \"battery_profile\" or api == \"smartfuel_config\" ) then d = nil end if api == \"board_alignment_config\" and d then for _ , key in ipairs ( { \"roll_degrees\" , \"pitch_degrees\" , \"yaw_degrees\" } ) do d [ key ] = self . math . signed ( d [ key ] ) end end self . data [ api ] = d ; self : loadProgress ( ) if api == \"status\" then self : acceptStatus ( d ) end end , api == \"tail_motor_output\" or api == \"board_info\" or api == \"telemetry_config\" or api == \"battery_config\" or api == \"battery_profile\" or api == \"smartfuel_config\" , api == \"tail_motor_output\" and { 0 } or nil ) end self : run ( function ( ) if not self . dirty [ api ] and not ( api == \"mode_ranges_extra\" and self . dirty . mode_ranges ) then self . saved [ api ] = copy ( self . data [ api ] ) end end ) self : run ( function ( ) self : sentFromData ( api ) end ) end self : read ( \"status\" , function ( d ) self : acceptStatus ( d ) end ) self : run ( function ( ) self . identity = self : session ( ) . mcu_id local inputs = self . data . mixer_input . inputs if not inputs [ 4 ] or not self . data . status . pid_profile_count or self . data . status . pid_profile_count < 1 then self : fail ( \"status\" , \"configuration\" ) ; return end self . startTail = self . data . mixer_config . tail_rotor_mode self . savedRebootPending = self . rebootPending self . ready , self . transition , self . buildRequested = true , nil , true if self . logInfo then self : log ( \"info\" , \"load ready\" ) end self . message = self . L . ready self : rebuild ( ) end )",
       "poll": "if self . historyMode or self . modelPreparationCard then return end local time = now ( ) if time - ( self . lastPoll or 0 ) < 20 then return end self . lastPoll = time local attitudeCheck = self . step == 1 and self . cards and self . cards [ self . card ] and self . cards [ self . card ] . art == \"attitude\" local switches = self . step == 3 or self . step == 4 self . pollIndex = ( self . pollIndex or 0 ) % ( ( attitudeCheck or switches ) and 4 or 3 ) + 1 local api = switches and ( self . pollIndex == 1 and \"status\" or \"rc\" ) or attitudeCheck and ( self . pollIndex % 2 == 1 and \"attitude\" or self . pollIndex == 2 and \"status\" or \"servo\" ) or self . pollIndex == 1 and \"status\" or self . pollIndex == 2 and \"servo\" or ( { [ 1 ] = \"attitude\" , [ 2 ] = \"rx_channels\" , [ 3 ] = \"rc\" , [ 4 ] = \"rc\" , [ 10 ] = \"motor\" , [ 11 ] = \"motor_telemetry\" , [ 12 ] = \"motor\" , [ 14 ] = \"rc_command\" , [ 17 ] = self : motorised ( ) and \"motor\" or \"rc_command\" } ) [ self . step ] local card = self . cards and self . cards [ self . card ] if self . step == 11 and card and card . power and self . pollIndex == 2 then api = \"analog\" end if self . motorHold then api = \"motor\" end if not api then return end local selectedSources = self . sent . battery_config or self . saved . battery_config local job = self . bus : idle ( ) and self . pollJob if not job then job = { } job . after = function ( d , err ) self : pollReply ( job , d , err ) end self . pollJob = job end job . api , job . optional = api , api == \"analog\" job . voltageSource = selectedSources and selectedSources . voltageMeterSource job . currentSource = selectedSources and selectedSources . currentMeterSource self . bus : add ( job )",
       "tick": "if self . logInfo then self : logChanges ( ) end if self . escParams and self . escParams : observe ( self . escSignature ) and not self . escBusy then self : escResult ( nil , \"restart\" ) end if self . linkTick then self : linkTick ( ) end if self . attitudeView then self . attitudeView : update ( self . data . attitude , self . attitudeAt , now ( ) , self . active and self . ready and self . locked and not self . transition and not self . error and self : allowed ( ) ) end if not self . active then return end if not self : allowed ( ) then if not self . suspended then if self . logInfo then self : log ( \"info\" , \"link lost\" ) end self . suspended , self . escBusy = true , nil ; self . bus : cancel ( ) ; self : release ( ) ; self . message = self . L . disconnected self . ready = false ; self : rebuild ( ) end return end if self . suspended then self . suspended , self . disconnectExit = nil , nil if self . logInfo then self : log ( \"info\" , \"link back\" ) end if self . rebootPhase then self . rebootPhase = nil ; self . rebootPending = nil ; self : load ( ) else self . error = \"link\" ; self . message = self . L . reload end return end if self . rebootPhase and self . rebootPhase ~= \"sent\" then if now ( ) - self . rebootAt > 3000 then self . rebootPhase = nil ; self : fail ( \"reboot\" , \"timeout\" ) end if now ( ) - self . rebootAt >= 200 and self . bus : idle ( ) then self : read ( \"status\" , function ( d , err ) if err or not d or d . reboot_required ~= 0 then return end self . rebootPhase , self . rebootPending = nil , nil if self . logInfo then self : log ( \"info\" , \"reboot done\" ) end self : load ( ) end , true ) end if not self . bus : idle ( ) then self . bus : tick ( ) end return end if self . cleanupFailed and ( self . cleanupPending or 0 ) == 0 and not self . error then self : fail ( \"cleanup\" , self . L . cleanupFailed ) ; return end if self . ready and self . locked and not self . error and not self . rebootPhase then local age = now ( ) - ( self . statusAt or 0 ) if age > 300 then if self . transition or self . motorHold or next ( self . holds ) or self . trial or self . calibrationAt or not self . bus : readOnly ( ) then self : fail ( \"status\" , self . L . stale ) ; self . message = self . L . stale ; return end if not self . statusWaiting then self . beforeStatusWait , self . statusWaiting = self . message , true self . canEdit , self . canNext , self . message = false , false , self . L . checkingStatus self : release ( ) end end if age > 100 and not self . statusQueued then self . statusQueued = true self . bus : urgent ( { api = \"status\" , after = function ( d ) self . statusQueued = nil ; self : acceptStatus ( d ) end } ) end end if not self . bus : idle ( ) then self . bus : tick ( ) ; return end if self . buildRequested and self . ready then local kept = self . buildRequested == \"card\" and self . keptCards self . buildRequested , self . keptCards = nil , nil if self . overview then self : rebuild ( ) ; return end if self . historyMode then self : buildHistory ( ) ; self : rebuild ( ) ; return end if self . apiTooOld and not self . recoveryRequired then self . cards = { self : cardDef ( self . L . apiTooOldTitle , self . L . apiTooOld , { self : value ( self . L . fcApi , function ( ) return tostring ( self : session ( ) . apiVersion or \"--\" ) end ) } ) } self . cards [ 1 ] . summary = self . L . apiTooOld self . card = 1 ; self . validate = function ( ) self . message = self . L . apiTooOld ; return false end self : rebuild ( ) ; return end if self : buildModelPreparation ( ) then self : rebuild ( ) ; return end self . entryRebootGate = self . returnToSuite and self . step >= 11 and self . rebootPending and not ( self . step == 11 and self . escRangeExpected ) or nil if self . entryRebootGate then self : showRebootGate ( ) ; return end local key = STEPS [ self . step ] self . validate , self . onLive , self . commit = nil , nil , nil if self . buildPreparation and self : buildPreparation ( ) then self : rebuild ( ) ; return end local model = kept and kept . model if model and model . step == self . step and model . edits == self . edits and model . rebootPending == self . rebootPending and not ( kept . stale and kept . stale ( ) ) then self . cards , self . validate , self . onLive , self . commit = kept , model . validate , model . onLive , model . commit if self . logDebug then self : log ( \"debug\" , \"cards %s kept\" , key ) end else self . cards = assert ( loadScript ( BASE .. \"app/pages/helicopter_setup/steps/\" .. key .. \".lua\" , \"t\" ) ) ( ) ( self ) self . cards . model = { step = self . step , edits = self . edits , rebootPending = self . rebootPending , validate = self . validate , onLive = self . onLive , commit = self . commit } if self . logDebug then self : log ( \"debug\" , \"cards %s built, %s\" , key , # self . cards ) end end self . card = math . min ( self . card , # self . cards ) if self . cards [ self . card ] . enter then self : afterRelease ( self . cards [ self . card ] . enter ) end self : rebuild ( ) ; return end if not self . ready or self . error or self . transition then return end if self . trialTick and self : trialTick ( ) then return end if self . live and next ( self . live ) then local api = next ( self . live ) ; self . live [ api ] = nil if self . logInfo then self : log ( \"info\" , \"live write %s\" , api ) end self : sendDirty ( api ) ; return end if self . escTick and self : escTick ( ) then return end if self . holdPollTurn then self . holdPollTurn , self . lastPoll = nil , nil self : poll ( ) ; return end if self . motorHold then local h = self . motorHold if h . untilAt and now ( ) >= h . untilAt then self : stopMotor ( ) ; return end if now ( ) >= h . due and not h . pollTurn then if h . mode == \"spin\" then h . value = self . percent * 10 * h . direction end if h . mode == \"idle\" then h . value = self . data . mixer_config . tail_motor_idle end h . due , h . pollTurn = now ( ) + 25 , true self . bus : add ( { api = \"motor_override\" , write = true , override = true , data = { index = h . index , value = h . value } } ) ; return end if h . pollTurn then h . pollTurn = nil ; self . lastPoll = nil end end local refreshed = false for _ , h in pairs ( self . holds ) do if now ( ) >= h . due then h . due = now ( ) + 100 local d = h . kind == \"servo\" and { servo_id = h . index , action = h . value } or { index = h . index , value = h . value } if h . timed then d . timeout = 3000 end self . bus : add ( { api = h . kind .. \"_override\" , write = true , override = true , data = d } ) refreshed = true end end if refreshed then self . holdPollTurn = true ; return end self : poll ( )"
     }
@@ -1854,6 +1854,38 @@
               "expression": "w : ack ( \"orientation\" )"
             },
             {
+              "kind": "pilot sets",
+              "label": "{label}",
+              "api": "board_alignment_config",
+              "field": "{key}",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepSensors.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
+              "expression": "w : n ( \"board_alignment_config\" , key , label , - 180 , 180 , false , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "board_alignment_config.{key}",
+              "api": "board_alignment_config",
+              "field": "{key}",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepSensors.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
+              "expression": "w : n ( \"board_alignment_config\" , key , label , - 180 , 180 , false , true )"
+            },
+            {
               "kind": "pilot confirms",
               "label": "All blades removed",
               "api": null,
@@ -2053,102 +2085,6 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
               "expression": "w : startTrial ( \"board_auto_align\" )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Roll",
-              "api": "board_alignment_config",
-              "field": "roll_degrees",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepSensors.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
-              "expression": "w : n ( \"board_alignment_config\" , \"roll_degrees\" , L . roll , - 180 , 180 , true )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "board_alignment_config.roll_degrees",
-              "api": "board_alignment_config",
-              "field": "roll_degrees",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepSensors.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
-              "expression": "w : n ( \"board_alignment_config\" , \"roll_degrees\" , L . roll , - 180 , 180 , true )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Pitch",
-              "api": "board_alignment_config",
-              "field": "pitch_degrees",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepSensors.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
-              "expression": "w : n ( \"board_alignment_config\" , \"pitch_degrees\" , L . pitch , - 180 , 180 , true )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "board_alignment_config.pitch_degrees",
-              "api": "board_alignment_config",
-              "field": "pitch_degrees",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepSensors.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
-              "expression": "w : n ( \"board_alignment_config\" , \"pitch_degrees\" , L . pitch , - 180 , 180 , true )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Yaw",
-              "api": "board_alignment_config",
-              "field": "yaw_degrees",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepSensors.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
-              "expression": "w : n ( \"board_alignment_config\" , \"yaw_degrees\" , L . yaw , - 180 , 180 , true )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "board_alignment_config.yaw_degrees",
-              "api": "board_alignment_config",
-              "field": "yaw_degrees",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepSensors.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
-              "expression": "w : n ( \"board_alignment_config\" , \"yaw_degrees\" , L . yaw , - 180 , 180 , true )"
             }
           ]
         },
@@ -2190,11 +2126,9 @@
         "board_auto_align"
       ],
       "msp_writes": [
+        "board_alignment_config.{key}",
         "acc_calibration",
-        "board_auto_align",
-        "board_alignment_config.roll_degrees",
-        "board_alignment_config.pitch_degrees",
-        "board_alignment_config.yaw_degrees"
+        "board_auto_align"
       ],
       "configurator_status": [
         "same"
@@ -2461,7 +2395,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-              "expression": "{ kind = \"choice\" , label = L . standardOrder , allowUnset = true , values = { \"ELRS\" , \"FrSky\" , \"Futaba / Hitec\" , \"DSM / Graupner / JR\" } , get = function ( ) local match = true ; if w . data . rx_map [ \"aileron\" ] ~= { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } [ 1 ] then match = false end if w . data . rx_map [ \"elevator\" ] ~= { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } [ 2 ] then match = false end if w . data . rx_map [ \"rudder\" ] ~= { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } [ 3 ] then match = false end if w . data . rx_map [ \"collective\" ] ~= { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } [ 4 ] then match = false end if w . data . rx_map [ \"throttle\" ] ~= { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } [ 5 ] then match = false end if w . data . rx_map [ \"aux1\" ] ~= { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } [ 6 ] then match = false end if w . data . rx_map [ \"aux2\" ] ~= { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } [ 7 ] then match = false end if w . data . rx_map [ \"aux3\" ] ~= { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } [ 8 ] then match = false end if true then return 1 end local match = true ; if w . data . rx_map [ \"aileron\" ] ~= { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } [ 1 ] then match = false end if w . data . rx_map [ \"elevator\" ] ~= { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } [ 2 ] then match = false end if w . data . rx_map [ \"rudder\" ] ~= { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } [ 3 ] then match = false end if w . data . rx_map [ \"collective\" ] ~= { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } [ 4 ] then match = false end if w . data . rx_map [ \"throttle\" ] ~= { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } [ 5 ] then match = false end if w . data . rx_map [ \"aux1\" ] ~= { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } [ 6 ] then match = false end if w . data . rx_map [ \"aux2\" ] ~= { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } [ 7 ] then match = false end if w . data . rx_map [ \"aux3\" ] ~= { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } [ 8 ] then match = false end if true then return 2 end local match = true ; if w . data . rx_map [ \"aileron\" ] ~= { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } [ 1 ] then match = false end if w . data . rx_map [ \"elevator\" ] ~= { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } [ 2 ] then match = false end if w . data . rx_map [ \"rudder\" ] ~= { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } [ 3 ] then match = false end if w . data . rx_map [ \"collective\" ] ~= { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } [ 4 ] then match = false end if w . data . rx_map [ \"throttle\" ] ~= { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } [ 5 ] then match = false end if w . data . rx_map [ \"aux1\" ] ~= { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } [ 6 ] then match = false end if w . data . rx_map [ \"aux2\" ] ~= { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } [ 7 ] then match = false end if w . data . rx_map [ \"aux3\" ] ~= { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } [ 8 ] then match = false end if true then return 3 end local match = true ; if w . data . rx_map [ \"aileron\" ] ~= { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } [ 1 ] then match = false end if w . data . rx_map [ \"elevator\" ] ~= { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } [ 2 ] then match = false end if w . data . rx_map [ \"rudder\" ] ~= { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } [ 3 ] then match = false end if w . data . rx_map [ \"collective\" ] ~= { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } [ 4 ] then match = false end if w . data . rx_map [ \"throttle\" ] ~= { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } [ 5 ] then match = false end if w . data . rx_map [ \"aux1\" ] ~= { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } [ 6 ] then match = false end if w . data . rx_map [ \"aux2\" ] ~= { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } [ 7 ] then match = false end if w . data . rx_map [ \"aux3\" ] ~= { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } [ 8 ] then match = false end if true then return 4 end ; return 0 end , set = function ( v ) local preset = ( { { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } , { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } , { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } , { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } } ) [ v ] if not preset then return end r . detect = nil ; w . data . rx_map [ \"aileron\" ] = preset [ 1 ] w . data . rx_map [ \"elevator\" ] = preset [ 2 ] w . data . rx_map [ \"rudder\" ] = preset [ 3 ] w . data . rx_map [ \"collective\" ] = preset [ 4 ] w . data . rx_map [ \"throttle\" ] = preset [ 5 ] w . data . rx_map [ \"aux1\" ] = preset [ 6 ] w . data . rx_map [ \"aux2\" ] = preset [ 7 ] w . data . rx_map [ \"aux3\" ] = preset [ 8 ] ; w : touch ( \"rx_map\" ) end , enabled = unlocked }"
+              "expression": "{ kind = \"choice\" , label = L . standardOrder , allowUnset = true , values = { \"ELRS\" , \"FrSky\" , \"Futaba / Hitec\" , \"DSM / Graupner / JR\" } , get = presetIndex , set = function ( v ) local preset = { { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } , { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } , { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } , { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } } [ v ] if not preset then return end r . detect = nil ; w . data . rx_map [ \"aileron\" ] = preset [ 1 ] w . data . rx_map [ \"elevator\" ] = preset [ 2 ] w . data . rx_map [ \"rudder\" ] = preset [ 3 ] w . data . rx_map [ \"collective\" ] = preset [ 4 ] w . data . rx_map [ \"throttle\" ] = preset [ 5 ] w . data . rx_map [ \"aux1\" ] = preset [ 6 ] w . data . rx_map [ \"aux2\" ] = preset [ 7 ] w . data . rx_map [ \"aux3\" ] = preset [ 8 ] ; w : touch ( \"rx_map\" ) end , enabled = unlocked }"
             }
           ]
         },
@@ -2619,6 +2553,42 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
               "expression": "w : n ( \"rc_config\" , \"rc_max_throttle\" , L . maximum , 0 , 2100 )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "rc_config.rc_min_throttle",
+              "api": "rc_config",
+              "field": "rc_min_throttle",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : field ( \"rc_config\" , \"rc_min_throttle\" , 0 )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "rc_config.rc_max_throttle",
+              "api": "rc_config",
+              "field": "rc_max_throttle",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : field ( \"rc_config\" , \"rc_max_throttle\" , 0 )"
             }
           ]
         },
@@ -2653,6 +2623,76 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
               "expression": "w : value ( L . linkStatus , function ( ) return L . linkNeedsCrsf end )"
+            }
+          ]
+        },
+        {
+          "title": "Receiver done",
+          "title_expression": "L . receiverDone",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/ReceiverArt.svelte",
+            "tabs/setup_wizard/StepReceiver.svelte",
+            "tabs/setup_wizard/StickIcon.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
+            {
+              "kind": "read",
+              "label": "Protocol",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : value ( L . protocol , function ( ) return protocol . values [ protocol . get ( ) ] or L . notSet end )"
+            },
+            {
+              "kind": "read",
+              "label": "Channel order",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : value ( L . channelOrder , function ( ) return { \"ELRS\" , \"FrSky\" , \"Futaba / Hitec\" , \"DSM / Graupner / JR\" } [ presetIndex ( ) ] or L . servoCustom end )"
+            },
+            {
+              "kind": "read",
+              "label": "Throttle range",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : value ( L . throttleRange , function ( ) local rc = w . data . rc_config if rc . rc_min_throttle ~= rangeMin or rc . rc_max_throttle ~= rangeMax then rangeMin , rangeMax = rc . rc_min_throttle , rc . rc_max_throttle rangeText = ( rangeMin == 0 and rangeMax == 0 ) and L . throttleDefaults or string . format ( L . rangeUs , rangeMin , rangeMax ) end return rangeText end )"
             }
           ]
         }
@@ -5594,7 +5634,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua",
-              "expression": "{ kind = \"choice\" , label = L . throttleType , values = { L . normal , L . switch , L . functionMode } , get = function ( ) return w . data . governor_config . gov_throttle_type + 1 end , set = function ( v ) if mode ( ) == 0 then return end if v == 2 and mode ( ) < 3 then w . message = L . governorSwitch ; return end w : field ( \"governor_config\" , \"gov_throttle_type\" , v - 1 , true ) end , enabled = function ( ) return mode ( ) > 0 end }"
+              "expression": "{ kind = \"choice\" , label = L . throttleType , values = governs ( ) and { L . normal , L . switch , L . functionMode } or { L . normal } , get = function ( ) return w . data . governor_config . gov_throttle_type + 1 end , set = function ( v ) if not governs ( ) and v ~= 1 then return end w : field ( \"governor_config\" , \"gov_throttle_type\" , v - 1 , true ) end , enabled = function ( ) return mode ( ) > 0 end }"
             }
           ]
         },
@@ -6304,7 +6344,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua",
-              "expression": "{ kind = \"choice\" , label = L . tailDriveFrom , values = { L . tailFromMain , L . tailFromIntermediate , L . ratioOnly } , get = function ( ) return t . from end , set = function ( v ) if v == t . from then return end if v == 2 and g . stages == 3 then w . message = L . tailNeedsTeeth ; return end local before = t . from ; t . from = v if v == 3 then t . ratio = hundredths ( m . tail_rotor_gear_ratio_0 , m . tail_rotor_gear_ratio_1 ) end if not apply ( ) then t . from = before end w . buildRequested = true ; w : rebuild ( ) end }"
+              "expression": "{ kind = \"choice\" , label = L . tailDriveFrom , values = { L . tailFromMain , L . tailFromIntermediate , L . ratioOnly } , get = function ( ) return t . from end , set = function ( v ) if v == t . from then return end if v == 2 and g . stages == 3 then w . message = L . tailNeedsTeeth ; return end local before , beforeMesh = t . from , t . mesh ; t . from = v if v == 3 then t . ratio = hundredths ( m . tail_rotor_gear_ratio_0 , m . tail_rotor_gear_ratio_1 ) end if v == 2 and g . stages ~= 2 then t . mesh = g . main end if not apply ( ) then t . from , t . mesh = before , beforeMesh end w . buildRequested = true ; w : rebuild ( ) end }"
             },
             {
               "kind": "pilot sets",
@@ -6633,7 +6673,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua",
-              "expression": "validate = function ( ) if w . rebootPending then return w : ack ( \"unplugged\" ) end if not w : motorOutputsOk ( ) then w . message = L . motorFailed ; return false end local needed = ( w . data . mixer_config . swash_type >= 5 and 2 or 3 ) + ( w : motorised ( ) and 0 or 1 ) if # w : servos ( ) < needed then w . message = L . servoMissing ; return false end return w : ack ( \"connected\" ) and w : ack ( \"blades\" ) end"
+              "expression": "validate = function ( ) if w . rebootPending then return w : ack ( \"unplugged\" ) end if not w : motorOutputsOk ( ) then w . message = L . motorFailed ; return false end local swash = w . data . mixer_config . swash_type local needed = ( swash == 0 and 0 or swash >= 5 and 2 or 3 ) + ( w : motorised ( ) and 0 or 1 ) if # w : servos ( ) < needed then w . message = L . servoMissing ; return false end return w : ack ( \"connected\" ) and w : ack ( \"blades\" ) end"
             },
             {
               "kind": "gate",
@@ -10472,6 +10512,129 @@
           "additions": [],
           "rows": [
             {
+              "kind": "MSP write",
+              "label": "MSP mixer_override",
+              "api": "mixer_override",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
+              "scope": "deferred hold in tick"
+            },
+            {
+              "kind": "MSP write",
+              "label": "MSP mixer_override",
+              "api": "mixer_override",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
+              "scope": "deferred hold in tick"
+            },
+            {
+              "kind": "MSP write",
+              "label": "MSP mixer_override",
+              "api": "mixer_override",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
+              "scope": "deferred hold in tick"
+            },
+            {
+              "kind": "read",
+              "label": "MSP status",
+              "api": "status",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "w:poll",
+              "scope": "live poll"
+            },
+            {
+              "kind": "read",
+              "label": "MSP servo",
+              "api": "servo",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "w:poll",
+              "scope": "live poll"
+            }
+          ]
+        },
+        {
+          "title": "Motor unplugged",
+          "title_expression": "L . motorOffTitle",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/StepLevel.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
+            {
+              "kind": "gate",
+              "label": "ack motorUnplugged",
+              "api": null,
+              "field": "motorUnplugged",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepLevel.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
+              "expression": "w : ack ( \"motorUnplugged\" )"
+            },
+            {
               "kind": "gate",
               "label": "ack level",
               "api": null,
@@ -10487,6 +10650,68 @@
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
               "expression": "w : ack ( \"level\" )"
             },
+            {
+              "kind": "gate",
+              "label": "ack bladeZero",
+              "api": null,
+              "field": "bladeZero",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepLevel.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
+              "expression": "w : ack ( \"bladeZero\" )"
+            },
+            {
+              "kind": "pilot confirms",
+              "label": "Motor unplugged",
+              "api": null,
+              "field": "motorUnplugged",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepLevel.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
+              "expression": "w : check ( \"motorUnplugged\" , L . motorUnplugged )"
+            },
+            {
+              "kind": "gate",
+              "label": "validation",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepLevel.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
+              "expression": "validate = function ( ) return w : ack ( \"motorUnplugged\" ) and w : ack ( \"level\" ) and w : ack ( \"bladeZero\" ) end"
+            }
+          ]
+        },
+        {
+          "title": "Level the swash",
+          "title_expression": "L . level",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/StepLevel.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
             {
               "kind": "pilot sets",
               "label": "Roll",
@@ -10630,115 +10855,6 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
               "expression": "w : field ( \"mixer_config\" , \"swash_trim_2\" , 0 , false , true )"
-            },
-            {
-              "kind": "gate",
-              "label": "validation",
-              "api": null,
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepLevel.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
-              "expression": "validate = function ( ) return w : ack ( \"level\" ) end"
-            },
-            {
-              "kind": "MSP write",
-              "label": "MSP mixer_override",
-              "api": "mixer_override",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/MainMotorTest.svelte",
-                "tabs/setup_wizard/MotorCheck.svelte",
-                "tabs/setup_wizard/RebootLater.svelte",
-                "tabs/setup_wizard/SetupWizard.svelte",
-                "tabs/setup_wizard/TailMotorTest.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
-              "scope": "deferred hold in tick"
-            },
-            {
-              "kind": "MSP write",
-              "label": "MSP mixer_override",
-              "api": "mixer_override",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/MainMotorTest.svelte",
-                "tabs/setup_wizard/MotorCheck.svelte",
-                "tabs/setup_wizard/RebootLater.svelte",
-                "tabs/setup_wizard/SetupWizard.svelte",
-                "tabs/setup_wizard/TailMotorTest.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
-              "scope": "deferred hold in tick"
-            },
-            {
-              "kind": "MSP write",
-              "label": "MSP mixer_override",
-              "api": "mixer_override",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/MainMotorTest.svelte",
-                "tabs/setup_wizard/MotorCheck.svelte",
-                "tabs/setup_wizard/RebootLater.svelte",
-                "tabs/setup_wizard/SetupWizard.svelte",
-                "tabs/setup_wizard/TailMotorTest.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
-              "scope": "deferred hold in tick"
-            },
-            {
-              "kind": "read",
-              "label": "MSP status",
-              "api": "status",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "w:poll",
-              "scope": "live poll"
-            },
-            {
-              "kind": "read",
-              "label": "MSP servo",
-              "api": "servo",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "w:poll",
-              "scope": "live poll"
             }
           ]
         },
@@ -10771,6 +10887,36 @@
               "expression": "w : check ( \"level\" , L . swashLevel )"
             }
           ]
+        },
+        {
+          "title": "Blades at zero",
+          "title_expression": "L . bladeZeroTitle",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/StepLevel.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
+            {
+              "kind": "pilot confirms",
+              "label": "Blade pitch is 0 degrees",
+              "api": null,
+              "field": "bladeZero",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepLevel.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/level.lua",
+              "expression": "w : check ( \"bladeZero\" , L . bladeZero )"
+            }
+          ]
         }
       ],
       "msp_reads": [
@@ -10778,10 +10924,10 @@
         "servo"
       ],
       "msp_writes": [
+        "mixer_override",
         "mixer_config.swash_trim_0",
         "mixer_config.swash_trim_1",
-        "mixer_config.swash_trim_2",
-        "mixer_override"
+        "mixer_config.swash_trim_2"
       ],
       "configurator_status": [
         "same"
@@ -11049,7 +11195,107 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "self : read ( \"rc_tuning\" , function ( d ) self . profileData = d if loaded then loaded ( d , index ) end if function ( d ) return H . setCollective ( d , w . pitchFull ) end then self . profileOriginal = self . profileOriginal or { } self . profileOriginal [ \"rates\" ] = self . profileOriginal [ \"rates\" ] or { } self . profileOriginal [ \"rates\" ] [ index ] = self . profileOriginal [ \"rates\" ] [ index ] or copy ( d ) end end )"
+              "expression": "self : read ( \"rc_tuning\" , function ( d ) self . profileData = d if function ( d , index ) if not ( w . pitchFullChanged and w . pitchFullChanged [ index ] ) then w . pitchFull [ index ] = H . collective ( d ) end if w . logDebug then w : log ( \"debug\" , \"rate profile %s collective read\" , index ) end end then function ( d , index ) if not ( w . pitchFullChanged and w . pitchFullChanged [ index ] ) then w . pitchFull [ index ] = H . collective ( d ) end if w . logDebug then w : log ( \"debug\" , \"rate profile %s collective read\" , index ) end end ( d , index ) end end )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "set_pid_profile (record/payload)",
+              "api": "set_pid_profile",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : action ( \"set_pid_profile\" , { original } , function ( ) self . restoreProfile = nil end )"
+            },
+            {
+              "kind": "read",
+              "label": "MSP rc_tuning",
+              "api": "rc_tuning",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : read ( \"rc_tuning\" , function ( d ) self . data [ \"rc_tuning\" ] = d end )"
+            },
+            {
+              "kind": "read",
+              "label": "MSP status",
+              "api": "status",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : read ( \"status\" , function ( d ) self . data . status = d end )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "set_pid_profile (record/payload)",
+              "api": "set_pid_profile",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : action ( \"set_pid_profile\" , { index + ( \"rates\" == \"rates\" and 128 or 0 ) } )"
+            },
+            {
+              "kind": "read",
+              "label": "MSP rc_tuning",
+              "api": "rc_tuning",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "self : read ( \"rc_tuning\" , function ( d ) self . profileData = d if loaded then loaded ( d , index ) end if function ( d , index ) return H . setCollective ( d , w . pitchFull [ index ] ) end then self . profileOriginal = self . profileOriginal or { } self . profileOriginal [ \"rates\" ] = self . profileOriginal [ \"rates\" ] or { } self . profileOriginal [ \"rates\" ] [ index ] = self . profileOriginal [ \"rates\" ] [ index ] or copy ( d ) end end )"
             },
             {
               "kind": "MSP write",
@@ -11069,7 +11315,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "self : write ( \"rc_tuning\" , function ( ) if function ( d ) return H . setCollective ( d , w . pitchFull ) end ( self . profileData , index ) == false then return false end return self . profileData end )"
+              "expression": "self : write ( \"rc_tuning\" , function ( ) if function ( d , index ) return H . setCollective ( d , w . pitchFull [ index ] ) end ( self . profileData , index ) == false then return false end return self . profileData end )"
             },
             {
               "kind": "MSP write",
@@ -11221,7 +11467,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
-              "expression": "{ kind = \"number\" , label = L . ratePercent , min = 200 , max = 2000 , divisor = 10 , get = function ( ) return math . abs ( w . data . mixer_input . inputs [ 2 ] . rate ) end , set = function ( v ) for _ , i in ipairs ( index == 1 and { 4 } or { 1 , 2 } ) do local input = w . data . mixer_input . inputs [ i ] ; input . rate = ( input . rate < 0 and - 1 or 1 ) * v end ; w : touch ( \"mixer_input\" , false , true ) end }"
+              "expression": "{ kind = \"number\" , label = L . ratePercent , min = 200 , max = 2000 , divisor = 10 , get = function ( ) return math . abs ( w . data . mixer_input . inputs [ 1 ] . rate ) end , set = function ( v ) for _ , i in ipairs ( index == 1 and { 4 } or { 1 , 2 } ) do local input = w . data . mixer_input . inputs [ i ] ; input . rate = ( input . rate < 0 and - 1 or 1 ) * v end ; w : touch ( \"mixer_input\" , false , true ) end }"
             },
             {
               "kind": "MSP write",
@@ -11258,8 +11504,8 @@
           ]
         },
         {
-          "title": "Blade pitch limits",
-          "title_expression": "L . pitchLimits",
+          "title": "Cyclic (deg)",
+          "title_expression": "L . cyclicLimit",
           "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
           "configurator_reference": [
             "tabs/setup_wizard/StepPitch.svelte"
@@ -11286,22 +11532,6 @@
               "expression": "w : touch ( \"mixer_input\" , false , true )"
             },
             {
-              "kind": "MSP write",
-              "label": "mixer_config.swash_pitch_limit",
-              "api": "mixer_config",
-              "field": "swash_pitch_limit",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepPitch.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
-              "expression": "w : field ( \"mixer_config\" , \"swash_pitch_limit\" , H . round ( v / 0.12 ) , false , true )"
-            },
-            {
               "kind": "pilot sets",
               "label": "Cyclic (deg)",
               "api": null,
@@ -11316,38 +11546,6 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
               "expression": "{ kind = \"number\" , label = L . cyclicLimit , min = 0 , max = 200 , divisor = 10 , get = function ( ) return H . round ( w . data . mixer_input . inputs [ 2 ] . max * 0.12 ) end , set = function ( v ) for _ , i in ipairs ( axis == 2 and { 1 , 2 } or { 4 } ) do local d = w . data . mixer_input . inputs [ i ] ; d . min , d . max = - H . round ( v / 0.12 ) , H . round ( v / 0.12 ) end ; w : touch ( \"mixer_input\" , false , true ) end }"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Collective (deg)",
-              "api": null,
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepPitch.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
-              "expression": "{ kind = \"number\" , label = L . collectiveLimit , min = 0 , max = 200 , divisor = 10 , get = function ( ) return H . round ( w . data . mixer_input . inputs [ 4 ] . max * 0.12 ) end , set = function ( v ) for _ , i in ipairs ( axis == 2 and { 1 , 2 } or { 4 } ) do local d = w . data . mixer_input . inputs [ i ] ; d . min , d . max = - H . round ( v / 0.12 ) , H . round ( v / 0.12 ) end ; w : touch ( \"mixer_input\" , false , true ) end }"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Total (deg)",
-              "api": null,
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepPitch.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
-              "expression": "{ kind = \"number\" , label = L . totalLimit , min = 0 , max = 360 , divisor = 10 , get = function ( ) return H . round ( w . data . mixer_config . swash_pitch_limit * 0.12 ) end , set = function ( v ) w : field ( \"mixer_config\" , \"swash_pitch_limit\" , H . round ( v / 0.12 ) , false , true ) end }"
             },
             {
               "kind": "MSP write",
@@ -11384,6 +11582,130 @@
           ]
         },
         {
+          "title": "Collective (deg)",
+          "title_expression": "L . collectiveLimit",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/StepPitch.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
+            {
+              "kind": "MSP write",
+              "label": "mixer_input (record/payload)",
+              "api": "mixer_input",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepPitch.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+              "expression": "w : touch ( \"mixer_input\" , false , true )"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Collective (deg)",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepPitch.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+              "expression": "{ kind = \"number\" , label = L . collectiveLimit , min = 0 , max = 200 , divisor = 10 , get = function ( ) return H . round ( w . data . mixer_input . inputs [ 4 ] . max * 0.12 ) end , set = function ( v ) for _ , i in ipairs ( axis == 2 and { 1 , 2 } or { 4 } ) do local d = w . data . mixer_input . inputs [ i ] ; d . min , d . max = - H . round ( v / 0.12 ) , H . round ( v / 0.12 ) end ; w : touch ( \"mixer_input\" , false , true ) end }"
+            },
+            {
+              "kind": "MSP write",
+              "label": "mixer_input.min",
+              "api": "mixer_input",
+              "field": "min",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepPitch.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+              "expression": "d . min ,"
+            },
+            {
+              "kind": "MSP write",
+              "label": "mixer_input.max",
+              "api": "mixer_input",
+              "field": "max",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepPitch.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+              "expression": "d . max ="
+            }
+          ]
+        },
+        {
+          "title": "Total (deg)",
+          "title_expression": "L . totalLimit",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/StepPitch.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
+            {
+              "kind": "MSP write",
+              "label": "mixer_config.swash_pitch_limit",
+              "api": "mixer_config",
+              "field": "swash_pitch_limit",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepPitch.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+              "expression": "w : field ( \"mixer_config\" , \"swash_pitch_limit\" , H . round ( v / 0.12 ) , false , true )"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Total (deg)",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepPitch.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+              "expression": "{ kind = \"number\" , label = L . totalLimit , min = 0 , max = 360 , divisor = 10 , get = function ( ) return H . round ( w . data . mixer_config . swash_pitch_limit * 0.12 ) end , set = function ( v ) w : field ( \"mixer_config\" , \"swash_pitch_limit\" , H . round ( v / 0.12 ) , false , true ) end }"
+            }
+          ]
+        },
+        {
           "title": "Full-stick collective",
           "title_expression": "L . fullStick",
           "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
@@ -11411,6 +11733,36 @@
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
               "expression": "w : touch ( \"rc_tuning\" )"
             },
+            {
+              "kind": "pilot sets",
+              "label": "Rate profile {n}",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepPitch.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+              "expression": "{ kind = \"number\" , label = string . format ( L . rateProfileTitle , index + 1 ) , min = 0 , max = 250 , divisor = 10 , display = function ( v ) if not ( w . pitchFull and w . pitchFull [ index ] ) then return \"--\" end return string . format ( \"%.1f\" , v / 10 ) end , get = function ( ) return H . round ( ( ( w . pitchFull and w . pitchFull [ index ] ) or 0 ) * 10 ) end , set = function ( v ) if not ( w . pitchFull and w . pitchFull [ index ] ) then return end w . pitchFull [ index ] = v / 10 w . pitchFullChanged = w . pitchFullChanged or { } ; w . pitchFullChanged [ index ] = true w : touch ( \"rc_tuning\" ) end , enabled = function ( ) return w . pitchFull ~= nil and w . pitchFull [ index ] ~= nil end }"
+            }
+          ]
+        },
+        {
+          "title": "End stops",
+          "title_expression": "L . bindingTitle",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/StepPitch.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
             {
               "kind": "pilot confirms",
               "label": "Full travel without binding",
@@ -11444,22 +11796,6 @@
               "expression": "w : ack ( \"pitch\" )"
             },
             {
-              "kind": "pilot sets",
-              "label": "Degrees",
-              "api": null,
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepPitch.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
-              "expression": "{ kind = \"number\" , label = L . degrees , min = 0 , max = 250 , divisor = 10 , get = function ( ) return H . round ( ( w . pitchFull or 0 ) * 10 ) end , set = function ( v ) if not H . collective ( w . data . rc_tuning ) then return end w . pitchFull = v / 10 ; w . pitchFullChanged = true ; w : touch ( \"rc_tuning\" ) end , enabled = function ( ) return H . collective ( w . data . rc_tuning ) ~= nil end }"
-            },
-            {
               "kind": "gate",
               "label": "validation",
               "api": null,
@@ -11489,9 +11825,9 @@
         "mixer_override",
         "set_pid_profile",
         "rc_tuning",
-        "mixer_config.swash_pitch_limit",
         "mixer_input.min",
-        "mixer_input.max"
+        "mixer_input.max",
+        "mixer_config.swash_pitch_limit"
       ],
       "configurator_status": [
         "same"
@@ -11799,7 +12135,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua",
-              "expression": "w : n ( \"mixer_config\" , \"tail_motor_idle\" , L . idlePercent , 0 , 255 , false , true , 10 )"
+              "expression": "w : n ( \"mixer_config\" , \"tail_motor_idle\" , L . idlePercent , 0 , 250 , false , true , 10 )"
             },
             {
               "kind": "MSP write",
@@ -11815,7 +12151,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua",
-              "expression": "w : n ( \"mixer_config\" , \"tail_motor_idle\" , L . idlePercent , 0 , 255 , false , true , 10 )"
+              "expression": "w : n ( \"mixer_config\" , \"tail_motor_idle\" , L . idlePercent , 0 , 250 , false , true , 10 )"
             },
             {
               "kind": "MSP write",
@@ -11831,7 +12167,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua",
-              "expression": "w : field ( \"mixer_config\" , \"tail_motor_idle\" , math . min ( w . percent * 10 , 255 ) , false , true )"
+              "expression": "w : field ( \"mixer_config\" , \"tail_motor_idle\" , math . min ( w . percent * 10 , 250 ) , false , true )"
             },
             {
               "kind": "gate",
@@ -12652,6 +12988,19 @@
               "expression": "w : check ( \"finish\" , L . finalCheck )"
             }
           ]
+        },
+        {
+          "title": "Before the first flight",
+          "title_expression": "L . finishBeforeTitle",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/StepFinish.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": []
         },
         {
           "title": "Finish",

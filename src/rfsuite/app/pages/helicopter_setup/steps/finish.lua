@@ -31,6 +31,14 @@ return function(w)
       w:check("finish",L.finalCheck)
     })
   }
+  -- The two pages worth a look before the first flight. Going there leaves the setup the clean way.
+  if type(w.openPage) == "function" then
+    local before = w:cardDef(L.finishBeforeTitle, L.finishBeforeHint, {
+      w:button(L.openGovernor, function() w:openSuitePage("setup_governor_general_page") end),
+      w:button(L.openPids, function() w:openSuitePage("flight_tuning_pids_page") end)
+    })
+    table.insert(cards, 3, before)
+  end
   if w:analogThrottle() then
     cards[#cards+1] = w:cardDef(L.finish,L.rangeSummaryHelp,{
       w:value(L.throttleRange,function()

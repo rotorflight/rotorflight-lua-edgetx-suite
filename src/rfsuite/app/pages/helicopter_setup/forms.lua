@@ -23,7 +23,10 @@ function M.attach(w, PortLabels)
   -- so an unsaved change is settled first.
   function w:openSuitePage(menuId)
     if next(self.dirty) then self.message = self.L.saveFirst; return end
-    if type(self.openPage) == "function" then self.openPage(menuId) end
+    if type(self.openPage) ~= "function" then return end
+    if self.logInfo then self:log("info", "leaving for %s", menuId) end
+    self.leaveTarget = menuId
+    self:close()
   end
   -- Where a stick is now: a direction and its travel, or centre (rc_command, -500..500).
   local stickWords = { [1] = { "dirRight", "dirLeft" }, [2] = { "dirForward", "dirBack" },

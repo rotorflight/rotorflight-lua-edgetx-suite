@@ -80,17 +80,27 @@ return function(w)
     p.listen,p.untilAt=kind,getTime()+2000;w.message=L.flick
   end
   local function channelValue(channel) return w.data.rc and w.data.rc.channels[channel+6] end
+  -- Who uses a channel, with each mode's ON or OFF where the switch stands now. Built again only
+  -- when a new reading or an edit could change it.
+  local planTexts={}
   local function plan(channel)
+    local kept=planTexts[channel]
+    if kept and kept.rc==w.data.rc and kept.edits==w.edits then return kept.text end
     local uses={}
+    local value=channelValue(channel)
     for _,r in ipairs(w.data.mode_ranges.mode_ranges) do
       if r.auxChannelIndex==channel and r.range.start<r.range["end"] then
-        uses[#uses+1]=r.id==0 and L.arm or r.id==53 and L.rescue or r.id==47 and L.trainer or tostring(r.id)
+        local name=r.id==0 and L.arm or r.id==53 and L.rescue or r.id==47 and L.trainer or tostring(r.id)
+        if value then name=name.." "..((value>=r.range.start and value<r.range["end"]) and L.stateOn or L.stateOff) end
+        uses[#uses+1]=name
       end
     end
     local pr,gr=H.rangeOf(ranges,2),H.rangeOf(ranges,83)
     if pr and pr.adjChannel==channel then uses[#uses+1]=L.profiles end
     if gr and gr.adjChannel==channel then uses[#uses+1]=L.masterGain end
-    return #uses>0 and table.concat(uses," / ") or L.none
+    local text=#uses>0 and table.concat(uses," / ") or L.none
+    planTexts[channel]={rc=w.data.rc,edits=w.edits,text=text}
+    return text
   end
   local cards={
     w:cardDef(L.profiles,L.profileHint,{
@@ -161,13 +171,17 @@ return function(w)
       w:value("CH"..w:channelNumber(0),function() return plan(0) end),w:value("CH"..w:channelNumber(1),function() return plan(1) end),
       w:value("CH"..w:channelNumber(2),function() return plan(2) end)
   }
+  local beyond=false
   local function addPlan()
     local card=w:cardDef(L.channelPlan,L.channelPlanHint,rows)
     card.dense=true;cards[#cards+1]=card;rows={}
+    -- A channel past the eighth needs a radio link that carries that many.
+    if beyond then card.summary,card.summaryColor=L.beyondEight,"warning" end
   end
   local channels={}
   for _,r in ipairs(w.data.mode_ranges.mode_ranges) do if r.range.start<r.range["end"] then channels[r.auxChannelIndex]=true end end
   for _,fn in ipairs({2,83}) do local r=H.rangeOf(ranges,fn);if r then channels[r.adjChannel]=true end end
+  for channel in pairs(channels) do if w:channelNumber(channel)>8 then beyond=true end end
   for channel=3,26 do
     if channels[channel] then local ch=channel;rows[#rows+1]=w:value("CH"..w:channelNumber(ch),function() return plan(ch) end) end
     -- At 480x272, 135 px remain above the status line: seven rows at 18 px.
@@ -222,7 +236,8 @@ return function(w)
       local r=rescueSwitch()
       return r and "CH"..w:channelNumber(r.auxChannelIndex) or L.rescueNoSwitch
     end)
-  },rescueEnter)
+  },rescueEnter,"rescue")
+  rescueCard.rescueFlip=function() return rescueGet(2)==1 end
   rescueCard.summary=L.rescueSummary
   cards[#cards+1]=rescueCard
   w.commit=function()
