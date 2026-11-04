@@ -282,6 +282,7 @@ def build_package_for_language(lang, version, output_dir, artifact_name=None):
         staging_sounds = os.path.join(temp_dir, "SOUNDS", "rf")
         staging_user = os.path.join(staging_suite, "user")
 
+        os.makedirs(staging_tools, exist_ok=True)
         os.makedirs(staging_core, exist_ok=True)
         os.makedirs(staging_widgets, exist_ok=True)
         os.makedirs(staging_sounds, exist_ok=True)
