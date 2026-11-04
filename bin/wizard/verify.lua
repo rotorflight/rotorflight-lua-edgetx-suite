@@ -372,7 +372,7 @@ for _, size in ipairs({ {480,272},{480,320},{800,480} }) do
             -- The picture ships in the package, and its frame keeps the 220x160 aspect.
             local file=item.file
             if type(file)=="function" then file=file() end
-            local rel=string.match(file or "","^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+            local rel=string.sub(file or "",1,#BASE)==BASE and string.sub(file,#BASE+1) or nil
             local f=rel and io.open("src/rfsuite/"..rel,"rb")
             check(f~=nil,name.." picture "..tostring(file).." exists in the package")
             if f then f:close() end
