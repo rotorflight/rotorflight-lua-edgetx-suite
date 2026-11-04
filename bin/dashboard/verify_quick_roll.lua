@@ -150,6 +150,19 @@ local function run(mutate)
     check("starts on the first row", r.left == 1)
   end
 
+  -- A slot with no row in it is not there.
+  do
+    local _, s = open()
+    local shown, hidden = 0, 0
+    for i = 1, #s.buttons do
+      local visible = s.buttons[i].visible
+      if type(visible) == "function" then
+        if visible() then shown = shown + 1 else hidden = hidden + 1 end
+      end
+    end
+    check("on the first row the two slots above it are gone and the two under it are there", shown == 2 and hidden == 2)
+  end
+
   -- The wheel: both ways, fixed ends, and the sum across the widget's own focus step.
   do
     local w, s = open()

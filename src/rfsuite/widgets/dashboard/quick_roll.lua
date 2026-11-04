@@ -387,6 +387,7 @@ function M.build(children, widget, entries, frame, colors, t)
 
   roll.leftList = leftList(widget, entries)
   roll.left = clamp(roll.left, #roll.leftList)
+  trace("left list " .. tostring(#roll.leftList))
   roll.rightFor, roll.rightOptions = nil, nil
   roll.position, roll.steppedAt = 0, nil
   if roll.side == "right" then
@@ -433,6 +434,14 @@ function M.build(children, widget, entries, frame, colors, t)
       type = "button", x = colX, y = slotY(offset), w = colW, h = h, borderPad = 0, text = "",
       color = (offset == 0) and colors.off or colors.bg,
       press = function() tapped(widget, side, offset) end,
+      -- A slot with no row in it stays empty, and out of the wheel's walk as well.
+      visible = function()
+        if side == "left" then
+          return roll.leftList ~= nil and roll.leftList[roll.left + offset] ~= nil
+        end
+        local list = rightList(widget, roll)
+        return list ~= nil and list[roll.right + offset] ~= nil
+      end,
     }
   end
   for offset = -REACH, REACH do
