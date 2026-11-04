@@ -220,8 +220,10 @@ local function world()
 end
 local w = world()
 check(w.timed,"timeout capability proved per override parser")
-eq(q.sent[1].command,99,"arming disabled before configuration writes")
-eq(q.sent[1].payload[1],1,"arming disabled payload")
+eq(q.sent[1].command,119,"the ARM box bit is read before the arming block")
+eq(q.sent[2].command,101,"the arming state is read before the arming block")
+eq(q.sent[3].command,99,"arming disabled before configuration writes")
+eq(q.sent[3].payload[1],1,"arming disabled payload")
 local steps = { "sensors","receiver","modes","profiles","rates","swash","servoType","governor","motor","escTelemetry",
   "connect","throttle","servos","direction","level","pitch","tail","gyro","finish" }
 local view = load(PATH .. "view.lua")
@@ -888,7 +890,8 @@ local function contractWorld()
     end
   elseif mutation and mutation~="bulk-read" and mutation~="history-early" and mutation~="stale-status" and mutation~="retry-stale"
     and mutation~="pitch-discard" and mutation~="back-commit" and mutation~="stale-blades"
-    and mutation~="shared-timeout-probe" and mutation~="cleanup-unlock" and mutation~="drop-stale-edit" then error("Unknown negative control: "..mutation) end
+    and mutation~="shared-timeout-probe" and mutation~="cleanup-unlock" and mutation~="drop-stale-edit"
+    and mutation~="block-unchecked" and mutation~="first-range-only" then error("Unknown negative control: "..mutation) end
   return v
 end
 local contractCases=assert(loadfile("bin/wizard/contracts.lua"))()({

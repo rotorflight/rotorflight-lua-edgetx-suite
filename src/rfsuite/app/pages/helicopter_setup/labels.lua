@@ -21,6 +21,7 @@ local L = {
   errShortStatus = "@i18n(app.modules.helicopter_setup.errShortStatus)@",
   errLink = "@i18n(app.modules.helicopter_setup.errLink)@",
   errArming = "@i18n(app.modules.helicopter_setup.errArming)@",
+  errArmedFirst = "@i18n(app.modules.helicopter_setup.errArmedFirst)@",
   voltageSource = "@i18n(app.pages.setup_power_sources.voltage_meter_source)@",
   currentSource = "@i18n(app.pages.setup_power_sources.current_meter_source)@",
   powerBattery = "@i18n(app.pages.setup_power_battery.section_battery)@",

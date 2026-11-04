@@ -99,6 +99,8 @@ def main():
             ('stale-blades','FAIL REVIEW ESC calibration requires its own blade confirmation'),
             ('shared-timeout-probe','FAIL REVIEW servo capability cannot authorize mixer timeouts'),
             ('cleanup-unlock','FAIL REVIEW failed cleanup never re-enables arming'),
+            ('block-unchecked','FAIL D1 no arming block goes out while the FC reports armed'),
+            ('first-range-only','FAIL D2 reassign leaves no second ARM range live'),
             ('drop-stale-edit','FAIL CORE an edit made while a list was open applies after fresh STATUS'),
             ('governor-headspeed','FAIL S08 headspeed payload preserves every other profile field'),
             ('rpm-custom-off','FAIL S08 custom/preset filter enablement includes every axis'),

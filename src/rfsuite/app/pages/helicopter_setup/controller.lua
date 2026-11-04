@@ -129,7 +129,7 @@ function M.new(runtime, transport, mathModule, labels)
   local reasons = { ["lock lost"] = "errLockLost", ["not active"] = "errLockNotActive", ["servo count"] = "errServoCount",
     configuration = "errConfiguration", timeout = "errTimeout", reply = "errReply", decode = "errDecode",
     payload = "errPayload", cleared = "errCleared", cancelled = "errCancelled", max_retries = "errMaxRetries",
-    ["short status"] = "errShortStatus", link = "errLink", arming = "errArming" }
+    ["short status"] = "errShortStatus", link = "errLink", arming = "errArming", armed = "errArmedFirst" }
   function w:errorText()
     local e = self.error
     if type(e) ~= "string" then return "" end
@@ -187,10 +187,7 @@ function M.new(runtime, transport, mathModule, labels)
     if self.locked and (d.arming_disable_flags & (1 << 16)) == 0 then
       self.locked = false; self:fail("arming_disable", "lock lost"); return
     end
-    self.statusArmed = false
-    for i, id in ipairs(self.data.boxids and self.data.boxids.box_ids or {}) do
-      if id == 0 then self.statusArmed = (d.flight_mode_flags & (1 << (i - 1))) ~= 0; break end
-    end
+    self.statusArmed = self:fcArmed(d) == true
     if self.calibrationAt and now() - self.calibrationAt >= 200 and (d.arming_disable_flags & ((1 << 12) | (1 << 23))) == 0 then
       self.calibrationAt = nil; self.message = self.L.calibrated
     elseif self.calibrationAt and now()-self.calibrationAt>=1000 then
@@ -218,13 +215,36 @@ function M.new(runtime, transport, mathModule, labels)
       end })
     end
   end
+  -- Whether the flight controller reports itself armed, from the box bit BOXIDS names for ARM.
+  -- Nil when no reply carries that bit, which leaves the question open.
+  function w:fcArmed(d)
+    for i, id in ipairs(self.data.boxids and self.data.boxids.box_ids or {}) do
+      if id == 0 then return (d.flight_mode_flags & (1 << (i - 1))) ~= 0 end
+    end
+  end
+  -- MSP_SET_ARMING_DISABLED disarms an armed model, so the block goes out only after the flight
+  -- controller itself has answered that it is disarmed. The radio's armed source is no answer: it
+  -- has none, or an old one, from a link that has only just come back. A refused block is a
+  -- failure the pilot can retry once the model is disarmed; nothing is sent before then.
+  function w:blockArming()
+    self:read("boxids", function(d) self.data.boxids = d end)
+    self:read("status", function(d)
+      local armed = self:fcArmed(d)
+      if self.logDebug then self:log("debug", "arming block check, armed %s", tostring(armed)) end
+      if armed ~= false then
+        if self.logInfo then self:log("info", "arming block refused, armed %s", tostring(armed)) end
+        self:fail("arming_disable", "armed")
+      end
+    end)
+    self:write("arming_disable", { disabled = true })
+  end
   function w:retry()
     if not self.bus:idle() or not self:allowed() or (self.cleanupPending or 0)>0 then return end
     if self.cleanupFailed or self.needsRelease then self:release(true) end
     self.error, self.transition, self.locked = nil, true, false
     self.statusWaiting, self.statusQueued, self.beforeStatusWait = nil, nil, nil
     self.canEdit, self.canNext, self.message = false, false, self.L.checkingStatus
-    self:write("arming_disable", { disabled = true })
+    self:blockArming()
     self:read("status", function(d)
       if (d.arming_disable_flags & (1 << 16)) == 0 then self:fail("arming_disable", "not active"); return end
       self.locked = true; self:acceptStatus(d)
@@ -740,7 +760,7 @@ function M.new(runtime, transport, mathModule, labels)
     self.recoveryRequired=self:session().helicopterSetupRecovery==self:session().mcu_id
     self.loadingText, self.loadTotal = self.L.loading, #READS + 66
     self.locked = false
-    self:write("arming_disable", { disabled = true })
+    self:blockArming()
     self:read("status", function(d)
       if (d.arming_disable_flags & (1 << 16)) == 0 then self:fail("arming_disable", "not active"); return end
       local count = d.servo_count

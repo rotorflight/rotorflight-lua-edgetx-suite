@@ -20,6 +20,17 @@ return function(w)
     w.bus:add(w:rangeJob("mode_ranges", i))
     w:touch("mode_ranges")
   end
+  -- The firmware ORs a mode's ranges, so a second ARM range would keep arming after a reassign.
+  -- Reassign and Remove leave the mode with the one range the pilot sees, or none.
+  local function clearRanges(id, keep)
+    for i, r in ipairs(w.data.mode_ranges.mode_ranges) do
+      if i ~= keep and r.id == id and r.range.start < r.range["end"] then
+        r.range.start, r.range["end"] = 1500, 1500
+        send(i)
+        if w.logDebug then w:log("debug", "mode %s range %s cleared", id, i) end
+      end
+    end
+  end
   w.onLive = function(api, d)
     if api ~= "rc" or not s.id then return end
     if getTime() > s.untilAt then s.id = nil; w.message = L.detectTimeout; return end
@@ -38,7 +49,7 @@ return function(w)
     if not i then w.message = L.noSlots; s.id = nil; return end
     local lo, hi = H.switchRange(s.base[aux + 5], value)
     w.data.mode_ranges.mode_ranges[i] = { id = s.id, auxChannelIndex = aux - 1, range = { start = lo, ["end"] = hi } }
-    send(i); s.id = nil
+    send(i); clearRanges(s.id, i); s.id = nil
     w.message = string.format(L.switchDetected,w:channelNumber(aux-1),lo,hi)
     if w.logInfo then w:keyMessage("switchDetected") end
   end
@@ -94,7 +105,7 @@ return function(w)
           w.message=L.flick
         end),
         w:button(L.remove, function()
-          local i, r = assigned(id); if i then r.range.start, r.range["end"] = 1500, 1500; send(i) end
+          clearRanges(id)
         end)
       }, nil, "switch")
       card.switchState = state

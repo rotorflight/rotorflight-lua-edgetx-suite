@@ -107,6 +107,7 @@ return {
         errShortStatus = "die Statusantwort ist zu kurz",
         errLink = "die Verbindung ist abgerissen; zum Fortsetzen neu laden",
         errArming = "der Arming-Zustand hat sich geändert",
+        errArmedFirst = "Modell ist scharf oder sein Zustand unbekannt; erst entschärfen, dann erneut versuchen",
         powerSourceShort = "Quelle wählen und den Live-Messwert prüfen.",
         powerBatteryShort = "Zellenzahl: 0 = automatisch. Aktives Profil nur zur Anzeige.",
         powerCapacityShort = "Kapazität in mAh. Bearbeiten aktiviert das Profil nicht.",

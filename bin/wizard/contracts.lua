@@ -1528,6 +1528,81 @@ return function(h)
     check(w.validate(),"S03 ARM assignment required and present")
     c[1].rows[4].press();check(not w.validate(),"S03 missing ARM blocks advance")
   end)
+  case("D1.arming-block-waits-for-a-disarmed-fc",function()
+    -- The status field's byte offset, so the armed bit is set where the FC reports it.
+    local flagsAt=0
+    for _,f in ipairs(h.api("status").fields) do
+      if f[1]=="flight_mode_flags" then break end
+      flagsAt=flagsAt+(f[2]=="U32" and 4 or f[2]=="U16" and 2 or 1)
+    end
+    local armed=true
+    local before=q.reply
+    q.reply=function(m,b)
+      if m.command==119 then return {0,1,2} end
+      if m.command==101 and armed then
+        local copy={};for i,v in ipairs(b) do copy[i]=v end
+        copy[flagsAt+1]=copy[flagsAt+1]|1
+        return copy
+      end
+    end
+    local function blocks()
+      local n=0
+      for _,m in ipairs(q.sent) do if m.command==99 and m.payload[1]==1 then n=n+1 end end
+      return n
+    end
+    local function run(w)
+      for _=1,1500 do
+        w:tick();h.pump();h.advance(1)
+        if w.error or w.ready then return end
+      end
+    end
+    local w=h.beginWorld()
+    if h.mutation=="block-unchecked" then w.fcArmed=function() return false end end
+    -- The radio's own reading says disarmed: the case the block used to pass.
+    run(w)
+    eq(blocks(),0,"D1 no arming block goes out while the FC reports armed")
+    eq(w.error,"arming_disable: armed","D1 an armed FC stops the visit before its reads")
+    check(string.find(w:errorText(),tostring(L.errArmedFirst),1,true)~=nil,"D1 the screen says to disarm first")
+    check(not w.locked,"D1 no lock is claimed on an armed FC")
+    -- Disarmed, Retry reads again, blocks and reads the block back.
+    armed=false;q.sent={}
+    w:retry();run(w)
+    eq(q.sent[1].command,119,"D1 retry reads the ARM box bit first")
+    eq(q.sent[2].command,101,"D1 retry reads the arming state before blocking")
+    eq(q.sent[3].command,99,"D1 retry blocks after the disarmed answer")
+    check(w.locked,"D1 the lock is proved after a disarm")
+    -- No ARM box in the reply leaves the state open, and an open state does not block.
+    q.reply=function(m) if m.command==119 then return {1,2} end end
+    local open=h.beginWorld();run(open)
+    eq(blocks(),0,"D1 an unknown arm state sends no arming block")
+    q.reply=before
+  end)
+  case("D2.reassign-and-remove-clear-every-range",function()
+    local w=world();w.data.boxids.box_ids={0}
+    local ranges=w.data.mode_ranges.mode_ranges
+    ranges[1]={id=0,auxChannelIndex=0,range={start=1800,["end"]=2100}}
+    ranges[3]={id=0,auxChannelIndex=2,range={start=1000,["end"]=1200}}
+    w.data.rc={channels={1500,1500,1500,1500,1000,1000}};w.rcAt=getTime()
+    local c=step(w,"modes")
+    c[1].rows[3].press()
+    w.onLive("rc",{channels={1500,1500,1500,1500,1000,1000}})
+    w.onLive("rc",{channels={1500,1500,1500,1500,1000,2000}})
+    h.advance(40);w.onLive("rc",{channels={1500,1500,1500,1500,1000,2000}})
+    check(w.modeListen.id==nil,"D2 reassign settled")
+    eq(ranges[1].range.start,1500,"D2 reassign writes the kept slot")
+    eq(ranges[1].range["end"],2100,"D2 reassign keeps its new range")
+    if h.mutation=="first-range-only" then ranges[3].range.start,ranges[3].range["end"]=1000,1200 end
+    check(ranges[3].range.start>=ranges[3].range["end"],"D2 reassign leaves no second ARM range live")
+    q.sent={};drain(w)
+    local written={}
+    for _,m in ipairs(q.sent) do if m.command==35 then written[m.payload[1]]=m.payload end end
+    check(written[0]~=nil,"D2 the kept slot goes on the wire")
+    check(written[2]~=nil and written[2][4]==written[2][5],"D2 the cleared slot goes on the wire with no width")
+    ranges[3]={id=0,auxChannelIndex=2,range={start=1000,["end"]=1200}}
+    c=step(w,"modes");c[1].rows[4].press()
+    check(ranges[1].range.start>=ranges[1].range["end"] and ranges[3].range.start>=ranges[3].range["end"],"D2 Remove clears every range of the mode")
+    check(not w.validate(),"D2 ARM counts as missing once every range is cleared")
+  end)
   case("S03.switch-settle",function()
     local w=world();w.data.boxids.box_ids={0}
     w.data.rc={channels={1500,1500,1500,1500,1000,1000}};w.rcAt=getTime()
@@ -3935,7 +4010,7 @@ return function(h)
       eq(registry.pagePathByMenuId[id],"helicopter_setup/page.lua","CORE Suite entry shares the lazy page module")
       if history then
         eq(#loaded,0,"CORE history entry loads no setup step")
-        for _,m in ipairs(q.sent) do check(m.command==99 or m.command==101,"CORE history opens without configuration reads/writes") end
+        for _,m in ipairs(q.sent) do check(m.command==99 or m.command==101 or m.command==119,"CORE history opens without configuration reads/writes") end
       else
         check(modelGateSeen,"CORE Suite step requires current radio-model preparation")
         check(#loaded<=1,"CORE direct entry loads at most its own step definition")

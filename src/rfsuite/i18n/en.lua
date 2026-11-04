@@ -107,6 +107,7 @@ return {
         errShortStatus = "the status reply is too short",
         errLink = "the connection was lost; reload to continue",
         errArming = "the arming state changed",
+        errArmedFirst = "the model is armed or its state is unknown; disarm it, then retry",
         powerSourceShort = "Choose a source and check its live reading.",
         powerBatteryShort = "Cell count: 0 = automatic. Active profile is read-only.",
         powerCapacityShort = "Capacity in mAh. Editing a slot does not activate it.",
