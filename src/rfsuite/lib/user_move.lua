@@ -6,15 +6,21 @@
 -- folder exists and the new one holds no marker, rfsuite.paths.user stays the old folder and
 -- rfsuite.paths.moveTo names the new one. lib/precompile.lua runs this job after its compile pass.
 -- The modules keep the folder they read when they loaded, so the switch happens at the next start:
--- nothing here changes which folder the running suite uses, the old folder is never written or
--- deleted, and a copy cut short by switching off just starts again at the next start.
+-- nothing here changes which folder the running suite uses, the data in the old folder is never
+-- written or deleted, and a copy cut short by switching off just starts again at the next start.
+--
+-- Each file is written as <name>.new, compared with its source, and only then renamed into place.
+-- The tool and the widgets are separate Lua states and can each run this job, so a job also stops
+-- when it finds the marker another one wrote, and nothing it still has open can touch a finished
+-- file behind that marker.
 --
 -- Two ways to run. On a card with no failed attempt the connection waits for the job, nothing is
 -- flown and almost nothing is written, and the marker it writes last is what makes the next start
 -- use the new folder. After a failed attempt the job runs behind a connection that is not held, so
 -- a full card costs no wait on every start; data can change under such a copy, so it only proves
 -- that the copy works now and removes the failure note, and the next start copies again with the
--- connection held.
+-- connection held. The note goes to the old folder and an empty file is enough: on a full card the
+-- new folder may not exist, and a directory entry can still fit where no data does.
 --
 -- One unit of work per step: a few directory entries, or one chunk copied or compared. Only the data
 -- named below moves. The debug logs and reload.req are not worth the wait, and anything else in
@@ -72,31 +78,13 @@ local function makeDir(path)
   if type(mkdir) == "function" then pcall(mkdir, path) end
 end
 
-local function listNames(path)
-  local names = {}
-  if type(dir) ~= "function" then return names end
-  local ok, iterator = pcall(dir, path)
-  if not ok or type(iterator) ~= "function" then return names end
-  for name in iterator do
-    if type(name) == "string" and name ~= "" and name ~= "." and name ~= ".." then
-      names[#names + 1] = name
-    end
-  end
-  return names
+local function remove(path)
+  if type(del) == "function" then pcall(del, path) end
 end
 
 local function closeAll(job)
   if job.source then io.close(job.source); job.source = nil end
   if job.target then io.close(job.target); job.target = nil end
-end
-
-local function writeSmallFile(path, text)
-  local f = io.open(path, "w")
-  if not f then return false end
-  io.write(f, text)
-  io.close(f)
-  local info = statOf(path)
-  return info ~= nil and tonumber(info.size) == #text
 end
 
 local function fail(job, reason, path)
@@ -105,8 +93,15 @@ local function fail(job, reason, path)
   job.failed = true
   _G.rfsuite.paths.moveFailed = true
   log("warn", "copy failed (%s) at %s; staying on %s", reason, tostring(path), job.from)
-  if not job.background and not writeSmallFile(job.to .. "/" .. NOTE, reason .. "\n") then
-    log("warn", "could not write %s", NOTE)
+  if not job.background then
+    local f = io.open(job.from .. "/" .. NOTE, "w")
+    if f then
+      io.write(f, reason .. "\n")
+      io.close(f)
+    end
+    if statOf(job.from .. "/" .. NOTE) == nil then
+      log("warn", "could not write %s", NOTE)
+    end
   end
 end
 
@@ -114,24 +109,38 @@ local function finish(job)
   closeAll(job)
   job.finished = true
   if job.background then
-    if type(del) == "function" then pcall(del, job.to .. "/" .. NOTE) end
+    remove(job.from .. "/" .. NOTE)
     _G.rfsuite.paths.moveFailed = nil
     log("info", "retry went through; the next start moves the data")
     return
   end
-  if writeSmallFile(job.to .. "/" .. MARKER, "moved\n") then
-    job.moved = true
-    if type(del) == "function" then pcall(del, job.to .. "/" .. NOTE) end
-    _G.rfsuite.paths.moveFailed = nil
-    log("info", "%d files copied to %s; the next start uses it", #job.files, job.to)
-  else
-    fail(job, "marker", job.to .. "/" .. MARKER)
+  local path = job.to .. "/" .. MARKER
+  local f = io.open(path, "w")
+  if f then
+    io.write(f, "moved\n")
+    io.close(f)
   end
+  if statOf(path) == nil then
+    return fail(job, "marker", path)
+  end
+  job.moved = true
+  remove(job.from .. "/" .. NOTE)
+  _G.rfsuite.paths.moveFailed = nil
+  log("info", "%d files copied to %s; the next start uses it", #job.files, job.to)
+end
+
+-- Another Lua state finished first: its copy stands, and the restart is owed all the same.
+local function finishedElsewhere(job)
+  closeAll(job)
+  job.finished = true
+  job.moved = true
+  log("info", "another start has finished the move to %s", job.to)
 end
 
 -- A few entries of a directory of the old folder per step: each costs an fstat, and a card can hold
 -- many boards or themes. The top level goes by the lists above, a listed folder whole. Bytecode is
--- left behind, since the radio writes it again beside the copied source.
+-- left behind, since the radio writes it again beside the copied source. A directory that cannot be
+-- listed fails the job rather than reading as an empty one.
 local function listStep(job)
   local cursor = job.cursor
   if cursor == nil then
@@ -143,35 +152,40 @@ local function listStep(job)
       log("debug", "%d files, %d bytes to copy", #job.files, job.bytes)
       return
     end
+    local ok, iterator = false, nil
+    if type(dir) == "function" then ok, iterator = pcall(dir, job.from .. rel) end
+    if not ok or type(iterator) ~= "function" then
+      return fail(job, "list", job.from .. rel)
+    end
     makeDir(job.to .. rel)
-    cursor = { rel = rel, names = listNames(job.from .. rel), index = 1 }
-    job.cursor = cursor
-    log("trace", "listing %s: %d entries", job.from .. rel, #cursor.names)
+    job.cursor = { rel = rel, next = iterator }
+    log("trace", "listing %s", job.from .. rel)
     return
   end
 
   local rel = cursor.rel
   for _ = 1, ENTRIES_PER_STEP do
-    local name = cursor.names[cursor.index]
+    local name = cursor.next()
     if name == nil then
       job.cursor = nil
       return
     end
-    cursor.index = cursor.index + 1
-    local info = statOf(job.from .. rel .. "/" .. name)
-    local folder = isFolder(info, name)
-    local take
-    if rel == "" then
-      take = (folder and FOLDERS[name]) or (not folder and (FILES[name] or isBoardFile(name)))
-    else
-      take = folder or string.sub(name, -5) ~= ".luac"
-    end
-    if take and folder then
-      job.dirs[#job.dirs + 1] = rel .. "/" .. name
-    elseif take then
-      local size = info and tonumber(info.size) or 0
-      job.files[#job.files + 1] = { rel = rel .. "/" .. name, size = size }
-      job.bytes = job.bytes + size
+    if type(name) == "string" and name ~= "" and name ~= "." and name ~= ".." then
+      local info = statOf(job.from .. rel .. "/" .. name)
+      local folder = isFolder(info, name)
+      local take
+      if rel == "" then
+        take = (folder and FOLDERS[name]) or (not folder and (FILES[name] or isBoardFile(name)))
+      else
+        take = folder or string.sub(name, -5) ~= ".luac"
+      end
+      if take and folder then
+        job.dirs[#job.dirs + 1] = rel .. "/" .. name
+      elseif take then
+        local size = info and tonumber(info.size) or 0
+        job.files[#job.files + 1] = { rel = rel .. "/" .. name, size = size }
+        job.bytes = job.bytes + size
+      end
     end
   end
 end
@@ -186,9 +200,10 @@ local function copyStep(job)
   end
 
   if job.source == nil then
+    if statOf(job.to .. "/" .. MARKER) ~= nil then return finishedElsewhere(job) end
     job.source = io.open(job.from .. entry.rel, "r")
     if job.source == nil then return fail(job, "read", job.from .. entry.rel) end
-    job.target = io.open(job.to .. entry.rel, "w")
+    job.target = io.open(job.to .. entry.rel .. ".new", "w")
     if job.target == nil then return fail(job, "write", job.to .. entry.rel) end
     log("trace", "copying %s (%d bytes)", entry.rel, entry.size)
   end
@@ -196,7 +211,7 @@ local function copyStep(job)
   local chunk = io.read(job.source, CHUNK)
   if chunk == nil or #chunk == 0 then
     closeAll(job)
-    local info = statOf(job.to .. entry.rel)
+    local info = statOf(job.to .. entry.rel .. ".new")
     if info == nil or tonumber(info.size) ~= entry.size then
       return fail(job, "size", job.to .. entry.rel)
     end
@@ -207,13 +222,25 @@ local function copyStep(job)
   job.done = job.done + #chunk
 end
 
+-- The copy compared whole; only now does the file take its name.
+local function install(job, entry)
+  local path = job.to .. entry.rel
+  remove(path)
+  local result = type(rename) == "function" and rename(path .. ".new", path)
+  if result ~= 0 then return fail(job, "rename", path) end
+  log("trace", "%s in place", entry.rel)
+end
+
 local function verifyStep(job)
   local entry = job.files[job.index]
-  if entry == nil then return finish(job) end
+  if entry == nil then
+    if statOf(job.to .. "/" .. MARKER) ~= nil then return finishedElsewhere(job) end
+    return finish(job)
+  end
 
   if job.source == nil then
     job.source = io.open(job.from .. entry.rel, "r")
-    job.target = io.open(job.to .. entry.rel, "r")
+    job.target = io.open(job.to .. entry.rel .. ".new", "r")
     if job.source == nil or job.target == nil then
       return fail(job, "read back", job.to .. entry.rel)
     end
@@ -225,7 +252,7 @@ local function verifyStep(job)
   if a == nil or #a == 0 then
     closeAll(job)
     job.index = job.index + 1
-    return
+    return install(job, entry)
   end
   job.done = job.done + #a
 end
@@ -243,7 +270,7 @@ function M.new()
   local job = {
     from = paths.user,
     to = paths.moveTo,
-    background = statOf(paths.moveTo .. "/" .. NOTE) ~= nil,
+    background = statOf(paths.user .. "/" .. NOTE) ~= nil,
     phase = "list",
     dirs = { "" },
     files = {},

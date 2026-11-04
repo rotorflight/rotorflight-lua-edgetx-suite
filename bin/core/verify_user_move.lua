@@ -64,7 +64,15 @@ local function install(card)
     if card.files[path] then card.files[path] = nil; return 0 end
     return 4
   end
+  _G.rename = function(from, to)
+    if card.noRename then return 7 end
+    if card.files[to] then return 8 end
+    if not card.files[from] then return 4 end
+    card.files[to], card.files[from] = card.files[from], nil
+    return 0
+  end
   _G.dir = function(path)
+    if card.noList == path then error("cannot list " .. path) end
     local names, prefix = {}, path .. "/"
     for _, map in ipairs({ card.files, card.dirs }) do
       for full in pairs(map) do
@@ -204,6 +212,10 @@ do
   expect("old card: an unknown file stays behind", card.files[NEW .. "/notes_of_the_pilot.txt"] == nil)
   expect("old card: bytecode stays behind", card.files[NEW .. "/dashboard/mine/init.luac"] == nil)
   expect("old card: the marker is written", card.files[NEW .. "/moved.txt"] ~= nil)
+  expect("old card: the data counts as moved", pre.movedTheData() == true)
+  for path in pairs(card.files) do
+    expect("old card: no .new file is left: " .. path, not string.find(path, ".new", 1, true))
+  end
   expect("old card: the old folder is untouched but for the stamp",
     sameOld(card, before, OLD .. "/precompiled.txt"))
 
@@ -254,18 +266,17 @@ do
   local pre = startState(card)
   pre.startIfStale(nil)
   run(pre, 100000, 8)
-  -- The stamp has gone to the old folder by now; from here on nothing fits on the new one, except
-  -- the note, which a real card might refuse too and which is checked apart below.
+  -- The stamp has gone to the old folder by now; from here on nothing fits on the new one.
   local realOpenStub = io.open
   io.open = function(path, mode)
-    if mode == "w" and path ~= NEW .. "/move_failed.txt" and string.find(path, NEW, 1, true) == 1 then return nil end
+    if mode == "w" and string.find(path, NEW, 1, true) == 1 then return nil end
     return realOpenStub(path, mode)
   end
   run(pre)
   io.open = realOpenStub
   expect("full card: the pass ends", not pre.isRunning())
   expect("full card: no marker", card.files[NEW .. "/moved.txt"] == nil)
-  expect("full card: the failure is noted", card.files[NEW .. "/move_failed.txt"] ~= nil)
+  expect("full card: the failure is noted in the old folder", card.files[OLD .. "/move_failed.txt"] ~= nil)
   expect("full card: the screen is told", rfsuite.paths.moveFailed == true)
   expect("full card: the old folder is untouched but for the stamp", sameOld(card, before, OLD .. "/precompiled.txt"))
 
@@ -278,7 +289,7 @@ do
   expect("after a failure: the tool's start screen does not wait on it", finished == true)
   run(retry)
   expect("retry through: no marker, data could have changed under it", card.files[NEW .. "/moved.txt"] == nil)
-  expect("retry through: the note is gone", card.files[NEW .. "/move_failed.txt"] == nil)
+  expect("retry through: the note is gone", card.files[OLD .. "/move_failed.txt"] == nil)
   expect("retry through: no restart is asked for", retry.needsRestart() == false)
   expect("retry through: the screen is no longer told", rfsuite.paths.moveFailed == nil)
 
@@ -293,12 +304,13 @@ end
 do
   local card = oldCard()
   install(card)
-  card.garble = NEW .. "/tune/3b0049.lua"
+  card.garble = NEW .. "/tune/3b0049.lua.new"
   local pre = startState(card)
   pre.startIfStale(nil)
   run(pre)
   expect("wrong read-back: no marker", card.files[NEW .. "/moved.txt"] == nil)
-  expect("wrong read-back: noted", card.files[NEW .. "/move_failed.txt"] ~= nil)
+  expect("wrong read-back: noted", card.files[OLD .. "/move_failed.txt"] ~= nil)
+  expect("wrong read-back: the wrong copy did not take the name", card.files[NEW .. "/tune/3b0049.lua"] == nil)
   local nextStart = startState(card)
   expect("wrong read-back: the old folder still counts", rfsuite.paths.user == OLD)
   nextStart.startIfStale(nil)
@@ -308,7 +320,7 @@ end
 do
   local card = oldCard()
   install(card)
-  card.put(NEW .. "/move_failed.txt", "size\n")
+  card.put(OLD .. "/move_failed.txt", "size\n")
   local pre = startState(card)
   rfsuite.require = function(name)
     if name == "lib/armed.lua" then return { isArmed = function() return true end } end
@@ -319,7 +331,54 @@ do
   expect("armed: and is still there", pre.isRunning())
 end
 
--- 7. A state started again keeps the folder it decided on.
+-- 7. A folder that cannot be listed fails the job; it does not read as an empty one.
+do
+  local card = oldCard()
+  install(card)
+  card.noList = OLD .. "/dashboard"
+  local pre = startState(card)
+  pre.startIfStale(nil)
+  run(pre)
+  expect("no listing: no marker", card.files[NEW .. "/moved.txt"] == nil)
+  expect("no listing: noted", card.files[OLD .. "/move_failed.txt"] ~= nil)
+  expect("no listing: the screen is told", rfsuite.paths.moveFailed == true)
+end
+
+-- 8. A rename that does not go through fails the job.
+do
+  local card = oldCard()
+  install(card)
+  card.noRename = true
+  local pre = startState(card)
+  pre.startIfStale(nil)
+  run(pre)
+  expect("no rename: no marker", card.files[NEW .. "/moved.txt"] == nil)
+  expect("no rename: noted", card.files[OLD .. "/move_failed.txt"] ~= nil)
+end
+
+-- 9. Two states on one card: the one that finishes second leaves the finished folder alone.
+do
+  local card = oldCard()
+  install(card)
+  local slow = startState(card)
+  local slowRfsuite = rfsuite
+  slow.startIfStale(nil)
+  run(slow, 100000, 12)
+  local fast = startState(card)
+  fast.startIfStale(nil)
+  run(fast)
+  expect("two states: the first to finish writes the marker", card.files[NEW .. "/moved.txt"] ~= nil)
+  local flights = card.files[NEW .. "/flightlog/flights.csv"]
+  _G.rfsuite = slowRfsuite
+  run(slow)
+  expect("two states: the second stops", not slow.isRunning())
+  expect("two states: and asks for the restart", slow.needsRestart() == true)
+  expect("two states: and reports the data as moved", slow.movedTheData() == true)
+  expect("two states: the finished copy stands", card.files[NEW .. "/flightlog/flights.csv"] == flights and flights == BIG)
+  expect("two states: no failure is noted", card.files[OLD .. "/move_failed.txt"] == nil)
+end
+
+-- 10. A state started again keeps the folder it decided on.
 do
   local card = oldCard()
   install(card)

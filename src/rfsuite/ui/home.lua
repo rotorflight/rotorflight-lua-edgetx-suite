@@ -2936,6 +2936,12 @@ local function buildScene()
       buttonText = i18n and i18n.t and i18n.t("app.actions.close") or "Close",
       press = function()
         state.restartNoticeVisible = false
+        -- After the move of the pilot's data no page opens on this start: a page saves into the
+        -- folder this state read at its start, and the next start no longer reads that one.
+        if Precompile and Precompile.movedTheData() then
+          state.shouldExit = true
+          return
+        end
         scheduleBuildUI(false)
       end
     })

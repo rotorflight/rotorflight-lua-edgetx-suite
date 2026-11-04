@@ -485,6 +485,12 @@ function Precompile.needsRestart()
   return state.force and state.packaged and state.stampWritten == true
 end
 
+-- True once this pass has written the marker of the move, or found another start's. What is saved
+-- from here until the next start would go to the old folder, and that folder no longer counts then.
+function Precompile.movedTheData()
+  return state ~= nil and state.move ~= nil and state.move.moved == true
+end
+
 -- True for a pass that only retries the move after a failed attempt: it runs on, and the
 -- connection does not wait for it.
 function Precompile.runsBehindConnection()

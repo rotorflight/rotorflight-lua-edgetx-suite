@@ -451,8 +451,10 @@ foreach ($targetWidgetRoot in $targetWidgetRoots) {
 # The resolver exits non-zero on an unresolved key or a file it could not write, so
 # its verdict has to be read here. Ignoring it is how a demo reaches a radio with
 # every marker still standing while the script says it deployed.
-& $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\resolve_i18n_tags.py') --json (Join-Path $sourceCore "i18n\$Language.lua") --root $toolsRoot
-if ($LASTEXITCODE -ne 0) { throw "resolve_i18n_tags failed on $toolsRoot (exit $LASTEXITCODE); the demo was not deployed." }
+foreach ($targetCodeRoot in @($toolsRoot, $suiteRoot)) {
+    & $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\resolve_i18n_tags.py') --json (Join-Path $sourceCore "i18n\$Language.lua") --root $targetCodeRoot
+    if ($LASTEXITCODE -ne 0) { throw "resolve_i18n_tags failed on $targetCodeRoot (exit $LASTEXITCODE); the demo was not deployed." }
+}
 foreach ($targetWidgetRoot in $targetWidgetRoots) {
     & $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\resolve_i18n_tags.py') --json (Join-Path $sourceCore "i18n\$Language.lua") --root $targetWidgetRoot
     if ($LASTEXITCODE -ne 0) { throw "resolve_i18n_tags failed on $targetWidgetRoot (exit $LASTEXITCODE); the demo was not deployed." }
