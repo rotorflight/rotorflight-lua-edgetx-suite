@@ -57,7 +57,7 @@ local function loadWorld(mutate)
       return { command = 70, simulatorResponse = {}, parse = function() return nil end }
     end,
     ["tasks/msp/api/battery_profile.lua"] = function()
-      return { writeCommand = 1, buildWritePayload = function() return {} end }
+      return { writeCommand = 1, buildWritePayload = function(fields) return fields end }
     end,
     ["tasks/msp/api/eeprom_write.lua"] = function()
       return { writeCommand = 250, buildWritePayload = function() return {} end }
@@ -289,9 +289,49 @@ local function run(mutate)
     check("and starts on the one in force", r.right == 2)
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("a press writes", #adds == 2)
+    check("and it writes the profile in force's own number here", adds[1].payload.batteryProfile == 1)
     check("the menu stays up while it is sent", w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "busy")
     adds[#adds].processReply(adds[#adds], {})
     check("an answered write closes the menu", w._viewStack == nil or w._viewStack.roll == nil)
+  end
+  do
+    -- The wheel rests on another profile: the scene is built again, and that profile is what is written.
+    local w, r = toProfile()
+    local s = scene(Menu, w)
+    detent(s.forward, s.forward.h, 1)
+    check("one detent on the right moves one option", r.right == 3)
+    now = now + 100
+    Menu.renderKey(w)
+    s = scene(Menu, w)
+    for i = 1, #s.children do
+      local node = s.children[i]
+      if node.type == "label" and type(node.text) == "function" then node.text() end
+    end
+    check("a build keeps the place on the right", r.right == 3)
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("and the press writes that option", adds[1] ~= nil and adds[1].payload.batteryProfile == 2)
+  end
+  do
+    -- ERASE current: CANCEL is the labelled row above it.
+    local w = open()
+    local r = roll(w)
+    Roll.press(w)
+    local s = scene(Menu, w)
+    detent(s.forward, s.forward.h, 1)
+    check("ERASE is current", r.right == 2)
+    local seen = false
+    for i = 1, #s.children do
+      local node = s.children[i]
+      if node.type == "label" and type(node.text) == "function" and node.text() == "CANCEL" then seen = true end
+    end
+    check("CANCEL stays labelled above it", seen)
+  end
+  do
+    -- A theme's look registered since the menu opened: its own keys are not answered for it.
+    local w = open()
+    local entry = Views.find(w, "menu")
+    entry.load = function() return {} end
+    check("ENTER is no longer the roll's", Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and w._viewStack.roll == nil)
   end
   do
     local w = toProfile()
@@ -398,6 +438,9 @@ if selfTest then
     end },
     { "a position reported twice counts", function(t)
       return (string.gsub(t, "if sy == window.y then return end\n", ""))
+    end },
+    { "a build forgets the place on the right", function(t)
+      return (string.gsub(t, "if roll.rightFor == roll.left then\n    roll.rightOptions = optionsOf%(widget, roll.leftList%[roll.left%]%)\n  end", "roll.rightFor, roll.rightOptions = nil, nil"))
     end },
     { "a detent is not summed", function(t)
       return (string.gsub(t, "local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))

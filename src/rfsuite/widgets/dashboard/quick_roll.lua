@@ -393,7 +393,11 @@ function M.build(children, widget, entries, colors, t)
   roll.leftList = leftList(widget, entries)
   roll.left = clamp(roll.left, #roll.leftList)
   trace("left list " .. tostring(#roll.leftList))
-  roll.rightFor, roll.rightOptions = nil, nil
+  -- The options are made afresh, for what they say about the profile in force, and the place in them
+  -- stays: the scene is built again whenever the wheel rests, and the pilot's choice must survive that.
+  if roll.rightFor == roll.left then
+    roll.rightOptions = optionsOf(widget, roll.leftList[roll.left])
+  end
   roll.position, roll.steppedAt = 0, nil
   if roll.side == "right" then
     local list = rightList(widget, roll)
@@ -549,22 +553,15 @@ function M.build(children, widget, entries, colors, t)
   end
   for offset = -REACH, REACH do
     row("left", leftX, offset)
-    -- Over the question the rows above its answers carry its wording instead.
-    if roll.question == nil or offset >= 0 then row("right", rightX, offset) end
+    row("right", rightX, offset)
   end
 
   if roll.question ~= nil then
     local confirm = roll.question.confirm
     children[#children + 1] = {
       type = "label", x = rightX + pad, y = top, w = colW - 2 * pad, font = farFont, align = LEFT, color = colors.text,
-      text = confirm.message or "",
+      text = (confirm.message or "") .. ((type(confirm.detail) == "string" and confirm.detail ~= "") and (" " .. confirm.detail) or ""),
     }
-    if type(confirm.detail) == "string" and confirm.detail ~= "" then
-      children[#children + 1] = {
-        type = "label", x = rightX + pad, y = midY - farH - gap, w = colW - 2 * pad, font = farFont, align = LEFT,
-        color = colors.muted, text = confirm.detail,
-      }
-    end
   end
 
   -- In the header: how a profile's write went.

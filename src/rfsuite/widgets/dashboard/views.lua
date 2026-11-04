@@ -882,7 +882,11 @@ function M.key(widget, event)
   local session = widget._viewStack
   if session ~= nil and session.roll ~= nil and (M.top(widget) or widget._viewId) == M.DEFAULT_VIEW then
     local enter, exitKey = _G.EVT_VIRTUAL_ENTER, _G.EVT_VIRTUAL_EXIT
-    if (enter ~= nil and event == enter) or (exitKey ~= nil and event == exitKey) then
+    local own = M.find(widget, M.DEFAULT_VIEW)
+    if own ~= nil and own.load ~= nil then
+      -- A theme's look has taken the menu over since it was opened.
+      session.roll = nil
+    elseif (enter ~= nil and event == enter) or (exitKey ~= nil and event == exitKey) then
       local Roll = requireModule("widgets/dashboard/quick_roll.lua")
       if type(Roll) == "table" then
         if event == enter then
