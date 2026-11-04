@@ -18,6 +18,7 @@ Where the suite sits on the card is stated once, in `src/rfsuite/lib/paths.lua`:
 | --- | --- | --- |
 | `core` | `/SCRIPTS/RFSUITE/core` | the suite's code |
 | `user` | `/SCRIPTS/RFSUITE/user` | the pilot's data: preferences, flight log, user themes |
+| `legacyUser` | `/SCRIPTS/TOOLS/rfsuite.user` | where an earlier install kept that data, read only to move it |
 
 `lib/require.lua` loads that file and publishes it as `rfsuite.paths`. Every Lua state of the
 suite -- the tool, both widgets and the special-function script -- loads `lib/require.lua` before
@@ -26,10 +27,15 @@ them: `loadScript(rfsuite.paths.core .. "/lib/log.lua", mode)`. Neither root end
 If `lib/require.lua` cannot be loaded or run, no module finds its paths, and the state does not
 start.
 
+`lib/require.lua` also decides, once per Lua state, which folder `user` means. While the old folder
+exists and the new one holds no `moved.txt`, `user` stays the old folder and `moveTo` names the new
+one; `lib/precompile.lua` then runs the copy (`lib/user_move.lua`). A module keeps the path it read
+when it loaded, so the switch happens at the next start and never inside a running state.
+
 Only `lib/paths.lua` itself, `lib/require.lua` (to load it), the files that load
 `lib/require.lua` (`src/main.lua`, the two widgets' `main.lua`, `src/functions/rfsbg.lua`), and
 the model template (`src/templates/5.Rotorflight/Rotorflight.lua`), which runs without it, name
-the code root directly.
+the code root directly. `bin/core/verify_card_path_literals.lua` fails on any other file that does.
 
 A desktop test that loads a suite module without `lib/require.lua` provides the table itself,
 from the same file, for example `_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")` when it
