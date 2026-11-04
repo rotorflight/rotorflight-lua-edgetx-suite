@@ -276,8 +276,8 @@ flowchart LR
     S14 --> S15
     subgraph S16["16. Blade pitch"]
       direction TB
-      S16c0["<b>Collective</b><br/>sets: Measured (deg), Mixer rate (%)<br/>reads: MSP rc_tuning, MSP status, MSP servo<br/>writes: mixer_input, mixer_override, set_pid_..."]:::k3
-      S16c1["<b>Cyclic</b><br/>sets: Measured (deg), Mixer rate (%)<br/>writes: mixer_input, mixer_input.rate"]:::k3
+      S16c0["<b>Collective</b><br/>sets: Degrees, Measured (deg), Mixer rate (%)<br/>reads: MSP rc_tuning, MSP status, MSP servo<br/>writes: mixer_input, mixer_override, set_pid_..."]:::k3
+      S16c1["<b>Cyclic</b><br/>sets: Degrees, Measured (deg), Mixer rate (%)<br/>writes: mixer_input, mixer_input.rate"]:::k3
       S16c0 --> S16c1
       S16c2["<b>Cyclic (deg)</b><br/>sets: Cyclic (deg)<br/>writes: mixer_input, mixer_input.min, mixer_i..."]:::k3
       S16c1 --> S16c2
@@ -358,7 +358,7 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | 13. Servo direction & centre | Servo arms<br/>{c . title .. " " .. c . role}<br/>{nil . title .. " " .. nil . role} | — | Servo arms | status<br/>servo | servo_configurations<br/>servo_configurations.flags<br/>servo_configurations.mid<br/>servo_override | same |
 | 14. Control directions | Roll right<br/>Pitch forward<br/>Collective up | — | Direction is correct | status<br/>servo<br/>rc_command | mixer_input<br/>mixer_input.rate<br/>mixer_override | same |
 | 15. Level the swash | Level the swash<br/>Motor unplugged<br/>Check swash level<br/>Blades at zero | Roll<br/>Pitch<br/>Collective | Motor unplugged<br/>Swash is level<br/>Blade pitch is 0 degrees | status<br/>servo | mixer_override<br/>mixer_config.swash_trim_0<br/>mixer_config.swash_trim_1<br/>mixer_config.swash_trim_2 | same |
-| 16. Blade pitch | Collective<br/>Cyclic<br/>Cyclic (deg)<br/>Collective (deg)<br/>Total (deg)<br/>Full-stick collective<br/>End stops | Measured (deg)<br/>Mixer rate (%)<br/>Cyclic (deg)<br/>Collective (deg)<br/>Total (deg)<br/>Rate profile {n} | Full travel without binding | rc_tuning<br/>status<br/>servo | mixer_input<br/>mixer_input.rate<br/>mixer_override<br/>set_pid_profile<br/>rc_tuning<br/>mixer_input.min<br/>mixer_input.max<br/>mixer_config.swash_pitch_limit | same |
+| 16. Blade pitch | Collective<br/>Cyclic<br/>Cyclic (deg)<br/>Collective (deg)<br/>Total (deg)<br/>Full-stick collective<br/>End stops | Degrees<br/>Measured (deg)<br/>Mixer rate (%)<br/>Cyclic (deg)<br/>Collective (deg)<br/>Total (deg)<br/>Rate profile {n} | Full travel without binding | rc_tuning<br/>status<br/>servo | mixer_input<br/>mixer_input.rate<br/>mixer_override<br/>set_pid_profile<br/>rc_tuning<br/>mixer_input.min<br/>mixer_input.max<br/>mixer_config.swash_pitch_limit | same |
 | 17. Tail rotor | Tail rotor<br/>Tail motor idle<br/>Tail centre<br/>Tail control direction<br/>Tail pitch calibration<br/>Tail pitch limits | Power (%)<br/>Idle (%)<br/>Centre trim (deg)<br/>Mixer rate (%)<br/>CW limit (deg)<br/>CCW limit (deg) | All blades removed<br/>Tail neutral pitch checked<br/>Direction is correct | status<br/>servo<br/>motor<br/>rc_command | motor_override.index<br/>motor_override.value<br/>mixer_override<br/>mixer_input<br/>mixer_input.rate<br/>mixer_config.tail_motor_idle<br/>mixer_config.tail_center_trim | same |
 | 18. Gyro check | Roll<br/>Pitch<br/>Yaw | — | Corrects against movement | status<br/>servo | — | same |
 | 19. Finish | Finish<br/>Before the first flight | — | Final checks understood | status<br/>servo | — | same |

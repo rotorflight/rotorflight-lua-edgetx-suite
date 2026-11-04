@@ -11035,6 +11035,22 @@
             },
             {
               "kind": "pilot sets",
+              "label": "Degrees",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepPitch.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+              "expression": "{ kind = \"holdNumber\" , label = L . degrees , fullWidth = true , min = - limit , max = limit , divisor = 10 , holdLabel = function ( ) return held ( ) and L . releaseTest or L . holdTest end , press = function ( ) if held ( ) then w . pitchHeld = nil ; w : holdAxes ( 4 , 0 ) ; return end w . pitchHeld = 1 w : holdAxes ( 4 , command ( w . pitchAngle or 0 ) ) end , get = function ( ) return w . pitchAngle or 0 end , set = function ( v ) w . pitchAngle = v if held ( ) then w : holdAxes ( 4 , command ( v ) ) end end }"
+            },
+            {
+              "kind": "pilot sets",
               "label": "Measured (deg)",
               "api": null,
               "field": null,
@@ -11628,6 +11644,22 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
               "expression": "w : touch ( \"mixer_input\" , false , true )"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Degrees",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepPitch.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
+              "expression": "{ kind = \"holdNumber\" , label = L . degrees , fullWidth = true , min = - limit , max = limit , divisor = 10 , holdLabel = function ( ) return held ( ) and L . releaseTest or L . holdTest end , press = function ( ) if held ( ) then w . pitchHeld = nil ; w : holdAxes ( 1 , 0 ) ; return end w . pitchHeld = 2 w : holdAxes ( 1 , command ( w . pitchAngle or 0 ) ) end , get = function ( ) return w . pitchAngle or 0 end , set = function ( v ) w . pitchAngle = v if held ( ) then w : holdAxes ( 1 , command ( v ) ) end end }"
             },
             {
               "kind": "pilot sets",

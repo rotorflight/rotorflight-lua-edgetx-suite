@@ -5,7 +5,7 @@ title: Helicopter Setup
 # Helicopter Setup
 
 A guided helicopter setup based on the Configurator wizard, with ESC telemetry
-before servo connection and the spin test in the 19-step sequence.
+before the spin test in the 19-step sequence.
 See the [generated wizard flow](../reference/helicopter-wizard-flow.md) for cards, pilot actions, gates and MSP traffic.
 It is the only entry in the Wizards menu; the old Setup Assistant code and templates remain. Remove the main
 and tail blades before bench work. Keep servos unplugged until the connection gate.
@@ -162,12 +162,12 @@ servos, servo 1 in front or behind, servo 4 with a servo tail; Direct names each
 function), the main rotor turning, and the kind of tail. A picture changes with its value
 without rebuilding the scene.
 Control directions show the Configurator's roll, pitch and collective swash-motion
-pictures alongside live input meters. Swash trimming shows its level-motion picture;
-the level check shows blades at 0°. Both blade-pitch calibration cards show the 9°
+pictures alongside live input meters. Swash trimming and the level check show the
+level-motion picture; the blade card shows blades at 0°. Both blade-pitch calibration cards show the 9°
 reference. Tail centre and direction use separate servo-tail pictures, and motor
 tails show the selected motor or bidirectional picture. The 22.5° tail calibration
 shows the tail blades end-on with a 45° paper fold between them. Gyro checks show the roll, pitch and yaw correction
-pictures. Both servo connection cards show the Configurator servo picture.
+pictures. The rescue card shows the helicopter turned over or levelled, following its flip answer. Both servo connection cards show the Configurator servo picture.
 The final Board orientation card has its own layout: a live helicopter above the
 confirmation on small screens, and a larger model beside it on 800×480. Tilt the
 real helicopter right/left and nose down/up; the picture must follow. Roll and

@@ -127,7 +127,7 @@ def expand(source, bindings=None):
             factories[name] = (params, body)
     ui = {name for name, (_, body) in factories.items()
           if any(t.value == 'cardDef' for t in body)
-          or re.search(r'kind\s*=\s*["\'](?:choice|number|text)["\']', expression(body))}
+          or re.search(r'kind\s*=\s*["\'](?:choice|number|holdNumber|text)["\']', expression(body))}
     while True:
         more = {name for name, (_, body) in factories.items()
                 if any(t.value in ui and i+1 < len(body) and body[i+1].value == '(' for i, t in enumerate(body))}
@@ -397,7 +397,7 @@ def extract(source, path, labels, mapping, bindings=None, effects_only=False):
         if t.value == '{':
             fields = p.fields(start)
             kind = literal(fields.get('kind', []))
-            if kind in ('choice', 'number', 'text', 'pair'):
+            if kind in ('choice', 'number', 'holdNumber', 'text', 'pair'):
                 add('pilot sets', label(fields.get('label', []), labels), start, p.pairs[start]+1)
             elif kind == 'toggle':
                 safety = any(t.value in ('bladesOff', 'checks') for part in fields.values() for t in part)
