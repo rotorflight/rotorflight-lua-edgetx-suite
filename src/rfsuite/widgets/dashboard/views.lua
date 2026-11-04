@@ -886,7 +886,7 @@ function M.key(widget, event, touch)
     if own ~= nil and own.load ~= nil then
       -- A theme's look has taken the menu over since it was opened.
       session.roll = nil
-    elseif touch ~= nil then
+    elseif touch ~= nil and event ~= enter and event ~= exitKey then
       local Roll = requireModule("widgets/dashboard/quick_roll.lua")
       if type(Roll) == "table" and Roll.touch(widget, event, touch) then return true end
     elseif (enter ~= nil and event == enter) or (exitKey ~= nil and event == exitKey) then

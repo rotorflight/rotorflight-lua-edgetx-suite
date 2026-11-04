@@ -260,7 +260,7 @@ end
 -- the slot's distance from the middle, or nil.
 local function rowAt(roll, x, y)
   local geo = roll.geo
-  if geo == nil then return nil end
+  if geo == nil or y < geo.top then return nil end
   local side
   if x >= geo.leftX and x < geo.leftX + geo.colW then
     side = "left"
@@ -297,7 +297,7 @@ local function tapped(widget, roll, x, y)
     M.press(widget)
     return
   end
-  if offset == 0 and side == "right" then
+  if offset == 0 and side == "right" and rightList(widget, roll) ~= nil then
     -- The preview's middle row is the left entry's choice: as the press on that entry.
     M.press(widget)
     return
@@ -341,29 +341,28 @@ function M.touch(widget, event, touch)
   local roll = rollOf(widget)
   if roll == nil then return false end
   if event == _G.EVT_TOUCH_FIRST then
-    -- Relative to the box over the rows, which is what the firmware reports a touch against.
-    local top = roll.geo and roll.geo.touchTop or 0
-    roll.touchX, roll.touchY = touch.x, (touch.y or 0) + top
-    roll.slide, roll.sliding, roll.sideBefore = 0, false, roll.side
+    -- Against the box under the whole screen, and the one rectangle over it starts at the same corner.
+    roll.touchX, roll.touchY = touch.x, touch.y
+    roll.slide, roll.sliding, roll.sideBefore, roll.slideOn = 0, false, roll.side, nil
     return true
   end
   if event == _G.EVT_TOUCH_SLIDE then
+    if roll.touchX == nil then return true end
     if not roll.sliding then
       roll.sliding = true
-      local side = rowAt(roll, roll.touchX or 0, roll.touchY or 0)
-      if side ~= nil then focusSide(roll, widget, side) end
+      local side = rowAt(roll, roll.touchX, roll.touchY or 0)
+      if side ~= nil and focusSide(roll, widget, side) then roll.slideOn = true end
     end
-    swiped(widget, roll, touch.slideY or 0)
+    if roll.slideOn then swiped(widget, roll, touch.slideY or 0) end
     return true
   end
   if event == _G.EVT_TOUCH_BREAK then
-    if roll.sliding then
+    local x, y, wasSliding = roll.touchX, roll.touchY, roll.sliding
+    roll.touchX, roll.touchY, roll.sliding, roll.slideOn = nil, nil, false, nil
+    if wasSliding then
       -- The focus's outline is drawn with the scene.
-      roll.sliding = false
       if roll.side ~= roll.sideBefore then rebuild(widget, roll) end
-    elseif roll.touchX ~= nil then
-      local x, y = roll.touchX, roll.touchY
-      roll.touchX, roll.touchY = nil, nil
+    elseif x ~= nil then
       tapped(widget, roll, x, y)
     end
     return true
@@ -606,7 +605,7 @@ function M.build(children, widget, entries, colors, t)
   children[#children + 1] = { type = "rectangle", x = pad + colW + math.floor(pad / 2), y = top, w = 1, h = bottom - top,
     color = colors.rule, filled = true }
 
-  roll.geo = { leftX = leftX, rightX = rightX, colW = colW, midH = midH, rowH = rowH, slotY = slotY, touchTop = headH }
+  roll.geo = { leftX = leftX, rightX = rightX, colW = colW, midH = midH, rowH = rowH, slotY = slotY, top = headH }
 
   local windows = {}
 
@@ -615,6 +614,11 @@ function M.build(children, widget, entries, colors, t)
   viewport(widget, roll, windows, "forward", "reverse", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0)
 
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = headH, color = colors.head, filled = true }
+
+  -- Over every surface and empty, not scrolling: a touch reaches the widget against this box, with
+  -- its coordinates. Labels take no touch, and the close box and the rectangle below come after it.
+  children[#children + 1] = { type = "box", x = 0, y = 0, w = W, h = H, borderPad = 0, scrollDir = 0, scrollBar = false, children = {} }
+
   local closeX, closeY = W - closeSize - pad, math.floor((headH - closeSize) / 2)
   children[#children + 1] = {
     type = "button", x = closeX, y = closeY, w = closeSize, h = closeSize, color = colors.close, cornerRadius = radius,
@@ -707,9 +711,6 @@ function M.build(children, widget, entries, colors, t)
       return ""
     end,
   }
-
-  -- Over the rows, empty and not scrolling: every touch there arrives with coordinates against it.
-  children[#children + 1] = { type = "box", x = 0, y = headH, w = W, h = H - headH, borderPad = 0, scrollDir = 0, scrollBar = false, children = {} }
 end
 
 return M

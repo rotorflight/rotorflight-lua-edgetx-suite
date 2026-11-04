@@ -115,7 +115,7 @@ local function scene(Menu, widget)
   local boxes, buttons = {}, {}
   for i = 1, #children do
     local node = children[i]
-    if node.type == "box" then boxes[#boxes + 1] = node end
+    if node.type == "box" and node.scrolled ~= nil then boxes[#boxes + 1] = node end
     if node.type == "button" then buttons[#buttons + 1] = node end
   end
   return { children = children, forward = boxes[1], reverse = boxes[2], buttons = buttons }
@@ -426,8 +426,8 @@ local function run(mutate)
   -- The finger.
   local function touch(w, event, fields) return Views.key(w, event, fields) end
   local function tap(w, x, y)
-    touch(w, EVT_TOUCH_FIRST, { x = x, y = y - 60 })
-    touch(w, EVT_TOUCH_BREAK, { x = x, y = y - 60 })
+    touch(w, EVT_TOUCH_FIRST, { x = x, y = y })
+    touch(w, EVT_TOUCH_BREAK, { x = x, y = y })
   end
   local function geoOf(w) return roll(w).geo end
   do
@@ -453,7 +453,7 @@ local function run(mutate)
     local w = open()
     local r = roll(w)
     local g = geoOf(w)
-    touch(w, EVT_TOUCH_FIRST, { x = g.leftX + 5, y = g.slotY(1) - 60 })
+    touch(w, EVT_TOUCH_FIRST, { x = g.leftX + 5, y = g.slotY(1) })
     touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -math.floor(g.rowH / 2) })
     check("half a row moves nothing", r.left == 1)
     touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -math.floor(g.rowH / 2) - 1 })
@@ -464,6 +464,42 @@ local function run(mutate)
     check("a swipe is no tap", toolOpened == 0 and #adds == 0)
   end
   do
+    -- A release with no touch of its own runs nothing: a gesture's coordinates end with it.
+    local w = open()
+    local r = roll(w)
+    local g = geoOf(w)
+    Roll.press(w)
+    scene(Menu, w)
+    g = geoOf(w)
+    touch(w, EVT_TOUCH_FIRST, { x = g.rightX + 5, y = g.slotY(0) })
+    touch(w, EVT_TOUCH_SLIDE, { x = g.rightX + 5, y = 0, slideY = -(g.rowH + 1) })
+    touch(w, EVT_TOUCH_BREAK, { x = g.rightX + 5, y = 0 })
+    check("the swipe brought ERASE to the middle", r.right == 2)
+    touch(w, EVT_TOUCH_BREAK, { x = g.rightX + 5, y = 0 })
+    check("and a stray release does not answer the question", #adds == 0)
+  end
+  do
+    -- A touch on the header is no row.
+    local w = open()
+    local r = roll(w)
+    r.left = 2
+    local g = geoOf(w)
+    tap(w, 20, 30)
+    check("a tap on the header moves nothing", r.left == 2 and toolOpened == 0)
+    tap(w, g.rightX + 5, g.slotY(0) + 2)
+    check("a tap on an empty right column runs nothing", toolOpened == 0)
+    touch(w, EVT_TOUCH_FIRST, { x = g.rightX + 5, y = g.slotY(0) + 2 })
+    touch(w, EVT_TOUCH_SLIDE, { x = g.rightX + 5, y = 0, slideY = -(g.rowH + 1) })
+    touch(w, EVT_TOUCH_BREAK, { x = g.rightX + 5, y = 0 })
+    check("a swipe on an empty right column moves nothing", r.left == 2 and r.side == "left")
+  end
+  do
+    -- RTN and the wheel's press arriving with a touch table stay what they are.
+    local w, r = toProfile()
+    Views.key(w, EVT_VIRTUAL_EXIT, {})
+    check("RTN with a table still steps back", r.side == "left")
+  end
+  do
     -- On the right: a swipe takes the focus there, and a press writes where it stopped.
     local w = open()
     local r = roll(w)
@@ -472,7 +508,7 @@ local function run(mutate)
     s = scene(Menu, w)
     local g = geoOf(w)
     check("the preview is up, the focus left", r.side == "left" and r.left == #r.leftList)
-    touch(w, EVT_TOUCH_FIRST, { x = g.rightX + 5, y = g.slotY(0) - 60 })
+    touch(w, EVT_TOUCH_FIRST, { x = g.rightX + 5, y = g.slotY(0) })
     touch(w, EVT_TOUCH_SLIDE, { x = g.rightX + 5, y = 0, slideY = -(g.rowH + 1) })
     touch(w, EVT_TOUCH_BREAK, { x = g.rightX + 5, y = 0 })
     check("the swipe took the focus right", r.side == "right")
