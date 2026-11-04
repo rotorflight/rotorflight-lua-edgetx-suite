@@ -120,15 +120,15 @@ function M.build(ctx)
 end
 -- A build replaces the scene, and the old scene's tables and native objects stay allocated until
 -- the collector reaches them. A picture on the next card needs a large block from the same heap,
--- and the host only collects after its own rebuilds. So the first pass after each build collects,
--- which is about once per card: paced by the pilot, never per refresh.
-local collectedBuild
+-- and the host only collects after its own rebuilds. So the first pass after the build that shows
+-- a new scene collects, once per scene: paced by the pilot, never per refresh.
+local collectAfterBuild
 function M.wakeup(ctx)
   if not context then return end
-  if w and w.buildCount ~= collectedBuild then
-    collectedBuild = w.buildCount
+  if w and collectAfterBuild and w.buildCount ~= collectAfterBuild then
+    collectAfterBuild = nil
     collectgarbage("collect")
-    if w.logTrace then w:log("trace", "collected after build %s", tostring(collectedBuild)) end
+    if w.logTrace then w:log("trace", "collected after a new scene") end
   end
   if ctx and ctx.requestRebuild then context.requestRebuild = ctx.requestRebuild end
   loadingFraction = w and (w.ready and 1 or 0.2+0.8*(w.progress or 0)/math.max(1,w.loadTotal or 1)) or 0.2*(stage-1)/#deps
@@ -180,6 +180,7 @@ function M.wakeup(ctx)
       sceneInputs, pendingInputs = pendingInputs, sceneInputs
       -- The replaced scene's inputs must not keep its cards reachable until the next build.
       if pendingInputs then for i = 1, SCENE_H do pendingInputs[i] = nil end end
+      collectAfterBuild = w.buildCount or 0
       w:rebuild()
     end
     return
@@ -210,7 +211,7 @@ function M.onClose()
   end
   modules, stage, w, context, viewJob, scene, sceneInputs, pendingInputs = {}, 1, nil, nil, nil, nil, nil, nil
   loadingScene,loadingFraction,loadingPoints[2][1],historyEntry=nil,0,24,nil
-  collectedBuild=nil
+  collectAfterBuild=nil
 end
 function M.getHeaderActions() return { save = false, reload = false, help = true } end
 return M

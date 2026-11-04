@@ -1766,19 +1766,22 @@ return function(h)
     local page=load("app/pages/helicopter_setup/page.lua")
     local ctx={w=480,h=272,children={},menu={getCurrentMenuId=function() return "helicopter_setup_page" end},
       requestRebuild=function() end}
-    page.build(ctx)
-    for _=1,1000 do page.wakeup(ctx);h.pump();h.advance(1) end
-    page.build(ctx);page.wakeup(ctx)
     local real,collects=collectgarbage,0
     collectgarbage=function(what,...)
       if what=="collect" then collects=collects+1 end
       return real(what,...)
     end
+    local published=0
+    ctx.requestRebuild=function() published=published+1;ctx.children={};page.build(ctx) end
+    page.build(ctx)
+    for _=1,1000 do page.wakeup(ctx);h.pump();h.advance(1) end
+    check(collects>=1,"BENCH a new scene is collected after its build")
+    check(collects<published,"BENCH a build without a new scene does not collect: "..collects.."/"..published)
+    local settled=collects
     for _=1,20 do page.wakeup(ctx);h.pump();h.advance(1) end
-    eq(collects,0,"BENCH passes without a build collect nothing")
-    page.build(ctx);page.wakeup(ctx)
-    eq(collects,1,"BENCH the first pass after a build collects")
-    page.wakeup(ctx);eq(collects,1,"BENCH the next pass does not collect again")
+    eq(collects,settled,"BENCH passes without a new scene collect nothing")
+    ctx.children={};page.build(ctx);page.wakeup(ctx)
+    eq(collects,settled,"BENCH a rebuild of the same scene collects nothing")
     collectgarbage=real
     page.onClose()
     for _=1,30 do h.measure("cleanup reply",h.pump) end
