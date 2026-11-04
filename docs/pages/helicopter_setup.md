@@ -301,23 +301,23 @@ successful read in the current visit and an explicit button press.
 ## The steps on the radio
 
 Taken on the EdgeTX simulator (TX16S MK3, 800x480) against a Rotorflight SITL flight controller,
-most of them in one *Complete setup* run, the others with the step opened from its own menu entry.
+each step opened from its own menu entry.
 Smaller screens use the compact layouts described above.
 
-**1. Board orientation** (first card)
+**1. Board orientation** (the detection card, after the tail was lifted)
 
 ![1. Board orientation](../images/helicopter_setup/radio/step-01.png)
 
-**2. Receiver** (the receiver card with its settings locked behind *Advanced*, and the guided stick check once every control reached both end stops)
+**2. Receiver** (the receiver card with *Advanced* unlocked, and the guided stick check on its way through the controls)
 
 ![2. Receiver](../images/helicopter_setup/radio/step-02.png)
 ![2. Receiver, second picture](../images/helicopter_setup/radio/step-02b.png)
 
-**3. Mode switches** (first card)
+**3. Mode switches** (first card, the arm switch just assigned)
 
 ![3. Mode switches](../images/helicopter_setup/radio/step-03.png)
 
-**4. Profiles & gain** (first card, after the profile switch was detected)
+**4. Profiles & gain** (first card, while the profile switch is detected)
 
 ![4. Profiles & gain](../images/helicopter_setup/radio/step-04.png)
 
@@ -345,19 +345,19 @@ Smaller screens use the compact layouts described above.
 
 ![10. Connect the servos](../images/helicopter_setup/radio/step-10.png)
 
-**11. ESC telemetry** (the protocol card, after the battery-connection card)
+**11. ESC telemetry** (the readings card)
 
 ![11. ESC telemetry](../images/helicopter_setup/radio/step-11.png)
 
-**12. ESC & spin test** (PWM ESC after its calibration, the main motor held at 10 %)
+**12. ESC & spin test** (a PWM ESC at full throttle during its calibration)
 
 ![12. ESC & spin test](../images/helicopter_setup/radio/step-12.png)
 
-**13. Servo direction & centre** (the servos held at centre, before a direction test)
+**13. Servo direction & centre** (a servo during its direction test)
 
 ![13. Servo direction & centre](../images/helicopter_setup/radio/step-13.png)
 
-**14. Control directions** (first card, roll test active with the stick centred)
+**14. Control directions** (first card, roll test active with the stick moved)
 
 ![14. Control directions](../images/helicopter_setup/radio/step-14.png)
 
@@ -365,11 +365,11 @@ Smaller screens use the compact layouts described above.
 
 ![15. Level the swash](../images/helicopter_setup/radio/step-15.png)
 
-**16. Blade pitch** (first card)
+**16. Blade pitch** (first card, 9 degrees held)
 
 ![16. Blade pitch](../images/helicopter_setup/radio/step-16.png)
 
-**17. Tail rotor** (the 22.5° pitch calibration card)
+**17. Tail rotor** (the 22.5° pitch calibration card, held)
 
 ![17. Tail rotor](../images/helicopter_setup/radio/step-17.png)
 
@@ -377,7 +377,7 @@ Smaller screens use the compact layouts described above.
 
 ![18. Gyro check](../images/helicopter_setup/radio/step-18.png)
 
-**19. Finish** (the summary card with the final checks answered)
+**19. Finish** (first card, the summary)
 
 ![19. Finish](../images/helicopter_setup/radio/step-19.png)
 
