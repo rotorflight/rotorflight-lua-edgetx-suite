@@ -135,9 +135,6 @@ local function finish(job)
   closeAll(job)
   job.finished = true
   if job.background then
-    for i = 1, #job.files do
-      remove(job.to .. job.files[i].rel .. ".new")
-    end
     local f = io.open(job.from .. "/" .. NOTE, "w")
     if f then
       io.write(f, "ok " .. tostring(now()) .. "\n")
@@ -202,7 +199,8 @@ local function listStep(job)
       if rel == "" then
         take = (folder and FOLDERS[name]) or (not folder and (FILES[name] or isBoardFile(name)))
       else
-        take = folder or string.sub(name, -5) ~= ".luac"
+        -- A .new is what a save cut short left behind, and the name the copy uses on its way.
+        take = folder or (string.sub(name, -5) ~= ".luac" and string.sub(name, -4) ~= ".new")
       end
       if take and folder then
         job.dirs[#job.dirs + 1] = rel .. "/" .. name
@@ -249,6 +247,7 @@ end
 
 -- The copy compared whole; only now does the file take its name.
 local function install(job, entry)
+  if statOf(job.to .. "/" .. MARKER) ~= nil then return finishedElsewhere(job) end
   local path = job.to .. entry.rel
   remove(path)
   local result = type(rename) == "function" and rename(path .. ".new", path)
@@ -260,6 +259,11 @@ local function verifyStep(job)
   local entry = job.files[job.index]
   if entry == nil then
     if statOf(job.to .. "/" .. MARKER) ~= nil then return finishedElsewhere(job) end
+    if job.background then
+      job.phase = "clean"
+      job.index = 1
+      return
+    end
     return finish(job)
   end
 
@@ -281,6 +285,16 @@ local function verifyStep(job)
     return
   end
   job.done = job.done + #a
+end
+
+-- A retry takes its copies away again, a few per step: it only had to show that they fit.
+local function cleanStep(job)
+  for _ = 1, ENTRIES_PER_STEP do
+    local entry = job.files[job.index]
+    if entry == nil then return finish(job) end
+    remove(job.to .. entry.rel .. ".new")
+    job.index = job.index + 1
+  end
 end
 
 local function armed()
@@ -324,6 +338,8 @@ function M.step(job)
     listStep(job)
   elseif job.phase == "copy" then
     copyStep(job)
+  elseif job.phase == "clean" then
+    cleanStep(job)
   else
     verifyStep(job)
   end

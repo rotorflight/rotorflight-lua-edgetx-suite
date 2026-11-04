@@ -491,10 +491,13 @@ function Precompile.movedTheData()
   return state ~= nil and state.move ~= nil and state.move.moved == true
 end
 
--- True while the move runs with the connection held. The tool drives the flight controller from its
--- start screen, and what that writes now would miss the copy.
+-- True while the move runs with the connection held, and after it until the restart. The tool drives
+-- the flight controller from its start screen, and what that writes now would miss the copy.
 function Precompile.holdsConnectionForMove()
-  return state ~= nil and not state.finished and state.move ~= nil and not state.move.background
+  if state == nil or state.move == nil or state.move.background then
+    return false
+  end
+  return not state.finished or state.move.moved == true
 end
 
 -- True for a pass that only retries the move after a failed attempt: it runs on, and the

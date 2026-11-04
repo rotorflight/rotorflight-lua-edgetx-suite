@@ -100,13 +100,14 @@ local function install(card)
   end
   io.close = function() end
   io.read = function(f, n)
-    local data = card.files[f.path]
+    local data = card.files[f.path] or ""   -- another state took the file away under this handle
     local chunk = string.sub(data, f.pos, f.pos + n - 1)
     f.pos = f.pos + #chunk
     return chunk
   end
   io.write = function(f, text)
     if card.garble and f.path == card.garble then text = string.upper(text) end
+    if card.files[f.path] == nil then return f end   -- another state took the file away under this handle
     card.files[f.path] = card.files[f.path] .. text
     return f
   end
@@ -158,6 +159,7 @@ local function oldCard()
   card.put(OLD .. "/3b0049.inflight.lua", "baseline")
   card.put(OLD .. "/model_name_restore.lua", "names")
   card.put(OLD .. "/flightlog/flights.csv", BIG)
+  card.put(OLD .. "/flightlog/batteries.cfg.new", "cut short")
   card.put(OLD .. "/flightlog/batteries.cfg", "id=1")
   card.put(OLD .. "/dashboard/mine/init.lua", "theme")
   card.put(OLD .. "/dashboard/mine/init.luac", "bytecode")
@@ -213,9 +215,12 @@ do
   expect("old card: bytecode stays behind", card.files[NEW .. "/dashboard/mine/init.luac"] == nil)
   expect("old card: the marker is written", card.files[NEW .. "/moved.txt"] ~= nil)
   expect("old card: the data counts as moved", pre.movedTheData() == true)
+  expect("old card: the connection stays held until the restart", pre.holdsConnectionForMove() == true)
   for path in pairs(card.files) do
-    expect("old card: no .new file is left: " .. path, not string.find(path, ".new", 1, true))
+    expect("old card: no .new file is left: " .. path,
+      string.sub(path, 1, #NEW) ~= NEW or not string.find(path, ".new", 1, true))
   end
+  expect("old card: a save cut short stays behind", card.files[NEW .. "/flightlog/batteries.cfg.new"] == nil)
   expect("old card: the old folder is untouched but for the stamp",
     sameOld(card, before, OLD .. "/precompiled.txt"))
 
@@ -275,6 +280,7 @@ do
   run(pre)
   io.open = realOpenStub
   expect("full card: the pass ends", not pre.isRunning())
+  expect("full card: the connection is free again", pre.holdsConnectionForMove() == false)
   expect("full card: no marker", card.files[NEW .. "/moved.txt"] == nil)
   expect("full card: the failure is noted in the old folder", card.files[OLD .. "/move_failed.txt"] ~= nil)
   expect("full card: the screen is told", rfsuite.paths.moveFailed == true)
@@ -286,6 +292,7 @@ do
   expect("after a failure: a retry runs", retry.startIfStale(nil) == true)
   expect("after a failure: the screen is still told", rfsuite.paths.moveFailed == true)
   expect("after a failure: it does not hold the connection", retry.runsBehindConnection() == true)
+  expect("after a failure: the tool does not hold it either", retry.holdsConnectionForMove() == false)
   local _, _, finished = retry.getProgress()
   expect("after a failure: the tool's start screen does not wait on it", finished == true)
   run(retry)
@@ -295,7 +302,8 @@ do
   expect("retry through: the screen is no longer told", rfsuite.paths.moveFailed == nil)
   expect("retry through: no copy took its name", card.files[NEW .. "/preferences.lua"] == nil)
   for path in pairs(card.files) do
-    expect("retry through: no .new file is left: " .. path, not string.find(path, ".new", 1, true))
+    expect("retry through: no .new file is left: " .. path,
+      string.sub(path, 1, #NEW) ~= NEW or not string.find(path, ".new", 1, true))
   end
 
   -- A tool opened before the restart: a widget of this session is connected and writing to the old
@@ -414,7 +422,33 @@ do
   expect("second state mid read-back: the screen is not told", slowRfsuite.paths.moveFailed == nil)
 end
 
--- 11. A state started again keeps the folder it decided on.
+-- 11. The other state finishes while this one is about to take a file's name.
+do
+  local card = oldCard()
+  install(card)
+  local slow = startState(card)
+  local slowRfsuite = rfsuite
+  slow.startIfStale(nil)
+  while not (card.files[NEW .. "/preferences.lua.new"] ~= nil and slow.getProgress() > 0) and slow.isRunning() do
+    slow.step()
+  end
+  local fast = startState(card)
+  fast.startIfStale(nil)
+  run(fast)
+  local expected = {}
+  for path, data in pairs(card.files) do
+    if string.sub(path, 1, #NEW) == NEW then expected[path] = data end
+  end
+  _G.rfsuite = slowRfsuite
+  run(slow)
+  local same = true
+  for path, data in pairs(expected) do
+    if card.files[path] ~= data then same = false end
+  end
+  expect("late second state: the finished folder stands byte for byte", same)
+end
+
+-- 12. A state started again keeps the folder it decided on.
 do
   local card = oldCard()
   install(card)
