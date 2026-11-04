@@ -1,0 +1,8 @@
+{
+  "id": "dashboard-standby",
+  "name": "Dashboard standby geometry and formatting",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_standby.lua"
+  ],
+  "step": "Check dashboard standby geometry and formatting"
+}

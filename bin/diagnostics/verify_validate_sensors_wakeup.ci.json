@@ -1,0 +1,7 @@
+{
+  "id": "validate-sensors-wakeup",
+  "name": "Validate Sensors wakeup",
+  "commands": [
+    "lua5.3 bin/diagnostics/verify_validate_sensors_wakeup.lua"
+  ]
+}

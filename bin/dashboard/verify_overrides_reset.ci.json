@@ -1,0 +1,8 @@
+{
+  "id": "overrides-reset",
+  "name": "Per-model reset rollback",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_overrides_reset.lua"
+  ],
+  "step": "Check per-model reset rollback"
+}

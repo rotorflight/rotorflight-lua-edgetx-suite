@@ -1,0 +1,7 @@
+{
+  "id": "yge-serial",
+  "name": "YGE serial and U32 packing",
+  "commands": [
+    "lua5.3 bin/esc/verify_yge_serial.lua"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "dashboard-fullscreen-keys",
+  "name": "Dashboard fullscreen keys",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_fullscreen_keys.lua --self-test",
+    "lua5.3 bin/dashboard/verify_fullscreen_keys.lua"
+  ],
+  "step": "Check global and theme key resolution"
+}

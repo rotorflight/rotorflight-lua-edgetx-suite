@@ -1,0 +1,8 @@
+{
+  "id": "theme-reconnect",
+  "name": "Dashboard theme across a reconnect",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_theme_reconnect.lua"
+  ],
+  "step": "Check the dashboard theme across a reconnect"
+}

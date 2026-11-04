@@ -1,0 +1,8 @@
+{
+  "id": "smartfuel-combined-source",
+  "name": "SmartFuel combined source",
+  "commands": [
+    "lua5.3 bin/smartfuel/verify_combined_source.lua"
+  ],
+  "step": "Check the combined source"
+}

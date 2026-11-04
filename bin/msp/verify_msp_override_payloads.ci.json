@@ -1,0 +1,7 @@
+{
+  "id": "msp-override-payloads",
+  "name": "MSP override payloads",
+  "commands": [
+    "lua5.3 bin/msp/verify_msp_override_payloads.lua"
+  ]
+}

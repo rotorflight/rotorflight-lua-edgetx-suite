@@ -232,15 +232,35 @@ whitespace-only diff buries the change a reviewer is looking for.
 
 | Workflow | Trigger | What it produces |
 | --- | --- | --- |
-| `pr.yml` | pull request | The per-locale installation archives as a build check, plus the instruction-budget gate (`bin/accounting/measure.lua --check`), the i18n precompiler test, the documentation-rule check (`bin/docs/verify_documentation_rule.py`), the translation-coverage report (`bin/i18n/check_translations.py`), the resolver self-test (`.vscode/scripts/resolve_i18n_tags.py --self-test`), the release-notes file check and the release-notes rule (`bin/release/verify_release_notes_rule.py`) |
-| `checks.yml` | called by the workflows below | The gates, reusable: the instruction budget, the i18n precompiler test, the resolver self-test, the translation-coverage report, the erase confirmation and the release-notes file check. The **documentation rule is deliberately not one of them** — it can be satisfied by a `Documentation:` line in the pull request body, and a push or a tag has no such body, so running it here would have demanded a `docs/` change from a release tag. It lives in `pr.yml`, the only caller that has a body to offer. `push.yml`, `snapshot.yml` and `release.yml` run this as a `needs:` of the job that builds or publishes, so a red gate stops the release. `pr.yml` does not use it — rewriting the workflow that has been protecting master belongs in its own change — so a gate added to `checks.yml` has to be added to `pr.yml` as well |
+| `pr.yml` | pull request | The gates in `checks.yml`, plus the per-locale installation archives as a build check, the documentation-rule check (`bin/docs/verify_documentation_rule.py`) and the release-notes rule (`bin/release/verify_release_notes_rule.py`), which read the pull request body |
+| `checks.yml` | called by `pr.yml` and the workflows below | The gates, reusable: every test job from its `.ci.json` (see below), the instruction budget (`bin/accounting/measure.lua --check`), the i18n precompiler test, the resolver self-test (`.vscode/scripts/resolve_i18n_tags.py --self-test`), the translation-coverage report (`bin/i18n/check_translations.py`), the menu structure page, the undeclared-globals check and the release-notes file check. The **documentation rule is deliberately not one of them** — it can be satisfied by a `Documentation:` line in the pull request body, and a push or a tag has no such body, so running it here would have demanded a `docs/` change from a release tag. It lives in `pr.yml`, the only caller that has a body to offer. `push.yml`, `snapshot.yml` and `release.yml` run this as a `needs:` of the job that builds or publishes, so a red gate stops the release. |
 | `push.yml` | push | The per-locale installation archives, behind the gates in `checks.yml` |
 | `snapshot.yml` | tag `snapshot/*` | A snapshot release with the per-locale archives, behind the gates; stops first if a release note is still pending under `release-notes/` |
 | `release.yml` | tag `release/*` | A GitHub release, with notes extracted from `Releases.md`, behind the gates; stops first if a release note is still pending under `release-notes/` |
 | `testing.yml` | tag `testing/*` | A raw `src` artifact, then deletes the tag again. Ships no archive and runs no gate |
 | `docs.yml` | pull request or push touching `docs/`, `mkdocs.yml` or `bin/docs/` | The documentation site, built with `mkdocs build --strict`; on master it is published with GitHub Pages |
 
-The dashboard voltage-bounds regression check runs in both `pr.yml` and `checks.yml`:
+A test script is a job of its own by the `<stem>.ci.json` beside it, and a pull request that adds one adds those two files in the
+script's own directory and touches no workflow:
+
+```json
+{
+  "id": "telemetry-saves",
+  "name": "Telemetry page saves",
+  "commands": ["lua5.3 bin/telemetry/verify_save_telemetry_page.lua"]
+}
+```
+
+`id` and `name` are unique, and `name` is what the Actions UI shows. `commands` run in order and stop at the first
+failure; each is the script's own path, optionally with ` --self-test`. `step` and `rationale` are optional. A job
+with steps of another kind is written out in `checks.yml`, or in `pr.yml` if it needs the pull request itself.
+
+The first job, *Find the test jobs*, runs `python bin/ci/test_jobs.py --self-test`, then reads the files and passes
+the jobs on as a matrix. It goes red, and no registered test runs, on a bad file, on fewer jobs than its fixed floor, or on a
+`bin/**/verify_*.lua`, `verify_*.py` or `*_test.lua` that no job runs on any path. A script that is deliberately not a CI job goes
+in `NOT_CI_JOBS` in that file, with the reason.
+
+The dashboard voltage-bounds regression check:
 
 ```sh
 lua5.3 bin/dashboard/verify_voltage_bounds.lua --verbose
@@ -288,7 +308,7 @@ and removes the held mark; each must turn a case red in all three themes. Both P
 put on Theme radio-wide, start on Nothing and can save, reload and clear an explicit Quick menu binding in either scope.
 Controls and preference-card writes are stubbed; native touch delivery is outside this offline check.
 
-The SmartFuel validity check runs in both `pr.yml` and `checks.yml`:
+The SmartFuel validity checks:
 
 ```sh
 lua5.3 bin/smartfuel/verify_invalid_max.lua
@@ -301,7 +321,7 @@ The reader checks exercise the dashboard, home screen and already-built diagnost
 including recovery without a page rebuild. Both checks run offline with desktop Lua 5.3;
 they do not measure radio timing or hardware behavior.
 
-The flight-record absent-source check runs in both `pr.yml` and `checks.yml`:
+The flight-record absent-source check:
 `lua5.3 bin/telemetry/verify_flight_record_absent.lua`. It checks missing and late sensors,
 session reset, the powered gate and the dashboard's armed statistic reader against the real
 modules. Pass `--record <file>` or `--common <file>` to check a pre-fix source with the same

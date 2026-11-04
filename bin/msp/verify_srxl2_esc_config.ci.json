@@ -1,0 +1,7 @@
+{
+  "id": "srxl2-esc-config",
+  "name": "SRXL2 ESC configuration",
+  "commands": [
+    "lua5.3 bin/msp/verify_srxl2_esc_config.lua"
+  ]
+}

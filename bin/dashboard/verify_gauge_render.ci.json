@@ -1,0 +1,8 @@
+{
+  "id": "gauge-render",
+  "name": "Dashboard gauge and tile fields",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_gauge_render.lua"
+  ],
+  "step": "Check gauge statistics, bar labels and tile frames"
+}

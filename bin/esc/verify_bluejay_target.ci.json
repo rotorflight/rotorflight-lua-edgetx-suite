@@ -1,0 +1,7 @@
+{
+  "id": "bluejay-target",
+  "name": "Bluejay ESC target",
+  "commands": [
+    "lua5.3 bin/esc/verify_bluejay_target.lua"
+  ]
+}

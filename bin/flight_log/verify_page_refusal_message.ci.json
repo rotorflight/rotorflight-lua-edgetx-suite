@@ -1,0 +1,7 @@
+{
+  "id": "flight-log-refusal-message",
+  "name": "Flight Log page refusal message",
+  "commands": [
+    "lua5.3 bin/flight_log/verify_page_refusal_message.lua"
+  ]
+}

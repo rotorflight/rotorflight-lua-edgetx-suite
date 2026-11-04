@@ -1,0 +1,7 @@
+{
+  "id": "governor-effective-mode",
+  "name": "Governor effective mode",
+  "commands": [
+    "lua5.3 bin/governor/verify_effective_mode.lua"
+  ]
+}

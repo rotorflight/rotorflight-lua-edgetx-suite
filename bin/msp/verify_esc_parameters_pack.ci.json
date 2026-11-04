@@ -1,0 +1,7 @@
+{
+  "id": "esc-parameters-pack",
+  "name": "ESC parameter byte packing",
+  "commands": [
+    "lua5.3 bin/msp/verify_esc_parameters_pack.lua"
+  ]
+}

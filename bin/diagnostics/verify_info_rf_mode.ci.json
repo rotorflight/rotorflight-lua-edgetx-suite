@@ -1,0 +1,7 @@
+{
+  "id": "info-rf-mode",
+  "name": "Info RF Mode",
+  "commands": [
+    "lua5.3 bin/diagnostics/verify_info_rf_mode.lua"
+  ]
+}

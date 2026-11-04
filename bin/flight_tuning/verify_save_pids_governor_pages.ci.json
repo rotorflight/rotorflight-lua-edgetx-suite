@@ -1,0 +1,7 @@
+{
+  "id": "flight-tuning-pids-governor-saves",
+  "name": "Flight Tuning saves (PIDs, Governor)",
+  "commands": [
+    "lua5.3 bin/flight_tuning/verify_save_pids_governor_pages.lua"
+  ]
+}

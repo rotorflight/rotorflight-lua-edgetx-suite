@@ -1,0 +1,7 @@
+{
+  "id": "msp-version-deps-retry",
+  "name": "MSP version read and a module that does not load",
+  "commands": [
+    "lua5.3 bin/msp/verify_msp_version_deps_retry.lua"
+  ]
+}

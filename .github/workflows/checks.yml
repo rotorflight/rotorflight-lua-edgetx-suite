@@ -4,11 +4,7 @@ name: Gates
 # publish, so a release tag or a direct push to master runs the same gates a pull
 # request does instead of going straight from checkout to artefact.
 #
-# pr.yml still carries its own copy of these jobs. It is the gate that has been
-# protecting master so far, and rewriting it belongs in its own change -- but that
-# does mean a check added here has to be added there too, which is the same
-# "keep in sync" convention that let an untranslated artefact through in the first
-# place. Worth collapsing; not worth doing in the same commit as a fix.
+# pr.yml calls this file too, so a pull request and a tag run one list of gates.
 #
 # No inputs: every gate below measures the tree it is given, so a caller that
 # passes a base and a body was carrying two arguments nothing read. The
@@ -19,14 +15,47 @@ on:
   workflow_call:
 
 jobs:
-  msp-setup-apis:
-    name: MSP setup APIs
+  # The test jobs are not written out here. The first job reads every
+  # bin/**/*.ci.json, checks it, and passes the list on as a matrix, so a new
+  # test adds its own .ci.json and script and leaves this file alone. A bad file,
+  # too few jobs or a test script nothing runs turn it red, and no registered test then runs.
+  test-discover:
+    name: Find the test jobs
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/msp/verify_msp_setup_apis.lua
-      - run: lua5.3 bin/msp/verify_simulator_fixture_lengths.lua
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Prove the reader can go red
+        run: python bin/ci/test_jobs.py --self-test
+
+      - name: Read the test job metadata
+        id: discover
+        run: python bin/ci/test_jobs.py --github-output
+
+  tests:
+    name: ${{ matrix.name }}
+    needs: test-discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.test-discover.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.3
+        run: sudo apt-get update && sudo apt-get install -y lua5.3
+
+      - name: ${{ matrix.step }}
+        run: ${{ matrix.run }}
 
   instruction-budget:
     name: Instruction budget
@@ -77,24 +106,6 @@ jobs:
       - name: In-flight slots that touch the tuning pair in part
         run: lua5.3 bin/dashboard/verify_inflight_foreign_slots.lua
 
-  startup-compile:
-    # The configuration tool compiles the installed suite at start (src/rfsuite/lib/precompile.lua).
-    # This runs the real module on an in-memory card across consecutive starts: a fresh install
-    # without a user folder, a stamp that cannot be written, macOS metadata files beside the
-    # sources and a source that does not compile.
-    name: Start-up compile pass
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Check consecutive starts reuse the compiled suite
-        run: lua5.3 bin/package/verify_precompile.lua
-
   i18n-precompiler:
     name: i18n precompiler
     runs-on: ubuntu-latest
@@ -115,7 +126,14 @@ jobs:
         run: python .vscode/scripts/test_precompile_i18n.py
 
   i18n-resolver:
-    name: i18n resolver exit status
+    # Added because a resolver self-test that only ran in checks.yml reached
+    # master broken: the restore of the read-only case chmod-ed back to
+    # stat.S_IWRITE, which on POSIX leaves the file --w------- with no read
+    # bit, so the self-test's own read-back raised. It passed on Windows,
+    # where the same call only toggles the read-only attribute, and pr.yml did
+    # not run the step -- so the first run on any push was the failing one.
+    # A gate nobody watches on a pull request is not known to be a gate.
+    name: i18n resolver
     runs-on: ubuntu-latest
 
     steps:
@@ -187,187 +205,6 @@ jobs:
       - name: Report the strings a locale build cannot translate
         run: python bin/i18n/check_translations.py
 
-  erase-confirmation:
-    # The quick menu's ERASE BLACKBOX is irreversible and one tap from the flight line. The
-    # row carries a `confirm` and M.run holds its press behind it; this proves the whole path
-    # offline, and its self-test proves the checks go red for a row that erases without asking.
-    # It measures the tree, so it runs on a push or a tag as well as on a pull request -- the
-    # same reason the instruction-budget gate above is in both files.
-    name: Erase confirmation
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Prove the checks can go red
-        run: lua5.3 bin/dashboard/verify_erase_confirm.lua --self-test
-
-      - name: Check the erase asks before it erases
-        run: lua5.3 bin/dashboard/verify_erase_confirm.lua
-
-  esc-wiring-detection:
-    # Setup > ESC & Motors > Telemetry drives the flight controller's wiring trial. This runs
-    # the real page against scripted replies: lifecycle, locking, Cancel, stale replies and a
-    # result left in the flight controller by an earlier run.
-    # It measures the tree, so it runs on a push or a tag as well as on a pull request.
-    name: ESC wiring detection
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Check the wiring detection page lifecycle
-        run: lua5.3 bin/msp/verify_esc_wiring_trial.lua
-
-  dashboard-fullscreen-keys:
-    name: Dashboard fullscreen keys
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Prove the checks can go red
-        run: lua5.3 bin/dashboard/verify_fullscreen_keys.lua --self-test
-
-      - name: Check global and theme key resolution
-        run: lua5.3 bin/dashboard/verify_fullscreen_keys.lua
-
-  dashboard-theme-global-keys:
-    name: Dashboard theme global keys
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Prove the checks can go red
-        run: lua5.3 bin/dashboard/verify_theme_global_keys.lua --self-test
-
-      - name: Check the theme Keys pages against the global keys
-        run: lua5.3 bin/dashboard/verify_theme_global_keys.lua
-
-  dashboard-voltage:
-    name: Dashboard regressions
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Check automatic and saved voltage bounds
-        run: |
-          lua5.3 bin/dashboard/verify_voltage_bounds.lua
-          lua5.3 bin/themes/verify_voltage_save.lua
-          lua5.3 bin/dashboard/verify_offline_theme_settings.lua
-
-      - name: Check the switch to a model's own theme over passes
-        run: lua5.3 bin/dashboard/verify_theme_switch_passes.lua
-
-      - name: Check the dashboard theme across a reconnect
-        run: lua5.3 bin/dashboard/verify_theme_reconnect.lua
-
-      - name: Check that a battery pick does not make its own dashboard reload
-        run: lua5.3 bin/dashboard/verify_battery_pick_own_write.lua
-
-      - name: Check per-model reset rollback
-        run: lua5.3 bin/dashboard/verify_overrides_reset.lua
-
-      - name: Check the battery prompt's registry load per pass
-        run: lua5.3 bin/dashboard/verify_battery_pick_passes.lua
-
-      - name: Check dashboard tile choices and theme key pages
-        run: lua5.3 bin/dashboard/verify_field_choices.lua
-
-      - name: Check gauge statistics, bar labels and tile frames
-        run: lua5.3 bin/dashboard/verify_gauge_render.lua
-
-      - name: Check dashboard standby geometry and formatting
-        run: lua5.3 bin/dashboard/verify_standby.lua
-
-      - name: Check dashboard standby integration
-        run: lua5.3 bin/tests/dashboard_standby_integration_test.lua
-
-      - name: Check who drives the background work with dashboard and service widget
-        run: lua5.3 bin/dashboard/verify_background_driver.lua
-
-      - name: Check shared ELRS configuration reads
-        run: lua5.3 bin/tests/elrs_config_test.lua
-
-      - name: Check ELRS diagnostics ownership gate
-        run: lua5.3 bin/tests/elrs_diagnostics_gate_test.lua
-
-  board-auto-align:
-    # Setup > Alignment drives the flight controller's board auto-alignment. This runs the
-    # real page against scripted replies: lifecycle, locking, stale replies, the signed Save
-    # payload and a result left in the flight controller by an earlier run.
-    # It measures the tree, so it runs on a push or a tag as well as on a pull request.
-    name: Board auto-alignment
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Check the auto-alignment API
-        run: lua5.3 bin/msp/verify_board_auto_align.lua
-
-      - name: Check the auto-alignment page lifecycle
-        run: lua5.3 bin/msp/verify_board_auto_align_page.lua
-
-  smartfuel-validity:
-    name: SmartFuel estimate validity
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Check invalid inputs and recovery
-        run: |
-          lua5.3 bin/smartfuel/verify_invalid_max.lua
-          lua5.3 bin/smartfuel/verify_readers.lua
-
-      - name: Check the combined source
-        run: lua5.3 bin/smartfuel/verify_combined_source.lua
-
-  flight-record-absent-sources:
-    name: Flight record absent sources
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Check absent sources and dashboard statistics
-        run: lua5.3 bin/telemetry/verify_flight_record_absent.lua
-
   release-notes:
     name: Release notes
     runs-on: ubuntu-latest
@@ -389,266 +226,6 @@ jobs:
       - name: Check the pending release notes
         run: python bin/release/collect_release_notes.py --check
 
-  packed-system-state:
-    name: Live packed system state
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - name: Check fields, freshness and negative control
-        run: lua5.3 bin/telemetry/verify_system_state.lua --self-test
-
-  msp-override-payloads:
-    name: MSP override payloads
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/msp/verify_msp_override_payloads.lua
-
-  esc-parameters-pack:
-    name: ESC parameter byte packing
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/msp/verify_esc_parameters_pack.lua
-      - run: lua5.3 bin/msp/verify_esc_readback_after_save.lua
-      - run: lua5.3 bin/msp/verify_srxl2_esc_config.lua
-      - run: lua5.3 bin/ui/verify_confirm_dialog_no_retain.lua
-
-  esc-yge-flag-bit3:
-    name: YGE flags bit 3
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/esc/verify_yge_flag_bit3.lua
-
-  flight-tuning-pids-governor-saves:
-    name: Flight Tuning saves (PIDs, Governor)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_tuning/verify_save_pids_governor_pages.lua
-
-  flight-tuning-rescue-filters-saves:
-    name: Flight Tuning saves (Rescue, Filters)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_tuning/verify_save_rescue_filters_pages.lua
-
-  flight-tuning-rates-saves:
-    name: Flight Tuning saves (Rates)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_tuning/verify_save_rates_pages.lua
-
-  flight-tuning-tail-rotor-saves:
-    name: Flight Tuning saves (Tail Rotor)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_tuning/verify_save_tail_rotor_page.lua
-
-  msp-refused-error:
-    name: MSP refused and silent boards
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/msp/verify_msp_refused_error.lua
-
-  flight-tuning-saves:
-    name: Flight Tuning saves
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_tuning/verify_save_pid_profile_pages.lua
-
-  msp-armed-state:
-    name: MSP armed state
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/msp/verify_msp_armed_state.lua
-      - run: lua5.3 bin/msp/verify_uid_empty_retry.lua
-
-  msp-resend-on-break:
-    name: MSP resend on a broken reply
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/msp/verify_msp_resend_on_break.lua
-
-  diagnostic-logs:
-    name: Diagnostic logs
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/tests/verify_log_runs.lua
-
-  model-template:
-    name: Model template wizard
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/templates/verify_rotorflight_template.lua
-
-  logs-viewer:
-    name: Logs viewer
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/logs/verify_graph_stop.lua
-      - run: lua5.3 bin/logs/verify_logs_page.lua
-
-  tune-advisor-payload:
-    name: Tune Advisor reply decode
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_tuning/verify_tune_advisor_payload.lua
-
-  tune-history:
-    name: Tune Advisor flight history
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_tuning/verify_tune_history.lua
-
-  tune-advisor-gate:
-    name: Tune Advisor requests are sent only to firmware that has the command
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_tuning/verify_tune_advisor_gate.lua
-
-  tune-advisor-apply:
-    name: Tune Advisor Apply
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_tuning/verify_tune_advisor_apply.lua
-
-  flight-log-free-id:
-    name: Flight log pack ids
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/flight_log/verify_free_id.lua
-      - run: lua5.3 bin/flight_log/verify_registry_bak_fallback.lua
-      - run: lua5.3 bin/flight_log/verify_page_refusal_message.lua
-      - run: lua5.3 bin/flight_log/verify_battery_pick_load.lua
-      - run: lua5.3 bin/flight_log/verify_flight_log_cells.lua
-
-  governor-effective-mode:
-    name: Governor effective mode
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/governor/verify_effective_mode.lua
-
-  configuration-pid-loop:
-    name: Configuration PID loop and name
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/setup/verify_configuration_pid_loop.lua
-
-  bluejay-target:
-    name: Bluejay ESC target
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/esc/verify_bluejay_target.lua
-
-  telemetry-saves:
-    name: Telemetry page saves
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/telemetry/verify_save_telemetry_page.lua
-
-  info-rf-mode:
-    name: Info RF Mode
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/diagnostics/verify_info_rf_mode.lua
-
-  elrs-probe-armed:
-    name: ELRS probe while armed
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/diagnostics/verify_elrs_probe_armed.lua
-
-  validate-sensors-wakeup:
-    name: Validate Sensors wakeup
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/diagnostics/verify_validate_sensors_wakeup.lua
-
-  telemetry-sync-slots:
-    name: Telemetry slots after a save
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/telemetry/verify_telemetry_sync_slots.lua
-
-  adjustment-teller-source:
-    name: Adjustment teller from the decoder
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/telemetry/verify_adjustment_teller_source.lua
-
-  teller-playback:
-    name: Adjustment teller plays through the playback module
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/telemetry/verify_teller_playback.lua
-
-  power-saves:
-    name: Power page saves
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/power/verify_save_power_pages.lua
-
   undeclared-globals:
     # luacheck over the shipped tree, scoped to undeclared globals: 111 (setting a non-standard
     # global), 112 (mutating an undefined one) and 113 (reading one). .luacheckrc lists the names
@@ -661,59 +238,4 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua-check
       - run: luacheck --version
       - run: luacheck src --only 111 112 113 --codes
-
-  require-nil-module:
-    name: Module loader and a module that returns nothing
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/core/verify_require_nil_module.lua
-
-  rfsbg-preferences-reload:
-    name: Background decoder re-reads the settings only on a change
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/core/verify_rfsbg_preferences_reload.lua
-
-  msp-compact-framing:
-    name: MSP compact framing
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/msp/verify_msp_compact_framing.lua
-
-  mixer-live-override:
-    name: Mixer live override (Tail and Trims)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/mixer/verify_live_override.lua
-
-  save-notice-text:
-    name: Save notice text
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/ui/verify_save_notice_text.lua
-  telemetry-drain-failed-load:
-    name: Telemetry drain and a module that does not load
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/telemetry/verify_drain_failed_load.lua
-
-  msp-version-deps-retry:
-    name: MSP version read and a module that does not load
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.3
-      - run: lua5.3 bin/msp/verify_msp_version_deps_retry.lua
 

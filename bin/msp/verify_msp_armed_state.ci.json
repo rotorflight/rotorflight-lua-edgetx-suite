@@ -1,0 +1,7 @@
+{
+  "id": "msp-armed-state",
+  "name": "MSP armed state",
+  "commands": [
+    "lua5.3 bin/msp/verify_msp_armed_state.lua"
+  ]
+}

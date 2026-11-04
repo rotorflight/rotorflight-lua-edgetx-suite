@@ -1,0 +1,7 @@
+{
+  "id": "msp-resend-on-break",
+  "name": "MSP resend on a broken reply",
+  "commands": [
+    "lua5.3 bin/msp/verify_msp_resend_on_break.lua"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "flight-log-cells",
+  "name": "Flight log cell columns",
+  "commands": [
+    "lua5.3 bin/flight_log/verify_flight_log_cells.lua"
+  ]
+}

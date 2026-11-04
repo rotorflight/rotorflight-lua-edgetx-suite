@@ -1,0 +1,8 @@
+{
+  "id": "theme-voltage-save",
+  "name": "Theme voltage settings save",
+  "commands": [
+    "lua5.3 bin/themes/verify_voltage_save.lua"
+  ],
+  "step": "Check automatic and saved voltage bounds"
+}

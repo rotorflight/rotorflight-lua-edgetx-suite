@@ -1,0 +1,7 @@
+{
+  "id": "diagnostic-logs",
+  "name": "Diagnostic logs",
+  "commands": [
+    "lua5.3 bin/tests/verify_log_runs.lua"
+  ]
+}

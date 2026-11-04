@@ -1,0 +1,7 @@
+{
+  "id": "tune-history",
+  "name": "Tune Advisor flight history",
+  "commands": [
+    "lua5.3 bin/flight_tuning/verify_tune_history.lua"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "logs-graph-stop",
+  "name": "Logs graph stop",
+  "commands": [
+    "lua5.3 bin/logs/verify_graph_stop.lua"
+  ]
+}

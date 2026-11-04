@@ -1,0 +1,8 @@
+{
+  "id": "dashboard-voltage",
+  "name": "Dashboard voltage bounds",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_voltage_bounds.lua"
+  ],
+  "step": "Check automatic and saved voltage bounds"
+}

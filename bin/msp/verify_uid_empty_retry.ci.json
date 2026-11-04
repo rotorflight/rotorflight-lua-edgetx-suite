@@ -1,0 +1,7 @@
+{
+  "id": "uid-empty-retry",
+  "name": "MSP empty UID retry",
+  "commands": [
+    "lua5.3 bin/msp/verify_uid_empty_retry.lua"
+  ]
+}

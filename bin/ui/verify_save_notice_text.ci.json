@@ -1,0 +1,7 @@
+{
+  "id": "save-notice-text",
+  "name": "Save notice text",
+  "commands": [
+    "lua5.3 bin/ui/verify_save_notice_text.lua"
+  ]
+}

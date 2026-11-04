@@ -1,0 +1,8 @@
+{
+  "id": "theme-save-scope",
+  "name": "Theme settings save scope",
+  "commands": [
+    "lua5.3 bin/themes/verify_save_scope.lua --self-test",
+    "lua5.3 bin/themes/verify_save_scope.lua"
+  ]
+}

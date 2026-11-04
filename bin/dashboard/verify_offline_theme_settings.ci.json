@@ -1,0 +1,8 @@
+{
+  "id": "offline-theme-settings",
+  "name": "Theme settings across a loss of model preferences",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_offline_theme_settings.lua"
+  ],
+  "step": "Check automatic and saved voltage bounds"
+}

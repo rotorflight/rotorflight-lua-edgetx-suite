@@ -1,0 +1,7 @@
+{
+  "id": "telemetry-saves",
+  "name": "Telemetry page saves",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_save_telemetry_page.lua"
+  ]
+}

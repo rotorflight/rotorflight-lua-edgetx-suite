@@ -1,0 +1,7 @@
+{
+  "id": "confirm-dialog-no-retain",
+  "name": "Confirm dialog keeps no callbacks",
+  "commands": [
+    "lua5.3 bin/ui/verify_confirm_dialog_no_retain.lua"
+  ]
+}

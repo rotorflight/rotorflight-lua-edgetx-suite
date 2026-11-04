@@ -1,0 +1,7 @@
+{
+  "id": "msp-compact-framing",
+  "name": "MSP compact framing",
+  "commands": [
+    "lua5.3 bin/msp/verify_msp_compact_framing.lua"
+  ]
+}
