@@ -104,8 +104,8 @@ controller has reported it.
 
 ## The rotary style
 
-*Settings* → *Dashboard* → [*Quick Settings*](../pages/settings/dashboard/quick_menu.md) → *Menu
-style* → *Rotary* draws the widget's menu as two rolling lists instead of buttons. A theme that
+*System* → *Settings* → *General* → *Appearance* → *Menu style* → *Rotary* draws the widget's menu
+as two rolling lists instead of buttons. A theme that
 draws the menu itself, as Urban, Grid and Deck do, keeps its own. The card is what the menu is as
 it comes.
 
@@ -118,7 +118,10 @@ leads to something.
 - **A press** runs the current entry. Where it leads to a choice or a question, the focus moves to
   the right list instead. A press there finishes, and the menu closes.
 - **RTN** returns from the right list to the left; from the left it closes the menu.
-- **A tap on a row** does what turning to it and pressing does. The X closes the menu.
+- **A swipe** rolls the list it starts on, one row for a row's height. A list on the right takes
+  the focus when it is swiped.
+- **A tap on the middle row** is a press. **A tap on any other row** brings it to the middle and
+  runs nothing. The X closes the menu.
 
 ERASE BLACKBOX asks its question in the right list, with the focus on its CANCEL, so a double press
 cannot erase. A battery profile is written as on [its page](#the-battery-profile-page): the header

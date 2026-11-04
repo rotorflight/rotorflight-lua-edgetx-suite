@@ -876,7 +876,7 @@ end
 -- navigation. The runtime calls this ahead of builds and connection splashes, except while the
 -- tool or tuning owns input. Radio-wide choices also work without a theme base; Theme keys
 -- return false there so LVGL can handle them.
-function M.key(widget, event)
+function M.key(widget, event, touch)
   -- The quick menu's rolling style: the wheel's press while the focus is still on the fullscreen
   -- widget, which delivers it here rather than to a button, and RTN's step back to the left list.
   local session = widget._viewStack
@@ -886,6 +886,9 @@ function M.key(widget, event)
     if own ~= nil and own.load ~= nil then
       -- A theme's look has taken the menu over since it was opened.
       session.roll = nil
+    elseif touch ~= nil then
+      local Roll = requireModule("widgets/dashboard/quick_roll.lua")
+      if type(Roll) == "table" and Roll.touch(widget, event, touch) then return true end
     elseif (enter ~= nil and event == enter) or (exitKey ~= nil and event == exitKey) then
       local Roll = requireModule("widgets/dashboard/quick_roll.lua")
       if type(Roll) == "table" then

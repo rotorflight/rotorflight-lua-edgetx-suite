@@ -24,6 +24,7 @@ Always available.
 | Safety & Prompts | Show Disarm Warning on Save/Reload | Warns before a Save or Reload while the model is armed. On as it comes. |
 | Safety & Prompts | Confirm on Reload | Asks before a Reload replaces edits that are not saved. On as it comes. |
 | Appearance | Color scheme | *Light* or *Dark*: the colors of the dashboard's [quick menu](../../dashboard/quick-menu.md) and the pages it opens. *Light* as it comes. |
+| Appearance | Menu style | *Card*: a button for each entry, as it comes. *Rotary*: [two rolling lists](../../dashboard/quick-menu.md#the-rotary-style) for the wheel or a finger. For now this sets the quick menu only, and a theme that draws its own menu keeps it. |
 | Preview | Setup Assistant | Shows the unfinished setup assistant in the menu. It asks once when turned on, because it can write to the flight controller. Off as it comes. |
 | Preview | In-flight tuning | Shows the unfinished [in-flight tuning](../../dashboard/inflight-tuning.md) surface, which changes parameters in flight. It asks once when turned on. Off as it comes. |
 | Development | Developer Tools | Shows the developer pages and tools in the menu. Off as it comes. |
@@ -42,4 +43,4 @@ Always available.
 ## Related
 
 - [Quick menu](../../dashboard/quick-menu.md) — what the color scheme colors.
-- [Quick Settings](dashboard/quick_menu.md) — the menu's style and its entries.
+- [Quick Settings](dashboard/quick_menu.md) — the quick menu's entries.

@@ -1,5 +1,5 @@
 - **The dashboard's quick menu in Rotorflight's colors, with a rotary style, and one layout for every theme (`widgets/dashboard/fullscreen_menu.lua`, `menu_look.lua`, `quick_roll.lua`, `views.lua`, `themes/{urban,grid,deck}/menuview.lua`, `app/pages/settings/general/page.lua`, `app/pages/settings/dashboard/quick_menu/page.lua`, `docs/pages/settings/general.md`)**:
   - The quick menu, the battery picker, the battery profile page and the erase question draw in a light or a dark scheme instead of the radio's theme colors: *Settings* > *General* > *Appearance*, light as it comes.
   - ERASE BLACKBOX shows how full the blackbox is on every theme, not only on Urban, Grid and Deck.
-  - *Settings* > *Dashboard* > *Quick Settings* offers a *Menu style*: *Card*, the buttons as before, or *Rotary*, two rolling lists for the wheel or a tap. A theme that draws its own menu keeps it.
+  - *Settings* > *General* > *Appearance* offers a *Menu style*: *Card*, the buttons as before, or *Rotary*, two rolling lists for the wheel or a finger: a swipe rolls, a tap on the middle row acts. For now this sets the quick menu only, and a theme that draws its own menu keeps it.
   - The menu's layout is in one place: Urban, Grid and Deck hand in their header, button and value row through `ctx.menu(children, entries, style)`, and look as before.

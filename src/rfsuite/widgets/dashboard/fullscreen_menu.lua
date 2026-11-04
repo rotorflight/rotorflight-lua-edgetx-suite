@@ -724,10 +724,7 @@ end
 
 -- Which style the pilot has chosen for the widget's own menu.
 local function menuStyle(widget)
-  if Order == nil then return "card" end
-  local prefs = widget.preferences
-  local dashboard = type(prefs) == "table" and prefs.dashboard or nil
-  return Order.style(type(dashboard) == "table" and dashboard[Order.STYLE_KEY] or nil)
+  return Look and Look.style(widget) or "card"
 end
 
 local function rollModule()

@@ -75,6 +75,15 @@ local function resolve(name)
   return colors
 end
 
+--- The menu style a widget's preferences name, `general.menu_style`: "rotary", else "card". It is
+--- a setting of the suite's and for now only the quick menu reads it.
+function M.style(widget)
+  local prefs = widget and widget.preferences or nil
+  local general = type(prefs) == "table" and prefs.general or nil
+  if type(general) == "table" and general.menu_style == "rotary" then return "rotary" end
+  return "card"
+end
+
 -- The name a stored value stands for.
 function M.scheme(value)
   if type(value) == "string" and SCHEMES[value] ~= nil then return value end

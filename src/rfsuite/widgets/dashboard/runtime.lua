@@ -5114,7 +5114,7 @@ function Runtime.new(zone, options)
       end
       local Views = viewsModule()
       local handled, exited
-      if event ~= 0 and Views then handled, exited = Views.key(self, event) end
+      if event ~= 0 and Views then handled, exited = Views.key(self, event, touchState) end
       if handled then
         -- Zero is an idle fullscreen event. Nil would instead leave fullscreen;
         -- forwarding the handled key would also activate LVGL's focused control.

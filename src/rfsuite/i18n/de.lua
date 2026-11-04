@@ -841,6 +841,10 @@ return {
         help_message = "Modelleinstellungen im Flight Controller, die beim Verbinden am Sender angewendet werden.\nParameter 1 Typ: Keiner, ein Timer oder eine globale Variable; für 2 und 3 gilt dasselbe.\nParameter 1 Wert: Wert für Timer oder globale Variable; für 2 und 3 gilt dasselbe.\nModellparameter synchronisieren: Parameter beim Verbinden anwenden, für alle Modelle dieses Senders.\nModellnamen am Sender setzen: Das Sendermodell nach dem Heli benennen; ab RF 2.3 speichert der Heli diese Wahl, bei älterer Firmware der Sender, für alle seine Modelle."
       },
       settings_general = {
+        menu_style = "Menüstil",
+        menu_style_card = "Karte",
+        menu_style_rotary = "Rotary",
+        help_menu_style = "Karte: ein Button je Eintrag. Rotary: zwei Rollen für Drehrad oder Finger. Vorerst nur für das Schnellmenü; ein Theme mit eigenem Menü behält es.",
         section_appearance = "Darstellung",
         color_scheme = "Farbschema",
         color_scheme_light = "Hell",
@@ -3105,14 +3109,10 @@ return {
         help_tele = "TELE: standardmäßig Schnellmenü. Das Flugbuch erfordert ein nicht scharfgeschaltetes Modell.",
       },
       settings_dashboard_quick_menu = {
-        style = "Menüstil",
-        style_card = "Karte",
-        style_rotary = "Rotary",
-        help_style = "Karte: ein Button je Eintrag. Rotary: zwei Rollen für Drehrad oder Tippen. Ein Theme mit eigenem Menü behält es.",
         help_place = "Der Eintrag an dieser Stelle; der Strich lässt sie frei, ein doppelt gewählter Eintrag zählt an der ersten Stelle.",
         place = "Position %d",
         none = "-",
-        help_message = "Wie das Schnellmenü aussieht und welche Einträge es in welcher Reihenfolge zeigt. Ein Eintrag bleibt verborgen, wo er nicht passt; Akkuprofil ist immer der letzte.",
+        help_message = "Welche Einträge das Schnellmenü zeigt und in welcher Reihenfolge. Ein Eintrag bleibt verborgen, wo er nicht passt; Akkuprofil ist immer der letzte.",
         saved_title = "Gespeichert",
         saved_message = "Schnelleinstellungen gespeichert",
         save_error_title = "Fehler",

@@ -841,6 +841,10 @@ return {
         help_message = "Model settings stored on the flight controller and applied to the radio on connect.\nParameter 1 Type: None, a timer or a global variable; slots 2 and 3 work the same.\nParameter 1 Value: Value for the timer or global variable; slots 2 and 3 work the same.\nSynchronize Model Parameters: Apply parameters on connect, for every model on this radio.\nSet Model Name on the Radio: Rename the radio's model after the craft; from RF 2.3 the craft stores this choice, on older firmware this radio does, for every model."
       },
       settings_general = {
+        menu_style = "Menu style",
+        menu_style_card = "Card",
+        menu_style_rotary = "Rotary",
+        help_menu_style = "Card: a button for each entry. Rotary: two rolling lists for the wheel or a finger. For now this sets the quick menu only; a theme that draws its own menu keeps it.",
         section_appearance = "Appearance",
         color_scheme = "Color scheme",
         color_scheme_light = "Light",
@@ -3077,14 +3081,10 @@ return {
         help_tele = "TELE: Quick menu by default. Flight log requires a disarmed model.",
       },
       settings_dashboard_quick_menu = {
-        style = "Menu style",
-        style_card = "Card",
-        style_rotary = "Rotary",
-        help_style = "Card: a button for each entry. Rotary: two rolling lists for the wheel or a tap. A theme that draws its own menu keeps it.",
         help_place = "The entry in this place; the dash leaves it empty, and an entry chosen twice counts at its first place.",
         place = "Position %d",
         none = "-",
-        help_message = "How the quick menu is drawn, and which entries it shows in which order. An entry still hides where it does not apply; Battery profile is always the last one.",
+        help_message = "Which entries the quick menu shows and in which order. An entry still hides where it does not apply; Battery profile is always the last one.",
         saved_title = "Saved",
         saved_message = "Quick Settings saved",
         save_error_title = "Error",

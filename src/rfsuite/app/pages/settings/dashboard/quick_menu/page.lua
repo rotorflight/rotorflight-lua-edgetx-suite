@@ -62,7 +62,6 @@ end
 -- Read through the same function the widget reads it with, so the page shows what the menu draws.
 local function copyFromPrefs(prefs)
   local dashboard = (type(prefs) == "table" and type(prefs.dashboard) == "table") and prefs.dashboard or {}
-  ui.config.style = Order.style(dashboard[Order.STYLE_KEY])
   local ids = Order.ids(dashboard[Order.KEY])
   for i = 1, #Order.OFFERED do
     ui.config[i] = ids[i] or NONE
@@ -117,8 +116,6 @@ function M.onSave(ctx)
     if id ~= nil and id ~= NONE then ids[#ids + 1] = id end
   end
   ctx.preferences.dashboard[Order.KEY] = Order.encode(ids)
-  -- The card is the default, so a radio that keeps it carries no key.
-  ctx.preferences.dashboard[Order.STYLE_KEY] = (ui.config.style == "rotary") and "rotary" or nil
 
   local ok, err = ctx.savePreferences()
   if ok then
@@ -148,18 +145,6 @@ function M.build(ctx)
   local cursorY = ctx.y
 
   ui.runtime.setRequestRebuild(ctx.requestRebuild)
-
-  cursorY = cursorY + Controls.appendComboSelect(
-    children, x, cursorY, w,
-    t(i18n, "style", "Menu style"),
-    {
-      { value = "card", label = t(i18n, "style_card", "Card") },
-      { value = "rotary", label = t(i18n, "style_rotary", "Rotary") },
-    },
-    ui.config.style,
-    ui.runtime.getValueSetter("style"),
-    { helpText = t(i18n, "help_style", "Card: a button for each entry. Rotary: two rolling lists for the wheel or a tap. A theme that draws its own menu keeps it.") }
-  )
 
   local options = placeOptions(i18n)
   local placeFmt = t(i18n, "place", "Position %d")

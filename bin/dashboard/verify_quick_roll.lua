@@ -31,6 +31,7 @@ for name, value in pairs({
   MIDSIZE = 1, SMLSIZE = 2, CENTER = 1, LEFT = 0, RIGHT = 2, DARKGREY = 3, RED = 4, WHITE = 5, BLACK = 0, BLUE = 6,
   COLOR_THEME_PRIMARY1 = 11, COLOR_THEME_PRIMARY3 = 13, COLOR_THEME_SECONDARY1 = 14, COLOR_THEME_DISABLED = 17,
   EVT_VIRTUAL_ENTER = 101, EVT_VIRTUAL_EXIT = 102,
+  EVT_TOUCH_FIRST = 111, EVT_TOUCH_SLIDE = 112, EVT_TOUCH_BREAK = 113, EVT_TOUCH_TAP = 114,
 }) do
   _G[name] = value
 end
@@ -92,7 +93,7 @@ local function newWidget(style)
       armed = false, connectionReady = true, batteryProfile = 2,
       battery_config = { batteryCapacity_0 = 2000, batteryCapacity_1 = 3000, batteryCapacity_2 = 4000 },
     },
-    preferences = { general = {}, dashboard = { quick_menu_style = style } },
+    preferences = { general = { menu_style = style }, dashboard = {} },
   }
 end
 
@@ -151,17 +152,10 @@ local function run(mutate)
     check("starts on the first row", r.left == 1)
   end
 
-  -- A slot with no row in it is not there.
+  -- The rows are no buttons: the wheel's walk holds the two ladders and the close box.
   do
     local _, s = open()
-    local shown, hidden = 0, 0
-    for i = 1, #s.buttons do
-      local visible = s.buttons[i].visible
-      if type(visible) == "function" then
-        if visible() then shown = shown + 1 else hidden = hidden + 1 end
-      end
-    end
-    check("on the first row the two slots above it are gone and the two under it are there", shown == 2 and hidden == 2)
+    check("only the close box is a button outside the ladders", #s.buttons == 1)
   end
 
   -- The wheel: both ways, fixed ends, and the sum across the widget's own focus step.
@@ -429,13 +423,63 @@ local function run(mutate)
     check("RTN from the left closes the menu", Views.top(w) == nil)
   end
 
-  -- A tap: what turning there and pressing does.
+  -- The finger.
+  local function touch(w, event, fields) return Views.key(w, event, fields) end
+  local function tap(w, x, y)
+    touch(w, EVT_TOUCH_FIRST, { x = x, y = y - 60 })
+    touch(w, EVT_TOUCH_BREAK, { x = x, y = y - 60 })
+  end
+  local function geoOf(w) return roll(w).geo end
   do
-    local w, s = open()
-    -- Close box first, then the rows above the middle (two), then the rows under it.
-    local under = s.buttons[4]
-    under.press()
-    check("a tap on the row under the middle runs it", toolOpened == 1)
+    local w = open()
+    local r = roll(w)
+    local g = geoOf(w)
+    tap(w, g.leftX + 5, g.slotY(1) + 2)
+    check("a tap on the row under the middle brings it there", r.left == 2)
+    check("and runs nothing", toolOpened == 0 and #adds == 0)
+    scene(Menu, w)
+    tap(w, g.leftX + 5, g.slotY(0) + 2)
+    check("a tap on the middle row is a press", toolOpened == 1)
+  end
+  do
+    local w = open()
+    local r = roll(w)
+    local g = geoOf(w)
+    tap(w, g.leftX + 5, g.slotY(-2) + 2)
+    check("a tap on a free slot does nothing", r.left == 1 and toolOpened == 0)
+  end
+  do
+    -- A swipe: a row's height a row, the finger moving up to the next.
+    local w = open()
+    local r = roll(w)
+    local g = geoOf(w)
+    touch(w, EVT_TOUCH_FIRST, { x = g.leftX + 5, y = g.slotY(1) - 60 })
+    touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -math.floor(g.rowH / 2) })
+    check("half a row moves nothing", r.left == 1)
+    touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -math.floor(g.rowH / 2) - 1 })
+    check("a row's height moves one row", r.left == 2)
+    touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -10 * g.rowH })
+    check("the list ends", r.left == #r.leftList)
+    touch(w, EVT_TOUCH_BREAK, { x = g.leftX + 5, y = 0 })
+    check("a swipe is no tap", toolOpened == 0 and #adds == 0)
+  end
+  do
+    -- On the right: a swipe takes the focus there, and a press writes where it stopped.
+    local w = open()
+    local r = roll(w)
+    local s = scene(Menu, w)
+    detent(s.forward, s.forward.h, 2)
+    s = scene(Menu, w)
+    local g = geoOf(w)
+    check("the preview is up, the focus left", r.side == "left" and r.left == #r.leftList)
+    touch(w, EVT_TOUCH_FIRST, { x = g.rightX + 5, y = g.slotY(0) - 60 })
+    touch(w, EVT_TOUCH_SLIDE, { x = g.rightX + 5, y = 0, slideY = -(g.rowH + 1) })
+    touch(w, EVT_TOUCH_BREAK, { x = g.rightX + 5, y = 0 })
+    check("the swipe took the focus right", r.side == "right")
+    check("and moved one option", r.right == 3)
+    scene(Menu, w)
+    tap(w, g.rightX + 5, g.slotY(0) + 2)
+    check("a tap on its middle writes that one", adds[1] ~= nil and adds[1].payload.batteryProfile == 2)
   end
 
   -- At rest the scene is built again, and the selection stays.
@@ -455,7 +499,7 @@ local function run(mutate)
   do
     local w = open()
     check("the rolling menu has its state", w._viewStack.roll ~= nil)
-    w.preferences.dashboard.quick_menu_style = nil
+    w.preferences.general.menu_style = nil
     scene(Menu, w)
     check("the card ends it", w._viewStack.roll == nil)
     check("and ENTER is not answered for it", Views.key(w, EVT_VIRTUAL_ENTER) ~= true)

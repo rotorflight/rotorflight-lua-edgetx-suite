@@ -10,21 +10,26 @@
 --   press    runs the left entry, or moves the focus right where it has a choice or a question;
 --            on the right it finishes, and the menu closes
 --   RTN      from the right returns left, from the left closes the menu
---   tap      on a row: what turning there and pressing does
+--   finger   a swipe rolls the list it starts on, a row's height a row; a tap on the middle row is
+--            a press, a tap on any other brings it to the middle and runs nothing
 --
 -- The wheel. A Lua widget never receives EVT_ROTARY_*: the encoder moves LVGL's focus along the
 -- scene's focusable objects in creation order, wrapping, and the fullscreen widget itself is one of
--- them. A press is only bound on a button, and no button can leave that walk. So a one-row
--- viewport holds a ladder of buttons, each a row high: a detent moves the focus to the next one,
--- LVGL scrolls it into view, and `scrolled` says where it went. The same mechanism as the in-flight
--- tuning surface (inflight/input.lua), without what that one needs for its value mode.
+-- them. So a small viewport holds a ladder of buttons, each its own height: a detent moves the focus
+-- to the next one, LVGL scrolls it into view, and `scrolled` says where it went. The same mechanism
+-- as the in-flight tuning surface (inflight/input.lua), without what that one needs for its value
+-- mode. The ladders lie under the header, where nothing can touch them.
 --
 -- There are two ladders in the walk, the forward one first and the reverse one last, so that a
--- detent either way from the widget lands in one of them and everything else lies between. A
+-- detent either way from the widget lands in one of them and only the close box lies between. A
 -- detent back onto the widget itself reports nothing: the row shown stays one detent behind until
 -- the next detent, which is counted from the ladder position and so loses nothing in the sum. To
 -- keep the focus off that step while turning back and forth, the scene is built again once the
 -- wheel has rested, which puts the focus back on the widget with the selection kept.
+--
+-- The finger. A button keeps a touch to itself and takes the firmware's border and a place in the
+-- wheel's walk, so the rows are not buttons. One empty box lies over them, which the firmware passes
+-- on: its touches arrive at the widget as events with coordinates, handed here by views.lua.
 
 local M = {}
 
@@ -52,9 +57,12 @@ local function trace(msg)
 end
 
 -- Rows in each ladder. The scene is built again before a ladder runs out, so the walk never reaches
--- the rows and controls between the two; what is left past that absorbs a fast turn.
+-- the close box between the two; what is left past that absorbs a fast turn.
 local LADDER = 12
 local LADDER_MARGIN = 3
+
+-- A ladder's width and row height, hidden under the header.
+local LADDER_SIZE = 16
 
 -- The slots either side of the middle one.
 local REACH = 2
@@ -244,27 +252,123 @@ function M.back(widget)
   return true
 end
 
--- A tap on a row: the row becomes the current one, and it does what a press does. A tap on the
--- list that does not have the focus moves the focus there first.
-local function tapped(widget, side, offset)
-  local roll = rollOf(widget)
-  if roll == nil then return end
-  if side == "left" then
-    local list = roll.leftList
-    local index = roll.left + offset
-    if list == nil or list[index] == nil then return end
-    if roll.side ~= "left" then roll.side, roll.question, roll.questionList = "left", nil, nil end
-    roll.left = index
+-- ---------------------------------------------------------------------------
+-- The finger
+-- ---------------------------------------------------------------------------
+
+-- Which row of which list is at (x, y), by the geometry of the last build: "left" or "right" and
+-- the slot's distance from the middle, or nil.
+local function rowAt(roll, x, y)
+  local geo = roll.geo
+  if geo == nil then return nil end
+  local side
+  if x >= geo.leftX and x < geo.leftX + geo.colW then
+    side = "left"
+  elseif x >= geo.rightX and x < geo.rightX + geo.colW then
+    side = "right"
   else
-    if roll.side ~= "right" then return end
-    local list = rightList(widget, roll)
-    local index = roll.right + offset
-    if list == nil or list[index] == nil then return end
-    roll.right = index
+    return nil
   end
-  -- A touch takes native focus out of the ladder, and a build gives it back.
+  for offset = -REACH, REACH do
+    local top = geo.slotY(offset)
+    if y >= top and y < top + ((offset == 0) and geo.midH or geo.rowH) then return side, offset end
+  end
+  return side, nil
+end
+
+-- The list a touch acts on takes the focus. Answers whether that side has a list to act on.
+local function focusSide(roll, widget, side)
+  if side == roll.side then return true end
+  if side == "left" then
+    roll.side, roll.question, roll.questionList = "left", nil, nil
+    return true
+  end
+  if rightList(widget, roll) == nil then return false end
+  roll.side = "right"
+  return true
+end
+
+-- A tap: on the middle row of the list with the focus it is a press; any other row comes to the
+-- middle of its list, and that list takes the focus, and nothing runs.
+local function tapped(widget, roll, x, y)
+  local side, offset = rowAt(roll, x, y)
+  if side == nil or offset == nil then return end
+  if offset == 0 and side == roll.side then
+    M.press(widget)
+    return
+  end
+  if offset == 0 and side == "right" then
+    -- The preview's middle row is the left entry's choice: as the press on that entry.
+    M.press(widget)
+    return
+  end
+  local index = ((side == "left") and roll.left or roll.right) + offset
+  local list
+  if side == "left" then list = roll.leftList else list = rightList(widget, roll) end
+  if list == nil or list[index] == nil then return end
+  if not focusSide(roll, widget, side) then return end
+  if side == "left" then roll.left = index else roll.right = index end
+  trace("tap " .. side .. " -> " .. tostring(index))
   rebuild(widget, roll)
-  M.press(widget)
+end
+
+-- A row's height of finger is a row: the finger moving up brings the next row to the middle.
+local function swiped(widget, roll, dy)
+  local geo = roll.geo
+  if geo == nil or geo.rowH <= 0 then return end
+  roll.slide = (roll.slide or 0) + dy
+  while roll.slide <= -geo.rowH or roll.slide >= geo.rowH do
+    local delta = (roll.slide < 0) and 1 or -1
+    roll.slide = roll.slide + delta * geo.rowH
+    if roll.side == "left" then
+      local before = roll.left
+      roll.left = clamp(before + delta, roll.leftList and #roll.leftList or 0)
+      trace("left " .. tostring(before) .. " -> " .. tostring(roll.left))
+    else
+      local list = rightList(widget, roll)
+      local before = roll.right
+      roll.right = clamp(before + delta, list and #list or 0)
+      trace("right " .. tostring(before) .. " -> " .. tostring(roll.right))
+    end
+  end
+end
+
+--- A touch event of the firmware's, while this menu is up. Answers true where it is one.
+function M.touch(widget, event, touch)
+  if _G.EVT_TOUCH_FIRST == nil or type(touch) ~= "table" then
+    return false
+  end
+  local roll = rollOf(widget)
+  if roll == nil then return false end
+  if event == _G.EVT_TOUCH_FIRST then
+    -- Relative to the box over the rows, which is what the firmware reports a touch against.
+    local top = roll.geo and roll.geo.touchTop or 0
+    roll.touchX, roll.touchY = touch.x, (touch.y or 0) + top
+    roll.slide, roll.sliding, roll.sideBefore = 0, false, roll.side
+    return true
+  end
+  if event == _G.EVT_TOUCH_SLIDE then
+    if not roll.sliding then
+      roll.sliding = true
+      local side = rowAt(roll, roll.touchX or 0, roll.touchY or 0)
+      if side ~= nil then focusSide(roll, widget, side) end
+    end
+    swiped(widget, roll, touch.slideY or 0)
+    return true
+  end
+  if event == _G.EVT_TOUCH_BREAK then
+    if roll.sliding then
+      -- The focus's outline is drawn with the scene.
+      roll.sliding = false
+      if roll.side ~= roll.sideBefore then rebuild(widget, roll) end
+    elseif roll.touchX ~= nil then
+      local x, y = roll.touchX, roll.touchY
+      roll.touchX, roll.touchY = nil, nil
+      tapped(widget, roll, x, y)
+    end
+    return true
+  end
+  return event == _G.EVT_TOUCH_TAP
 end
 
 -- ---------------------------------------------------------------------------
@@ -330,7 +434,7 @@ function M.renderKey(widget)
   local session = widget._viewStack
   local roll = session and session.roll or nil
   if roll == nil then return "" end
-  if roll.steppedAt ~= nil and getTime() - roll.steppedAt >= REST_TICKS then
+  if roll.steppedAt ~= nil and not roll.sliding and getTime() - roll.steppedAt >= REST_TICKS then
     roll.epoch = roll.epoch + 1
     roll.steppedAt = nil
   end
@@ -486,25 +590,31 @@ function M.build(children, widget, entries, colors, t)
     return midY + midH + gap + (offset - 1) * (rowH + gap)
   end
 
-  -- The right list's preview has no button under its middle row: nothing there can be pressed yet.
-  if roll.side == "left" and rightList(widget, roll) ~= nil then
-    children[#children + 1] = { type = "rectangle", x = rightX, y = midY, w = colW, h = midH, color = colors.off, filled = true, rounded = radius }
+  -- The middle rows' surfaces: the one with the focus, and the other list's where it has a row.
+  local function surface(x, color)
+    children[#children + 1] = { type = "rectangle", x = x, y = midY, w = colW, h = midH, color = color, filled = true, rounded = radius }
   end
+  surface(activeX, colors.fill)
+  if roll.side == "right" then
+    surface(leftX, colors.off)
+  elseif rightList(widget, roll) ~= nil then
+    surface(rightX, colors.off)
+  end
+  children[#children + 1] = { type = "rectangle", x = activeX, y = midY, w = colW, h = midH, color = colors.accent,
+    thickness = thickness, rounded = radius }
 
   children[#children + 1] = { type = "rectangle", x = pad + colW + math.floor(pad / 2), y = top, w = 1, h = bottom - top,
     color = colors.rule, filled = true }
 
+  roll.geo = { leftX = leftX, rightX = rightX, colW = colW, midH = midH, rowH = rowH, slotY = slotY, touchTop = headH }
+
   local windows = {}
 
-  -- In the walk: the forward ladder, the header's close box, the rows a finger taps, the reverse
-  -- ladder. Everything a pilot reads is created after the ladders, which puts it over them.
-  viewport(widget, roll, windows, "forward", "reverse", children, activeX, midY, colW, midH, colors.fill, radius)
+  -- In the walk: the forward ladder, the header's close box, the reverse ladder. Both ladders lie in
+  -- the header's corner and under it: the wheel needs them, and nothing should see or touch them.
+  viewport(widget, roll, windows, "forward", "reverse", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0)
 
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = headH, color = colors.head, filled = true }
-  children[#children + 1] = {
-    type = "label", x = pad, y = math.floor((headH - midH_) / 2), w = math.floor(W / 2), font = large and MIDSIZE or nearFont,
-    text = t("widgets.dashboard.quick_settings", "QUICK SETTINGS"), color = colors.headText, align = LEFT,
-  }
   local closeX, closeY = W - closeSize - pad, math.floor((headH - closeSize) / 2)
   children[#children + 1] = {
     type = "button", x = closeX, y = closeY, w = closeSize, h = closeSize, color = colors.close, cornerRadius = radius,
@@ -512,35 +622,12 @@ function M.build(children, widget, entries, colors, t)
     press = function() Views.navigate(widget, "done") end,
   }
 
-  -- A press needs a button, and a button keeps the firmware's border whatever colour it is given. These
-  -- rows are a list and not a set of buttons, so the button lies under one thick line in the background
-  -- colour: a line is created not clickable, so it hides the button without taking its press.
-  local function tapRow(side, colX, offset)
-    local h = (offset == 0) and midH or rowH
-    local y = slotY(offset)
-    children[#children + 1] = {
-      type = "button", x = colX, y = y, w = colW, h = h, borderPad = 0, text = "", cornerRadius = radius,
-      color = (offset == 0) and colors.off or colors.bg,
-      press = function() tapped(widget, side, offset) end,
-      -- A slot with no row in it stays empty, and out of the wheel's walk as well.
-      visible = function() return itemAt(roll, side, offset, widget) ~= nil end,
-    }
-    if offset ~= 0 then
-      children[#children + 1] = {
-        type = "line", x = 0, y = 0, w = 0, h = 0, color = colors.bg, thickness = h + 2,
-        pts = { { colX - 1, y + math.floor(h / 2) }, { colX + colW + 1, y + math.floor(h / 2) } },
-      }
-    end
-  end
-  for offset = -REACH, REACH do
-    if offset ~= 0 or roll.side ~= "left" then tapRow("left", leftX, offset) end
-    if roll.side == "right" and offset ~= 0 then tapRow("right", rightX, offset) end
-  end
-
-  viewport(widget, roll, windows, "reverse", "forward", children, activeX, midY, colW, midH, colors.fill, radius)
-
-  -- The row with the focus has the blue outline, in lines: a rectangle over a button takes its press.
-  Look.outline(children, activeX, midY, colW, midH, colors.accent, thickness)
+  viewport(widget, roll, windows, "reverse", "forward", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0)
+  children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = closeX - pad, h = headH, color = colors.head, filled = true }
+  children[#children + 1] = {
+    type = "label", x = pad, y = math.floor((headH - midH_) / 2), w = math.floor(W / 2), font = large and MIDSIZE or nearFont,
+    text = t("widgets.dashboard.quick_settings", "QUICK SETTINGS"), color = colors.headText, align = LEFT,
+  }
 
   local fillFormat = t("widgets.dashboard.erase_blackbox_confirm_used", "%d%% used")
 
@@ -620,6 +707,9 @@ function M.build(children, widget, entries, colors, t)
       return ""
     end,
   }
+
+  -- Over the rows, empty and not scrolling: every touch there arrives with coordinates against it.
+  children[#children + 1] = { type = "box", x = 0, y = headH, w = W, h = H - headH, borderPad = 0, scrollDir = 0, scrollBar = false, children = {} }
 end
 
 return M

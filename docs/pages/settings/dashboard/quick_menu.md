@@ -20,7 +20,6 @@ Always available.
 
 | Setting | What it does |
 | --- | --- |
-| Menu style | *Card*: a button for each entry, as it comes. *Rotary*: [two rolling lists](../../../dashboard/quick-menu.md#the-rotary-style) for the wheel or a tap. A theme that draws its own menu keeps it. |
 | Position 1 … Position 5 | The entry in that place of the quick menu, counted row by row, left to right. Each row offers every entry that can be placed — *ERASE BLACKBOX*, *IN-FLIGHT TUNING*, *BATTERY*, *MAIN MENU*, *FLIGHT LOG* — and a dash, which leaves the place empty. There is one row per entry, so every entry can be placed. Default: *ERASE BLACKBOX*, *IN-FLIGHT TUNING*, *BATTERY*, *MAIN MENU*; *FLIGHT LOG* is not in it until it is chosen here. |
 
 Empty places are skipped, so the menu has no gaps: a dash in *Position 1* and *BATTERY* in
