@@ -4089,7 +4089,8 @@ function M.run(event, touchState)
       Precompile.stepShared()
     end
 
-    if (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive) and MspRuntime and type(MspRuntime.tick) == "function" then
+    local moveHolds = _G.rfsuite.paths.moveTo and Precompile and Precompile.holdsConnectionForMove()
+    if (not moveHolds) and (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive) and MspRuntime and type(MspRuntime.tick) == "function" then
       if now == 0 or (now - (state.mspLastTick or 0)) >= 5 then
         state.mspLastTick = now
         MspRuntime.tick()

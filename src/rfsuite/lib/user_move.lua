@@ -18,9 +18,12 @@
 -- flown and almost nothing is written, and the marker it writes last is what makes the next start
 -- use the new folder. After a failed attempt the job runs behind a connection that is not held, so
 -- a full card costs no wait on every start; data can change under such a copy, so it only proves
--- that the copy works now and removes the failure note, and the next start copies again with the
--- connection held. The note goes to the old folder and an empty file is enough: on a full card the
--- new folder may not exist, and a directory entry can still fit where no data does.
+-- that the copy works now: no file takes its name, the copies are removed again, and the note then
+-- says so with the clock of this radio session. The start after the next power-up copies with the
+-- connection held, and a tool opened before that restart does not, because a widget of this session
+-- is connected and writing to the old folder. The note goes to the old folder and an empty file is
+-- enough: on a full card the new folder may not exist, and a directory entry can still fit where
+-- no data does.
 --
 -- One unit of work per step: a few directory entries, or one chunk copied or compared. Only the data
 -- named below moves. The debug logs and reload.req are not worth the wait, and anything else in
@@ -82,12 +85,35 @@ local function remove(path)
   if type(del) == "function" then pcall(del, path) end
 end
 
+local function now()
+  return type(getTime) == "function" and getTime() or 0
+end
+
+-- What the failure note says: the clock reading of a retry that went through, or nil. getTime counts
+-- from power-up, so a later reading means the same radio session.
+local function retryPassedAt(path)
+  local f = io.open(path, "r")
+  if not f then return nil end
+  local text = io.read(f, 32)
+  io.close(f)
+  return tonumber(string.match(text or "", "^ok (%d+)"))
+end
+
 local function closeAll(job)
   if job.source then io.close(job.source); job.source = nil end
   if job.target then io.close(job.target); job.target = nil end
 end
 
+local function finishedElsewhere(job)
+  closeAll(job)
+  job.finished = true
+  job.moved = true
+  log("info", "another start has finished the move to %s", job.to)
+end
+
 local function fail(job, reason, path)
+  -- Another Lua state finishing first takes the copies this job was working on: its move stands.
+  if statOf(job.to .. "/" .. MARKER) ~= nil then return finishedElsewhere(job) end
   closeAll(job)
   job.finished = true
   job.failed = true
@@ -109,9 +135,16 @@ local function finish(job)
   closeAll(job)
   job.finished = true
   if job.background then
-    remove(job.from .. "/" .. NOTE)
+    for i = 1, #job.files do
+      remove(job.to .. job.files[i].rel .. ".new")
+    end
+    local f = io.open(job.from .. "/" .. NOTE, "w")
+    if f then
+      io.write(f, "ok " .. tostring(now()) .. "\n")
+      io.close(f)
+    end
     _G.rfsuite.paths.moveFailed = nil
-    log("info", "retry went through; the next start moves the data")
+    log("info", "retry went through; the start after a restart moves the data")
     return
   end
   local path = job.to .. "/" .. MARKER
@@ -127,14 +160,6 @@ local function finish(job)
   remove(job.from .. "/" .. NOTE)
   _G.rfsuite.paths.moveFailed = nil
   log("info", "%d files copied to %s; the next start uses it", #job.files, job.to)
-end
-
--- Another Lua state finished first: its copy stands, and the restart is owed all the same.
-local function finishedElsewhere(job)
-  closeAll(job)
-  job.finished = true
-  job.moved = true
-  log("info", "another start has finished the move to %s", job.to)
 end
 
 -- A few entries of a directory of the old folder per step: each costs an fstat, and a card can hold
@@ -252,7 +277,8 @@ local function verifyStep(job)
   if a == nil or #a == 0 then
     closeAll(job)
     job.index = job.index + 1
-    return install(job, entry)
+    if not job.background then return install(job, entry) end
+    return
   end
   job.done = job.done + #a
 end
@@ -267,10 +293,13 @@ end
 function M.new()
   local paths = _G.rfsuite and _G.rfsuite.paths
   if not paths or not paths.moveTo then return nil end
+  local notePath = paths.user .. "/" .. NOTE
+  local noted = statOf(notePath) ~= nil
+  local passedAt = noted and retryPassedAt(notePath) or nil
   local job = {
     from = paths.user,
     to = paths.moveTo,
-    background = statOf(paths.user .. "/" .. NOTE) ~= nil,
+    background = noted and (passedAt == nil or now() >= passedAt),
     phase = "list",
     dirs = { "" },
     files = {},
@@ -282,7 +311,7 @@ function M.new()
     failed = false,
     moved = false,
   }
-  paths.moveFailed = job.background or nil
+  paths.moveFailed = (job.background and passedAt == nil) or nil
   log("info", "moving the pilot's data from %s to %s%s", job.from, job.to,
     job.background and " behind the connection, after an earlier failure" or "")
   return job

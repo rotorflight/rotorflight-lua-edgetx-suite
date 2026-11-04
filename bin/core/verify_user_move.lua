@@ -124,7 +124,7 @@ end
 local function startState(card, opts)
   opts = opts or {}
   _G.rfsuite = { utils = {}, paths = nil, modules = {} }
-  _G.getTime = nil
+  _G.getTime = function() return card.uptime or 100 end
   _G.loadScript = function(path)
     local rel = string.sub(path, #CORE + 2)
     if card.files[path] and rel ~= "lib/paths.lua" then return function() return {} end end
@@ -280,6 +280,7 @@ do
   expect("full card: the screen is told", rfsuite.paths.moveFailed == true)
   expect("full card: the old folder is untouched but for the stamp", sameOld(card, before, OLD .. "/precompiled.txt"))
 
+  card.uptime = 5000
   local retry = startState(card)
   expect("after a failure: the old folder still counts", rfsuite.paths.user == OLD)
   expect("after a failure: a retry runs", retry.startIfStale(nil) == true)
@@ -289,10 +290,27 @@ do
   expect("after a failure: the tool's start screen does not wait on it", finished == true)
   run(retry)
   expect("retry through: no marker, data could have changed under it", card.files[NEW .. "/moved.txt"] == nil)
-  expect("retry through: the note is gone", card.files[OLD .. "/move_failed.txt"] == nil)
+  expect("retry through: the note says so", string.match(card.files[OLD .. "/move_failed.txt"] or "", "^ok 5000") ~= nil)
   expect("retry through: no restart is asked for", retry.needsRestart() == false)
   expect("retry through: the screen is no longer told", rfsuite.paths.moveFailed == nil)
+  expect("retry through: no copy took its name", card.files[NEW .. "/preferences.lua"] == nil)
+  for path in pairs(card.files) do
+    expect("retry through: no .new file is left: " .. path, not string.find(path, ".new", 1, true))
+  end
 
+  -- A tool opened before the restart: a widget of this session is connected and writing to the old
+  -- folder, so this start must not hold, copy for good or write the marker.
+  card.uptime = 6000
+  local sameSession = startState(card)
+  expect("same session: the old folder still counts", rfsuite.paths.user == OLD)
+  sameSession.startIfStale(nil)
+  expect("same session: it stays behind the connection", sameSession.runsBehindConnection() == true)
+  expect("same session: and tells nobody of a failure", rfsuite.paths.moveFailed == nil)
+  run(sameSession)
+  expect("same session: no marker", card.files[NEW .. "/moved.txt"] == nil)
+
+  -- After a power-up the clock has started again.
+  card.uptime = 100
   local last = startState(card)
   expect("after the retry: the next start holds again", last.startIfStale(nil) == true)
   expect("after the retry: and waits", last.runsBehindConnection() == false)
@@ -378,7 +396,25 @@ do
   expect("two states: no failure is noted", card.files[OLD .. "/move_failed.txt"] == nil)
 end
 
--- 10. A state started again keeps the folder it decided on.
+-- 10. The other state finishes while this one is reading its copies back.
+do
+  local card = oldCard()
+  install(card)
+  local slow = startState(card)
+  local slowRfsuite = rfsuite
+  slow.startIfStale(nil)
+  run(slow, 100000, 40)
+  local fast = startState(card)
+  fast.startIfStale(nil)
+  run(fast)
+  _G.rfsuite = slowRfsuite
+  run(slow)
+  expect("second state mid read-back: asks for the restart", slow.needsRestart() == true)
+  expect("second state mid read-back: reports no failure", card.files[OLD .. "/move_failed.txt"] == nil)
+  expect("second state mid read-back: the screen is not told", slowRfsuite.paths.moveFailed == nil)
+end
+
+-- 11. A state started again keeps the folder it decided on.
 do
   local card = oldCard()
   install(card)
