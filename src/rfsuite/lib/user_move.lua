@@ -16,13 +16,14 @@
 -- that the copy works now and removes the failure note, and the next start copies again with the
 -- connection held.
 --
--- One unit of work per step: a directory listed, or one chunk copied or compared. Only the data
+-- One unit of work per step: a few directory entries, or one chunk copied or compared. Only the data
 -- named below moves. The debug logs and reload.req are not worth the wait, and anything else in
 -- the folder stays with the old folder.
 
 local M = {}
 
 local CHUNK = 2048
+local ENTRIES_PER_STEP = 8
 local MARKER = "moved.txt"
 local NOTE = "move_failed.txt"
 local TAG = "rfsuite.user_move"
@@ -128,25 +129,36 @@ local function finish(job)
   end
 end
 
--- One directory of the old folder: the top level by the lists above, a listed folder whole. Bytecode
--- is left behind, since the radio writes it again beside the copied source.
+-- A few entries of a directory of the old folder per step: each costs an fstat, and a card can hold
+-- many boards or themes. The top level goes by the lists above, a listed folder whole. Bytecode is
+-- left behind, since the radio writes it again beside the copied source.
 local function listStep(job)
-  local rel = table.remove(job.dirs)
-  if rel == nil then
-    job.phase = "copy"
-    job.index = 1
-    job.total = job.bytes * 2
-    log("debug", "%d files, %d bytes to copy", #job.files, job.bytes)
+  local cursor = job.cursor
+  if cursor == nil then
+    local rel = table.remove(job.dirs)
+    if rel == nil then
+      job.phase = "copy"
+      job.index = 1
+      job.total = job.bytes * 2
+      log("debug", "%d files, %d bytes to copy", #job.files, job.bytes)
+      return
+    end
+    makeDir(job.to .. rel)
+    cursor = { rel = rel, names = listNames(job.from .. rel), index = 1 }
+    job.cursor = cursor
+    log("trace", "listing %s: %d entries", job.from .. rel, #cursor.names)
     return
   end
 
-  local fromDir = job.from .. rel
-  makeDir(job.to .. rel)
-  local names = listNames(fromDir)
-  for i = 1, #names do
-    local name = names[i]
-    local path = fromDir .. "/" .. name
-    local info = statOf(path)
+  local rel = cursor.rel
+  for _ = 1, ENTRIES_PER_STEP do
+    local name = cursor.names[cursor.index]
+    if name == nil then
+      job.cursor = nil
+      return
+    end
+    cursor.index = cursor.index + 1
+    local info = statOf(job.from .. rel .. "/" .. name)
     local folder = isFolder(info, name)
     local take
     if rel == "" then
@@ -162,7 +174,6 @@ local function listStep(job)
       job.bytes = job.bytes + size
     end
   end
-  log("trace", "listed %s: %d entries", fromDir, #names)
 end
 
 local function copyStep(job)
