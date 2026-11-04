@@ -1799,6 +1799,8 @@ return function(h)
     check(has("trace","release"),"LOG a release shows at trace")
     w.statusAt=getTime();w:fail("status","timeout")
     check(has("error","status failed: timeout"),"LOG a failure shows at error")
+    w:fail("arming_disable","armed")
+    check(has("warn","arming_disable failed: armed"),"LOG a declined start shows at warn")
     -- A waiting edit's own callback runs when the fresh status refuses it, and without an edit too.
     w=world();settle(w)
     local droppedCalls=0

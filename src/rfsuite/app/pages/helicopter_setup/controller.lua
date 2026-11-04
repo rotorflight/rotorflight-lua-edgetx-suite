@@ -121,7 +121,10 @@ function M.new(runtime, transport, mathModule, labels)
     if dropped then dropped() end
     self.statusFailure = api == "status" or api == "arming_disable"
     self.error = api .. ": " .. tostring(reason)
-    self:log("error", "%s failed: %s", api, reason)
+    -- A refused arming block at entry stops the visit before anything is written, and Retry stands
+    -- ready: the page declines to start, nothing failed. Every other step that fails is an error.
+    local declined = api == "arming_disable" and (reason == "not active" or reason == "armed")
+    self:log(declined and "warn" or "error", "%s failed: %s", api, reason)
     self.message, self.transition = self.L.failed, nil
     self.closing = nil
     if api~="cleanup" then self:release() end
