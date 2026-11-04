@@ -1761,6 +1761,30 @@ return function(h)
     check(not card.rescueFlip(),"W12 no flip shows the levelled helicopter")
     w.rescue.value[2]=1;check(card.rescueFlip(),"W12 flip shows the turn")
   end)
+  case("BENCH.collect-once-per-build",function()
+    q.messages,q.sent={},{}
+    local page=load("app/pages/helicopter_setup/page.lua")
+    local ctx={w=480,h=272,children={},menu={getCurrentMenuId=function() return "helicopter_setup_page" end},
+      requestRebuild=function() end}
+    page.build(ctx)
+    for _=1,1000 do page.wakeup(ctx);h.pump();h.advance(1) end
+    page.build(ctx);page.wakeup(ctx)
+    local real,collects=collectgarbage,0
+    collectgarbage=function(what,...)
+      if what=="collect" then collects=collects+1 end
+      return real(what,...)
+    end
+    for _=1,20 do page.wakeup(ctx);h.pump();h.advance(1) end
+    eq(collects,0,"BENCH passes without a build collect nothing")
+    page.build(ctx);page.wakeup(ctx)
+    eq(collects,1,"BENCH the first pass after a build collects")
+    page.wakeup(ctx);eq(collects,1,"BENCH the next pass does not collect again")
+    collectgarbage=real
+    page.onClose()
+    for _=1,30 do h.measure("cleanup reply",h.pump) end
+    -- This page was torn down from outside, which leaves its recovery marker for the next visit.
+    _G.rfsuite.session.helicopterSetupRecovery=nil
+  end)
   case("BENCH.telemetry-card-names-the-protocol",function()
     local w=world();settle(w);w.step=11
     local c=step(w,"escTelemetry");local row

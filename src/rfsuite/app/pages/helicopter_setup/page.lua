@@ -118,8 +118,18 @@ function M.build(ctx)
       text="@i18n(app.modules.helicopter_setup.loading)@",color=toolText,font=SMLSIZE }
   end
 end
+-- A build replaces the scene, and the old scene's tables and native objects stay allocated until
+-- the collector reaches them. A picture on the next card needs a large block from the same heap,
+-- and the host only collects after its own rebuilds. So the first pass after each build collects,
+-- which is about once per card: paced by the pilot, never per refresh.
+local collectedBuild
 function M.wakeup(ctx)
   if not context then return end
+  if w and w.buildCount ~= collectedBuild then
+    collectedBuild = w.buildCount
+    collectgarbage("collect")
+    if w.logTrace then w:log("trace", "collected after build %s", tostring(collectedBuild)) end
+  end
   if ctx and ctx.requestRebuild then context.requestRebuild = ctx.requestRebuild end
   loadingFraction = w and (w.ready and 1 or 0.2+0.8*(w.progress or 0)/math.max(1,w.loadTotal or 1)) or 0.2*(stage-1)/#deps
   loadingPoints[2][1]=24+math.floor((context.w-48)*math.min(1,loadingFraction))
@@ -200,6 +210,7 @@ function M.onClose()
   end
   modules, stage, w, context, viewJob, scene, sceneInputs, pendingInputs = {}, 1, nil, nil, nil, nil, nil, nil
   loadingScene,loadingFraction,loadingPoints[2][1],historyEntry=nil,0,24,nil
+  collectedBuild=nil
 end
 function M.getHeaderActions() return { save = false, reload = false, help = true } end
 return M
