@@ -39,6 +39,9 @@ A theme's own settings, such as the voltage range its gauges span, are under
   and link telemetry have arrived and the suite has finished its connection tasks, every theme shows
   *Connecting FBL...* with a line saying what it is still waiting for, in place of its preflight
   screen. The line changes without the screen being rebuilt, on this screen and on the standby screen.
+  After an install or an update the suite first prepares its files, and nothing connects until that is
+  done: this screen then reads *Preparing suite* over a progress bar, and the standby screen shows the
+  same bar in its footer. After that it asks for the restart.
 
 When local SmartFuel cannot determine the cell count because the maximum cell voltage is
 missing or invalid, current fuel and estimated consumption become unavailable. The dashboard

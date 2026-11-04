@@ -739,6 +739,25 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
       h = statusH, text = type(statusLine) == "function" and statusLine or tostring(statusLine or ""),
       color = COLOR_THEME_PRIMARY2, font = SMLSIZE },
     }
+    -- The compile pass's bar, on the line's row and clear of its words: see runtime.lua. A micro
+    -- layout has no such row.
+    local progress = info and info.progress
+    if progress then
+      local barX = math.floor(w / 2)
+      local barW = w - barX - contentMargin
+      local barH = math.min(10, statusH)
+      local barY = footerY + statusY + math.floor((statusH - barH) / 2)
+      local fillW = barW - 4
+      children[#children + 1] = { type = "rectangle", x = barX, y = barY, w = barW, h = barH,
+        color = COLOR_THEME_DISABLED, filled = true,
+        visible = function() return progress() ~= nil end }
+      children[#children + 1] = { type = "rectangle", x = barX + 2, y = barY + 2, w = 1, h = barH - 4,
+        color = COLOR_THEME_PRIMARY2, filled = true,
+        visible = function() return progress() ~= nil end,
+        size = function()
+          return math.max(1, math.floor(fillW * math.min(1, progress() or 0) + 0.5)), barH - 4
+        end }
+    end
   end
   for r = 1, #rows do
     local row = rows[r]
