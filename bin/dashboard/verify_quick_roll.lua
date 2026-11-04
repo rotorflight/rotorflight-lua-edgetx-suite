@@ -123,6 +123,7 @@ end
 local function run(mutate)
   local Views, Menu, req = loadWorld(mutate)
   local Roll = req(ROLL)
+  local Look = req("widgets/dashboard/menu_look.lua")
   local function open()
     adds, exits, toolOpened = {}, 0, 0
     local w = newWidget("rotary")
@@ -312,6 +313,31 @@ local function run(mutate)
     check("and the press writes that option", adds[1] ~= nil and adds[1].payload.batteryProfile == 2)
   end
   do
+    -- An entry comes in above the one the pilot is on: the place goes with the entry, not its number.
+    local w, r = toProfile()
+    local s = scene(Menu, w)
+    detent(s.forward, s.forward.h, 1)
+    check("on the third profile", r.right == 3)
+    -- ERASE BLACKBOX leaves the list, so the row's number changes under it.
+    Roll.build({}, w, { Menu.entry(w, "tool") }, Look.colors(w), function(_, f) return f end)
+    check("the row keeps its entry", r.leftList[r.left].id == "battery_profile" and r.left == 2 and r.side == "right")
+    check("and the option its place", r.right == 3)
+  end
+  do
+    -- The row itself goes: its question or choice goes with it.
+    local w, r = toProfile()
+    w.state.battery_config = nil
+    scene(Menu, w)
+    check("no profile row, so back on the left", r.side == "left")
+    local q = open()
+    local rq = roll(q)
+    Roll.press(q)
+    q.connectionReady = false
+    q.state.connectionReady = false
+    scene(Menu, q)
+    check("the link gone, the erase question goes with its row", rq.side == "left" and rq.question == nil)
+  end
+  do
     -- ERASE current: CANCEL is the labelled row above it.
     local w = open()
     local r = roll(w)
@@ -440,7 +466,10 @@ if selfTest then
       return (string.gsub(t, "if sy == window.y then return end\n", ""))
     end },
     { "a build forgets the place on the right", function(t)
-      return (string.gsub(t, "if roll.rightFor == roll.left then\n    roll.rightOptions = optionsOf%(widget, roll.leftList%[roll.left%]%)\n  end", "roll.rightFor, roll.rightOptions = nil, nil"))
+      return (string.gsub(t, "roll.right = indexOfOption%(roll.rightOptions, beforeOption%) or clamp%(roll.right, roll.rightOptions and #roll.rightOptions or 0%)", "roll.right = 1"))
+    end },
+    { "the place goes by the row's number", function(t)
+      return (string.gsub(t, "local found = indexOfEntry%(roll.leftList, before%)", "local found = (before ~= nil and roll.leftList[roll.left] ~= nil) and roll.left or nil"))
     end },
     { "a detent is not summed", function(t)
       return (string.gsub(t, "local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))

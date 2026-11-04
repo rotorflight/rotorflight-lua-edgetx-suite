@@ -385,28 +385,56 @@ local function middleFace(list, large, small, maxW)
   return large
 end
 
+local function indexOfEntry(list, entry)
+  if entry == nil then return nil end
+  for i = 1, #list do
+    if list[i].id == entry.id then return i end
+  end
+  return nil
+end
+
+-- An option is a pack or a profile by its id, and NO BATTERY by its mark.
+local function indexOfOption(list, option)
+  if list == nil or option == nil then return nil end
+  for i = 1, #list do
+    local candidate = list[i]
+    if (option.none == true and candidate.none == true) or (option.id ~= nil and candidate.id == option.id) then return i end
+  end
+  return nil
+end
+
 --- Draw the menu. `entries` is the list the menu was asked to draw.
 function M.build(children, widget, entries, colors, t)
   local roll = rollOf(widget)
   if roll == nil then return end
 
+  -- The scene is built again whenever the wheel rests, and the lists are made afresh with it, for
+  -- what they say about the profile in force. The pilot's place in them goes by what the row IS: an
+  -- entry can come or go above it, and the same number can then be another entry.
+  local before = roll.leftList and roll.leftList[roll.left] or nil
+  local beforeOption = (roll.question == nil and roll.rightOptions ~= nil and roll.rightFor == roll.left)
+    and roll.rightOptions[roll.right] or nil
   roll.leftList = leftList(widget, entries)
-  roll.left = clamp(roll.left, #roll.leftList)
   trace("left list " .. tostring(#roll.leftList))
-  -- The options are made afresh, for what they say about the profile in force, and the place in them
-  -- stays: the scene is built again whenever the wheel rests, and the pilot's choice must survive that.
-  if roll.rightFor == roll.left then
-    roll.rightOptions = optionsOf(widget, roll.leftList[roll.left])
+  local found = indexOfEntry(roll.leftList, before)
+  if found ~= nil then
+    roll.left = found
+    if roll.rightOptions ~= nil and beforeOption ~= nil then
+      roll.rightFor = found
+      roll.rightOptions = optionsOf(widget, roll.leftList[found])
+      roll.right = indexOfOption(roll.rightOptions, beforeOption) or clamp(roll.right, roll.rightOptions and #roll.rightOptions or 0)
+    else
+      roll.rightFor, roll.rightOptions = nil, nil
+    end
+  else
+    -- The row the pilot was on has gone: the model armed, or the link dropped.
+    roll.left = clamp(roll.left, #roll.leftList)
+    roll.side, roll.question, roll.questionList = "left", nil, nil
+    roll.rightFor, roll.rightOptions = nil, nil
   end
   roll.position, roll.steppedAt = 0, nil
-  if roll.side == "right" then
-    local list = rightList(widget, roll)
-    if list == nil then
-      -- What the right list showed has gone: the model armed, or the link dropped.
-      roll.side, roll.question, roll.questionList = "left", nil, nil
-    else
-      roll.right = clamp(roll.right, #list)
-    end
+  if roll.side == "right" and rightList(widget, roll) == nil then
+    roll.side, roll.question, roll.questionList = "left", nil, nil
   end
 
   local W, H = widget.zone.w, widget.zone.h
@@ -559,7 +587,7 @@ function M.build(children, widget, entries, colors, t)
   if roll.question ~= nil then
     local confirm = roll.question.confirm
     children[#children + 1] = {
-      type = "label", x = rightX + pad, y = top, w = colW - 2 * pad, font = farFont, align = LEFT, color = colors.text,
+      type = "label", x = rightX + pad, y = headH + 2, w = colW - 2 * pad, font = farFont, align = LEFT, color = colors.text,
       text = (confirm.message or "") .. ((type(confirm.detail) == "string" and confirm.detail ~= "") and (" " .. confirm.detail) or ""),
     }
   end
