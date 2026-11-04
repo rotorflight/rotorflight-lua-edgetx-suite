@@ -28,6 +28,10 @@ local SCHEMES = {
     panel    = { 255, 255, 255 },
     close    = { 197, 38, 27 },
     onClose  = { 255, 255, 255 },
+    head     = { 30, 33, 36 },
+    headText = { 244, 245, 246 },
+    far      = { 150, 157, 163 },
+    rule     = { 214, 218, 221 },
   },
   dark = {
     bg       = { 16, 18, 19 },
@@ -40,14 +44,18 @@ local SCHEMES = {
     panel    = { 26, 28, 31 },
     close    = { 243, 113, 104 },
     onClose  = { 16, 21, 24 },
+    head     = { 30, 33, 36 },
+    headText = { 244, 245, 246 },
+    far      = { 104, 115, 125 },
+    rule     = { 51, 56, 61 },
   },
 }
 
 -- What a role falls back to on a firmware build without lcd.RGB.
 local function fallback(role)
-  if role == "text" or role == "onAccent" or role == "onClose" then return WHITE end
+  if role == "text" or role == "onAccent" or role == "onClose" or role == "headText" then return WHITE end
   if role == "close" then return COLOR_THEME_SECONDARY1 or RED end
-  if role == "muted" or role == "off" then return COLOR_THEME_DISABLED or DARKGREY end
+  if role == "muted" or role == "off" or role == "far" or role == "rule" then return COLOR_THEME_DISABLED or DARKGREY end
   if role == "accent" then return COLOR_THEME_SECONDARY1 or BLUE end
   if role == "fill" then return COLOR_THEME_PRIMARY1 or BLACK end
   return COLOR_THEME_PRIMARY3 or BLACK

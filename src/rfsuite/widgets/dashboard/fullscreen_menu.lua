@@ -797,13 +797,11 @@ local function ownStyle(widget, t)
   end
   local smallH = isLarge and 16 or 10
 
-  local function background(children)
+  local function header(children)
     children[#children+1] = {
       type = "rectangle", x=dX, y=dY, w=dW, h=dH, color=colors.bg, filled=true
     }
-  end
 
-  local function header(children)
     children[#children+1] = {
       type = "rectangle", x=dX, y=dY, w=dW, h=headerH, color=colors.fill, filled=true
     }
@@ -827,27 +825,14 @@ local function ownStyle(widget, t)
     }
   end
 
-  local function place()
-    return {
-      x = dX + paddingX, w = dW - paddingX * 2, zoneW = dW,
-      top = dY + headerH + contentGap, bottom = dY + dH - gapY,
-      gapX = paddingX, gapY = gapY,
-      -- For a layout other than the raster, which draws the header itself.
-      font = titleFont, small = SMLSIZE, fontH = fontH, smallH = smallH, textOffY = btnTextOffY,
-      large = isLarge,
-      statusX = dX + math.floor(dW / 2), statusW = math.floor(dW / 2) - closeSize - 2 * paddingX,
-      statusY = dY + math.floor((headerH - smallH)/2) + headTextOffY,
-      drawHeader = header,
-    }
-  end
-
   return {
-    background = background,
-    place = place,
     frame = function(children)
-      background(children)
       header(children)
-      return place()
+      return {
+        x = dX + paddingX, w = dW - paddingX * 2, zoneW = dW,
+        top = dY + headerH + contentGap, bottom = dY + dH - gapY,
+        gapX = paddingX, gapY = gapY,
+      }
     end,
     button = function(children, x, y, w, h, name, sub, press)
       children[#children+1] = {
@@ -919,8 +904,7 @@ function M.build(children, widget, entries, style)
         Log.emit("rfsuite.widget", "rotary menu did not load, drawing the card", "warn")
       end
       if Roll then
-        style.background(children)
-        Roll.build(children, widget, entries, style.place(), Look.colors(widget), t)
+        Roll.build(children, widget, entries, Look.colors(widget), t)
         return
       end
     end

@@ -227,11 +227,12 @@ local function run(mutate)
     end
     check("the right list shows the choice before any press", shown)
     check("the one in force is marked", (function()
+      local marked = 0
       for i = 1, #s.children do
         local node = s.children[i]
-        if node.type == "label" and type(node.text) == "function" and node.text() == "* 3000 mAh" then return true end
+        if node.type == "circle" and node.visible() then marked = marked + 1 end
       end
-      return false
+      return marked == 1
     end)())
   end
 

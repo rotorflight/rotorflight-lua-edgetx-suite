@@ -274,26 +274,26 @@ end
 -- One viewport. The forward ladder starts on the spare row above its first button and scrolls
 -- down, the reverse one on the spare row under its last and scrolls up; the detents are then
 -- simply the distance from there, on either side of the widget.
-local function viewport(widget, roll, windows, name, other, children, x, y, w, h, color)
+local function viewport(widget, roll, windows, name, other, children, x, y, w, h)
   local spare = (name == "reverse") and LADDER * h or 0
   local window = { y = spare, spare = spare }
   windows[name] = window
   local rows = {}
   local function press() M.press(widget) end
   if name == "forward" then
-    rows[1] = { type = "rectangle", x = 0, y = 0, w = 1, h = 1, color = color }
+    rows[1] = { type = "rectangle", x = 0, y = 0, w = 1, h = 1, opacity = 0 }
     for i = 1, LADDER do
-      rows[#rows + 1] = { type = "button", x = 0, y = i * h, w = w, h = h, borderPad = 0, text = "", color = color, press = press }
+      rows[#rows + 1] = { type = "button", x = 0, y = i * h, w = w, h = h, borderPad = 0, text = "", opacity = 0, press = press }
     end
   else
     for i = LADDER, 1, -1 do
-      rows[#rows + 1] = { type = "button", x = 0, y = (LADDER - i) * h, w = w, h = h, borderPad = 0, text = "", color = color, press = press }
+      rows[#rows + 1] = { type = "button", x = 0, y = (LADDER - i) * h, w = w, h = h, borderPad = 0, text = "", opacity = 0, press = press }
     end
-    rows[#rows + 1] = { type = "rectangle", x = 0, y = LADDER * h, w = 1, h = 1, color = color }
+    rows[#rows + 1] = { type = "rectangle", x = 0, y = LADDER * h, w = 1, h = 1, opacity = 0 }
   end
   children[#children + 1] = {
     type = "box", x = x, y = y, w = w, h = h, borderPad = 0,
-    scrollDir = (lvgl and lvgl.SCROLL_VER) or 12, scrollBar = false, color = color, children = rows,
+    scrollDir = (lvgl and lvgl.SCROLL_VER) or 12, scrollBar = false, opacity = 0, children = rows,
     scrollTo = function() return 0, window.y end,
     scrolled = function(sx, sy)
       -- Acknowledge the reset below; a programmatic scroll is not a detent.
@@ -338,20 +338,20 @@ function M.renderKey(widget)
 end
 
 -- One row of a list, as text read when it is drawn: the rows do not move, what they say does.
+local function itemAt(roll, side, offset, widget)
+  if side == "left" then
+    local list = roll.leftList
+    return list and list[roll.left + offset] or nil
+  end
+  local list = rightList(widget, roll)
+  return list and list[roll.right + offset] or nil
+end
+
 local function rowText(roll, side, offset, widget)
   return function()
-    local list
-    local index
-    if side == "left" then
-      list, index = roll.leftList, roll.left + offset
-    else
-      list, index = rightList(widget, roll), roll.right + offset
-    end
-    local item = list and list[index] or nil
+    local item = itemAt(roll, side, offset, widget)
     if item == nil then return "" end
-    local text = item.title or item.label or ""
-    if item.current == true then text = "* " .. text end
-    return text
+    return item.title or item.label or ""
   end
 end
 
@@ -360,13 +360,7 @@ local function subText(roll, side, widget, fillFormat)
   -- Asked on every pass the menu is up, and a row's second line only changes with the row.
   local lastItem, lastText = nil, ""
   return function()
-    local item
-    if side == "left" then
-      item = roll.leftList and roll.leftList[roll.left] or nil
-    else
-      local list = rightList(widget, roll)
-      item = list and list[roll.right] or nil
-    end
+    local item = itemAt(roll, side, 0, widget)
     if item == lastItem then return lastText end
     lastItem, lastText = item, ""
     if item == nil then return lastText end
@@ -381,7 +375,7 @@ local function subText(roll, side, widget, fillFormat)
 end
 
 --- Draw the menu. `entries` is the list the menu was asked to draw.
-function M.build(children, widget, entries, frame, colors, t)
+function M.build(children, widget, entries, colors, t)
   local roll = rollOf(widget)
   if roll == nil then return end
 
@@ -400,108 +394,163 @@ function M.build(children, widget, entries, frame, colors, t)
     end
   end
 
-  local fill = colors.fill
-  local x, top, width = frame.x, frame.top, frame.w
-  local gapX, gapY = frame.gapX, frame.gapY
-  local colW = math.floor((width - gapX) / 2)
-  local rightX = x + colW + gapX
+  local W, H = widget.zone.w, widget.zone.h
+  local large = H > 350
+  local headH = large and 60 or 36
+  local pad = large and 14 or 7
+  local gap = large and 6 or 3
+  local closeSize = large and 44 or 28
+  local radius = large and 10 or 7
+  local thickness = large and 3 or 2
+  -- The faces' heights as the firmware lays them out, for placing only.
+  local midFont, nearFont, farFont = MIDSIZE, _G.STDSIZE or 0, SMLSIZE
+  local midH_, nearH, farH = large and 31 or 20, large and 23 or 15, large and 17 or 12
+
+  children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = H, color = colors.bg, filled = true }
+
+  local top, bottom = headH + pad, H - pad
+  local colW = math.floor((W - 3 * pad) / 2)
+  local leftX, rightX = pad, pad + colW + pad
   local slots = 2 * REACH + 1
 
-  -- The rows share the height, the middle one half as tall again as the others.
-  local avail = frame.bottom - top - (slots - 1) * gapY
-  local rowH = math.floor(avail / (slots + 0.5))
+  -- The rows share the height, the middle one taller than the others.
+  local avail = bottom - top - (slots - 1) * gap
+  local rowH = math.floor(avail / (slots - 1 + (large and 1.75 or 1.65)))
   local midH = avail - (slots - 1) * rowH
-  local midY = top + REACH * (rowH + gapY)
-  local activeX = (roll.side == "right") and rightX or x
+  local midY = top + REACH * (rowH + gap)
+  local activeX = (roll.side == "right") and rightX or leftX
 
   local function slotY(offset)
-    if offset < 0 then return midY + offset * (rowH + gapY) end
+    if offset < 0 then return midY + offset * (rowH + gap) end
     if offset == 0 then return midY end
-    return midY + midH + gapY + (offset - 1) * (rowH + gapY)
+    return midY + midH + gap + (offset - 1) * (rowH + gap)
   end
+
+  -- The middle rows' surfaces lie under the buttons, which are not drawn themselves: a button keeps
+  -- the firmware's border and focus colours whatever colour it is given, and these rows are a list.
+  local function surface(x, color)
+    children[#children + 1] = { type = "rectangle", x = x, y = midY, w = colW, h = midH, color = color, filled = true, rounded = radius }
+  end
+  surface(activeX, colors.fill)
+  if roll.side == "right" then
+    surface(leftX, colors.off)
+  elseif rightList(widget, roll) ~= nil then
+    surface(rightX, colors.off)
+  end
+
+  children[#children + 1] = { type = "rectangle", x = pad + colW + math.floor(pad / 2), y = top, w = 1, h = bottom - top,
+    color = colors.rule, filled = true }
 
   local windows = {}
 
   -- In the walk: the forward ladder, the header's close box, the rows a finger taps, the reverse
   -- ladder. Everything a pilot reads is created after the ladders, which puts it over them.
-  viewport(widget, roll, windows, "forward", "reverse", children, activeX, midY, colW, midH, fill)
+  viewport(widget, roll, windows, "forward", "reverse", children, activeX, midY, colW, midH)
 
-  frame.drawHeader(children)
+  children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = headH, color = colors.head, filled = true }
+  children[#children + 1] = {
+    type = "label", x = pad, y = math.floor((headH - midH_) / 2), w = math.floor(W / 2), font = large and MIDSIZE or nearFont,
+    text = t("widgets.dashboard.quick_settings", "QUICK SETTINGS"), color = colors.headText, align = LEFT,
+  }
+  local closeX, closeY = W - closeSize - pad, math.floor((headH - closeSize) / 2)
+  children[#children + 1] = {
+    type = "button", x = closeX, y = closeY, w = closeSize, h = closeSize, color = colors.close, cornerRadius = radius,
+    text = "X", textColor = colors.onClose,
+    press = function() Views.navigate(widget, "done") end,
+  }
 
   local function tapRow(side, colX, offset)
-    local h = (offset == 0) and midH or rowH
     children[#children + 1] = {
-      type = "button", x = colX, y = slotY(offset), w = colW, h = h, borderPad = 0, text = "",
-      color = (offset == 0) and colors.off or colors.bg,
+      type = "button", x = colX, y = slotY(offset), w = colW, h = (offset == 0) and midH or rowH, borderPad = 0, text = "",
+      color = colors.bg, opacity = 0,
       press = function() tapped(widget, side, offset) end,
       -- A slot with no row in it stays empty, and out of the wheel's walk as well.
-      visible = function()
-        if side == "left" then
-          return roll.leftList ~= nil and roll.leftList[roll.left + offset] ~= nil
-        end
-        local list = rightList(widget, roll)
-        return list ~= nil and list[roll.right + offset] ~= nil
-      end,
+      visible = function() return itemAt(roll, side, offset, widget) ~= nil end,
     }
   end
   for offset = -REACH, REACH do
-    if offset ~= 0 or roll.side ~= "left" then tapRow("left", x, offset) end
+    if offset ~= 0 or roll.side ~= "left" then tapRow("left", leftX, offset) end
     if roll.side == "right" and offset ~= 0 then tapRow("right", rightX, offset) end
   end
 
-  viewport(widget, roll, windows, "reverse", "forward", children, activeX, midY, colW, midH, fill)
+  viewport(widget, roll, windows, "reverse", "forward", children, activeX, midY, colW, midH)
 
-  -- The current rows' frames: the blue outline is the row with the focus.
-  Look.outline(children, activeX, midY, colW, midH, colors.accent, 2)
+  -- The row with the focus has the blue outline.
+  children[#children + 1] = { type = "rectangle", x = activeX, y = midY, w = colW, h = midH, color = colors.accent,
+    thickness = thickness, rounded = radius }
 
-  local font, small = frame.font, frame.small
-  local fontH, smallH = frame.fontH, frame.smallH
-  local offY = frame.textOffY
   local fillFormat = t("widgets.dashboard.erase_blackbox_confirm_used", "%d%% used")
 
-  local function label(side, colX, offset)
-    local h = (offset == 0) and midH or rowH
+  local function row(side, colX, offset)
     local isMid = offset == 0
-    local isActive = (side == roll.side)
-    local top2 = slotY(offset) + math.floor((h - fontH) / 2) + offY
-    if isMid then top2 = slotY(offset) + math.floor((h - fontH - smallH) / 2) + offY end
+    local hasFocus = side == roll.side
+    local h = isMid and midH or rowH
+    local font, fontH, color
+    if isMid then
+      font, fontH, color = midFont, midH_, hasFocus and colors.text or colors.muted
+    elseif math.abs(offset) == 1 then
+      font, fontH, color = nearFont, nearH, colors.muted
+    else
+      font, fontH, color = farFont, farH, colors.far
+    end
+    local y = slotY(offset) + math.floor((h - fontH) / 2)
+    if isMid then y = slotY(offset) + math.floor((h - fontH - farH) / 2) end
     children[#children + 1] = {
-      type = "label", x = colX + 4, y = top2, w = colW - 8,
-      text = rowText(roll, side, offset, widget), font = font, align = CENTER,
-      color = (isMid and isActive) and colors.text or colors.muted,
+      type = "label", x = colX + 4, y = y, w = colW - 8, font = font, align = CENTER, color = color,
+      text = rowText(roll, side, offset, widget),
     }
     if isMid then
       children[#children + 1] = {
-        type = "label", x = colX + 4, y = top2 + fontH + (frame.large and 8 or 2), w = colW - 8,
-        text = subText(roll, side, widget, fillFormat), font = small, align = CENTER,
-        color = colors.muted,
+        type = "label", x = colX + 4, y = y + fontH + (large and 4 or 1), w = colW - 8, font = farFont, align = CENTER,
+        color = colors.muted, text = subText(roll, side, widget, fillFormat),
+      }
+    end
+    -- The mark that a left row opens something on the right.
+    if side == "left" then
+      children[#children + 1] = {
+        type = "label", x = colX + colW - pad - 2 * fontH, y = slotY(offset) + math.floor((h - fontH) / 2), w = 2 * fontH,
+        font = font, align = RIGHT, color = (isMid and hasFocus) and colors.accent or color,
+        text = function()
+          local item = itemAt(roll, side, offset, widget)
+          return (item ~= nil and item.view ~= nil) and ">" or ""
+        end,
+      }
+    else
+      -- The option in force.
+      local dot = large and 4 or 3
+      children[#children + 1] = {
+        type = "circle", x = colX + pad + dot, y = slotY(offset) + math.floor(h / 2), radius = dot, color = colors.accent, filled = true,
+        visible = function()
+          local item = itemAt(roll, side, offset, widget)
+          return item ~= nil and item.current == true
+        end,
       }
     end
   end
   for offset = -REACH, REACH do
-    label("left", x, offset)
+    row("left", leftX, offset)
     -- Over the question the rows above its answers carry its wording instead.
-    if roll.question == nil or offset >= 0 then label("right", rightX, offset) end
+    if roll.question == nil or offset >= 0 then row("right", rightX, offset) end
   end
 
   if roll.question ~= nil then
     local confirm = roll.question.confirm
     children[#children + 1] = {
-      type = "label", x = rightX + 4, y = top, w = colW - 8,
-      text = confirm.message or "", font = small, align = LEFT, color = colors.text,
+      type = "label", x = rightX + pad, y = top, w = colW - 2 * pad, font = farFont, align = LEFT, color = colors.text,
+      text = confirm.message or "",
     }
     if type(confirm.detail) == "string" and confirm.detail ~= "" then
       children[#children + 1] = {
-        type = "label", x = rightX + 4, y = midY - smallH - gapY, w = colW - 8,
-        text = confirm.detail, font = small, align = LEFT, color = colors.muted,
+        type = "label", x = rightX + pad, y = midY - farH - gap, w = colW - 2 * pad, font = farFont, align = LEFT,
+        color = colors.muted, text = confirm.detail,
       }
     end
   end
 
-  -- In the header: how a profile's write went, or why nothing could be pressed.
+  -- In the header: how a profile's write went.
   children[#children + 1] = {
-    type = "label", x = frame.statusX, y = frame.statusY, w = frame.statusW, font = small, align = RIGHT,
-    color = colors.text,
+    type = "label", x = math.floor(W / 2), y = math.floor((headH - farH) / 2), w = closeX - pad - math.floor(W / 2),
+    font = farFont, align = RIGHT, color = colors.headText,
     text = function()
       local status = Views.status(widget, "battery_profile")
       if status == "busy" then return t("widgets.dashboard.battery_profile_busy", "SENDING...") end
