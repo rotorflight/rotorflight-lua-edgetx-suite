@@ -14,7 +14,7 @@
     "src/rfsuite/app/pages/helicopter_setup/help.lua": "210bc647674c7bdf88e1ac00cf623c53858bb0721623f089caa1f95465ac2c46",
     "src/rfsuite/app/pages/helicopter_setup/history.lua": "d4743ad45179841643ebc721d88c1ecfa7c113a987f4a476b04e3ce297221633",
     "src/rfsuite/app/pages/helicopter_setup/history_store.lua": "968b6be6187f4dd76ccd3c668faf2bbd9cd1e9a3ec6a121c62a78562f10d9bba",
-    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "153c7d35f6b1a18a8e5363fe1f73dc09fa720500bf469df7dd8040f8393d65b2",
+    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "4959b3f30819b9f252249b9bc870b4c6846b9b27b1963e2321fabccc47e819dc",
     "src/rfsuite/app/pages/helicopter_setup/math.lua": "f125cbdc577a170e8060688d69552d248e5ed6b092852c03139cc2d11d05b1a0",
     "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "b5261edc1dd47c2568fbef2b50c04a82bf8de2158ce38ba9f797fa4d576b3b8f",
     "src/rfsuite/app/pages/helicopter_setup/page.lua": "008c151f29ff959e567b1772026653af1d237a47407bd40ca78180c7d384d7cd",
@@ -30,7 +30,7 @@
     "src/rfsuite/app/pages/helicopter_setup/steps/level.lua": "53410315563fd35a28dbcaa04b9714db46a08bc1ac15cdcd647716290e63a100",
     "src/rfsuite/app/pages/helicopter_setup/steps/modes.lua": "b593074aa71836c6c0cd2a7ac96217d5cbddc2f7e432a987626399e478fbaf47",
     "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "b6d39ef46df09205bc90968705c951be8d0667af68de7922e0c88e79b10ab936",
-    "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "e5b5c50b6811dc55075d3012bc163ddfb33d92274e983e7c021b2980157f8f2e",
+    "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "52e7d3da03542cdb2b30a7f43fab0d39cbc1059a314ee3c0bf6e4d5c95b7e921",
     "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "0360117723d9b60c844989bdee23281d4687e0cc39293529534d67a244c26555",
     "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "25c1645e7bc49c302fdc4534071c150b7deec85f2582c0674174a7323c53334b",
     "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "429995fedc519c6fb9d884be9b7af9ec126218ae46f5f136bf369f7668c13d4c",
@@ -41,13 +41,13 @@
     "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua": "18711c564edace6cf47e0b8887b0dd65ae377b64841e321730a35cd59ce8b8ce",
     "src/rfsuite/app/pages/helicopter_setup/steps/throttle.lua": "477a6a94493f0ef71b1ce5c941f5e0fd6577a881583b891a8b3ce523efd4dd07",
     "src/rfsuite/app/pages/helicopter_setup/transport.lua": "438e85ed5f1492f80876e1c9e94802df596764d258c2fc2486ec0b37db611c89",
-    "src/rfsuite/app/pages/helicopter_setup/view.lua": "a63d421e3f27ff0f6fc3037eed6b6dfa839c2c027ef919c77d18ef3b322ae96c",
+    "src/rfsuite/app/pages/helicopter_setup/view.lua": "40ef3d35a205f819b59a62bd15c9513e15d9bcfcae68ce22f1102441743dd2fa",
     "src/rfsuite/app/pages/helicopter_setup/workflow.lua": "f5a7bbb50dd6ca8d312780fc026603c8c15d39cadaa18891af17e267b6543d12",
     "src/rfsuite/app/pages/setup/esc_motors/throttle/page.lua": "76542a5f84b98f8715c6ed938a463483e76e205912cd70f01555b7cf94fbe5aa",
     "src/rfsuite/app/pages/setup/power/battery/page.lua": "bb94e95ab8cac06d560110554faf9ba0b4ab634abc0eb8bba9fde032a6468949",
     "src/rfsuite/app/pages/setup/power/smartfuel/page.lua": "70eac48cbea056fe6b0644e7d4f980bd2af16f229e16a888330bbcbfcf2a5d5f",
     "src/rfsuite/app/pages/setup/power/sources/page.lua": "ff0846f7298aefacba5e522a01f2945e8111fe94110344dad9e4832c5cbc724e",
-    "src/rfsuite/i18n/en.lua": "b68d39463a2937c486526a16870d227de92aa5f9daf2fd04883a9ca7fafb0b33",
+    "src/rfsuite/i18n/en.lua": "2acb6ef849afdf5bff6d9d768611ad9bb8f16ccd14765f725d34fc13b2f3f75e",
     "src/rfsuite/lib/esc_params.lua": "2a9f2fb0fd6f762ef396ed20da5a48081a5583687bb2803b870a34ca2635eeaf",
     "src/rfsuite/lib/governor_fields.lua": "2c7407a6d75e7b00de9002dbb4be49696a6a3468b2d76013e1998549a2932a3c",
     "src/rfsuite/lib/power_fields.lua": "2204f3bd87281732a784d9aacd45a432d91cd3ab99a7a649c5976192c345c41e",
@@ -11096,6 +11096,132 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua",
               "expression": "input . rate ="
+            },
+            {
+              "kind": "MSP write",
+              "label": "MSP mixer_override",
+              "api": "mixer_override",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
+              "scope": "deferred hold in tick"
+            },
+            {
+              "kind": "MSP write",
+              "label": "MSP mixer_override",
+              "api": "mixer_override",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
+              "scope": "deferred hold in tick"
+            },
+            {
+              "kind": "MSP write",
+              "label": "MSP mixer_override",
+              "api": "mixer_override",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
+              "scope": "deferred hold in tick"
+            },
+            {
+              "kind": "MSP write",
+              "label": "MSP mixer_override",
+              "api": "mixer_override",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
+              "scope": "deferred hold in tick"
+            },
+            {
+              "kind": "MSP write",
+              "label": "MSP mixer_override",
+              "api": "mixer_override",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
+              "scope": "deferred hold in tick"
+            },
+            {
+              "kind": "MSP write",
+              "label": "MSP mixer_override",
+              "api": "mixer_override",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/RebootLater.svelte",
+                "tabs/setup_wizard/SetupWizard.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "{ api = \"mixer\" .. \"_override\" , write = true , override = true , data = d }",
+              "scope": "deferred hold in tick"
             },
             {
               "kind": "MSP write",

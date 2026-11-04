@@ -391,7 +391,13 @@ function M.new(w, ctx, diagrams)
                 return tostring(v)
               end, active = enabled }
           end
-          if r.kind == "pair" then
+          if r.kind == "holdNumber" then
+            -- A hold button and the angle it holds, side by side in one row.
+            local half = math.floor((formW - 8) / 2)
+            button(formX, y, half, r.holdLabel, function() if enabled() and w:usable() then r.press() end end, enabled)
+            all[#all].h = rowControlH
+            numberField(formX + half + 8, formW - half - 8, r)
+          elseif r.kind == "pair" then
             -- Two counts of one gear pair side by side, "a : b".
             local half = math.floor((editW - 12) / 2)
             numberField(formX+formW-editW, half, r.left)

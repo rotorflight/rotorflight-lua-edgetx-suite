@@ -12,12 +12,29 @@ return function(w)
   -- blades along the boom. Its rate goes to roll and pitch alike.
   for _, calibration in ipairs({ {4, L.collective, 1, L.pitchMeasureHint}, {1, L.cyclic, 2, L.pitchMeasureCyclicHint} }) do
     local axis, title, index, hint = calibration[1], calibration[2], calibration[3], calibration[4]
-    cards[#cards + 1] = w:cardDef(title, hint, {
-      w:button(function() return w.holds["mixer"..axis] and w.holds["mixer"..axis].value==750 and L.releaseTest or L.holdNine end, function() w:holdAxes(axis, w.holds["mixer" .. axis] and w.holds["mixer" .. axis].value == 750 and 0 or 750) end),
+    -- Calibration is at 9 degrees; other angles are for checking. The angle is never stored and is
+    -- 9 again on every entry, the FC follows it while held, and release goes back to 0. It stays
+    -- within the stored limit, which is what a stick could command anyway.
+    local limit = math.floor(math.abs(w.data.mixer_input.inputs[axis].max) * 0.12)
+    local function held() return w.pitchHeld == index and w.holds["mixer" .. axis] ~= nil end
+    local function command(tenths) return H.round(tenths * 750 / 90) end
+    local card = w:cardDef(title, hint, {
+      { kind = "holdNumber", label = L.degrees, fullWidth = true, min = -limit, max = limit, divisor = 10,
+        holdLabel = function() return held() and L.releaseTest or L.holdTest end,
+        press = function()
+          if held() then w.pitchHeld = nil; w:holdAxes(axis, 0); return end
+          w.pitchHeld = index
+          w:holdAxes(axis, command(w.pitchAngle or 0))
+        end,
+        get = function() return w.pitchAngle or 0 end,
+        set = function(v)
+          w.pitchAngle = v
+          if held() then w:holdAxes(axis, command(v)) end
+        end },
       { kind = "number", label = L.measuredDegrees, min = 10, max = 300, divisor = 10,
         get = function() return w.pitchMeasured[index] end, set = function(v) w.pitchMeasured[index] = v end },
       w:button(L.apply, function()
-        if not w.holds["mixer"..axis] or w.holds["mixer"..axis].value~=750 then return end
+        if not held() or w.pitchAngle ~= 90 then return end
         local rate = H.calibrated(w.data.mixer_input.inputs[axis].rate, w.pitchMeasured[index] / 10)
         if not rate then return end
         for _, i in ipairs(index == 1 and {4} or {1,2}) do
@@ -26,7 +43,7 @@ return function(w)
         end
         w:touch("mixer_input", false, true); w.pitchMeasured[index] = 90
         w.message = L.calibratedMeasureAgain
-      end),
+      end, function() return held() and w.pitchAngle == 90 end),
       { kind = "number", label = L.ratePercent, min = 200, max = 2000, divisor = 10,
         get = function() return math.abs(w.data.mixer_input.inputs[axis].rate) end,
         set = function(v)
@@ -34,7 +51,12 @@ return function(w)
             local input = w.data.mixer_input.inputs[i]; input.rate = (input.rate < 0 and -1 or 1) * v
           end; w:touch("mixer_input", false, true)
         end }
-    }, function() w:holdAxes(nil, 0) end, "pitch")
+    }, function()
+      w.pitchHeld, w.pitchAngle = nil, math.min(90, limit)
+      w:holdAxes(nil, 0)
+    end, "pitch")
+    if limit < 90 then card.summary, card.summaryColor = L.pitchLimitBelowNine, "warning" end
+    cards[#cards + 1] = card
   end
   local function zero() w:holdAxes(nil, 0) end
   local function limit(axis, label)
