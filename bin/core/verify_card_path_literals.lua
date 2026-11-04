@@ -28,10 +28,27 @@ local function hasLiteral(line)
   return false
 end
 
-local pipe = assert(io.popen("find src -name '*.lua' | sort"))
-local files, hits = 0, 0
-for path in pipe:lines() do
-  files = files + 1
+-- git names the files on every system, where a plain `find` is another program on Windows. A tree
+-- exported without its .git falls back on `find`.
+local function sources()
+  local list = {}
+  for _, command in ipairs({ 'git ls-files "src/*.lua"', "find src -name '*.lua'" }) do
+    local pipe = io.popen(command)
+    if pipe then
+      for path in pipe:lines() do
+        list[#list + 1] = path
+      end
+      pipe:close()
+    end
+    if #list > 0 then break end
+  end
+  return list
+end
+
+local list = sources()
+local files, hits = #list, 0
+for i = 1, files do
+  local path = list[i]
   if not ALLOWED[path] then
     local n = 0
     for line in io.lines(path) do
@@ -43,7 +60,6 @@ for path in pipe:lines() do
     end
   end
 end
-pipe:close()
 
 if files == 0 then
   print("FAIL no source files found: run from the repository root")
