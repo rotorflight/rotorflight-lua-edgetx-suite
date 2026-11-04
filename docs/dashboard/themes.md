@@ -38,7 +38,7 @@ A theme's own settings, such as the voltage range its gauges span, are under
 - **Before the first screen, a connecting screen.** Until the flight controller answers, battery
   and link telemetry have arrived and the suite has finished its connection tasks, every theme shows
   *Connecting FBL...* with a line saying what it is still waiting for, in place of its preflight
-  screen.
+  screen. The line changes without the screen being rebuilt, on this screen and on the standby screen.
 
 When local SmartFuel cannot determine the cell count because the maximum cell voltage is
 missing or invalid, current fuel and estimated consumption become unavailable. The dashboard

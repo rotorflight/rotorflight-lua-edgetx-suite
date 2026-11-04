@@ -1,0 +1,2 @@
+- **A new status line on the dashboard's connection screen no longer rebuilds the screen (`widgets/dashboard`)**:
+  - The splash and the standby screen read the line through their label. A rebuild leaves native memory behind that nothing gets back until the next start, about 200 B per object on the simulator, and the count during *Preparing suite* changes the line once a second.

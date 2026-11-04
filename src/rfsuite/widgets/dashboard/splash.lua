@@ -45,7 +45,7 @@ function Splash.build(zone, statusLine, title)
       x = 0,
       y = lineY,
       w = w,
-      text = tostring(statusLine or "Please wait for telemetry"),
+      text = type(statusLine) == "function" and statusLine or tostring(statusLine or "Please wait for telemetry"),
       align = CENTER,
       color = COLOR_THEME_PRIMARY2,
       font = SMLSIZE

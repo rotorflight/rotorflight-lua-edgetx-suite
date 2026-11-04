@@ -736,7 +736,7 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
       text = fitLine(info and info.text or "", infoWidth, SMLSIZE),
       color = COLOR_THEME_PRIMARY1, font = SMLSIZE },
     { type = "label", x = contentMargin, y = footerY + statusY, w = contentWidth,
-      h = statusH, text = tostring(statusLine or ""),
+      h = statusH, text = type(statusLine) == "function" and statusLine or tostring(statusLine or ""),
       color = COLOR_THEME_PRIMARY2, font = SMLSIZE },
     }
   end
