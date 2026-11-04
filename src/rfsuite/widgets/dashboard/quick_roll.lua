@@ -274,26 +274,26 @@ end
 -- One viewport. The forward ladder starts on the spare row above its first button and scrolls
 -- down, the reverse one on the spare row under its last and scrolls up; the detents are then
 -- simply the distance from there, on either side of the widget.
-local function viewport(widget, roll, windows, name, other, children, x, y, w, h)
+local function viewport(widget, roll, windows, name, other, children, x, y, w, h, color, radius)
   local spare = (name == "reverse") and LADDER * h or 0
   local window = { y = spare, spare = spare }
   windows[name] = window
   local rows = {}
   local function press() M.press(widget) end
   if name == "forward" then
-    rows[1] = { type = "rectangle", x = 0, y = 0, w = 1, h = 1, opacity = 0 }
+    rows[1] = { type = "rectangle", x = 0, y = 0, w = 1, h = 1, color = color }
     for i = 1, LADDER do
-      rows[#rows + 1] = { type = "button", x = 0, y = i * h, w = w, h = h, borderPad = 0, text = "", opacity = 0, press = press }
+      rows[#rows + 1] = { type = "button", x = 0, y = i * h, w = w, h = h, borderPad = 0, text = "", color = color, cornerRadius = radius, press = press }
     end
   else
     for i = LADDER, 1, -1 do
-      rows[#rows + 1] = { type = "button", x = 0, y = (LADDER - i) * h, w = w, h = h, borderPad = 0, text = "", opacity = 0, press = press }
+      rows[#rows + 1] = { type = "button", x = 0, y = (LADDER - i) * h, w = w, h = h, borderPad = 0, text = "", color = color, cornerRadius = radius, press = press }
     end
-    rows[#rows + 1] = { type = "rectangle", x = 0, y = LADDER * h, w = 1, h = 1, opacity = 0 }
+    rows[#rows + 1] = { type = "rectangle", x = 0, y = LADDER * h, w = 1, h = 1, color = color }
   end
   children[#children + 1] = {
     type = "box", x = x, y = y, w = w, h = h, borderPad = 0,
-    scrollDir = (lvgl and lvgl.SCROLL_VER) or 12, scrollBar = false, opacity = 0, children = rows,
+    scrollDir = (lvgl and lvgl.SCROLL_VER) or 12, scrollBar = false, children = rows,
     scrollTo = function() return 0, window.y end,
     scrolled = function(sx, sy)
       -- Acknowledge the reset below; a programmatic scroll is not a detent.
@@ -374,6 +374,17 @@ local function subText(roll, side, widget, fillFormat)
   end
 end
 
+-- The middle row's face for a list: the large one where every name in it fits the width, else the
+-- face under it, the same for the whole list so a row does not change size as it comes to the middle.
+local function middleFace(list, large, small, maxW)
+  if type(list) ~= "table" or not (lcd and type(lcd.sizeText) == "function") then return large end
+  for i = 1, #list do
+    local ok, w = pcall(lcd.sizeText, list[i].title or list[i].label or "", large)
+    if ok and type(w) == "number" and w > maxW then return small end
+  end
+  return large
+end
+
 --- Draw the menu. `entries` is the list the menu was asked to draw.
 function M.build(children, widget, entries, colors, t)
   local roll = rollOf(widget)
@@ -404,7 +415,7 @@ function M.build(children, widget, entries, colors, t)
   local thickness = large and 3 or 2
   -- The faces' heights as the firmware lays them out, for placing only.
   local midFont, nearFont, farFont = MIDSIZE, _G.STDSIZE or 0, SMLSIZE
-  local midH_, nearH, farH = large and 31 or 20, large and 23 or 15, large and 17 or 12
+  local midH_, nearH, farH = large and 31 or 24, large and 23 or 17, large and 17 or 13
 
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = H, color = colors.bg, filled = true }
 
@@ -426,16 +437,9 @@ function M.build(children, widget, entries, colors, t)
     return midY + midH + gap + (offset - 1) * (rowH + gap)
   end
 
-  -- The middle rows' surfaces lie under the buttons, which are not drawn themselves: a button keeps
-  -- the firmware's border and focus colours whatever colour it is given, and these rows are a list.
-  local function surface(x, color)
-    children[#children + 1] = { type = "rectangle", x = x, y = midY, w = colW, h = midH, color = color, filled = true, rounded = radius }
-  end
-  surface(activeX, colors.fill)
-  if roll.side == "right" then
-    surface(leftX, colors.off)
-  elseif rightList(widget, roll) ~= nil then
-    surface(rightX, colors.off)
+  -- The right list's preview has no button under its middle row: nothing there can be pressed yet.
+  if roll.side == "left" and rightList(widget, roll) ~= nil then
+    children[#children + 1] = { type = "rectangle", x = rightX, y = midY, w = colW, h = midH, color = colors.off, filled = true, rounded = radius }
   end
 
   children[#children + 1] = { type = "rectangle", x = pad + colW + math.floor(pad / 2), y = top, w = 1, h = bottom - top,
@@ -445,7 +449,7 @@ function M.build(children, widget, entries, colors, t)
 
   -- In the walk: the forward ladder, the header's close box, the rows a finger taps, the reverse
   -- ladder. Everything a pilot reads is created after the ladders, which puts it over them.
-  viewport(widget, roll, windows, "forward", "reverse", children, activeX, midY, colW, midH)
+  viewport(widget, roll, windows, "forward", "reverse", children, activeX, midY, colW, midH, colors.fill, radius)
 
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = headH, color = colors.head, filled = true }
   children[#children + 1] = {
@@ -459,27 +463,41 @@ function M.build(children, widget, entries, colors, t)
     press = function() Views.navigate(widget, "done") end,
   }
 
+  -- A press needs a button, and a button keeps the firmware's border whatever colour it is given. These
+  -- rows are a list and not a set of buttons, so the button lies under one thick line in the background
+  -- colour: a line is created not clickable, so it hides the button without taking its press.
   local function tapRow(side, colX, offset)
+    local h = (offset == 0) and midH or rowH
+    local y = slotY(offset)
     children[#children + 1] = {
-      type = "button", x = colX, y = slotY(offset), w = colW, h = (offset == 0) and midH or rowH, borderPad = 0, text = "",
-      color = colors.bg, opacity = 0,
+      type = "button", x = colX, y = y, w = colW, h = h, borderPad = 0, text = "", cornerRadius = radius,
+      color = (offset == 0) and colors.off or colors.bg,
       press = function() tapped(widget, side, offset) end,
       -- A slot with no row in it stays empty, and out of the wheel's walk as well.
       visible = function() return itemAt(roll, side, offset, widget) ~= nil end,
     }
+    if offset ~= 0 then
+      children[#children + 1] = {
+        type = "line", x = 0, y = 0, w = 0, h = 0, color = colors.bg, thickness = h + 2,
+        pts = { { colX - 1, y + math.floor(h / 2) }, { colX + colW + 1, y + math.floor(h / 2) } },
+      }
+    end
   end
   for offset = -REACH, REACH do
     if offset ~= 0 or roll.side ~= "left" then tapRow("left", leftX, offset) end
     if roll.side == "right" and offset ~= 0 then tapRow("right", rightX, offset) end
   end
 
-  viewport(widget, roll, windows, "reverse", "forward", children, activeX, midY, colW, midH)
+  viewport(widget, roll, windows, "reverse", "forward", children, activeX, midY, colW, midH, colors.fill, radius)
 
-  -- The row with the focus has the blue outline.
-  children[#children + 1] = { type = "rectangle", x = activeX, y = midY, w = colW, h = midH, color = colors.accent,
-    thickness = thickness, rounded = radius }
+  -- The row with the focus has the blue outline, in lines: a rectangle over a button takes its press.
+  Look.outline(children, activeX, midY, colW, midH, colors.accent, thickness)
 
   local fillFormat = t("widgets.dashboard.erase_blackbox_confirm_used", "%d%% used")
+
+  local markW = 2 * nearH
+  local leftFace = middleFace(roll.leftList, midFont, nearFont, colW - 2 * markW)
+  local rightFace = middleFace(rightList(widget, roll), midFont, nearFont, colW - 2 * markW)
 
   local function row(side, colX, offset)
     local isMid = offset == 0
@@ -487,7 +505,9 @@ function M.build(children, widget, entries, colors, t)
     local h = isMid and midH or rowH
     local font, fontH, color
     if isMid then
-      font, fontH, color = midFont, midH_, hasFocus and colors.text or colors.muted
+      font = (side == "left") and leftFace or rightFace
+      fontH = (font == midFont) and midH_ or nearH
+      color = hasFocus and colors.text or colors.muted
     elseif math.abs(offset) == 1 then
       font, fontH, color = nearFont, nearH, colors.muted
     else
@@ -508,7 +528,7 @@ function M.build(children, widget, entries, colors, t)
     -- The mark that a left row opens something on the right.
     if side == "left" then
       children[#children + 1] = {
-        type = "label", x = colX + colW - pad - 2 * fontH, y = slotY(offset) + math.floor((h - fontH) / 2), w = 2 * fontH,
+        type = "label", x = colX + colW - pad - markW, y = slotY(offset) + math.floor((h - fontH) / 2), w = markW,
         font = font, align = RIGHT, color = (isMid and hasFocus) and colors.accent or color,
         text = function()
           local item = itemAt(roll, side, offset, widget)
