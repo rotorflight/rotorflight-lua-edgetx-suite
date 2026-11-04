@@ -4,7 +4,7 @@ debug.getmetatable("").__index = nil
 local cache, saved, checked = {}, {}, 0
 local function check(ok, message) checked = checked + 1; assert(ok, message) end
 loadScript = function(path)
-  local relative = string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", "")
+  local relative = string.gsub(path, "^/SCRIPTS/RFSUITE/core/", "")
   return assert(loadfile("src/rfsuite/" .. relative))
 end
 rfsuite = { session = { mcu_id = "board", isConnected = true,
@@ -20,7 +20,7 @@ _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 local realLoad = loadScript
 loadScript = function(path)
   if string.find(path, "lib/model_preferences.lua", 1, true) or string.find(path, "lib/env.lua", 1, true) then
-    return function() return rfsuite.require(string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", "")) end
+    return function() return rfsuite.require(string.gsub(path, "^/SCRIPTS/RFSUITE/core/", "")) end
   end
   return realLoad(path)
 end
@@ -79,7 +79,7 @@ Page.onClose()
 -- (the tool hosted in the widget shares its Lua state), and a private one released with the page
 -- otherwise, so the standalone tool keeps nothing of it after closing.
 do
-  local key = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/inflight/setup.lua"
+  local key = "/SCRIPTS/RFSUITE/core/widgets/dashboard/inflight/setup.lua"
   -- This test has a minimal memoizer of its own; the suite's keeps its modules here.
   rfsuite.modules = rfsuite.modules or {}
   local saved = rfsuite.modules[key]
@@ -123,7 +123,7 @@ for _, lang in ipairs({ "en", "de" }) do
     return value
   end
   for _, path in ipairs({ "settings/dashboard/inflight" }) do
-    local help = loadScript("/SCRIPTS/TOOLS/rfsuite-core/app/pages/" .. path .. "/help.lua")()({ i18n = { t = translate } }).message
+    local help = loadScript("/SCRIPTS/RFSUITE/core/app/pages/" .. path .. "/help.lua")()({ i18n = { t = translate } }).message
     local length = utf8.len(help)
     local preview = lang == "de" and "Sichtbar, sobald Einstellungen > Allgemein > Vorschau an ist."
       or "Shown once Settings > General > Preview is on."

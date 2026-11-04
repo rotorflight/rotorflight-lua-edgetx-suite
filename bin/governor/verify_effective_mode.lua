@@ -25,7 +25,7 @@ end
 
 local function installLoader(stubs)
   function loadScript(path)
-    local relative = assert(string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$"), path)
+    local relative = assert(string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$"), path)
     if stubs[relative] then return function() return stubs[relative] end end
     return loadfile(sourceRoot .. relative)
   end

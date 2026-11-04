@@ -135,7 +135,7 @@ do
   -- processReply, and only __errorReply tells it from an answer.
   _G.rfsuite = { paths = dofile("src/rfsuite/lib/paths.lua") }
   _G.loadScript = function(path)
-    local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
     return assert(loadfile("src/rfsuite/" .. relative))
   end
   local Queue = assert(loadfile("src/rfsuite/tasks/msp/queue.lua"))()

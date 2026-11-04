@@ -1,0 +1,7 @@
+{
+  "id": "move-connect-gate",
+  "name": "The connection waits for the move, not for a retry behind it",
+  "commands": [
+    "lua5.3 bin/core/verify_move_connect_gate.lua"
+  ]
+}

@@ -41,7 +41,7 @@ for i = 1, #arg do
 end
 
 local SRC = ROOT .. "/src/rfsuite/"
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = "/SCRIPTS/RFSUITE/core/"
 
 local function readFile(path)
   local f = io.open(path, "rb")

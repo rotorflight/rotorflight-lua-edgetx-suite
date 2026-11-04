@@ -6,7 +6,7 @@ sidebar_label: Configuration files
 # Configuration files
 
 Everything you change in the suite is kept in two files on the radio's SD card, under
-`/SCRIPTS/TOOLS/rfsuite.user/`:
+`/SCRIPTS/RFSUITE/user/`:
 
 | File | What is in it |
 | --- | --- |
@@ -143,6 +143,34 @@ The dashboard widget does not do the migration itself, and that is deliberate: t
 a widget after a fixed amount of work, and reading a settings file in the old format is more
 than that allowance — so a widget that tried would be stopped half way, every time, and never
 finish. The tool and the background decoder are not stopped that way.
+
+### The move to `/SCRIPTS/RFSUITE/`
+
+An earlier release kept these files in `/SCRIPTS/TOOLS/rfsuite.user/` and its program in
+`/SCRIPTS/TOOLS/rfsuite-core/`. If you update by unpacking the archive over your card, the suite
+copies your data over by itself on the first start:
+
+- *Preparing suite* stays on the screen and the connection to the flight controller waits until
+  the copy is through, then the radio asks for a restart. From that start on the new folder counts.
+  Until you restart, the tool closes after that request and opens no page, because what you saved
+  now would go to the old folder.
+- Copied: `preferences`, the file of each flight controller with its in-flight baseline,
+  `model_name_restore`, `precompiled.txt`, and the folders `dashboard`, `flightlog`, `tune`, `journal`
+  and `sim`. Not copied: the debug logs in `logs`, `reload.req`, and any file of your own in that folder.
+- Every file is read back and compared. If you switch off during the copy, the next start copies again.
+- If the copy fails, for instance because the card is full, you keep flying on the old folder. The
+  start screen says *Settings not moved: card full?*, and each start tries again without holding up the
+  connection. Once such a try has gone through, the first start after you switch the radio off and on
+  copies once more and asks for the restart.
+- **The suite never deletes the old folders.** Once you have checked your settings, you can delete
+  `/SCRIPTS/TOOLS/rfsuite-core/` and `/SCRIPTS/TOOLS/rfsuite.user/` yourself. The RFSuite Updater
+  removes the old program folder when it installs.
+- Going back to an earlier release finds the old folder as it was at the move. What you changed
+  there does not come along when you update again.
+- The copy is part of the suite only for a limited time. A card that skips those releases starts
+  with default settings, with its data still in the old folder; copy the files over by hand then.
+- With `precompile = false` in the developer section the copy does not run, and the suite stays on
+  the old folder.
 
 ## The other files beside them
 

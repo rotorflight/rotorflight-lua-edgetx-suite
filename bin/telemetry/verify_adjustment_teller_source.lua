@@ -46,7 +46,7 @@ bit32 = {
   btest = function(a, b) return (a & b) ~= 0 end,
 }
 
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = "/SCRIPTS/RFSUITE/core/"
 local FUNCTIONS = "/SCRIPTS/FUNCTIONS/"
 local TELLER = "tasks/events/telemetry_bg/adjustments.lua"
 local PASS_TICKS = 5          -- 50 ms per pass

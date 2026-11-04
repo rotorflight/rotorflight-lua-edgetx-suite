@@ -62,8 +62,8 @@ local bootWall, ticks, rtcSkew = 1793260000, 0, 0
 function getTime() return ticks end
 function getRtcTime() return bootWall + ticks // 100 + rtcSkew end
 
-local DIR = "/SCRIPTS/TOOLS/rfsuite.user/logs"
-files["/SCRIPTS/TOOLS/rfsuite-core/build.txt"] = "abcdef0123456789-0.2.2\n"
+local DIR = "/SCRIPTS/RFSUITE/user/logs"
+files["/SCRIPTS/RFSUITE/core/build.txt"] = "abcdef0123456789-0.2.2\n"
 
 local function expectedPrefix(wall)
   return os.date("!%Y-%m-%d_%H-%M-%S", wall)

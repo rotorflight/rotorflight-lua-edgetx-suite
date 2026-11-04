@@ -84,7 +84,7 @@ function rename(from, to)
   return 0
 end
 function loadScript(path)
-  local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+  local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
   assert(relative == "lib/atomic_file.lua", "unexpected module: " .. tostring(path))
   return assert(loadfile("src/rfsuite/" .. relative))
 end

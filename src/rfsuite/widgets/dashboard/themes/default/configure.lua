@@ -8,7 +8,7 @@ local DashboardLib = loadModule("app/pages/settings/dashboard/lib.lua")
 local FieldsForm = loadModule("app/pages/settings/dashboard/fields_form.lua")
 
 -- The settings page loads this file for the theme it is configuring and hands that theme
--- to the factory below, so a copy of this theme under rfsuite.user/dashboard stores its
+-- to the factory below, so a copy of this theme under RFSUITE/user/dashboard stores its
 -- values under its own key prefix instead of this one's. The literal is the fallback for
 -- a caller that passes no theme.
 local THEME_PATH = "system/default"

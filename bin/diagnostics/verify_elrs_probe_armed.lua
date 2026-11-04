@@ -115,7 +115,7 @@ local function newHost()
   }
   _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
   loadScript = function(path)
-    local relative = assert(string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$"), path)
+    local relative = assert(string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$"), path)
     if relative == "app/pages/tools/diagnostics/elrs_link/elrslink_task.lua" then
       return function()
         assert(not host.task, "task loaded twice")

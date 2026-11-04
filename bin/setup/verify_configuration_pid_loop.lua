@@ -78,7 +78,7 @@ local function buildPage(delta, denom)
     ["tasks/msp/api/board_info.lua"] = true
   }
   function env.loadScript(path)
-    local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
     if stubs[relative] then return function() return stubs[relative] end end
     if actual[relative] then return assert(loadfile("src/rfsuite/" .. relative, "t", env)) end
     error("unexpected loadScript path: " .. tostring(path))

@@ -44,7 +44,7 @@ end
 _G.rfsuite.utils.loadScriptUncached = originalLoadScript
 
 -- Initialize module require memoizer
-local requireChunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/require.lua", "t")
+local requireChunk = loadScript("/SCRIPTS/RFSUITE/core/lib/require.lua", "t")
 if requireChunk then
   requireChunk()
 end

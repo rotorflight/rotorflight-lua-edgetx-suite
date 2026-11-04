@@ -28,7 +28,7 @@ for i = 1, #arg do
 end
 
 local SRC = ROOT .. "/src/rfsuite/"
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = "/SCRIPTS/RFSUITE/core/"
 local THEMES = { "urban", "grid", "deck" }
 -- The fields an earlier build of the theme Keys pages stored; they must stay as they are and be
 -- read by nothing.

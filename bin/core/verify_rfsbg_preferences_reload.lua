@@ -37,9 +37,9 @@ local function check(ok, label)
   end
 end
 
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = "/SCRIPTS/RFSUITE/core/"
 local FUNCTIONS = "/SCRIPTS/FUNCTIONS/"
-local USER = "/SCRIPTS/TOOLS/rfsuite.user"
+local USER = "/SCRIPTS/RFSUITE/user"
 local PREFS = USER .. "/preferences.lua"
 local LEGACY = USER .. "/preferences.ini"
 

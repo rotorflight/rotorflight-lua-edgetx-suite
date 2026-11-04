@@ -831,7 +831,7 @@ end
 -- pass, which does.
 -- ---------------------------------------------------------------------------
 
-local TOOL_PAGE_ROOT = "/SCRIPTS/TOOLS/rfsuite-core/app/pages/"
+local TOOL_PAGE_ROOT = "/SCRIPTS/RFSUITE/core/app/pages/"
 
 -- The switches a pilot sets under the general settings to reach the developer pages and the
 -- preview features. The pages behind them ship, so they are priced like every other page.
@@ -2409,7 +2409,7 @@ do
     "accounting: setup incomplete: phase=" .. tostring(drive.fcSetup and drive.fcSetup.phase)
       .. " write=" .. tostring(sawWrite) .. " verify=" .. tostring(sawVerify)
       .. " save=" .. tostring(sawSave) .. " pages=" .. planPages .. " passes=" .. setupPasses)
-  assert(_G.rfsuite.modules["/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/inflight/fcsetup.lua"] == nil,
+  assert(_G.rfsuite.modules["/SCRIPTS/RFSUITE/core/widgets/dashboard/inflight/fcsetup.lua"] == nil,
     "accounting: closed setup retained its writer")
   widget.zone = ZONE
   addRow("pass.job.tuning_setup", setupBuild, "all suggested-functions surfaces through widget build dispatcher")

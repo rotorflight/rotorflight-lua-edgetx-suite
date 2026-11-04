@@ -20,7 +20,7 @@ bit32 = {
 }
 
 local core = "src/rfsuite/"
-local radio = "/SCRIPTS/TOOLS/rfsuite-core/"
+local radio = "/SCRIPTS/RFSUITE/core/"
 local h = { clock = 1000, rssi = 100, sent = {}, inbox = {} }
 
 local transport = {

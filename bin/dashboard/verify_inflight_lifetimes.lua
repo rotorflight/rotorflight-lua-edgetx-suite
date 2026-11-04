@@ -9,7 +9,7 @@ Stubs.reset()
 FC.reset()
 local Runtime = rfsuite.require("widgets/dashboard/runtime.lua")
 
-local ROOT = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/inflight/"
+local ROOT = "/SCRIPTS/RFSUITE/core/widgets/dashboard/inflight/"
 local ALL = {"setup.lua", "functions.lua", "baseline.lua", "profiles.lua", "drive.lua", "input.lua",
   "prime.lua", "screen.lua"}
 local VIEW = {["screen.lua"] = true, ["input.lua"] = true}
@@ -221,7 +221,7 @@ scenario("an open tool, outstanding output or a profile job hold the release bac
   local d = withSession(widget, nil)
   -- An open tool runs in place of the dashboard pass (tool_host.lua); a stand-in host lets the
   -- pass reach that branch without opening the real tool.
-  local HOST = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/tool_host.lua"
+  local HOST = "/SCRIPTS/RFSUITE/core/widgets/dashboard/tool_host.lua"
   local realHost = rfsuite.modules[HOST]
   for _, hold in ipairs({"tool", "profileJob", "pendingSave"}) do
     if hold == "tool" then

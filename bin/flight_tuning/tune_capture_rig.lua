@@ -15,7 +15,7 @@
 local Rig = {}
 
 local ROOT = "src/rfsuite/"
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = "/SCRIPTS/RFSUITE/core/"
 local READ, CLEAR, RC_TUNING, PID_PROFILE = 0x5F10, 0x5F11, 111, 94
 local NAMES = { "roll", "pitch", "yaw" }
 
@@ -88,7 +88,7 @@ function Rig.new(opts)
   _G.getTime = function() return math.floor(h.clock * 100 + 0.5) end
   _G.getRtcTime = function() return h.rtc end
   _G.loadScript = function(path)
-    local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
     assert(relative, "unexpected script path: " .. tostring(path))
     h.loads[#h.loads + 1] = relative
     if stubs[relative] then return stubs[relative] end

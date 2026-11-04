@@ -336,7 +336,7 @@ or restore can replace the pending transaction. A switch held in the same positi
 not undo an MSP selection: firmware applies that switch only when its computed position changes.
 
 Snapshots live beside the suite's MCU-keyed model preferences, under
-`rfsuite.user/<model-id>.inflight.lua`. They contain a version, UID/FC signature, craft name,
+`RFSUITE/user/<model-id>.inflight.lua`. They contain a version, UID/FC signature, craft name,
 clock timestamp, a profile manifest and tunable values per scope. A complete temporary Lua-data
 file is verified in slices before promotion with the suite's FAT delete/rename convention.
 A session's start writes its start values, replacing the previous session's; adjustment reports

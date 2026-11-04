@@ -36,7 +36,24 @@ end
 -- suite -- the tool, both widgets and the special-function script -- loads this file before any
 -- other module of the suite, so the table is there by the time one reads it. This load, and the
 -- files that load this one, are the places that still name the code root themselves.
-_G.rfsuite.paths = assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/paths.lua", _G.rfsuite.loadMode))()
+_G.rfsuite.paths = _G.rfsuite.paths
+  or assert(loadScript("/SCRIPTS/RFSUITE/core/lib/paths.lua", _G.rfsuite.loadMode))()
+
+-- A card updated by unpacking the archive still has the pilot's data in the old folder, and that
+-- folder counts until the data has been copied and the marker written (lib/user_move.lua). Decided
+-- once per Lua state, so a state keeps one folder for as long as it runs: its modules hold on to
+-- the path they read when they loaded. A card with no old folder pays one fstat, and a card already
+-- moved pays two.
+do
+  local paths = _G.rfsuite.paths
+  if paths.legacyUser and paths.moveDecided == nil and type(fstat) == "function" then
+    paths.moveDecided = true
+    if fstat(paths.legacyUser) ~= nil and fstat(paths.user .. "/moved.txt") == nil then
+      paths.moveTo = paths.user
+      paths.user = paths.legacyUser
+    end
+  end
+end
 
 local BASE_PATH = _G.rfsuite.paths.core .. "/"
 

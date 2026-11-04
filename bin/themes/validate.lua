@@ -122,8 +122,8 @@ _G.model = {
   getGlobalVariable = function() return 0 end,
 }
 
-local SRC_PREFIX = "/SCRIPTS/TOOLS/rfsuite-core/"
-local USER_PREFIX = "/SCRIPTS/TOOLS/rfsuite.user/dashboard/"
+local SRC_PREFIX = "/SCRIPTS/RFSUITE/core/"
+local USER_PREFIX = "/SCRIPTS/RFSUITE/user/dashboard/"
 
 -- A theme reaches its own files by the path the card gives them, shipped or user: both are mapped
 -- onto the folder being checked. Everything else under the suite's prefix is this repository's.

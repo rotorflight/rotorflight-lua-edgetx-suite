@@ -44,7 +44,7 @@ local function newPage(spec)
     ["tasks/msp/api/tx_info.lua"] = {}
   }
   function loadScript(path)
-    local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
     -- The real pipeline and governor helper run; everything else is a stub.
     if relative == pipelinePath or relative == "lib/governor.lua" then
       return assert(loadfile("src/rfsuite/" .. relative))

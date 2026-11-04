@@ -88,8 +88,9 @@ You will know that you've done it correctly when you find `rfsuite.lua` in the
 *RFSuite* and *RFSuite Service* appear in the widget list when you configure a screen.
 
 To update manually, unpack a newer archive over the existing installation. Your settings, model
-preferences and any user dashboard themes live in `/SCRIPTS/TOOLS/rfsuite.user/`, which the
-release archive does not write to.
+preferences and any user dashboard themes live in `/SCRIPTS/RFSUITE/user/`, which the
+release archive does not write to. A card from before that folder has its data copied over
+on the first start; [Configuration files](docs/reference/configuration-files.md) says what happens.
 
 
 ## Quick start

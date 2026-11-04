@@ -326,10 +326,7 @@ end
 local SIM_SENSOR_PATHS = {
   _G.rfsuite.paths.core .. "/sim/sensors/",
   _G.rfsuite.paths.user .. "/sim/sensors/",
-  "/SCRIPTS/rfsuite-core/sim/sensors/",
   string.sub(_G.rfsuite.paths.core, 2) .. "/sim/sensors/",
-  "/rfsuite-core/sim/sensors/",
-  "rfsuite-core/sim/sensors/",
 }
 local function readSimSensorFile(name, source)
   if type(name) ~= "string" or name == "" then return nil end

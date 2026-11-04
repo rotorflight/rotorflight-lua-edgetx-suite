@@ -2639,7 +2639,10 @@ local function buildScene()
     local preparing = compileTotal > 0 and compileDone < compileTotal
 
     local message
-    if preparing then
+    if _G.rfsuite.paths.moveFailed then
+      message = state.i18n and state.i18n.t and state.i18n.t("app.restart_radio.move_failed_short")
+        or "Settings not moved: card full?"
+    elseif preparing then
       message = state.i18n and state.i18n.t and state.i18n.t("app.preparing") or "Preparing suite"
     else
       message = ONCONNECT_TEXT[state.startTaskName or ""] or
@@ -2938,6 +2941,12 @@ local function buildScene()
       buttonText = i18n and i18n.t and i18n.t("app.actions.close") or "Close",
       press = function()
         state.restartNoticeVisible = false
+        -- After the move of the pilot's data no page opens on this start: a page saves into the
+        -- folder this state read at its start, and the next start no longer reads that one.
+        if Precompile and Precompile.movedTheData() then
+          state.shouldExit = true
+          return
+        end
         scheduleBuildUI(false)
       end
     })
@@ -3483,6 +3492,7 @@ function M.init(opts)
   state.precompileDone = 0
   state.precompileTotal = 0
   ensureVersion()
+  logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader
   -- when a page first needs it, and the start screen waits for the connection alone -- meant for
   -- automated runs on a card that starts without bytecode each time. Like the rest of the
@@ -4091,7 +4101,13 @@ function M.run(event, touchState)
       end
     end
 
-    if (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive) and MspRuntime and type(MspRuntime.tick) == "function" then
+    -- A retry of the move of the pilot's data carries on behind the menu (lib/precompile.lua).
+    if _G.rfsuite.paths.moveTo and Precompile and Precompile.runsBehindConnection() then
+      Precompile.stepShared()
+    end
+
+    local moveHolds = _G.rfsuite.paths.moveTo and Precompile and Precompile.holdsConnectionForMove()
+    if (not moveHolds) and (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive) and MspRuntime and type(MspRuntime.tick) == "function" then
       if now == 0 or (now - (state.mspLastTick or 0)) >= 5 then
         state.mspLastTick = now
         MspRuntime.tick()

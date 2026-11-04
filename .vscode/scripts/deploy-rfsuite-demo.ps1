@@ -201,13 +201,15 @@ $toolsRoot = Join-Path $TargetRoot 'SCRIPTS\TOOLS'
 $widgetsRoot = Join-Path $TargetRoot 'WIDGETS'
 $soundsRoot = Join-Path $TargetRoot 'SOUNDS'
 
-$targetCore = Join-Path $toolsRoot 'rfsuite-core'
+$suiteRoot = Join-Path $TargetRoot 'SCRIPTS\RFSUITE'
+$targetCore = Join-Path $suiteRoot 'core'
 $targetToolEntrypoint = Join-Path $toolsRoot 'rfsuite.lua'
-$targetUserRoot = Join-Path $toolsRoot 'rfsuite.user'
+$targetUserRoot = Join-Path $suiteRoot 'user'
 $targetFunctionRoot = Join-Path $TargetRoot 'SCRIPTS\FUNCTIONS'
 $targetSoundsRoot = Join-Path $soundsRoot 'rf'
 
 $legacyToolFolder = Join-Path $toolsRoot 'rfsuite'
+$legacyCore = Join-Path $toolsRoot 'rfsuite-core'
 
 if (-not (Test-Path $sourceRoot)) {
     throw "Source folder not found: $sourceRoot"
@@ -243,6 +245,10 @@ if (-not (Test-Path $soundsRoot)) {
 
 if (Test-Path $legacyToolFolder) {
     Remove-Item -Path $legacyToolFolder -Recurse -Force
+}
+
+if (Test-Path $legacyCore) {
+    Remove-Item -Path $legacyCore -Recurse -Force
 }
 
 if (Test-Path $targetCore) {
@@ -433,8 +439,10 @@ foreach ($p in $pathsToTry) {
 }
 if (-not $pythonCmd) { throw "No working Python found (the Microsoft Store alias does not count); install Python or MSYS2 python." }
 
-& $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\precompile_i18n.py') --root $toolsRoot
-if ($LASTEXITCODE -ne 0) { throw "precompile_i18n failed on $toolsRoot (exit $LASTEXITCODE); the demo was not deployed." }
+foreach ($targetCodeRoot in @($toolsRoot, $suiteRoot)) {
+    & $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\precompile_i18n.py') --root $targetCodeRoot
+    if ($LASTEXITCODE -ne 0) { throw "precompile_i18n failed on $targetCodeRoot (exit $LASTEXITCODE); the demo was not deployed." }
+}
 foreach ($targetWidgetRoot in $targetWidgetRoots) {
     & $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\precompile_i18n.py') --root $targetWidgetRoot
     if ($LASTEXITCODE -ne 0) { throw "precompile_i18n failed on $targetWidgetRoot (exit $LASTEXITCODE); the demo was not deployed." }
@@ -443,8 +451,10 @@ foreach ($targetWidgetRoot in $targetWidgetRoots) {
 # The resolver exits non-zero on an unresolved key or a file it could not write, so
 # its verdict has to be read here. Ignoring it is how a demo reaches a radio with
 # every marker still standing while the script says it deployed.
-& $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\resolve_i18n_tags.py') --json (Join-Path $sourceCore "i18n\$Language.lua") --root $toolsRoot
-if ($LASTEXITCODE -ne 0) { throw "resolve_i18n_tags failed on $toolsRoot (exit $LASTEXITCODE); the demo was not deployed." }
+foreach ($targetCodeRoot in @($toolsRoot, $suiteRoot)) {
+    & $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\resolve_i18n_tags.py') --json (Join-Path $sourceCore "i18n\$Language.lua") --root $targetCodeRoot
+    if ($LASTEXITCODE -ne 0) { throw "resolve_i18n_tags failed on $targetCodeRoot (exit $LASTEXITCODE); the demo was not deployed." }
+}
 foreach ($targetWidgetRoot in $targetWidgetRoots) {
     & $pythonCmd (Join-Path $workspaceRoot '.vscode\scripts\resolve_i18n_tags.py') --json (Join-Path $sourceCore "i18n\$Language.lua") --root $targetWidgetRoot
     if ($LASTEXITCODE -ne 0) { throw "resolve_i18n_tags failed on $targetWidgetRoot (exit $LASTEXITCODE); the demo was not deployed." }

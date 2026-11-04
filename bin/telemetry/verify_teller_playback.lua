@@ -48,7 +48,7 @@ bit32 = {
   btest = function(a, b) return (a & b) ~= 0 end,
 }
 
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = "/SCRIPTS/RFSUITE/core/"
 local FUNCTIONS = "/SCRIPTS/FUNCTIONS/"
 local PASS_TICKS = 5          -- 50 ms per pass
 local ADJ_FRAME_TICKS = 20    -- the firmware's fast interval for the ADJ sensor, 200 ms

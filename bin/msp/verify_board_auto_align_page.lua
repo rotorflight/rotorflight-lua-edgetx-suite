@@ -100,7 +100,7 @@ local stubs = {
 }
 
 function loadScript(path)
-  local relative = string.match(path, "/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+  local relative = string.match(path, "/SCRIPTS/RFSUITE/core/(.+)$")
   if stubs[relative] then return function() return stubs[relative] end end
   if actual[relative] then return assert(loadfile("src/rfsuite/" .. relative)) end
   if relative == "app/pages/setup/alignment/help.lua" then return function() return function() end end end
