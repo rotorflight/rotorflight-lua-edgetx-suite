@@ -910,7 +910,7 @@
         "S09-S12.versioned-esc-and-ports",
         "S11.card-order-and-save"
       ],
-      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. Deliberate deviation: moved before servo connection and the spin test to step 10, so its restart happens with the servos unplugged, starting with a flight-battery connection card while main and tail blades remain removed."
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. Deliberate deviation: moved before the spin test to step 11, behind the connection gate, so the ESC link exists before the motor first spins, starting with a flight-battery connection card while main and tail blades remain removed."
     },
     {
       "source": "tabs/setup_wizard/StepFinish.svelte",

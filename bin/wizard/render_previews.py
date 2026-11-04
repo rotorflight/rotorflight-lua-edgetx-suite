@@ -62,7 +62,7 @@ def render(scene):
             draw.line([tuple(p) for p in item['pts']], fill=ink, width=item.get('thickness', 2), joint='curve')
         elif kind == 'image':
             # Zoomed to fit its frame, keeping the aspect, as EdgeTX does for a Lua image.
-            rel = str(item.get('file', '')).removeprefix('/SCRIPTS/TOOLS/rfsuite-core/')
+            rel = 'app/pages/' + str(item.get('file', '')).partition('/app/pages/')[2]
             picture = Image.open(SRC / rel).convert('RGBA')
             zoom = min(w / picture.width, h / picture.height)
             picture = picture.resize((max(1, round(picture.width * zoom)), max(1, round(picture.height * zoom))),

@@ -291,9 +291,9 @@ flowchart LR
   n1 --> n10
   n11["9. Motor #amp; ESC"]:::documented
   n1 --> n11
-  n12["10. ESC telemetry"]:::documented
+  n12["10. Connect the servos"]:::documented
   n1 --> n12
-  n13["11. Connect the servos"]:::documented
+  n13["11. ESC telemetry"]:::documented
   n1 --> n13
   n14["12. ESC #amp; spin test"]:::documented
   n1 --> n14
@@ -528,8 +528,8 @@ Section `configuration`.
 | Wizards &rsaquo; Helicopter Setup &rsaquo; 7. Servo type | `step_07` | `helicopter_setup_step_07_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 7 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
 | Wizards &rsaquo; Helicopter Setup &rsaquo; 8. Governor | `step_08` | `helicopter_setup_step_08_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 8 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
 | Wizards &rsaquo; Helicopter Setup &rsaquo; 9. Motor & ESC | `step_09` | `helicopter_setup_step_09_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 9 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
-| Wizards &rsaquo; Helicopter Setup &rsaquo; 10. ESC telemetry | `step_10` | `helicopter_setup_step_10_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 10 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
-| Wizards &rsaquo; Helicopter Setup &rsaquo; 11. Connect the servos | `step_11` | `helicopter_setup_step_11_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 11 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 10. Connect the servos | `step_10` | `helicopter_setup_step_10_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 10 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
+| Wizards &rsaquo; Helicopter Setup &rsaquo; 11. ESC telemetry | `step_11` | `helicopter_setup_step_11_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 11 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
 | Wizards &rsaquo; Helicopter Setup &rsaquo; 12. ESC & spin test | `step_12` | `helicopter_setup_step_12_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 12 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
 | Wizards &rsaquo; Helicopter Setup &rsaquo; 13. Servo setup | `step_13` | `helicopter_setup_step_13_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 13 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |
 | Wizards &rsaquo; Helicopter Setup &rsaquo; 14. Control directions | `step_14` | `helicopter_setup_step_14_page` | `helicopter_setup` | [helicopter_setup.md](../pages/helicopter_setup.md) | `doneWhen = helicopterStepDone ( 14 )`, `enabledWhen = "fblConnected"`, `lockedWhileArmed = true`, `minApiVersion = { 12, 0, 9 }` |

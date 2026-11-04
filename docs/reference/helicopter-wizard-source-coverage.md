@@ -124,10 +124,10 @@ prerequisites, explicit reset, bounded reads, interrupted writes and visible
 retry/continue/cancel failure paths. No history bit can supply a safety answer. Packed telemetry feedback
 covers absence, stale values, error priority and the independence of MSP locking.
 The complete-setup path retains all 19 steps, with a deliberate deviation from
-PR 491: ESC telemetry is step 10, before the connection gate at step 11 and the
-spin test at step 12, so its port restart happens with the servos unplugged. The source map
-records the swap as an adaptation; `CORE.esc-before-spin` checks the order,
-positional menu IDs, labels and polling. History remains keyed by index without migration. An unnumbered
+PR 491: the connection gate is step 10, ESC telemetry step 11 and the spin test step 12, so the
+ESC link exists before the motor first spins. The source map records the swap as an adaptation;
+`CORE.esc-before-spin` checks the order, positional menu IDs, labels and polling. History remains
+keyed by index; its record carries a version, and a version 1 record of the former order reads as empty. An unnumbered
 radio-model preparation precedes each new setup visit: template/manual selection
 and current-model confirmation must both be supplied. It loads no step definition
 and enters no holds; a new visit always asks again. The reset page omits this gate.

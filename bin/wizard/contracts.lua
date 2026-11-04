@@ -1567,9 +1567,9 @@ return function(h)
     -- Disarmed, Retry reads again, blocks and reads the block back.
     armed=false;q.sent={}
     w:retry();run(w)
-    eq(q.sent[1].command,119,"D1 retry reads the ARM box bit first")
-    eq(q.sent[2].command,101,"D1 retry reads the arming state before blocking")
-    eq(q.sent[3].command,99,"D1 retry blocks after the disarmed answer")
+    eq((q.sent[1] or {}).command,119,"D1 retry reads the ARM box bit first")
+    eq((q.sent[2] or {}).command,101,"D1 retry reads the arming state before blocking")
+    eq((q.sent[3] or {}).command,99,"D1 retry blocks after the disarmed answer")
     check(w.locked,"D1 the lock is proved after a disarm")
     -- No ARM box in the reply leaves the state open, and an open state does not block.
     q.reply=function(m) if m.command==119 then return {1,2} end end

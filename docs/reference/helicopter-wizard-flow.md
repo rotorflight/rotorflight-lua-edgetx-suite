@@ -136,90 +136,83 @@ flowchart LR
       S9c3 --> S9c4
     end
     S8 --> S9
-    subgraph S10["10. ESC telemetry"]
+    subgraph S10["10. Connect the servos"]
       direction TB
-      S10c0["<b>ESC telemetry</b><br/>confirms: All blades removed, Servos unplugged<br/>reads: MSP motor_config, esc_parameters_yge....<br/>writes: esc_sensor_config, feature_config, mo..."]:::k3
-      class S10c0 deviation
-      S10c1["<b>Connect the battery</b><br/>writes: serial_config"]:::k3
-      class S10c1 deviation
+      S10c0["<b>Connect the servos</b><br/>confirms: Servos unplugged<br/>reads: Reboot, MSP status, MSP servo, MSP motor"]:::k2
+      S10c1["<b>Plug the servos in</b><br/>confirms: Servos connected and powered, All bla...<br/>reads: Motor outputs, Servos"]:::k2
       S10c0 --> S10c1
-      S10c2["<b>ESC telemetry</b><br/>sets: Protocol<br/>reads: esc_sensor_config.protocol<br/>writes: esc_sensor_config.protocol"]:::k3
-      class S10c2 deviation
-      S10c1 --> S10c2
-      S10c3["<b>Port</b><br/>sets: Port<br/>writes: serial_config.port_{n}_function_mask"]:::k3
-      class S10c3 deviation
-      S10c2 --> S10c3
-      S10c4["<b>Check</b><br/>reads: Voltage, Temperature, MSP esc_sensor_...<br/>writes: esc_sensor_trial"]:::k3
-      class S10c4 deviation
-      S10c3 --> S10c4
-      S10c5["<b>Telemetry readings</b><br/>reads: Current, RPM, Active, Protocol"]:::k1
-      class S10c5 deviation
-      S10c4 --> S10c5
-      S10c6["<b>Voltage Source</b><br/>sets: Voltage Source<br/>reads: Voltage / Current, battery_config.vol...<br/>writes: battery_config"]:::k3
-      class S10c6 deviation
-      S10c5 --> S10c6
-      S10c7["<b>Current Source</b><br/>sets: Current Source<br/>reads: Current, battery_config.currentMeterS...<br/>writes: battery_config.currentMeterSource, ba..."]:::k3
-      class S10c7 deviation
-      S10c6 --> S10c7
-      S10c8["<b>Battery</b><br/>sets: Cell count<br/>reads: Cell count, Selected, battery_config....<br/>writes: battery_config.{cellKey}, battery_con..."]:::k3
-      class S10c8 deviation
-      S10c7 --> S10c8
-      S10c9["<b>Capacity</b><br/>writes: battery_config.batteryCapacity"]:::k3
-      class S10c9 deviation
-      S10c8 --> S10c9
-      S10c10["<b>Capacity</b><br/>writes: battery_config.batteryCapacity"]:::k3
-      class S10c10 deviation
-      S10c9 --> S10c10
-      S10c11["<b>Capacity</b><br/>sets: Battery, Capacity<br/>reads: battery_config.batteryCapacity<br/>writes: battery_config"]:::k3
-      class S10c11 deviation
-      S10c10 --> S10c11
-      S10c12["<b>SmartFuel Mode</b><br/>sets: Firmware Source<br/>reads: smartfuel_config.smartfuel_mode<br/>writes: smartfuel_config.smartfuel_mode"]:::k3
-      class S10c12 deviation
-      S10c11 --> S10c12
-      S10c13["<b>Throttle range</b><br/>sets: How is the ESC&#35;x27;s throttle range set?<br/>reads: MSP motor_config<br/>writes: motor_config"]:::k3
-      class S10c13 deviation
-      S10c12 --> S10c13
-      S10c14["<b>Throttle range</b><br/>confirms: I confirm the ESC range is set"]:::k2
-      class S10c14 deviation
-      S10c13 --> S10c14
-      S10c15["<b>ESC parameter link</b>"]:::k4
-      class S10c15 deviation
-      S10c14 --> S10c15
-      S10c16["<b>Restart the ESC</b><br/>confirms: Battery unplugged and reconnected"]:::k2
-      class S10c16 deviation
-      S10c15 --> S10c16
-      S10c17["<b>ESC operating mode</b><br/>sets: Expected ESC mode<br/>reads: Current ESC mode"]:::k0
-      class S10c17 deviation
-      S10c16 --> S10c17
-      S10c18["<b>ESC parameter link</b><br/>reads: Current ESC mode"]:::k1
-      class S10c18 deviation
-      S10c17 --> S10c18
-      S10c19["<b>Current ESC values</b><br/>reads: ESC model, ESC firmware, Stick zero (..."]:::k1
-      class S10c19 deviation
-      S10c18 --> S10c19
-      S10c20["<b>Throttle range</b><br/>sets: Minimum pulse (us), Maximum pulse (us)<br/>reads: Stop pulse (us)"]:::k0
-      class S10c20 deviation
-      S10c19 --> S10c20
-      S10gate{"Advance?<br/>validation passes<br/>All blades removed, Servos unplugged"}:::k4
-      class S10gate deviation
-      S10c20 --> S10gate
+      S10gate{"Advance?<br/>validation passes<br/>Servos unplugged, Servos connected an..."}:::k4
+      S10c1 --> S10gate
       S10gate -->|blocked| S10gate
     end
     S9 --> S10
   end
   subgraph C["Phase C"]
     direction TB
-    subgraph S11["11. Connect the servos"]
+    subgraph S11["11. ESC telemetry"]
       direction TB
-      S11c0["<b>Connect the servos</b><br/>confirms: Servos unplugged<br/>reads: Reboot, MSP status, MSP servo, MSP motor"]:::k2
-      S11c1["<b>Battery</b><br/>confirms: Flight battery unplugged"]:::k2
+      S11c0["<b>Connect the battery</b><br/>reads: MSP motor_config, esc_parameters_yge....<br/>writes: serial_config, esc_sensor_config, fea..."]:::k3
+      class S11c0 deviation
+      S11c1["<b>ESC telemetry</b><br/>sets: Protocol<br/>reads: esc_sensor_config.protocol<br/>writes: esc_sensor_config.protocol"]:::k3
+      class S11c1 deviation
       S11c0 --> S11c1
-      S11c2["<b>Plug the servos in</b><br/>confirms: Servos connected and powered, All bla...<br/>reads: Motor outputs, Servos"]:::k2
+      S11c2["<b>Port</b><br/>sets: Port<br/>writes: serial_config.port_{n}_function_mask"]:::k3
+      class S11c2 deviation
       S11c1 --> S11c2
-      S11c3["<b>Battery</b>"]:::k4
+      S11c3["<b>Check</b><br/>reads: Voltage, Temperature, MSP esc_sensor_...<br/>writes: esc_sensor_trial"]:::k3
+      class S11c3 deviation
       S11c2 --> S11c3
-      S11gate{"Advance?<br/>validation passes<br/>Servos unplugged, Flight battery unpl..."}:::k4
-      S11c3 --> S11gate
+      S11c4["<b>Telemetry readings</b><br/>reads: Current, RPM, Active, Protocol"]:::k1
+      class S11c4 deviation
+      S11c3 --> S11c4
+      S11c5["<b>Voltage Source</b><br/>sets: Voltage Source<br/>reads: Voltage / Current, battery_config.vol...<br/>writes: battery_config"]:::k3
+      class S11c5 deviation
+      S11c4 --> S11c5
+      S11c6["<b>Current Source</b><br/>sets: Current Source<br/>reads: Current, battery_config.currentMeterS...<br/>writes: battery_config.currentMeterSource, ba..."]:::k3
+      class S11c6 deviation
+      S11c5 --> S11c6
+      S11c7["<b>Battery</b><br/>sets: Cell count<br/>reads: Cell count, Selected, battery_config....<br/>writes: battery_config.{cellKey}, battery_con..."]:::k3
+      class S11c7 deviation
+      S11c6 --> S11c7
+      S11c8["<b>Capacity</b><br/>writes: battery_config.batteryCapacity"]:::k3
+      class S11c8 deviation
+      S11c7 --> S11c8
+      S11c9["<b>Capacity</b><br/>writes: battery_config.batteryCapacity"]:::k3
+      class S11c9 deviation
+      S11c8 --> S11c9
+      S11c10["<b>Capacity</b><br/>sets: Battery, Capacity<br/>reads: battery_config.batteryCapacity<br/>writes: battery_config"]:::k3
+      class S11c10 deviation
+      S11c9 --> S11c10
+      S11c11["<b>SmartFuel Mode</b><br/>sets: Firmware Source<br/>reads: smartfuel_config.smartfuel_mode<br/>writes: smartfuel_config.smartfuel_mode"]:::k3
+      class S11c11 deviation
+      S11c10 --> S11c11
+      S11c12["<b>Throttle range</b><br/>sets: How is the ESC&#35;x27;s throttle range set?<br/>reads: MSP motor_config<br/>writes: motor_config"]:::k3
+      class S11c12 deviation
+      S11c11 --> S11c12
+      S11c13["<b>Throttle range</b><br/>confirms: I confirm the ESC range is set"]:::k2
+      class S11c13 deviation
+      S11c12 --> S11c13
+      S11c14["<b>ESC parameter link</b>"]:::k4
+      class S11c14 deviation
+      S11c13 --> S11c14
+      S11c15["<b>Restart the ESC</b><br/>confirms: Battery unplugged and reconnected"]:::k2
+      class S11c15 deviation
+      S11c14 --> S11c15
+      S11c16["<b>ESC operating mode</b><br/>sets: Expected ESC mode<br/>reads: Current ESC mode"]:::k0
+      class S11c16 deviation
+      S11c15 --> S11c16
+      S11c17["<b>ESC parameter link</b><br/>reads: Current ESC mode"]:::k1
+      class S11c17 deviation
+      S11c16 --> S11c17
+      S11c18["<b>Current ESC values</b><br/>reads: ESC model, ESC firmware, Stick zero (..."]:::k1
+      class S11c18 deviation
+      S11c17 --> S11c18
+      S11c19["<b>Throttle range</b><br/>sets: Minimum pulse (us), Maximum pulse (us)<br/>reads: Stop pulse (us)"]:::k0
+      class S11c19 deviation
+      S11c18 --> S11c19
+      S11gate{"Advance?<br/>validation passes"}:::k4
+      class S11gate deviation
+      S11c19 --> S11gate
       S11gate -->|blocked| S11gate
     end
     subgraph S12["12. ESC #amp; spin test"]
@@ -343,8 +336,8 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | 7. Servo type | Swash servos<br/>Tail servo<br/>Servo type | Swash servos<br/>Frame rate (Hz)<br/>Geometry correction<br/>Tail servo | Servos unplugged | status<br/>servo | servo_configurations<br/>servo_configurations.mid<br/>servo_configurations.min<br/>servo_configurations.max<br/>servo_configurations.rneg<br/>servo_configurations.rpos<br/>servo_configurations.rate<br/>servo_configurations.flags | same |
 | 8. Governor | Governor Mode<br/>RPM source<br/>RPM filter<br/>Throttle Type<br/>PID profile {n} | Mode<br/>RPM source<br/>Throttle Type<br/>Full headspeed (rpm) | — | filter_config<br/>rpm_filter_v2<br/>governor_profile<br/>status<br/>governor_profile.governor_headspeed<br/>filter_config.rpm_preset<br/>rpm_filter_v2.notch_source_1..16 (axes 0..2, CUSTOM only)<br/>servo | governor_config.gov_mode<br/>feature_config.enabledFeatures<br/>governor_config.gov_throttle_type<br/>set_pid_profile<br/>governor_profile<br/>governor_profile.governor_headspeed<br/>motor_config.use_dshot_telemetry | beyond the Configurator |
 | 9. Motor & ESC | Throttle Protocol<br/>Main motor poles<br/>Main gear ratio<br/>Tail gear ratio<br/>Motor & ESC set | Bidirectional DShot<br/>Protocol<br/>Main motor poles<br/>Gear train<br/>Gear ratio<br/>Pinion : intermediate<br/>Intermediate : main gear<br/>Pinion : main gear<br/>Tail motor poles<br/>Tail drive from<br/>Pulley : tail rotor pulley<br/>Drive : tail rotor gear | All blades removed | status<br/>servo | motor_config.use_dshot_telemetry<br/>motor_config.motor_pwm_protocol<br/>esc_sensor_config<br/>feature_config.enabledFeatures<br/>motor_config.motor_pole_count_0<br/>motor_config.main_rotor_gear_ratio_0<br/>motor_config.main_rotor_gear_ratio_1<br/>motor_config.tail_rotor_gear_ratio_0<br/>motor_config.tail_rotor_gear_ratio_1<br/>motor_config.motor_pole_count_1 | same |
-| 10. ESC telemetry | ESC telemetry<br/>Connect the battery<br/>Port<br/>Check<br/>Telemetry readings<br/>Voltage Source<br/>Current Source<br/>Battery<br/>Capacity<br/>SmartFuel Mode<br/>Throttle range<br/>ESC parameter link<br/>Restart the ESC<br/>ESC operating mode<br/>Current ESC values | Protocol<br/>Port<br/>Voltage Source<br/>Current Source<br/>Cell count<br/>Battery<br/>Capacity<br/>Firmware Source<br/>How is the ESC's throttle range set?<br/>Expected ESC mode<br/>Minimum pulse (us)<br/>Maximum pulse (us) | All blades removed<br/>Servos unplugged<br/>I confirm the ESC range is set<br/>Battery unplugged and reconnected | motor_config<br/>esc_parameters_yge.governor<br/>esc_parameters_yge.stick_zero_us<br/>esc_parameters_yge.stick_range_us<br/>esc_parameters_yge.esc_model<br/>esc_parameters_yge.esc_type<br/>esc_parameters_yge.firmware_version<br/>esc_parameters_hw5.flight_mode<br/>esc_parameters_hw5.model_name<br/>esc_parameters_hw5.firmware_version<br/>esc_parameters_hw5._supported<br/>motor_config.mincommand<br/>motor_config.minthrottle<br/>motor_config.maxthrottle<br/>esc_sensor_config.half_duplex<br/>motor_telemetry.voltage<br/>motor_telemetry.temperature<br/>status<br/>servo<br/>motor_telemetry<br/>analog<br/>esc_sensor_config.protocol<br/>esc_sensor_trial<br/>battery_config.voltageMeterSource<br/>battery_config.vbatmincellvoltage<br/>battery_config.vbatmaxcellvoltage<br/>battery_config.vbatfullcellvoltage<br/>battery_config.vbatwarningcellvoltage<br/>battery_config.lvcPercentage<br/>battery_config.consumptionWarningPercentage<br/>battery_config.batteryCapacity_0..5<br/>battery_config.batteryCellCount_0..5<br/>battery_config.vbatmincellvoltage_0..5<br/>battery_config.vbatmaxcellvoltage_0..5<br/>battery_config.vbatfullcellvoltage_0..5<br/>battery_config.vbatwarningcellvoltage_0..5<br/>battery_config.hasProfileCells<br/>battery_profile.batteryProfile<br/>smartfuel_config.voltage_drop_rate<br/>smartfuel_config.charge_drop_rate<br/>smartfuel_config.sag_gain<br/>motor_telemetry.current<br/>analog.voltage<br/>analog.current<br/>battery_config.currentMeterSource<br/>battery_config.batteryCellCount<br/>battery_config.batteryCapacity<br/>smartfuel_config.smartfuel_mode | esc_sensor_config<br/>feature_config.enabledFeatures<br/>motor_config.use_dshot_telemetry<br/>motor_config<br/>esc_parameters_yge.governor<br/>esc_parameters_yge.stick_zero_us<br/>esc_parameters_yge.stick_range_us<br/>esc_parameters_hw5.flight_mode<br/>motor_config.mincommand<br/>motor_config.minthrottle<br/>motor_config.maxthrottle<br/>serial_config<br/>esc_sensor_config.protocol<br/>serial_config.port_{n}_function_mask<br/>esc_sensor_trial<br/>battery_config.voltageMeterSource<br/>battery_config<br/>battery_config.batteryCapacity_0..5<br/>battery_config.batteryCellCount_0..5<br/>battery_config.currentMeterSource<br/>battery_config.{cellKey}<br/>battery_config.batteryCellCount<br/>battery_config.batteryCapacity<br/>battery_config.batteryCapacity_0<br/>battery_config.batteryCapacity_1<br/>battery_config.batteryCapacity_2<br/>battery_config.batteryCapacity_3<br/>battery_config.batteryCapacity_4<br/>battery_config.batteryCapacity_5<br/>smartfuel_config.smartfuel_mode | differs from the Configurator<br/>beyond the Configurator |
-| 11. Connect the servos | Connect the servos<br/>Battery<br/>Plug the servos in | — | Servos unplugged<br/>Flight battery unplugged<br/>Servos connected and powered<br/>All blades removed | status<br/>servo<br/>motor | — | same |
+| 10. Connect the servos | Connect the servos<br/>Plug the servos in | — | Servos unplugged<br/>Servos connected and powered<br/>All blades removed | status<br/>servo<br/>motor | — | same |
+| 11. ESC telemetry | Connect the battery<br/>ESC telemetry<br/>Port<br/>Check<br/>Telemetry readings<br/>Voltage Source<br/>Current Source<br/>Battery<br/>Capacity<br/>SmartFuel Mode<br/>Throttle range<br/>ESC parameter link<br/>Restart the ESC<br/>ESC operating mode<br/>Current ESC values | Protocol<br/>Port<br/>Voltage Source<br/>Current Source<br/>Cell count<br/>Battery<br/>Capacity<br/>Firmware Source<br/>How is the ESC's throttle range set?<br/>Expected ESC mode<br/>Minimum pulse (us)<br/>Maximum pulse (us) | I confirm the ESC range is set<br/>Battery unplugged and reconnected | motor_config<br/>esc_parameters_yge.governor<br/>esc_parameters_yge.stick_zero_us<br/>esc_parameters_yge.stick_range_us<br/>esc_parameters_yge.esc_model<br/>esc_parameters_yge.esc_type<br/>esc_parameters_yge.firmware_version<br/>esc_parameters_hw5.flight_mode<br/>esc_parameters_hw5.model_name<br/>esc_parameters_hw5.firmware_version<br/>esc_parameters_hw5._supported<br/>motor_config.mincommand<br/>motor_config.minthrottle<br/>motor_config.maxthrottle<br/>esc_sensor_config.half_duplex<br/>motor_telemetry.voltage<br/>motor_telemetry.temperature<br/>status<br/>servo<br/>motor_telemetry<br/>analog<br/>esc_sensor_config.protocol<br/>esc_sensor_trial<br/>battery_config.voltageMeterSource<br/>battery_config.vbatmincellvoltage<br/>battery_config.vbatmaxcellvoltage<br/>battery_config.vbatfullcellvoltage<br/>battery_config.vbatwarningcellvoltage<br/>battery_config.lvcPercentage<br/>battery_config.consumptionWarningPercentage<br/>battery_config.batteryCapacity_0..5<br/>battery_config.batteryCellCount_0..5<br/>battery_config.vbatmincellvoltage_0..5<br/>battery_config.vbatmaxcellvoltage_0..5<br/>battery_config.vbatfullcellvoltage_0..5<br/>battery_config.vbatwarningcellvoltage_0..5<br/>battery_config.hasProfileCells<br/>battery_profile.batteryProfile<br/>smartfuel_config.voltage_drop_rate<br/>smartfuel_config.charge_drop_rate<br/>smartfuel_config.sag_gain<br/>motor_telemetry.current<br/>analog.voltage<br/>analog.current<br/>battery_config.currentMeterSource<br/>battery_config.batteryCellCount<br/>battery_config.batteryCapacity<br/>smartfuel_config.smartfuel_mode | serial_config<br/>esc_sensor_config<br/>feature_config.enabledFeatures<br/>motor_config.use_dshot_telemetry<br/>motor_config<br/>esc_parameters_yge.governor<br/>esc_parameters_yge.stick_zero_us<br/>esc_parameters_yge.stick_range_us<br/>esc_parameters_hw5.flight_mode<br/>motor_config.mincommand<br/>motor_config.minthrottle<br/>motor_config.maxthrottle<br/>esc_sensor_config.protocol<br/>serial_config.port_{n}_function_mask<br/>esc_sensor_trial<br/>battery_config.voltageMeterSource<br/>battery_config<br/>battery_config.batteryCapacity_0..5<br/>battery_config.batteryCellCount_0..5<br/>battery_config.currentMeterSource<br/>battery_config.{cellKey}<br/>battery_config.batteryCellCount<br/>battery_config.batteryCapacity<br/>battery_config.batteryCapacity_0<br/>battery_config.batteryCapacity_1<br/>battery_config.batteryCapacity_2<br/>battery_config.batteryCapacity_3<br/>battery_config.batteryCapacity_4<br/>battery_config.batteryCapacity_5<br/>smartfuel_config.smartfuel_mode | differs from the Configurator<br/>beyond the Configurator |
 | 12. ESC & spin test | Full throttle<br/>Connect the battery<br/>Low throttle<br/>Throttle<br/>Main rotor direction | Power (%) | All blades removed<br/>Direction is correct | status<br/>servo<br/>motor | motor_override.index<br/>motor_override.value | differs from the Configurator |
 | 13. Servo direction & centre | Servo arms<br/>{c . title .. " " .. c . role}<br/>{nil . title .. " " .. nil . role} | — | Servo arms | status<br/>servo | servo_configurations<br/>servo_configurations.flags<br/>servo_configurations.mid<br/>servo_override | same |
 | 14. Control directions | Roll right<br/>Pitch forward<br/>Collective up | — | Direction is correct | status<br/>servo<br/>rc_command | mixer_input<br/>mixer_input.rate<br/>mixer_override | same |
@@ -354,4 +347,4 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | 18. Gyro check | Roll<br/>Pitch<br/>Yaw | — | Corrects against movement | status<br/>servo | — | same |
 | 19. Finish | Finish | — | Final checks understood | status<br/>servo | — | same |
 
-Diagram: 101 nodes; 19 numbered steps plus the model card.
+Diagram: 98 nodes; 19 numbered steps plus the model card.

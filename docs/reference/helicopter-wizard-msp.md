@@ -194,7 +194,7 @@ Local ESC-page duplication retained for a later migration:
   Those transaction responsibilities duplicate the new shared module. Both pages
   remain unchanged; their UI state and field adapters are outside this part.
 
-## Power/battery addition beyond Configurator (step 10)
+## Power/battery addition beyond Configurator (step 11)
 
 The Power block follows the existing live telemetry cards and precedes the ESC
 parameter/range cards. It adds source, battery and SmartFuel editors through

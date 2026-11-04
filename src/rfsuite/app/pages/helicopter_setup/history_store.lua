@@ -19,7 +19,7 @@ end
 local function location(identity, modelFile)
   if type(identity) ~= "string" or #identity > 64 or not string.match(identity, "^[%w_-]+$") then return nil end
   local root = type(modelFile) == "string" and string.match(modelFile, "^(.*)/[^/]+$")
-  local directory = (root or "/SCRIPTS/TOOLS/rfsuite.user") .. "/wizard-history"
+  local directory = (root or _G.rfsuite.paths.user) .. "/wizard-history"
   return directory, directory .. "/" .. identity .. ".lua"
 end
 -- The completed-step mask of one flight controller, or 0. For the menu's done marks only.
