@@ -1,0 +1,7 @@
+{
+  "id": "msp-setup-apis",
+  "name": "MSP setup APIs",
+  "commands": [
+    "lua5.3 bin/msp/verify_msp_setup_apis.lua"
+  ]
+}

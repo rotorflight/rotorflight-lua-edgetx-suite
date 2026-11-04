@@ -1,0 +1,7 @@
+{
+  "id": "flight-tuning-rates-saves",
+  "name": "Flight Tuning saves (Rates)",
+  "commands": [
+    "lua5.3 bin/flight_tuning/verify_save_rates_pages.lua"
+  ]
+}

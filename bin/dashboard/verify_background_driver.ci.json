@@ -1,0 +1,8 @@
+{
+  "id": "background-driver",
+  "name": "Background work with dashboard and service widget",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_background_driver.lua"
+  ],
+  "step": "Check who drives the background work with dashboard and service widget"
+}

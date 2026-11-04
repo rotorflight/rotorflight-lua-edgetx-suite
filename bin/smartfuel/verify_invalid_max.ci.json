@@ -1,0 +1,8 @@
+{
+  "id": "smartfuel-validity",
+  "name": "SmartFuel estimate validity",
+  "commands": [
+    "lua5.3 bin/smartfuel/verify_invalid_max.lua"
+  ],
+  "step": "Check invalid inputs and recovery"
+}

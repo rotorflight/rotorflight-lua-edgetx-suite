@@ -8,7 +8,7 @@ helpers, logging, memory handling, the dashboard's reactive closures and i18n â€
 
 A pull request that changes what a pilot can observe carries three things besides the code:
 **a release note**, **its documentation**, and **every string through i18n**. Each one is
-checked, or asked for, by a job in `.github/workflows/pr.yml`.
+checked, or asked for, by a job that `.github/workflows/pr.yml` runs.
 
 
 ## Release notes (`release-notes/`)
@@ -72,8 +72,9 @@ in [GEMINI.md](GEMINI.md) under *Localization (i18n)*.
 
 ## The checks a pull request runs
 
-The jobs in `.github/workflows/pr.yml` build both locale archives and run the instruction
-budget, the i18n precompiler and resolver tests, the translation-coverage report, the erase
-confirmation and the documentation rule. [DEVELOPMENT.md](DEVELOPMENT.md) under
+`.github/workflows/pr.yml` builds both locale archives, runs the documentation and release-notes
+rules, and calls `.github/workflows/checks.yml` for the rest: the instruction budget, the i18n
+precompiler and resolver tests, the translation-coverage report and one job for every test script that
+has a `.ci.json` beside it. A new test script adds that file and no workflow. [DEVELOPMENT.md](DEVELOPMENT.md) under
 *Continuous integration* lists what each one checks. A pull request is ready for review when
 they are green.

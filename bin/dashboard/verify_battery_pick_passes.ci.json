@@ -1,0 +1,8 @@
+{
+  "id": "battery-pick-passes",
+  "name": "Battery prompt registry load per pass",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_battery_pick_passes.lua"
+  ],
+  "step": "Check the battery prompt's registry load per pass"
+}

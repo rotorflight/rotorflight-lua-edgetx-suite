@@ -1,0 +1,7 @@
+{
+  "id": "flight-tuning-saves",
+  "name": "Flight Tuning saves",
+  "commands": [
+    "lua5.3 bin/flight_tuning/verify_save_pid_profile_pages.lua"
+  ]
+}

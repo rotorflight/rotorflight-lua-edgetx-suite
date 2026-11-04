@@ -1,0 +1,7 @@
+{
+  "id": "esc-yge-flag-bit3",
+  "name": "YGE flags bit 3",
+  "commands": [
+    "lua5.3 bin/esc/verify_yge_flag_bit3.lua"
+  ]
+}

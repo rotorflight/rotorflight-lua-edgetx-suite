@@ -1,0 +1,8 @@
+{
+  "id": "battery-pick-own-write",
+  "name": "Battery pick makes no dashboard reload of its own",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_battery_pick_own_write.lua"
+  ],
+  "step": "Check that a battery pick does not make its own dashboard reload"
+}

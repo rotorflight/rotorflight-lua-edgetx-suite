@@ -1,0 +1,8 @@
+{
+  "id": "dashboard-standby-integration",
+  "name": "Dashboard standby integration",
+  "commands": [
+    "lua5.3 bin/tests/dashboard_standby_integration_test.lua"
+  ],
+  "step": "Check dashboard standby integration"
+}

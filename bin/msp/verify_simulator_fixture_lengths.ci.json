@@ -1,0 +1,7 @@
+{
+  "id": "simulator-fixture-lengths",
+  "name": "MSP simulator fixture lengths",
+  "commands": [
+    "lua5.3 bin/msp/verify_simulator_fixture_lengths.lua"
+  ]
+}

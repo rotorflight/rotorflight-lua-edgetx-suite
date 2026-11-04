@@ -1,0 +1,9 @@
+{
+  "id": "esc-wiring-detection",
+  "name": "ESC wiring detection",
+  "commands": [
+    "lua5.3 bin/msp/verify_esc_wiring_trial.lua"
+  ],
+  "step": "Check the wiring detection page lifecycle",
+  "rationale": "Setup > ESC & Motors > Telemetry drives the flight controller's wiring trial. This runs the real page against scripted replies: lifecycle, locking, Cancel, stale replies and a result left in the flight controller by an earlier run."
+}

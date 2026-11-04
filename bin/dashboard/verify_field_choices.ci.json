@@ -1,0 +1,8 @@
+{
+  "id": "field-choices",
+  "name": "Dashboard tile choices and theme key pages",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_field_choices.lua"
+  ],
+  "step": "Check dashboard tile choices and theme key pages"
+}

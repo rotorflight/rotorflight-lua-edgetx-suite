@@ -1,0 +1,7 @@
+{
+  "id": "inflight-fcsetup",
+  "name": "In-flight suggested functions",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_inflight_fcsetup.lua"
+  ]
+}

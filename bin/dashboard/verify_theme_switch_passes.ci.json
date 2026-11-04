@@ -1,0 +1,8 @@
+{
+  "id": "theme-switch-passes",
+  "name": "Switch to a model's own theme over passes",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_theme_switch_passes.lua"
+  ],
+  "step": "Check the switch to a model's own theme over passes"
+}

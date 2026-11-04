@@ -1,0 +1,7 @@
+{
+  "id": "flight-tuning-rescue-filters-saves",
+  "name": "Flight Tuning saves (Rescue, Filters)",
+  "commands": [
+    "lua5.3 bin/flight_tuning/verify_save_rescue_filters_pages.lua"
+  ]
+}

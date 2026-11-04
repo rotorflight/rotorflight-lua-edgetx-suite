@@ -1,0 +1,7 @@
+{
+  "id": "model-template",
+  "name": "Model template wizard",
+  "commands": [
+    "lua5.3 bin/templates/verify_rotorflight_template.lua"
+  ]
+}

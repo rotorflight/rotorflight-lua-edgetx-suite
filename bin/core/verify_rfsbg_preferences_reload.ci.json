@@ -1,0 +1,7 @@
+{
+  "id": "rfsbg-preferences-reload",
+  "name": "Background decoder re-reads the settings only on a change",
+  "commands": [
+    "lua5.3 bin/core/verify_rfsbg_preferences_reload.lua"
+  ]
+}

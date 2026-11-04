@@ -1,0 +1,7 @@
+{
+  "id": "msp-refused-error",
+  "name": "MSP refused and silent boards",
+  "commands": [
+    "lua5.3 bin/msp/verify_msp_refused_error.lua"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "configuration-pid-loop",
+  "name": "Configuration PID loop and name",
+  "commands": [
+    "lua5.3 bin/setup/verify_configuration_pid_loop.lua"
+  ]
+}
