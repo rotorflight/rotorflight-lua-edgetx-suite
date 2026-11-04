@@ -487,17 +487,13 @@ if selfTest then
       return (string.gsub(t, "if sy == window.y then return end\n", ""))
     end },
     { "a build forgets the place on the right", function(t)
-      return (string.gsub(t, "roll.right = place
-", "roll.right = 1
-"))
+      return (string.gsub(t, "roll.right = place\n", "roll.right = 1\n"))
     end },
     { "another option takes a gone one's place", function(t)
-      return (string.gsub(t, "roll.side = \"left\"
-        roll.right = roll.rightOptions and currentIndex%(roll.rightOptions%) or 1", "roll.right = 1"))
+      return (string.gsub(t, "roll.side = \"left\"\n        roll.right = roll.rightOptions and currentIndex%(roll.rightOptions%) or 1", "roll.right = 1"))
     end },
     { "a question keeps what it said", function(t)
-      return (string.gsub(t, "roll.question = roll.leftList%[found%]
-", ""))
+      return (string.gsub(t, "roll.question = roll.leftList%[found%]\n", ""))
     end },
     { "the place goes by the row's number", function(t)
       return (string.gsub(t, "local found = indexOfEntry%(roll.leftList, before%)", "local found = (before ~= nil and roll.leftList[roll.left] ~= nil) and roll.left or nil"))
