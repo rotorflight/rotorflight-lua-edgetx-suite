@@ -61,14 +61,7 @@ WORKFLOW_PATH = re.compile(r"(?m)^[ \t]*(?:-[ \t]+)?(?:run:[ \t]+)?(?:lua5\.3|py
 MIN_JOBS = 75
 
 # Test scripts that are deliberately not CI jobs: path -> why.
-NOT_CI_JOBS = {
-    "bin/dashboard/verify_inflight_fcsetup.lua": "not wired yet",
-    "bin/elrs/verify_link_rates.lua": "not wired yet",
-    "bin/esc/verify_yge_serial.lua": "not wired yet",
-    "bin/msp/verify_rxfail_config.lua": "not wired yet",
-    "bin/telemetry/verify_galt_precision.lua": "not wired yet",
-    "bin/themes/verify_save_scope.lua": "not wired yet",
-}
+NOT_CI_JOBS = {}
 
 
 class RegisterError(Exception):

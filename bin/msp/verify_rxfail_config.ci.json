@@ -1,0 +1,7 @@
+{
+  "id": "rxfail-config",
+  "name": "RXFAIL configuration",
+  "commands": [
+    "lua5.3 bin/msp/verify_rxfail_config.lua"
+  ]
+}
