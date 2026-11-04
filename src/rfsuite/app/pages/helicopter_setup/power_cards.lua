@@ -41,7 +41,10 @@ return function(w, cards)
     -- The firmware reads the source on every battery update, so a live write shows its reading
     -- before the card is saved.
     local set = row.set
-    row.set = function(v) set(v); w:touch("battery_config", false, true) end
+    row.set = function(v)
+      set(v); w:touch("battery_config", false, true)
+      if w.logTrace then w:log("trace", "%s set to %s", key, battery[key]) end
+    end
     add(label, help, {
       row,
       w:value(signal == "voltage" and L.voltage or L.current, function() return sourceValue(key, signal, unit) end)

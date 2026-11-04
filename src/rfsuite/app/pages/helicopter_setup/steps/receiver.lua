@@ -19,6 +19,7 @@ return function(w)
     if r.detect then r.detect=nil;w.message=L.ready;return end
     local baseline=w:channelSnapshot("rx_channels")
     if not baseline then w.message=L.waitChannels;return end
+    if w.logTrace then w:log("trace", "channel detection start") end
     r.detect = { index = 1, found = {}, exclude = {}, peaks = {}, baseline = baseline }
     w.message = detectPrompt()
     if w.logInfo then w:keyMessage("move") end
@@ -54,6 +55,7 @@ return function(w)
     r.travel, r.travelSig = { {0, 0}, {0, 0}, {0, 0}, {0, 0} }, travelSig()
     r.guideKey, r.wrong = nil, nil
     r.detect = nil; w:touch("rx_map"); w.message = L.detected
+    if w.logInfo then w:log("info", "channel map detected") end
   end
   -- The guide's next end stop. A local of this visit, never kept on w.rx: the measurement
   -- stays for the whole wizard, the step's code leaves with the step.
@@ -134,9 +136,11 @@ return function(w)
     if not travelOk() then w.message = L.sticksShort; return false end
     return true
   end
+  local NO_CHANNELS = {}
   local function mapped(n)
     return function()
-      local channels = (w.data.rx_channels or {}).channels or {}
+      local raw = w.data.rx_channels
+      local channels = raw and raw.channels or NO_CHANNELS
       return channels[(w.data.rx_map[keys[n]] or n - 1) + 1] or "--"
     end
   end
@@ -176,11 +180,17 @@ return function(w)
     end
     return promptText
   end
+  -- The text is formatted again only when the reading or its low threshold moves.
+  local throttleValue, shownValue, shownZero, shownText = mapped(5), nil, nil, nil
   local function throttleNow()
-    local v = mapped(5)(); if type(v) ~= "number" then return "--" end
+    local v = throttleValue(); if type(v) ~= "number" then return "--" end
     local zero = w.data.rc_config.rc_min_throttle
     if zero == 0 then zero = H.round(w.data.rc_config.rc_center - 0.9 * w.data.rc_config.rc_deflection) end
-    return v > 0 and v < zero - 5 and string.format(L.throttleLowNow, v) or tostring(v)
+    if v ~= shownValue or zero ~= shownZero then
+      shownValue, shownZero = v, zero
+      shownText = v > 0 and v < zero - 5 and string.format(L.throttleLowNow, v) or tostring(v)
+    end
+    return shownText
   end
   local PRESET_NAMES = { "ELRS", "FrSky", "Futaba / Hitec", "DSM / Graupner / JR" }
   local PRESETS = { {0,1,3,2,5,4,6,7}, {0,1,3,4,2,5,6,7}, {0,1,3,5,2,4,6,7}, {1,2,3,5,0,4,6,7} }
@@ -233,6 +243,7 @@ return function(w)
       -- Zero makes the firmware fall back on its stick range.
       w:button(L.throttleDefaults, function()
         r.record = nil
+        if w.logTrace then w:log("trace", "throttle range defaults") end
         w:field("rc_config", "rc_min_throttle", 0)
         w:field("rc_config", "rc_max_throttle", 0)
       end)

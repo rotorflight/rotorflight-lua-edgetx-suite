@@ -26,6 +26,8 @@ function M.attach(w, params, status)
   end
   function w:escResult(block, err)
     self.escBusy = nil
+    if err then self:log("warn", "ESC %s not confirmed: %s", tostring(self.escOperation), err)
+    elseif self.logInfo then self:log("info", "ESC %s confirmed", tostring(self.escOperation)) end
     self.escResultKey = err and "escLinkFailure" or "escVerified"
     if err == "cancelled" then self.escResultKey = "escNotWritten" end
     -- A readback mismatch after an acknowledged write may need a battery restart.
@@ -45,6 +47,7 @@ function M.attach(w, params, status)
   end
   function w:readEsc()
     if self.escBusy or not self:escLinkReady() then return end
+    if self.logDebug then self:log("debug", "ESC read") end
     self.escParams = self.escParams or params.new(self.bus, self:escFamily(), status)
     self.escBusy, self.escAttempted = true, true
     self.message = self.L.loading
@@ -54,6 +57,7 @@ function M.attach(w, params, status)
     end
     self.escParams:read(function(block, err)
       self.escBusy = nil
+      if err then self:log("warn", "ESC read failed: %s", err) end
       self.escResultKey = err and "escLinkFailure" or nil
       if err and self.rangeSource == "esc_link" then
         self.rangeSource, self.rangeNeedsVerification = nil, self.escRangeExpected ~= nil
@@ -80,6 +84,7 @@ function M.attach(w, params, status)
     if self.rangeChoice ~= "esc_link" or not self:analogThrottle() or not self:escCanWrite() then return end
     local family, draft = self:escFamily(), self.escRangeDraft
     if not params.hasRange(family, self.escParams.block) or not draft or draft.minthrottle <= 1000 or draft.maxthrottle <= draft.minthrottle then
+      if self.logDebug then self:log("debug", "ESC range refused") end
       self.message = self.L.escRangeInvalid; return
     end
     local limits = self.bus.apis.motor_config.limits
@@ -87,6 +92,7 @@ function M.attach(w, params, status)
       if draft[key] < limits[key].min or draft[key] > limits[key].max then self.message = self.L.escRangeInvalid; return end
     end
     local expected = {mincommand = 1000, minthrottle = draft.minthrottle, maxthrottle = draft.maxthrottle}
+    if self.logInfo then self:log("info", "ESC range write %s..%s", draft.minthrottle, draft.maxthrottle) end
     -- Assumption: stick_zero_us is the 0% pulse and stick_range_us is its span;
     -- the implied 100% point is zero + range.
     local changes = {[family.range.zero] = expected.minthrottle,
@@ -115,6 +121,7 @@ function M.attach(w, params, status)
     if not params.hasMode(family, self.escParams.block) or not expected then return end
     local valid = false; for _, mode in ipairs(expected) do if value == mode then valid = true end end
     if not valid then return end
+    if self.logInfo then self:log("info", "ESC mode write %s", value) end
     self.escBusy, self.escOperation = true, "mode"
     self.message = self.L.saving
     self.escParams:write({[family.modeField] = value}, function(d, err) self:escResult(d, err) end,
@@ -153,6 +160,7 @@ function M.attach(w, params, status)
         set=function(value)
           if not routes[value] or self.escBusy then return end
           self.rangeChoice, self.rangeSource, self.calibratedEsc = routes[value], nil, nil
+          if self.logDebug then self:log("debug", "throttle range route %s", routes[value]) end
           self.escRangeExpected,self.escRangeChanges,self.escOperation=nil,nil,nil
           self.rangeNeedsVerification = nil
           self.checks.rangeAsserted = nil; self:escRefresh()

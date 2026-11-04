@@ -987,7 +987,7 @@ do
   tw:save(); settle(tw)
   fixtures[0x5F14] = pinReply
   check(tw.tailPinRefused == 1, "LOG tail pin control: the firmware refused the move")
-  eq(lines(pinMark, nil, "info", "tail pin refused, result 3"), 1, "LOG a refused tail pin names the firmware result")
+  eq(lines(pinMark, nil, "warn", "tail pin refused, result 3"), 1, "LOG a refused tail pin names the firmware result")
   eq(lines(pinMark, nil, "info", "message tailPinRefused"), 1, "LOG a formatted status line names its template key")
   eq(lines(pinMark, nil, "info", "message ?"), 0, "LOG no status line is logged without its key")
   -- At OFF the same walk reaches neither emit nor emitf: no message is formatted.

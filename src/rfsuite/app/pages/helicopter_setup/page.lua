@@ -156,6 +156,7 @@ function M.wakeup(ctx)
     w:load(); return
   end
   if modules[9].changeCount() ~= w.armedEpoch then
+    w:log("warn", "the arming state changed, visit stopped")
     w.armedEpoch = modules[9].changeCount(); w.bus:cancel(); w:release(); w.error = "arming"; w:rebuild(); return
   end
   w.stepKey = keys[w.step]
@@ -165,6 +166,7 @@ function M.wakeup(ctx)
     w.canEdit=w:usable()
     if viewJob:step() then
       scene, viewJob = viewJob.children, nil
+      if w.logTrace then w:log("trace", "scene published, %s objects", #scene) end
       sceneInputs, pendingInputs = pendingInputs, sceneInputs
       -- The replaced scene's inputs must not keep its cards reachable until the next build.
       if pendingInputs then for i = 1, SCENE_H do pendingInputs[i] = nil end end

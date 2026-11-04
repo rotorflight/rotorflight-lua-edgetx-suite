@@ -29,17 +29,23 @@ function M.attach(w, store)
     s.helicopterSetupHistory = { id = s.mcu_id, mask = self.history.mask }
     if self.menuChanged then self.menuChanged() end
   end
-  function w:loadHistory() self.history:load(); self:updateHistoryHints(); self:shareHistory() end
+  function w:loadHistory()
+    self.history:load(); self:updateHistoryHints(); self:shareHistory()
+    if self.history.invalid then self:log("warn", "completion record unreadable") end
+    if self.logDebug then self:log("debug", "completion record %s", self.history.mask) end
+  end
   function w:persistHistory(mask, after, allowSkip)
     self:release(); self.transition, self.message = true, self.L.historySaving
     self:run(function()
       local saved = self.history:save(mask)
       self.transition = nil
       if saved then
+        if self.logDebug then self:log("debug", "completion record saved %s", mask) end
         self.historyFailure, self.historyRetry, self.historySkip = nil, nil, nil
         self.message = self.L.ready
         self:updateHistoryHints(); self:shareHistory(); after()
       else
+        self:log("warn", "completion record not saved")
         self.historyFailure, self.message = true, self.L.historySaveFailed
         self.historyRetry = function() self.historyFailure=nil;self:persistHistory(mask,after,allowSkip) end
         self.historySkip = function()

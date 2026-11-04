@@ -66,6 +66,7 @@ return function(w)
       end
     end
     if #chosen > 0 then
+      if w.logInfo then w:log("info", "headspeed written on %s PID profiles", #chosen) end
       w:profileLoop("pid", #chosen, function(d, index)
         d.governor_headspeed = w.governorSpeeds[index]
       end, chosen)
@@ -76,6 +77,7 @@ return function(w)
     end)
   end
   local function setMode(v)
+    if w.logDebug then w:log("debug", "governor mode %s", v - 1) end
     w:field("governor_config", "gov_mode", v - 1, true)
     w:feature(26, v > 1)
     w.rebootPending = true

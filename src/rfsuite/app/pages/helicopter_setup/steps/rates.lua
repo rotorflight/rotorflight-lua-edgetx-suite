@@ -10,6 +10,7 @@ return function(w)
     local chosen={}
     for _,i in ipairs(profiles) do if w.rateStyles[i] then chosen[#chosen+1]=i end end
     if #chosen==0 then return end
+    if w.logInfo then w:log("info","rate styles written on %s profiles",#chosen) end
     w:profileLoop("rates", #chosen, function(d,i)
       H.style(d,w.rateStyles[i],ratesType); w.rateTunings[i]=d
     end,chosen)
@@ -17,6 +18,7 @@ return function(w)
   end
   local function enter()
     if w.rateLoaded then return end
+    if w.logDebug then w:log("debug","rates read on %s profiles",#profiles) end
     w.transition,w.rateTunings,w.rateMatched=true,{},{}
     local original=w.data.status.current_control_rate_profile_index+128
     w.restoreProfile=original
@@ -87,7 +89,10 @@ return function(w)
       local choice=n>1 and n-1 or nil
       rows[#rows+1]={ kind="tile",label=name,
         selected=function() return style()==choice end,
-        press=function() w.rateStyles[index]=choice;w:touch("rc_tuning") end }
+        press=function()
+          if w.logTrace then w:log("trace","rate profile %s style %s",index,tostring(choice)) end
+          w.rateStyles[index]=choice;w:touch("rc_tuning")
+        end }
     end
     local title=switched and string.format(L.switchRateProfile,position,index+1) or string.format(L.rateProfileTitle,index+1)
     local card=w:cardDef(title,L.ratesHint.."\n"..L.rateNoMatch,rows,enter,"rates")

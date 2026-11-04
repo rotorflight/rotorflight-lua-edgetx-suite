@@ -28,6 +28,7 @@ return function(w)
     if not w.checks.unplugged then w.message = L.confirmCheck; return end
     local preset = TYPES[group(tail)][kind]
     if not preset then w.message=L.servoHzQuick;return end
+    if w.logDebug then w:log("debug", "servo type %s on %s", preset.key, group(tail)) end
     local bandChanged
     for _, index in ipairs(members[tail]) do
       do

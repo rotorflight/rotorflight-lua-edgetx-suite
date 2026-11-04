@@ -521,14 +521,18 @@ It does not jump out of an active bench test through a web-style tab shortcut.
 ## Session Logs
 
 For troubleshooting, the wizard writes short English lines under the tag
-`rfsuite.helicopter_setup` once *Debug Level* in the developer settings is *INFO* or higher; at
-*OFF* it writes nothing. *INFO* records loading (start, ready, or the error with the MSP name
+`rfsuite.helicopter_setup` once *Debug Level* in the developer settings is above *OFF*; at
+*OFF* it writes nothing. *ERROR* records a failed MSP step with its reason. *WARN* adds what
+degrades and carries on: an edit dropped, a late status, a lost link, an override cleanup not confirmed, a refused
+tail pin move with the firmware's result code, a trial that found nothing, a missing output. *INFO* records loading (start, ready, or the error with the MSP name
 and reason), each step and card entered, every change of the status line as it is shown (the
 wizard's own messages, the flight controller hints and the cleanup and recovery notices) by its
-label key, where a line filled in from a template is named by the template's key, a refused
-tail pin move with the firmware's result code, save, discard, live writes, restart and
-reconnect, and closing. *DEBUG* adds the picture file shown, the helpers loaded and released on
-demand, and whether a step's cards were reused or built anew. The lines appear under *Session
+label key, where a line filled in from a template is named by the template's key, save, discard,
+live writes, restart and reconnect, what a step wrote (a mode's range, a calibrated rate, collective and styles per
+profile, an ESC range or mode), and closing. *DEBUG* adds the picture file shown, the helpers loaded and released on
+demand, whether a step's cards were reused or built anew, the profile loops, a refused Next and a
+reversal. *TRACE* adds the flow, for reading live over the serial port: each move between cards, a hold and its
+release, an edit, an answer given, a gear or servo centre change and the published scene. The lines appear under *Session
 Logs* and, with *Log Session To Card* on, in the card log; the level is read when the wizard
 opens.
 

@@ -15,9 +15,13 @@ return function(w)
       if not slots[n] then
         for i,old in ipairs(ranges) do if old.adjFunction==0 and not used[i] then slots[n]=i;break end end
       end
-      if not slots[n] then w.message=L.noSlots;return false end
+      if not slots[n] then
+        w:log("warn","no free adjustment slot, %s ranges refused",#items)
+        w.message=L.noSlots;return false
+      end
       used[slots[n]]=true
     end
+    if w.logDebug then w:log("debug","%s adjustment ranges written",#items) end
     for n,r in ipairs(items) do
       local slot=slots[n];ranges[slot]=r
       w.bus:add(w:rangeJob("adjustment_ranges",slot))
@@ -76,6 +80,7 @@ return function(w)
   local function listen(kind)
     local baseline=w:channelSnapshot("rc")
     if not baseline or #baseline<6 then w.message=L.waitChannels;return end
+    if w.logTrace then w:log("trace","profiles listen %s",kind) end
     cancel();p.base,p.peaks=baseline,{}
     p.listen,p.untilAt=kind,getTime()+2000;w.message=L.flick
   end
@@ -205,6 +210,7 @@ return function(w)
     local r=w.rescue
     if not (r and r.loaded) or not rescueSwitch() or rescueGet(i)==value then return end
     -- Only what the pilot changed is staged: a flip change leaves every profile's mode alone.
+    if w.logTrace then w:log("trace","rescue field %s set to %s",i,value) end
     r.chosen=r.chosen or {}
     r.chosen[i]=value;w:touch("rescue_profile")
     w.buildRequested=true;w:rebuild()
@@ -244,6 +250,7 @@ return function(w)
     local r=w.rescue
     if not (r and r.chosen) then return end
     local c=r.chosen
+    if w.logInfo then w:log("info","rescue written on every PID profile") end
     -- Off is written as off; On keeps a profile's own non-zero mode (CLIMB or ALT_HOLD) and
     -- gives a profile that had rescue off the mode chosen here.
     w:profileLoop("rescue",w.data.status.pid_profile_count,function(d)

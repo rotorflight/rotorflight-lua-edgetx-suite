@@ -6,6 +6,7 @@ return function(w)
     if api ~= "motor" or w.escStage ~= "full" or not hold or not d or not d.motor_1 then return end
     if d.motor_1 >= 2000 then hold.fullOutputReached = true
     elseif hold.fullOutputReached and d.motor_1 < 1995 then
+      w:log("warn", "full throttle interrupted at output %s", d.motor_1)
       w:stopMotor(); w.escStage = "idle"; w.message = L.fullThrottleInterrupted
     end
   end
@@ -25,6 +26,7 @@ return function(w)
       w:button(function() return w.escStage=="full" and L.cancelTest or L.fullThrottle end, function()
         if w.escStage=="full" then w:stopMotor();w.escStage="idle";w.message=L.ready;return end
         if not w:usable() or w.rebootPending or (w.data.status.motor_count or 0)<1 or not w.checks.escBlades then w.message = L.confirmCheck; return end
+        if w.logDebug then w:log("debug", "ESC calibration: full throttle") end
         w.motorHold = { index = 0, value = 1000, due = 0 }; w.escStage = "full"
       end),
       w:value(L.output, function() return output() end)
@@ -32,13 +34,17 @@ return function(w)
     cards[2] = w:cardDef(L.connectBattery, L.connectBatteryPwmHint, {
       w:button(L.cancelTest, function() w:stopMotor();w.escStage="idle";w.message=L.ready end,
         function() return w.escStage=="full" end),
-      w:button(L.lowThrottle, function() w:stopMotor(); w.escStage = "low" end,
+      w:button(L.lowThrottle, function()
+        if w.logDebug then w:log("debug", "ESC calibration: low throttle") end
+        w:stopMotor(); w.escStage = "low"
+      end,
         function() return w.escStage == "full" and output() >= 1995 end),
     })
     cards[3] = w:cardDef(L.lowThrottle, L.lowThrottleHint, {
       w:button(L.calibrationDone, function()
         if w.escStage == "low" and output() > 0 and output() <= 1005 then
           w.calibratedEsc, w.rangeSource = true, "calibrated"; w.message = L.ready
+          if w.logInfo then w:log("info", "ESC calibration done") end
         end
       end),
       w:value(L.output, function() return output() end)

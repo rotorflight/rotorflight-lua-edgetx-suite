@@ -45,6 +45,7 @@ function M.attach(w, PortLabels)
       get = function() return self.checks[key] and 2 or 1 end,
       set = function(v)
         self.checks[key] = v == 2
+        if self.logTrace then self:log("trace", "answer %s %s", key, tostring(v == 2)) end
         -- Answering clears the reminder that asked for the answer.
         if v == 2 and self.message == self.L.confirmCheck then self.message = self.L.ready end
       end }
@@ -87,6 +88,7 @@ function M.attach(w, PortLabels)
           if self.data.serial_config[key] then self.data.serial_config[key] = self.data.serial_config[key] & (~bit) end
         end
         self.data.serial_config["port_" .. ids[v] .. "_function_mask"] = bit
+        if self.logDebug then self:log("debug", "port %s takes function %s", ids[v], bit) end
         self:touch("serial_config", true)
       end }
   end
@@ -97,6 +99,7 @@ function M.attach(w, PortLabels)
   end
   function w:invertInput(axis)
     local r = self.data.mixer_input.inputs[axis]; r.rate = -r.rate; self:touch("mixer_input", false, true)
+    if self.logDebug then self:log("debug", "input %s reversed, rate %s", axis, r.rate) end
   end
   -- The reverse button says whether the axis is reversed now; a getter, so a press shows at once.
   function w:reversalLabel(axis)

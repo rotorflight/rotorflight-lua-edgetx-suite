@@ -1,6 +1,7 @@
 local M = {}
 function M.attach(w)
   function w:serialReceiver()
+    if self.logDebug then self:log("debug", "receiver set to serial") end
     local d=self.data.feature_config
     d.enabledFeatures=(d.enabledFeatures & (~((1<<0)|(1<<3)|(1<<13)|(1<<14)|(1<<25)))) | (1<<3)
     self:touch("feature_config", true)
@@ -71,8 +72,12 @@ function M.attach(w)
   end
   function w:motorOutputsOk()
     -- With the motor protocol off the firmware drives no motor output, so there is nothing to find.
-    local entries = self:motorProtocols()
-    if self.data.motor_config.motor_pwm_protocol == entries[#entries][1] then return true end
+    -- Read on every refresh, so the off value is taken from the list once.
+    if not self.motorOffId then
+      local entries = self:motorProtocols()
+      self.motorOffId = entries[#entries][1]
+    end
+    if self.data.motor_config.motor_pwm_protocol == self.motorOffId then return true end
     local m = self.data.motor
     return m and m.motor_1 > 0 and (not self:motorised() or m.motor_2 > 0)
   end
@@ -88,6 +93,7 @@ function M.attach(w)
     -- A receiver wiring trial reopens the UART carrying this MSP connection.
     if api == "rx_serial_trial" then self.message=self.L.receiverUsbHint;return end
     if not self:usable() or self.trial then return end
+    if self.logDebug then self:log("debug", "trial %s start", api) end
     if api ~= "board_auto_align" and not self:canDetect(api == "rx_serial_trial" and 64 or 1024) then
       self.message=self.L.saveFirst;return
     end
@@ -114,6 +120,7 @@ function M.attach(w)
       self.trialDetails=(self.trialDetails or "")..string.format(" / %d frames",d.frameDelta)
       if d.portOpen~=nil then self.trialDetails=self.trialDetails..string.format(" / port %d",d.portOpen) end
     end
+    if self.logTrace then self:log("trace", "trial %s state %s", trial.api, d.state) end
     if d.state == 1 then
       trial.due=getTime()+20
       self.message=trial.api=="board_auto_align" and self.L.liftTail or
@@ -122,6 +129,7 @@ function M.attach(w)
       return
     end
     if d.state ~= 2 then
+      self:log("warn", "trial %s ended in state %s", trial.api, d.state)
       self.message = trial.api == "board_auto_align" and d.state == 6 and self.L.calibrateFirst or
         trial.api=="board_auto_align" and d.state==4 and self.L.detectTimeout or
         trial.api=="board_auto_align" and d.state==5 and self.L.orientationUnknown or
@@ -142,12 +150,14 @@ function M.attach(w)
       a.half_duplex, a.pin_swap = d.half_duplex, d.pin_swap
       self:touch("esc_sensor_config", true)
     end
+    if self.logInfo then self:log("info", "trial %s found", trial.api) end
     self.message = trial.api == "board_auto_align" and self.L.detected or self.L.detectedSave
     if trial.api == "board_auto_align" then self.trial = nil
     else trial.success = true end
   end
   function w:stopTrial(discard)
     local trial = self.trial; self.trial = nil
+    if self.logTrace and trial then self:log("trace", "trial %s stop", trial.api) end
     if trial and trial.success and discard and trial.before then
       for _,key in ipairs(trial.keys) do self.data[trial.config][key]=trial.before[key] end
       self.dirty[trial.config]=trial.dirtyBefore
@@ -165,7 +175,10 @@ function M.attach(w)
   end
   function w:trialTick()
     if not self.trial or self.trial.success then return false end
-    if getTime() > self.trial.untilAt then self.message = self.L.detectTimeout; self:stopTrial(); return true end
+    if getTime() > self.trial.untilAt then
+      self:log("warn", "trial %s timed out", self.trial.api)
+      self.message = self.L.detectTimeout; self:stopTrial(); return true
+    end
     if getTime() < self.trial.due then return true end
     local api = self.trial.api
     self:trialRequest(api,0,function(d,err)

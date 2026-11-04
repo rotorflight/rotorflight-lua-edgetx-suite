@@ -17,6 +17,7 @@ function M.attach(w, ctx)
     w.activeModelName = type(info)=="table" and type(info.name)=="string" and info.name~="" and info.name or w.L.unknown
   end
   function w:showSteps()
+    if self.logTrace then self:log("trace", "step list") end
     self:release()
     self.overview, self.singleStep, self.confirmExit, self.exitToSteps = true, nil, nil, nil
     self.cards, self.commit, self.validate, self.onLive, self.buildRequested = nil, nil, nil, nil, nil
@@ -34,7 +35,11 @@ function M.attach(w, ctx)
   end
   function w:startStep(index, complete)
     if not self:usable() or not index or index < 1 or index > 19 or index % 1 ~= 0 then return end
-    if index >= 11 and self.rebootPending then self.message = self.L.pendingReboot; return end
+    if index >= 11 and self.rebootPending then
+      if self.logDebug then self:log("debug", "step %s waits for the owed restart", index) end
+      self.message = self.L.pendingReboot; return
+    end
+    if self.logInfo then self:log("info", "start step %s, complete=%s", index, tostring(complete)) end
     self.overview, self.singleStep, self.selectedStep = nil, not complete, index
     self.checks, self.preparationDone, self.preparationCard = {}, nil, nil
     -- Started from the menu, the step is a new visit even when it is the one just left.
@@ -78,12 +83,16 @@ function M.attach(w, ctx)
       if not present then
         local free
         for i = 13, 52 do if free == nil and payload[i] == 0 then free = i end end
-        if free == nil then self.message = self.L.noSensorSlot; return end
+        if free == nil then
+          self:log("warn", "no free telemetry slot for sensor %s", id)
+          self.message = self.L.noSensorSlot; return
+        end
         payload[free] = id
         d["telem_sensor_slot_" .. (free - 12)] = id
       end
     end
     d.buffer = payload
+    if self.logInfo then self:log("info", "FC telemetry sensors added") end
     self:action("telemetry_config", payload)
     self:reboot()
   end
@@ -123,6 +132,7 @@ function M.attach(w, ctx)
       local rows = { self:measuringStep() and self:check("motorUnplugged", self.L.motorUnplugged) or self:check("blades", self.L.bladesRemoved) }
       rows[2] = self.step < 10 and self:check("unplugged", self.L.servosUnplugged) or
         self:check("servoSettings", self.L.servoSettingsChecked)
+      if self.logTrace then self:log("trace", "preparation card, step %s", self.step) end
       self.cards = {self:cardDef(self.L.prepareStep, self.L.prepareStepHint, rows)}
       self.card, self.preparationCard = 1, true
       return true
@@ -146,6 +156,7 @@ function M.attach(w, ctx)
   end
   function w:resolveExit(save)
     if self.transition then return end
+    if self.logDebug then self:log("debug", "leaving a changed step, save=%s", tostring(save)) end
     local steps,target = self.exitToSteps,self.backTarget
     self.confirmExit, self.exitToSteps,self.backTarget = nil, nil,nil
     local after = target and function() self:navigate(target,1) end or

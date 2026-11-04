@@ -84,7 +84,11 @@ return function(w)
     elseif t.from == 2 then t0, t1 = mesh() * t.b, g.main * t.a
     elseif t.from == 3 then t0, t1 = pair(t.ratio)
     else t0, t1 = t.b, t.a end
-    if p0 > MAX or p1 > MAX or t0 > MAX or t1 > MAX then w.message = L.gearTooLarge; return false end
+    if p0 > MAX or p1 > MAX or t0 > MAX or t1 > MAX then
+      if w.logDebug then w:log("debug", "gear product refused %s %s %s %s", p0, p1, t0, t1) end
+      w.message = L.gearTooLarge; return false
+    end
+    if w.logTrace then w:log("trace", "gears main %s:%s tail %s:%s", p0, p1, t0, t1) end
     if m.main_rotor_gear_ratio_0 ~= p0 then w:field("motor_config", "main_rotor_gear_ratio_0", p0, true) end
     if m.main_rotor_gear_ratio_1 ~= p1 then w:field("motor_config", "main_rotor_gear_ratio_1", p1, true) end
     if m.tail_rotor_gear_ratio_0 ~= t0 then w:field("motor_config", "tail_rotor_gear_ratio_0", t0, true) end
@@ -106,6 +110,7 @@ return function(w)
   end
   local function setStages(v)
     if v == g.stages then return end
+    if w.logTrace then w:log("trace", "gear train %s to %s", g.stages, v) end
     -- Kept to take the whole change back when the FC cannot hold a product.
     local before = { g.stages, g.pinion, g.main, g.pinionSide, g.mainSide, g.ratio, t.from, t.a, t.b, t.mesh, t.ratio }
     if v == 2 then

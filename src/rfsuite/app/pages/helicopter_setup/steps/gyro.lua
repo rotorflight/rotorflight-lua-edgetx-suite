@@ -6,7 +6,10 @@ return function(w)
     if axis ~= 3 or not w:motorised() then
       cards[#cards + 1] = w:cardDef(a[2], a[3], {
         w:check("gyro" .. axis, L.againstMovement),
-        w:button(L.withMovement, function() w.checks["gyro" .. axis] = nil; w:navigate(1, 1) end)
+        w:button(L.withMovement, function()
+          w:log("warn", "gyro axis %s moves with the helicopter", axis)
+          w.checks["gyro" .. axis] = nil; w:navigate(1, 1)
+        end)
       }, function() w:release() end, axis == 1 and "gyroRoll" or axis == 2 and "gyroPitch" or "gyroYaw")
     end
   end

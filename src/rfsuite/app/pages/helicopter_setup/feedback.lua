@@ -29,6 +29,7 @@ function M.attach(w, state, sensors)
       hint = string.format(L.fcProfiles, config.pid_profile, config.rate_profile, config.battery_profile)
       self.systemProfiles = true
     end
+    if self.logTrace and hint ~= self.systemHint then self:log("trace", "FC hint changed") end
     self.systemHint = hint
   end
   function w:feedbackText()

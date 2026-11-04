@@ -1777,6 +1777,36 @@ return function(h)
     eq(last and last.payload[1],0,"W12 arming is allowed again")
     check(w.closing,"W12 the clean exit runs, so no power cycle is asked for")
   end)
+  case("LOG.levels-and-the-shipped-state",function()
+    local saved=_G.rfsuite.Log
+    local lines
+    local level="trace"
+    local rank={off=0,error=1,warn=2,info=3,debug=4,trace=5}
+    _G.rfsuite.Log={
+      wanted=function(l) return rank[l]<=rank[level] end,
+      emitf=function(_,l,fmt,...) lines[#lines+1]={l,string.format(fmt,...)} end,
+      emit=function(_,m,l) lines[#lines+1]={l,m} end }
+    local function has(l,text)
+      for _,x in ipairs(lines) do if x[1]==l and string.find(x[2],text,1,true) then return true end end
+      return false
+    end
+    lines={}
+    local w=world();settle(w);w.step=16
+    local c=step(w,"pitch");c[2].enter();drain(w);c[2].rows[1].press()
+    check(has("trace","hold mixer 1"),"LOG a hold shows at trace")
+    w:navigate(15,1)
+    check(has("trace","move from"),"LOG a move shows at trace")
+    check(has("trace","release"),"LOG a release shows at trace")
+    w.statusAt=getTime();w:fail("status","timeout")
+    check(has("error","status failed: timeout"),"LOG a failure shows at error")
+    -- At the shipped level the page builds no line, a failure included.
+    level="off";lines={}
+    w=world();settle(w);w.step=16;c=step(w,"pitch");c[2].enter();drain(w);c[2].rows[1].press();w:navigate(15,1)
+    w:fail("status","timeout")
+    eq(#lines,0,"LOG nothing is built at the shipped level")
+    eq(w.logTrace,false,"LOG no trace at the shipped level")
+    _G.rfsuite.Log=saved
+  end)
   case("S03.switch-settle",function()
     local w=world();w.data.boxids.box_ids={0}
     w.data.rc={channels={1500,1500,1500,1500,1000,1000}};w.rcAt=getTime()

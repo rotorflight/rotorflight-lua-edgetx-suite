@@ -38,7 +38,13 @@ function M.new(runtime, transport, mathModule, labels)
   local Log = _G.rfsuite and _G.rfsuite.Log
   w.logInfo = Log ~= nil and Log.wanted("info") == true
   w.logDebug = Log ~= nil and Log.wanted("debug") == true
-  function w:log(level, fmt, ...) Log.emitf(TAG, level, fmt, ...) end
+  -- The flow, for live diagnosis over the serial port: a step entered or left, a state change, a
+  -- branch taken. Off at the shipped level, where each of these sites costs one field test.
+  w.logTrace = Log ~= nil and Log.wanted("trace") == true
+  -- At OFF the page builds no line at all, so a failure or a degraded path, which are rare and carry
+  -- no field test of their own, are stopped here; the other levels stay behind theirs.
+  local logAny = Log ~= nil and Log.wanted("error") == true
+  function w:log(level, fmt, ...) if logAny then Log.emitf(TAG, level, fmt, ...) end end
   -- The key of a label, so a log line names the message rather than its translation.
   local function labelKey(text)
     for key, value in pairs(labels) do if value == text then return key end end
@@ -115,6 +121,7 @@ function M.new(runtime, transport, mathModule, labels)
     if dropped then dropped() end
     self.statusFailure = api == "status" or api == "arming_disable"
     self.error = api .. ": " .. tostring(reason)
+    self:log("error", "%s failed: %s", api, reason)
     self.message, self.transition = self.L.failed, nil
     self.closing = nil
     if api~="cleanup" then self:release() end
@@ -190,12 +197,18 @@ function M.new(runtime, transport, mathModule, labels)
     self.statusArmed = self:fcArmed(d) == true
     if self.calibrationAt and now() - self.calibrationAt >= 200 and (d.arming_disable_flags & ((1 << 12) | (1 << 23))) == 0 then
       self.calibrationAt = nil; self.message = self.L.calibrated
+      if self.logInfo then self:log("info", "accelerometer calibrated") end
     elseif self.calibrationAt and now()-self.calibrationAt>=1000 then
       self.calibrationAt=nil;self.message=self.L.calibrationFailed
+      self:log("warn", "accelerometer calibration flags did not clear")
     end
     local edit, dropped = self.pendingEdit, self.pendingEditDropped
     self.pendingEdit, self.pendingEditDropped = nil, nil
-    if edit and self:usable() then edit() elseif dropped then dropped() end
+    if edit and self:usable() then edit()
+    elseif edit then
+      self:log("warn", "edit dropped, the fresh status did not confirm the lock")
+      if dropped then dropped() end
+    end
   end
   -- A native list or number editor can hold the page for seconds without a wakeup,
   -- so the STATUS that authorizes an edit may have expired by the time the value
@@ -208,6 +221,7 @@ function M.new(runtime, transport, mathModule, labels)
       return
     end
     self.pendingEdit, self.pendingEditDropped = fn, dropped
+    if self.logTrace then self:log("trace", "edit waits for a fresh status") end
     if not self.statusQueued then
       self.statusQueued = true
       self.bus:urgent({ api = "status", after = function(d)
@@ -240,6 +254,7 @@ function M.new(runtime, transport, mathModule, labels)
   end
   function w:retry()
     if not self.bus:idle() or not self:allowed() or (self.cleanupPending or 0)>0 then return end
+    if self.logInfo then self:log("info", "retry") end
     if self.cleanupFailed or self.needsRelease then self:release(true) end
     self.error, self.transition, self.locked = nil, true, false
     self.statusWaiting, self.statusQueued, self.beforeStatusWait = nil, nil, nil
@@ -254,6 +269,7 @@ function M.new(runtime, transport, mathModule, labels)
   function w:touch(api, reboot, live)
     self.dirty[api] = true
     self.edits = self.edits + 1
+    if self.logTrace then self:log("trace", "edit %s reboot=%s live=%s", api, tostring(reboot), tostring(live)) end
     if reboot then self.rebootPending = true end
     if live then self.live[api] = true end
     self.message = reboot and self.L.pendingReboot or live and self.L.liveApplied or self.L.pendingSave
@@ -356,6 +372,7 @@ function M.new(runtime, transport, mathModule, labels)
   function w:release(all)
     if self.stopLink then self:stopLink() end
     local held, motor = self.holds, self.motorHold
+    if self.logTrace and (next(held) or motor or all) then self:log("trace", "release all=%s motor=%s", tostring(all), tostring(motor ~= nil)) end
     self.holds, self.motorHold, self.listen, self.legacyHold = {}, nil, nil, nil
     if self.rx then self.rx.detect, self.rx.record = nil, nil end
     if self.modeListen then self.modeListen.id = nil end
@@ -398,6 +415,7 @@ function M.new(runtime, transport, mathModule, labels)
       self.cleanupPending=self.cleanupPending-1
       if reason then
         failed,self.cleanupFailed,self.needsRelease=true,true,true
+        self:log("warn", "override cleanup not confirmed: %s", reason)
       end
       index=index+1
       local session=self:session()
@@ -433,6 +451,7 @@ function M.new(runtime, transport, mathModule, labels)
     if kind=="servo" then timed=self.timedServo end
     self.message = not timed and self.L.persistent or value == 0 and self.L.neutralHold or self.L.holding
     self.legacyHold = not timed
+    if self.logTrace then self:log("trace", "hold %s %s value %s timed=%s", kind, index, value, tostring(timed)) end
     self.holds[kind .. index] = { kind = kind, index = index, value = value, due = 0, timed=timed }
   end
   function w:holdAxes(axis, value, passthrough)
@@ -446,10 +465,16 @@ function M.new(runtime, transport, mathModule, labels)
       self.message = self.L.calibrateEscFirst; return
     end
     self.message = self.L.holding
-    if not self:canSpin(index) then self.message=self.L.motorFailed;return end
+    if not self:canSpin(index) then
+      self.message=self.L.motorFailed
+      if self.logDebug then self:log("debug", "spin %s refused", index) end
+      return
+    end
+    if self.logTrace then self:log("trace", "spin %s at %s percent, direction %s", index, self.percent, direction) end
     self.motorHold = { index = index, value = self.percent * 10 * direction, mode="spin", direction=direction, due = 0, untilAt = now() + 1500 }
   end
   function w:stopMotor()
+    if self.logTrace then self:log("trace", "motor stop") end
     self.motorHold = nil
     self.bus:dropOverrides()
     local q = self.bus:queue()
@@ -463,6 +488,7 @@ function M.new(runtime, transport, mathModule, labels)
     local status = self.data.status
     local original = kind == "rates" and status.current_control_rate_profile_index + 128 or status.current_pid_profile_index
     local api = kind == "rates" and "rc_tuning" or kind == "rescue" and "rescue_profile" or "governor_profile"
+    if self.logDebug then self:log("debug", "profile loop %s, %s profiles, %s", kind, indexes and #indexes or count, apply and "write" or "read") end
     self.restoreProfile = original
     for i = 0, math.min(indexes and #indexes or count, 6) - 1 do
       local index = indexes and indexes[i+1] or i
@@ -534,6 +560,7 @@ function M.new(runtime, transport, mathModule, labels)
   -- when the step is entered from another step and when it is started from the step menu, so a
   -- "blades removed" answer or a finished calibration never carries into a new visit.
   function w:resetVisit(step)
+    if self.logTrace then self:log("trace", "visit %s reset", STEPS[step]) end
     local owned = ({ [1] = {"orientation", "unplugged", "blades"}, [10] = {"connected"}, [12] = {"motorDirection", "escBlades"},
       [13] = {"servoUp0", "servoUp1", "servoUp2", "servoCentre0", "servoCentre1", "servoCentre2", "servoCentre3"},
       [14] = {"control1", "control2", "control4"}, [15] = {"motorUnplugged", "level", "bladeZero"}, [16] = {"pitch"},
@@ -562,6 +589,7 @@ function M.new(runtime, transport, mathModule, labels)
   end
   function w:navigate(step, card)
     if self.transition or not self.ready then return end
+    if self.logTrace then self:log("trace", "move from %s card %s to %s card %s", STEPS[self.step], self.card, STEPS[step], card or 1) end
     -- Back in front of Connect servos, a later restart asks again whether the servos are out.
     if self.step >= 10 and step <= 9 then self.checks.unplugged = nil end
     if step ~= self.step then self:resetVisit(step) end
@@ -625,7 +653,10 @@ function M.new(runtime, transport, mathModule, labels)
       self:save(function() self:navigate(self.step, target) end); return
     end
     if self.card < #self.cards then self:navigate(self.step, self.card + 1); return end
-    if self.validate and not self.validate() then return end
+    if self.validate and not self.validate() then
+      if self.logDebug then self:log("debug", "next refused on %s", STEPS[self.step]) end
+      return
+    end
     -- Connect servos (10) restarts what the steps before it owe, with the servos still out; from
     -- there on every step restarts a pending change before it moves on.
     if self.rebootPending and self.step >= 10 then self:reboot(); return end
@@ -638,6 +669,7 @@ function M.new(runtime, transport, mathModule, labels)
     end)
   end
   function w:back()
+    if self.logTrace then self:log("trace", "back on %s card %s", STEPS[self.step], self.card) end
     if not self:allowed() then
       self:release();self.disconnectExit=true;self:rebuild();return
     end
@@ -734,6 +766,7 @@ function M.new(runtime, transport, mathModule, labels)
     -- A preparation card would otherwise keep Next; it is shown again after the restart's reload.
     self.modelPreparationCard, self.preparationCard = nil, nil
     self.entryRebootGate = true
+    if self.logDebug then self:log("debug", "restart gate on %s", STEPS[self.step]) end
     self.cards={self:cardDef(self.L.pendingReboot,self.L.entryRestartHint,{
       self:check("blades",self.L.bladesRemoved),self:check("unplugged",self.L.servosUnplugged)
     })}
@@ -807,6 +840,7 @@ function M.new(runtime, transport, mathModule, labels)
     self:action("mixer_override",{0,197,9,0},function(_,err)
       self.timedMixer=mixerCandidate and err=="refused"
       self.timed=self.timedServo and self.timedMixer
+      if self.logDebug then self:log("debug", "timed overrides servo=%s mixer=%s", tostring(self.timedServo), tostring(self.timedMixer)) end
     end,true)
     for _, name in ipairs(READS) do
       local api = name
@@ -947,7 +981,7 @@ function M.new(runtime, transport, mathModule, labels)
     if not self.active then return end
     if not self:allowed() then
       if not self.suspended then
-        if self.logInfo then self:log("info", "link lost") end
+        self:log("warn", "link lost or armed, tests stopped")
         self.suspended, self.escBusy = true, nil; self.bus:cancel(); self:release(); self.message = self.L.disconnected
         self.ready = false; self:rebuild()
       end
@@ -988,6 +1022,7 @@ function M.new(runtime, transport, mathModule, labels)
           self:fail("status", self.L.stale); self.message = self.L.stale; return
         end
         if not self.statusWaiting then
+          self:log("warn", "status late, controls paused")
           self.beforeStatusWait, self.statusWaiting = self.message, true
           self.canEdit, self.canNext, self.message = false, false, self.L.checkingStatus
           self:release()
@@ -1058,6 +1093,7 @@ function M.new(runtime, transport, mathModule, labels)
       -- A refresh takes about as long as its interval on a radio link, so without a turn of
       -- its own the motor output read would never run while a hold is active.
       if now() >= h.due and not h.pollTurn then
+        if self.logTrace then self:log("trace", "motor %s refresh", h.index) end
         if h.mode=="spin" then h.value=self.percent*10*h.direction end
         if h.mode=="idle" then h.value=self.data.mixer_config.tail_motor_idle end
         h.due, h.pollTurn = now() + 25, true

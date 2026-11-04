@@ -20,10 +20,8 @@ return function(w)
           w.tailPinRefused = expected
           w.tailPinNotice = string.format(L.tailPinRefused, L["tailPinResult" .. tostring(d.result)] or L.unknown)
           w.stayNotice = w.tailPinNotice
-          if w.logInfo then
-            w.stayNoticeKey = "tailPinRefused"
-            w:log("info", "tail pin refused, result %s", d.result)
-          end
+          w:log("warn", "tail pin refused, result %s", d.result)
+          if w.logInfo then w.stayNoticeKey = "tailPinRefused" end
         else
           w.tailPinRefused, w.tailPinNotice = nil, nil
           w.rebootPending = true

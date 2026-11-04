@@ -39,6 +39,7 @@ return function(w)
     end
     c.offset = function() return string.format(L.offsetFrom, s.mid, s.mid - centreOf(s)) end
     c.test = function()
+      if w.logTrace then w:log("trace", "servo %s test", index) end
       if t.testing ~= nil then w:hold("servo", t.testing, 0) end
       if t.testing == index then t.testing = nil; return end
       t.testing = index
@@ -51,6 +52,7 @@ return function(w)
     end
     -- Reversed: flip only the reverse bit and keep the test running so the change shows.
     c.down = function()
+      if w.logDebug then w:log("debug", "servo %s reversed", index) end
       s.flags = s.flags ~ 1
       w.checks["servoUp" .. index] = nil
       w:touch("servo_configurations", false, true)
@@ -60,6 +62,7 @@ return function(w)
       local range = centre == 760 and 200 or 400
       local v = math.max(centre - range, math.min(centre + range, s.mid + delta))
       if v ~= s.mid then
+        if w.logTrace then w:log("trace", "servo %s centre %s", index, v) end
         s.mid = v; w:touch("servo_configurations", false, true)
       end
     end

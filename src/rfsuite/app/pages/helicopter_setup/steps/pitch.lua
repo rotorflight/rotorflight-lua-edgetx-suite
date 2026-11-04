@@ -22,6 +22,7 @@ return function(w)
       { kind = "holdNumber", label = L.degrees, fullWidth = true, min = -limit, max = limit, divisor = 10,
         holdLabel = function() return held() and L.releaseTest or L.holdTest end,
         press = function()
+          if w.logTrace then w:log("trace", "pitch axis %s hold pressed, held=%s", axis, tostring(held())) end
           if held() then w.pitchHeld = nil; w:holdAxes(axis, 0); return end
           w.pitchHeld = index
           w:holdAxes(axis, command(w.pitchAngle or 0))
@@ -43,6 +44,7 @@ return function(w)
         end
         w:touch("mixer_input", false, true); w.pitchMeasured[index] = 90
         w.message = L.calibratedMeasureAgain
+        if w.logInfo then w:log("info", "pitch axis %s calibrated, rate %s", axis, rate) end
       end, function() return held() and w.pitchAngle == 90 end),
       { kind = "number", label = L.ratePercent, min = 200, max = 2000, divisor = 10,
         get = function() return math.abs(w.data.mixer_input.inputs[axis].rate) end,
@@ -71,7 +73,10 @@ return function(w)
   local function limitCard(axis, label, use, tenths)
     local row = limit(axis, label)
     cards[#cards + 1] = w:cardDef(label, L.pitchLimitHint, { row,
-      w:button(use, function() row.set(tenths) end) }, zero)
+      w:button(use, function()
+        if w.logTrace then w:log("trace", "pitch limit axis %s set to %s", axis, tenths) end
+        row.set(tenths)
+      end) }, zero)
   end
   limitCard(2, L.cyclicLimit, L.useTen, 100)
   limitCard(4, L.collectiveLimit, L.useTwelve, 120)
@@ -133,6 +138,7 @@ return function(w)
       if w.pitchFullChanged and w.pitchFullChanged[id] then chosen[#chosen + 1] = id end
     end
     if #chosen == 0 then return end
+    if w.logInfo then w:log("info", "full-stick collective written on %s rate profiles", #chosen) end
     w:profileLoop("rates", #chosen, function(d, index)
       return H.setCollective(d, w.pitchFull[index])
     end, chosen)

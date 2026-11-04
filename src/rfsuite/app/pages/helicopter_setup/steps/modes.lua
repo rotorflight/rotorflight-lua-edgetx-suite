@@ -33,7 +33,10 @@ return function(w)
   end
   w.onLive = function(api, d)
     if api ~= "rc" or not s.id then return end
-    if getTime() > s.untilAt then s.id = nil; w.message = L.detectTimeout; return end
+    if getTime() > s.untilAt then
+      if w.logDebug then w:log("debug", "mode %s: no switch moved", s.id) end
+      s.id = nil; w.message = L.detectTimeout; return
+    end
     if not s.base then s.base = d.channels; return end
     local peaks = {}
     for i = 6, #d.channels do peaks[i - 5] = math.abs(d.channels[i] - (s.base[i] or d.channels[i])) end
@@ -46,9 +49,13 @@ return function(w)
     if s.aux ~= aux or math.abs((s.value or 0) - value) > 25 then s.aux, s.value, s.at = aux, value, getTime(); return end
     if getTime() - s.at < 40 then return end
     local i = slot(s.id)
-    if not i then w.message = L.noSlots; s.id = nil; return end
+    if not i then
+      w:log("warn", "no free mode slot for box %s", s.id)
+      w.message = L.noSlots; s.id = nil; return
+    end
     local lo, hi = H.switchRange(s.base[aux + 5], value)
     w.data.mode_ranges.mode_ranges[i] = { id = s.id, auxChannelIndex = aux - 1, range = { start = lo, ["end"] = hi } }
+    if w.logInfo then w:log("info", "mode %s on aux %s, %s..%s", s.id, aux - 1, lo, hi) end
     send(i); clearRanges(s.id, i); s.id = nil
     w.message = string.format(L.switchDetected,w:channelNumber(aux-1),lo,hi)
     if w.logInfo then w:keyMessage("switchDetected") end
