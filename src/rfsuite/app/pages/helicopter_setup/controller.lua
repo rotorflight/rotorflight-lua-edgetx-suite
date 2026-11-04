@@ -536,7 +536,7 @@ function M.new(runtime, transport, mathModule, labels)
   function w:resetVisit(step)
     local owned = ({ [1] = {"orientation", "unplugged", "blades"}, [10] = {"connected"}, [12] = {"motorDirection", "escBlades"},
       [13] = {"servoUp0", "servoUp1", "servoUp2", "servoCentre0", "servoCentre1", "servoCentre2", "servoCentre3"},
-      [14] = {"control1", "control2", "control4"}, [15] = {"level"}, [16] = {"pitch"},
+      [14] = {"control1", "control2", "control4"}, [15] = {"motorUnplugged", "level", "bladeZero"}, [16] = {"pitch"},
       [17] = {"tailCentre", "tailDirection"}, [18] = {"gyro1", "gyro2", "gyro3"}, [19] = {"finish"} })[step]
     for _, name in ipairs(owned or {}) do self.checks[name] = nil end
     if step == 12 or step == 17 then self.bladesOff, self.percent = false, 10 end
@@ -555,6 +555,8 @@ function M.new(runtime, transport, mathModule, labels)
     end
     if step == 5 then self.rateStyles, self.rateLoaded = {}, nil end
     if step == 8 then self.governorLoaded, self.governorFilterLoaded = nil, nil end
+    -- Staged collective values stay until saved or discarded; read anew otherwise.
+    if step == 16 and not self.pitchFullChanged then self.pitchLoaded, self.pitchFull = nil, nil end
     -- Stick travel is measured anew on every visit to the receiver step.
     if step == 2 and self.rx then self.rx.travel, self.rx.travelSig, self.rx.advanced = nil, nil, nil end
   end
@@ -712,7 +714,7 @@ function M.new(runtime, transport, mathModule, labels)
         self.dirty, self.live, self.profileOriginal = {}, {}, nil
         self.edits = self.edits + 1
         self.profile = nil
-        self.pitchFull,self.pitchFullChanged,self.rateProfile,self.rateLoaded=nil,nil,nil,nil
+        self.pitchFull,self.pitchFullChanged,self.pitchLoaded,self.rateProfile,self.rateLoaded=nil,nil,nil,nil,nil
         self.rateStyles,self.rateTunings,self.rateMatched=nil,nil,nil
         self.governorLoaded,self.governorSpeeds,self.governorChanged,self.governorFilterLoaded=nil,nil,nil,nil
         self.rescue=nil
@@ -734,6 +736,7 @@ function M.new(runtime, transport, mathModule, labels)
     self.card=1;self:rebuild()
   end
   function w:reboot()
+    if self.step == 11 then self.escResume = true end
     self:save(function()
       if self.logInfo then self:log("info", "reboot") end
       self.transition = true; self.message = self.L.rebooting; self.rebootAt = now(); self.rebootPhase = "sent"
@@ -752,6 +755,7 @@ function M.new(runtime, transport, mathModule, labels)
     self.tailPinRefused,self.tailPinNotice,self.stayNotice=nil,nil,nil
     self.governorLoaded,self.governorSpeeds,self.governorChanged,self.governorFilterLoaded=nil,nil,nil,nil
     self.rescue=nil
+    if not self.pitchFullChanged then self.pitchLoaded, self.pitchFull = nil, nil end
     self.data.battery_config, self.data.battery_profile, self.data.smartfuel_config = nil, nil, nil
     self.data.analog, self.analogAt = nil, nil
     self.statusQueued, self.statusWaiting, self.beforeStatusWait = nil, nil, nil

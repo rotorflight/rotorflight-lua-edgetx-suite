@@ -7,7 +7,7 @@ return function(w)
     cards[#cards + 1] = w:cardDef(a[2], a[3], {
       w:value(a[5], function() return w:stickNow(axis) end),
       w:value(L.expected,function() return a[4] end),
-      w:button(L.wrongReverse, function() w:invertInput(axis); w.checks["control" .. axis] = nil end),
+      w:button(w:reversalLabel(axis), function() w:invertInput(axis); w.checks["control" .. axis] = nil end),
       w:check("control" .. axis, L.directionCorrect)
     }, function() w:holdAxes(nil, 0, true) end, axis == 1 and "swashRoll" or axis == 2 and "swashPitch" or "swashLift")
   end

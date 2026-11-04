@@ -170,9 +170,12 @@ return function(w)
           if v == t.from then return end
           -- The intermediate shaft needs tooth counts for the main gear.
           if v == 2 and g.stages == 3 then w.message = L.tailNeedsTeeth; return end
-          local before = t.from; t.from = v
+          local before, beforeMesh = t.from, t.mesh; t.from = v
           if v == 3 then t.ratio = hundredths(m.tail_rotor_gear_ratio_0, m.tail_rotor_gear_ratio_1) end
-          if not apply() then t.from = before end
+          -- The intermediate gear starts at the main gear's count: a 1:1 mesh, so the ratio stays
+          -- until the real count is entered.
+          if v == 2 and g.stages ~= 2 then t.mesh = g.main end
+          if not apply() then t.from, t.mesh = before, beforeMesh end
           w.buildRequested = true; w:rebuild()
         end }
     }

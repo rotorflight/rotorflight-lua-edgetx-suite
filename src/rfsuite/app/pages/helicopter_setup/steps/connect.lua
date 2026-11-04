@@ -3,7 +3,9 @@ return function(w)
   w.validate = function()
     if w.rebootPending then return w:ack("unplugged") end
     if not w:motorOutputsOk() then w.message = L.motorFailed; return false end
-    local needed = (w.data.mixer_config.swash_type >= 5 and 2 or 3) + (w:motorised() and 0 or 1)
+    -- As w:servos() counts them: no cyclic servo without a swashplate.
+    local swash = w.data.mixer_config.swash_type
+    local needed = (swash == 0 and 0 or swash >= 5 and 2 or 3) + (w:motorised() and 0 or 1)
     if #w:servos() < needed then w.message = L.servoMissing; return false end
     return w:ack("connected") and w:ack("blades")
   end

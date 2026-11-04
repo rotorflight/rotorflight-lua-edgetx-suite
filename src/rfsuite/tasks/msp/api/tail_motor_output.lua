@@ -18,7 +18,7 @@ local Api = {
 }
 
 function Api.parse(buf)
-  if type(buf) ~= "table" or #buf ~= 2 or buf[1] > 3 or buf[2] > 6 then return nil end
+  if type(buf) ~= "table" or #buf ~= 2 or buf[1] > 3 or buf[2] > 8 then return nil end
   return { output = buf[1], result = buf[2] }
 end
 

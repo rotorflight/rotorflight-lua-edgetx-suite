@@ -7,6 +7,11 @@ return function(w)
   end
   local function motor() return w.data.motor_telemetry and w.data.motor_telemetry.motors[1] end
   w.commit = function() w:fixMotor() end
+  -- FBUS (13) and SRXL2 (14) telemetry comes over the receiver link; the firmware opens no ESC port for them.
+  local function usesPort()
+    local p = w.data.esc_sensor_config.protocol
+    return p > 0 and p ~= 13 and p ~= 14
+  end
   local protocol = w:enum("esc_sensor_config", "protocol", L.protocol, w:telemetryProtocols(), true)
   local port=w:port(L.port,1024)
   local set = protocol.set
@@ -17,8 +22,8 @@ return function(w)
     w.escParams,w.escAttempted,w.escResultKey,w.escBusy=nil,nil,nil,nil
     w.rangeChoice,w.rangeSource,w.escRangeExpected=nil,nil,nil
     -- Turned on without a telemetry port: the first free port is taken, as the pilot would.
-    if previous == 0 and port.get() == 0 and port.values[1] ~= L.noPort then port.set(1) end
-    if w.data.esc_sensor_config.protocol == 0 then
+    if usesPort() and port.get() == 0 and port.values[1] ~= L.noPort then port.set(1) end
+    if not usesPort() then
       for i=1,12 do
         local key="port_"..i.."_function_mask"
         local mask=w.data.serial_config[key]
@@ -29,7 +34,7 @@ return function(w)
   end
   local castle=w.data.motor_config.motor_pwm_protocol==9
   protocol.enabled=function() return not castle and not w.trial and not w.escBusy end
-  port.enabled=function() return not castle and not w.trial and not w.escBusy and w.data.esc_sensor_config.protocol>0 end
+  port.enabled=function() return not castle and not w.trial and not w.escBusy and usesPort() end
   local cards={
     w:cardDef(L.connectBattery, L.telemetryBatteryHint, {}, nil, "esc"),
     w:cardDef(L.escTelemetry, castle and L.castleTelemetryHint or L.telemetryHint, {
@@ -39,8 +44,11 @@ return function(w)
     })
   }
   if castle then cards[2].summary=L.castleTelemetryShort end
-  if not castle and w.data.esc_sensor_config.protocol>0 then
-    cards[#cards+1]=w:cardDef(L.port,L.telemetryPortHint,{port})
+  if not castle and usesPort() then
+    cards[#cards+1]=w:cardDef(L.port,L.telemetryPortHint,{port,
+      w:button(L.saveReboot, function() w:reboot() end,
+        function() return not w.escBusy and not (w.escParams and w.escParams.changes) end)
+    })
   end
   cards[#cards+1]=w:cardDef(L.telemetryCheck,L.telemetryCheckHint,{
     w:button(function() return w.trial and L.cancelDetect or L.detectWiring end,
@@ -50,6 +58,11 @@ return function(w)
     w:value(L.temperature, function() local m = motor(); return m and string.format("%.1f°C", m.temperature / 10) or "--" end),
   })
   cards[#cards].summary=L.telemetryCheckShort
+  -- A restart from this step comes back on the check, where its result shows.
+  if w.escResume then
+    w.escResume, w.card = nil, #cards
+    if w.logDebug then w:log("debug", "ESC telemetry resumes at card %s", w.card) end
+  end
   cards[#cards+1]=w:cardDef(L.telemetryStatus,L.telemetryStatusHint,{
     w:value(L.current, function() local m = motor(); return m and w.powerFields.reading(m.current, 1000, "A") or "--" end),
     w:value(L.rpm, function() local m = motor(); return m and m.rpm or "--" end),

@@ -18,7 +18,7 @@ return function(w)
     t.testing = nil
     for _, i in ipairs(w:servos()) do w:hold("servo", i, 0) end
   end
-  local function centreOf(s) return s.mid > 860 and 1520 or 760 end
+  local function centreOf(s) return w.math.narrowServo(s.mid) and 760 or 1520 end
   local function servo(index)
     local s = w.data.servo_configurations.servos[index]
     local tail = index == 3

@@ -796,7 +796,7 @@ local visited={}
 for _=1,3000 do
   w:tick();pump();ticks=ticks+5
   if w.ready and w.cards and not w.transition and not w.error then
-    if w.step==13 then for _,s in pairs(w.data.servo_configurations.servos) do s.mid=s.mid>860 and 1520 or 760 end end
+    if w.step==13 then for _,s in pairs(w.data.servo_configurations.servos) do s.mid=s.mid>1040 and 1520 or 760 end end
     visited[w.step]=true;w:next()
   end
   if w.closed or w.error then break end

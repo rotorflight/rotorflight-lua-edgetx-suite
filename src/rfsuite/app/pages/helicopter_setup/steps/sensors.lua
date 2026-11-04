@@ -10,6 +10,17 @@ return function(w)
   end
   w.onLive("status",w.data.status)
   w.validate = function() return w:ack("orientation") end
+  -- The firmware applies the alignment as it arrives, so the live model shows the typed angles.
+  -- A confirmation given for other angles no longer holds.
+  local function angle(key, label)
+    local row = w:n("board_alignment_config", key, label, -180, 180, false, true)
+    local set = row.set
+    row.set = function(v)
+      if w.data.board_alignment_config[key] ~= v then w.checks.orientation = nil end
+      set(v)
+    end
+    return row
+  end
   local cards = {
     -- As in the Configurator's step: blades off first, then the accelerometer on a level
     -- helicopter, then the orientation with the tail lifted, then the live check.
@@ -26,9 +37,9 @@ return function(w)
     }, nil, "heliLevel"),
     w:cardDef(L.orientation, L.alignHint, {
       w:button(L.autoAlign, function() w:startTrial("board_auto_align") end, function() return acc end),
-      w:n("board_alignment_config", "roll_degrees", L.roll, -180, 180, true),
-      w:n("board_alignment_config", "pitch_degrees", L.pitch, -180, 180, true),
-      w:n("board_alignment_config", "yaw_degrees", L.yaw, -180, 180, true)
+      angle("roll_degrees", L.roll),
+      angle("pitch_degrees", L.pitch),
+      angle("yaw_degrees", L.yaw)
     }, nil, "heliLift"),
     w:cardDef(L.checkOrientation, L.orientationHint, {
       w:check("orientation", L.directionCorrect)

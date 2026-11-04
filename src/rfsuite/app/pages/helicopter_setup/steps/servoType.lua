@@ -19,7 +19,7 @@ return function(w)
   local function group(tail) return tail and "tail" or "cyclic" end
   -- The frame rates a band allows by hand: wide band (1520 us) and narrow band (760 us).
   local BAND_HZ = { wide = { min = 50, max = 333 }, narrow = { min = 200, max = 560 } }
-  local function band(servo) return servo.mid <= 860 and "narrow" or "wide" end
+  local function band(servo) return w.math.narrowServo(servo.mid) and "narrow" or "wide" end
   -- The servos of each group, read once: the swash layout cannot change within this step, and
   -- w:servos() builds a new list, too costly for a getter the screen calls on every refresh.
   local members = { [false] = {}, [true] = {} }
@@ -33,7 +33,7 @@ return function(w)
       do
         local servo = w.data.servo_configurations.servos[index]
         local narrow = preset.mid == 760
-        if (servo.mid <= 860) ~= narrow then
+        if (w.math.narrowServo(servo.mid)) ~= narrow then
           bandChanged = true
           servo.mid, servo.min, servo.max = narrow and 760 or 1520, narrow and -250 or -700, narrow and 250 or 700
           servo.rneg, servo.rpos = narrow and 250 or 500, narrow and 250 or 500
@@ -55,7 +55,7 @@ return function(w)
         local s = w.data.servo_configurations.servos[index]
         local kind = 0
         for n, preset in ipairs(TYPES[group(tail)]) do
-          if s.rate == preset.rate and (s.mid <= 860) == (preset.mid == 760) then kind = n end
+          if s.rate == preset.rate and (w.math.narrowServo(s.mid)) == (preset.mid == 760) then kind = n end
         end
         if result and result ~= kind then return 0 end
         result = kind

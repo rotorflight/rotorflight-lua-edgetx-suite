@@ -15,8 +15,8 @@ return function(w)
     return {
       w:cardDef(L.tail, L.tailMotorHint, rows, nil, "tailMotor"),
       w:cardDef(L.tailIdle, L.tailIdleHint, {
-        w:n("mixer_config", "tail_motor_idle", L.idlePercent, 0, 255, false, true, 10),
-        w:button(L.usePower, function() w:field("mixer_config", "tail_motor_idle", math.min(w.percent * 10, 255), false, true) end),
+        w:n("mixer_config", "tail_motor_idle", L.idlePercent, 0, 250, false, true, 10),
+        w:button(L.usePower, function() w:field("mixer_config", "tail_motor_idle", math.min(w.percent * 10, 250), false, true) end),
         { kind = "hold", label = L.testIdle, press = function()
           if not w:usable() or not w.bladesOff or w.rebootPending or (w.data.status.motor_count or 0)<2 then return end
           w.motorHold = { index = 1, value = w.data.mixer_config.tail_motor_idle, mode="idle", due = 0, untilAt = getTime() + 1500 }
@@ -42,7 +42,7 @@ return function(w)
     }, function() hold(0) end, "tail"),
     w:cardDef(L.tailDirection, L.tailDirectionHint, {
       w:value(L.inputYaw, function() return w:stickNow(3) end),
-      w:button(L.wrongReverse, function() w:invertInput(3); w.checks.tailDirection = nil end),
+      w:button(w:reversalLabel(3), function() w:invertInput(3); w.checks.tailDirection = nil end),
       w:check("tailDirection", L.directionCorrect)
     }, function() hold(2502) end,"tailMove"),
     -- 22.5 degrees each way (1000 units per 24 degrees): the tail blades then open to 45 degrees,

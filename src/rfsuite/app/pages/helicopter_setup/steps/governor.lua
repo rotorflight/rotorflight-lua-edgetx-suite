@@ -79,10 +79,15 @@ return function(w)
     w:field("governor_config", "gov_mode", v - 1, true)
     w:feature(26, v > 1)
     w.rebootPending = true
-    if v < 4 and w.data.governor_config.gov_throttle_type == 1 then
+    if v < 4 and w.data.governor_config.gov_throttle_type ~= 0 then
       w:field("governor_config", "gov_throttle_type", 0, true)
     end
     w.buildRequested=true;w:rebuild()
+  end
+  -- Below Electric only Normal is offered, and a type stored by another route goes back to it.
+  if mode() > 0 and mode() < 3 and w.data.governor_config.gov_throttle_type ~= 0 then
+    if w.logInfo then w:log("info", "throttle type %s reset below Electric", w.data.governor_config.gov_throttle_type) end
+    w:field("governor_config", "gov_throttle_type", 0, true)
   end
   local cards = { w:cardDef(L.governorMode, L.governorHint, {
     { kind = "choice", label = L.mode, values = { L.off, L.limit, L.direct, L.electric, L.nitro },
@@ -116,11 +121,10 @@ return function(w)
   end
   if mode()>0 then
     cards[#cards+1]=w:cardDef(L.throttleType, L.throttleTypeHint, {
-      { kind = "choice", label = L.throttleType, values = { L.normal, L.switch, L.functionMode },
+      { kind = "choice", label = L.throttleType, values = governs() and { L.normal, L.switch, L.functionMode } or { L.normal },
         get = function() return w.data.governor_config.gov_throttle_type + 1 end,
         set = function(v)
-          if mode()==0 then return end
-          if v == 2 and mode() < 3 then w.message = L.governorSwitch; return end
+          if not governs() and v ~= 1 then return end
           w:field("governor_config", "gov_throttle_type", v - 1, true)
         end,enabled=function() return mode()>0 end }
     })

@@ -473,7 +473,7 @@ return function(h)
       for _=1,1500 do
         w:tick();h.pump();h.advance(1)
         if w.cards and not w.transition and not w.error then
-          if w.step==13 then for _,s in pairs(w.data.servo_configurations.servos) do s.mid=s.mid>860 and 1520 or 760 end end
+          if w.step==13 then for _,s in pairs(w.data.servo_configurations.servos) do s.mid=s.mid>1040 and 1520 or 760 end end
           w:next()
         end
         if w.overview or w.error then break end
@@ -680,7 +680,11 @@ return function(h)
     eq(w.data.board_alignment_config.yaw_degrees,before,"S01 refused detection preserves current angles")
     w.cards[3].rows[4].set(45)
     eq(w.data.board_alignment_config.yaw_degrees,45,"S01 manual angle remains editable after refusal")
-    check(w.dirty.board_alignment_config and w.rebootPending,"S01 manual fallback retains save/reboot semantics")
+    check(w.dirty.board_alignment_config and w.live.board_alignment_config,"S01 a typed angle goes to the FC at once")
+    w.checks.orientation=true;w.cards[3].rows[4].set(45)
+    check(w.checks.orientation,"S01 the same angle keeps the answer")
+    w.cards[3].rows[4].set(46)
+    check(not w.checks.orientation,"S01 a changed angle clears the orientation answer")
   end)
   case("VISUAL.rotor-direction-arrow",function()
     -- The rotor card shows the Configurator's rotor picture whose arrow turns the chosen way.
@@ -851,7 +855,15 @@ return function(h)
     for i,v in ipairs(vectors) do
       local result
       if v.fn=="style" then
-        result=v.args[1];H.style(result,v.args[2],v.args[3])
+        -- The one deliberate delta to the source's style: the collective's expo stays, and its
+        -- values are written only where the rates type changes what they mean.
+        result=v.args[1]
+        local expo,shape,rate,typeBefore=result.rcExpo_4,result.rates_4,result.rcRates_4,result.rates_type
+        H.style(result,v.args[2],v.args[3])
+        local expected={};for key,value in pairs(v.expected) do expected[key]=value end
+        expected.rcExpo_4=expo
+        if typeBefore==result.rates_type then expected.rates_4,expected.rcRates_4=shape,rate end
+        v={fn=v.fn,expected=expected}
       elseif v.fn=="switchRange" then
         local a,b=H.switchRange(table.unpack(v.args));result={a,b}
       elseif v.fn=="moved" then
@@ -885,7 +897,7 @@ return function(h)
     eq(w.message,L.calibrateFirst,"S01 uncalibrated firmware diagnosis")
     w.trial={api="board_auto_align"};w:trialReply({state=2,roll_degrees=-90,pitch_degrees=0,yaw_degrees=180})
     eq(w.data.board_alignment_config.roll_degrees,-90,"S01 signed alignment")
-    check(w.rebootPending and w.dirty.board_alignment_config,"S01 alignment deferred to reboot gate")
+    check(w.live.board_alignment_config and w.dirty.board_alignment_config,"S01 detected alignment goes to the FC at once")
     check(not w.validate(),"S01 physical direction answer required")
   end)
   case("VISUAL.stick-bars",function()
@@ -1603,6 +1615,102 @@ return function(h)
     check(ranges[1].range.start>=ranges[1].range["end"] and ranges[3].range.start>=ranges[3].range["end"],"D2 Remove clears every range of the mode")
     check(not w.validate(),"D2 ARM counts as missing once every range is cleared")
   end)
+  case("D3.throttle-type-below-electric",function()
+    local w=world();settle(w);w.step=8
+    w.data.feature_config.enabledFeatures=w.data.feature_config.enabledFeatures|(1<<26)
+    -- A stored type below Electric goes back to Normal when the step opens, Off keeps its value.
+    w.data.governor_config.gov_mode=2;w.data.governor_config.gov_throttle_type=2
+    local c=step(w,"governor")
+    eq(w.data.governor_config.gov_throttle_type,0,"D3 Direct resets a stored Function to Normal")
+    check(w.dirty.governor_config,"D3 the reset is saved")
+    local throttle
+    for _,card in ipairs(c) do if card.title==L.throttleType then throttle=card.rows[1] end end
+    eq(#throttle.values,1,"D3 Direct offers Normal only");eq(throttle.get(),1,"D3 Normal is shown")
+    throttle.set(3);eq(w.data.governor_config.gov_throttle_type,0,"D3 nothing else can be set below Electric")
+    w.data.governor_config.gov_mode=1;w.data.governor_config.gov_throttle_type=1
+    step(w,"governor");eq(w.data.governor_config.gov_throttle_type,0,"D3 Limit resets a stored Switch to Normal")
+    -- Electric offers all three; dropping below Electric takes the type back.
+    w.data.governor_config.gov_mode=3;w.data.governor_config.gov_throttle_type=2
+    c=step(w,"governor");eq(w.data.governor_config.gov_throttle_type,2,"D3 Electric keeps Function")
+    c[1].rows[1].set(3);eq(w.data.governor_config.gov_mode,2,"D3 mode change applies")
+    eq(w.data.governor_config.gov_throttle_type,0,"D3 the mode change resets the type")
+  end)
+  case("D4.tail-pin-results",function()
+    local api=h.api("tail_motor_output")
+    for _,result in ipairs({7,8}) do
+      local d=api.parse({1,result})
+      eq(d and d.result,result,"D4 result "..result.." decodes")
+      check(type(L["tailPinResult"..result])=="string","D4 result "..result.." has its words")
+    end
+    eq(api.parse({1,9}),nil,"D4 an unknown result is still refused")
+  end)
+  case("D5.tail-from-the-intermediate-shaft-keeps-its-ratio",function()
+    local w=world();settle(w);w.step=9;w.data.mixer_config.tail_rotor_mode=0;w.gear=nil
+    local m=w.data.motor_config
+    m.main_rotor_gear_ratio_0,m.main_rotor_gear_ratio_1=10,110
+    m.tail_rotor_gear_ratio_0,m.tail_rotor_gear_ratio_1=21,100
+    local c=step(w,"motor")
+    local tail=c[4].rows[1]
+    tail.set(2)
+    eq(m.tail_rotor_gear_ratio_1/m.tail_rotor_gear_ratio_0,100/21,"D5 the ratio stays until the mesh is entered")
+    eq(m.tail_rotor_gear_ratio_0,110*21,"D5 the mesh starts at the main gear")
+  end)
+  case("D7.connect-on-protocol-off-and-no-swash",function()
+    local w=world();settle(w);w.step=10;w.rebootPending=nil
+    w.checks.connected,w.checks.blades=true,true
+    local entries=w:motorProtocols()
+    w.data.motor_config.motor_pwm_protocol=entries[#entries][1]
+    w.data.motor={motor_1=0,motor_2=0}
+    step(w,"connect");check(w.validate(),"D7 a heli with the motor protocol off is not blocked")
+    w.data.motor_config.motor_pwm_protocol=5
+    step(w,"connect");check(not w.validate(),"D7 a missing motor output still blocks with a protocol on")
+    w.data.motor={motor_1=1000,motor_2=1000};w.data.mixer_config.swash_type=0;w.data.mixer_config.tail_rotor_mode=1
+    step(w,"connect");check(w.validate(),"D7 no swashplate needs no cyclic servo")
+  end)
+  case("D8.reversal-shows-on-the-button",function()
+    local w=world();settle(w);local c=step(w,"direction")
+    w.data.mixer_input.inputs[1].rate=1000
+    eq(c[1].rows[3].label(),L.wrongReverse,"D8 a normal axis reads plainly")
+    c[1].rows[3].press()
+    check(string.find(c[1].rows[3].label(),L.reversed,1,true)~=nil,"D8 a reversed axis says so")
+  end)
+  case("D9.esc-telemetry-ports-and-restart",function()
+    local w=world();settle(w);w.step=11;w.data.motor_config.motor_pwm_protocol=5
+    local serial=w.data.serial_config
+    for i=1,12 do if serial["port_"..i.."_function_mask"] then serial["port_"..i.."_function_mask"]=0 end end
+    w.data.esc_sensor_config.protocol=9;serial.port_1_function_mask=1024
+    local c=step(w,"escTelemetry")
+    local portCard
+    for _,card in ipairs(c) do if card.title==L.port then portCard=card end end
+    eq(portCard.rows[2].label,L.saveReboot,"D9 the port card has the restart its hint names")
+    -- FBUS and SRXL2 telemetry opens no ESC port.
+    w.data.esc_sensor_config.protocol=0;w.buildRequested=nil
+    c=step(w,"escTelemetry")
+    local protocol=c[2].rows[1]
+    for _,id in ipairs({13,14}) do
+      for n,entry in ipairs(w:telemetryProtocols()) do if entry[1]==id then protocol.set(n) end end
+      eq(w.data.esc_sensor_config.protocol,id,"D9 protocol set "..id)
+      eq(serial.port_1_function_mask & 1024,0,"D9 protocol "..id.." takes no ESC port")
+      local cards=step(w,"escTelemetry")
+      for _,card in ipairs(cards) do check(card.title~=L.port,"D9 protocol "..id.." has no port card") end
+    end
+    -- A restart comes back on the check card.
+    w.data.esc_sensor_config.protocol=9;serial.port_1_function_mask=1024
+    w.escResume,w.card=true,1
+    c=step(w,"escTelemetry")
+    eq(c[w.card].title,L.telemetryCheck,"D9 a restart reopens on the check")
+    check(not w.escResume,"D9 only once")
+  end)
+  case("D12.narrow-centre-stays-in-its-band",function()
+    local w=world();settle(w)
+    local s=w.data.servo_configurations.servos[0];s.mid,s.flags=860,0
+    local c=step(w,"servos")
+    local servo=c[2].servo
+    servo.nudge(1);eq(s.mid,861,"D12 one up from the old edge moves one")
+    servo.nudge(10);eq(s.mid,871,"D12 and stays in the narrow band")
+    check(H.narrowServo(960) and not H.narrowServo(1120),"D12 the limit lies between the bands")
+    s.mid=1120;c=step(w,"servos");c[2].servo.nudge(-1);eq(s.mid,1120,"D12 the wide band's edge holds")
+  end)
   case("S03.switch-settle",function()
     local w=world();w.data.boxids.box_ids={0}
     w.data.rc={channels={1500,1500,1500,1500,1000,1000}};w.rcAt=getTime()
@@ -1907,6 +2015,7 @@ return function(h)
     local c=step(w,"governor");cardOrder(c,{L.governorMode},"S08 Off")
     c[1].rows[1].set(4);c=step(w,"governor")
     cardOrder(c,{L.governorMode,L.rpmSource,L.throttleType,string.format(L.headspeedProfile,1)},"S08 On")
+    eq(#c[3].rows[1].values,3,"W9 Electric offers all three throttle types")
     c[3].rows[1].set(2)
     eq(w.data.governor_config.gov_mode,3,"S08 Electric mode field")
     eq(w.data.governor_config.gov_throttle_type,1,"S08 Switch throttle field")
@@ -3104,7 +3213,7 @@ return function(h)
     eq(s.mid,1920,"S13 centre nudge stays inside the pulse band")
     eq(one.status(),L.directionOk,"S13 far warning does not replace direction confirmation")
     for _,card in ipairs(c) do if card.servo then w.checks["servoUp"..card.servo.index]=true end end
-    for _,servo in pairs(w.data.servo_configurations.servos) do servo.mid=servo.mid>860 and 1520 or 760 end
+    for _,servo in pairs(w.data.servo_configurations.servos) do servo.mid=servo.mid>1040 and 1520 or 760 end
     check(w.validate(),"S13 confirmed directions and centres within 100 us complete the step")
     w.data.servo_configurations.servos[3].mid=1650
     check(not w.validate() and w.message==string.format(L.servoBlocked,c[5].servo.title,c[5].servo.role,L.servoFar),"S13 a far tail centre keeps the step open")
@@ -3168,29 +3277,87 @@ return function(h)
     w.checks.control1=true;local before=w.data.mixer_input.inputs[1].rate;c[1].rows[3].press()
     eq(w.data.mixer_input.inputs[1].rate,-before,"S14 reverse input scale")
     check(not w.checks.control1,"S14 reversal invalidates previous physical answer")
-    c=step(w,"level");c[1].enter()
-    eq(c[1].rows[1].label,L.roll,"S15 first trim is roll axis")
-    eq(c[1].rows[2].label,L.pitch,"S15 second trim is pitch axis")
-    eq(c[1].rows[3].label,L.collective,"S15 third trim is collective axis")
-    for i=1,3 do c[1].rows[i].set(i*10) end
-    c[1].rows[4].press()
+    c=step(w,"level");c[2].enter()
+    cardOrder(c,{L.motorOffTitle,L.level,L.levelCheck,L.bladeZeroTitle},"S15")
+    eq(c[1].rows[1].label,L.motorUnplugged,"S15 the motor card comes first")
+    check(c[1].enter==nil,"S15 nothing is held before the motor answer")
+    eq(c[2].rows[1].label,L.roll,"S15 first trim is roll axis")
+    eq(c[2].rows[2].label,L.pitch,"S15 second trim is pitch axis")
+    eq(c[2].rows[3].label,L.collective,"S15 third trim is collective axis")
+    for i=1,3 do c[2].rows[i].set(i*10) end
+    c[2].rows[4].press()
     for i=0,2 do eq(w.data.mixer_config["swash_trim_"..i],0,"S15 reset trim "..i) end
+    check(not w.validate(),"S15 all three answers are owed")
+    w.checks.motorUnplugged,w.checks.level=true,true
+    check(not w.validate(),"S15 the blade link answer is owed too")
+    w.checks.bladeZero=true;check(w.validate(),"S15 three answers complete the step")
+    w.data.mixer_config.swash_type=0;c=step(w,"level")
+    eq(#c,1,"S15 no swashplate is one card");eq(c[1].detail,L.levelNoSwash,"S15 it says why")
+    w.validate=nil;w.data.mixer_config.swash_type=2
   end)
   case("S16.pitch-calibration-limits-fullstick",function()
     local w=world();local c=step(w,"pitch");c[2].enter()
+    cardOrder(c,{L.collective,L.cyclic,L.cyclicLimit,L.collectiveLimit,L.totalLimit,L.fullStick,L.bindingTitle},"S16")
     w.data.mixer_input.inputs[1].rate=-1000;w.data.mixer_input.inputs[2].rate=1000
-    c[2].rows[1].press();eq(w.holds.mixer2.value,750,"S16 9-degree test command")
-    eq(w.holds.mixer1.value,0,"S16 other cyclic axis held zero")
+    c[2].rows[1].press();eq(w.holds.mixer1.value,750,"S16 the cyclic is measured over roll")
+    eq(w.holds.mixer2.value,0,"S16 the head stays: pitch held zero")
+    eq(w.holds.mixer4.value,0,"S16 the head stays: collective held zero")
     c[2].rows[2].set(180);c[2].rows[3].press()
     eq(w.data.mixer_input.inputs[1].rate,-500,"S16 correction preserves roll sign")
-    eq(w.data.mixer_input.inputs[2].rate,500,"S16 correction from measured pitch axis")
-    c[2].rows[1].press();eq(w.holds.mixer2.value,0,"S16 test toggles off")
-    c[3].rows[1].set(120)
-    eq(w.data.mixer_input.inputs[1].min,-1000,"S16 cyclic negative limit")
-    eq(w.data.mixer_input.inputs[2].max,1000,"S16 cyclic positive limit")
-    c[3].rows[3].set(360);eq(w.data.mixer_config.swash_pitch_limit,3000,"S16 total 36 degree range")
-    w.data.rc_tuning.rates_type=0
-    check(not c[4].rows[1].enabled(),"S16 unsupported rate type offers no numeric full-stick edit")
+    eq(w.data.mixer_input.inputs[2].rate,500,"S16 one cyclic calibration for both axes")
+    eq(w.message,L.calibratedMeasureAgain,"S16 Apply asks to measure again")
+    c[2].rows[1].press();eq(w.holds.mixer1.value,0,"S16 test toggles back to zero")
+    c[3].rows[2].press()
+    eq(w.data.mixer_input.inputs[1].min,-833,"S16 Use 10 cyclic negative limit")
+    eq(w.data.mixer_input.inputs[2].max,833,"S16 Use 10 cyclic positive limit")
+    c[4].rows[2].press();eq(w.data.mixer_input.inputs[4].max,1000,"S16 Use 12 collective limit")
+    c[5].rows[1].set(360);eq(w.data.mixer_config.swash_pitch_limit,3000,"S16 total 36 degree range")
+    -- Per rate profile: rows on a shared switch, else the active profile.
+    local ranges=w.data.adjustment_ranges.adjustment_ranges
+    ranges[1]=H.mapped(2,1,1000,2000,1,3);ranges[2]=H.mapped(1,1,1000,2000,1,3)
+    w.pitchLoaded,w.pitchFull,w.pitchFullChanged=nil,nil,nil
+    c=step(w,"pitch")
+    local full=c[6]
+    eq(#full.rows,4,"S16 three rate profiles on the switch and the warning line")
+    eq(full.rows[1].label,string.format(L.rateProfileTitle,1),"S16 the row names its rate profile")
+    q.sent={}
+    local byIndex={}
+    q.reply=function(m,b)
+      if m.command==111 then
+        local parsed=h.api("rc_tuning");local copy={};for i,v in ipairs(b) do copy[i]=v end
+        return copy
+      end
+    end
+    full.enter();drain(w)
+    q.reply=nil
+    local selects={}
+    for _,m in ipairs(q.sent) do if m.command==210 then selects[#selects+1]=m.payload[1] end end
+    eq(table.concat(selects,","),"128,129,130,"..(w.data.status.current_control_rate_profile_index+128),"S16 each profile is selected, then the active one")
+    check(full.rows[1].enabled(),"S16 a read profile can be edited")
+    local before=w.pitchFull[0]
+    full.rows[2].set(100);eq(w.pitchFull[1],10,"S16 degrees staged per profile")
+    check(w.pitchFull[0]==before,"S16 another profile is not flattened")
+    w.data.mixer_input.inputs[4].max=2000
+    eq(full.rows[4].get(),"","S16 no warning at or below the limit")
+    full.rows[2].set(250);eq(full.rows[4].get(),L.fullStickOverLimit,"S16 a warning above the collective limit")
+    -- The save writes only the changed profile, and converts per its own rates type.
+    q.sent={};w.commit();drain(w)
+    local tuned={}
+    for _,m in ipairs(q.sent) do if m.command==204 then tuned[#tuned+1]=m end end
+    eq(#tuned,1,"S16 only the changed profile is written")
+    check(H.setCollective({rates_type=0},12)==false,"S16 an unsupported rate type writes nothing")
+    local actual={rates_type=4,rates_4=48,rcRates_4=48};H.setCollective(actual,10)
+    eq(actual.rates_4,40,"S16 Actual writes its own degrees scale")
+    local rotor={rates_type=6,rcRates_4=100,rates_4=33};H.setCollective(rotor,10)
+    eq(rotor.rcRates_4,80,"S16 Rotorflight writes its own degrees scale")
+    eq(rotor.rates_4,33,"S16 the shape stays")
+    -- A style leaves the collective's expo and shape alone.
+    local styled={rates_type=6,rcRates_4=96,rates_4=33,rcExpo_4=25};H.style(styled,2,6)
+    eq(styled.rcExpo_4,25,"W8 a style keeps the collective expo");eq(styled.rates_4,33,"W8 a style keeps the collective shape")
+    eq(styled.rcRates_4,96,"W8 a style keeps the collective")
+    local converted={rates_type=4,rcRates_4=48,rates_4=48,rcExpo_4=25};H.style(converted,2,6)
+    eq(converted.rates_4,12,"W8 converting from Actual writes the shape the new type needs");eq(converted.rcRates_4,96,"W8 converting keeps the degrees")
+    eq(converted.rcExpo_4,25,"W8 converting keeps the expo")
   end)
   case("S17.tail-servo-and-motor-variants",function()
     local w=world();w.data.mixer_config.tail_rotor_mode=0
@@ -3207,7 +3374,8 @@ return function(h)
     eq(#c[1].rows,4,"S17 bidirectional reverse hold available")
     w.bladesOff=true;w.data.motor={motor_1=1000,motor_2=1000};c[1].rows[4].press();eq(w.motorHold.value,-100,"S17 reverse motor command")
     c[1].rows[4].release();check(w.motorHold==nil,"S17 reverse release stops")
-    eq(c[2].rows[1].max,255,"S17 idle U8 ceiling")
+    eq(c[2].rows[1].max,250,"S17 idle stops at the CLI range")
+    w.percent=50;c[2].rows[2].press();eq(w.data.mixer_config.tail_motor_idle,250,"S17 Use power stops at the CLI range")
   end)
   case("S18-S19.physical-check-and-summary",function()
     local w=world();w.data.mixer_config.tail_rotor_mode=0;local c=step(w,"gyro")
@@ -3368,7 +3536,11 @@ return function(h)
     local w=world();settle(w);w.step=16
     w.data.rc_tuning.rates_type=6;w.saved.rc_tuning.rates_type=6
     local baseline=H.collective(w.saved.rc_tuning)
-    local c=step(w,"pitch");c[4].rows[1].set(150)
+    local c=step(w,"pitch")
+    local active=w.data.status.current_control_rate_profile_index
+    c[6].enter();drain(w)
+    baseline=w.pitchFull[active]
+    c[6].rows[1].set(150)
     check(w.pitchFullChanged,"REVIEW collective edit is staged")
     if h.mutation=="pitch-discard" then
       local original=w.discard
@@ -3378,8 +3550,8 @@ return function(h)
       end
     end
     w:discard(function() end);drain(w)
-    c=step(w,"pitch")
-    check(not w.pitchFullChanged and w.pitchFull==baseline,"REVIEW discarded pitch draft cannot return")
+    c=step(w,"pitch");c[6].enter();drain(w)
+    check(not w.pitchFullChanged and w.pitchFull[active]==baseline,"REVIEW discarded pitch draft cannot return")
   end)
   case("REVIEW.back-preserves-commit",function()
     local w=world();settle(w);w.step=16;w.card=1
@@ -3539,7 +3711,7 @@ return function(h)
     local w=world();settle(w);local diagrams=load("app/pages/helicopter_setup/diagrams.lua")
     local view=load("app/pages/helicopter_setup/view.lua")
     local names={"sensors","receiver","modes","profiles","rates","swash","servoType","governor","motor",
-      "escTelemetry","connect","throttle","servos","direction","level","pitch","tail","gyro","finish"}
+      "connect","escTelemetry","throttle","servos","direction","level","pitch","tail","gyro","finish"}
     local checked,kinds=0,{}
     for index,name in ipairs(names) do
       if name=="servoType" then
@@ -3618,7 +3790,7 @@ return function(h)
       {"gyro",{"gyro-roll","gyro-pitch","gyro-yaw"}},
       {"tail",{"tail-servo","tail-servo-move"}},
       {"pitch",{"pitch-9","pitch-9"}},
-      {"level",{"swash-motion-level","pitch-0"}},
+      {"level",{"swash-motion-level","swash-motion-level","swash-motion-level","pitch-0"}},
       {"connect",{"servo"}}
     }) do
       w.data.mixer_config.tail_rotor_mode=0
@@ -4194,7 +4366,7 @@ return function(h)
     w:back();check(not w.historyFailure and not w.overview,"CORE Back cancels history failure without advancing")
     w:next();drain(w);fs.failure=nil;w.historyRetry();drain(w)
     check(w.overview and w.history.mask==(1<<13),"CORE explicit retry records the completed step")
-    w.overview=nil;w.singleStep=true;w.step=15;step(w,"level");w.card=#w.cards;w.checks.level=true
+    w.overview=nil;w.singleStep=true;w.step=15;step(w,"level");w.card=#w.cards;w.checks.level,w.checks.motorUnplugged,w.checks.bladeZero=true,true,true
     fs.failure="short";w:next();drain(w)
     check(w.historyFailure,"CORE failed readback is visible")
     w.historySkip();drain(w)

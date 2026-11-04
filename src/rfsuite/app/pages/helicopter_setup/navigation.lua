@@ -116,9 +116,11 @@ function M.attach(w, ctx)
     self.card,self.modelPreparationCard=1,true
     return true
   end
+  function w:measuringStep() return self.step == 15 or self.step == 16 end
   function w:buildPreparation()
     if self:standalonePreparation() and not self.preparationDone then
-      local rows = { self:check("blades", self.L.bladesRemoved) }
+      -- Measuring blade pitch may take the blades, so these two ask for the motor to be off instead.
+      local rows = { self:measuringStep() and self:check("motorUnplugged", self.L.motorUnplugged) or self:check("blades", self.L.bladesRemoved) }
       rows[2] = self.step < 10 and self:check("unplugged", self.L.servosUnplugged) or
         self:check("servoSettings", self.L.servoSettingsChecked)
       self.cards = {self:cardDef(self.L.prepareStep, self.L.prepareStepHint, rows)}
@@ -129,7 +131,7 @@ function M.attach(w, ctx)
   end
   function w:preparationComplete()
     if self.preparationCard then
-      return self:ack("blades") and self:ack(self.step < 10 and "unplugged" or "servoSettings")
+      return self:ack(self:measuringStep() and "motorUnplugged" or "blades") and self:ack(self.step < 10 and "unplugged" or "servoSettings")
     end
     return true
   end

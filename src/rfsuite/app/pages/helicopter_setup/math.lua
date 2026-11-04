@@ -77,16 +77,23 @@ end
 function M.style(t, index, ratesType)
   local style = ({ {180,270,40,50}, {250,400,40,50}, {400,600,30,40} })[index]
   local collective = M.collective(t) or 12.5
+  local before = t.rates_type
   t.rates_type = ratesType or 6
   for i = 1, 3 do
     local rate=style[i == 3 and 2 or 1]
     t["rcRates_" .. i] = M.round(t.rates_type == 6 and rate / 5 or rate * 0.075)
     t["rates_" .. i] = t.rates_type == 6 and 12 or M.round(rate / 10); t["rcExpo_" .. i] = style[i == 3 and 4 or 3]
   end
-  t.rcExpo_4 = 0
-  if t.rates_type == 6 then t.rates_4 = 12 else t.rcRates_4 = M.round(collective * 4) end
-  M.setCollective(t, collective)
+  -- A style sets the cyclic and the yaw. The collective keeps its expo and shape, and its values
+  -- are written only where the rates type changes what they mean.
+  if t.rates_type ~= before then
+    if t.rates_type == 6 then t.rates_4 = 12 else t.rcRates_4 = M.round(collective * 4) end
+    M.setCollective(t, collective)
+  end
 end
+-- A servo's pulse band from its centre. Narrow runs 560-960 us around 760, wide 1120-1920 us around
+-- 1520; the limit lies between the two, so a centre nudged to a band's edge stays in that band.
+function M.narrowServo(mid) return mid <= 1040 end
 function M.rangeOf(ranges, fn)
   for _,r in ipairs(ranges) do if r.adjFunction==fn then return r end end
 end

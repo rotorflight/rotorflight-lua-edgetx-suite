@@ -95,6 +95,11 @@ function M.attach(w, PortLabels)
   function w:invertInput(axis)
     local r = self.data.mixer_input.inputs[axis]; r.rate = -r.rate; self:touch("mixer_input", false, true)
   end
+  -- The reverse button says whether the axis is reversed now; a getter, so a press shows at once.
+  function w:reversalLabel(axis)
+    local normal, reversed = self.L.wrongReverse, self.L.wrongReverse .. "  (" .. self.L.reversed .. ")"
+    return function() return self.data.mixer_input.inputs[axis].rate < 0 and reversed or normal end
+  end
   function w:ack(key)
     if not self.checks[key] then self.message = self.L.confirmCheck; return false end
     return true
@@ -144,7 +149,8 @@ function M.protocols(w)
   end
   function w:telemetryProtocols()
     local names = {self.L.off,"BLHeli32","Hobbywing V4","Hobbywing V5","Scorpion","Kontronik","OMPHobby", "ZTW",
-      "APD","OpenYGE","FLYROTOR","Graupner","XDFLY"}
+      "APD","OpenYGE","FLYROTOR","Graupner"}
+    if self:apiAtLeast(8) then names[#names+1]="XDFLY" end
     if self:apiAtLeast(9) then names[#names+1]="FBUS" end
     if self:apiAtLeast(10) then names[#names+1]="SRXL2" end
     local e={}; for i,n in ipairs(names) do e[i]={i-1,n} end; return e

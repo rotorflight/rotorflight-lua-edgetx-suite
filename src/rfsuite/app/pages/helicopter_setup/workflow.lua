@@ -70,6 +70,9 @@ function M.attach(w)
         or self.rangeSource=="asserted" or self.rangeSource=="esc_link")
   end
   function w:motorOutputsOk()
+    -- With the motor protocol off the firmware drives no motor output, so there is nothing to find.
+    local entries = self:motorProtocols()
+    if self.data.motor_config.motor_pwm_protocol == entries[#entries][1] then return true end
     local m = self.data.motor
     return m and m.motor_1 > 0 and (not self:motorised() or m.motor_2 > 0)
   end
@@ -128,7 +131,8 @@ function M.attach(w)
     if trial.api == "board_auto_align" then
       local a = self.data.board_alignment_config
       a.roll_degrees, a.pitch_degrees, a.yaw_degrees = d.roll_degrees, d.pitch_degrees, d.yaw_degrees
-      self:touch("board_alignment_config", true)
+      self.checks.orientation = nil
+      self:touch("board_alignment_config", false, true)
     elseif trial.api == "rx_serial_trial" then
       local a = self.data.rx_config
       a.serialrx_inverted, a.halfDuplex, a.pinSwap = d.inverted, d.half_duplex, d.pin_swap
