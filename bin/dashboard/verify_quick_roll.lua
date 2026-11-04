@@ -1,0 +1,351 @@
+-- Checks the quick menu's rotary style, offline, with desktop Lua 5.3, from the repository root:
+--
+--   lua5.3 bin/dashboard/verify_quick_roll.lua               the checks; exit 1 on any failure
+--   lua5.3 bin/dashboard/verify_quick_roll.lua --self-test   proves the checks can go red
+--
+-- What is REAL: widgets/dashboard/quick_roll.lua, fullscreen_menu.lua, views.lua, menu_look.lua and
+-- quick_menu_order.lua, loaded from the tree. What is STUBBED: the firmware (a wheel detent is the
+-- `scrolled` call LVGL makes for the focus move) and the flight controller side, so a press is
+-- judged by what it queues and whether it leaves the menu.
+
+local ROOT = "."
+do
+  local this = arg and arg[0]
+  local dir = type(this) == "string" and string.match(this, "^(.*)[/\\][^/\\]*$") or nil
+  if dir then ROOT = string.match(dir, "^(.*)[/\\]bin[/\\]dashboard$") or (dir .. "/../..") end
+end
+local SRC = ROOT .. "/src/rfsuite/"
+local ROLL = "widgets/dashboard/quick_roll.lua"
+
+local selfTest = false
+for i = 1, #arg do
+  if arg[i] == "--self-test" then
+    selfTest = true
+  else
+    io.stderr:write("usage: lua5.3 bin/dashboard/verify_quick_roll.lua [--self-test]\n")
+    os.exit(2)
+  end
+end
+
+for name, value in pairs({
+  MIDSIZE = 1, SMLSIZE = 2, CENTER = 1, LEFT = 0, RIGHT = 2, DARKGREY = 3, RED = 4, WHITE = 5, BLACK = 0, BLUE = 6,
+  COLOR_THEME_PRIMARY1 = 11, COLOR_THEME_PRIMARY3 = 13, COLOR_THEME_SECONDARY1 = 14, COLOR_THEME_DISABLED = 17,
+  EVT_VIRTUAL_ENTER = 101, EVT_VIRTUAL_EXIT = 102,
+}) do
+  _G[name] = value
+end
+
+local now, adds, exits, toolOpened = 0, {}, 0, 0
+_G.getTime = function() return now end
+local QUEUE = {}
+function QUEUE:add(msg) adds[#adds + 1] = msg end
+_G.lcd = {
+  RGB = function(r, g, b) return (r * 65536) + (g * 256) + b end,
+  exitFullScreen = function() exits = exits + 1 end,
+}
+
+-- Loads the modules; `mutate` rewrites the roll's source, for the self-test.
+local function loadWorld(mutate)
+  local cache = {}
+  local STUBS = {
+    ["lib/log.lua"] = function() return nil end,
+    ["tasks/msp/runtime.lua"] = function() return { getState = function() return { queue = QUEUE } end } end,
+    ["tasks/msp/api/dataflash_erase.lua"] = function()
+      return { writeCommand = 71, buildWritePayload = function() return {} end }
+    end,
+    ["tasks/msp/api/dataflash_summary.lua"] = function()
+      return { command = 70, simulatorResponse = {}, parse = function() return nil end }
+    end,
+    ["tasks/msp/api/battery_profile.lua"] = function()
+      return { writeCommand = 1, buildWritePayload = function() return {} end }
+    end,
+    ["tasks/msp/api/eeprom_write.lua"] = function()
+      return { writeCommand = 250, buildWritePayload = function() return {} end }
+    end,
+    ["widgets/dashboard/tool_host.lua"] = function()
+      return { request = function() toolOpened = toolOpened + 1; return true end }
+    end,
+  }
+  local function requireStub(path)
+    if cache[path] ~= nil then return cache[path] end
+    local mod
+    if STUBS[path] then
+      mod = STUBS[path]()
+    else
+      local f = assert(io.open(SRC .. path, "rb"))
+      local text = f:read("a")
+      f:close()
+      if path == ROLL and mutate then text = mutate(text) end
+      mod = assert(load(text, "@" .. path))()
+    end
+    cache[path] = mod
+    return mod
+  end
+  _G.rfsuite = { require = requireStub, session = { dataflash = { used = 50, total = 100 } } }
+  return requireStub("widgets/dashboard/views.lua"), requireStub("widgets/dashboard/fullscreen_menu.lua"), requireStub
+end
+
+local function newWidget(style)
+  return {
+    zone = { w = 800, h = 480 }, connectionReady = true, built = true, renderKey = "test",
+    state = {
+      armed = false, connectionReady = true, batteryProfile = 2,
+      battery_config = { batteryCapacity_0 = 2000, batteryCapacity_1 = 3000, batteryCapacity_2 = 4000 },
+    },
+    preferences = { general = {}, dashboard = { quick_menu_style = style } },
+  }
+end
+
+local failures, cases = 0, 0
+local quiet = false
+
+local function check(label, cond)
+  cases = cases + 1
+  if not cond then
+    failures = failures + 1
+    if not quiet then print("FAIL " .. label) end
+  end
+end
+
+-- A built scene, and the things a pilot can reach in it.
+local function scene(Menu, widget)
+  local children = {}
+  Menu.build(children, widget)
+  local boxes, buttons = {}, {}
+  for i = 1, #children do
+    local node = children[i]
+    if node.type == "box" then boxes[#boxes + 1] = node end
+    if node.type == "button" then buttons[#buttons + 1] = node end
+  end
+  return { children = children, forward = boxes[1], reverse = boxes[2], buttons = buttons }
+end
+
+local function run(mutate)
+  local Views, Menu, req = loadWorld(mutate)
+  local Roll = req(ROLL)
+  local function open()
+    adds, exits, toolOpened = {}, 0, 0
+    local w = newWidget("rotary")
+    w._viewBase = "theme"
+    Views.navigate(w, "openView:menu")
+    return w, scene(Menu, w)
+  end
+  local function roll(w) return w._viewStack.roll end
+  local function detent(box, h, row) box.scrolled(0, row * h) end
+
+  -- The card is what a radio with no choice gets.
+  do
+    local w = newWidget(nil)
+    local s = scene(Menu, w)
+    check("no choice draws the raster, not the ladders", s.forward == nil)
+  end
+
+  -- The lists: entries offered now, BATTERY PROFILE last.
+  do
+    local w, s = open()
+    local r = roll(w)
+    check("two ladders", s.forward ~= nil and s.reverse ~= nil)
+    check("left list holds three rows", #r.leftList == 3)
+    check("BATTERY PROFILE is last", r.leftList[#r.leftList].id == "battery_profile")
+    check("starts on the first row", r.left == 1)
+  end
+
+  -- The wheel: both ways, fixed ends, and the sum across the widget's own focus step.
+  do
+    local w, s = open()
+    local r = roll(w)
+    local h = s.forward.h
+    detent(s.forward, h, 1)
+    check("a detent forward moves one row", r.left == 2)
+    detent(s.forward, h, 2)
+    check("a second detent moves on", r.left == 3)
+    detent(s.forward, h, 3)
+    check("the list ends: no wrap past the last row", r.left == 3)
+    detent(s.forward, h, 2)
+    check("turning back at the end moves at once", r.left == 2)
+  end
+  do
+    local w, s = open()
+    local r = roll(w)
+    local h = s.forward.h
+    detent(s.forward, h, 1)
+    check("one forward", r.left == 2)
+    -- Back onto the widget reports nothing, and the reverse ladder then counts both detents.
+    detent(s.reverse, h, 12 - 1)
+    check("the detent over the widget is not lost in the sum", r.left == 1)
+    -- Coming back into the forward ladder: its reset to the spare row is acknowledged, not counted.
+    s.forward.scrolled(0, 0)
+    check("the ladder's own reset is not a detent", r.left == 1)
+  end
+  do
+    local w, s = open()
+    local r = roll(w)
+    s.forward.scrolled(0, 7)
+    check("a finger's fraction of a row is not a detent", r.left == 1)
+  end
+
+  -- The middle row's text follows the selection, and the left entry's choice shows on the right.
+  do
+    local w, s = open()
+    local r = roll(w)
+    local h = s.forward.h
+    detent(s.forward, h, 2)
+    check("the profile row is current", r.leftList[r.left].id == "battery_profile")
+    local shown = false
+    for i = 1, #s.children do
+      local node = s.children[i]
+      if node.type == "label" and type(node.text) == "function" and string.find(node.text() or "", "3000 mAh", 1, true) then
+        shown = true
+      end
+    end
+    check("the right list shows the choice before any press", shown)
+    check("the one in force is marked", (function()
+      for i = 1, #s.children do
+        local node = s.children[i]
+        if node.type == "label" and type(node.text) == "function" and node.text() == "* 3000 mAh" then return true end
+      end
+      return false
+    end)())
+  end
+
+  -- A row with nothing behind it runs at once.
+  do
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 1)
+    check("MAIN MENU is current", r.leftList[r.left].id == "tool")
+    Roll.press(w)
+    check("a press runs it", toolOpened == 1)
+  end
+
+  -- The question: on the right, the safe answer first, and nothing queued before the answer.
+  do
+    local w, s = open()
+    local r = roll(w)
+    Roll.press(w)
+    check("the press raises the question on the right", r.side == "right" and r.question ~= nil)
+    check("nothing is queued by the question", #adds == 0)
+    Roll.press(w)
+    check("a double press lands on CANCEL", r.side == "left" and #adds == 0 and exits == 0)
+  end
+  do
+    local w = open()
+    local r = roll(w)
+    Roll.press(w)
+    local s = scene(Menu, w)
+    detent(s.forward, s.forward.h, 1)
+    check("one detent reaches ERASE", r.right == 2)
+    Roll.press(w)
+    check("ERASE queues the erase", #adds >= 1)
+  end
+  do
+    local w = open()
+    local r = roll(w)
+    Roll.press(w)
+    Views.key(w, EVT_VIRTUAL_EXIT)
+    check("RTN on the question goes back and erases nothing", r.side == "left" and #adds == 0)
+  end
+
+  -- A profile: stays up until answered; a failed write stays visible.
+  local function toProfile()
+    local w = open()
+    local s = scene(Menu, w)
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 2)
+    Roll.press(w)
+    return w, r
+  end
+  do
+    local w, r = toProfile()
+    check("the focus moves right on a choice", r.side == "right")
+    check("and starts on the one in force", r.right == 2)
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("a press writes", #adds == 2)
+    check("the menu stays up while it is sent", w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "busy")
+    adds[#adds].processReply(adds[#adds], {})
+    check("an answered write closes the menu", w._viewStack == nil or w._viewStack.roll == nil)
+  end
+  do
+    local w = toProfile()
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    adds[1].errorHandler(adds[1], "timeout")
+    check("a failed write stays up and says so",
+      w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "failed")
+  end
+  do
+    local w, r = toProfile()
+    Views.key(w, EVT_VIRTUAL_EXIT)
+    check("RTN returns left", r.side == "left")
+    Views.key(w, EVT_VIRTUAL_EXIT)
+    check("RTN from the left closes the menu", Views.top(w) == nil)
+  end
+
+  -- A tap: what turning there and pressing does.
+  do
+    local w, s = open()
+    -- Close box first, then the rows above the middle (two), then the rows under it.
+    local under = s.buttons[4]
+    under.press()
+    check("a tap on the row under the middle runs it", toolOpened == 1)
+  end
+
+  -- At rest the scene is built again, and the selection stays.
+  do
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 1)
+    local key = Menu.renderKey(w)
+    now = now + 100
+    check("the key moves once the wheel has rested", Menu.renderKey(w) ~= key)
+    check("the selection is kept", r.left == 2)
+    check("and the ladder starts over", r.position == 0)
+  end
+
+  -- The model arming takes the list away from under the right side.
+  do
+    local w, r = toProfile()
+    w.state.armed = true
+    scene(Menu, w)
+    check("what the right list showed has gone: back to the left", r.side == "left")
+  end
+end
+
+if selfTest then
+  local MUTANTS = {
+    { "the list wraps", function(t) return (t:gsub("if value > count then return count end", "if value > count then return 1 end")) end },
+    { "ERASE first", function(t)
+      return (t:gsub("{ label = confirm.cancelLabel or \"CANCEL\", cancel = true },\n    { label = confirm.confirmLabel or \"OK\", agree = true },",
+        "{ label = confirm.confirmLabel or \"OK\", agree = true },\n    { label = confirm.cancelLabel or \"CANCEL\", cancel = true },"))
+    end },
+    { "closes before the answer", function(t)
+      return (t:gsub("Menu.run%(widget, entry, choice, \"none\", report%)", "Menu.run(widget, entry, choice, \"done\", report)"))
+    end },
+    { "a detent is not summed", function(t)
+      return (t:gsub("local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))
+    end },
+  }
+  quiet = true
+  local red = 0
+  for i = 1, #MUTANTS do
+    local source = io.open(SRC .. ROLL, "rb"):read("a"):gsub("\r\n", "\n")
+    local mutated = MUTANTS[i][2](source)
+    if mutated == source then
+      print("SELF-TEST: mutant did not apply: " .. MUTANTS[i][1])
+      os.exit(1)
+    end
+    failures, cases = 0, 0
+    local mutate = function(text) return MUTANTS[i][2]((text:gsub("\r\n", "\n"))) end
+    local ok = pcall(run, mutate)
+    if failures > 0 or not ok then
+      red = red + 1
+    else
+      print("SELF-TEST: not caught: " .. MUTANTS[i][1])
+    end
+  end
+  print(red .. " of " .. #MUTANTS .. " mutants caught")
+  os.exit(red == #MUTANTS and 0 or 1)
+end
+
+run(nil)
+print(cases .. " checks, " .. failures .. " failures")
+os.exit(failures == 0 and 0 or 1)

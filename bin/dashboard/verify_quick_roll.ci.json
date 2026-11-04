@@ -1,0 +1,10 @@
+{
+  "id": "quick-menu-rotary",
+  "name": "Quick menu rotary style",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_quick_roll.lua --self-test",
+    "lua5.3 bin/dashboard/verify_quick_roll.lua"
+  ],
+  "step": "Check the wheel, the press, RTN and a tap in the rotary style",
+  "rationale": "The rotary style reads the wheel through the focus moves of two ladders of buttons, because a widget never receives the encoder's events. This drives the real modules with those focus moves, and its self-test proves the checks go red for a list that wraps, a question that starts on ERASE, a profile write that closes the menu before it is answered, and a detent lost across the widget's own focus step."
+}

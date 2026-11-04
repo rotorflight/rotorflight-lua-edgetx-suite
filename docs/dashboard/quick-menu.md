@@ -33,8 +33,10 @@ until the pilot has picked a pack, closed it or armed the model. The registry is
 lines at a time once the connection is up, so with many packs the picker comes up a moment
 later.
 
-The menu's colours are the radio's, not the dashboard theme's. It uses the same theme colours
-EdgeTX gives every script, so it looks the same whichever dashboard theme is selected.
+The menu has its own colours, Rotorflight's, in a light or a dark scheme: *System* → *Settings* →
+*General* → *Appearance* → *Color scheme*, light as it comes. So it looks the same whichever
+dashboard theme is selected and whatever the radio's theme is. Urban, Grid and Deck draw the menu
+in their own look once the connection is ready, and every theme shows the widget's menu before it.
 
 Hardware shortcuts are set on [Keys](../pages/settings/dashboard/keys.md), for every theme and
 model. They can also open the core menu on the connection screen, before the FC is ready.
@@ -96,6 +98,36 @@ to say the row opens a page:
 warning voltage is left out first, then the cell count; the capacity always stays. On firmware
 that does not report a cell count and cell voltages per battery profile, the row shows the
 capacity alone. With no profile known to be in force, it shows the title and the `>` only.
+
+On every theme, ERASE BLACKBOX shows under its title how full the blackbox is, where the flight
+controller has reported it.
+
+## The rotary style
+
+*Settings* → *Dashboard* → [*Quick Settings*](../pages/settings/dashboard/quick_menu.md) → *Menu
+style* → *Rotary* draws the widget's menu as two rolling lists instead of buttons. A theme that
+draws the menu itself, as Urban, Grid and Deck do, keeps its own. The card is what the menu is as
+it comes.
+
+The left list holds the entries that are offered now, BATTERY PROFILE last. The current one always
+stands in the larger row in the middle, and the list ends where it ends: it does not wrap, and the
+rows past either end stay empty. The right list shows what the current entry leads to, where it
+leads to something.
+
+- **The wheel** moves the list that has the focus.
+- **A press** runs the current entry. Where it leads to a choice or a question, the focus moves to
+  the right list instead. A press there finishes, and the menu closes.
+- **RTN** returns from the right list to the left; from the left it closes the menu.
+- **A tap on a row** does what turning to it and pressing does. The X closes the menu.
+
+ERASE BLACKBOX asks its question in the right list, with the focus on its CANCEL, so a double press
+cannot erase. A battery profile is written as on [its page](#the-battery-profile-page): the header
+says *SENDING...*, the menu closes when the flight controller has answered, and it stays up with
+*NOT SAVED* where it did not.
+
+The wheel moves the focus rather than reporting a turn, and the focus passes the widget itself at
+the point where the list was last at rest. A detent onto that point shows on the next detent. The
+list settles the focus there again once the wheel has rested for a moment.
 
 ## The erase confirmation
 
