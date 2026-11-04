@@ -1,0 +1,7 @@
+{
+  "id": "elrs-link-owner",
+  "name": "ELRS link sync owned by a page visit",
+  "commands": [
+    "lua5.3 bin/elrs/verify_link_owner.lua"
+  ]
+}

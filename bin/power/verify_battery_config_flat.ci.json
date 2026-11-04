@@ -1,0 +1,7 @@
+{
+  "id": "battery-config-flat",
+  "name": "Battery config written from its parsed record",
+  "commands": [
+    "lua5.3 bin/power/verify_battery_config_flat.lua"
+  ]
+}

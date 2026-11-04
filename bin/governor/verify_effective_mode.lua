@@ -254,6 +254,30 @@ for mode = 0, 4 do
   end
 end
 
+scenario("Governor headspeed limit is the shared one", function(eq)
+  local page, ctx = newPage("app/pages/flight_tuning/governor/page.lua", 3, true)
+  page.build(ctx)
+  local shared = loadModule("lib/governor_fields.lua").headspeed
+  local limit
+  for i = 1, 200 do
+    local name, value = debug.getupvalue(page.build, i)
+    if not name then break end
+    if name == "getFieldLimit" then limit = value end
+    if type(value) == "function" and not limit then
+      for j = 1, 200 do
+        local inner, candidate = debug.getupvalue(value, j)
+        if not inner then break end
+        if inner == "getFieldLimit" then limit = candidate end
+      end
+    end
+  end
+  eq(type(limit), "function", "the page's limit reader was reached")
+  local got = limit("governor_headspeed")
+  eq(got.min, shared.min, "headspeed minimum")
+  eq(got.max, shared.max, "headspeed maximum")
+  eq(got.step, shared.step, "headspeed step")
+end)
+
 for _, spec in ipairs({
   { path = "app/pages/flight_tuning/governor/page.lua", label = "Governor" },
   { path = "app/pages/flight_tuning/advanced/tail_rotor/page.lua", label = "Tail Rotor" }

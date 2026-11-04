@@ -12,8 +12,7 @@ return function(w)
   w.validate = function() return w:ack("orientation") end
   -- The firmware applies the alignment as it arrives, so the live model shows the typed angles.
   -- A confirmation given for other angles no longer holds.
-  local function angle(key, label)
-    local row = w:n("board_alignment_config", key, label, -180, 180, false, true)
+  local function angle(row, key)
     local set = row.set
     row.set = function(v)
       if w.data.board_alignment_config[key] ~= v then w.checks.orientation = nil end
@@ -37,9 +36,9 @@ return function(w)
     }, nil, "heliLevel"),
     w:cardDef(L.orientation, L.alignHint, {
       w:button(L.autoAlign, function() w:startTrial("board_auto_align") end, function() return acc end),
-      angle("roll_degrees", L.roll),
-      angle("pitch_degrees", L.pitch),
-      angle("yaw_degrees", L.yaw)
+      angle(w:n("board_alignment_config", "roll_degrees", L.roll, -180, 180, false, true), "roll_degrees"),
+      angle(w:n("board_alignment_config", "pitch_degrees", L.pitch, -180, 180, false, true), "pitch_degrees"),
+      angle(w:n("board_alignment_config", "yaw_degrees", L.yaw, -180, 180, false, true), "yaw_degrees")
     }, nil, "heliLift"),
     w:cardDef(L.checkOrientation, L.orientationHint, {
       w:check("orientation", L.directionCorrect)

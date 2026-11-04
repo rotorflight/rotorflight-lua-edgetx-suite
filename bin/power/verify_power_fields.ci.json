@@ -1,0 +1,7 @@
+{
+  "id": "power-fields",
+  "name": "Power field helpers",
+  "commands": [
+    "lua5.3 bin/power/verify_power_fields.lua"
+  ]
+}

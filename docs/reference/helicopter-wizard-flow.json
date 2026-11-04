@@ -34,7 +34,7 @@
     "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "0360117723d9b60c844989bdee23281d4687e0cc39293529534d67a244c26555",
     "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "4157b1bd7bcd0136bfa3e744ff6d384595d7fcc246b1798e639ccba93b6d69b8",
     "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "429995fedc519c6fb9d884be9b7af9ec126218ae46f5f136bf369f7668c13d4c",
-    "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua": "b4c36fe87fe8c1f1099fab0ce7faec95e213cda3dec47ec61aff56c0efd0e500",
+    "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua": "980487af552b130824676f09a67c911c93d93de708cea4310494066000734b0c",
     "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua": "4ce0e69ead8e524ceeade08c214debca4fa3b9dba2ca93a627642a9167662e21",
     "src/rfsuite/app/pages/helicopter_setup/steps/servos.lua": "f74f99c4e6b2d7241b76c1dd6b44f81795d6ec9643607f6c8bf6bd4a498c0001",
     "src/rfsuite/app/pages/helicopter_setup/steps/swash.lua": "dbbfb700c2865f3d86326f3def736a527a25f643dacfb87178303aa9d98295dc",
@@ -1854,38 +1854,6 @@
               "expression": "w : ack ( \"orientation\" )"
             },
             {
-              "kind": "pilot sets",
-              "label": "{label}",
-              "api": "board_alignment_config",
-              "field": "{key}",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepSensors.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
-              "expression": "w : n ( \"board_alignment_config\" , key , label , - 180 , 180 , false , true )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "board_alignment_config.{key}",
-              "api": "board_alignment_config",
-              "field": "{key}",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/StepSensors.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
-              "expression": "w : n ( \"board_alignment_config\" , key , label , - 180 , 180 , false , true )"
-            },
-            {
               "kind": "pilot confirms",
               "label": "All blades removed",
               "api": null,
@@ -2085,6 +2053,102 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
               "expression": "w : startTrial ( \"board_auto_align\" )"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Roll",
+              "api": "board_alignment_config",
+              "field": "roll_degrees",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepSensors.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
+              "expression": "w : n ( \"board_alignment_config\" , \"roll_degrees\" , L . roll , - 180 , 180 , false , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "board_alignment_config.roll_degrees",
+              "api": "board_alignment_config",
+              "field": "roll_degrees",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepSensors.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
+              "expression": "w : n ( \"board_alignment_config\" , \"roll_degrees\" , L . roll , - 180 , 180 , false , true )"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Pitch",
+              "api": "board_alignment_config",
+              "field": "pitch_degrees",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepSensors.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
+              "expression": "w : n ( \"board_alignment_config\" , \"pitch_degrees\" , L . pitch , - 180 , 180 , false , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "board_alignment_config.pitch_degrees",
+              "api": "board_alignment_config",
+              "field": "pitch_degrees",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepSensors.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
+              "expression": "w : n ( \"board_alignment_config\" , \"pitch_degrees\" , L . pitch , - 180 , 180 , false , true )"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Yaw",
+              "api": "board_alignment_config",
+              "field": "yaw_degrees",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepSensors.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
+              "expression": "w : n ( \"board_alignment_config\" , \"yaw_degrees\" , L . yaw , - 180 , 180 , false , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "board_alignment_config.yaw_degrees",
+              "api": "board_alignment_config",
+              "field": "yaw_degrees",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/StepSensors.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua",
+              "expression": "w : n ( \"board_alignment_config\" , \"yaw_degrees\" , L . yaw , - 180 , 180 , false , true )"
             }
           ]
         },
@@ -2126,9 +2190,11 @@
         "board_auto_align"
       ],
       "msp_writes": [
-        "board_alignment_config.{key}",
         "acc_calibration",
-        "board_auto_align"
+        "board_auto_align",
+        "board_alignment_config.roll_degrees",
+        "board_alignment_config.pitch_degrees",
+        "board_alignment_config.yaw_degrees"
       ],
       "configurator_status": [
         "same"

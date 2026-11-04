@@ -24,10 +24,10 @@ flowchart LR
     end
     subgraph S1["1. Board orientation"]
       direction TB
-      S1c0["<b>Board orientation</b><br/>sets: {label}<br/>confirms: All blades removed, Servos unplugged<br/>writes: board_alignment_config.{key}"]:::k3
+      S1c0["<b>Board orientation</b><br/>confirms: All blades removed, Servos unplugged<br/>reads: MSP status, MSP attitude, MSP servo"]:::k2
       S1c1["<b>Calibrate the accelerometer</b><br/>reads: Accelerometer, Calibrated<br/>writes: acc_calibration"]:::k3
       S1c0 --> S1c1
-      S1c2["<b>Board orientation</b><br/>reads: MSP board_auto_align (trial)<br/>writes: board_auto_align"]:::k3
+      S1c2["<b>Board orientation</b><br/>sets: Roll, Pitch, Yaw<br/>reads: MSP board_auto_align (trial)<br/>writes: board_auto_align, board_alignment_config"]:::k3
       S1c1 --> S1c2
       S1c3["<b>Check orientation</b><br/>confirms: Direction is correct<br/>blocks until: Direction is correct"]:::k2
       S1c2 --> S1c3
@@ -343,7 +343,7 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | Step | Cards | Pilot sets | Pilot confirms | MSP reads | MSP writes | Configurator status |
 | --- | --- | --- | --- | --- | --- | --- |
 | Model. Prepare the radio model | Interrupted session<br/>Prepare the radio model | FC name | FC power-cycled<br/>Model checked | — | name.name<br/>telemetry_config<br/>telemetry_config.buffer | differs from the Configurator |
-| 1. Board orientation | Board orientation<br/>Calibrate the accelerometer<br/>Check orientation | {label} | All blades removed<br/>Servos unplugged<br/>Direction is correct | status<br/>attitude<br/>servo<br/>board_auto_align | board_alignment_config.{key}<br/>acc_calibration<br/>board_auto_align | same |
+| 1. Board orientation | Board orientation<br/>Calibrate the accelerometer<br/>Check orientation | Roll<br/>Pitch<br/>Yaw | All blades removed<br/>Servos unplugged<br/>Direction is correct | status<br/>attitude<br/>servo<br/>board_auto_align | acc_calibration<br/>board_auto_align<br/>board_alignment_config.roll_degrees<br/>board_alignment_config.pitch_degrees<br/>board_alignment_config.yaw_degrees | same |
 | 2. Receiver | Receiver<br/>Channel order<br/>Check sticks<br/>Throttle range<br/>ELRS link<br/>Receiver done | Protocol<br/>Advanced<br/>Standard channel order<br/>Minimum (us)<br/>Maximum (us) | — | status<br/>servo<br/>rx_channels | rx_config.serialrx_provider<br/>rx_config<br/>feature_config<br/>feature_config.enabledFeatures<br/>rx_map<br/>rc_config.rc_min_throttle<br/>rc_config.rc_max_throttle | same |
 | 3. Mode switches | Arm switch<br/>Rescue switch<br/>Trainer switch<br/>Switches done | — | — | status<br/>rc<br/>servo | mode_ranges<br/>set_mode_range<br/>set_adjustment_range | same |
 | 4. Profiles & gain | Profiles & gain<br/>Master gain<br/>Trim-button guide<br/>Channel use<br/>Rescue | Profile switch<br/>Method<br/>Rescue mode enable<br/>Flip to upright | — | rescue_profile<br/>status<br/>rc<br/>servo | adjustment_ranges<br/>set_adjustment_range<br/>set_pid_profile<br/>rescue_profile<br/>rescue_profile.rescue_mode<br/>rescue_profile.rescue_flip_mode | same |

@@ -674,9 +674,9 @@ local function finalize()
 end
 
 function M.reset()
-    -- Only an owner (a caller that set one) retires replies on reset; for every other caller a
-    -- sync already sent runs to its end as before, the EEPROM commit included. ownerQueue is set
-    -- exactly when a sync write was queued, so without it there is no reply left to retire.
+    -- Only an owner (a caller that set one) retires replies and clears its messages on reset; for
+    -- every other caller nothing changes. ownerQueue is set exactly when a sync write was queued,
+    -- so without it there is no reply left to retire.
     local queue = ownerQueue
     if queue then
         ownerQueue = nil

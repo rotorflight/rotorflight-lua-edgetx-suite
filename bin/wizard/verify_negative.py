@@ -29,7 +29,7 @@ def verify_flow_layout(model):
     assert 'reads: Accelerometer, Calibrated' in cards['S1c1'][0], 'Displayed English read labels'
     assert 'confirms: All blades removed, Servos unplugged' in cards['S1c0'][0] and cards['S1c0'][1]=='2', 'Confirmations take precedence over reads'
     assert 'blocks until: Direction is correct' in cards['S1c3'][0], 'Simple confirmation gate stays on its card'
-    assert 'sets: Degrees' in cards['S16c3'][0] and 'blocks until: Full travel without binding' in cards['S16c3'][0], 'A duplicate confirmation must not hide editable values'
+    assert 'sets: Rate profile' in cards['S16c5'][0] and 'blocks until: Full travel without binding' in cards['S16c6'][0], 'A duplicate confirmation must not hide editable values'
     diamonds = re.findall(r'^\s+(S\d+gate)\{".*?"\}:::k4$', diagram, re.M)
     assert diamonds and not re.search(r'c\d+k\d+', diagram), 'Conditional gates replace the old per-kind nodes'
     count = len(cards)+len(diamonds)
