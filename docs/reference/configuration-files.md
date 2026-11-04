@@ -152,6 +152,8 @@ copies your data over by itself on the first start:
 
 - *Preparing suite* stays on the screen and the connection to the flight controller waits until
   the copy is through, then the radio asks for a restart. From that start on the new folder counts.
+  Until you restart, the tool closes after that request and opens no page, because what you saved
+  now would go to the old folder.
 - Copied: `preferences`, the file of each flight controller with its in-flight baseline,
   `model_name_restore`, `precompiled.txt`, and the folders `dashboard`, `flightlog`, `tune`, `journal`
   and `sim`. Not copied: the debug logs in `logs`, `reload.req`, and any file of your own in that folder.
