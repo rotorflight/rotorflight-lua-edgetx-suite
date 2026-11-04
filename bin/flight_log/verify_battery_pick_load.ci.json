@@ -1,0 +1,7 @@
+{
+  "id": "battery-pick-load",
+  "name": "Battery prompt registry read in slices",
+  "commands": [
+    "lua5.3 bin/flight_log/verify_battery_pick_load.lua"
+  ]
+}

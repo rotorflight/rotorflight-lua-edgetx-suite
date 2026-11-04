@@ -1,0 +1,7 @@
+{
+  "id": "flight-log-free-id",
+  "name": "Flight log pack ids",
+  "commands": [
+    "lua5.3 bin/flight_log/verify_free_id.lua"
+  ]
+}

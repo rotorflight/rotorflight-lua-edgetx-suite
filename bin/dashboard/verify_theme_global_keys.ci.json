@@ -1,0 +1,9 @@
+{
+  "id": "dashboard-theme-global-keys",
+  "name": "Dashboard theme global keys",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_theme_global_keys.lua --self-test",
+    "lua5.3 bin/dashboard/verify_theme_global_keys.lua"
+  ],
+  "step": "Check the theme Keys pages against the global keys"
+}

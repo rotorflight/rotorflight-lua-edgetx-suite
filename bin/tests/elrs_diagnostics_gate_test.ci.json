@@ -1,0 +1,8 @@
+{
+  "id": "elrs-diagnostics-gate",
+  "name": "ELRS diagnostics ownership gate",
+  "commands": [
+    "lua5.3 bin/tests/elrs_diagnostics_gate_test.lua"
+  ],
+  "step": "Check ELRS diagnostics ownership gate"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "logs-viewer",
+  "name": "Logs viewer",
+  "commands": [
+    "lua5.3 bin/logs/verify_logs_page.lua"
+  ]
+}

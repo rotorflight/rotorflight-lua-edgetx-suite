@@ -1,0 +1,7 @@
+{
+  "id": "esc-readback-after-save",
+  "name": "ESC readback after a save",
+  "commands": [
+    "lua5.3 bin/msp/verify_esc_readback_after_save.lua"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "tune-advisor-apply",
+  "name": "Tune Advisor Apply",
+  "commands": [
+    "lua5.3 bin/flight_tuning/verify_tune_advisor_apply.lua"
+  ]
+}

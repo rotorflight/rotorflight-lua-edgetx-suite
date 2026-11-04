@@ -1,0 +1,9 @@
+{
+  "id": "startup-compile",
+  "name": "Start-up compile pass",
+  "commands": [
+    "lua5.3 bin/package/verify_precompile.lua"
+  ],
+  "step": "Check consecutive starts reuse the compiled suite",
+  "rationale": "The configuration tool compiles the installed suite at start (src/rfsuite/lib/precompile.lua). This runs the real module on an in-memory card across consecutive starts: a fresh install without a user folder, a stamp that cannot be written, macOS metadata files beside the sources and a source that does not compile."
+}

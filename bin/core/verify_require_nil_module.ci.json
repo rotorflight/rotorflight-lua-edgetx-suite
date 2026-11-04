@@ -1,0 +1,7 @@
+{
+  "id": "require-nil-module",
+  "name": "Module loader and a module that returns nothing",
+  "commands": [
+    "lua5.3 bin/core/verify_require_nil_module.lua"
+  ]
+}

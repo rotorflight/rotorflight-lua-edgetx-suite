@@ -1,0 +1,7 @@
+{
+  "id": "telemetry-sync-slots",
+  "name": "Telemetry slots after a save",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_telemetry_sync_slots.lua"
+  ]
+}

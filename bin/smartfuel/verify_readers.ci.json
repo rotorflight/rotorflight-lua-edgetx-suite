@@ -1,0 +1,8 @@
+{
+  "id": "smartfuel-readers",
+  "name": "SmartFuel readers and recovery",
+  "commands": [
+    "lua5.3 bin/smartfuel/verify_readers.lua"
+  ],
+  "step": "Check invalid inputs and recovery"
+}

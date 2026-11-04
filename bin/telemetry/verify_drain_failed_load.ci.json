@@ -1,0 +1,7 @@
+{
+  "id": "telemetry-drain-failed-load",
+  "name": "Telemetry drain and a module that does not load",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_drain_failed_load.lua"
+  ]
+}

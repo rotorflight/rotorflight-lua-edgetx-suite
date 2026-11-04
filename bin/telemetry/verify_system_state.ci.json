@@ -1,0 +1,8 @@
+{
+  "id": "packed-system-state",
+  "name": "Live packed system state",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_system_state.lua --self-test"
+  ],
+  "step": "Check fields, freshness and negative control"
+}

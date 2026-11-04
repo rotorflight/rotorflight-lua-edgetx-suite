@@ -1,0 +1,7 @@
+{
+  "id": "tune-advisor-payload",
+  "name": "Tune Advisor reply decode",
+  "commands": [
+    "lua5.3 bin/flight_tuning/verify_tune_advisor_payload.lua"
+  ]
+}

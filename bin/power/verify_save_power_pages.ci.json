@@ -1,0 +1,7 @@
+{
+  "id": "power-saves",
+  "name": "Power page saves",
+  "commands": [
+    "lua5.3 bin/power/verify_save_power_pages.lua"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "elrs-config",
+  "name": "Shared ELRS configuration reads",
+  "commands": [
+    "lua5.3 bin/tests/elrs_config_test.lua"
+  ],
+  "step": "Check shared ELRS configuration reads"
+}

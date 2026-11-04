@@ -1,0 +1,7 @@
+{
+  "id": "flight-tuning-tail-rotor-saves",
+  "name": "Flight Tuning saves (Tail Rotor)",
+  "commands": [
+    "lua5.3 bin/flight_tuning/verify_save_tail_rotor_page.lua"
+  ]
+}

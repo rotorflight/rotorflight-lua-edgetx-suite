@@ -1,0 +1,7 @@
+{
+  "id": "registry-bak-fallback",
+  "name": "Battery registry after an interrupted replace",
+  "commands": [
+    "lua5.3 bin/flight_log/verify_registry_bak_fallback.lua"
+  ]
+}

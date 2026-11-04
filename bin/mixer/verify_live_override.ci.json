@@ -1,0 +1,7 @@
+{
+  "id": "mixer-live-override",
+  "name": "Mixer live override (Tail and Trims)",
+  "commands": [
+    "lua5.3 bin/mixer/verify_live_override.lua"
+  ]
+}

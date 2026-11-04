@@ -1,0 +1,9 @@
+{
+  "id": "board-auto-align-page",
+  "name": "Board auto-alignment page",
+  "commands": [
+    "lua5.3 bin/msp/verify_board_auto_align_page.lua"
+  ],
+  "step": "Check the auto-alignment page lifecycle",
+  "rationale": "Setup > Alignment drives the flight controller's board auto-alignment. This runs the real page against scripted replies: lifecycle, locking, stale replies, the signed Save payload and a result left in the flight controller by an earlier run."
+}
