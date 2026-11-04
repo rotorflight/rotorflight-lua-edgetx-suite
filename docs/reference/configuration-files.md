@@ -160,7 +160,8 @@ copies your data over by itself on the first start:
 - Every file is read back and compared. If you switch off during the copy, the next start copies again.
 - If the copy fails, for instance because the card is full, you keep flying on the old folder. The
   start screen says *Settings not moved: card full?*, and each start tries again without holding up the
-  connection. Once such a try has gone through, the next start copies once more and asks for the restart.
+  connection. Once such a try has gone through, the first start after you switch the radio off and on
+  copies once more and asks for the restart.
 - **The suite never deletes the old folders.** Once you have checked your settings, you can delete
   `/SCRIPTS/TOOLS/rfsuite-core/` and `/SCRIPTS/TOOLS/rfsuite.user/` yourself. The RFSuite Updater
   removes the old program folder when it installs.
