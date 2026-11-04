@@ -67,7 +67,7 @@ for i = 1, #arg do
 end
 
 local SRC = ROOT .. "/src/rfsuite/"
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = "/SCRIPTS/RFSUITE/core/"
 
 -- The shipped themes that have a settings page. Named rather than listed from the directory, so
 -- a theme that goes missing is a failure and not a smaller matrix.
@@ -81,10 +81,10 @@ local MCU_ID = "0123456789ABCDEF01234567"
 -- What the stores answer besides their tokens (see the head of this file): io.open's error for
 -- the temporary file a store writes first, in the shape the radio gives it, the sentence
 -- ui/preferences.lua answers for a missing module, and the text of a Lua error.
-local CARD_ERR_MODEL = "SCRIPTS:/TOOLS/rfsuite.user/" .. MCU_ID .. ".lua.tmp: file error"
-local CARD_ERR_RADIO = "/SCRIPTS/TOOLS/rfsuite.user/preferences.lua.tmp: file error"
+local CARD_ERR_MODEL = "SCRIPTS:/RFSUITE/user/" .. MCU_ID .. ".lua.tmp: file error"
+local CARD_ERR_RADIO = "/SCRIPTS/RFSUITE/user/preferences.lua.tmp: file error"
 local PREFS_MODULE_MISSING = "Preferences unavailable in this build"
-local LUA_ERR = "/SCRIPTS/TOOLS/rfsuite-core/lib/preferences.lua:375: attempt to call a nil value (method 'save')"
+local LUA_ERR = "/SCRIPTS/RFSUITE/core/lib/preferences.lua:375: attempt to call a nil value (method 'save')"
 
 local function readFile(path)
   local f = io.open(path, "rb")

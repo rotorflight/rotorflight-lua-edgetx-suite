@@ -5,7 +5,7 @@ local function cardPaths()
   local chunk = loadfile(root .. "lib/paths.lua")
   return chunk and chunk() or nil
 end
-local core = "/SCRIPTS/TOOLS/rfsuite-core/"
+local core = "/SCRIPTS/RFSUITE/core/"
 local fields, switches, modelSaved, radioSaved, modelOk, radioOk
 local function clone(value)
   local out = {}

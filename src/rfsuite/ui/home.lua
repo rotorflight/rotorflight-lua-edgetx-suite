@@ -2634,7 +2634,10 @@ local function buildScene()
     local preparing = compileTotal > 0 and compileDone < compileTotal
 
     local message
-    if preparing then
+    if _G.rfsuite.paths.moveFailed then
+      message = state.i18n and state.i18n.t and state.i18n.t("app.restart_radio.move_failed_short")
+        or "Settings not moved: card full?"
+    elseif preparing then
       message = state.i18n and state.i18n.t and state.i18n.t("app.preparing") or "Preparing suite"
     else
       message = ONCONNECT_TEXT[state.startTaskName or ""] or
@@ -4073,6 +4076,11 @@ function M.run(event, touchState)
         end
         scheduleBuildUI(false)
       end
+    end
+
+    -- A retry of the move of the pilot's data carries on behind the menu (lib/precompile.lua).
+    if _G.rfsuite.paths.moveTo and Precompile and Precompile.runsBehindConnection() then
+      Precompile.stepShared()
     end
 
     if (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive) and MspRuntime and type(MspRuntime.tick) == "function" then

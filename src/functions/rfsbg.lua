@@ -15,7 +15,7 @@
 -- repetition set to zero so that run() is called on every cycle rather than once per switch
 -- edge. tasks/events/onconnect/tasks/function_script.lua does that at connect.
 
-local BASE_PATH = "/SCRIPTS/TOOLS/rfsuite-core/"
+local BASE_PATH = "/SCRIPTS/RFSUITE/core/"
 
 local Log = nil
 local LogSink = nil

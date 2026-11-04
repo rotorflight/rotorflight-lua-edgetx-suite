@@ -7,6 +7,8 @@ return {
     preparing = "Bereite Suite vor",
     restart_radio = {
       splash = "Suite aktualisiert. Bitte den Sender neu starten.",
+      move_failed = "Einstellungen nicht umgezogen: Karte voll? Bitte den Sender neu starten.",
+      move_failed_short = "Einstellungen nicht umgezogen: Karte voll?",
       title = "Sender neu starten",
       message = "Die Suite wurde aktualisiert und vorbereitet. Den Sender einmal neu starten, damit auch das Dashboard die neue Version ausführt."
     },

@@ -18,7 +18,7 @@
 -- Strings carry i18n markers like every suite source: the packager resolves them per locale
 -- at build time, so the standalone script needs none of the suite's i18n helpers at runtime.
 
-local RADIO_MODULE = "/SCRIPTS/TOOLS/rfsuite-core/app/pages/setup_wizard/radio.lua"
+local RADIO_MODULE = "/SCRIPTS/RFSUITE/core/app/pages/setup_wizard/radio.lua"
 
 local R = nil          -- the assistant's radio-side module, loaded below
 local loadError = nil
@@ -258,8 +258,8 @@ end
 -- Source pickers carry no `title` (the picker class does not take the property and raises on it).
 -- ---------------------------------------------------------------------------------------------
 
-local PALETTE_MODULE = "/SCRIPTS/TOOLS/rfsuite-core/ui/palette.lua"
-local APP_ICON = "/SCRIPTS/TOOLS/rfsuite-core/assets/icon.png"
+local PALETTE_MODULE = "/SCRIPTS/RFSUITE/core/ui/palette.lua"
+local APP_ICON = "/SCRIPTS/RFSUITE/core/assets/icon.png"
 
 -- The suite's palette, loaded beside the radio module; the fallbacks are the same theme slots,
 -- for a card whose suite predates the file.

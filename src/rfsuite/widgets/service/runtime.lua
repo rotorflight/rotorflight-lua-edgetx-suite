@@ -280,7 +280,8 @@ local function compileHoldsConnect(self)
   end
   Compile.stepShared()
   -- Held after the pass too, until the radio is restarted: see the dashboard's gate.
-  if Compile.isRunning() or Compile.needsRestart() then return true end
+  if Compile.isRunning() then return not Compile.runsBehindConnection() end
+  if Compile.needsRestart() then return true end
   Compile = false
   return false
 end

@@ -143,7 +143,7 @@ local function runtimeDeclaredKeysCaseIn(source)
   local manifest = { name = "Key test", fullscreen = "theme", keys = declared }
   local realLoadScript = _G.loadScript
   _G.loadScript = function(path, mode)
-    if path == "/SCRIPTS/TOOLS/rfsuite.user/dashboard/key-test/init.lua" then
+    if path == "/SCRIPTS/RFSUITE/user/dashboard/key-test/init.lua" then
       return function() return manifest end
     end
     return realLoadScript(path, mode)
@@ -184,10 +184,10 @@ local function runtimeReloadWindowCaseIn(source)
     views = { { id = "extra", module = "extra.lua" } } }
   local realLoadScript = _G.loadScript
   _G.loadScript = function(path, mode)
-    if path == "/SCRIPTS/TOOLS/rfsuite.user/dashboard/reload-test/init.lua" then
+    if path == "/SCRIPTS/RFSUITE/user/dashboard/reload-test/init.lua" then
       return function() return manifest end
     end
-    if path == "/SCRIPTS/TOOLS/rfsuite.user/dashboard/reload-test/extra.lua" then
+    if path == "/SCRIPTS/RFSUITE/user/dashboard/reload-test/extra.lua" then
       return function() return { build = function() end } end
     end
     return realLoadScript(path, mode)
@@ -236,7 +236,7 @@ local function loadKeysPage(keysSrc, pageSrc)
     end,
   }
   _G.loadScript = function(path)
-    local rel = string.match(path, "rfsuite%-core/(.+)$")
+    local rel = string.match(path, "RFSUITE/core/(.+)$")
     if rel == "ui/controls.lua" then return function() return controls end end
     local src = rel and modules[rel]
     if src == nil then return nil end
@@ -268,7 +268,7 @@ local function loadThemeLayout(theme, transform)
   _G.rfsuite = {}
   _G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
   _G.loadScript = function(path)
-    local rel = string.match(path, "rfsuite%-core/(.+)$")
+    local rel = string.match(path, "RFSUITE/core/(.+)$")
     local src = rel and readFile(SRC .. rel)
     if src == nil then return nil end
     return load(src, "@" .. rel)

@@ -7,6 +7,8 @@ return {
     preparing = "Preparing suite",
     restart_radio = {
       splash = "Suite updated. Please restart the radio.",
+      move_failed = "Settings not moved: card full? Please restart the radio.",
+      move_failed_short = "Settings not moved: card full?",
       title = "Restart the radio",
       message = "The suite was updated and prepared. Restart the radio once so that the dashboard runs the new version too."
     },

@@ -149,7 +149,7 @@ function loadScript(path)
       pageT=function() return function(_,_,fallback) return fallback end end
     } end
   end
-  local relative=string.match(path,"/rfsuite%-core/(.+)$")
+  local relative=string.match(path,"/RFSUITE/core/(.+)$")
   return assert(loadfile("src/rfsuite/"..relative))
 end
 SMLSIZE,COLOR_THEME_PRIMARY1,COLOR_THEME_SECONDARY1,COLOR_THEME_PRIMARY2=0,1,2,3

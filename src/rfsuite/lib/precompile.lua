@@ -191,7 +191,7 @@ local function writeStamp(identity)
   end
 
   if readStampFile(STAMP_PATH, STAMP_LIMIT) ~= identity then
-    warn("could not write rfsuite.user/precompiled.txt, every start compiles everything")
+    warn("could not write the user folder's precompiled.txt, every start compiles everything")
     return false
   end
   return true
@@ -308,6 +308,22 @@ local function compile()
   end
 end
 
+-- The pending move of the pilot's data, if any (lib/user_move.lua). The module is loaded only
+-- for such a move and goes with this pass, so a card without one holds nothing of it.
+local function attachMove()
+  local paths = _G.rfsuite and _G.rfsuite.paths
+  if not paths or not paths.moveTo then
+    return
+  end
+  local chunk, err = loadUncached(paths.core .. "/lib/user_move.lua", _G.rfsuite.loadMode or "bt")
+  if not chunk then
+    warn("could not load the move of the user folder: %s", tostring(err))
+    return
+  end
+  state.moveModule = chunk()
+  state.move = state.moveModule.new()
+end
+
 -- version is what the stamp is compared against where the install carries no build identity
 -- of its own; without either the pass still fills in missing and outdated bytecode but never
 -- forces a rebuild.
@@ -344,6 +360,7 @@ function Precompile.start(version)
   for i = #ROOTS, 1, -1 do
     state.dirs[#state.dirs + 1] = ROOTS[i]
   end
+  attachMove()
 end
 
 local function clockTick()
@@ -368,6 +385,16 @@ function Precompile.step()
     return
   end
 
+  -- The stamp is written before the move, so the copy carries it and the next start, on the new
+  -- folder, finds this tree already compiled.
+  if state.force and state.identity ~= nil and state.stampWritten == nil then
+    state.stampWritten = writeStamp(state.identity)
+  end
+  if state.move and not state.move.finished then
+    state.moveModule.step(state.move)
+    return
+  end
+
   state.finished = true
   collectgarbage("collect")
   if state.failed > 0 then
@@ -380,9 +407,6 @@ function Precompile.step()
     end
     warn("%s did not compile (%d of %d failed): %s", name, state.failed, #state.files,
       state.firstError)
-  end
-  if state.force and state.identity ~= nil then
-    state.stampWritten = writeStamp(state.identity)
   end
 end
 
@@ -399,7 +423,7 @@ end
 -- Without the uncached loader nothing would actually be compiled, yet the pass would finish and
 -- write the stamp, and the tool would then believe the tree compiled; so nothing starts.
 function Precompile.startIfStale(version)
-  if state ~= nil and not state.finished and state.force then
+  if state ~= nil and not state.finished and (state.force or state.move) then
     return true
   end
 
@@ -415,7 +439,16 @@ function Precompile.startIfStale(version)
 
   local identity = readStampFile(IDENTITY_PATH, STAMP_LIMIT) or version
   if identity == nil or readStampFile(STAMP_PATH, STAMP_LIMIT) == identity then
-    return false
+    -- Nothing to compile, but the move of the pilot's data can still be owed: after a start cut
+    -- short, or behind the connection after a failed attempt.
+    local paths = _G.rfsuite and _G.rfsuite.paths
+    if not paths or not paths.moveTo then
+      return false
+    end
+    state = { identity = identity, force = false, dirs = {}, files = {}, done = 0, failed = 0,
+      walking = false, finished = false }
+    attachMove()
+    return state.move ~= nil
   end
 
   Precompile.start(version)
@@ -443,8 +476,19 @@ end
 -- ever. And only for a tree the packager stamped: a source tree copied by hand, compiled against
 -- the version number, is a developer's, and is not held up for a restart.
 function Precompile.needsRestart()
-  return state ~= nil and state.finished and state.force and state.packaged
-    and state.stampWritten == true
+  if state == nil or not state.finished then
+    return false
+  end
+  if state.move and state.move.moved then
+    return true
+  end
+  return state.force and state.packaged and state.stampWritten == true
+end
+
+-- True for a pass that only retries the move after a failed attempt: it runs on, and the
+-- connection does not wait for it.
+function Precompile.runsBehindConnection()
+  return state ~= nil and not state.finished and state.move ~= nil and state.move.background
 end
 
 function Precompile.isRunning()
@@ -454,6 +498,15 @@ end
 function Precompile.getProgress()
   if state == nil then
     return 0, 0, true
+  end
+  -- While the data moves the count is kilobytes, so a long file still moves the line.
+  -- A move behind the connection is not waited for, so it reports nothing to wait on.
+  local move = state.move
+  if move and move.background then
+    return state.done, #state.files, true
+  end
+  if move and not move.finished and #state.files == state.done then
+    return math.floor(move.done / 1024), math.floor(move.total / 1024), false
   end
   return state.done, #state.files, state.finished
 end

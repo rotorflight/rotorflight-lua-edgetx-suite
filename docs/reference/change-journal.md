@@ -7,7 +7,7 @@ sidebar_label: Change journal
 
 The suite keeps a small, append-only record of values written to a flight controller, one file per board:
 
-`/SCRIPTS/TOOLS/rfsuite.user/journal/<mcu id>.lua`
+`/SCRIPTS/RFSUITE/user/journal/<mcu id>.lua`
 
 The board ID uses the same filename filter as the per-model preferences: characters other than letters,
 digits, underscores and hyphens become underscores. The Tune Advisor is the only writer for now. It appends

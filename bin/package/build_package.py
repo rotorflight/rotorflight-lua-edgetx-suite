@@ -275,11 +275,12 @@ def build_package_for_language(lang, version, output_dir, artifact_name=None):
         src_audio = os.path.join(src_core, "audio")
 
         staging_tools = os.path.join(temp_dir, "SCRIPTS", "TOOLS")
-        staging_core = os.path.join(staging_tools, "rfsuite-core")
+        staging_suite = os.path.join(temp_dir, "SCRIPTS", "RFSUITE")
+        staging_core = os.path.join(staging_suite, "core")
         staging_functions = os.path.join(temp_dir, "SCRIPTS", "FUNCTIONS")
         staging_widgets = os.path.join(temp_dir, "WIDGETS")
         staging_sounds = os.path.join(temp_dir, "SOUNDS", "rf")
-        staging_user = os.path.join(staging_tools, "rfsuite.user")
+        staging_user = os.path.join(staging_suite, "user")
 
         os.makedirs(staging_core, exist_ok=True)
         os.makedirs(staging_widgets, exist_ok=True)
@@ -354,7 +355,7 @@ def build_package_for_language(lang, version, output_dir, artifact_name=None):
         # the template picker -- so each locale's ZIP ships them in its own language.
         staging_templates = os.path.join(temp_dir, "TEMPLATES")
 
-        i18n_roots = [staging_tools, staging_widgets, staging_functions, staging_templates]
+        i18n_roots = [staging_tools, staging_suite, staging_widgets, staging_functions, staging_templates]
 
         # Every reason this guard can be false is now a refusal rather than a quiet
         # skip. An unknown locale is stopped earlier, in main(); a missing bundle for a
@@ -370,8 +371,10 @@ def build_package_for_language(lang, version, output_dir, artifact_name=None):
         python_exe = sys.executable if (sys.executable and os.path.isfile(sys.executable)) else (shutil.which("python3") or shutil.which("python") or shutil.which("py") or "python")
         markers_before = count_i18n_markers(i18n_roots)
         subprocess.run([python_exe, py_precompile, "--root", staging_tools], check=True)
+        subprocess.run([python_exe, py_precompile, "--root", staging_suite], check=True)
         subprocess.run([python_exe, py_precompile, "--root", staging_widgets], check=True)
         subprocess.run([python_exe, py_resolve, "--json", lang_file, "--root", staging_tools], check=True)
+        subprocess.run([python_exe, py_resolve, "--json", lang_file, "--root", staging_suite], check=True)
         subprocess.run([python_exe, py_resolve, "--json", lang_file, "--root", staging_widgets], check=True)
         if os.path.isdir(staging_functions):
             subprocess.run([python_exe, py_precompile, "--root", staging_functions], check=True)

@@ -220,7 +220,7 @@ checks nothing, and leaves `--check` byte-identical. The run takes under a minut
   built from a sorted file list, so two hosts resolve a command claimed by two modules the
   same way.
 - The run is given a card of its own. The suite addresses its settings by absolute card
-  path (`/SCRIPTS/TOOLS/rfsuite.user/...`), and under the stubs that path used to mean the
+  path (`/SCRIPTS/RFSUITE/user/...`), and under the stubs that path used to mean the
   host's own `/SCRIPTS` -- so a run read whatever settings file the machine had and wrote
   its own into the machine's card, and a local `--check` could disagree with the CI job
   over a file outside the repository. Every card path is remapped onto a directory in the

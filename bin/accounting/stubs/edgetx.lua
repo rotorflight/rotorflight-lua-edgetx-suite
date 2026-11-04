@@ -8,7 +8,7 @@
 
 local Stubs = {}
 
-local SRC_PREFIX = "/SCRIPTS/TOOLS/rfsuite-core/"
+local SRC_PREFIX = "/SCRIPTS/RFSUITE/core/"
 local WIDGET_PREFIX = "/SCRIPTS/TOOLS/"
 local FUNCTION_PREFIX = "/SCRIPTS/FUNCTIONS/"
 
@@ -19,8 +19,8 @@ local repoRoot = "."
 -- ---------------------------------------------------------------------------
 -- The card this run is given, in place of the host's.
 --
--- The suite opens its settings by absolute card path -- /SCRIPTS/TOOLS/rfsuite.user/...,
--- spelled SCRIPTS:/TOOLS/rfsuite.user/... in two modules -- so under the stubs those opens
+-- The suite opens its settings by absolute card path -- /SCRIPTS/RFSUITE/user/...,
+-- spelled SCRIPTS:/RFSUITE/user/... in two modules -- so under the stubs those opens
 -- went to the host's root filesystem: a run read whatever settings file the machine had,
 -- and wrote its own into the machine's card. That made a local --check and the CI job
 -- disagree over a file outside the repository, and made a run leave something behind.
@@ -104,7 +104,7 @@ local function ensureDir(path)
   -- name is not followed by one -- so the directory the caller actually asked for was never
   -- made. The wrapper hands this the parent of a file it is about to open, and on a fresh
   -- card that parent is one level below where the loop stops, which is why an open of
-  -- TOOLS/rfsuite.user/<mcu>.lua made TOOLS and then failed on the one directory it is
+  -- RFSUITE/user/<mcu>.lua made TOOLS and then failed on the one directory it is
   -- there for. One more mkdir for the full path closes it.
   os.execute(string.format('mkdir "%s" 2>%s', path, NULL_DEVICE))
 end
@@ -615,9 +615,9 @@ function Stubs.install(root)
     elseif string.sub(path, 1, #FUNCTION_PREFIX) == FUNCTION_PREFIX then
       rel = repoRoot .. "/src/functions/" .. string.sub(path, #FUNCTION_PREFIX + 1)
     elseif cardPath(path) then
-      -- Under /SCRIPTS/TOOLS/ but not the suite's own: the user's directory, so the card this
-      -- run was given, not the repository. Checked before the widget prefix below, which would
-      -- otherwise read it as src/rfsuite.user/... -- a path that exists in neither.
+      -- Under /SCRIPTS/ but not the suite's code: the user's directory, so the card this
+      -- run was given, not the repository. Checked before the widget prefix below, so it is
+      -- never read as a path under src/, which exists in neither.
       rel = cardPath(path)
     elseif string.sub(path, 1, #WIDGET_PREFIX) == WIDGET_PREFIX then
       rel = repoRoot .. "/src/" .. string.sub(path, #WIDGET_PREFIX + 1)
@@ -834,8 +834,8 @@ function Stubs.selfTest()
   -- 1. A write to a nested card path has to make every directory on the way, the deepest one
   --    included. On a fresh card this is the write that used to fail, because the mkdir loop
   --    could only ever issue a prefix ending in a separator.
-  local slash = "/SCRIPTS/TOOLS/rfsuite.user/deep.lua"
-  local volume = "SCRIPTS:/TOOLS/rfsuite.user/deep.lua"
+  local slash = "/SCRIPTS/RFSUITE/user/deep.lua"
+  local volume = "SCRIPTS:/RFSUITE/user/deep.lua"
   expect("a nested card write succeeds", write(slash, "slash"))
   expect("a nested card write creates the deepest directory", read(slash) == "slash",
     "the file is not readable back: " .. tostring(read(slash)))

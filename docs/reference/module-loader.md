@@ -16,8 +16,8 @@ Where the suite sits on the card is stated once, in `src/rfsuite/lib/paths.lua`:
 
 | Field | Value today | Holds |
 | --- | --- | --- |
-| `core` | `/SCRIPTS/TOOLS/rfsuite-core` | the suite's code |
-| `user` | `/SCRIPTS/TOOLS/rfsuite.user` | the pilot's data: preferences, flight log, user themes |
+| `core` | `/SCRIPTS/RFSUITE/core` | the suite's code |
+| `user` | `/SCRIPTS/RFSUITE/user` | the pilot's data: preferences, flight log, user themes |
 
 `lib/require.lua` loads that file and publishes it as `rfsuite.paths`. Every Lua state of the
 suite -- the tool, both widgets and the special-function script -- loads `lib/require.lua` before

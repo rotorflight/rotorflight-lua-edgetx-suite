@@ -32,7 +32,7 @@ crossfireTelemetryPush = function(kind, payload)
   return true
 end
 loadScript = function(path)
-  local relative = string.match(path, "/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+  local relative = string.match(path, "/SCRIPTS/RFSUITE/core/(.+)$")
   if relative == "lib/elrs_config.lua" then
     configLoads = configLoads + 1
     -- As lib/elrs_config.lua does: hand back the registered instance, or register this one.
@@ -87,7 +87,7 @@ do
   local savedLoadScript = loadScript
   local resetCount = 0
   loadScript = function(path)
-    local relative = string.match(path, "/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "/SCRIPTS/RFSUITE/core/(.+)$")
     if relative == "app/pages/settings/common.lua" then
       return function() return { pageT = function() return function(_, _, fallback) return fallback end end } end
     end

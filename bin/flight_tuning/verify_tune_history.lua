@@ -35,7 +35,7 @@ local function check(label, ok, detail)
 end
 
 -- ---------------------------------------------------------------------------
--- The card: paths under /SCRIPTS/TOOLS/rfsuite.user live in `files`.
+-- The card: paths under /SCRIPTS/RFSUITE/user live in `files`.
 -- ---------------------------------------------------------------------------
 -- luacheck: globals io
 local files = {}
@@ -81,7 +81,7 @@ function rename(from, to)
   return 0
 end
 function loadScript(path)
-  local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+  local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
   assert(relative == "lib/atomic_file.lua", "unexpected module: " .. tostring(path))
   return assert(loadfile("src/rfsuite/" .. relative))
 end
@@ -92,8 +92,8 @@ local tuneHistory = assert(loadfile("src/rfsuite/lib/tune_history.lua"))()
 local journal = assert(loadfile("src/rfsuite/lib/change_journal.lua"))()
 
 local MCU = "abc123"
-local HISTORY = "/SCRIPTS/TOOLS/rfsuite.user/tune/" .. MCU .. ".lua"
-local JOURNAL = "/SCRIPTS/TOOLS/rfsuite.user/journal/" .. MCU .. ".lua"
+local HISTORY = "/SCRIPTS/RFSUITE/user/tune/" .. MCU .. ".lua"
+local JOURNAL = "/SCRIPTS/RFSUITE/user/journal/" .. MCU .. ".lua"
 local CONTEXT = { pidProfile = 1, rateProfile = 1, cyclicPolarity = 0, cyclicRing = 0, relaxType = 2 }
 
 local function reset()
@@ -247,7 +247,7 @@ do
   reset()
   fly(147)
   check("the file lives per flight controller under the user directory",
-    tuneHistory.path("ab c/1") == "/SCRIPTS/TOOLS/rfsuite.user/tune/ab_c_1.lua"
+    tuneHistory.path("ab c/1") == "/SCRIPTS/RFSUITE/user/tune/ab_c_1.lua"
     and string.match(journal.path("ab c/1"), "[^/]+$") == string.match(tuneHistory.path("ab c/1"), "[^/]+$"))
 
   fly(150)
@@ -951,7 +951,7 @@ print("Differences from the Ethos suite: owed work stays with its flight control
 -- ---------------------------------------------------------------------------
 do
   local OTHER = "def456"
-  local OTHER_HISTORY = "/SCRIPTS/TOOLS/rfsuite.user/tune/" .. OTHER .. ".lua"
+  local OTHER_HISTORY = "/SCRIPTS/RFSUITE/user/tune/" .. OTHER .. ".lua"
 
   -- Flight controller A's flight is saved; before its clear goes out, B is connected. The clear
   -- would erase B's statistics, a flight B has not saved.

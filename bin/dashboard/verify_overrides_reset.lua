@@ -47,7 +47,7 @@ local function check(condition, name)
   end
 end
 
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = "/SCRIPTS/RFSUITE/core/"
 local KEY = "cfg_system_default_colors"
 local OTHER = "cfg_system_default_enabled"
 local themes = { { path = "system/default", name = "Default" } }

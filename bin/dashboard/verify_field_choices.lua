@@ -14,7 +14,7 @@ do
 end
 
 local SRC = ROOT .. "/src/rfsuite/"
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local CORE = "/SCRIPTS/RFSUITE/core/"
 local THEMES = SRC .. "widgets/dashboard/themes/"
 
 local assertions, failures = 0, 0

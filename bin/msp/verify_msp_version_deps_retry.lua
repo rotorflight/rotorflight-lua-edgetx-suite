@@ -80,7 +80,7 @@ local function newRuntime(failedLoads)
     ["lib/paths.lua"] = true
   }
   env.loadScript = function(path)
-    local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
     assert(relative, "unexpected script path: " .. tostring(path))
     if relative == FAILING then
       h.loads = h.loads + 1

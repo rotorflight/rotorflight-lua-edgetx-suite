@@ -8,7 +8,7 @@ model = {
   getModule = function(i) return { Type = i == 0 and 5 or 0, subType = 0 } end,
 }
 loadScript = function(path)
-  local relative = string.match(path, "/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+  local relative = string.match(path, "/SCRIPTS/RFSUITE/core/(.+)$")
   if not relative then return nil end
   return loadfile(root .. "/src/rfsuite/" .. relative)
 end
@@ -214,7 +214,7 @@ do
   local chainState = {}
   startAudioRead(chainState, 8)
   _G.rfsuite.modules = {
-    ["/SCRIPTS/TOOLS/rfsuite-core/tasks/events/runtime.lua"] = {
+    ["/SCRIPTS/RFSUITE/core/tasks/events/runtime.lua"] = {
       getOnconnectProgress = function() return { total = 1, done = 0 } end,
     },
   }

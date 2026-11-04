@@ -6,7 +6,7 @@ sidebar_position: 40
 
 # User themes
 
-RFSuite loads dashboard themes from two folders: the shipped ones from `/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/themes/`, and yours from the user folder at `/SCRIPTS/TOOLS/rfsuite.user/dashboard/`. A theme folder goes directly in there — `/SCRIPTS/TOOLS/rfsuite.user/dashboard/mytheme/init.lua`, with no `themes` level in between.
+RFSuite loads dashboard themes from two folders: the shipped ones from `/SCRIPTS/RFSUITE/core/widgets/dashboard/themes/`, and yours from the user folder at `/SCRIPTS/RFSUITE/user/dashboard/`. A theme folder goes directly in there — `/SCRIPTS/RFSUITE/user/dashboard/mytheme/init.lua`, with no `themes` level in between.
 
 Both folders are listed, so a theme in the user folder is an additional choice in the theme selector under *System* → *Settings* → *Dashboard* → *Theme* rather than a replacement: a copy that keeps the original's `name` appears in the list twice, once for each folder. Give a copy a name of its own.
 
@@ -165,7 +165,7 @@ In governor modes OFF and LIMIT the flight controller keeps no governor state, s
 
 ## Notes
 
-- User themes in `/SCRIPTS/TOOLS/rfsuite.user/` are preserved across suite updates.
+- User themes in `/SCRIPTS/RFSUITE/user/` are preserved across suite updates.
 - If a theme includes a `configure.lua` file, its configurable options (such as voltage ranges) are saved in the radio's preferences as the standard values, and a model with per-model settings switched on keeps the values it changes in its own file. See [Settings](../pages/settings/dashboard/settings.md).
 - If a theme breaks while its screen is being drawn -- an error, or a screen too large for the radio to draw within its instruction limit -- the widget tries three times in a row, then shows *Dashboard error* instead of the dashboard and stops trying. Choosing another theme, changing a setting, reconnecting the flight controller or a flight phase with a screen of its own makes it try again; until then *Dashboard error* stays, which in flight can be until the end of the flight. [Adding a dashboard theme](../developer/dashboard-themes.md) says where the error is logged.
 

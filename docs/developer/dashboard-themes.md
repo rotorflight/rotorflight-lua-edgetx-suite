@@ -23,8 +23,8 @@ version of the same thing, plus what a theme shipped in this repository addition
 
 | Kind | In this repository | On the card |
 | --- | --- | --- |
-| Shipped | `src/rfsuite/widgets/dashboard/themes/<folder>/` | `/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/themes/<folder>/` |
-| User | not in this repository | `/SCRIPTS/TOOLS/rfsuite.user/dashboard/<folder>/` |
+| Shipped | `src/rfsuite/widgets/dashboard/themes/<folder>/` | `/SCRIPTS/RFSUITE/core/widgets/dashboard/themes/<folder>/` |
+| User | not in this repository | `/SCRIPTS/RFSUITE/user/dashboard/<folder>/` |
 
 Both are scanned the same way, shipped first, and a theme is addressed everywhere by the path
 `<source>/<folder>` — `system/default`, `user/mytheme`. That string is what a preference
@@ -1270,7 +1270,7 @@ perform, exactly as a press does.
 4. For a theme shipped from this repository, route every string a pilot reads through i18n. Box
    titles take the `@i18n(key)@` form and the packager replaces the marker while building each locale.
    An installed archive contains only `i18n/init.lua`, not the locale bundles, so a theme copied
-   into `rfsuite.user` cannot resolve a new marker at runtime. User themes use plain text for box
+   into `RFSUITE/user` cannot resolve a new marker at runtime. User themes use plain text for box
    and page titles. Governor threshold values use the internal names documented in
    [User themes](../dashboard/user-themes.md), which remain stable across radio languages.
 5. A budget row. `bin/accounting/measure.lua` prices every shipped theme — its worst pass and

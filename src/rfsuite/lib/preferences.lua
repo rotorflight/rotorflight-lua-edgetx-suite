@@ -346,7 +346,7 @@ function M.load()
   return prefs, info.found
 end
 
--- The install carries no directory entries, so /SCRIPTS/TOOLS/rfsuite.user exists on a card
+-- The install carries no directory entries, so /SCRIPTS/RFSUITE/user exists on a card
 -- only because a file was unpacked into it, and io.open(path, "w") does not create a missing
 -- parent. Without this, the first save on such a card fails and every setting the pilot
 -- changed is lost with it.
@@ -364,10 +364,7 @@ end
 local function ensureUserDir(targetPath)
   local userRoot = string.match(targetPath or M.getPath(), "^(.*)/[^/]+$")
   if not userRoot then return end
-  local toolsRoot = string.gsub(userRoot, "/rfsuite%.user$", "")
-  if toolsRoot ~= "" and toolsRoot ~= userRoot then
-    makeDir(toolsRoot)
-  end
+  makeDir(string.match(userRoot, "^(.*)/[^/]+$"))
   makeDir(userRoot)
 end
 

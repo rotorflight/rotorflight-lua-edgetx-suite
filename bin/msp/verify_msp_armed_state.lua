@@ -94,7 +94,7 @@ local function newRuntime(armflags, failedArmedLoads)
     ["lib/api_version.lua"] = true
   }
   env.loadScript = function(path)
-    local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
     assert(relative, "unexpected script path: " .. tostring(path))
     if relative == "lib/armed.lua" then
       h.armedLoadAttempts = h.armedLoadAttempts + 1

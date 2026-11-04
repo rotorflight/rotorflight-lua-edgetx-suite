@@ -18,7 +18,7 @@ getDateTime = function() return {year=2026, mon=10, day=24, hour=17, min=30, sec
 loadScript = function(path)
   path = string.gsub(path, "%.[^./]+$", "") .. ".lua"
   if files[path] then return load(files[path], path, "t", {}) end
-  local relative = string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", "src/rfsuite/")
+  local relative = string.gsub(path, "^/SCRIPTS/RFSUITE/core/", "src/rfsuite/")
   return loadfile(relative)
 end
 local originalIo = io

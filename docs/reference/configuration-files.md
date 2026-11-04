@@ -6,7 +6,7 @@ sidebar_label: Configuration files
 # Configuration files
 
 Everything you change in the suite is kept in two files on the radio's SD card, under
-`/SCRIPTS/TOOLS/rfsuite.user/`:
+`/SCRIPTS/RFSUITE/user/`:
 
 | File | What is in it |
 | --- | --- |

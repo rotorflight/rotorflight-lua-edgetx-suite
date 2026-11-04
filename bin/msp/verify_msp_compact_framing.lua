@@ -27,7 +27,7 @@ bit32 = {
 }
 
 local core = "src/rfsuite/"
-local radio = "/SCRIPTS/TOOLS/rfsuite-core/"
+local radio = "/SCRIPTS/RFSUITE/core/"
 local h = { clock = 1000, rssi = 100, sent = {}, inbox = {}, accept = true }
 
 -- A transport with CRSF's chunk sizes (8 up, 58 down) that records every chunk handed to it and

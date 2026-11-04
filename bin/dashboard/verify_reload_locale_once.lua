@@ -73,7 +73,7 @@ end
 -- The settings file for reading, at either spelling the suite uses for it.
 local function isSettingsFile(path)
   if type(path) ~= "string" then return false end
-  return string.match(path, "rfsuite%.user/preferences%.lua$") ~= nil
+  return string.match(path, "RFSUITE/user/preferences%.lua$") ~= nil
 end
 
 -- What a packaged build of the given locale carries: the packager writes the locale over the marker

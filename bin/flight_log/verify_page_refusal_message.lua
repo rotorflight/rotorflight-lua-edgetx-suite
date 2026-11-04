@@ -81,7 +81,7 @@ local STUB = {
   ["ui/loading_overlay.lua"] = { append = function() end }
 }
 function loadScript(path)
-  local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+  local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
   if relative ~= nil and REAL[relative] then return assert(loadfile("src/rfsuite/" .. relative)) end
   if relative ~= nil and STUB[relative] then
     local module = STUB[relative]

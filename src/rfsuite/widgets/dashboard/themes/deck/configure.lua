@@ -28,7 +28,7 @@ end
 local Layout = loadLayout("widgets/dashboard/themes/deck/layout.lua")
 
 -- The settings page loads this file for the theme it is configuring and hands that theme to
--- the factory at the foot of this file, so a copy of this theme under rfsuite.user/dashboard
+-- the factory at the foot of this file, so a copy of this theme under RFSUITE/user/dashboard
 -- stores its values under its own key prefix instead of this one's. The literal is the
 -- fallback for a caller that passes no theme.
 local THEME_PATH = "system/deck"

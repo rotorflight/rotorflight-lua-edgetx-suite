@@ -14,13 +14,13 @@ end
 
 local function create(zone, options)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local requireChunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/require.lua", mode)
+  local requireChunk = loadScript("/SCRIPTS/RFSUITE/core/lib/require.lua", mode)
   if requireChunk then
     pcall(requireChunk)
   end
   local appChunk = loadScript("/WIDGETS/rfsuite/app.lua", mode)
   if not appChunk then
-    appChunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/runtime.lua", mode)
+    appChunk = loadScript("/SCRIPTS/RFSUITE/core/widgets/dashboard/runtime.lua", mode)
   end
   if not appChunk then return nil end
 

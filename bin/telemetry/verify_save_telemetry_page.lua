@@ -72,7 +72,7 @@ local function newPage()
     ["tasks/msp/api/tx_info.lua"] = txInfo
   }
   function loadScript(path)
-    local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
     if relative == pipelinePath then
       return assert(loadfile("src/rfsuite/" .. relative))
     end
