@@ -22,7 +22,7 @@ local function helicopterStepDone(step)
     local record = session.helicopterSetupHistory
     if not record or record.id ~= session.mcu_id then
       if not HelicopterHistory then
-        HelicopterHistory = loadScript("/SCRIPTS/TOOLS/rfsuite-core/app/pages/helicopter_setup/history_store.lua", "t")()
+        HelicopterHistory = loadScript(_G.rfsuite.paths.core .. "/app/pages/helicopter_setup/history_store.lua", "t")()
       end
       record = { id = session.mcu_id, mask = HelicopterHistory.mask(session.mcu_id, session.modelPreferencesFile) }
       session.helicopterSetupHistory = record
