@@ -915,6 +915,9 @@ function M.build(children, widget, entries, style)
     style = ownStyle(widget, t)
     if menuStyle(widget) == "rotary" and Look ~= nil then
       local Roll = rollModule()
+      if Roll == nil and Log and type(Log.emit) == "function" then
+        Log.emit("rfsuite.widget", "rotary menu did not load, drawing the card", "warn")
+      end
       if Roll then
         style.background(children)
         Roll.build(children, widget, entries, style.place(), Look.colors(widget), t)

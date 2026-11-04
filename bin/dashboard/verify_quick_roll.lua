@@ -312,29 +312,31 @@ end
 
 if selfTest then
   local MUTANTS = {
-    { "the list wraps", function(t) return (t:gsub("if value > count then return count end", "if value > count then return 1 end")) end },
+    { "the list wraps", function(t) return (string.gsub(t, "if value > count then return count end", "if value > count then return 1 end")) end },
     { "ERASE first", function(t)
-      return (t:gsub("{ label = confirm.cancelLabel or \"CANCEL\", cancel = true },\n    { label = confirm.confirmLabel or \"OK\", agree = true },",
+      return (string.gsub(t, "{ label = confirm.cancelLabel or \"CANCEL\", cancel = true },\n    { label = confirm.confirmLabel or \"OK\", agree = true },",
         "{ label = confirm.confirmLabel or \"OK\", agree = true },\n    { label = confirm.cancelLabel or \"CANCEL\", cancel = true },"))
     end },
     { "closes before the answer", function(t)
-      return (t:gsub("Menu.run%(widget, entry, choice, \"none\", report%)", "Menu.run(widget, entry, choice, \"done\", report)"))
+      return (string.gsub(t, "Menu.run%(widget, entry, choice, \"none\", report%)", "Menu.run(widget, entry, choice, \"done\", report)"))
     end },
     { "a detent is not summed", function(t)
-      return (t:gsub("local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))
+      return (string.gsub(t, "local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))
     end },
   }
   quiet = true
   local red = 0
   for i = 1, #MUTANTS do
-    local source = io.open(SRC .. ROLL, "rb"):read("a"):gsub("\r\n", "\n")
+    local file = assert(io.open(SRC .. ROLL, "rb"))
+    local source = string.gsub(file:read("a"), "\r\n", "\n")
+    file:close()
     local mutated = MUTANTS[i][2](source)
     if mutated == source then
       print("SELF-TEST: mutant did not apply: " .. MUTANTS[i][1])
       os.exit(1)
     end
     failures, cases = 0, 0
-    local mutate = function(text) return MUTANTS[i][2]((text:gsub("\r\n", "\n"))) end
+    local mutate = function(text) return MUTANTS[i][2]((string.gsub(text, "\r\n", "\n"))) end
     local ok = pcall(run, mutate)
     if failures > 0 or not ok then
       red = red + 1

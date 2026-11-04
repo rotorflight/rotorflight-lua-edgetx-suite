@@ -133,22 +133,25 @@ end
 -- Signature: (cursorY, children, x, w, i18n, requestRebuild) -> newCursorY
 
 local SAFETY_ITEMS = {
-  { key = "save_confirm",                 labelKey = "save_confirm",                 fallback = "Confirm on Save",
-    helpKey = "help_save_confirm", helpFallback = "Asks before a Save writes to the flight controller." },
-  { key = "save_armed_warning",           labelKey = "save_armed_warning",           fallback = "Show Disarm Warning on Save/Reload",
-    helpKey = "help_save_armed_warning", helpFallback = "Warns before a Save or Reload while the model is armed." },
-  { key = "reload_confirm",               labelKey = "reload_confirm",               fallback = "Confirm on Reload",
-    helpKey = "help_reload_confirm", helpFallback = "Asks before a Reload replaces edits that are not saved." },
+  { key = "save_confirm",                 labelKey = "save_confirm",                 fallback = "Confirm on Save" },
+  { key = "save_armed_warning",           labelKey = "save_armed_warning",           fallback = "Show Disarm Warning on Save/Reload" },
+  { key = "reload_confirm",               labelKey = "reload_confirm",               fallback = "Confirm on Reload" },
 }
 
 local function buildSafety(cursorY, children, x, w, i18n)
+  -- One complete literal key each, the form the packager translates in place.
+  local help = {
+    save_confirm = t(i18n, "help_save_confirm", "Asks before a Save writes to the flight controller."),
+    save_armed_warning = t(i18n, "help_save_armed_warning", "Warns before a Save or Reload while the model is armed."),
+    reload_confirm = t(i18n, "help_reload_confirm", "Asks before a Reload replaces edits that are not saved."),
+  }
   for _, item in ipairs(SAFETY_ITEMS) do
     local k = item.key
     cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
       t(i18n, item.labelKey, item.fallback),
       ui.runtime.getBoolGetter(k),
       ui.runtime.getBoolSetter(k),
-      { helpText = t(i18n, item.helpKey, item.helpFallback) }
+      { helpText = help[k] }
     )
   end
   return cursorY
@@ -187,8 +190,6 @@ local PREVIEW_ITEMS = {
     key             = "preview_setup_wizard",
     labelKey        = "preview_setup_wizard",
     labelFallback   = "Setup Assistant",
-    helpKey         = "help_preview_setup_wizard",
-    helpFallback    = "Shows the unfinished setup assistant in the menu; it can write to the flight controller.",
     confirm         = {
       labelKey = "preview_confirm_setup_wizard",
       labelFallback = "The setup assistant is not finished. Its screens and their order can still change, and it can write to the flight controller. Check what it has written before you fly. Show it anyway?"
@@ -197,8 +198,6 @@ local PREVIEW_ITEMS = {
   {
     key             = "preview_inflight_tuning",
     labelKey        = "preview_inflight_tuning",
-    helpKey         = "help_preview_inflight_tuning",
-    helpFallback    = "Shows the unfinished in-flight tuning surface, which changes parameters in flight.",
     labelFallback   = "In-flight tuning",
     confirm         = {
       labelKey = "preview_confirm_inflight_tuning",
@@ -268,12 +267,16 @@ local function getPreviewSetter(item)
 end
 
 local function buildPreview(cursorY, children, x, w, i18n)
+  local help = {
+    preview_setup_wizard = t(i18n, "help_preview_setup_wizard", "Shows the unfinished setup assistant in the menu; it can write to the flight controller."),
+    preview_inflight_tuning = t(i18n, "help_preview_inflight_tuning", "Shows the unfinished in-flight tuning surface, which changes parameters in flight."),
+  }
   for _, item in ipairs(PREVIEW_ITEMS) do
     cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
       t(i18n, item.labelKey, item.labelFallback),
       ui.runtime.getBoolGetter(item.key),
       getPreviewSetter(item),
-      { helpText = t(i18n, item.helpKey, item.helpFallback) }
+      { helpText = help[item.key] }
     )
   end
   return cursorY

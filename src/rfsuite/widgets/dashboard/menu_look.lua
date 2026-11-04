@@ -84,6 +84,8 @@ function M.colors(widget)
   local name = M.scheme(type(general) == "table" and general[M.KEY] or nil)
   if name ~= lastName then
     lastName, lastColors = name, resolve(name)
+    local Log = _G.rfsuite and _G.rfsuite.require and _G.rfsuite.require("lib/log.lua") or nil
+    if Log and type(Log.emit) == "function" then Log.emit("rfsuite.widget", "menu colors: " .. name, "debug") end
   end
   return lastColors
 end
