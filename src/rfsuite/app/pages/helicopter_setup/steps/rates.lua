@@ -10,7 +10,7 @@ return function(w)
     local chosen={}
     for _,i in ipairs(profiles) do if w.rateStyles[i] then chosen[#chosen+1]=i end end
     if #chosen==0 then return end
-    if w.logInfo then w:log("info","rate styles written on %s profiles",#chosen) end
+    if w.logInfo then w:log("info","rate styles queued for %s profiles",#chosen) end
     w:profileLoop("rates", #chosen, function(d,i)
       H.style(d,w.rateStyles[i],ratesType); w.rateTunings[i]=d
     end,chosen)

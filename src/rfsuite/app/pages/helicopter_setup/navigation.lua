@@ -92,7 +92,7 @@ function M.attach(w, ctx)
       end
     end
     d.buffer = payload
-    if self.logInfo then self:log("info", "FC telemetry sensors added") end
+    if self.logInfo then self:log("info", "FC telemetry sensors queued, restart next") end
     self:action("telemetry_config", payload)
     self:reboot()
   end

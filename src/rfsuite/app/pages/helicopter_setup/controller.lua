@@ -205,8 +205,8 @@ function M.new(runtime, transport, mathModule, labels)
     local edit, dropped = self.pendingEdit, self.pendingEditDropped
     self.pendingEdit, self.pendingEditDropped = nil, nil
     if edit and self:usable() then edit()
-    elseif edit then
-      self:log("warn", "edit dropped, the fresh status did not confirm the lock")
+    else
+      if edit then self:log("warn", "edit dropped, the fresh status did not confirm the lock") end
       if dropped then dropped() end
     end
   end

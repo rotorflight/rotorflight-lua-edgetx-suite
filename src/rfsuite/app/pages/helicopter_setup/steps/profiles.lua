@@ -21,7 +21,7 @@ return function(w)
       end
       used[slots[n]]=true
     end
-    if w.logDebug then w:log("debug","%s adjustment ranges written",#items) end
+    if w.logDebug then w:log("debug","%s adjustment ranges queued",#items) end
     for n,r in ipairs(items) do
       local slot=slots[n];ranges[slot]=r
       w.bus:add(w:rangeJob("adjustment_ranges",slot))
@@ -250,7 +250,7 @@ return function(w)
     local r=w.rescue
     if not (r and r.chosen) then return end
     local c=r.chosen
-    if w.logInfo then w:log("info","rescue written on every PID profile") end
+    if w.logInfo then w:log("info","rescue queued for every PID profile") end
     -- Off is written as off; On keeps a profile's own non-zero mode (CLIMB or ALT_HOLD) and
     -- gives a profile that had rescue off the mode chosen here.
     w:profileLoop("rescue",w.data.status.pid_profile_count,function(d)

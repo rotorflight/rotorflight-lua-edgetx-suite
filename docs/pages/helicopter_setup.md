@@ -528,7 +528,7 @@ tail pin move with the firmware's result code, a trial that found nothing, a mis
 and reason), each step and card entered, every change of the status line as it is shown (the
 wizard's own messages, the flight controller hints and the cleanup and recovery notices) by its
 label key, where a line filled in from a template is named by the template's key, save, discard,
-live writes, restart and reconnect, what a step wrote (a mode's range, a calibrated rate, collective and styles per
+live writes, restart and reconnect, what a step queues for the flight controller (a mode's range, a calibrated rate, collective and styles per
 profile, an ESC range or mode), and closing. *DEBUG* adds the picture file shown, the helpers loaded and released on
 demand, whether a step's cards were reused or built anew, the profile loops, a refused Next and a
 reversal. *TRACE* adds the flow, for reading live over the serial port: each move between cards, a hold and its

@@ -66,7 +66,7 @@ return function(w)
       end
     end
     if #chosen > 0 then
-      if w.logInfo then w:log("info", "headspeed written on %s PID profiles", #chosen) end
+      if w.logInfo then w:log("info", "headspeed queued for %s PID profiles", #chosen) end
       w:profileLoop("pid", #chosen, function(d, index)
         d.governor_headspeed = w.governorSpeeds[index]
       end, chosen)

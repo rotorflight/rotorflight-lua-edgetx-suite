@@ -138,7 +138,7 @@ return function(w)
       if w.pitchFullChanged and w.pitchFullChanged[id] then chosen[#chosen + 1] = id end
     end
     if #chosen == 0 then return end
-    if w.logInfo then w:log("info", "full-stick collective written on %s rate profiles", #chosen) end
+    if w.logInfo then w:log("info", "full-stick collective queued for %s rate profiles", #chosen) end
     w:profileLoop("rates", #chosen, function(d, index)
       return H.setCollective(d, w.pitchFull[index])
     end, chosen)

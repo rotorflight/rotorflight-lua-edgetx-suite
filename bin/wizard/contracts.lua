@@ -1799,6 +1799,15 @@ return function(h)
     check(has("trace","release"),"LOG a release shows at trace")
     w.statusAt=getTime();w:fail("status","timeout")
     check(has("error","status failed: timeout"),"LOG a failure shows at error")
+    -- A waiting edit's own callback runs when the fresh status refuses it, and without an edit too.
+    w=world();settle(w)
+    local droppedCalls=0
+    w.pendingEdit,w.pendingEditDropped=function() end,function() droppedCalls=droppedCalls+1 end
+    w.ready=false;w:acceptStatus(w.data.status);w.ready=true
+    eq(droppedCalls,1,"LOG a refused edit still runs its dropped callback")
+    w.pendingEdit,w.pendingEditDropped=nil,function() droppedCalls=droppedCalls+1 end
+    w:acceptStatus(w.data.status)
+    eq(droppedCalls,2,"LOG a dropped callback without an edit still runs")
     -- At the shipped level the page builds no line, a failure included.
     level="off";lines={}
     w=world();settle(w);w.step=16;c=step(w,"pitch");c[2].enter();drain(w);c[2].rows[1].press();w:navigate(15,1)
