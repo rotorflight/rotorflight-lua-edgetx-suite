@@ -324,6 +324,27 @@ local function run(mutate)
     check("and the option its place", r.right == 3)
   end
   do
+    -- The option under the focus goes: no other one takes its place under the same press.
+    local w, r = toProfile()
+    check("focus on the profile in force", r.side == "right" and r.right == 2)
+    w.state.battery_config.batteryCapacity_1 = 0
+    scene(Menu, w)
+    check("the option gone, the focus is back on the left", r.side == "left")
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("and the press writes nothing", #adds == 0)
+  end
+  do
+    -- A question stands through a build, in what the row says now.
+    local w = open()
+    local r = roll(w)
+    Roll.press(w)
+    check("the question has the fill", string.find(r.question.confirm.detail or "", "50", 1, true) ~= nil)
+    _G.rfsuite.session.dataflash = { used = 80, total = 100 }
+    scene(Menu, w)
+    check("it says the fill as it is now", r.side == "right" and string.find(r.question.confirm.detail or "", "80", 1, true) ~= nil)
+    _G.rfsuite.session.dataflash = { used = 50, total = 100 }
+  end
+  do
     -- The row itself goes: its question or choice goes with it.
     local w, r = toProfile()
     w.state.battery_config = nil
@@ -466,7 +487,17 @@ if selfTest then
       return (string.gsub(t, "if sy == window.y then return end\n", ""))
     end },
     { "a build forgets the place on the right", function(t)
-      return (string.gsub(t, "roll.right = indexOfOption%(roll.rightOptions, beforeOption%) or clamp%(roll.right, roll.rightOptions and #roll.rightOptions or 0%)", "roll.right = 1"))
+      return (string.gsub(t, "roll.right = place
+", "roll.right = 1
+"))
+    end },
+    { "another option takes a gone one's place", function(t)
+      return (string.gsub(t, "roll.side = \"left\"
+        roll.right = roll.rightOptions and currentIndex%(roll.rightOptions%) or 1", "roll.right = 1"))
+    end },
+    { "a question keeps what it said", function(t)
+      return (string.gsub(t, "roll.question = roll.leftList%[found%]
+", ""))
     end },
     { "the place goes by the row's number", function(t)
       return (string.gsub(t, "local found = indexOfEntry%(roll.leftList, before%)", "local found = (before ~= nil and roll.leftList[roll.left] ~= nil) and roll.left or nil"))

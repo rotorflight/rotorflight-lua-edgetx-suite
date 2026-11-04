@@ -422,9 +422,26 @@ function M.build(children, widget, entries, colors, t)
     if roll.rightOptions ~= nil and beforeOption ~= nil then
       roll.rightFor = found
       roll.rightOptions = optionsOf(widget, roll.leftList[found])
-      roll.right = indexOfOption(roll.rightOptions, beforeOption) or clamp(roll.right, roll.rightOptions and #roll.rightOptions or 0)
+      local place = indexOfOption(roll.rightOptions, beforeOption)
+      if place ~= nil then
+        roll.right = place
+      else
+        -- The option the pilot was on has gone. Another one must not take its place under the same
+        -- press: the focus goes back to the left, and the list starts over on the one in force.
+        roll.side = "left"
+        roll.right = roll.rightOptions and currentIndex(roll.rightOptions) or 1
+      end
     else
       roll.rightFor, roll.rightOptions = nil, nil
+    end
+    -- A question stands, in what the row says now.
+    if roll.question ~= nil then
+      roll.question = roll.leftList[found]
+      if type(roll.question.confirm) == "table" then
+        roll.questionList = answers(roll.question.confirm)
+      else
+        roll.side, roll.question, roll.questionList = "left", nil, nil
+      end
     end
   else
     -- The row the pilot was on has gone: the model armed, or the link dropped.
