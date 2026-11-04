@@ -23,7 +23,7 @@
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",
     "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "1455b81e5a3f60d7a06feae5ca589ee05bd19db6954cc15f55dcf44c746158c2",
     "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua": "a423aa3c4712965c5d12a0a265d0476c82c8a6beda2b714284b80c3ba83548b2",
-    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "8438f3e0d5bef5e254f2ede833ee73e8956a389cb783a6c5df26bc61286193ac",
+    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "3ad5261e5c767abe14ec421364bece9787bd749d83b92e274cde16eb9c115699",
     "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua": "14125159bcd7123906b4665811bfdb558481667ce17cdd03bd7e15458c733f94",
     "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "1fc741fbd225890a7a4753bcbf158321681e90c7fd6fdb8020547e86127445d5",
     "src/rfsuite/app/pages/helicopter_setup/steps/gyro.lua": "934b4990c6eae2c40a352551325e9b866607ade22208427f0ab7e7f5af0a59d8",
@@ -31,7 +31,7 @@
     "src/rfsuite/app/pages/helicopter_setup/steps/modes.lua": "0dea718bb5db6211aac80c9d7bce35499f0604c92de30a497dd43274a4a00176",
     "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "86e24e10ffeb7096f26e5815a889dd503366be64e7f46320dfbb5dcaed3a9ca7",
     "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "6c30b5c432d64eec9bf77bb0c11506226659a4b7206ebdb5c7cfa1b76d8c1791",
-    "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "2160f77efaf924d610c15cb3bc42fa613ae950d4d2ea10d3d1c4924d602611f1",
+    "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "f747330bd7fb298b312ed75895562a9c9b5af4457432a36eeebffd7c3a11d3a0",
     "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "189d2a80b98af99f5d54649d274b1f08d745041ac8bb9a19b99ca4440f0bb470",
     "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "75a292dd5ec46a79d4b6bd11a83288bf0815b27634f0d1249354258a24d52c5a",
     "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua": "5bdd0eca8f3c92f0474b9c01f649cfc258f6d9cbc5edb8e7b12e903542b1bb7f",
@@ -7602,7 +7602,7 @@
                 "esc-range-and-operating-mode"
               ],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
-              "expression": "w : enum ( \"esc_sensor_config\" , \"protocol\" , L . protocol , w : telemetryProtocols ( ) , true )"
+              "expression": "w : enum ( \"esc_sensor_config\" , \"protocol\" , L . protocol , protocols , true )"
             },
             {
               "kind": "MSP write",
@@ -7622,7 +7622,7 @@
                 "esc-range-and-operating-mode"
               ],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
-              "expression": "w : enum ( \"esc_sensor_config\" , \"protocol\" , L . protocol , w : telemetryProtocols ( ) , true )"
+              "expression": "w : enum ( \"esc_sensor_config\" , \"protocol\" , L . protocol , protocols , true )"
             },
             {
               "kind": "gate",
@@ -7874,7 +7874,7 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua",
-              "expression": "w : value ( L . protocol , function ( ) return castle and \"Castle Link\" or w . data . esc_sensor_config . protocol == 0 and L . off or L . on end )"
+              "expression": "w : value ( L . protocol , function ( ) if castle then return \"Castle Link\" end local entry = protocols [ w . data . esc_sensor_config . protocol + 1 ] return entry and entry [ 2 ] or L . on end )"
             }
           ]
         },

@@ -1761,6 +1761,39 @@ return function(h)
     check(not card.rescueFlip(),"W12 no flip shows the levelled helicopter")
     w.rescue.value[2]=1;check(card.rescueFlip(),"W12 flip shows the turn")
   end)
+  case("BENCH.telemetry-card-names-the-protocol",function()
+    local w=world();settle(w);w.step=11
+    local c=step(w,"escTelemetry");local row
+    for _,card in ipairs(c) do
+      for _,r in ipairs(card.rows) do
+        if r.label==L.protocol and r.kind=="value" then row=r end
+      end
+    end
+    check(row~=nil,"BENCH the readings card has a protocol row")
+    w.data.esc_sensor_config.protocol=3;eq(row.get(),"Hobbywing V5","BENCH the row names the protocol in use")
+    w.data.esc_sensor_config.protocol=0;eq(row.get(),L.off,"BENCH no protocol reads as off")
+  end)
+  case("BENCH.rescue-card-reads-once",function()
+    local w=world();settle(w);w.step=4
+    w.data.status.pid_profile_count=3
+    local function reads()
+      local n=0
+      for _,m in ipairs(q.sent) do if m.command==146 then n=n+1 end end
+      return n
+    end
+    local function run(passes)
+      for _=1,passes do h.measure("contract wakeup",function() w:tick() end);h.pump();h.advance(1) end
+    end
+    q.sent={}
+    w.card=99;w.buildRequested=true
+    run(400)
+    eq(reads(),1,"BENCH the rescue card reads the active profile once, not on every rebuild")
+    check(w.rescue and w.rescue.loaded,"BENCH the read completed")
+    eq(w.transition,nil,"BENCH the card is usable after its read")
+    w.data.status.current_pid_profile_index=(w.data.status.current_pid_profile_index+1)%3
+    w.cards[w.card].enter();run(400)
+    eq(reads(),2,"BENCH another active profile is read again on entry")
+  end)
   case("W12.finish-jumps-leave-cleanly",function()
     local w=world();settle(w);w.step=19
     local opened

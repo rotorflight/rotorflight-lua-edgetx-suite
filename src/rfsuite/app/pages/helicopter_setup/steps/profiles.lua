@@ -222,7 +222,11 @@ return function(w)
   local function rescueEnter()
     local r=w.rescue
     if w.transition or (r and r.chosen) then return end
-    r={};w.rescue=r;w.transition=true
+    -- The rebuild after the read runs this again: the same profile, already read, stops here.
+    local active=w.data.status.current_pid_profile_index
+    if r and r.loaded and r.value and r.profile==active then return end
+    r={profile=active};w.rescue=r;w.transition=true
+    if w.logDebug then w:log("debug","rescue read, profile %s",active) end
     w:read("rescue_profile",function(d) r.value={d.rescue_mode,d.rescue_flip_mode} end)
     w:run(function() r.loaded=true;w.transition=nil;w.buildRequested=true;w:rebuild() end)
   end

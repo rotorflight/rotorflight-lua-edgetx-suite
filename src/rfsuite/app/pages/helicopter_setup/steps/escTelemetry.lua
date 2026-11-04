@@ -12,7 +12,8 @@ return function(w)
     local p = w.data.esc_sensor_config.protocol
     return p > 0 and p ~= 13 and p ~= 14
   end
-  local protocol = w:enum("esc_sensor_config", "protocol", L.protocol, w:telemetryProtocols(), true)
+  local protocols = w:telemetryProtocols()
+  local protocol = w:enum("esc_sensor_config", "protocol", L.protocol, protocols, true)
   local port=w:port(L.port,1024)
   local set = protocol.set
   protocol.set = function(v)
@@ -69,7 +70,11 @@ return function(w)
     w:value(L.active,function()
       local m=motor();return m and (m.voltage>0 or m.temperature>0) and L.receiving or L.noTelemetry
     end),
-    w:value(L.protocol,function() return castle and "Castle Link" or w.data.esc_sensor_config.protocol==0 and L.off or L.on end)
+    w:value(L.protocol,function()
+      if castle then return "Castle Link" end
+      local entry=protocols[w.data.esc_sensor_config.protocol+1]
+      return entry and entry[2] or L.on
+    end)
   })
   w:loadModule("app/pages/helicopter_setup/power_cards.lua")(w, cards)
   w:escCards(cards)
