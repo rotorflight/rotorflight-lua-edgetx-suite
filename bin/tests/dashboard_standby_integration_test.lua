@@ -290,7 +290,7 @@ do
   -- A standby exit with the TX power alert off unloads the provider; a reload here hands the
   -- observed instance back, so the calls below stay counted. The unloading itself is checked in
   -- the lifetime block further down.
-  local configPath = "/SCRIPTS/TOOLS/rfsuite-core/lib/elrs_config.lua"
+  local configPath = "/SCRIPTS/RFSUITE/core/lib/elrs_config.lua"
   local loadScriptBeforeSpy = loadScript
   _G.loadScript = function(path, mode)
     if path == configPath then return function() _G.rfsuite.elrs_config = Config; return Config end end
@@ -941,9 +941,9 @@ end
 -- alert is off and stays while the alert is on.
 install()
 do
-  local standbyPath = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/standby.lua"
-  local configPath = "/SCRIPTS/TOOLS/rfsuite-core/lib/elrs_config.lua"
-  local powerPath = "/SCRIPTS/TOOLS/rfsuite-core/lib/elrs_power.lua"
+  local standbyPath = "/SCRIPTS/RFSUITE/core/widgets/dashboard/standby.lua"
+  local configPath = "/SCRIPTS/RFSUITE/core/lib/elrs_config.lua"
+  local powerPath = "/SCRIPTS/RFSUITE/core/lib/elrs_power.lua"
   _G.rfsuite.clearModule("widgets/dashboard/standby.lua")
   local sharedConfig = assert(_G.rfsuite.require("lib/elrs_config.lua"))
   local originalLoadScript = loadScript
@@ -1017,7 +1017,7 @@ do
       and _G.rfsuite.modules[powerPath] == nil
       and select(2, debug.getupvalue(Audio.releaseElrsConfig, slot)) == nil)
   check("standby exit releases the radio status helper it loaded",
-    _G.rfsuite.modules["/SCRIPTS/TOOLS/rfsuite-core/lib/radio_status.lua"] == nil)
+    _G.rfsuite.modules["/SCRIPTS/RFSUITE/core/lib/radio_status.lua"] == nil)
 
   first.preferences.dashboard.standby_enabled = true
   first._job = nil
@@ -1195,7 +1195,7 @@ do
   provider.release("diagnostics")
   s.widget:background()
   check("a later pass unloads the provider once the lease is let go", _G.rfsuite.elrs_config == nil
-    and _G.rfsuite.modules["/SCRIPTS/TOOLS/rfsuite-core/lib/elrs_config.lua"] == nil)
+    and _G.rfsuite.modules["/SCRIPTS/RFSUITE/core/lib/elrs_config.lua"] == nil)
   s.restore()
 end
 

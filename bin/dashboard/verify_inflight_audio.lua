@@ -12,7 +12,7 @@ local cache={}
 rfsuite={session={}, preferences={audio_events={adjustment_events=true}}}
 _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 loadScript=function(path)
-  return loadfile(string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", "src/rfsuite/"))
+  return loadfile(string.gsub(path, "^/SCRIPTS/RFSUITE/core/", "src/rfsuite/"))
 end
 rfsuite.require=function(path)
   if path=="lib/log.lua" then return {wanted=function() return false end, emit=function() end} end

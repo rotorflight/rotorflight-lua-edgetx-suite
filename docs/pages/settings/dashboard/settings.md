@@ -97,7 +97,7 @@ it for another page.
   Reset the model's voltage overrides to return to the standard or automatic range.
 
 - Settings are stored per theme, so a theme copied into
-  `/SCRIPTS/TOOLS/rfsuite.user/dashboard/` starts from its defaults rather than inheriting the
+  `/SCRIPTS/RFSUITE/user/dashboard/` starts from its defaults rather than inheriting the
   original's values, and configuring the copy does not change the original.
 - Where a value is stored follows the page, not the connection: a theme tile stores the radio's
   standard values whether or not a flight controller is connected, and a theme opened from

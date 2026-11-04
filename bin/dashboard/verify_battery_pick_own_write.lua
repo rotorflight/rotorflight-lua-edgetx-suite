@@ -353,7 +353,7 @@ for _, case in ipairs(CASES) do
     -- Until the pick takes its request: the look before the save, and not the one after it.
     _G.fstat = function(path)
       if world.w._batteryPickRequest ~= nil and type(path) == "string"
-          and string.find(path, "rfsuite.user/preferences.", 1, true) then return nil end
+          and string.find(path, "RFSUITE/user/preferences.", 1, true) then return nil end
       return stat(path)
     end
   end

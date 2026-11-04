@@ -541,6 +541,7 @@ local function compileHoldsConnect(self)
   if Compile == false then return false end
   if Compile == nil then
     Compile = false
+    widgetLog(self, "user folder: " .. tostring(_G.rfsuite.paths.user), "info")
     local developer = self.preferences and self.preferences.developer
     if developer and developer.precompile == false then return false end
     local Precompile = requireModule("lib/precompile.lua")
@@ -557,7 +558,7 @@ local function compileHoldsConnect(self)
     widgetLog(self, "compile pass after install: connection held until it finishes", "info")
   end
   Compile.stepShared()
-  if Compile.isRunning() then return true end
+  if Compile.isRunning() then return not Compile.runsBehindConnection() end
   if Compile.needsRestart() then
     if not self._compileRestartLogged then
       self._compileRestartLogged = true
@@ -576,6 +577,9 @@ end
 -- pass into a build.
 local function compileStatusLine(self, t)
   if Compile and Compile.needsRestart() then
+    if _G.rfsuite.paths.moveFailed then
+      return (t and t("app.restart_radio.move_failed")) or "Settings not moved: card full? Please restart the radio."
+    end
     return (t and t("app.restart_radio.splash")) or "Suite updated. Please restart the radio."
   end
   local now = nowSeconds()
@@ -2606,7 +2610,11 @@ local function updateConnectionState(self)
     statusLine = compileStatusLine(self, t)
   elseif not connected then
     standbyInfoKind = "controller_missing"
-    statusLine = (t and t("widgets.dashboard.waiting_for_msp_link")) or "Waiting for MSP link"
+    if _G.rfsuite.paths.moveFailed then
+      statusLine = (t and t("app.restart_radio.move_failed_short")) or "Settings not moved: card full?"
+    else
+      statusLine = (t and t("widgets.dashboard.waiting_for_msp_link")) or "Waiting for MSP link"
+    end
     self.batteryDialogState = "pending"
   elseif refused then
     standbyInfoKind = "api_unsupported"

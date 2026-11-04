@@ -16,7 +16,7 @@ bit32 = { band = function(a, b) return a & b end }
 UNIT_PERCENT, UNIT_MAH = 13, 4
 function setTelemetryValue() end
 function loadScript(path)
-  return loadfile(ROOT .. string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", ""))
+  return loadfile(ROOT .. string.gsub(path, "^/SCRIPTS/RFSUITE/core/", ""))
 end
 local clock = 0
 function getTime() return clock end

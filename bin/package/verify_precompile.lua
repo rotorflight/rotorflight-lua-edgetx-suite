@@ -51,9 +51,9 @@ do
   f:close()
 end
 
-local CORE = "/SCRIPTS/TOOLS/rfsuite-core"
+local CORE = "/SCRIPTS/RFSUITE/core"
 local WIDGET = "/WIDGETS/rfsuite"
-local USER = "/SCRIPTS/TOOLS/rfsuite.user"
+local USER = "/SCRIPTS/RFSUITE/user"
 local IDENTITY = "0123456789abcdef 0.2.0"
 
 -- The first bytes of a macOS AppleDouble file: binary, and no Lua source.

@@ -23,7 +23,7 @@ local function upvalue(fn, wanted)
 end
 
 local core = "src/rfsuite/"
-local radio = "/SCRIPTS/TOOLS/rfsuite-core/"
+local radio = "/SCRIPTS/RFSUITE/core/"
 
 -- Paths answered by a stand-in chunk instead of the file on disk, and how often each ran.
 local standIns = {}

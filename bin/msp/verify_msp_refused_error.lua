@@ -21,7 +21,7 @@ end
 
 local function newScenario(language, oneMessagePerCall)
   local core = "src/rfsuite/"
-  local radio = "/SCRIPTS/TOOLS/rfsuite-core/"
+  local radio = "/SCRIPTS/RFSUITE/core/"
   local h = { clock = 1000, rssi = 100, answer = { 0, 12, 8 } }
   _G.__rfsuite_msp_runtime_module = nil
   _G.__rfsuite_msp_service_module = nil

@@ -13,7 +13,7 @@ _G.rfsuite = {}
 _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 lvgl = { confirm = function(options) registry[#registry + 1] = options end }
 function loadScript(path)
-  assert(path == "/SCRIPTS/TOOLS/rfsuite-core/lib/log.lua", "unexpected module: " .. tostring(path))
+  assert(path == "/SCRIPTS/RFSUITE/core/lib/log.lua", "unexpected module: " .. tostring(path))
   return function() return { emit = function() end } end
 end
 local dialog = assert(loadfile("src/rfsuite/ui/confirm_dialog.lua"))()

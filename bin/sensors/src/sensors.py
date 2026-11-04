@@ -87,8 +87,8 @@ class SensorApp:
 
                 Supported layouts (rfsuite-only):
                     1) simulator/<target>/scripts/rfsuite/sim/sensors
-                    2) simulator/SCRIPTS/TOOLS/rfsuite-core/sim/sensors
-                    3) simulator/SCRIPTS/TOOLS/rfsuite.user/sim/sensors
+                    2) simulator/SCRIPTS/RFSUITE/core/sim/sensors
+                    3) simulator/SCRIPTS/RFSUITE/user/sim/sensors
 
         Returns a list of Path objects pointing to the final '.../sim/sensors' dirs.
         """
@@ -102,12 +102,12 @@ class SensorApp:
         dest_paths = []
 
         # Layout 2: edgetx-ui-framework style (single simulator tree)
-        direct_sensor_dir = simulator_root / "SCRIPTS" / "TOOLS" / "rfsuite-core" / "sim" / "sensors"
+        direct_sensor_dir = simulator_root / "SCRIPTS" / "RFSUITE" / "core" / "sim" / "sensors"
         if direct_sensor_dir.exists():
             print(f"[DEBUG] Found direct sensors dir: {direct_sensor_dir}")
             dest_paths.append(direct_sensor_dir)
 
-        user_sensor_dir = simulator_root / "SCRIPTS" / "TOOLS" / "rfsuite.user" / "sim" / "sensors"
+        user_sensor_dir = simulator_root / "SCRIPTS" / "RFSUITE" / "user" / "sim" / "sensors"
         if user_sensor_dir.exists():
             print(f"[DEBUG] Found user sensors dir: {user_sensor_dir}")
             dest_paths.append(user_sensor_dir)

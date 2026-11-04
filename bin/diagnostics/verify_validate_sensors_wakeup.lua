@@ -23,7 +23,7 @@ local function equal(actual, expected, label)
 end
 
 local pagePath = "src/rfsuite/app/pages/tools/diagnostics/validate_sensors/page.lua"
-local prefix = "/SCRIPTS/TOOLS/rfsuite-core/"
+local prefix = "/SCRIPTS/RFSUITE/core/"
 
 -- Forty distinct sensors the page's catalogue knows, one per slot: the most work a slot list
 -- can ask for.

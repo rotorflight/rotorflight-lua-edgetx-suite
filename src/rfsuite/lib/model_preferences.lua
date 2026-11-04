@@ -132,7 +132,7 @@ local function fileExists(path)
 end
 
 local function getToolsRoot(userRoot)
-  return string.gsub(userRoot or "", "/rfsuite%.user$", "")
+  return string.match(userRoot or "", "^(.*)/[^/]+$") or ""
 end
 
 -- mkdir() is a bare global of the firmware's filesystem library, not a member of os. The

@@ -14,7 +14,7 @@ local function equal(actual, expected, label)
 end
 
 local pagePath = "src/rfsuite/app/pages/tools/diagnostics/info/page.lua"
-local prefix = "/SCRIPTS/TOOLS/rfsuite-core/"
+local prefix = "/SCRIPTS/RFSUITE/core/"
 local FRAME_DEVICE_PING, FRAME_DEVICE_INFO = 0x28, 0x29
 
 -- What the stubs see: the RFMD reading, whether the sensor is live, the 0x29 answers waiting to

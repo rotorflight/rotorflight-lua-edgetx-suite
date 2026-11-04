@@ -53,7 +53,7 @@ card, the first level that adds lines is *INFO*.
 
 ## Where the files land
 
-`/SCRIPTS/TOOLS/rfsuite.user/logs/`. **Every file of one power-up of the radio starts with the
+`/SCRIPTS/RFSUITE/user/logs/`. **Every file of one power-up of the radio starts with the
 date and time the radio was switched on**, so the files that belong together sort next to each
 other:
 

@@ -33,7 +33,7 @@ local modules = {
 _G.rfsuite = _G.rfsuite or {}
 _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 loadScript = function(path)
-  local key = string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", "")
+  local key = string.gsub(path, "^/SCRIPTS/RFSUITE/core/", "")
   if key == "app/pages/logs/graph.lua" then return assert(loadfile(GRAPH)) end
   if modules[key] then return function() return modules[key] end end
   error("unexpected module " .. path)

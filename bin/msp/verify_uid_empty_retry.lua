@@ -108,7 +108,7 @@ local function newRuntime()
     ["lib/paths.lua"] = true
   }
   env.loadScript = function(path)
-    local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
     assert(relative, "unexpected script path: " .. tostring(path))
     if stubs[relative] ~= nil then return function() return stubs[relative] end end
     assert(real[relative], "unexpected module: " .. relative)

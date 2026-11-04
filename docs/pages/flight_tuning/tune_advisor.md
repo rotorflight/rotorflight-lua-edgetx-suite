@@ -51,7 +51,7 @@ values read then would belong to the other profile.
   measurements, so the next disarm saves both flights as one.
 - A flight with no acro flight time is not saved.
 
-The flights are kept on the radio's SD card in `/SCRIPTS/TOOLS/rfsuite.user/tune/<mcu id>.lua`, one line per
+The flights are kept on the radio's SD card in `/SCRIPTS/RFSUITE/user/tune/<mcu id>.lua`, one line per
 flight and axis, newest last; only the last 5 flights are kept. `<mcu id>` is the flight controller's board ID,
 with characters other than letters, digits, underscores and hyphens replaced by underscores, the same name as its
 [change journal](../../reference/change-journal.md) in `journal/<mcu id>.lua` beside the `tune` folder. Each save

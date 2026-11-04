@@ -157,7 +157,7 @@ local real = {
   ["tasks/msp/api/rc_tuning.lua"] = true, ["tasks/msp/api/eeprom_write.lua"] = true,
 }
 function loadScript(path)
-  local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+  local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
   if stubs[relative] then local mod = stubs[relative]; return function() return mod end end
   assert(real[relative], "unexpected module: " .. tostring(path))
   return assert(loadfile(ROOT .. relative))

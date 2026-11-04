@@ -111,7 +111,7 @@ _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 _G.SMLSIZE = 0
 _G.getTime = function() return ticks end
 _G.loadScript = function(path)
-  local relative = string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", "")
+  local relative = string.gsub(path, "^/SCRIPTS/RFSUITE/core/", "")
   local module = modules[relative]
   assert(module, "unexpected module: " .. relative)
   return function() return module end

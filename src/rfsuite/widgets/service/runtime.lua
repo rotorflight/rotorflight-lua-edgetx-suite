@@ -263,6 +263,7 @@ local function compileHoldsConnect(self)
   if Compile == false then return false end
   if Compile == nil then
     Compile = false
+    log("user folder: " .. tostring(_G.rfsuite.paths.user), "info")
     local developer = self.preferences and self.preferences.developer
     if developer and developer.precompile == false then return false end
     local Precompile = requireModule("lib/precompile.lua")
@@ -280,7 +281,8 @@ local function compileHoldsConnect(self)
   end
   Compile.stepShared()
   -- Held after the pass too, until the radio is restarted: see the dashboard's gate.
-  if Compile.isRunning() or Compile.needsRestart() then return true end
+  if Compile.isRunning() then return not Compile.runsBehindConnection() end
+  if Compile.needsRestart() then return true end
   Compile = false
   return false
 end

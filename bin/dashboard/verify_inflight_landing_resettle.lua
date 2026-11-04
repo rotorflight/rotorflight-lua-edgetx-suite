@@ -12,7 +12,7 @@ Stubs.reset()
 FC.reset()
 local Runtime = rfsuite.require("widgets/dashboard/runtime.lua")
 local Msp = rfsuite.require("tasks/msp/runtime.lua")
-local ROOT = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/inflight/"
+local ROOT = "/SCRIPTS/RFSUITE/core/widgets/dashboard/inflight/"
 
 local passed, failed, checks = 0, {}, 0
 local function check(value, message)

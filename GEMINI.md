@@ -14,7 +14,7 @@ RFSuite provides a modern, touch-friendly interface for configuring Rotorflight 
 
 ### Architecture
 - **`src/main.lua`**: Entry point for the EdgeTX "TOOLS" menu. It boots the home screen from the core package.
-- **`src/rfsuite/`**: The core package (deployed as `rfsuite-core`).
+- **`src/rfsuite/`**: The core package (deployed as `SCRIPTS/RFSUITE/core`).
   - **`app/`**: Application-level logic, including the menu manifest and registry.
   - **`core/`**: Framework fundamentals like the viewport abstraction and layout engines (Grid, Flow, Border).
   - **`ui/`**: User interface screens and reusable controls (`controls.lua`).
@@ -35,8 +35,8 @@ The project uses VS Code tasks for deployment and testing in the EdgeTX Simulato
 
 ### Deployment Structure
 - **Main Tool**: `SCRIPTS/TOOLS/rfsuite.lua`
-- **Core Package**: `SCRIPTS/TOOLS/rfsuite-core/`
-- **User Config**: `SCRIPTS/TOOLS/rfsuite.user/`
+- **Core Package**: `SCRIPTS/RFSUITE/core/`
+- **User Config**: `SCRIPTS/RFSUITE/user/`
 - **Widgets**: `WIDGETS/rfsuite/`
 
 ## Development Conventions

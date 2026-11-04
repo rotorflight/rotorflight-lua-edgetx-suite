@@ -13,7 +13,7 @@ a release note, its documentation — is in [CONTRIBUTING.md](CONTRIBUTING.md).
 | Path | What it is |
 | --- | --- |
 | `src/main.lua` | The tool entry point, deployed as `SCRIPTS/TOOLS/rfsuite.lua` |
-| `src/rfsuite/` | The core package, deployed as `SCRIPTS/TOOLS/rfsuite-core/` |
+| `src/rfsuite/` | The core package, deployed as `SCRIPTS/RFSUITE/core/` |
 | `src/rfsuite/app/` | Menu manifest, registry and the configuration pages |
 | `src/rfsuite/core/` | Viewport abstraction and the per-radio display profiles |
 | `src/rfsuite/layouts/` | The Border, Grid and Flow layout engines |
@@ -36,8 +36,8 @@ alike — is:
 
 ```
 SCRIPTS/TOOLS/rfsuite.lua        tool entry point
-SCRIPTS/TOOLS/rfsuite-core/      core package
-SCRIPTS/TOOLS/rfsuite.user/      user settings, model preferences, user themes
+SCRIPTS/RFSUITE/core/      core package
+SCRIPTS/RFSUITE/user/      user settings, model preferences, user themes
 WIDGETS/rfsuite/                 dashboard widget
 WIDGETS/rfsuitesvc/              background service widget
 SOUNDS/rf/                       announcement pack, one folder per language

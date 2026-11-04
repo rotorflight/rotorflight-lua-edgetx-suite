@@ -10,7 +10,7 @@ The suite provides spoken voice alerts and tone callouts for flight telemetry, b
 
 *System* → *Settings* → *Audio* → *Events*
 
-The ten category pages share a common configuration table (`preferences.audio_events`), stored with the radio in `/SCRIPTS/TOOLS/rfsuite.user/preferences.lua` with model-specific overrides (such as the ESC temperature levels) in each flight controller's own file beside it. See [Configuration files](../reference/configuration-files.md).
+The ten category pages share a common configuration table (`preferences.audio_events`), stored with the radio in `/SCRIPTS/RFSUITE/user/preferences.lua` with model-specific overrides (such as the ESC temperature levels) in each flight controller's own file beside it. See [Configuration files](../reference/configuration-files.md).
 
 A save that cannot be stored reports *Save failed* with the reason: *the settings file could not be written to the SD card* where the card refused a file, and *model settings store not available* where the part of the suite that writes the model's own file could not be loaded.
 

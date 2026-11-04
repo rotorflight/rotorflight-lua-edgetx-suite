@@ -218,7 +218,7 @@ local function zoneViewCase(variant)
   if variant == "key" then theme.renderKey = function() return "zv-test" end end
   if variant == "flip" then theme.renderKey = function() return flipped end end
   local zoneView = { build = function() end }
-  local prefix = "/SCRIPTS/TOOLS/rfsuite.user/dashboard/zv-test/"
+  local prefix = "/SCRIPTS/RFSUITE/user/dashboard/zv-test/"
   local realLoadScript = _G.loadScript
   _G.loadScript = function(path, mode)
     if path == prefix .. "init.lua" then return function() return manifest end end

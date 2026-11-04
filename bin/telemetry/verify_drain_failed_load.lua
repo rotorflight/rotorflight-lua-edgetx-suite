@@ -53,7 +53,7 @@ local function newDrain(failing, times, firstId, raises)
     [0x1202] = { name = "ARM", dec = function(data, pos) return data[pos], pos + 1 end }
   }
   env.loadScript = function(path)
-    local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
+    local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
     assert(relative, "unexpected script path: " .. tostring(path))
     h.loads[relative] = (h.loads[relative] or 0) + 1
     if relative == failing and (times == nil or h.loads[relative] <= times) then

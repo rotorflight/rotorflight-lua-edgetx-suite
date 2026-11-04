@@ -58,7 +58,7 @@ local modules = {
 }
 
 _G.loadScript = function(path)
-  local relative = string.match(path, "rfsuite%-core/(.+)$")
+  local relative = string.match(path, "RFSUITE/core/(.+)$")
   local value = modules[relative]
   if not value then return nil end
   return function() return value end

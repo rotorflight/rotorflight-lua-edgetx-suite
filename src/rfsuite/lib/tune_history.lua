@@ -1,7 +1,7 @@
 -- Tune Advisor flight history: what the flight controller's tune advisor measured, one record
 -- per flight and axis, kept per flight controller so the page can combine several flights.
 --
---   /SCRIPTS/TOOLS/rfsuite.user/tune/<mcuId>.lua
+--   /SCRIPTS/RFSUITE/user/tune/<mcuId>.lua
 --
 -- The file is Lua the suite never runs as a script: read() loads it with an environment of its
 -- own, in which the only names are the two collectors below. The first line is the format
