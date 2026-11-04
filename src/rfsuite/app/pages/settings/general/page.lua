@@ -25,6 +25,7 @@ local CONFIG_SCHEMA = {
   { key = "save_confirm",                 type = "bool",   default = true   },
   { key = "save_armed_warning",           type = "bool",   default = true   },
   { key = "reload_confirm",               type = "bool",   default = true   },
+  { key = "color_scheme",                 type = "string", default = "light" },
   { key = "preview_setup_wizard",         type = "bool",   default = false  },
   { key = "preview_inflight_tuning",      type = "bool",   default = false  },
   { key = "developer_tools",              type = "bool",   default = false  },
@@ -46,6 +47,7 @@ local ui = {
   dirty = false,
   sections = {
     safety      = true,
+    appearance  = false,
     preview     = false,
     development = false,
   },
@@ -131,9 +133,12 @@ end
 -- Signature: (cursorY, children, x, w, i18n, requestRebuild) -> newCursorY
 
 local SAFETY_ITEMS = {
-  { key = "save_confirm",                 labelKey = "save_confirm",                 fallback = "Confirm on Save" },
-  { key = "save_armed_warning",           labelKey = "save_armed_warning",           fallback = "Show Disarm Warning on Save/Reload" },
-  { key = "reload_confirm",               labelKey = "reload_confirm",               fallback = "Confirm on Reload" },
+  { key = "save_confirm",                 labelKey = "save_confirm",                 fallback = "Confirm on Save",
+    helpKey = "help_save_confirm", helpFallback = "Asks before a Save writes to the flight controller." },
+  { key = "save_armed_warning",           labelKey = "save_armed_warning",           fallback = "Show Disarm Warning on Save/Reload",
+    helpKey = "help_save_armed_warning", helpFallback = "Warns before a Save or Reload while the model is armed." },
+  { key = "reload_confirm",               labelKey = "reload_confirm",               fallback = "Confirm on Reload",
+    helpKey = "help_reload_confirm", helpFallback = "Asks before a Reload replaces edits that are not saved." },
 }
 
 local function buildSafety(cursorY, children, x, w, i18n)
@@ -142,9 +147,26 @@ local function buildSafety(cursorY, children, x, w, i18n)
     cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
       t(i18n, item.labelKey, item.fallback),
       ui.runtime.getBoolGetter(k),
-      ui.runtime.getBoolSetter(k)
+      ui.runtime.getBoolSetter(k),
+      { helpText = t(i18n, item.helpKey, item.helpFallback) }
     )
   end
+  return cursorY
+end
+
+-- The colours of the dashboard's quick menu and the pages it opens (widgets/dashboard/menu_look.lua).
+-- The widget reads the value with its reload of the preferences file.
+local function buildAppearance(cursorY, children, x, w, i18n)
+  cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+    t(i18n, "color_scheme", "Color scheme"),
+    {
+      { value = "light", label = t(i18n, "color_scheme_light", "Light") },
+      { value = "dark", label = t(i18n, "color_scheme_dark", "Dark") },
+    },
+    ui.config.color_scheme,
+    ui.runtime.getValueSetter("color_scheme"),
+    { helpText = t(i18n, "help_color_scheme", "Light or dark colors for the dashboard's quick menu and the pages it opens. The rest of the suite does not follow it yet.") }
+  )
   return cursorY
 end
 
@@ -165,6 +187,8 @@ local PREVIEW_ITEMS = {
     key             = "preview_setup_wizard",
     labelKey        = "preview_setup_wizard",
     labelFallback   = "Setup Assistant",
+    helpKey         = "help_preview_setup_wizard",
+    helpFallback    = "Shows the unfinished setup assistant in the menu; it can write to the flight controller.",
     confirm         = {
       labelKey = "preview_confirm_setup_wizard",
       labelFallback = "The setup assistant is not finished. Its screens and their order can still change, and it can write to the flight controller. Check what it has written before you fly. Show it anyway?"
@@ -173,6 +197,8 @@ local PREVIEW_ITEMS = {
   {
     key             = "preview_inflight_tuning",
     labelKey        = "preview_inflight_tuning",
+    helpKey         = "help_preview_inflight_tuning",
+    helpFallback    = "Shows the unfinished in-flight tuning surface, which changes parameters in flight.",
     labelFallback   = "In-flight tuning",
     confirm         = {
       labelKey = "preview_confirm_inflight_tuning",
@@ -246,7 +272,8 @@ local function buildPreview(cursorY, children, x, w, i18n)
     cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
       t(i18n, item.labelKey, item.labelFallback),
       ui.runtime.getBoolGetter(item.key),
-      getPreviewSetter(item)
+      getPreviewSetter(item),
+      { helpText = t(i18n, item.helpKey, item.helpFallback) }
     )
   end
   return cursorY
@@ -256,7 +283,8 @@ local function buildDevelopment(cursorY, children, x, w, i18n)
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     t(i18n, "developer_tools", "Developer Tools"),
     ui.runtime.getBoolGetter("developer_tools"),
-    ui.runtime.getBoolSetter("developer_tools")
+    ui.runtime.getBoolSetter("developer_tools"),
+    { helpText = t(i18n, "help_developer_tools", "Shows the developer pages and tools in the menu.") }
   )
   return cursorY
 end
@@ -266,6 +294,7 @@ end
 
 local SECTIONS = {
   { key = "safety",      titleKey = "section_safety",      titleFallback = "Safety & Prompts", build = buildSafety      },
+  { key = "appearance",  titleKey = "section_appearance",  titleFallback = "Appearance",       build = buildAppearance  },
   { key = "preview",     titleKey = "section_preview",     titleFallback = "Preview",          build = buildPreview     },
   { key = "development", titleKey = "section_development", titleFallback = "Development",      build = buildDevelopment },
 }

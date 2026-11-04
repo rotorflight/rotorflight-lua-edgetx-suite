@@ -29,6 +29,7 @@ end
 
 local Menu = requireModule("widgets/dashboard/fullscreen_menu.lua")
 local Views = requireModule("widgets/dashboard/views.lua")
+local Look = requireModule("widgets/dashboard/menu_look.lua")
 
 local ID = "battery_profile"
 
@@ -75,13 +76,11 @@ function M.build(children, widget)
 
   local t = (widget.i18n and type(widget.i18n.t) == "function") and widget.i18n.t or function(k, f) return f or k end
 
-  local bg_color = COLOR_THEME_PRIMARY3 or BLACK
-  if bg_color == BLACK and lcd and type(lcd.RGB) == "function" then
-    bg_color = lcd.RGB(40, 40, 40)
-  end
-  local btn_color = COLOR_THEME_PRIMARY1 or BLACK
-  local accent_color = COLOR_THEME_SECONDARY1 or WHITE
-  local off_color = (lcd and type(lcd.RGB) == "function") and lcd.RGB(90, 90, 90) or btn_color
+  local colors = Look.colors(widget)
+  local bg_color = colors.bg
+  local btn_color = colors.fill
+  local accent_color = colors.accent
+  local off_color = colors.off
 
   children[#children+1] = {
     type = "rectangle", x=dX, y=dY, w=dW, h=dH, color=bg_color, filled=true
@@ -139,22 +138,22 @@ function M.build(children, widget)
   }
   children[#children+1] = {
     type = "label", x=bx, y=by + math.floor((closeSize - fontH)/2) + closeTextOffY, w=closeSize,
-    text="<", color=WHITE, align=CENTER, font=titleFont
+    text="<", color=colors.text, align=CENTER, font=titleFont
   }
   local titleX = bx + closeSize + paddingX
   children[#children+1] = {
     type = "label", x=titleX, y=dY + math.floor((headerH - fontH)/2) + headTextOffY, w=dW - titleX - closeSize - 2 * paddingX,
     text=(entry and entry.title) or t("widgets.dashboard.battery_profile", "BATTERY PROFILE"),
-    color=WHITE, align=LEFT, font=titleFont
+    color=colors.text, align=LEFT, font=titleFont
   }
   local cx = dX + dW - closeSize - (isLarge and 8 or 1)
   children[#children+1] = {
-    type = "button", x=cx, y=by, w=closeSize, h=closeSize, color=COLOR_THEME_SECONDARY1 or RED,
+    type = "button", x=cx, y=by, w=closeSize, h=closeSize, color=colors.close,
     press = function() navigate(widget, "done") end
   }
   children[#children+1] = {
     type = "label", x=cx, y=by + math.floor((closeSize - fontH)/2) + closeTextOffY, w=closeSize,
-    text="X", color=WHITE, align=CENTER, font=titleFont
+    text="X", color=colors.onClose, align=CENTER, font=titleFont
   }
 
   -- The foot line: why nothing can be pressed before the connection is ready or while the model
@@ -179,7 +178,7 @@ function M.build(children, widget)
   local footY = bottom - fontH
   children[#children+1] = {
     type = "label", x=dX + paddingX, y=footY + headTextOffY, w=dW - 2 * paddingX,
-    text=foot or "", color=WHITE, align=CENTER, font=titleFont
+    text=foot or "", color=colors.text, align=CENTER, font=titleFont
   }
 
   -- The profiles: three columns from five up on a wide zone, so six are two rows; two below that,
@@ -201,7 +200,7 @@ function M.build(children, widget)
     local y = listY + math.floor((i - 1) / cols) * (btnH + gapY)
     local isCurrent = option.current == true
     local bColor = isCurrent and accent_color or (inert and off_color or btn_color)
-    local tColor = isCurrent and BLACK or WHITE
+    local tColor = isCurrent and colors.onAccent or colors.text
 
     -- Not ready or armed, a profile is a filled box rather than a button: nothing to press.
     if inert then

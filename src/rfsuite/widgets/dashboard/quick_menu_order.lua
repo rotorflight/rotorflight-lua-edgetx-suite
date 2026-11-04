@@ -73,6 +73,17 @@ function M.ids(value)
   return ids
 end
 
+-- How the menu is drawn where the theme does not draw it, in the same section: `quick_menu_style`.
+-- Absent, or anything this build does not know, is the card.
+M.STYLE_KEY = "quick_menu_style"
+M.STYLES = { "card", "rotary" }
+
+--- The style a stored value stands for.
+function M.style(value)
+  if value == "rotary" then return "rotary" end
+  return "card"
+end
+
 --- The value to store for `ids`, a list in the pilot's order: nil where it is the default list,
 --- so a radio whose pilot has not changed the menu carries no key and follows the default.
 function M.encode(ids)

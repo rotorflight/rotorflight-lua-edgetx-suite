@@ -24,6 +24,8 @@ local Views = requireModule("widgets/dashboard/views.lua")
 
 local Log = requireModule("lib/log.lua")
 
+local Look = requireModule("widgets/dashboard/menu_look.lua")
+
 -- An entry without `visibleWhen` is always there. A named condition is resolved in views.lua,
 -- where a name that is not known is false and hides its entry, which is what an unresolvable
 -- condition does in `app/menu_registry.lua` as well.
@@ -626,6 +628,10 @@ local function perform(widget, entry, option, after, report)
   if Views and type(Views.navigate) == "function" then Views.navigate(widget, after) end
 end
 
+--- The work and what follows it, for a surface that has already had the pilot's answer to the
+--- entry's `confirm` itself. Everything else goes through `M.run`.
+M.perform = perform
+
 --- Run an entry, or one of its options: the work, then the action that follows it. This is the
 --- one place both happen, for the menu's own buttons, the picker's and a theme's alike.
 --
@@ -668,8 +674,8 @@ end
 -- zone is wide enough and in one where it is not. The raster does not shrink or grow with the
 -- number of entries shown, so a button keeps its size and its place whatever is hidden at the
 -- moment; places with nothing in them stay empty. Under the raster, always on the row after its
--- last, is the BATTERY PROFILE row, the width of the zone. The themes with views of their own lay
--- their menus out by the same numbers.
+-- last, is the BATTERY PROFILE row, the width of the zone. This is the one layout: a theme that
+-- restyles the menu hands in its look (`style` at M.build) and the numbers stay here.
 M.PLACES = 6
 M.TWO_COLUMNS_FROM = 300
 
@@ -699,43 +705,62 @@ function M.fitFirst(texts, font, maxW, measure)
   return texts[#texts]
 end
 
---- Rebuilt when the profile in force moves, which the BATTERY PROFILE row names, and when the
---- board's battery configuration arrives or goes, which decides whether the row is there.
-function M.renderKey(widget)
-  local state = widget and widget.state or nil
+--- What moves the menu: the profile in force, which the BATTERY PROFILE row names, and the board's
+--- battery configuration arriving or going, which decides whether the row is there. A state alone
+--- is what a theme's view has to key on, so a theme asks this rather than writing it out again.
+function M.stateKey(state)
   if state == nil then return "" end
   return tostring(state.batteryProfile) .. (state.battery_config ~= nil and "|c" or "|")
 end
 
---- Draw the menu.
---
--- `entries` is the list to draw; omitted, the menu draws its own, which is what the runtime
--- asks for. Taking the list as an argument is the point of the split: the same drawing code
--- can serve a list assembled somewhere else.
---
--- Every entry is one button on a place of the raster (M.PLACES), in the order of the list; an
--- entry that is not offered now takes no place, and an entry past the last place is not drawn.
--- BATTERY PROFILE is drawn on its own row under the raster and never on a place, so a list that
--- names it does not draw it twice.
-function M.build(children, widget, entries)
-  entries = entries or M.entries(widget)
-  local dW = widget.zone.w
-  local dH = widget.zone.h
-  local dX = 0
-  local dY = 0
+--- How full the blackbox of `entry` is as a whole percentage, or nil where nothing has been read.
+function M.fillPercent(entry)
+  local info = type(entry.info) == "function" and entry.info() or nil
+  if type(info) ~= "table" then return nil end
+  local used, total = tonumber(info.used), tonumber(info.total)
+  if used == nil or total == nil or total <= 0 then return nil end
+  return math.floor(used * 100 / total + 0.5)
+end
 
-  local t = translator(widget)
+-- Which style the pilot has chosen for the widget's own menu.
+local function menuStyle(widget)
+  if Order == nil then return "card" end
+  local prefs = widget.preferences
+  local dashboard = type(prefs) == "table" and prefs.dashboard or nil
+  return Order.style(type(dashboard) == "table" and dashboard[Order.STYLE_KEY] or nil)
+end
 
-  local bg_color = COLOR_THEME_PRIMARY3 or BLACK
-  if bg_color == BLACK and lcd and type(lcd.RGB) == "function" then
-     bg_color = lcd.RGB(40, 40, 40)
+local function rollModule()
+  local Roll = requireModule("widgets/dashboard/quick_roll.lua")
+  if type(Roll) == "table" and type(Roll.build) == "function" then return Roll end
+  return nil
+end
+
+--- Rebuilt when `stateKey` moves. The rolling style also when the model arms or disarms, or the
+--- connection comes or goes, which decide what its lists hold, and when it asks to be built again.
+function M.renderKey(widget)
+  local state = widget and widget.state or nil
+  if state == nil then return "" end
+  local key = M.stateKey(state)
+  if menuStyle(widget) == "rotary" then
+    local Roll = rollModule()
+    if Roll then
+      key = key .. (state.armed == true and "|a" or "|") .. (state.connectionReady == true and "r" or "")
+        .. "|" .. Roll.renderKey(widget)
+    end
   end
-  local btn_color = COLOR_THEME_PRIMARY1 or DARKGREY
+  return key
+end
 
-  -- 1. Full Background
-  children[#children+1] = {
-    type = "rectangle", x=dX, y=dY, w=dW, h=dH, color=bg_color, filled=true
-  }
+-- The widget's own look, in the colours of the scheme the pilot has chosen (menu_look.lua).
+--
+-- `frame(children)` draws the background and the header with its close box and answers where the
+-- content goes; `button` draws one entry, `valueRow` the BATTERY PROFILE row, and `fillText` words
+-- the blackbox's fill under ERASE BLACKBOX. That is all a theme hands in to restyle the menu.
+local function ownStyle(widget, t)
+  local colors = Look and Look.colors(widget) or {}
+  local dW, dH = widget.zone.w, widget.zone.h
+  local dX, dY = 0, 0
 
   -- Layout Profile Definition
   -- TX16S MK3 is 800x480 (dH ~480)
@@ -770,84 +795,168 @@ function M.build(children, widget, entries)
     closeTextOffY = -4
     btnTextOffY = -4
   end
+  local smallH = isLarge and 16 or 10
 
-  -- 2. Header
-  children[#children+1] = {
-    type = "rectangle", x=dX, y=dY, w=dW, h=headerH, color=btn_color, filled=true
+  local function background(children)
+    children[#children+1] = {
+      type = "rectangle", x=dX, y=dY, w=dW, h=dH, color=colors.bg, filled=true
+    }
+  end
+
+  local function header(children)
+    children[#children+1] = {
+      type = "rectangle", x=dX, y=dY, w=dW, h=headerH, color=colors.fill, filled=true
+    }
+
+    children[#children+1] = {
+      type = "label", x=dX + paddingX, y=dY + math.floor((headerH - fontH)/2) + headTextOffY, w=dW-60,
+      text=t("widgets.dashboard.quick_settings", "QUICK SETTINGS"), color=colors.text, align=LEFT, font=titleFont
+    }
+
+    -- The close button (X).
+    local cx = dX + dW - closeSize - (isLarge and 8 or 1)
+    local cy = dY + math.floor((headerH - closeSize)/2)
+
+    children[#children+1] = {
+      type = "button", x=cx, y=cy, w=closeSize, h=closeSize, color=colors.close,
+      press = pressFor(widget, nil, "done")
+    }
+
+    children[#children+1] = {
+      type = "label", x=cx, y=cy + math.floor((closeSize - fontH)/2) + closeTextOffY, w=closeSize, text="X", color=colors.onClose, align=CENTER, font=titleFont
+    }
+  end
+
+  local function place()
+    return {
+      x = dX + paddingX, w = dW - paddingX * 2, zoneW = dW,
+      top = dY + headerH + contentGap, bottom = dY + dH - gapY,
+      gapX = paddingX, gapY = gapY,
+      -- For a layout other than the raster, which draws the header itself.
+      font = titleFont, small = SMLSIZE, fontH = fontH, smallH = smallH, textOffY = btnTextOffY,
+      large = isLarge,
+      statusX = dX + math.floor(dW / 2), statusW = math.floor(dW / 2) - closeSize - 2 * paddingX,
+      statusY = dY + math.floor((headerH - smallH)/2) + headTextOffY,
+      drawHeader = header,
+    }
+  end
+
+  return {
+    background = background,
+    place = place,
+    frame = function(children)
+      background(children)
+      header(children)
+      return place()
+    end,
+    button = function(children, x, y, w, h, name, sub, press)
+      children[#children+1] = {
+        type = "button", x=x, y=y, w=w, h=h, color=colors.fill, press = press
+      }
+      if type(sub) == "string" and sub ~= "" then
+        local top = y + math.floor((h - fontH - smallH)/2) + btnTextOffY
+        children[#children+1] = {
+          type = "label", x=x, y=top, w=w, text=name, color=colors.text, align=CENTER, font=titleFont
+        }
+        children[#children+1] = {
+          type = "label", x=x, y=top + fontH + (isLarge and 8 or 2), w=w, text=sub, color=colors.muted, align=CENTER, font=SMLSIZE
+        }
+      else
+        children[#children+1] = {
+          type = "label", x=x, y=y + math.floor((h - fontH)/2) + btnTextOffY, w=w,
+          text=name, color=colors.text, align=CENTER, font=titleFont
+        }
+      end
+    end,
+    valueRow = function(children, x, y, w, h, name, values, press)
+      local textY = y + math.floor((h - fontH)/2) + btnTextOffY
+      children[#children+1] = {
+        type = "button", x=x, y=y, w=w, h=h, color=colors.fill, press = press
+      }
+      local titleW = textWidth(name, titleFont) or math.floor(w / 3)
+      children[#children+1] = {
+        type = "label", x=x + paddingX, y=textY, w=titleW + paddingX,
+        text=name, color=colors.text, align=LEFT, font=titleFont
+      }
+      local valueW = w - titleW - 4 * paddingX
+      local marks = {}
+      for i = 1, #values do marks[i] = values[i] .. M.OPENS_MARK end
+      local value = M.fitFirst(marks, titleFont, valueW) or M.OPENS_MARK
+      children[#children+1] = {
+        type = "label", x=x + w - paddingX - valueW, y=textY, w=valueW,
+        text=value, color=colors.text, align=RIGHT, font=titleFont
+      }
+    end,
+    fillText = function(percent)
+      return string.format(t("widgets.dashboard.erase_blackbox_confirm_used", "%d%% used"), percent)
+    end,
   }
+end
 
-  children[#children+1] = {
-    type = "label", x=dX + paddingX, y=dY + math.floor((headerH - fontH)/2) + headTextOffY, w=dW-60,
-    text=t("widgets.dashboard.quick_settings", "QUICK SETTINGS"), color=WHITE, align=LEFT, font=titleFont
-  }
+--- Draw the menu.
+--
+-- `entries` is the list to draw; omitted, the menu draws its own, which is what the runtime
+-- asks for. Taking the list as an argument is the point of the split: the same drawing code
+-- can serve a list assembled somewhere else.
+--
+-- `style` is a theme's look (see `ownStyle`); omitted, the widget's own, drawn in the style the
+-- pilot has chosen. What the menu holds, how it is laid out and what a press does are the same
+-- whoever draws it.
+--
+-- Every entry is one button on a place of the raster (M.PLACES), in the order of the list; an
+-- entry that is not offered now takes no place, and an entry past the last place is not drawn.
+-- BATTERY PROFILE is drawn on its own row under the raster and never on a place, so a list that
+-- names it does not draw it twice.
+function M.build(children, widget, entries, style)
+  entries = entries or M.entries(widget)
+  local t = translator(widget)
 
-  -- 3. Close Button (X)
-  local cx = dX + dW - closeSize - (isLarge and 8 or 1)
-  local cy = dY + math.floor((headerH - closeSize)/2)
+  if style == nil then
+    style = ownStyle(widget, t)
+    if menuStyle(widget) == "rotary" and Look ~= nil then
+      local Roll = rollModule()
+      if Roll then
+        style.background(children)
+        Roll.build(children, widget, entries, style.place(), Look.colors(widget), t)
+        return
+      end
+    end
+  end
 
-  children[#children+1] = {
-    type = "button", x=cx, y=cy, w=closeSize, h=closeSize, color=COLOR_THEME_SECONDARY1 or RED,
-    press = pressFor(widget, nil, "done")
-  }
+  local frame = style.frame(children)
+  if frame == nil then return end
 
-  children[#children+1] = {
-    type = "label", x=cx, y=cy + math.floor((closeSize - fontH)/2) + closeTextOffY, w=closeSize, text="X", color=WHITE, align=CENTER, font=titleFont
-  }
-
-  -- 4. The raster, then the BATTERY PROFILE row: rows of one height, the raster's and the
-  -- battery row's alike.
-  local contentY = dY + headerH + contentGap
-  local bottom = dY + dH - gapY
-  local cols = (dW >= M.TWO_COLUMNS_FROM) and 2 or 1
+  -- The raster, then the BATTERY PROFILE row: rows of one height, the raster's and the battery
+  -- row's alike.
+  local contentY, bottom = frame.top, frame.bottom
+  local gapX, gapY = frame.gapX, frame.gapY
+  local cols = (frame.zoneW >= M.TWO_COLUMNS_FROM) and 2 or 1
   local rows = math.ceil(M.PLACES / cols)
   local rowH = math.floor((bottom - contentY - rows * gapY) / (rows + 1))
-  local cellW = math.floor((dW - paddingX * (cols + 1)) / cols)
+  local cellW = math.floor((frame.w - (cols - 1) * gapX) / cols)
 
   local place = 0
   for _, entry in ipairs(entries) do
     if entry.id ~= "battery_profile" and isEntryVisible(entry, widget) then
       place = place + 1
       if place > M.PLACES then break end
-      local bx = dX + paddingX + ((place - 1) % cols) * (cellW + paddingX)
+      local bx = frame.x + ((place - 1) % cols) * (cellW + gapX)
       local by = contentY + math.floor((place - 1) / cols) * (rowH + gapY)
-      children[#children+1] = {
-        type = "button", x=bx, y=by, w=cellW, h=rowH, color=btn_color,
-        press = function() M.run(widget, entry) end
-      }
-      children[#children+1] = {
-        type = "label", x=bx, y=by + math.floor((rowH - fontH)/2) + btnTextOffY, w=cellW,
-        text=entry.title, color=WHITE, align=CENTER, font=titleFont
-      }
+      local sub = nil
+      local percent = M.fillPercent(entry)
+      if percent ~= nil then sub = style.fillText(percent) end
+      style.button(children, bx, by, cellW, rowH, entry.title or "", sub,
+        function() M.run(widget, entry) end)
     end
   end
 
-  -- 5. BATTERY PROFILE, on the row after the raster's last: its title on the left, the profile in
+  -- BATTERY PROFILE, on the row after the raster's last: its title on the left, the profile in
   -- force on the right, as long as it fits, and the mark that it opens a page.
   local profile = M.entry(widget, "battery_profile")
   if profile ~= nil and isEntryVisible(profile, widget) then
-    local rowW = dW - paddingX * 2
-    local bx = dX + paddingX
-    local by = contentY + rows * (rowH + gapY)
-    local textY = by + math.floor((rowH - fontH)/2) + btnTextOffY
-    children[#children+1] = {
-      type = "button", x=bx, y=by, w=rowW, h=rowH, color=btn_color,
-      press = function() M.run(widget, profile) end
-    }
-    local title = profile.title or ""
-    local titleW = textWidth(title, titleFont) or math.floor(rowW / 3)
-    children[#children+1] = {
-      type = "label", x=bx + paddingX, y=textY, w=titleW + paddingX,
-      text=title, color=WHITE, align=LEFT, font=titleFont
-    }
-    local valueW = rowW - titleW - 4 * paddingX
-    local marks = {}
     local values = type(profile.values) == "function" and profile.values(widget) or {}
-    for i = 1, #values do marks[i] = values[i] .. M.OPENS_MARK end
-    local value = M.fitFirst(marks, titleFont, valueW) or M.OPENS_MARK
-    children[#children+1] = {
-      type = "label", x=bx + rowW - paddingX - valueW, y=textY, w=valueW,
-      text=value, color=WHITE, align=RIGHT, font=titleFont
-    }
+    style.valueRow(children, frame.x, contentY + rows * (rowH + gapY), frame.w, rowH, profile.title or "", values,
+      function() M.run(widget, profile) end)
   end
 end
 

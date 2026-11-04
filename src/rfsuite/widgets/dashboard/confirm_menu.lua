@@ -28,6 +28,7 @@ local requireModule = (_G.rfsuite and _G.rfsuite.require) or function(path)
 end
 
 local Views = requireModule("widgets/dashboard/views.lua")
+local Look = requireModule("widgets/dashboard/menu_look.lua")
 
 -- The press waiting for an answer: `{ spec, work }` on this visit's session.
 local function pending(widget)
@@ -69,14 +70,12 @@ function M.build(children, widget)
   local dH = widget.zone.h
   local dX, dY = 0, 0
 
-  local bg_color = COLOR_THEME_PRIMARY3 or BLACK
-  if bg_color == BLACK and lcd and type(lcd.RGB) == "function" then
-    bg_color = lcd.RGB(40, 40, 40)
-  end
-  local panel_color = COLOR_THEME_PRIMARY2 or bg_color
-  local btn_color = COLOR_THEME_PRIMARY1 or DARKGREY
-  local danger_color = COLOR_THEME_WARNING or RED
-  local text_color = COLOR_THEME_PRIMARY1 or WHITE
+  local colors = Look.colors(widget)
+  local bg_color = colors.bg
+  local panel_color = colors.panel
+  local btn_color = colors.fill
+  local danger_color = colors.close
+  local text_color = colors.text
 
   children[#children+1] = {
     type = "rectangle", x=dX, y=dY, w=dW, h=dH, color=bg_color, filled=true
@@ -148,7 +147,7 @@ function M.build(children, widget)
   }
   children[#children+1] = {
     type = "label", x=panelX + padding, y=labelY, w=btnW,
-    text=cancelLabel, color=WHITE, align=CENTER, font=titleFont
+    text=cancelLabel, color=text_color, align=CENTER, font=titleFont
   }
 
   -- The action, on the right, in the warning colour: the one the pilot has to mean.
@@ -161,7 +160,7 @@ function M.build(children, widget)
   }
   children[#children+1] = {
     type = "label", x=cx, y=labelY, w=btnW,
-    text=confirmLabel, color=WHITE, align=CENTER, font=titleFont
+    text=confirmLabel, color=colors.onClose, align=CENTER, font=titleFont
   }
 end
 

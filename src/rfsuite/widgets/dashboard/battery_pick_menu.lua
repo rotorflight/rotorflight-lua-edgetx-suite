@@ -27,6 +27,7 @@ local requireModule = (_G.rfsuite and _G.rfsuite.require) or function(path)
 end
 
 local Menu = requireModule("widgets/dashboard/fullscreen_menu.lua")
+local Look = requireModule("widgets/dashboard/menu_look.lua")
 
 -- The record this view draws, or nil where the menu module could not be loaded.
 local function record(widget)
@@ -54,12 +55,10 @@ function M.build(children, widget)
 
   local t = (widget.i18n and type(widget.i18n.t) == "function") and widget.i18n.t or function(k, f) return f or k end
 
-  local bg_color = COLOR_THEME_PRIMARY3 or BLACK
-  if bg_color == BLACK and lcd and type(lcd.RGB) == "function" then
-    bg_color = lcd.RGB(40, 40, 40)
-  end
-  local btn_color = COLOR_THEME_PRIMARY1 or BLACK
-  local accent_color = COLOR_THEME_SECONDARY1 or WHITE
+  local colors = Look.colors(widget)
+  local bg_color = colors.bg
+  local btn_color = colors.fill
+  local accent_color = colors.accent
 
   children[#children+1] = {
     type = "rectangle", x=dX, y=dY, w=dW, h=dH, color=bg_color, filled=true
@@ -105,7 +104,7 @@ function M.build(children, widget)
   }
   children[#children+1] = {
     type = "label", x=dX + paddingX, y=dY + math.floor((headerH - fontH)/2) + headTextOffY, w=dW-60,
-    text=t("widgets.dashboard.battery_pick_title", "WHICH BATTERY?"), color=WHITE, align=LEFT, font=titleFont
+    text=t("widgets.dashboard.battery_pick_title", "WHICH BATTERY?"), color=colors.text, align=LEFT, font=titleFont
   }
 
   local entry = record(widget)
@@ -113,12 +112,12 @@ function M.build(children, widget)
   local cx = dX + dW - closeSize - (isLarge and 8 or 1)
   local cy = dY + math.floor((headerH - closeSize)/2)
   children[#children+1] = {
-    type = "button", x=cx, y=cy, w=closeSize, h=closeSize, color=COLOR_THEME_SECONDARY1 or RED,
+    type = "button", x=cx, y=cy, w=closeSize, h=closeSize, color=colors.close,
     press = function() if entry ~= nil then run(widget, entry, entry.close) end end
   }
   children[#children+1] = {
     type = "label", x=cx, y=cy + math.floor((closeSize - fontH)/2) + closeTextOffY, w=closeSize,
-    text="X", color=WHITE, align=CENTER, font=titleFont
+    text="X", color=colors.onClose, align=CENTER, font=titleFont
   }
 
   -- The packs, and NO BATTERY apart from them: it is laid out on a row of its own below.
@@ -151,7 +150,7 @@ function M.build(children, widget)
 
     local isCurrent = option.current == true
     local bColor = isCurrent and accent_color or btn_color
-    local tColor = isCurrent and BLACK or WHITE
+    local tColor = isCurrent and colors.onAccent or colors.text
 
     children[#children+1] = {
       type = "button", x=bx, y=by, w=btnW, h=btnH, color=bColor,
@@ -175,7 +174,7 @@ function M.build(children, widget)
     }
     children[#children+1] = {
       type = "label", x=dX + paddingX, y=noneY + math.floor((btnH - fontH)/2), w=noneW,
-      text=none.label, color=WHITE, align=CENTER, font=titleFont
+      text=none.label, color=colors.text, align=CENTER, font=titleFont
     }
   end
 end

@@ -116,12 +116,7 @@ function K.outline(nodes, x, y, w, h, color, thickness)
   line(nodes, x1, y, x1, y1, color, th)
 end
 
--- The host's quick menu numbers (widgets/dashboard/fullscreen_menu.lua, M.PLACES and
--- M.TWO_COLUMNS_FROM): the pilot's entries on a fixed raster of six places, in two columns from
--- this width up, and the BATTERY PROFILE row on the row after the raster's last. The mark after a
--- row's value that says the row opens a page is the host's as well (M.OPENS_MARK).
-K.PLACES = 6
-K.TWO_COLUMNS_FROM = 300
+-- The mark after a row's value that says the row opens a page: the host's (M.OPENS_MARK).
 K.OPENS_MARK = " >"
 
 -- The background, the header, its title and -- where `closePress` is given -- the close box.
