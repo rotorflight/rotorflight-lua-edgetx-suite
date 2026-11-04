@@ -3387,6 +3387,7 @@ return function(h)
     local full=c[6]
     eq(#full.rows,4,"S16 three rate profiles on the switch and the warning line")
     eq(full.rows[1].label,string.format(L.rateProfileTitle,1),"S16 the row names its rate profile")
+    w:release();drain(w)
     q.sent={}
     local byIndex={}
     q.reply=function(m,b)
@@ -3397,6 +3398,8 @@ return function(h)
     end
     full.enter();drain(w)
     q.reply=nil
+    check(next(w.holds)==nil,"S16 the full-stick card holds nothing")
+    check(c[#c].enter==nil,"S16 the end-stop card holds nothing: the sticks must reach the swash")
     local selects={}
     for _,m in ipairs(q.sent) do if m.command==210 then selects[#selects+1]=m.payload[1] end end
     eq(table.concat(selects,","),"128,129,130,"..(w.data.status.current_control_rate_profile_index+128),"S16 each profile is selected, then the active one")
@@ -3425,6 +3428,34 @@ return function(h)
     local converted={rates_type=4,rcRates_4=48,rates_4=48,rcExpo_4=25};H.style(converted,2,6)
     eq(converted.rates_4,12,"W8 converting from Actual writes the shape the new type needs");eq(converted.rcRates_4,96,"W8 converting keeps the degrees")
     eq(converted.rcExpo_4,25,"W8 converting keeps the expo")
+  end)
+  case("S16.more-profiles-than-one-card-and-a-failed-read",function()
+    local w=world();settle(w);w.step=16
+    local ranges=w.data.adjustment_ranges.adjustment_ranges
+    ranges[1]=H.mapped(2,1,1000,2000,1,5);ranges[2]=H.mapped(1,1,1000,2000,1,5)
+    w.data.status.control_rate_profile_count=5
+    local c=step(w,"pitch")
+    local labels={}
+    for _,card in ipairs(c) do
+      if card.title==L.fullStick then
+        check(#card.rows<=4,"S16 a full-stick card keeps to three rows and the warning")
+        for _,row in ipairs(card.rows) do if row.kind=="number" then labels[#labels+1]=row.label end end
+      end
+    end
+    eq(#labels,5,"S16 every profile on the switch has a row")
+    eq(labels[5],string.format(L.rateProfileTitle,5),"S16 the last profile is there too")
+    -- A read that fails is not taken for loaded, and the next entry reads again.
+    local full;for _,card in ipairs(c) do if card.title==L.fullStick then full=card;break end end
+    h.setFailCommand(111);full.enter();drain(w);h.setFailCommand(nil)
+    check(w.error~=nil,"S16 a failed profile read shows")
+    check(not w.pitchLoaded,"S16 a failed read does not count as loaded")
+    w.error,w.transition=nil,nil;w.statusAt=getTime()
+    q.sent={};full.enter();drain(w)
+    check(w.pitchLoaded,"S16 the next entry reads again")
+    local reads=0
+    for _,m in ipairs(q.sent) do if m.command==111 then reads=reads+1 end end
+    check(reads>=5,"S16 every profile is read on the second try")
+    w.data.status.control_rate_profile_count=3
   end)
   case("S17.tail-servo-and-motor-variants",function()
     local w=world();w.data.mixer_config.tail_rotor_mode=0

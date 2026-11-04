@@ -17,7 +17,7 @@ return function(w)
   end
   local function enter()
     if w.rateLoaded then return end
-    w.rateLoaded,w.transition,w.rateTunings,w.rateMatched=true,true,{},{}
+    w.transition,w.rateTunings,w.rateMatched=true,{},{}
     local original=w.data.status.current_control_rate_profile_index+128
     w.restoreProfile=original
     for _,id in ipairs(profiles) do
@@ -27,7 +27,8 @@ return function(w)
     end
     w:action("set_pid_profile",{original},function() w.restoreProfile=nil end)
     w:read("rc_tuning",function(d) w.data.rc_tuning=d end)
-    w:run(function() w.transition=nil end)
+    -- Loaded counts only once every read is in, so a failed read is read again.
+    w:run(function() w.rateLoaded,w.transition=true,nil end)
   end
   -- What a profile will hold: its current rates, or the chosen style applied to a copy of them.
   -- The copy is made once per choice, not per frame.

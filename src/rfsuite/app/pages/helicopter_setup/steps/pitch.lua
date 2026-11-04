@@ -2,13 +2,10 @@ return function(w)
   local L, H = w.L, w.math
   w.pitchMeasured = w.pitchMeasured or { 90, 90 }
   local status = w.data.status
-  -- The rate profiles on the profile switch, else the active one. At most three fit one card and
-  -- three positions are what a switch offers; only the profiles shown here are written.
-  local profiles = {}
-  for i, id in ipairs(H.rateProfiles(w.data.adjustment_ranges.adjustment_ranges,
-    status.current_control_rate_profile_index, status.control_rate_profile_count)) do
-    if i <= 3 then profiles[i] = id end
-  end
+  -- The rate profiles on the profile switch, else the active one, as the Rates step offers them.
+  -- Only the profiles shown here are written.
+  local profiles = H.rateProfiles(w.data.adjustment_ranges.adjustment_ranges,
+    status.current_control_rate_profile_index, status.control_rate_profile_count)
   local cards = {}
   -- One cyclic calibration, as every interface to the firmware has it. It is measured over roll,
   -- with pitch and collective at zero, so the rotor head stays where it stood for collective, the
@@ -63,46 +60,51 @@ return function(w)
   }, zero)
   -- The collective at full stick lives in each rate profile, so each profile is read and only a
   -- value the pilot changed is written, at Save. A style the wizard cannot express shows no value.
+  -- These two last cards hold nothing: the sticks have to move the swash to reach the end stops.
+  -- Loaded counts only once every read is in, so a failed read is read again.
   local function enterFull()
-    zero()
     if w.pitchLoaded then return end
-    w.pitchLoaded, w.transition = true, true
+    w.transition = true
     w.pitchFull = w.pitchFull or {}
     w:profileLoop("rates", #profiles, nil, profiles, function(d, index)
       if not (w.pitchFullChanged and w.pitchFullChanged[index]) then w.pitchFull[index] = H.collective(d) end
       if w.logDebug then w:log("debug", "rate profile %s collective read", index) end
     end)
-    w:run(function() w.transition = nil end)
+    w:run(function() w.pitchLoaded, w.transition = true, nil end)
   end
-  local rows = {}
-  for _, id in ipairs(profiles) do
-    local index = id
-    rows[#rows + 1] = { kind = "number", label = string.format(L.rateProfileTitle, index + 1), min = 0, max = 250, divisor = 10,
-      display = function(v)
-        if not (w.pitchFull and w.pitchFull[index]) then return "--" end
-        return string.format("%.1f", v / 10)
-      end,
-      get = function() return H.round(((w.pitchFull and w.pitchFull[index]) or 0) * 10) end,
-      set = function(v)
-        if not (w.pitchFull and w.pitchFull[index]) then return end
-        w.pitchFull[index] = v / 10
-        w.pitchFullChanged = w.pitchFullChanged or {}; w.pitchFullChanged[index] = true
-        w:touch("rc_tuning")
-      end,
-      enabled = function() return w.pitchFull ~= nil and w.pitchFull[index] ~= nil end }
-  end
-  rows[#rows + 1] = { kind = "notice", get = function()
+  local function overLimit()
     local limitDegrees = w.data.mixer_input.inputs[4].max * 0.012
     for _, id in ipairs(profiles) do
       local value = w.pitchFull and w.pitchFull[id]
       if value and value > limitDegrees then return L.fullStickOverLimit end
     end
     return ""
-  end }
-  local full = w:cardDef(L.fullStick, L.fullStickHint, rows, enterFull)
-  full.dense = true
-  cards[#cards + 1] = full
-  cards[#cards + 1] = w:cardDef(L.bindingTitle, L.bindingHint, { w:check("pitch", L.noBinding) }, zero)
+  end
+  -- Three rows and the warning fit one card at 480x272; more profiles take another card.
+  for first = 1, #profiles, 3 do
+    local rows = {}
+    for position = first, math.min(first + 2, #profiles) do
+      local index = profiles[position]
+      rows[#rows + 1] = { kind = "number", label = string.format(L.rateProfileTitle, index + 1), min = 0, max = 250, divisor = 10,
+        display = function(v)
+          if not (w.pitchFull and w.pitchFull[index]) then return "--" end
+          return string.format("%.1f", v / 10)
+        end,
+        get = function() return H.round(((w.pitchFull and w.pitchFull[index]) or 0) * 10) end,
+        set = function(v)
+          if not (w.pitchFull and w.pitchFull[index]) then return end
+          w.pitchFull[index] = v / 10
+          w.pitchFullChanged = w.pitchFullChanged or {}; w.pitchFullChanged[index] = true
+          w:touch("rc_tuning")
+        end,
+        enabled = function() return w.pitchFull ~= nil and w.pitchFull[index] ~= nil end }
+    end
+    rows[#rows + 1] = { kind = "notice", get = overLimit }
+    local full = w:cardDef(L.fullStick, L.fullStickHint, rows, enterFull)
+    full.dense = true
+    cards[#cards + 1] = full
+  end
+  cards[#cards + 1] = w:cardDef(L.bindingTitle, L.bindingHint, { w:check("pitch", L.noBinding) })
   w.commit = function()
     local chosen = {}
     for _, id in ipairs(profiles) do
