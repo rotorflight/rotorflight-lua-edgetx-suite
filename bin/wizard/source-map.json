@@ -1210,7 +1210,7 @@
         "S07.servo-bands-and-reboot",
         "REVIEW.servo-types-per-group"
       ],
-      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. Separate cyclic/tail cards offer their own servo types (cyclic: Analog 50, Digital 165, Hi-end digital 333 Hz at 1520 us, Narrow band 560 Hz at 760 us; tail: Digital 200 Hz at 1520 us, Specific digital 333 and Hi-end specific digital 560 Hz at 760 us) instead of one list of three; a trimmed centre keeps its type, servos matching no type read Custom, which is shown and not chosen. The waveform uses stable cached points refreshed on edits."
+      "adaptation": "Behavior follows the source; resumable Lua jobs and compact task cards replace web component lifecycle and promises. Separate cyclic/tail cards offer their own servo types (cyclic: Analog 50, Digital 165, Hi-end digital 333 Hz at 1520 us, Narrow band 560 Hz at 760 us; tail: Digital 200 Hz at 1520 us, Specific digital 333 and Hi-end specific 560 Hz at 760 us) instead of one list of three; a trimmed centre keeps its type, servos matching no type read Custom, which is shown and not chosen. The waveform uses stable cached points refreshed on edits."
     },
     {
       "source": "tabs/setup_wizard/StepServos.svelte",
