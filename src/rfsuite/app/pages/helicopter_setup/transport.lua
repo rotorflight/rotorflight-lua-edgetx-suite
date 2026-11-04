@@ -1,6 +1,6 @@
 -- One load, decode or dispatch per call. Replies never run a continuation or build UI.
 local M = {}
-local ROOT = "/SCRIPTS/TOOLS/rfsuite-core/tasks/msp/api/"
+local ROOT = _G.rfsuite.paths.core .. "/tasks/msp/api/"
 -- Every reply here comes from the flight controller, so the sample reply an API module carries
 -- for offline use is dropped from the instance this page loads for itself. telemetry_config's
 -- write builder starts from its sample, so that one keeps it.

@@ -1,7 +1,7 @@
 -- Configurator pictures and labelled mechanical references. Reactive getters
 -- select cached filenames or prepared geometry without rebuilding the scene.
 local M = {}
-local GFX = "/SCRIPTS/TOOLS/rfsuite-core/app/pages/helicopter_setup/gfx/"
+local GFX = _G.rfsuite.paths.core .. "/app/pages/helicopter_setup/gfx/"
 function M.append(children, w, card, x, y, width, height)
   local ink, accent = w.palette.text, w.palette.accent
   local kind,L=card.art,w.L

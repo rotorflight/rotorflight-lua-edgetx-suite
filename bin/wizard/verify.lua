@@ -1,6 +1,7 @@
 -- Offline protocol, lifecycle and per-call budget regression checks. No simulator.
 local ROOT = "src/rfsuite/"
-local BASE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local PATHS = dofile("src/rfsuite/lib/paths.lua")
+local BASE = PATHS.core .. "/"
 local PATH = "app/pages/helicopter_setup/"
 local ticks, assertions, failures, worst = 100, 0, 0, {}
 local function check(ok, name)
@@ -16,7 +17,7 @@ lcd = { RGB = function(r,g,b) return (r << 16) | (g << 8) | b end }
 SMLSIZE, MIDSIZE = 0, 1
 LCD_W, LCD_H = 480, 272
 local armed = false
-_G.rfsuite = { session = { fblConnected = true, mcu_id = "test-board", apiVersion = "12.10" } }
+_G.rfsuite = { paths = PATHS, session = { fblConnected = true, mcu_id = "test-board", apiVersion = "12.10" } }
 local q = { messages = {}, sent = {}, pending = nil }
 function q:add(m) self.messages[#self.messages + 1] = m end
 function q:clear(client)

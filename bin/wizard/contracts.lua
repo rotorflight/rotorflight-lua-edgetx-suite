@@ -347,7 +347,7 @@ return function(h)
     local originalLoadScript=loadScript
     local pending={}
     local queue={add=function(self,request) pending[#pending+1]=request end}
-    local base="/SCRIPTS/TOOLS/rfsuite-core/"
+    local base=_G.rfsuite.paths.core.."/"
     function loadScript(path)
       local relative=string.sub(path,#base+1)
       if relative=="tasks/msp/runtime.lua" then return function() return {getState=function() return {queue=queue} end} end end
@@ -754,7 +754,7 @@ return function(h)
     check(picture~=nil,"VISUAL switch feedback has a reactive picture")
     if not picture then return end
     -- A 480 pixel wide screen draws the small picture set.
-    local prefix="/SCRIPTS/TOOLS/rfsuite-core/app/pages/helicopter_setup/gfx/small/"
+    local prefix=_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/small/"
     local count=#scene.children
     eq(picture.file(),prefix.."switch-left.png","VISUAL OFF shows the left switch")
     w.data.rc.channels[6]=1900
@@ -2915,7 +2915,7 @@ return function(h)
           end
           eq(#nudges,4,"S13 each servo card has four nudges")
           check(offset and warning and picture and live and status,"S13 servo card label and picture positive controls")
-          eq(picture.file(),"/SCRIPTS/TOOLS/rfsuite-core/app/pages/helicopter_setup/gfx/"..(size[1]>=700 and "dark/" or "small/").."servo-arm.png",
+          eq(picture.file(),_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/"..(size[1]>=700 and "dark/" or "small/").."servo-arm.png",
             "S13 servo card exact servo-arm picture")
           for _,item in ipairs(scene.children) do
             if item~=picture and item.y and item.h and item.w and item.y>2 and item.y<feedback.y and
@@ -3526,7 +3526,7 @@ return function(h)
   case("VISUAL.configurator-pictures",function()
     local w=world();settle(w)
     -- A 480 pixel wide screen draws the small picture set.
-    local prefix="/SCRIPTS/TOOLS/rfsuite-core/app/pages/helicopter_setup/gfx/small/"
+    local prefix=_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/small/"
     local function scene(name,index)
       w.cards=step(w,name);w.card=index or 1
       local job=h.view.new(w,{w=480,h=272},h.diagrams)
@@ -3652,7 +3652,7 @@ return function(h)
     end
   end)
   case("VISUAL.wizard-intro-pictures",function()
-    local prefix="/SCRIPTS/TOOLS/rfsuite-core/app/pages/helicopter_setup/gfx/"
+    local prefix=_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/"
     for _,size in ipairs({{480,272},{480,320},{800,480}}) do
       local w=world();settle(w);w.wideScreen=size[1]>=700
       local function scene(name,index)
@@ -4572,7 +4572,7 @@ return function(h)
       appendNumberField=function(_,_,_,_,label,options) editors[label]=options;return 30 end
     }
     function loadScript(path)
-      local relative=string.sub(path,#"/SCRIPTS/TOOLS/rfsuite-core/"+1)
+      local relative=string.sub(path,#_G.rfsuite.paths.core+2)
       if relative=="ui/controls.lua" then return function() return controls end end
       if relative=="tasks/msp/runtime.lua" then return function() return {getState=function()
         return {queue={add=function(_,message) pending[#pending+1]=message end}} end} end end
@@ -4618,7 +4618,7 @@ return function(h)
       local calls,shared=0,0
       loadScript=function(path)
         calls=calls+1
-        if path=="/SCRIPTS/TOOLS/rfsuite-core/lib/"..entry[2]..".lua" then
+        if path==_G.rfsuite.paths.core.."/lib/"..entry[2]..".lua" then
           shared=shared+1;return function() return load("lib/"..entry[2]..".lua") end
         end
         return function() return {

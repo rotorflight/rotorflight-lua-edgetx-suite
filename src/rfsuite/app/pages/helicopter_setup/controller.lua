@@ -1,5 +1,5 @@
 local M = {}
-local BASE = "/SCRIPTS/TOOLS/rfsuite-core/"
+local BASE = _G.rfsuite.paths.core .. "/"
 local READS = { "status", "boxids", "mode_ranges", "mode_ranges_extra", "adjustment_ranges",
   "feature_config", "board_info", "telemetry_config", "board_alignment_config", "serial_config", "rx_map", "rx_config", "rc_config",
   "motor_config", "esc_sensor_config", "governor_config", "mixer_config", "mixer_input",
