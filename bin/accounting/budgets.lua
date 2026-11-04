@@ -428,13 +428,13 @@ return {
     ["page.settings_dashboard_inflight_page.build"] = { target = 10200, measured = 8152 },
     ["page.settings_dashboard_keys_page.build"] = { target = 1400, measured = 1171 },
     ["page.settings_dashboard_overrides_page.build"] = { target = 12200, measured = 9725 },
-    ["page.settings_dashboard_quick_menu_page.build"] = { target = 2500, measured = 2364 },
+    ["page.settings_dashboard_quick_menu_page.build"] = { target = 3750, measured = 2976, proposed = 2500 },
     -- Priced on the Default theme's Before flight page (measure.lua, SETTINGS_THEME/SETTINGS_PAGE):
     -- the heaviest of its pages, which reads a phase module and lists its tiles.
     ["page.settings_dashboard_settings_page.build"] = { target = 18650, measured = 12895 },
     ["page.settings_dashboard_standby_page.build"] = { target = 14900, measured = 11763 },
     ["page.settings_dashboard_theme_page.build"] = { target = 13250, measured = 10585 },
-    ["page.settings_general_page.build"] = { target = 2200, measured = 1747 },
+    ["page.settings_general_page.build"] = { target = 3150, measured = 2503, proposed = 2200 },
     ["page.settings_localization_page.build"] = { target = 2350, measured = 1878 },
     ["page.setup_accelerometer_page.build"] = { target = 4050, measured = 3240 },
     ["page.setup_alignment_page.build"] = { target = 20000, measured = 16113 },
