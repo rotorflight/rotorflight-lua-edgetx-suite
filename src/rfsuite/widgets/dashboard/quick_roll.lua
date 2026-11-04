@@ -109,11 +109,19 @@ local function clamp(value, count)
   return value
 end
 
+-- The ladder position is left alone here: detents can still arrive on the standing scene until the
+-- new one is built, and M.build starts the count over.
 local function rebuild(widget, roll)
   roll.epoch = roll.epoch + 1
-  roll.position = 0
   roll.steppedAt = nil
   if Views and type(Views.invalidate) == "function" then Views.invalidate(widget) end
+end
+
+local function currentIndex(options)
+  for i = 1, #options do
+    if options[i].current == true then return i end
+  end
+  return 1
 end
 
 -- What the right list holds now: the question, else what the left entry leads to. Asked again only
@@ -123,15 +131,9 @@ local function rightList(widget, roll)
   if roll.rightFor ~= roll.left then
     roll.rightFor = roll.left
     roll.rightOptions = optionsOf(widget, roll.leftList and roll.leftList[roll.left])
+    roll.right = roll.rightOptions and currentIndex(roll.rightOptions) or 1
   end
   return roll.rightOptions
-end
-
-local function currentIndex(options)
-  for i = 1, #options do
-    if options[i].current == true then return i end
-  end
-  return 1
 end
 
 local function moveTo(widget, roll, side)
@@ -183,10 +185,16 @@ local function finishRight(widget, roll)
   if entry.id == "battery_profile" then
     -- The list stays up until the write has been answered: a failed write must not pass unseen.
     local base = Views.reporter(widget, entry.id)
+    local session = Views.session(widget)
     local function report(value)
       base(value)
       trace("profile write " .. tostring(value))
-      if value == "ok" then Views.navigate(widget, "done") end
+      -- A chain with a failed message stays failed whatever the last answer says, and a reply to a
+      -- write from before the menu was closed says nothing about this menu.
+      if value == "ok" and widget._viewStack == session and session.roll == roll
+        and Views.status(widget, entry.id) == "ok" then
+        Views.navigate(widget, "done")
+      end
     end
     Menu.run(widget, entry, choice, "none", report)
     return
@@ -228,7 +236,11 @@ function M.back(widget)
     moveTo(widget, roll, "left")
     return true
   end
-  Views.navigate(widget, "closeView")
+  if Views.top(widget) == nil then
+    Views.navigate(widget, "done")
+  else
+    Views.navigate(widget, "closeView")
+  end
   return true
 end
 
@@ -289,6 +301,7 @@ local function viewport(widget, roll, windows, name, other, children, x, y, w, h
         window.pending = nil
         return
       end
+      if sy == window.y then return end
       window.y = sy
       -- A finger dragging the list, or LVGL's elastic overscroll: not a move to a whole row.
       if sx ~= 0 or sy % h ~= 0 then return end
@@ -319,7 +332,6 @@ function M.renderKey(widget)
   if roll == nil then return "" end
   if roll.steppedAt ~= nil and getTime() - roll.steppedAt >= REST_TICKS then
     roll.epoch = roll.epoch + 1
-    roll.position = 0
     roll.steppedAt = nil
   end
   return tostring(roll.epoch)
@@ -345,6 +357,8 @@ end
 
 -- What a current row says under its name: an option's detail, the blackbox's fill.
 local function subText(roll, side, widget, fillFormat)
+  -- Asked on every pass the menu is up, and a row's second line only changes with the row.
+  local lastItem, lastText = nil, ""
   return function()
     local item
     if side == "left" then
@@ -353,13 +367,16 @@ local function subText(roll, side, widget, fillFormat)
       local list = rightList(widget, roll)
       item = list and list[roll.right] or nil
     end
-    if item == nil then return "" end
-    if item.detail ~= nil then return item.detail end
-    if type(item.info) == "function" then
+    if item == lastItem then return lastText end
+    lastItem, lastText = item, ""
+    if item == nil then return lastText end
+    if item.detail ~= nil then
+      lastText = item.detail
+    elseif type(item.info) == "function" then
       local percent = Menu.fillPercent(item)
-      if percent ~= nil then return string.format(fillFormat, percent) end
+      if percent ~= nil then lastText = string.format(fillFormat, percent) end
     end
-    return ""
+    return lastText
   end
 end
 

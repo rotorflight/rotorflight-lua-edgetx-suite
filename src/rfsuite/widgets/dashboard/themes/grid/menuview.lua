@@ -32,6 +32,7 @@ function M.build(children, zone, state, ctx)
   local f = K.rowFonts(g)
 
   return ctx.menu(children, nil, {
+    run = function(entry) ctx.run(entry) end,
     frame = function(nodes)
       local top = K.header(nodes, g, T.view_menu, function() ctx.action("done") end)
       return { x = g.x + g.pad, w = g.w - 2 * g.pad, zoneW = g.w, top = top, bottom = g.y + g.h - g.pad,

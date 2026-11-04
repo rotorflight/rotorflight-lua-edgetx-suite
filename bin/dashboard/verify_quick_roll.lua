@@ -176,6 +176,20 @@ local function run(mutate)
     -- Coming back into the forward ladder: its reset to the spare row is acknowledged, not counted.
     s.forward.scrolled(0, 0)
     check("the ladder's own reset is not a detent", r.left == 1)
+    s.forward.scrolled(0, 0)
+    check("nor is the same position reported again", r.left == 1)
+  end
+  do
+    -- A build asked for near a ladder's end: detents still on the standing scene count one each.
+    local w, s = open()
+    local r = roll(w)
+    r.leftList = {}
+    for i = 1, 30 do r.leftList[i] = { id = "row" .. i, title = "row" } end
+    local h = s.forward.h
+    for row = 1, 9 do detent(s.forward, h, row) end
+    check("nine detents, nine rows", r.left == 10)
+    detent(s.forward, h, 10)
+    check("the detent after the build was asked for is one row", r.left == 11)
   end
   do
     local w, s = open()
@@ -271,6 +285,40 @@ local function run(mutate)
     adds[1].errorHandler(adds[1], "timeout")
     check("a failed write stays up and says so",
       w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "failed")
+    adds[#adds].processReply(adds[#adds], {})
+    check("the last message's answer does not close over a failed one",
+      w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "failed")
+  end
+  do
+    -- A reply to a write from before the menu was closed says nothing about the menu opened since.
+    local w = toProfile()
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    local late = adds[#adds]
+    Views.navigate(w, "closeView")
+    Views.navigate(w, "openView:menu")
+    scene(Menu, w)
+    local session = w._viewStack
+    late.processReply(late, {})
+    check("an old reply leaves the new menu up", w._viewStack == session and session.roll ~= nil)
+  end
+  do
+    -- The right list follows the left entry, from the one in force.
+    local w, r = toProfile()
+    r.right = 3
+    Views.key(w, EVT_VIRTUAL_EXIT)
+    local s = scene(Menu, w)
+    detent(s.forward, s.forward.h, -1 + 1)
+    r.left = 1
+    for i = 1, #s.children do
+      local node = s.children[i]
+      if node.type == "label" and type(node.text) == "function" then node.text() end
+    end
+    r.left = #r.leftList
+    for i = 1, #s.children do
+      local node = s.children[i]
+      if node.type == "label" and type(node.text) == "function" then node.text() end
+    end
+    check("coming back to a choice starts on the one in force", r.right == 2)
   end
   do
     local w, r = toProfile()
@@ -298,7 +346,18 @@ local function run(mutate)
     now = now + 100
     check("the key moves once the wheel has rested", Menu.renderKey(w) ~= key)
     check("the selection is kept", r.left == 2)
-    check("and the ladder starts over", r.position == 0)
+    scene(Menu, w)
+    check("and the built ladder starts over", r.position == 0 and r.left == 2)
+  end
+
+  -- Drawn as buttons, the keys are the buttons' again.
+  do
+    local w = open()
+    check("the rolling menu has its state", w._viewStack.roll ~= nil)
+    w.preferences.dashboard.quick_menu_style = nil
+    scene(Menu, w)
+    check("the card ends it", w._viewStack.roll == nil)
+    check("and ENTER is not answered for it", Views.key(w, EVT_VIRTUAL_ENTER) ~= true)
   end
 
   -- The model arming takes the list away from under the right side.
@@ -319,6 +378,12 @@ if selfTest then
     end },
     { "closes before the answer", function(t)
       return (string.gsub(t, "Menu.run%(widget, entry, choice, \"none\", report%)", "Menu.run(widget, entry, choice, \"done\", report)"))
+    end },
+    { "a write's success closes whatever it finds", function(t)
+      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and session.roll == roll\n        and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
+    end },
+    { "a position reported twice counts", function(t)
+      return (string.gsub(t, "if sy == window.y then return end\n", ""))
     end },
     { "a detent is not summed", function(t)
       return (string.gsub(t, "local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))

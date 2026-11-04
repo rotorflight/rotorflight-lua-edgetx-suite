@@ -926,8 +926,16 @@ function M.build(children, widget, entries, style)
     end
   end
 
+  -- Drawn as buttons: a rolling menu from before, a theme's look registered since or the pilot's
+  -- choice changed, has stopped answering the wheel.
+  if widget._viewStack ~= nil then widget._viewStack.roll = nil end
+
   local frame = style.frame(children)
   if frame == nil then return end
+
+  -- A press: the look's own route where it has one (`ctx.run`, which looks the record up again when
+  -- it is pressed), else the row as drawn.
+  local run = style.run or function(entry) M.run(widget, entry) end
 
   -- The raster, then the BATTERY PROFILE row: rows of one height, the raster's and the battery
   -- row's alike.
@@ -948,8 +956,7 @@ function M.build(children, widget, entries, style)
       local sub = nil
       local percent = M.fillPercent(entry)
       if percent ~= nil then sub = style.fillText(percent) end
-      style.button(children, bx, by, cellW, rowH, entry.title or "", sub,
-        function() M.run(widget, entry) end)
+      style.button(children, bx, by, cellW, rowH, entry.title or "", sub, function() run(entry) end)
     end
   end
 
@@ -959,7 +966,7 @@ function M.build(children, widget, entries, style)
   if profile ~= nil and isEntryVisible(profile, widget) then
     local values = type(profile.values) == "function" and profile.values(widget) or {}
     style.valueRow(children, frame.x, contentY + rows * (rowH + gapY), frame.w, rowH, profile.title or "", values,
-      function() M.run(widget, profile) end)
+      function() run(profile) end)
   end
 end
 

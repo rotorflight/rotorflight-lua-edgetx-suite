@@ -880,7 +880,7 @@ function M.key(widget, event)
   -- The quick menu's rolling style: the wheel's press while the focus is still on the fullscreen
   -- widget, which delivers it here rather than to a button, and RTN's step back to the left list.
   local session = widget._viewStack
-  if session ~= nil and session.roll ~= nil and M.top(widget) == M.DEFAULT_VIEW then
+  if session ~= nil and session.roll ~= nil and (M.top(widget) or widget._viewId) == M.DEFAULT_VIEW then
     local enter, exitKey = _G.EVT_VIRTUAL_ENTER, _G.EVT_VIRTUAL_EXIT
     if (enter ~= nil and event == enter) or (exitKey ~= nil and event == exitKey) then
       local Roll = requireModule("widgets/dashboard/quick_roll.lua")
