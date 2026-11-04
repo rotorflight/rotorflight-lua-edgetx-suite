@@ -166,6 +166,8 @@ copies your data over by itself on the first start:
   there does not come along when you update again.
 - The copy is part of the suite only for a limited time. A card that skips those releases starts
   with default settings, with its data still in the old folder; copy the files over by hand then.
+- With `precompile = false` in the developer section the copy does not run, and the suite stays on
+  the old folder.
 
 ## The other files beside them
 
