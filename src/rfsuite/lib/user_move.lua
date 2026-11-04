@@ -30,6 +30,8 @@
 -- take minutes on a long flight log. Only the data
 -- named below moves. The debug logs and reload.req are not worth the wait, and anything else in
 -- the folder stays with the old folder.
+--
+-- Temporary: #1101 names when this goes and what goes with it.
 
 local M = {}
 
