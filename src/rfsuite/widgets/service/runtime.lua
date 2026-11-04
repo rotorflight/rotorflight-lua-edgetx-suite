@@ -263,6 +263,7 @@ local function compileHoldsConnect(self)
   if Compile == false then return false end
   if Compile == nil then
     Compile = false
+    log("user folder: " .. tostring(_G.rfsuite.paths.user), "info")
     local developer = self.preferences and self.preferences.developer
     if developer and developer.precompile == false then return false end
     local Precompile = requireModule("lib/precompile.lua")

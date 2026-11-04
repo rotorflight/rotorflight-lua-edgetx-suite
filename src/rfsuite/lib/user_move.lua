@@ -25,7 +25,9 @@
 -- enough: on a full card the new folder may not exist, and a directory entry can still fit where
 -- no data does.
 --
--- One unit of work per step: a few directory entries, or one chunk copied or compared. Only the data
+-- One unit of work per step: a few directory entries, or a few chunks copied or compared. On a radio
+-- a step comes about every 0.3 s while the compile pass has just ended, so one chunk per step would
+-- take minutes on a long flight log. Only the data
 -- named below moves. The debug logs and reload.req are not worth the wait, and anything else in
 -- the folder stays with the old folder.
 
@@ -33,6 +35,7 @@ local M = {}
 
 local CHUNK = 2048
 local ENTRIES_PER_STEP = 8
+local CHUNKS_PER_STEP = 8
 local MARKER = "moved.txt"
 local NOTE = "move_failed.txt"
 local TAG = "rfsuite.user_move"
@@ -231,18 +234,20 @@ local function copyStep(job)
     log("trace", "copying %s (%d bytes)", entry.rel, entry.size)
   end
 
-  local chunk = io.read(job.source, CHUNK)
-  if chunk == nil or #chunk == 0 then
-    closeAll(job)
-    local info = statOf(job.to .. entry.rel .. ".new")
-    if info == nil or tonumber(info.size) ~= entry.size then
-      return fail(job, "size", job.to .. entry.rel)
+  for _ = 1, CHUNKS_PER_STEP do
+    local chunk = io.read(job.source, CHUNK)
+    if chunk == nil or #chunk == 0 then
+      closeAll(job)
+      local info = statOf(job.to .. entry.rel .. ".new")
+      if info == nil or tonumber(info.size) ~= entry.size then
+        return fail(job, "size", job.to .. entry.rel)
+      end
+      job.index = job.index + 1
+      return
     end
-    job.index = job.index + 1
-    return
+    if not io.write(job.target, chunk) then return fail(job, "write", job.to .. entry.rel) end
+    job.done = job.done + #chunk
   end
-  if not io.write(job.target, chunk) then return fail(job, "write", job.to .. entry.rel) end
-  job.done = job.done + #chunk
 end
 
 -- The copy compared whole; only now does the file take its name.
@@ -275,16 +280,18 @@ local function verifyStep(job)
     end
   end
 
-  local a = io.read(job.source, CHUNK)
-  local b = io.read(job.target, CHUNK)
-  if (a or "") ~= (b or "") then return fail(job, "read back", job.to .. entry.rel) end
-  if a == nil or #a == 0 then
-    closeAll(job)
-    job.index = job.index + 1
-    if not job.background then return install(job, entry) end
-    return
+  for _ = 1, CHUNKS_PER_STEP do
+    local a = io.read(job.source, CHUNK)
+    local b = io.read(job.target, CHUNK)
+    if (a or "") ~= (b or "") then return fail(job, "read back", job.to .. entry.rel) end
+    if a == nil or #a == 0 then
+      closeAll(job)
+      job.index = job.index + 1
+      if not job.background then return install(job, entry) end
+      return
+    end
+    job.done = job.done + #a
   end
-  job.done = job.done + #a
 end
 
 -- A retry takes its copies away again, a few per step: it only had to show that they fit.

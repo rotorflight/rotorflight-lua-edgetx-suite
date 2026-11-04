@@ -3476,6 +3476,7 @@ function M.init(opts)
   state.precompileDone = 0
   state.precompileTotal = 0
   ensureVersion()
+  logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader
   -- when a page first needs it, and the start screen waits for the connection alone -- meant for
   -- automated runs on a card that starts without bytecode each time. Like the rest of the

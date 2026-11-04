@@ -195,8 +195,11 @@ do
   expect("old card: the move is pending", rfsuite.paths.moveTo == NEW)
   expect("old card: the widget's way in holds the connection", pre.startIfStale(nil) == true)
   expect("old card: the connection waits", pre.runsBehindConnection() == false)
-  run(pre, 100000, 40)
-  local _, total = pre.getProgress()
+  local _, total = nil, 0
+  while pre.isRunning() and total < 13 do
+    pre.step()
+    _, total = pre.getProgress()
+  end
   expect("old card: progress counts kilobytes while the data moves", total >= 13)
   run(pre)
   expect("old card: the pass ends", not pre.isRunning())
