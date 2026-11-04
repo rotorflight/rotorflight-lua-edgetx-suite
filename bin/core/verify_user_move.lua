@@ -122,8 +122,7 @@ end
 
 -- A start of one Lua state: the real lib/require.lua decides the folder, the real lib/precompile.lua
 -- runs. The compile walk finds a tree of one source.
-local function startState(card, opts)
-  opts = opts or {}
+local function startState(card)
   _G.rfsuite = { utils = {}, paths = nil, modules = {} }
   _G.getTime = function() return card.uptime or 100 end
   _G.loadScript = function(path)
@@ -196,9 +195,8 @@ do
   expect("old card: the move is pending", rfsuite.paths.moveTo == NEW)
   expect("old card: the widget's way in holds the connection", pre.startIfStale(nil) == true)
   expect("old card: the connection waits", pre.runsBehindConnection() == false)
-  local _, total = 0, 0
   run(pre, 100000, 40)
-  _, total = pre.getProgress()
+  local _, total = pre.getProgress()
   expect("old card: progress counts kilobytes while the data moves", total >= 13)
   run(pre)
   expect("old card: the pass ends", not pre.isRunning())
