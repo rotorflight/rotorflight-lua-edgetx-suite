@@ -1237,7 +1237,7 @@ end
 --
 -- The own lookup below is only for a host that publishes no `model_image`, and it is the same
 -- order with the craft name from the session. Once per inputs, not once per rebuild.
-local LOGO = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/gfx/logo.png"
+local LOGO = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 local IMAGE_EXTS = { "", ".png", ".bmp", ".jpg", ".jpeg" }
 local lookupKey, lookupPath = nil, nil
 

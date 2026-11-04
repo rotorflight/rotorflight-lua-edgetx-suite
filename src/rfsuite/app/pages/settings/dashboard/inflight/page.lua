@@ -3,7 +3,7 @@
 -- tuning screen on the ground. This page loads only the radio setup and its sliced model walks.
 
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end
@@ -17,7 +17,7 @@ local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.
 local SETUP_PATH = "widgets/dashboard/inflight/setup.lua"
 local function loadSetup()
   local modules = _G.rfsuite and _G.rfsuite.modules
-  local shared = modules and modules["/SCRIPTS/TOOLS/rfsuite-core/" .. SETUP_PATH]
+  local shared = modules and modules[_G.rfsuite.paths.core .. "/" .. SETUP_PATH]
   if type(shared) == "table" then return shared end
   return loadModule(SETUP_PATH)
 end

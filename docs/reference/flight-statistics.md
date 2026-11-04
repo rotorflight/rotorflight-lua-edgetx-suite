@@ -15,6 +15,7 @@ rfsuite.session.flight = {
   last         = { maxRpm = 2210, minVoltage = 21.9, ... },  -- the flight before it
   seconds      = 128.4,   -- armed seconds of the flight in progress
   lastSeconds  = 301.2,   -- armed seconds of the flight that ended
+  lastCells    = 6,       -- the pack's cell count the flight that ended was flown with, or nil
   flights      = 37,      -- flights the flight controller counts
   totalSeconds = 44210,   -- armed seconds the flight controller counts, plus the live flight
   armed        = true,    -- whether a record is open
@@ -62,6 +63,11 @@ The cell count is the flight controller's own where it has one; a configured cou
 the board detects it itself, and then telemetry answers instead. Where neither answers, or where
 the board has not reported a minimum cell voltage, **nothing is judged**: `sagCount` is absent
 rather than `0`, which is how a reader tells "watched, none" from "could not watch".
+The count itself is kept even where the minimum cell voltage is missing, and the flight that ends
+is closed with it as `lastCells`; the Flight Log divides its per-cell columns by it, so a board set
+to detect the count gets them too, without a further sensor read. The count is taken once per
+flight: the first answer is kept until the flight ends, so a different reading late in the flight
+does not change the columns, and the sensor is not asked again on every sample.
 
 **The resolution is the sampling interval.** The statistics are read every 0.5 s, so a dip
 shorter than that can fall between two samples and be missed entirely, and the deepest voltage is
@@ -157,6 +163,12 @@ that does not use the dashboard — the service widget, which exists to run the 
 the MSP surface for other widgets. The record is kept by the event runtimes rather than by a
 screen, so **a model with no dashboard placed still records its flights**, and a dashboard placed
 afterwards shows the last one.
+
+On a model that carries both widgets, the dashboard keeps the record and the service widget stands
+down, so the two widgets no longer both drive it. If the dashboard stops driving — taken off the
+model, or held up for more than half a second — the service widget takes over within about 0.6 s,
+inside the one-second step below, so a flight that stays armed through the change is credited the
+whole gap.
 
 The statistics are sampled every 0.5 s while a flight is running. The flight clock advances on
 every wakeup, so a flight's duration does not depend on how often the statistics are sampled, and

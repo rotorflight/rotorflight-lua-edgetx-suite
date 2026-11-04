@@ -72,6 +72,12 @@ return {
     -- a budget anyone would call comfortable.
     ["pass.startup.worst"] = { target = 18000, measured = 12088 },
 
+    -- The connect of a model whose own dashboard theme differs from the radio's: the pass that
+    -- reads the model's preferences off the card and moves the widget to its theme, and the passes
+    -- right after it (runThemeSwitchScenario). Like the cold start it loads modules, so it is held
+    -- to the same ceiling rather than to the STATE pass's.
+    ["pass.connect.theme_switch"] = { target = 18000, measured = 16138 },
+
     -- The service widget's background pass: the same two runtimes, with no scene
     -- build and no sweep of a theme mixed into it.
     --
@@ -328,6 +334,13 @@ return {
     -- The API-layer parse of the largest reply the suite scripts, in one piece. It
     -- lands in whatever pass completes the reassembly.
     ["unit.msp.parse.max"] = { target = 2750, measured = 2175 },
+    -- The dashboard's preferences reload (forced), the half that reads the radio-wide settings: the file
+    -- loaded, the language resolved and the i18n context built again. Once per saved settings
+    -- change, in a STATE pass. The language is handed over from the settings just read rather than
+    -- read from the file a second time; the parse itself is load(), a C function outside the hook, so
+    -- what this row prices is the Lua around the read. The target is the measurement with the
+    -- margin --emit gives a new row.
+    ["unit.preferences.reload"] = { target = 2500, measured = 1998 },
 
     ----------------------------------------------------------------------------
     -- The tool's pages, as the dashboard hosts them: the instructions inside one page
@@ -444,6 +457,7 @@ return {
     ["page.setup_esc_motors_esc_tools_yge_page.build"] = { target = 9850, measured = 7857, proposed = 6350 },
     ["page.setup_esc_motors_motor_override_page.build"] = { target = 3850, measured = 3047 },
     ["page.setup_esc_motors_rpm_page.build"] = { target = 4400, measured = 3510 },
+    ["page.setup_esc_motors_srxl2_page.build"] = { target = 3750, measured = 2997 },
     ["page.setup_esc_motors_telemetry_page.build"] = { target = 4000, measured = 3190 },
     ["page.setup_esc_motors_throttle_page.build"] = { target = 4250, measured = 3379 },
     ["page.setup_governor_curves_page.build"] = { target = 3850, measured = 3070 },

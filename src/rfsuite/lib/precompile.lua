@@ -16,11 +16,11 @@
 local Precompile = {}
 
 local ROOTS = {
-  "/SCRIPTS/TOOLS/rfsuite-core",
+  _G.rfsuite.paths.core,
   "/WIDGETS/rfsuite"
 }
 
-local STAMP_PATH = "/SCRIPTS/TOOLS/rfsuite.user/precompiled.txt"
+local STAMP_PATH = _G.rfsuite.paths.user .. "/precompiled.txt"
 
 -- What the stamp is compared against, written by the packager over the sources it packed. It
 -- changes with the content rather than with the version number, so a second install of the
@@ -31,7 +31,7 @@ local STAMP_PATH = "/SCRIPTS/TOOLS/rfsuite.user/precompiled.txt"
 -- Only the first STAMP_LIMIT characters of either file take part in the comparison, which is why
 -- the packager writes the digest first: what a long version pushes past that bound is then the
 -- half that does not tell two trees apart.
-local IDENTITY_PATH = "/SCRIPTS/TOOLS/rfsuite-core/build.txt"
+local IDENTITY_PATH = _G.rfsuite.paths.core .. "/build.txt"
 
 -- Enough for an identity, and a bound on what a damaged file can cost to read. Both files are
 -- read with it, because comparing two differently truncated strings would compare nothing.

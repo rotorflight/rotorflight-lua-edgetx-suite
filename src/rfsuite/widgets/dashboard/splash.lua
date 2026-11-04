@@ -1,6 +1,6 @@
 local Splash = {}
 
-local LOGO_FILE = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/gfx/logo.png"
+local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 
 function Splash.build(zone, statusLine, title)
   local w = (zone and zone.w) or LCD_W or 320

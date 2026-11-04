@@ -34,7 +34,7 @@ local M = {}
 local TAG = "rfsuite.battery_pick"
 
 local requireModule = (_G.rfsuite and _G.rfsuite.require) or function(path)
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if chunk then
@@ -65,30 +65,61 @@ end
 -- The registry side
 -- ---------------------------------------------------------------------------
 
---- The packs the registry offers for the connected model.
+-- How many registry lines one loadStep takes. The dashboard runs one step per free job slot, and
+-- a matched pack costs a parse, a copy and a profile match with its log line, so the step's cost
+-- stays bounded however many packs the registry holds.
+M.LOAD_LINES_PER_STEP = 12
+
+--- A load of the packs the registry offers for the connected model, taken a few lines at a
+--- time by loadStep.
 --
--- A fresh table per entry rather than the registry's own: the caller extends what it gets back
--- with the resolved profile, and the registry list is read again on the next connection.
-function M.candidates(session)
-  local FlightLog = requireModule("lib/flight_log.lua")
-  if type(FlightLog) ~= "table" or type(FlightLog.loadRegistry) ~= "function" then return {} end
-  local registry = FlightLog.loadRegistry()
-  local modelName = (type(session) == "table" and session.modelName) or ""
-  local matched = FlightLog.forModel(registry, modelName)
-  local out = {}
-  for i = 1, #matched do
-    local entry = matched[i]
-    out[#out + 1] = {
-      id = entry.id,
-      name = entry.name,
-      cap = entry.cap,
-      cells = entry.cells,
-      profile = entry.profile,
-      cycles = entry.cycles,
-      last = entry.last
-    }
+-- `cfg`, the board's battery configuration, is copied when the load starts and every pack of the
+-- load is matched against that copy, so no list mixes two answers. `byId` indexes the packs by id
+-- for the caller's lookups, and goes with the load. Each pack is a fresh table rather than the
+-- registry's own: the caller extends it, and the registry is read again on the next connection.
+function M.newLoad(session, cfg)
+  local snapshot = nil
+  if type(cfg) == "table" then
+    snapshot = {}
+    for key, value in pairs(cfg) do snapshot[key] = value end
   end
-  return out
+  local load = { cfg = snapshot, packs = {}, byId = {} }
+  local FlightLog = requireModule("lib/flight_log.lua")
+  if type(FlightLog) ~= "table" or type(FlightLog.newRegistryReader) ~= "function" then
+    log("no registry reader in lib/flight_log.lua, no packs loaded", "warn")
+    return load
+  end
+  load.flightLog = FlightLog
+  load.reader = FlightLog.newRegistryReader()
+  load.want = FlightLog.modelKey((type(session) == "table" and session.modelName) or "")
+  return load
+end
+
+--- Take up to `maxLines` (default LOAD_LINES_PER_STEP) more registry lines into `load.packs`,
+--- each pack for this model with its `targetProfile` resolved. True once the registry is read.
+function M.loadStep(load, maxLines)
+  local FlightLog, reader = load.flightLog, load.reader
+  if FlightLog == nil then return true end
+  local packs = load.packs
+  for _ = 1, maxLines or M.LOAD_LINES_PER_STEP do
+    local entry = FlightLog.registryNext(reader)
+    if entry == nil then return true end
+    if entry and FlightLog.isForModel(entry, load.want) then
+      local pack = {
+        id = entry.id,
+        name = entry.name,
+        cap = entry.cap,
+        cells = entry.cells,
+        profile = entry.profile,
+        cycles = entry.cycles,
+        last = entry.last
+      }
+      pack.targetProfile = M.targetProfile(pack, load.cfg)
+      packs[#packs + 1] = pack
+      load.byId[pack.id] = pack
+    end
+  end
+  return reader.ended == true
 end
 
 --- The pack of this connection, else the one the model was last flown on.

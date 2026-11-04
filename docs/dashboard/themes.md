@@ -16,7 +16,12 @@ shows. A different theme for the inflight or the postflight screen alone, and a 
 model's own, are switched on on the same page; [Theme](../pages/settings/dashboard/theme.md)
 describes every row of it. A model's own theme and its model-specific settings stay on the
 post-flight screen after the battery is unplugged, until the next flight controller connects.
-The retained settings also apply when the model customizes the radio's selected theme.
+The retained settings also apply when the model customizes the radio's selected theme. When a
+flight controller connects, the theme is chosen once it has identified itself, so a model with a
+theme of its own goes straight back to it; one that does not identify itself gets the radio's
+theme. Where no post-flight screen is standing — the radio switched on with the model, say — the
+switch to a model's own theme happens while the connecting screen is still up, so the first screen
+the pilot sees after it is already the model's.
 
 A theme's own settings, such as the voltage range its gauges span, are under
 *System* → *Settings* → *Dashboard* → *Settings*, one tile per theme

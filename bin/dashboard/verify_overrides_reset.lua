@@ -73,6 +73,7 @@ for _, case in ipairs(cases) do
       palette = { text = 1, border = 2 }, preferences = preferences,
       session = { mcu_id = "0123456789ABCDEF01234567", modelPreferences = modelPrefs },
     }
+    _G.rfsuite.paths = dofile(ROOT .. "/src/rfsuite/lib/paths.lua")
     _G.SMLSIZE = 0
     _G.lvgl = { UI_ELEMENT_HEIGHT = 32 }
 
@@ -189,6 +190,7 @@ do
     palette = { text = 1, border = 2 }, preferences = formatPreferences,
     session = { mcu_id = "0123456789ABCDEF01234567", modelPreferences = modelPrefs },
   }
+  _G.rfsuite.paths = dofile(ROOT .. "/src/rfsuite/lib/paths.lua")
   _G.SMLSIZE = 0
   _G.lvgl = { UI_ELEMENT_HEIGHT = 32 }
   local Common = {

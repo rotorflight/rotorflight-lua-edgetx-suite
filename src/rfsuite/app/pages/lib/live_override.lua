@@ -1,0 +1,191 @@
+-- A setup page's live override: the flight controller holds some inputs still while the pilot edits
+-- a value, and every edit is sent to the board's RAM before Save writes it to EEPROM.
+--
+-- One instance per page visit, created when the page loads and dropped when it closes. It owns:
+--   * the override itself -- one write per input, `on` to hold it, `off` to release it;
+--   * the confirm dialog, which also says so when the armed state cannot be read;
+--   * the live-write cadence -- "periodic" sends a changed value at most every `interval` seconds,
+--     "settle" sends it once it has been left unchanged for `interval` seconds;
+--   * the record the board holds as far as the page knows (the read, or the last save that reached
+--     EEPROM), and the rollback to it when the page is left or reloaded without Save.
+-- What a value is and how it reaches the board stays with the page: it passes the editable values
+-- as a flat table and a `send` function that queues the write and returns true once it is queued.
+--
+-- While the model is armed, nothing here reaches the board: tasks/msp/runtime.lua clears the queue
+-- on every pass and the tool does not wake a page. The firmware also ignores mixer overrides while
+-- armed, but it would still apply a configuration write.
+
+local M = {}
+
+local function loadModule(path)
+  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, "t")
+  if type(chunk) ~= "function" then return nil end
+  local ok, mod = pcall(chunk)
+  if not ok then return nil end
+  return mod
+end
+
+local function copyFlat(src)
+  if type(src) ~= "table" then return nil end
+  local out = {}
+  for k, v in pairs(src) do out[k] = v end
+  return out
+end
+
+local function sameFlat(a, b)
+  if type(a) ~= "table" or type(b) ~= "table" then return false end
+  for k, v in pairs(a) do
+    if b[k] ~= v then return false end
+  end
+  for k, v in pairs(b) do
+    if a[k] ~= v then return false end
+  end
+  return true
+end
+
+M.copyFlat = copyFlat
+M.sameFlat = sameFlat
+
+-- Seconds on EdgeTX's 10 ms clock, the only clock a radio script has.
+function M.now()
+  if type(getTime) == "function" then
+    local ok, value = pcall(getTime)
+    if ok and type(value) == "number" then return value / 100 end
+  end
+  return 0
+end
+
+local Override = {}
+Override.__index = Override
+
+--- opts: command (MSP id), inputs (list of indices), on, off (values), cadence ("periodic" or
+--- "settle"), interval (seconds).
+function M.new(opts)
+  opts = opts or {}
+  return setmetatable({
+    command = opts.command,
+    inputs = opts.inputs or {},
+    onValue = opts.on,
+    offValue = opts.off,
+    cadence = opts.cadence == "settle" and "settle" or "periodic",
+    interval = tonumber(opts.interval) or 0.2,
+    active = false,
+    original = nil,   -- what the board holds as far as the page knows
+    sent = nil,       -- the values the last queued live write carried
+    sentAny = false,  -- a live write went out since `original` was taken
+    seen = nil,       -- settle: the values last seen, and since when
+    seenAt = 0,
+    lastSentAt = nil, -- periodic: when the last live write went out
+  }, Override)
+end
+
+local function queueValue(self, queue, value)
+  if not queue or type(queue.add) ~= "function" then return false end
+  local lo = value % 256
+  local hi = math.floor(value / 256) % 256
+  for _, index in ipairs(self.inputs) do
+    queue:add({
+      command = self.command,
+      payload = { index, lo, hi },
+      isWrite = true,
+      processReply = function() end
+    })
+  end
+  return true
+end
+
+function Override:enable(queue)
+  if queueValue(self, queue, self.onValue) then self.active = true end
+  return self.active
+end
+
+function Override:disable(queue)
+  queueValue(self, queue, self.offValue)
+  self.active = false
+end
+
+--- Ask before switching. spec: title, message, uncertainText, onConfirm. The text about an
+--- unreadable armed state is added only when switching on.
+function Override:confirm(spec)
+  local Dialog = loadModule("ui/confirm_dialog.lua")
+  if not Dialog or type(Dialog.show) ~= "function" then return false end
+  local message = spec.message or ""
+  if not self.active and spec.uncertainText then
+    local Armed = loadModule("lib/armed.lua")
+    if Armed and type(Armed.isUncertain) == "function" and Armed.isUncertain() == true then
+      message = spec.uncertainText .. "\n\n" .. message
+    end
+  end
+  Dialog.show({ title = spec.title, message = message, onConfirm = spec.onConfirm })
+  return true
+end
+
+--- The board holds `record` (a read that parsed); nothing live has been sent against it.
+function Override:snapshot(record, values)
+  self.original = { record = copyFlat(record), values = copyFlat(values) }
+  self.sent = copyFlat(values)
+  self.sentAny = false
+  self.seen = copyFlat(values)
+  self.seenAt = M.now()
+end
+
+--- A save reached EEPROM: from now on this is what leaving without Save puts back.
+function Override:stored(record, values)
+  self.original = { record = copyFlat(record), values = copyFlat(values) }
+  self.sentAny = false
+end
+
+--- A save queued `values`: they need no live write until they change, and until the save is
+--- stored (`stored`) they count as sent -- its configuration write reaches the board's RAM even when
+--- a later step or the EEPROM commit fails, and leaving then has to put the record back.
+function Override:markSent(values)
+  self.sent = copyFlat(values)
+  self.sentAny = true
+end
+
+--- A live write the board did not answer is sent again on the next due pass; one it refused is not
+--- repeated until the value changes.
+function Override:writeFailed(reason)
+  if reason ~= "refused" then self.sent = nil end
+end
+
+--- Called from the page's wakeup while the override is on. `send(values)` queues the write and
+--- returns true once it is queued; false (queue busy, read not complete) keeps the values due.
+function Override:tick(values, send)
+  if not self.active or type(values) ~= "table" then return false end
+  local now = M.now()
+  if self.cadence == "settle" then
+    if not sameFlat(self.seen, values) then
+      self.seen = copyFlat(values)
+      self.seenAt = now
+      return false
+    end
+    if now - self.seenAt < self.interval then return false end
+  else
+    if self.lastSentAt and now - self.lastSentAt < self.interval then return false end
+  end
+  if self.sent and sameFlat(self.sent, values) then return false end
+  if send(values) ~= true then return false end
+  self.sent = copyFlat(values)
+  self.sentAny = true
+  self.lastSentAt = now
+  return true
+end
+
+--- Leaving or reloading without Save: when a live write went out since the board's record was
+--- taken, `send(record)` puts that record back. Returns the original { record, values } it sent,
+--- or nil when nothing had to go back.
+function Override:rollback(send)
+  local orig = self.original
+  local wasSent = self.sentAny
+  local lastSent = self.sent
+  self.sentAny = false
+  self.sent = orig and copyFlat(orig.values) or nil
+  if not wasSent or type(orig) ~= "table" or type(orig.record) ~= "table" then return nil end
+  -- What went out last is what the board already holds: nothing to put back.
+  if lastSent and sameFlat(lastSent, orig.values) then return nil end
+  if send(orig.record) ~= true then return nil end
+  return orig
+end
+
+return M

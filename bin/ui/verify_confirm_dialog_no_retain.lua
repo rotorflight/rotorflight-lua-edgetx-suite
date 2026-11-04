@@ -10,6 +10,7 @@ end
 
 local registry = {}
 _G.rfsuite = {}
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 lvgl = { confirm = function(options) registry[#registry + 1] = options end }
 function loadScript(path)
   assert(path == "/SCRIPTS/TOOLS/rfsuite-core/lib/log.lua", "unexpected module: " .. tostring(path))

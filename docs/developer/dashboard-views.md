@@ -162,8 +162,9 @@ key does. Leaving full screen and a reconnect forget it all, so the next visit s
 
 **Whoever sets a condition that opens a view still clears it when the view is answered or
 closed**, because that is what closes a view its condition opened. The battery prompt follows
-it: its registry load raises `pending`, and a pick, the picker's close box,
-`rfsuite.batteryPick.dismiss()`, arming and a reconnect all clear it. A pick clears it in two
+it: its registry load raises `pending` -- a job taken into free job slots, twelve registry lines
+each (`lib/battery_pick.lua` `loadStep`), whose list is published only in its last step -- and a
+pick, the picker's close box, `rfsuite.batteryPick.dismiss()`, arming and a reconnect all clear it. A pick clears it in two
 steps — the press records the request, and `pending` falls when the runtime has applied it a
 few passes later — so `batteryPickPending` is false as soon as a request is recorded.
 

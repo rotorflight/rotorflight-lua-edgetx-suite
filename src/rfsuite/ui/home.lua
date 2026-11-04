@@ -2,7 +2,7 @@ local function loadModule(path)
   if _G.rfsuite and _G.rfsuite.require then
     return _G.rfsuite.require(path)
   end
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end
@@ -72,7 +72,8 @@ local MEM_LOW_CLEAR_KB = 96
 -- here" and neither warns nor is logged.
 local MEM_FREE_MIN_KB = 4
 
-local APP_ICON  = "/SCRIPTS/TOOLS/rfsuite-core/assets/icon.png"
+local APP_ICON  = _G.rfsuite.paths.core .. "/assets/icon.png"
+local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 
 local M = {}
 
@@ -326,7 +327,7 @@ local SavePipeline = nil
 -- the pilot can read. An id with no entry falls back to the generic notice rather than putting
 -- an internal name on screen.
 --- What a save is doing, for the phases that have no step count of their own.
--- The writes and the EEPROM commit are counted, so they name the step being written; everything
+-- The writes and the EEPROM commit are counted by the bar under the general save text; everything
 -- after the commit is a wait on the flight controller and is named rather than counted.
 local SAVE_TEXT = {
   rebooting    = "@i18n(app.save.rebooting)@",
@@ -814,7 +815,7 @@ end
 local function resolveLocaleFromSystem()
   -- Always reload module on init so locale behavior changes are picked up
   -- immediately and not held back by stale cached globals.
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/system_locale.lua", "t")
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/system_locale.lua", "t")
   if chunk then
     local ok, localeMod = pcall(chunk)
     if ok and type(localeMod) == "table" and type(localeMod.resolveSystemLanguage) == "function" then
@@ -1501,12 +1502,13 @@ local function returnToRootOnDisconnect()
   end
 end
 
--- The ESC protocols the ESC tools menu has an entry for. Built once and kept for as long as
+-- The ESC protocols an entry of the ESC tools menu, or of ESC & Motors, is enabled for (14 is
+-- SRXL2 from MSP API 12.10; that entry carries the version floor itself). Built once and kept for as long as
 -- this file is loaded: the function below runs on every pass of run(), on every page, and a
 -- constructor inside it would build a new table on every pass whether or not a flight controller
 -- is connected.
-local ESC_PROTOCOLS = {1, 3, 4, 6, 7, 9, 10, 12}
--- getTime() ticks (10 ms) before the ESC tools menu asks again for a protocol it failed to read.
+local ESC_PROTOCOLS = {1, 3, 4, 6, 7, 9, 10, 12, 14}
+-- getTime() ticks (10 ms) before either menu asks again for a protocol it failed to read.
 local ESC_PROTO_RETRY_TICKS = 500
 
 local function updateRuntimeMenuConditions()
@@ -1540,7 +1542,8 @@ local function updateRuntimeMenuConditions()
   end
 
   local currentMenuId = state.menu.getCurrentMenuId()
-  if currentMenuId ~= "esc_tools_menu" then
+  local escProtoMenu = currentMenuId == "esc_tools_menu" or currentMenuId == "esc_motors_menu"
+  if not escProtoMenu then
     state.escProtoCheckPending = false
     state.escProtoRetryAt = nil
   end
@@ -1552,7 +1555,7 @@ local function updateRuntimeMenuConditions()
   -- ESC_PROTO_RETRY_TICKS; leaving the menu and coming back asks at once. It waits until
   -- syncActivePageModule has taken the menu over, so the request is filed under the menu's own
   -- MSP client rather than under the one the leaving menu's reads are dropped with.
-  if currentMenuId == "esc_tools_menu" and state.activePageMenuId == currentMenuId
+  if escProtoMenu and state.activePageMenuId == currentMenuId
     and state.fblConnected == true and session
     and session.esc4WayDetectedProto == nil and not state.escProtoCheckPending
     and (state.escProtoRetryAt == nil or (getTime and getTime() or 0) >= state.escProtoRetryAt) then
@@ -1599,8 +1602,14 @@ local function updateRuntimeMenuConditions()
     end
   end
 
-  local initialVersion = state.menu._conditionsVersion
+  -- The escProto conditions follow the protocol alone and nothing else sets them, so they are
+  -- set again only when the protocol differs from the one this menu was last given (`false`
+  -- stands for none). This runs on every pass of every page. The mark is written last, so a pass
+  -- stopped part-way (the CPU limit) leaves it unwritten and the next pass sets them all again.
   local proto = session and session.esc4WayDetectedProto
+  local applied = proto or false
+  if state.menu._escProtoApplied == applied then return end
+  local initialVersion = state.menu._conditionsVersion
   for _, p in ipairs(ESC_PROTOCOLS) do
     local isEnabled = false
     if proto ~= nil then
@@ -1611,6 +1620,8 @@ local function updateRuntimeMenuConditions()
   if state.menu._conditionsVersion ~= initialVersion then
     scheduleBuildUI(false)
   end
+  logf("trace", "escProto conditions set for protocol %s", tostring(proto))
+  state.menu._escProtoApplied = applied
 end
 
 local function maybeRefreshInfoPageFromSession()
@@ -2658,7 +2669,7 @@ local function buildScene()
       {
         type = "image",
         x = logoX, y = logoY, w = logoW, h = logoH,
-        file = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/gfx/logo.png"
+        file = LOGO_FILE
       },
       {
         type = "label",
@@ -2726,12 +2737,14 @@ local function buildScene()
     local action = nil
 
     -- Until the save reaches the flight controller the notice says only that something is being
-    -- applied, which is all a queued chain can honestly say. A pipeline reports which step it is
-    -- on, and stays on screen for the phases the old notice never covered: the restart, the wait
-    -- for the board to answer and the read-back.
+    -- applied, which is all a queued chain can honestly say. A pipeline fills the bar step by step,
+    -- and stays on screen for the phases the old notice never covered: the restart, the wait for
+    -- the board to answer and the read-back. A step's label is not shown: pages name their steps
+    -- after the MSP command they send, an identifier for the log rather than a text the pilot can
+    -- read, and it is never translated.
     if saveProgress then
       local phaseKey = SAVE_PHASE_TEXT[saveProgress.phase]
-      message = saveProgress.label or (phaseKey and SAVE_TEXT[phaseKey]) or message
+      message = (phaseKey and SAVE_TEXT[phaseKey]) or message
       progress = saveProgress.indeterminate and 1 or (saveProgress.fraction or 0)
       if saveProgress.saved then
         title = SAVE_TEXT.saved_title

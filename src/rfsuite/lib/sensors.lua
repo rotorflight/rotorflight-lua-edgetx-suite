@@ -324,10 +324,10 @@ local function telemetryValueIsLive(name)
 end
 
 local SIM_SENSOR_PATHS = {
-  "/SCRIPTS/TOOLS/rfsuite-core/sim/sensors/",
-  "/SCRIPTS/TOOLS/rfsuite.user/sim/sensors/",
+  _G.rfsuite.paths.core .. "/sim/sensors/",
+  _G.rfsuite.paths.user .. "/sim/sensors/",
   "/SCRIPTS/rfsuite-core/sim/sensors/",
-  "SCRIPTS/TOOLS/rfsuite-core/sim/sensors/",
+  string.sub(_G.rfsuite.paths.core, 2) .. "/sim/sensors/",
   "/rfsuite-core/sim/sensors/",
   "rfsuite-core/sim/sensors/",
 }

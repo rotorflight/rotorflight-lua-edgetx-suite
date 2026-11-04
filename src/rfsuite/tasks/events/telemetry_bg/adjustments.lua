@@ -5,14 +5,21 @@
 -- Nothing read them until now, and the switch that turns this on has been in Settings since
 -- before it had an effect: `audio_events.adjustment_events`.
 --
+-- The pair is not read back from the radio's sensor list. The decoder in the same Lua state
+-- holds the last pair it decoded as `rfsuite.adjustmentReport` (`decAdjFunc` in
+-- lib/rf2tlm_sensors.lua), so the teller needs no `getValue` per pass and no AdjF/AdjV row on the
+-- model's telemetry page; the two sensors are still published for everything else that shows them.
+--
 -- It runs on the telemetry pass rather than as an event runner of its own, for the same reason
--- `smart.lua` beside it does: what it reads is what the decoder in `tasks.lua` has just
--- published, so any other placement would be reading one pass behind.
+-- `smart.lua` beside it does: what it reads is what the drain has just decoded, so any other
+-- placement would be reading one pass behind. Its hosts load it only while the switch is on.
 --
 -- The word files are already in the tree -- `SOUNDS/rf/<locale>/adj/` -- and are resolved
--- through `lib/audio.lua`, which owns the locale fallback. That module is loaded LAZILY, on the
--- first announcement rather than on the first pass, so a model that never touches an adjustment
--- never pays for it.
+-- through `lib/audio_playback.lua`, which owns the locale folders and the level, and which
+-- `lib/audio.lua` plays through as well. Only that module: a Lua state that runs the teller and
+-- no dashboard -- the background function script -- does not load the rest of the announcements.
+-- It is loaded LAZILY, on the first announcement rather than on the first pass, so a model that
+-- never touches an adjustment never pays for it.
 
 -- The telemetry task can load this file directly while a widget reaches it through the module
 -- memoizer. loadScript creates a fresh table each time, so the Lua state's root owns this one
@@ -35,7 +42,7 @@ local function requireModule(path)
     if ok and type(mod) == "table" then return mod end
   end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/" .. path, mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/" .. path, mode)
   if type(chunk) ~= "function" then return nil end
   local ok, mod = pcall(chunk)
   if not ok then return nil end
@@ -119,11 +126,14 @@ local function enabled()
   return events ~= nil and events.adjustment_events == true
 end
 
-local function readSensor(name)
-  if type(getValue) ~= "function" then return nil end
-  local ok, v = pcall(getValue, name)
-  if ok and type(v) == "number" then return v end
-  return nil
+-- A teller loaded while announcements are on and the decoder holds a 0 starts as one that has
+-- already read it: nothing is being adjusted, so the next report is the pilot's. Its host does not
+-- wake it on the pass that loads it, and a report decoded on the next one would otherwise be its
+-- first reading -- joined. Not while they are off (the in-flight overlay loads it for its own
+-- speech): its wakeup reads nothing then, and a report standing when they are switched on is joined.
+do
+  local report = root and root.adjustmentReport
+  if enabled() and type(report) == "table" and report[1] == 0 then state.idleSeen = true end
 end
 
 -- Resolved on the first announcement rather than on the first pass, and NOT latched on a
@@ -133,7 +143,7 @@ end
 -- with the require memoizer the second call is a table lookup.
 local function ensureAudio()
   if Audio then return Audio end
-  local mod = requireModule("lib/audio.lua")
+  local mod = requireModule("lib/audio_playback.lua")
   if type(mod) == "table" and type(mod.playEventFile) == "function" then
     Audio = mod
   end
@@ -238,8 +248,10 @@ function M.wakeup()
   if M.selectionTick(nowSeconds() * 100) then return end
   if selection ~= nil then return end
 
-  local functionId = readSensor("AdjF")
-  local value = readSensor("AdjV")
+  local suite = _G.rfsuite
+  local report = suite and suite.adjustmentReport
+  if type(report) ~= "table" then return end
+  local functionId, value = report[1], report[2]
   if functionId == nil or value == nil then return end
 
   -- Nothing is being adjusted. Do not announce, and do not remember it as a change either --

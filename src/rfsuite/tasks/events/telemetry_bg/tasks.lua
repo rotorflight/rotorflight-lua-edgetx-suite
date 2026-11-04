@@ -3,10 +3,11 @@ local M = {}
 local Drain = nil
 local Smart = nil
 local Adjustments = nil
+local tellerStageSpent = false
 local tellerAside = false
 
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if type(chunk) ~= "function" then return nil end
@@ -43,9 +44,35 @@ function M.wakeup(carry)
         Smart = loadModule("tasks/events/telemetry_bg/smart.lua") or false
         return
     end
+    -- The teller only while adjustment announcements are on, which they are not by default; the
+    -- switch is read again on every pass until then, so turning it on loads it on a pass of its
+    -- own. The in-flight tuning overlay may have loaded it already for its own speech, and that
+    -- one instance is taken over rather than loaded again, so the step-aside reset below still
+    -- reaches it.
+    --
+    -- With the setting off, or with the overlay's teller taken over, the pass the teller would
+    -- have loaded on is still spent, once, doing nothing: every later start-up step then lands on
+    -- the wakeup it always had. Moved one pass
+    -- earlier, the decoder table's load meets another start-up step -- in bin/accounting
+    -- `pass.startup.worst` went up by about 1 100 instructions and `unit.events.wakeup.armed`
+    -- by about 900 -- for a saving of one 50 ms pass.
     if Adjustments == nil then
-        Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua") or false
-        return
+        local root = _G.rfsuite
+        local shared = root and root.adjustmentAnnouncer
+        if type(shared) == "table" then
+            Adjustments = shared
+        else
+            local prefs = root and root.preferences
+            local events = prefs and prefs.audio_events
+            if events and events.adjustment_events == true then
+                Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua") or false
+                return
+            end
+        end
+        if not tellerStageSpent then
+            tellerStageSpent = true
+            return
+        end
     end
 
     local now = nowSeconds()
@@ -82,14 +109,22 @@ function M.wakeup(carry)
     end
 
     -- After the decode, never before it: what the teller reads is what the drain has just
-    -- published, so the other order would announce one pass behind.
+    -- decoded, so the other order would announce one pass behind.
     --
     -- The teller is reset when it steps aside, so that when it takes over again it starts as a
     -- new teller does: a report still standing at that moment is one the script has already
     -- announced, and only a new teller joins it without a word.
+    --
+    -- The pair this state decoded last goes with it: the other state decodes from then on, and
+    -- the pair held here would be out of date when this one takes over again. So the first
+    -- report decoded after taking over is the one joined.
     if remote then
-        if not tellerAside and Adjustments and type(Adjustments.reset) == "function" then
-            Adjustments.reset()
+        if not tellerAside then
+            if Adjustments and type(Adjustments.reset) == "function" then
+                Adjustments.reset()
+            end
+            local root = _G.rfsuite
+            if root then root.adjustmentReport = nil end
         end
         tellerAside = true
     else

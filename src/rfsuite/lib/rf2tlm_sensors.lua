@@ -122,11 +122,29 @@ local function decGpsAltitude(data, pos)
     return nil, pos
 end
 
+-- The adjustment teller (tasks/events/telemetry_bg/adjustments.lua) takes the pair from here, in
+-- the Lua state that decoded it, rather than reading it back from the radio's sensor list by name.
+-- The last decoded pair is held on the suite's root, ahead of the publish throttle below (a
+-- throttled pair is one that did not change), the way the radio holds a sensor's last value: an
+-- unchanged row comes only every few seconds, and a teller loaded or reset in between still finds
+-- the 0 that says nothing is being adjusted. Not during sensor discovery, which calls every
+-- decoder once with zero bytes.
 local function decAdjFunc(data, pos)
     local fun,val
     local first = pos
     fun,pos = decU16(data,pos)
     val,pos = decS32(data,pos)
+    if requestedSensorsById == nil then
+        local root = _G.rfsuite
+        if root then
+            local report = root.adjustmentReport
+            if report == nil then
+                report = {}
+                root.adjustmentReport = report
+            end
+            report[1], report[2] = fun, val
+        end
+    end
     if due and not due(0x1220, data, first, pos) then return nil, pos end
     setTelemetryValue(0x1221, 0, 0, fun, UNIT_RAW, 0, "AdjF")
     setTelemetryValue(0x1222, 0, 0, val, UNIT_RAW, 0, "AdjV")

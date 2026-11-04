@@ -68,6 +68,7 @@ local function loadPair(source)
       return nil
     end,
   }
+  _G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
   local Views, viewErr = loadModule(viewsSource, "widgets/dashboard/views.lua")
   if Views == nil then return nil, nil, viewErr end
   return Keys, Views
@@ -122,7 +123,9 @@ local function runtimeCancellationCaseIn(source)
     if w.inflightFullscreen ~= nil or w._viewStack ~= nil or w._cachedFullscreenKey ~= nil then
       return "fullscreen visit state survived the " .. pendingSpec.kind .. " exit"
     end
-    if w.built ~= false or w.renderKey ~= nil then return "the cancelled " .. pendingSpec.kind .. " surface stayed built" end
+    -- The exit pass may key the zone at once (the render-key throttle is opened when a visit ends),
+    -- so the key is checked against the cancelled surface's, not against nil.
+    if w.built ~= false or w.renderKey == "fullscreen" then return "the cancelled " .. pendingSpec.kind .. " surface stayed built" end
   end
   Stubs.releaseCard()
 end
@@ -263,6 +266,7 @@ local function loadThemeLayout(theme, transform)
   end
   restore()
   _G.rfsuite = {}
+  _G.rfsuite.paths = dofile(SRC .. "lib/paths.lua")
   _G.loadScript = function(path)
     local rel = string.match(path, "rfsuite%-core/(.+)$")
     local src = rel and readFile(SRC .. rel)

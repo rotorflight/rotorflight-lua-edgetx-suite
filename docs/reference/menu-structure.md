@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**140 entries, 118 of them open a page, 85 of those pages are documented.**
+**141 entries, 119 of them open a page, 88 of those pages are documented.**
 
 ## Diagrams
 
@@ -163,9 +163,9 @@ flowchart LR
   n7 --> n8
   n9["Geometry"]:::undocumented
   n7 --> n9
-  n10["Tail"]:::undocumented
+  n10["Tail"]:::documented
   n7 --> n10
-  n11["Trims"]:::undocumented
+  n11["Trims"]:::documented
   n7 --> n11
   n12["Servos"]:::menu
   n0 --> n12
@@ -241,20 +241,22 @@ flowchart LR
   n37 --> n47
   n48["Motor Override"]:::undocumented
   n33 --> n48
-  n49["Governor"]:::menu
-  n0 --> n49
-  n50["General"]:::documented
-  n49 --> n50
-  n51["Ramp Time"]:::documented
-  n49 --> n51
-  n52["Filters"]:::undocumented
-  n49 --> n52
-  n53["Bypass Curve"]:::undocumented
-  n49 --> n53
-  n54["Model"]:::documented
-  n0 --> n54
-  n55["GPS"]:::undocumented
+  n49["SRXL2 ESC"]:::documented
+  n33 --> n49
+  n50["Governor"]:::menu
+  n0 --> n50
+  n51["General"]:::documented
+  n50 --> n51
+  n52["Ramp Time"]:::documented
+  n50 --> n52
+  n53["Filters"]:::undocumented
+  n50 --> n53
+  n54["Bypass Curve"]:::undocumented
+  n50 --> n54
+  n55["Model"]:::documented
   n0 --> n55
+  n56["GPS"]:::undocumented
+  n0 --> n56
   classDef section stroke:#78909c,stroke-width:3px,font-weight:bold
   classDef menu stroke:#1e88e5,stroke-width:2px
   classDef documented stroke:#43a047,stroke-width:2px
@@ -467,8 +469,8 @@ Section `configuration`.
 | Setup &rsaquo; Mixer | `mixer` | `mixer_menu` | menu, 4 entries | &mdash; | &mdash; |
 | Setup &rsaquo; Mixer &rsaquo; Swash | `swash` | `setup_mixer_swash_page` | `setup/mixer/swash` | **none** | `lockedWhileArmed = true` |
 | Setup &rsaquo; Mixer &rsaquo; Geometry | `swashgeometry` | `setup_mixer_swashgeometry_page` | `setup/mixer/swashgeometry` | **none** | `lockedWhileArmed = true` |
-| Setup &rsaquo; Mixer &rsaquo; Tail | `tail` | `setup_mixer_tail_page` | `setup/mixer/tail` | **none** | `lockedWhileArmed = true` |
-| Setup &rsaquo; Mixer &rsaquo; Trims | `trims` | `setup_mixer_trims_page` | `setup/mixer/trims` | **none** | `lockedWhileArmed = true` |
+| Setup &rsaquo; Mixer &rsaquo; Tail | `tail` | `setup_mixer_tail_page` | `setup/mixer/tail` | [setup/mixer/tail.md](../pages/setup/mixer/tail.md) | `lockedWhileArmed = true` |
+| Setup &rsaquo; Mixer &rsaquo; Trims | `trims` | `setup_mixer_trims_page` | `setup/mixer/trims` | [setup/mixer/trims.md](../pages/setup/mixer/trims.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Servos | `servos` | `servos_menu` | menu, 2 entries | &mdash; | &mdash; |
 | Setup &rsaquo; Servos &rsaquo; PWM Output | `pwm` | `setup_servos_pwm_page` | `setup/servos/pwm` | **none** | `lockedWhileArmed = true` |
 | Setup &rsaquo; Servos &rsaquo; BUS Output | `bus` | `setup_servos_bus_page` | `setup/servos/bus` | **none** | `lockedWhileArmed = true` |
@@ -490,7 +492,7 @@ Section `configuration`.
 | Setup &rsaquo; Power &rsaquo; Sources | `sources` | `setup_power_sources_page` | `setup/power/sources` | [setup/power/sources.md](../pages/setup/power/sources.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Power &rsaquo; SmartFuel | `smartfuel` | `setup_power_smartfuel_page` | `setup/power/smartfuel` | [setup/power/smartfuel.md](../pages/setup/power/smartfuel.md) | `minApiVersion = { 12, 0, 9 }`, `lockedWhileArmed = true` |
 | Setup &rsaquo; Power &rsaquo; Preferences | `preferences` | `setup_power_preferences_page` | `setup/power/preferences` | [setup/power/preferences.md](../pages/setup/power/preferences.md) | &mdash; |
-| Setup &rsaquo; ESC & Motors | `esc_motors` | `esc_motors_menu` | menu, 5 entries | &mdash; | &mdash; |
+| Setup &rsaquo; ESC & Motors | `esc_motors` | `esc_motors_menu` | menu, 6 entries | &mdash; | &mdash; |
 | Setup &rsaquo; ESC & Motors &rsaquo; Throttle | `throttle` | `setup_esc_motors_throttle_page` | `setup/esc_motors/throttle` | [setup/esc_motors/throttle.md](../pages/setup/esc_motors/throttle.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; Telemetry | `telemetry` | `setup_esc_motors_telemetry_page` | `setup/esc_motors/telemetry` | [setup/esc_motors/telemetry.md](../pages/setup/esc_motors/telemetry.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; RPM | `rpm` | `setup_esc_motors_rpm_page` | `setup/esc_motors/rpm` | **none** | `lockedWhileArmed = true` |
@@ -506,6 +508,7 @@ Section `configuration`.
 | Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; YGE | `yge` | `setup_esc_motors_esc_tools_yge_page` | `setup/esc_motors/esc_tools/escmfg/yge` | [setup/esc_motors/esc_tools/escmfg/yge.md](../pages/setup/esc_motors/esc_tools/escmfg/yge.md) | `enabledWhen = "escProto9"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; ZTW | `ztw` | `setup_esc_motors_esc_tools_ztw_page` | `setup/esc_motors/esc_tools/escmfg/ztw` | [setup/esc_motors/esc_tools/escmfg/ztw.md](../pages/setup/esc_motors/esc_tools/escmfg/ztw.md) | `enabledWhen = "escProto7"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; Motor Override | `motor_override` | `setup_esc_motors_motor_override_page` | `setup/esc_motors/motor_override` | **none** | `minApiVersion = { 12, 0, 9 }`, `lockedWhileArmed = true` |
+| Setup &rsaquo; ESC & Motors &rsaquo; SRXL2 ESC | `srxl2` | `setup_esc_motors_srxl2_page` | `setup/esc_motors/srxl2` | [setup/esc_motors/srxl2.md](../pages/setup/esc_motors/srxl2.md) | `minApiVersion = { 12, 0, 10 }`, `enabledWhen = "escProto14"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; Governor | `governor` | `governor_menu` | menu, 4 entries | &mdash; | &mdash; |
 | Setup &rsaquo; Governor &rsaquo; General | `general` | `setup_governor_general_page` | `setup/governor/general` | [setup/governor/general.md](../pages/setup/governor/general.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Governor &rsaquo; Ramp Time | `time` | `setup_governor_time_page` | `setup/governor/time` | [setup/governor/time.md](../pages/setup/governor/time.md) | `lockedWhileArmed = true` |

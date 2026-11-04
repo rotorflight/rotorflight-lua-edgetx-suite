@@ -35,7 +35,7 @@ function MenuRegistry.new(manifest, i18n, options)
 
     -- Loading the builder brings the theme library with it, so it is a step of its own.
     if not dashboardBuilder then
-      dashboardBuilder = assert(loadScript("/SCRIPTS/TOOLS/rfsuite-core/app/lib/dashboard_builder.lua", "t"))()
+      dashboardBuilder = assert(loadScript(_G.rfsuite.paths.core .. "/app/lib/dashboard_builder.lua", "t"))()
       return false
     end
 
@@ -316,7 +316,7 @@ function MenuRegistry.new(manifest, i18n, options)
         return icon
       end
       if string.sub(icon, 1, 7) == "@pages/" then
-        return "/SCRIPTS/TOOLS/rfsuite-core/app/pages/" .. string.sub(icon, 8)
+        return _G.rfsuite.paths.core .. "/app/pages/" .. string.sub(icon, 8)
       end
       return iconRoot .. icon
     end
@@ -331,7 +331,7 @@ function MenuRegistry.new(manifest, i18n, options)
 
     local pageIcon = menuId and iconByMenuId[menuId] or nil
     if type(pageIcon) == "string" and pageIcon ~= "" then
-      return "/SCRIPTS/TOOLS/rfsuite-core/app/pages/" .. pageIcon
+      return _G.rfsuite.paths.core .. "/app/pages/" .. pageIcon
     end
 
     return nil

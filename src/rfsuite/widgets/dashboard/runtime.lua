@@ -1,7 +1,7 @@
 local Runtime = {}
 
-local SYSTEM_THEME_BASE = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/themes/"
-local USER_THEME_BASE = "/SCRIPTS/TOOLS/rfsuite.user/dashboard/"
+local SYSTEM_THEME_BASE = _G.rfsuite.paths.core .. "/widgets/dashboard/themes/"
+local USER_THEME_BASE = _G.rfsuite.paths.user .. "/dashboard/"
 local AUDIO_LOG_FORCE = false
 local SPLASH_READY_HOLD_SECONDS = 1.0
 -- The steady-state pass rate, and the faster one used only while a start is in progress.
@@ -33,7 +33,7 @@ local VOLUME_REFRESH_SECONDS = 0.5
 local requireModule = (_G.rfsuite and _G.rfsuite.require)
 if not requireModule then
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local rChunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/require.lua", mode)
+  local rChunk = loadScript(_G.rfsuite.paths.core .. "/lib/require.lua", mode)
   if rChunk then
     local ok, res = pcall(rChunk)
     if ok and type(res) == "function" then
@@ -42,7 +42,7 @@ if not requireModule then
   end
 end
 requireModule = requireModule or function(path)
-  local fullPath = string.sub(path, 1, 1) == "/" and path or ("/SCRIPTS/TOOLS/rfsuite-core/" .. path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if chunk then
@@ -92,31 +92,36 @@ end
 -- would take for its own. Until then the release is retried on later passes, draining as it goes.
 -- Every dashboard widget runs its own copy of this file, so a standby screen another widget opened
 -- since is seen by its display module in the shared registry, and leaves the release to that one.
-local function releaseElrsProvider(self)
-  local rf = _G.rfsuite
-  local modules = type(rf) == "table" and rf.modules or nil
-  if type(modules) == "table" and modules["/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/standby.lua"] ~= nil then
-    elrsReleasePending = false
-    return
-  end
-  local config = type(rf) == "table" and rf.elrs_config or nil
-  if type(config) == "table" and type(config.idle) == "function" then
-    local idle, held = config.idle()
-    if not idle then
-      elrsReleasePending = true
-      if not held and type(config.drain) == "function" then
-        config.drain({ crsf = rf.crsf_manager, now = type(getTime) == "function" and getTime() / 100 or 0 })
-      end
+local releaseElrsProvider
+do
+  -- The standby display module's key in the shared registry, joined once rather than on every retry.
+  local STANDBY_MODULE_KEY = _G.rfsuite.paths.core .. "/widgets/dashboard/standby.lua"
+  function releaseElrsProvider(self)
+    local rf = _G.rfsuite
+    local modules = type(rf) == "table" and rf.modules or nil
+    if type(modules) == "table" and modules[STANDBY_MODULE_KEY] ~= nil then
+      elrsReleasePending = false
       return
     end
-  end
-  elrsReleasePending = false
-  if type(rf) == "table" and type(rf.clearModule) == "function" and DashboardAudio
-      and type(DashboardAudio.releaseElrsConfig) == "function"
-      and DashboardAudio.releaseElrsConfig(self.preferences and self.preferences.audio_events) then
-    rf.clearModule("lib/elrs_config.lua")
-    rf.clearModule("lib/elrs_power.lua")
-    rf.elrs_config = nil
+    local config = type(rf) == "table" and rf.elrs_config or nil
+    if type(config) == "table" and type(config.idle) == "function" then
+      local idle, held = config.idle()
+      if not idle then
+        elrsReleasePending = true
+        if not held and type(config.drain) == "function" then
+          config.drain({ crsf = rf.crsf_manager, now = type(getTime) == "function" and getTime() / 100 or 0 })
+        end
+        return
+      end
+    end
+    elrsReleasePending = false
+    if type(rf) == "table" and type(rf.clearModule) == "function" and DashboardAudio
+        and type(DashboardAudio.releaseElrsConfig) == "function"
+        and DashboardAudio.releaseElrsConfig(self.preferences and self.preferences.audio_events) then
+      rf.clearModule("lib/elrs_config.lua")
+      rf.clearModule("lib/elrs_power.lua")
+      rf.elrs_config = nil
+    end
   end
 end
 local function releaseStandby(self, reason)
@@ -507,21 +512,12 @@ local function driveLeftSave()
   end
 end
 
--- Both widgets run in one Lua state and share the one ring in it, so exactly one of them may
--- write it out -- two writers would append to the same file from two places and interleave.
--- widgets/service/runtime.lua is the better owner, because its background() runs while it is off
--- screen, and it announces itself to the MSP runtime under this name when it attaches. Where it
--- is not on the model there is nobody to defer to and this runtime writes instead.
-local function serviceWidgetOwnsTheSink()
-  if not MspRuntime or type(MspRuntime.getState) ~= "function" then return false end
-  local runtimeState = MspRuntime.getState()
-  if type(runtimeState) ~= "table" or type(runtimeState.clients) ~= "table" then return false end
-  return runtimeState.clients["service-widget"] == true
-end
-
+-- Both widgets run in one Lua state and share the one ring in it. Whichever of them drives the
+-- background work writes it out: this widget on every pass it drives, and the service widget only
+-- while this one does not (see tickMspRuntime and widgets/service/runtime.lua). This one's
+-- background() runs while it is off screen as well, so the ring keeps reaching the card either way.
 local function tickCardSink(self)
   if not LogSink or type(LogSink.tick) ~= "function" then return end
-  if serviceWidgetOwnsTheSink() then return end
 
   local armed = false
   if MspRuntime and type(MspRuntime.getState) == "function" then
@@ -598,6 +594,12 @@ local function compileStatusLine(self, t)
 end
 
 local function tickMspRuntime(self, carry)
+  -- The mark the service widget stands down on while this widget drives the work below, the
+  -- compile pass included: on a model that carries both, the work otherwise runs twice per tick.
+  -- See Events.markDriving.
+  if EventsRuntime and type(EventsRuntime.markDriving) == "function" then
+    EventsRuntime.markDriving("dashboard-widget")
+  end
   tickCardSink(self)
 
   if not MspRuntime then
@@ -672,13 +674,13 @@ end
 
 --- The files the tool writes when a preference changes, and how often they are looked at.
 -- One second is the rate the old signal was polled at, so nothing gets slower here.
-local PREFERENCES_FILE  = "/SCRIPTS/TOOLS/rfsuite.user/preferences.lua"
+local PREFERENCES_FILE  = _G.rfsuite.paths.user .. "/preferences.lua"
 -- Rotating sequence file written by lib/preferences.lua and lib/model_preferences.lua.
 -- The file contains between 1 and 32 bytes ('x'). Each save cycles the size by 1.
 -- The widget inspects fstat(RELOAD_REQ_FILE).size without modifying or deleting the file.
 -- This ensures multi-reader safety (all widgets see the change) and armed safety
 -- (updates occurring while armed are not consumed prematurely and remain pending until disarm).
-local RELOAD_REQ_FILE   = "/SCRIPTS/TOOLS/rfsuite.user/reload.req"
+local RELOAD_REQ_FILE   = _G.rfsuite.paths.user .. "/reload.req"
 local PREFS_STAT_INTERVAL = 1.0
 
 local function preferencesFile()
@@ -795,6 +797,11 @@ local function cleanupInflight(self)
   local instance = self._inflight
   if self.inflightFullscreen == true or (instance and instance.open == true) then
     self.built, self.renderKey, self._cachedTuningKey = false, nil, nil
+    -- The tuning branch of refresh() stamps the render-key throttle whenever it recomputes its own
+    -- key, so whatever invalidated the dashboard's key while the surface was up has not been
+    -- recomputed. Opened here, the surface the pilot returns to is keyed in the pass that builds it,
+    -- rather than built under the key left behind and then again once the throttle opens.
+    self._lastUIRefresh = 0
   end
   if self._job and self._job.kind == "tuning_fs" then self._job = nil end
   self.inflightFullscreen = nil
@@ -1749,6 +1756,7 @@ local function newBatteryPickState()
     loaded = false,
     pending = false,
     candidates = {},
+    byId = {},
     selectedId = nil,
     selectedName = nil,
     boardProfile = nil,
@@ -1757,20 +1765,25 @@ local function newBatteryPickState()
   }
 end
 
+-- A pack of the published list by its id, through the index the load built beside the list, so a
+-- lookup does not cost a pass that grows with the registry.
 local function batteryPickEntry(pick, id)
-  if id == nil then return nil end
-  local list = pick.candidates
-  for i = 1, #list do
-    if list[i].id == id then return list[i] end
-  end
-  return nil
+  if id == nil or type(pick.byId) ~= "table" then return nil end
+  return pick.byId[id]
 end
 
 --- Read the registry and ask the board which profile it is on. Once per FBL session.
 --
+-- The registry is taken a few lines per step (BatteryPick.loadStep), one step per free job slot,
+-- so the cost of a pass does not grow with the number of packs. The load in progress is kept on
+-- `pick` and published in the last step only: the views read `candidates` in the reactive sweep,
+-- and a part of the list would raise the prompt with half the packs. A reconnect replaces `pick`,
+-- and with it a load that was not finished.
+--
 -- `loaded` is raised before the card is touched rather than after: a step that raises is caught
 -- by the dispatcher and the slot is cleared, so a flag set at the end would have this job
--- enqueued again on every pass for the rest of the session.
+-- enqueued again on every pass for the rest of the session. A step that returns with lines left
+-- lowers it again, which is what enqueues the next one.
 local function batteryPickLoadStep(self)
   local pick = self.state.batteryPick
   pick.loaded = true
@@ -1779,11 +1792,19 @@ local function batteryPickLoadStep(self)
   if type(BatteryPick) ~= "table" then return true end
 
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-  local list = BatteryPick.candidates(session)
-  local cfg = self.state.battery_config
-  for i = 1, #list do
-    list[i].targetProfile = BatteryPick.targetProfile(list[i], cfg)
+  -- Held on `pick` only between steps that returned: a step that raises leaves nothing behind
+  -- for the latch to keep alive.
+  local load = pick.load or BatteryPick.newLoad(session, self.state.battery_config)
+  pick.load = nil
+  if not BatteryPick.loadStep(load) then
+    pick.load = load
+    pick.loaded = false
+    return true
   end
+  -- The index before the list: a step stopped between the two then shows no packs yet, rather than
+  -- packs a pick could not find.
+  local list = load.packs
+  pick.byId = load.byId
   pick.candidates = list
 
   local id = BatteryPick.selectedId(session)
@@ -2035,13 +2056,21 @@ local function stampOfEither(path)
   return ok and stampOf(info) or nil
 end
 
-local function preferencesStamp(modelPath)
+-- `keptStamp` is the stamp last adopted. The per-model half is the file of the board this session
+-- identified, and a link that goes takes the board's id with it: the half then has no file to
+-- stat, but nothing on the card changed. That half is unknown, not changed, so the kept one
+-- stands in for it and the global half is compared like with like until a model file can be
+-- addressed again.
+local function preferencesStamp(modelPath, keptStamp)
   if type(fstat) ~= "function" then return nil end
 
   local globalStamp = stampOfEither(preferencesFile())
   if not globalStamp then return nil end
 
-  if not modelPath then return globalStamp end
+  if not modelPath then
+    local kept = type(keptStamp) == "string" and string.match(keptStamp, "|(.+)$") or nil
+    return kept and (globalStamp .. "|" .. kept) or globalStamp
+  end
 
   local modelStamp = stampOfEither(modelPath)
   if not modelStamp then return nil end
@@ -2110,10 +2139,20 @@ end
 -- language is such a setting, and without this the theme's t(), the object layer's title
 -- normaliser and the widget's own context below each keep answering with the language the widget
 -- started with -- the object layer's memo had no invalidation at all until this.
-local function invalidateLocale()
+--
+-- `prefs` is the radio-wide settings the reload has just read. The language they resolve to is
+-- handed to the memo as it is dropped, so the context built next does not read the same file a
+-- second time to find it. Resolved for "en", the default buildI18nContext asks with: the memo
+-- answers only a caller with the same default, so the two must stay the same.
+local function invalidateLocale(prefs)
   local mod = localeModule()
   if mod and type(mod.invalidateLanguage) == "function" then
-    pcall(mod.invalidateLanguage)
+    local resolved = nil
+    if type(prefs) == "table" and type(mod.resolveFromPreferences) == "function" then
+      local ok, lang = pcall(mod.resolveFromPreferences, prefs, "en")
+      if ok then resolved = lang end
+    end
+    pcall(mod.invalidateLanguage, resolved, "en")
   end
 end
 
@@ -2145,12 +2184,15 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- that is not a stamp difference -- the sequence file, a forced caller -- leaves it nil and
   -- both files are read, because those signals do not name a file.
   local halves = nil
-  if not force and (now - (self._lastPrefsStatAt or 0)) >= PREFS_STAT_INTERVAL then
+  -- A change already found and waiting for its reload is not looked for again: the reload stats
+  -- the files once when it runs (below) and adopts that stamp, so a stat and a log line every
+  -- second of a deferral would only find the same difference again.
+  if not force and not self._reloadPending and (now - (self._lastPrefsStatAt or 0)) >= PREFS_STAT_INTERVAL then
     self._lastPrefsStatAt = now
     -- The per-model file's path lives on the session rather than on `self` -- the same
     -- shape this file already uses to reach `modelPreferences` twice further down.
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-    local stamp = preferencesStamp(session and session.modelPreferencesFile)
+    local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
     if stamp then
       currentStamp = stamp
       if self._lastPrefsStamp == nil then
@@ -2204,8 +2246,14 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     end
   end
 
+  -- A signal that names no file (the sequence file alone, a stamp that cannot say which half
+  -- moved) is remembered as such: a deferred reload does not stat again before it runs, and the
+  -- stamp it takes then would see only a later change -- a model save while it waited -- and read
+  -- that file alone, losing the change nobody could attribute. The reload request's sizes seen
+  -- here are kept with it, for the same question about a save made while the reload waits.
   if signalReload then
-    self._reloadPending = true
+    self._reloadPending = (halves == nil or self._reloadPending == "both") and "both" or true
+    self._pendingSeqs = currentSeqs
   end
 
   if not force and not signalReload and not self._reloadPending then
@@ -2225,11 +2273,54 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     return
   end
 
+  -- While the link is up and its UID read has no outcome yet, the per-model half has no board to
+  -- load by: run now, it would adopt the stamp without that half, and the model's file appearing
+  -- once the UID is read would signal a second full reload and another theme build. Kept pending
+  -- instead, it runs once, with both halves, on the first pass after the read has settled. The
+  -- MSP runtime's own flags, not this widget's, because this runs before updateConnectionState()
+  -- has looked at the link on this pass.
+  if not force and MspRuntime and type(MspRuntime.isFblConnected) == "function"
+    and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+    local msp = MspRuntime.getState()
+    if type(msp) == "table" and msp.uidReadSettled == false then
+      logGv("reloadPreferencesIfNeeded: deferred until the UID read settles (pending=%s)", tostring(self._reloadPending))
+      return
+    end
+  end
+
   if isBackground and not force then
     -- During background passes (when widget is off-screen), defer heavy file I/O and theme
     -- compilation until widget returns to screen (refresh pass) to avoid EdgeTX CPU limit faults.
     logGv("reloadPreferencesIfNeeded: deferred due to background pass (pending=%s)", tostring(self._reloadPending))
     return
+  end
+
+  -- A change found on an earlier pass and deferred since: this pass did not stat, so which files
+  -- moved is taken now, once, against the stamp last adopted -- never against the one seen when
+  -- the change was found, because a second change in the other file while it waited must be
+  -- read too (both halves then differ and both are read). Taken before the reads, the stamp
+  -- adopted below cannot cover a write that lands during them; such a write is found again on
+  -- the next stat. A change that named no file when it was found reads both, whatever moved since,
+  -- and so does one where the reload request moved again while it waited: such a save names no
+  -- file either (a radio setting whose file kept its size and time). The sizes read for that are
+  -- the ones adopted below.
+  if not force and currentStamp == nil and self._reloadPending then
+    if self._reloadPending ~= "both" and type(fstat) == "function" and type(self._pendingSeqs) == "table" then
+      local reqPaths = reloadRequestPaths()
+      currentSeqs = {}
+      for i = 1, #reqPaths do
+        local ok, info = pcall(fstat, reqPaths[i])
+        local seq = (ok and type(info) == "table" and (info.size or 0) > 0) and info.size or 0
+        currentSeqs[reqPaths[i]] = seq
+        if seq ~= self._pendingSeqs[reqPaths[i]] then self._reloadPending = "both" end
+      end
+    end
+    local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+    local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
+    if stamp then
+      currentStamp = stamp
+      if self._reloadPending ~= "both" then halves = changedHalves(self._lastPrefsStamp, stamp) end
+    end
   end
 
   logGv("reloadPreferencesIfNeeded executing (force=%s signal=%s pending=%s armed=%s)", tostring(force), tostring(signalReload), tostring(self._reloadPending), tostring(self.state and self.state.armed))
@@ -2243,6 +2334,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   self.built = false
   self.renderKey = nil
   self._cachedRenderKey = nil
+  self._renderKeyCached = nil
   self.lastModelPreferences = nil
   self.lastModelPrefsSignature = nil
   -- Clear self.modelPreferences NOW, before the disk reads below. reloadActiveTheme
@@ -2256,12 +2348,24 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- writers, and a save made from the settings screen touches the per-model one alone -- so
   -- re-reading the global file with it is a parse of bytes that have not changed, and that parse
   -- is the expensive half by a wide margin. Where the signal does not name a file -- a forced
-  -- caller, the sequence file, a shape change in the stamp -- `halves` is nil and both are read,
+  -- caller, the sequence file alone, a shape change in the stamp -- `halves` is nil and both are read,
   -- which is what this function always did.
   local doGlobal = (halves == nil) or halves.global
   local doModel = (halves == nil) or halves.model
   if not (doGlobal and doModel) then
     logGv("reloadPreferencesIfNeeded: reading global=%s model=%s", tostring(doGlobal), tostring(doModel))
+  end
+
+  -- Without a board id there is no per-model file to read: the link is down, or this link's board
+  -- has not identified itself. Clearing the model's preferences then would leave nothing in their
+  -- place, and the theme would fall back to the radio's and release the model's. The connect edge
+  -- drops them for a new board; a forced reload still reads both halves as before.
+  if doModel and not force then
+    local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+    if not (session and session.mcu_id) then
+      doModel = false
+      logGv("reloadPreferencesIfNeeded: no session.mcu_id, the model's preferences are kept")
+    end
   end
 
   -- Cleared only where it is about to be re-read. reloadActiveTheme reads self.modelPreferences
@@ -2282,7 +2386,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     -- context below is built from the language as it is now and not from the one just dropped.
     -- Gated on doGlobal because a save made from the settings screen can touch the per-model file
     -- alone, and that file carries no language.
-    invalidateLocale()
+    invalidateLocale(prefs)
     local ctx = buildI18nContext()
     if ctx then
       self.i18n = ctx
@@ -2333,7 +2437,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     self._lastPrefsStamp = currentStamp
   else
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-    local stamp = preferencesStamp(session and session.modelPreferencesFile)
+    local stamp = preferencesStamp(session and session.modelPreferencesFile, self._lastPrefsStamp)
     if stamp then self._lastPrefsStamp = stamp end
   end
 
@@ -2353,6 +2457,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   end
 
   self._reloadPending = nil
+  self._pendingSeqs = nil
   self.preferencesLastLoadedAt = now
   return true
 end
@@ -2792,7 +2897,7 @@ end
 
 local function loadDashboardLib()
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/app/pages/settings/dashboard/lib.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/app/pages/settings/dashboard/lib.lua", mode)
   if not chunk then return nil end
   local ok, lib = pcall(chunk)
   if not ok or type(lib) ~= "table" then return nil end
@@ -2801,7 +2906,7 @@ end
 
 local function loadDashboardEngine()
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/engine.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/widgets/dashboard/engine.lua", mode)
   if not chunk then return nil end
   local ok, engine = pcall(chunk)
   if not ok or type(engine) ~= "table" then return nil end
@@ -4190,6 +4295,7 @@ function Runtime.new(zone, options)
       self.built = false
       self.renderKey = nil
       self._cachedRenderKey = nil
+      self._renderKeyCached = nil
       -- refresh() computes the render key under a 2 Hz throttle and hands on the cached key while
       -- it is closed, which is nil now; a scene queued under that would be built again once the
       -- throttle computed the real key. Opening it keys the scene on the new bounds in this pass.
@@ -4319,87 +4425,13 @@ function Runtime.new(zone, options)
     logVoltageThemeDecision(self, "normalize", cells, currentConfig.v_min, currentConfig.v_max, nextConfig.v_min, nextConfig.v_max)
   end
 
-  local function reloadActiveTheme(self)
-    -- A reload carried over from a telemetry read pass is answered by this one, whoever called
-    -- it. Cleared first, so a load that raises is retried by the same tests as it was before.
-    self._themeReloadPending = nil
-    local modelPrefs = self.modelPreferences or (type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.session) == "table" and _G.rfsuite.session.modelPreferences) or nil
-    local dashboardPrefs = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
-    local selectedTheme = themePathFor(self, dashboardPrefs, modelPrefs, self.flightMode)
-    -- The same model that supplies the offline theme supplies its settings. The memo is already
-    -- retained by noteModelTheme and is cleared on reconnect; it never enters the new session.
-    if themePrefs(modelPrefs) == nil and (self.flightMode == "postflight" or self.flightMode == "offline") then
-      modelPrefs = self._modelThemePrefs
-    end
-    local nextConfig = {}
-    if self.dashboardLib and self.dashboardLib.getThemeConfig then
-      nextConfig = self.dashboardLib.getThemeConfig(self.preferences, selectedTheme, {}, modelPrefs)
-    end
-
-    local hasCustomVoltage = (nextConfig.v_min ~= nil or nextConfig.v_max ~= nil)
-    nextConfig.v_min = tonumber(nextConfig.v_min) or 18.0
-    nextConfig.v_max = tonumber(nextConfig.v_max) or 25.2
-    nextConfig._customVoltage = hasCustomVoltage
-
-    self.themePath = selectedTheme
-    -- Before the new theme loads, so the one being left is not held beside it for longer than
-    -- this widget still has it on screen. Only on a change of folder: a phase change within one
-    -- theme, or a settings save, releases nothing, and pays one string comparison.
-    if selectedTheme ~= self._themeFolderPath then
-      local folder = themeFolderKey(selectedTheme)
-      if self._themeFolder ~= nil and folder ~= self._themeFolder then releaseUnusedThemes(self) end
-      self._themeFolder, self._themeFolderPath = folder, selectedTheme
-    end
-    self.state.themeConfig = nextConfig
-    updateVoltageThemeConfig(self)
-    -- The announcements' levels, for a theme to colour the same readings by. Resolved here, with
-    -- the theme configuration and before the theme loads, because a box reads a level once when it
-    -- is built: saving the announcement settings reloads the preferences, which tears the theme
-    -- down and brings the next pass here. Read-only for the theme; a fresh table per reload.
-    if DashboardAudio and type(DashboardAudio.alertLevels) == "function" then
-      self.state.alerts = DashboardAudio.alertLevels(self.preferences and self.preferences.audio_events,
-        self.audioState)
-    end
-    -- The phase key, and the key every other phase resolves to for this theme, are kept so that
-    -- the pass below can compare MODULES rather than phase names: a phase change that resolves
-    -- to the module already on screen is not a reason to tear the scene down.
-    local declares
-    self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
-    self.themeStateKeys = themeStateKeys(declares)
+  -- The second half of a theme load: the pilot's field choices on the module just loaded, the
+  -- readings its boxes and declarations name, and the first snapshot of them. A switch of theme in
+  -- the background work runs it on a later logic tick than the module's own (reloadActiveTheme): the
+  -- two halves are the largest pieces of a theme switch, and in one widget call, beside the connect
+  -- chain that brings a model's own theme in, they come near the instruction limit.
+  local function finishThemeLoad(self, nextConfig)
     applyFieldChoices(self.theme, self.themeStateKey or self.flightMode, nextConfig)
-
-    -- A theme of the pilot's own may read the flight record under the names it carried before it
-    -- moved to the session table. The mapping goes on HERE -- with the theme, in the same call,
-    -- ahead of the build below that is the first thing to read it -- rather than on a later pass,
-    -- where that first build would see nothing. A radio running the shipped themes never reaches
-    -- this: the mapping answers every read of a key the state table does not hold, which is not
-    -- free, and no shipped theme asks for one.
-    if not self.flightCompat and parseThemePath(selectedTheme) ~= "system" then
-      self.flightCompat = true
-      buildCompatNames()
-      setmetatable(self.state, stateCompatMeta)
-    end
-
-    self.built = false
-    self.renderKey = nil
-    -- The scene is to be keyed on the module this call has just loaded. refresh() copies the phase
-    -- onto the state only at the top of a pass, and the 2 Hz throttle may hand back the key of the
-    -- previous module; a scene queued under that key is built again once the throttle computes
-    -- the new one. So the two fields refresh() copies are written here too, and the throttle is
-    -- opened, which makes the next key computed the new module's. The cached key is left alone:
-    -- the throttle overwrites it, and a surface that takes the throttle first falls back to it.
-    self.state.flightMode = self.flightMode
-    self.state.themePhase = self.themeStateKey or self.flightMode
-    self._lastUIRefresh = 0
-    -- A pending job may belong to the theme just torn down; drop it. The next STATE
-    -- pass re-detects and enqueues a build against the new theme, in a pass of its own.
-    self._job = nil
-    -- And every job gets its tries back: what raised may have been the theme just replaced.
-    self._jobFaults = {}
-
-    logGv("reloadActiveTheme: flightMode=%s, selectedTheme=%s, loadedTheme=%s, v_min=%.1f, v_max=%.1f, customV=%s",
-      tostring(self.flightMode), tostring(selectedTheme), tostring(self.theme ~= nil),
-      nextConfig.v_min, nextConfig.v_max, tostring(hasCustomVoltage))
 
     local sources = {}
     if self.theme then
@@ -4472,6 +4504,119 @@ function Runtime.new(zone, options)
     if DerivedSnapshot and type(DerivedSnapshot.build) == "function" then
       DerivedSnapshot.build(self.state, self.boxSources)
     end
+  end
+
+  local function reloadActiveTheme(self, staged)
+    -- A reload carried over from a telemetry read pass is answered by this one, whoever called
+    -- it. Cleared first, so a load that raises is retried by the same tests as it was before. So is
+    -- the second half of a staged load: this load replaces the module it was for.
+    self._themeReloadPending = nil
+    self._themeSourcesPending = nil
+    -- The wait for this link's UID read (see the pass below) holds for every caller, the
+    -- constructor at the end of Runtime.new included: EdgeTX builds every dashboard again when it
+    -- loads the screens' layout again -- a model selected, the screens edited -- and the link and
+    -- the MSP runtime, which all dashboards on the radio share, carry on through that. An instance
+    -- built while the read has no outcome resolves nothing; it has no theme, and its first pass
+    -- takes the reload through the same wait. Below the line above, so a carried reload does not
+    -- hold the splash back. Such an instance has not loaded a theme yet, so its first load is
+    -- marked as a change of folder (`false`): the release below then drops what the widget it
+    -- replaced held and no widget uses any more, as the constructor's own load would have led to.
+    if MspRuntime and type(MspRuntime.isFblConnected) == "function"
+      and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+      local msp = MspRuntime.getState()
+      if type(msp) == "table" and msp.uidReadSettled == false then
+        self.theme = nil
+        if self._themeFolder == nil then self._themeFolder = false end
+        return
+      end
+    end
+    local modelPrefs = self.modelPreferences or (type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.session) == "table" and _G.rfsuite.session.modelPreferences) or nil
+    local dashboardPrefs = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
+    local selectedTheme = themePathFor(self, dashboardPrefs, modelPrefs, self.flightMode)
+    -- The same model that supplies the offline theme supplies its settings. The memo is already
+    -- retained by noteModelTheme and is cleared on reconnect; it never enters the new session.
+    if themePrefs(modelPrefs) == nil and (self.flightMode == "postflight" or self.flightMode == "offline") then
+      modelPrefs = self._modelThemePrefs
+    end
+    local nextConfig = {}
+    if self.dashboardLib and self.dashboardLib.getThemeConfig then
+      nextConfig = self.dashboardLib.getThemeConfig(self.preferences, selectedTheme, {}, modelPrefs)
+    end
+
+    local hasCustomVoltage = (nextConfig.v_min ~= nil or nextConfig.v_max ~= nil)
+    nextConfig.v_min = tonumber(nextConfig.v_min) or 18.0
+    nextConfig.v_max = tonumber(nextConfig.v_max) or 25.2
+    nextConfig._customVoltage = hasCustomVoltage
+
+    self.themePath = selectedTheme
+    -- Before the new theme loads, so the one being left is not held beside it for longer than
+    -- this widget still has it on screen. Only on a change of folder: a phase change within one
+    -- theme, or a settings save, releases nothing, and pays one string comparison.
+    local switching = false
+    if selectedTheme ~= self._themeFolderPath then
+      local folder = themeFolderKey(selectedTheme)
+      switching = folder ~= self._themeFolder
+      if self._themeFolder ~= nil and switching then releaseUnusedThemes(self) end
+      self._themeFolder, self._themeFolderPath = folder, selectedTheme
+    end
+    self.state.themeConfig = nextConfig
+    updateVoltageThemeConfig(self)
+    -- The announcements' levels, for a theme to colour the same readings by. Resolved here, with
+    -- the theme configuration and before the theme loads, because a box reads a level once when it
+    -- is built: saving the announcement settings reloads the preferences, which tears the theme
+    -- down and brings the next pass here. Read-only for the theme; a fresh table per reload.
+    if DashboardAudio and type(DashboardAudio.alertLevels) == "function" then
+      self.state.alerts = DashboardAudio.alertLevels(self.preferences and self.preferences.audio_events,
+        self.audioState)
+    end
+    -- The phase key, and the key every other phase resolves to for this theme, are kept so that
+    -- the pass below can compare MODULES rather than phase names: a phase change that resolves
+    -- to the module already on screen is not a reason to tear the scene down.
+    local declares
+    self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
+    self.themeStateKeys = themeStateKeys(declares)
+
+    -- A theme of the pilot's own may read the flight record under the names it carried before it
+    -- moved to the session table. The mapping goes on HERE -- with the theme, in the same call,
+    -- ahead of the build below that is the first thing to read it -- rather than on a later pass,
+    -- where that first build would see nothing. A radio running the shipped themes never reaches
+    -- this: the mapping answers every read of a key the state table does not hold, which is not
+    -- free, and no shipped theme asks for one.
+    if not self.flightCompat and parseThemePath(selectedTheme) ~= "system" then
+      self.flightCompat = true
+      buildCompatNames()
+      setmetatable(self.state, stateCompatMeta)
+    end
+
+    self.built = false
+    self.renderKey = nil
+    -- The scene is to be keyed on the module this call has just loaded. refresh() copies the phase
+    -- onto the state only at the top of a pass, and the 2 Hz throttle may hand back the key of the
+    -- previous module; a scene queued under that key is built again once the throttle computes
+    -- the new one. So the two fields refresh() copies are written here too, and the throttle is
+    -- opened, which makes the next key computed the new module's. The cached key is left alone:
+    -- the throttle overwrites it, and a surface that takes the throttle first falls back to it.
+    self.state.flightMode = self.flightMode
+    self.state.themePhase = self.themeStateKey or self.flightMode
+    self._lastUIRefresh = 0
+    -- A pending job may belong to the theme just torn down; drop it. The next STATE
+    -- pass re-detects and enqueues a build against the new theme, in a pass of its own.
+    self._job = nil
+    -- And every job gets its tries back: what raised may have been the theme just replaced.
+    self._jobFaults = {}
+
+    logGv("reloadActiveTheme: flightMode=%s, selectedTheme=%s, loadedTheme=%s, v_min=%.1f, v_max=%.1f, customV=%s",
+      tostring(self.flightMode), tostring(selectedTheme), tostring(self.theme ~= nil),
+      nextConfig.v_min, nextConfig.v_max, tostring(hasCustomVoltage))
+
+    -- Staged where the theme changes folder, which is where the shared modules of the new theme
+    -- are read as well: the rest waits for the next logic tick, and refresh() queues no scene
+    -- before it. A phase change within one theme loads its phase module alone, and runs through.
+    if staged and switching then
+      self._themeSourcesPending = nextConfig
+      return
+    end
+    finishThemeLoad(self, nextConfig)
   end
 
   local function performBackgroundWork(self, isBackground)
@@ -4658,6 +4803,7 @@ function Runtime.new(zone, options)
       self.built = false
       self.renderKey = nil
       self._cachedRenderKey = nil
+      self._renderKeyCached = nil
       self._job = nil
       if Sensors and type(Sensors.reset) == "function" then
         Sensors.reset()
@@ -4760,11 +4906,26 @@ function Runtime.new(zone, options)
     -- it already has on screen, and a rebuild there would be a torn-down LVGL tree for no
     -- visible difference -- once per arm, and again on every link transition after a flight.
     local modeChanged = (nextMode ~= self.flightMode)
-    local wantReload = self._themeReloadPending == true
+    local wantReload = self._themeReloadPending ~= nil
       or selectedTheme ~= self.themePath
       or modelPrefsChanged
       or not self.theme
       or (modeChanged and self.themeStateKeys[nextMode] ~= self.themeStateKey)
+
+    -- On a reconnect the edge above has dropped the model's preferences, and until this link's UID
+    -- read has an outcome there is no board to load them by. A theme resolved in that window lands
+    -- on the radio's theme, releases the model's from the module cache (releaseUnusedThemes), and
+    -- the model's theme is read from the card and built again seconds later, when the UID arrives.
+    -- So nothing is resolved until the read has settled -- answered, given up after its retries, or
+    -- not possible on this link; the MSP runtime clears the flag whenever the link goes down or
+    -- comes up, so it is this link's. The splash stands meanwhile. A read that cannot go out does
+    -- not settle: arming takes it off the queue and MSP sends nothing more before the disarm, so a
+    -- model armed before its UID was read keeps the splash until the disarm, when the read is sent
+    -- again and settles.
+    if wantReload and isFblConnected and MspRuntime and type(MspRuntime.getState) == "function" then
+      local msp = MspRuntime.getState()
+      if type(msp) == "table" and msp.uidReadSettled == false then wantReload = false end
+    end
 
     -- A theme reload does not share a pass with the telemetry read: the two are the largest
     -- pieces of state work this runtime has, and on connect they land together with the connect
@@ -4775,16 +4936,33 @@ function Runtime.new(zone, options)
     -- next tick is normally not a read pass (the read runs every TELEMETRY_READ_SECONDS, the tick
     -- every LOGIC_TICK_SECONDS), but where passes come further apart than the read interval every
     -- tick reads, and a carried reload then runs anyway rather than waiting for ever.
-    if wantReload and readThisPass and self._themeReloadPending ~= true then
-      self._themeReloadPending = true
+    --
+    -- Nor does it share a pass with the read of the model's preferences that asks for it: at
+    -- connect the board's UID answer brings them in inside the MSP tick above, and a model with a
+    -- theme of its own then has its preferences read, the radio's theme released and the model's
+    -- loaded in one widget call. Carried the same way, once, and marked as such, so that the tick it
+    -- is carried to may still carry it off a read pass.
+    if wantReload and ((readThisPass and self._themeReloadPending ~= true)
+        or (modelPrefsChanged and self._themeReloadPending == nil)) then
+      self._themeReloadPending = (readThisPass and self._themeReloadPending ~= true) or "preferences"
       -- As the reload itself would: a job already queued belongs to the theme being replaced. In
       -- a foreground pass none is (a job pass never reaches this function), but widget.background
       -- runs this work whatever is queued.
       self._job = nil
     else
       self.flightMode = nextMode
+      -- A switch of theme is staged over two logic ticks: the theme's module on this one, its field
+      -- choices, readings and first snapshot on the next (finishThemeLoad). A reload that falls
+      -- due before the second half has run replaces it. The second half moves off a telemetry read
+      -- by the rule the announcements follow above: it waits one tick where this tick reads and the
+      -- next will not. Where every tick reads (ticks half a second or more apart) it runs beside the
+      -- read rather than wait without end.
       if wantReload then
-        reloadActiveTheme(self)
+        reloadActiveTheme(self, true)
+      elseif self._themeSourcesPending and not (readThisPass and sinceLastTick < TELEMETRY_READ_SECONDS) then
+        local config = self._themeSourcesPending
+        self._themeSourcesPending = nil
+        finishThemeLoad(self, config)
       end
     end
     
@@ -4814,6 +4992,7 @@ function Runtime.new(zone, options)
     self.built = false
     self.renderKey = nil
     self._cachedRenderKey = nil
+    self._renderKeyCached = nil
     self._lastUIRefresh = 0
     -- Reporting starts over, which is what makes switching tracing on mid-session work: changing
     -- the debug level rewrites the settings file, which reloadPreferencesIfNeeded watches,
@@ -5170,7 +5349,17 @@ function Runtime.new(zone, options)
       local Views = viewsModule()
       explicitView = Views ~= nil and Views.top(self) ~= nil
     end
-    if not ready and self.flightMode ~= "postflight" and self.flightMode ~= "offline" and not explicitView and not tuningMode then
+    -- Past its soft timeout the splash counts as ready, but while this link's UID read has no
+    -- outcome no theme is resolved (performBackgroundWork), so there is nothing else to draw: the
+    -- splash stays, and is built again for the full screen and back as it was before the timeout.
+    local uidWait = false
+    if ready and not self.theme and not tuningMode and MspRuntime and type(MspRuntime.isFblConnected) == "function"
+      and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
+      local msp = MspRuntime.getState()
+      uidWait = type(msp) == "table" and msp.uidReadSettled == false
+    end
+    if (not ready or uidWait) and self.flightMode ~= "postflight" and self.flightMode ~= "offline"
+      and not explicitView and not tuningMode then
       local statusLine = self.statusLine or "Please wait..."
       -- Full screen and the zone are two splashes, because only the first carries the tool control.
       local fullscreenSplash = event ~= nil
@@ -5210,8 +5399,9 @@ function Runtime.new(zone, options)
 
     -- A theme reload that fell on a read pass waits for the next logic tick; the deferral itself
     -- is in performBackgroundWork. Queuing a scene job here would build against the theme that
-    -- reload is about to replace, and run ahead of it. widget.background queues no scene jobs.
-    if self._themeReloadPending and not tuningMode then
+    -- reload is about to replace, and run ahead of it. widget.background queues no scene jobs. The
+    -- same holds between the two halves of a staged load: the module is in, its readings are not.
+    if (self._themeReloadPending or self._themeSourcesPending) and not tuningMode then
       self._passEndAt = nowSeconds()
       return
     end
@@ -5296,7 +5486,12 @@ function Runtime.new(zone, options)
       -- Throttle dashboard rendering to max 2Hz (0.5s) to save CPU
       if not self._lastUIRefresh then self._lastUIRefresh = 0 end
       local now = nowSeconds()
-      if (now - self._lastUIRefresh) >= 0.5 then
+      -- A key an invalidation dropped (applyThemeConfig, a reload: `_renderKeyCached` cleared) is
+      -- computed at once rather than handed on, since another surface -- the full-screen theme,
+      -- the tuning surface -- may have spent the throttle since, and a scene queued under nil is
+      -- built again as soon as the throttle next opens. The flag, not the value, says whether the
+      -- key was computed: a theme without a key of its own computes nil, and stays on 2 Hz.
+      if (now - self._lastUIRefresh) >= 0.5 or not self._renderKeyCached then
         self._lastUIRefresh = now
         local newKey = nil
         if type(self.theme.renderKey) == "function" then
@@ -5305,6 +5500,7 @@ function Runtime.new(zone, options)
           newKey = self.dashboardEngine.renderKey(self.state, self.boxSources)
         end
         self._cachedRenderKey = newKey
+        self._renderKeyCached = true
       end
       nextRenderKey = self._cachedRenderKey
     end
@@ -5376,11 +5572,58 @@ function Runtime.new(zone, options)
     -- The battery prompt's own work, last and only into a free slot: the registry read and the
     -- pick both touch the card, and neither is worth delaying a build for. The steady state
     -- past the load is three table reads. Both are one-shot jobs (see the dispatcher): neither is
-    -- armed on `built`, and each clears what arms it before it can raise.
+    -- armed on `built`, and each clears what arms it before it can raise. A pick is applied only
+    -- once the load has published the list -- also a pick requested before the load's first step,
+    -- through rfsuite.batteryPick: the pick looks its pack up in that list, and would otherwise
+    -- find no pack and write no profile. A load that is held but latched -- a step stopped by the
+    -- instruction limit after it was handed back -- is never continued, so it is let go here and
+    -- holds no pick up.
     if self._job == nil then
-      if self._batteryPickRequest ~= nil then
-        self._job = { kind = "battery_pick_apply", step = batteryPickApplyStep, oneShot = true }
-      elseif self.state.batteryPick.loaded ~= true and self.state.tasksDone == true then
+      local pick = self.state.batteryPick
+      if pick.load ~= nil and pick.loaded == true then pick.load = nil end
+      if self._batteryPickRequest ~= nil and pick.loaded == true then
+        -- The pick saves the model's store, and the save moves the reload request so that the
+        -- tool and every other widget read the store again. This dashboard already holds what
+        -- the pick writes -- the session's table, which it reads from -- so where the files stand
+        -- just before the save as it last saw them, it takes them as they stand just after it for
+        -- its own view, instead of reading the store back and resolving its theme again. Nothing
+        -- runs between the two looks (scripts run one after another), so a save made anywhere
+        -- else after the pick moves the files past that view and is reloaded like any save after
+        -- a look; one made since the last look leaves the files off it, and nothing is taken.
+        -- The look is the same one reloadPreferencesIfNeeded takes, once per pick.
+        self._job = { kind = "battery_pick_apply", oneShot = true, step = function(w)
+          local function look()
+            local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+            local stamp = preferencesStamp(session and session.modelPreferencesFile, w._lastPrefsStamp)
+            if not stamp then return nil end
+            local seqs, paths = {}, reloadRequestPaths()
+            for i = 1, #paths do
+              local ok, info = pcall(fstat, paths[i])
+              seqs[paths[i]] = (ok and type(info) == "table" and (info.size or 0) > 0) and info.size or 0
+            end
+            return stamp, seqs
+          end
+          -- Each look is protected: one that raises takes nothing, and never keeps the pick itself
+          -- from running (it is what takes the request off).
+          local seen = false
+          if not w._reloadPending and type(w._lastPrefsStamp) == "string" and type(w._lastReloadSeqs) == "table" then
+            local ok, stamp, seqs = pcall(look)
+            seen = ok and stamp ~= nil and stamp == w._lastPrefsStamp
+            for path, seq in pairs(seqs or {}) do
+              if w._lastReloadSeqs[path] ~= seq then seen = false end
+            end
+          end
+          local done = batteryPickApplyStep(w)
+          if seen then
+            local ok, stamp, seqs = pcall(look)
+            if ok and stamp then
+              w._lastPrefsStamp = stamp
+              for path, seq in pairs(seqs) do w._lastReloadSeqs[path] = seq end
+            end
+          end
+          return done
+        end }
+      elseif pick.loaded ~= true and self.state.tasksDone == true then
         self._job = { kind = "battery_pick_load", step = batteryPickLoadStep, oneShot = true }
       end
     end

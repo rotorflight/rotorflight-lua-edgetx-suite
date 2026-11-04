@@ -42,9 +42,10 @@ mkdir = function() return 0 end
 
 _G.rfsuite = {session = {apiVersion = {12,0,10}, signature = fc.identity, mcu_id = fc.uid},
   preferences = {audio_events = {adjustment_events = true, pid_profile = false, rate_profile = false}}}
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 rfsuite.require = function(path)
   if path == "lib/log.lua" then return {wanted = function() return false end} end
-  if path == "lib/audio.lua" then return {adjustmentAllowed = function() return true end,
+  if path == "lib/audio_playback.lua" then return {adjustmentAllowed = function() return true end,
     playEventFile = function(f) sounds[#sounds+1] = f end,
     playNumber = function(n) numbers[#numbers+1] = n end} end
   if path == "tasks/msp/runtime.lua" then return {getState = function() return msp end} end

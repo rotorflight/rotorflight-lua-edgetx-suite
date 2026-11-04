@@ -12,7 +12,7 @@ local M = {}
 local done = false
 
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if type(chunk) ~= "function" then return nil end
@@ -130,10 +130,12 @@ end
 -- for it. The header carries all 22 columns either way, so a partly filled row is a valid row
 -- of the format rather than a new one.
 --
--- Per-cell voltage needs a cell count, and the one already published in this Lua state is the
--- flight controller's battery configuration, which the `battery_config` event task keeps on the
--- session. Where that has not been read, the two per-cell columns stay empty rather than being
--- divided by a guess.
+-- Per-cell voltage needs a cell count. The flight record resolved one while the craft was armed
+-- -- the flight controller's configured count, or the telemetry count where the board is set to
+-- detect it (a configured 0) -- and closes the flight with it as `lastCells`, so nothing is read
+-- again here. Where the record has none, the configuration the `battery_config` event task keeps
+-- on the session answers, as before; where neither does, the two per-cell columns stay empty
+-- rather than being divided by a guess.
 --
 -- `sags` is `0` rather than empty where the record could watch the pack and saw nothing, and
 -- empty where it could not watch at all -- no cell count, or no minimum cell voltage from the
@@ -171,8 +173,11 @@ local function flightStats(session)
   put("hs3_min", record.minRpmP3)
   put("hs3_max", record.maxRpmP3)
 
-  local config = session.batteryConfig or session.battery_config
-  local cells = type(config) == "table" and tonumber(config.batteryCellCount) or nil
+  local cells = tonumber(flight.lastCells)
+  if cells == nil or cells <= 0 then
+    local config = session.batteryConfig or session.battery_config
+    cells = type(config) == "table" and tonumber(config.batteryCellCount) or nil
+  end
   if cells ~= nil and cells > 0 then
     if type(record.minVoltage) == "number" then put("vcel_min", record.minVoltage / cells) end
     if type(record.maxVoltage) == "number" then put("vcel_max", record.maxVoltage / cells) end

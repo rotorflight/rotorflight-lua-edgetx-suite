@@ -727,6 +727,68 @@ local function runPhaseScenario(themePath, armPad, disarmPad)
   return passes
 end
 
+--- A model with a dashboard theme of its own, different from the radio's, connected from cold.
+--
+-- Every other scenario here sets the radio's theme after the widget is built and has no model
+-- preferences on the card, so the theme the widget settles on is the one it started with. On a
+-- radio the model's own theme replaces the radio's when the board's preferences arrive with its
+-- UID, and that pass loads the preferences, releases the radio's theme and loads the model's in
+-- one widget call -- a pass no other row prices. So both stores are written to the card first,
+-- the widget is built on the radio's theme as on a radio, and the passes from the one that loads
+-- the model's preferences are counted: the switch, and the passes right after it.
+local SWITCH_WINDOW = 10
+local function runThemeSwitchScenario(radioTheme, modelTheme)
+  World.reset()
+  local Uid = World.require("tasks/msp/api/uid.lua")
+  local mcuId = Uid.parse(Uid.simulatorResponse).mcuId
+  local Preferences = World.require("lib/preferences.lua")
+  local prefs = Preferences.load()
+  prefs.dashboard = prefs.dashboard or {}
+  prefs.dashboard.theme_preflight = radioTheme
+  if Preferences.save(prefs) == false then error("accounting: the radio's preferences were not written") end
+  local ModelPreferences = World.require("lib/model_preferences.lua")
+  local saved, why = ModelPreferences.saveByMcuId(mcuId,
+    { dashboard = { overrides = true, model_theme_preflight = modelTheme } })
+  if not saved then error("accounting: the model's preferences were not written: " .. tostring(why)) end
+
+  -- A fresh world reads both stores off the card, as a radio switched on does.
+  World.reset()
+  local sensorIds = World.sensorIds
+  local Runtime = World.require("widgets/dashboard/runtime.lua")
+  local widget = Runtime.new(ZONE, {})
+  if widget.themePath ~= radioTheme then
+    error("accounting: the widget started on " .. tostring(widget.themePath) .. ", not on the radio's "
+      .. radioTheme)
+  end
+
+  local session = _G.rfsuite.session
+  local worst, worstAt, from, movedAt = 0, 0, nil, nil
+  for i = 1, 400 do
+    -- The window ends before its first pass past it runs, so a switch can only be counted, never
+    -- completed in a pass the row leaves out.
+    if from and i >= from + SWITCH_WINDOW then break end
+    feedLink(sensorIds, i)
+    local had = session.modelPreferences
+    local n = count(widget.refresh, widget, nil, nil)
+    if from == nil and had == nil and type(session.modelPreferences) == "table" then from = i end
+    if from then
+      if n > worst then worst, worstAt = n, i - from end
+      if movedAt == nil and widget.themePath == modelTheme then movedAt = i - from end
+    end
+  end
+  if from == nil then error("accounting: the model's preferences never arrived") end
+  if movedAt == nil or widget.themePath ~= modelTheme then
+    error("accounting: the widget did not move to the model's " .. modelTheme .. " within "
+      .. SWITCH_WINDOW .. " passes (" .. tostring(widget.themePath) .. ")")
+  end
+  -- The whole switch is inside the passes counted: the theme is loaded, and nothing of it is still
+  -- waiting for a later pass.
+  if widget.theme == nil or widget._themeReloadPending ~= nil or widget._themeSourcesPending ~= nil then
+    error("accounting: the switch to " .. modelTheme .. " did not finish within " .. SWITCH_WINDOW .. " passes")
+  end
+  return worst, worstAt
+end
+
 --- The worst pass and the sum of the passes `first`..`last` of one section of a phase run.
 local function phaseWindow(passes, tag, first, last)
   local w = { worst = 0, at = 0, read = false, sum = 0 }
@@ -1164,12 +1226,17 @@ end
 
 local function openToolPage(theme, menuId, pagePath, pad, counted, fault)
   local protocol, apiName
+  -- The ESC families' pages open behind a safety notice; the SRXL2 ESC page has none.
+  local safetyNotice = true
   if pagePath == TUNE_ADVISOR_PAGE then
     return openTuneAdvisorPage(theme, menuId, pagePath, pad, counted, fault)
   elseif pagePath == "setup/esc_motors/esc_tools/escmfg/flrtr/page.lua" then
     protocol, apiName = 10, "esc_parameters_flyrotor"
   elseif pagePath == "setup/esc_motors/esc_tools/escmfg/yge/page.lua" then
     protocol, apiName = 9, "esc_parameters_yge"
+  elseif pagePath == "setup/esc_motors/srxl2/page.lua" then
+    -- Lit only while the board reports ESC telemetry protocol 14 (SRXL2 from API 12.10).
+    protocol, apiName, safetyNotice = 14, "srxl2_esc_config", false
   else
     return openToolPageActual(theme, menuId, pagePath, pad, counted, fault)
   end
@@ -1184,11 +1251,16 @@ local function openToolPage(theme, menuId, pagePath, pad, counted, fault)
   sensorReply[1] = protocol
   FC.replies[sensorApi.command] = sensorReply
   FC.replies[escApi.command] = escApi.simulatorResponse
+  if not safetyNotice then
+    -- The SRXL2 ESC tile needs MSP API 12.10, and the simulator replies report 12.9.
+    local versionApi = assert(loadfile(API_DIR .. "/api_version.lua"))()
+    FC.replies[versionApi.command] = { 0, 12, 10 }
+  end
 
   -- A YGE read remembers its current limit in the model's preference file. Give these
   -- worlds their own card so a later page cannot inherit that saved limit or origin.
   Stubs.cardRoot = cardRoot .. "/esc-page"
-  local ok, page = pcall(openToolPageActual, theme, menuId, pagePath, pad, counted, fault, true)
+  local ok, page = pcall(openToolPageActual, theme, menuId, pagePath, pad, counted, fault, safetyNotice)
   -- Restore the shared replies and card even when opening the page fails.
   FC.replies = replies
   Stubs.releaseCard()
@@ -1722,6 +1794,34 @@ do
   if widest == nil then error("accounting: no API module carries both a payload and a parser") end
   addRow("unit.msp.parse.max", count(widest.parse, widest.simulatorResponse),
     widestFile .. ", " .. #widest.simulatorResponse .. " bytes")
+end
+
+-- The dashboard's preferences reload, forced, the half that reads the radio-wide settings: the file
+-- loaded, the language resolved and the widget's i18n context built again. It runs once per
+-- saved settings change, not per frame, and the pass it lands in is a STATE pass. The settings
+-- are written through the suite's own writer with no language chosen -- Automatic, the default --
+-- and the card is emptied again right after, because no other row reads a settings file. There
+-- is no board, so the per-model half reads nothing. Forced (widget.reload's way in) so that no
+-- stamp has to move first; a pass that finds a saved change runs the same reads.
+World.reset()
+do
+  local Preferences = World.require("lib/preferences.lua")
+  if not Preferences.save(Preferences.defaults()) then
+    error("accounting: the settings could not be written; the row would price a missing file")
+  end
+  local Runtime = World.require("widgets/dashboard/runtime.lua")
+  local widget = Runtime.new(ZONE, {})
+  local reload = nil
+  for i = 1, 255 do
+    local name, value = debug.getupvalue(widget.reload, i)
+    if name == nil then break end
+    if name == "reloadPreferencesIfNeeded" then reload = value break end
+  end
+  if type(reload) ~= "function" then
+    error("accounting: `reloadPreferencesIfNeeded` is no longer an upvalue of the widget's reload")
+  end
+  addRow("unit.preferences.reload", count(reload, widget, true), "forced, the radio-wide settings, Automatic")
+  Stubs.clearCard()
 end
 
 ------------------------------------------------------------------------------
@@ -2396,6 +2496,23 @@ do
     end
   end
   FC.unanswered = unanswered
+end
+
+-- The pass that moves a dashboard from the radio's theme to the model's own when the model's
+-- preferences arrive at connect, and the passes right after it (runThemeSwitchScenario). RF Status
+-- to Grid: a theme of boxes released for a free-form one, whose shared modules are read in the same
+-- load.
+--
+-- Last of the measurements, because it is the one that writes both preference stores to the card,
+-- and every world after it would read them; the card is emptied below before anything else runs.
+-- The flight controller's unanswered commands are kept as the page worlds left them, for the
+-- header's "answered empty" line.
+do
+  local unanswered = FC.unanswered
+  local worst, at = runThemeSwitchScenario("system/rfstatus", "system/grid")
+  FC.unanswered = unanswered
+  addRow("pass.connect.theme_switch", worst,
+    string.format("rfstatus to grid, worst of %d passes at +%d", SWITCH_WINDOW, at))
 end
 
 ------------------------------------------------------------------------------

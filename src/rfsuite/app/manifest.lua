@@ -1,5 +1,5 @@
-local SYSTEM_THEMES_PATH = "/SCRIPTS/TOOLS/rfsuite-core/widgets/dashboard/themes/"
-local USER_THEMES_PATH = "/SCRIPTS/TOOLS/rfsuite.user/dashboard/"
+local SYSTEM_THEMES_PATH = _G.rfsuite.paths.core .. "/widgets/dashboard/themes/"
+local USER_THEMES_PATH = _G.rfsuite.paths.user .. "/dashboard/"
 
 local function hexEncode(input)
   if type(input) ~= "string" then return "" end
@@ -240,7 +240,10 @@ local manifest = {
         { id = "telemetry", title = "@i18n(app.modules.esc_motors.telemetry)@", menuId = "setup_esc_motors_telemetry_page", icon = "@pages/setup/esc_motors/telemetry/icon.png", row = 1, col = 2, lockedWhileArmed = true },
         { id = "rpm", title = "@i18n(app.modules.esc_motors.rpm)@", menuId = "setup_esc_motors_rpm_page", icon = "@pages/setup/esc_motors/rpm/icon.png", row = 1, col = 3, lockedWhileArmed = true },
         { id = "esc_tools", title = "@i18n(app.modules.esc_motors.esc_tools)@", menuId = "esc_tools_menu", icon = "@pages/setup/esc_motors/esc_tools/icon.png", row = 1, col = 4, lockedWhileArmed = true },
-        { id = "motor_override", title = "@i18n(app.modules.esc_motors.motor_override)@", menuId = "setup_esc_motors_motor_override_page", icon = "@pages/setup/esc_motors/motor_override/icon.png", row = 1, col = 5, minApiVersion = { 12, 0, 9 }, lockedWhileArmed = true }
+        { id = "motor_override", title = "@i18n(app.modules.esc_motors.motor_override)@", menuId = "setup_esc_motors_motor_override_page", icon = "@pages/setup/esc_motors/motor_override/icon.png", row = 1, col = 5, minApiVersion = { 12, 0, 9 }, lockedWhileArmed = true },
+        -- The flight controller sets ESC telemetry protocol 14 (SRXL2 from API 12.10) itself
+        -- whenever a serial port carries the SRXL2 ESC function, which is when these settings apply.
+        { id = "srxl2", title = "@i18n(app.modules.esc_motors.srxl2)@", menuId = "setup_esc_motors_srxl2_page", icon = "@pages/setup/esc_motors/telemetry/icon.png", row = 2, col = 1, minApiVersion = { 12, 0, 10 }, enabledWhen = "escProto14", lockedWhileArmed = true }
       }
     },
     esc_tools_menu = {
@@ -680,6 +683,10 @@ local manifest = {
     },
     setup_esc_motors_motor_override_page = {
       title = "@i18n(app.modules.esc_motors.motor_override)@",
+      pages = {}
+    },
+    setup_esc_motors_srxl2_page = {
+      title = "@i18n(app.modules.esc_motors.srxl2)@",
       pages = {}
     },
     setup_esc_motors_esc_tools_page = {

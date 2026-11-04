@@ -103,6 +103,7 @@ local entries = {
   setup_esc_motors_telemetry_page = definePage("setup/esc_motors/telemetry"),
   setup_esc_motors_rpm_page = definePage("setup/esc_motors/rpm"),
   setup_esc_motors_motor_override_page = definePage("setup/esc_motors/motor_override"),
+  setup_esc_motors_srxl2_page = definePage("setup/esc_motors/srxl2"),
   setup_esc_motors_esc_tools_page = definePage("setup/esc_motors/esc_tools"),
   setup_esc_motors_esc_tools_am32_page = definePage("setup/esc_motors/esc_tools/escmfg/am32"),
   setup_esc_motors_esc_tools_blheli_s_page = definePage("setup/esc_motors/esc_tools/escmfg/blheli_s"),
@@ -232,7 +233,7 @@ local function loadPageModule(menuId)
     return nil
   end
 
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/app/pages/" .. entry.pagePath
+  local fullPath = _G.rfsuite.paths.core .. "/app/pages/" .. entry.pagePath
 
   -- Special cache for dashboard settings page: always cache by file path
   if entry.pagePath == "settings/dashboard/settings/page.lua" then
@@ -265,7 +266,7 @@ closePageModule = function(menuId, ctx)
     entry = entries.settings_dashboard_settings_page
   end
   if entry and entry.pagePath == "settings/dashboard/settings/page.lua" then
-    local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/app/pages/" .. entry.pagePath
+    local fullPath = _G.rfsuite.paths.core .. "/app/pages/" .. entry.pagePath
     local module = loadedByPagePath[fullPath]
     if type(module) == "table" then
       local hook = module.onClose or module.close or module.closePage or module.destroy

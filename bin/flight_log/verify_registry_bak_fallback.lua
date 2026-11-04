@@ -88,7 +88,7 @@ function loadScript(path)
   assert(relative == "lib/atomic_file.lua", "unexpected module: " .. tostring(path))
   return assert(loadfile("src/rfsuite/" .. relative))
 end
-_G.rfsuite = nil
+_G.rfsuite = { paths = dofile("src/rfsuite/lib/paths.lua") }
 
 local FlightLog = assert(loadfile("src/rfsuite/lib/flight_log.lua"))()
 local AtomicFile = assert(loadfile("src/rfsuite/lib/atomic_file.lua"))()

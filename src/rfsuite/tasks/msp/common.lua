@@ -2,7 +2,7 @@ local function loadTransport(protocol)
   if type(protocol) ~= "string" or protocol == "" then
     return nil
   end
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/tasks/msp/transports/" .. protocol .. ".lua"
+  local fullPath = _G.rfsuite.paths.core .. "/tasks/msp/transports/" .. protocol .. ".lua"
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local chunk = loadScript(fullPath, mode)
   if type(chunk) ~= "function" then return nil end
@@ -21,7 +21,7 @@ local function getEnv()
     if _G.rfsuite and _G.rfsuite.require then
       Env = _G.rfsuite.require("lib/env.lua") or false
     else
-      local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/env.lua", "t")
+      local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/env.lua", "t")
       local ok, mod = pcall(chunk)
       Env = (ok and type(mod) == "table") and mod or false
     end

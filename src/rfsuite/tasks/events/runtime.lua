@@ -14,7 +14,7 @@ local function loadModule(path)
   if _G.rfsuite and _G.rfsuite.require then
     return _G.rfsuite.require(path)
   end
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = loadScript(fullPath, "t")
   if type(chunk) ~= "function" then return nil end
   local ok, mod = pcall(chunk)
@@ -165,7 +165,7 @@ end
 local function loadPlain(path)
   local utils = _G.rfsuite and _G.rfsuite.utils
   local loader = utils and utils.loadScriptUncached or loadScript
-  local chunk = loader("/SCRIPTS/TOOLS/rfsuite-core/" .. path, (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
+  local chunk = loader(_G.rfsuite.paths.core .. "/" .. path, (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
   if type(chunk) ~= "function" then return false end
   local ok, mod = pcall(chunk)
   return ok and type(mod) == "table" and mod or false
@@ -450,6 +450,41 @@ function Events.getOnconnectPendingTaskName()
     return onconnect.getPendingTaskName()
   end
   return nil
+end
+
+-- Who is driving this runtime, by the time each driver last did.
+--
+-- The dashboard widget and the service widget both drive the background work -- the MSP tick, this
+-- runtime's wakeup and the card log -- and on a model that carries both they run in the one widget
+-- Lua state, where this module and everything it drives is a single instance. Driven by both, the
+-- work ran twice per tick. The dashboard marks each pass it drives, and the service widget stands
+-- down for as long as that mark is fresh. EdgeTX gives a widget no call when it is taken off a
+-- screen, so a widget that is gone can only be told apart from one that is running by the mark
+-- going stale; a registration such as the MSP runtime's client list stays behind it.
+--
+-- A plain table here is enough: both widgets read and write this one instance. The tool script
+-- runs in a Lua state of its own with an instance of its own, and nothing there marks.
+--
+-- How old a mark may be and still count as a running driver, in seconds. The dashboard marks on
+-- its logic tick, every 0.1 s (0.05 s while it connects), so five ticks in a row have to be
+-- missed before a running dashboard reads as gone. A take-over then comes 0.5 to 0.6 s after the
+-- last mark: inside the flight record's largest clock step (1.0 s, MAX_CLOCK_STEP in
+-- tasks/events/telemetry/flight_record.lua), so the flight clock is credited the whole gap, and
+-- well inside the card log's flush interval (3 s, lib/log_sink.lua).
+local DRIVER_STALE_SECONDS = 0.5
+local driverMarks = {}
+
+--- Record that `driver` is driving the background work on this pass.
+function Events.markDriving(driver)
+  driverMarks[driver] = nowSeconds()
+end
+
+--- True while `driver` has marked within DRIVER_STALE_SECONDS; false for a driver that never did.
+function Events.isDriving(driver)
+  local at = driverMarks[driver]
+  if at == nil then return false end
+  local age = nowSeconds() - at
+  return age >= 0 and age < DRIVER_STALE_SECONDS
 end
 
 --- One pass of the event runtime.

@@ -12,7 +12,7 @@
 -- the same step a tile press takes, and going back returns here.
 
 local function loadModule(path)
-  local fullPath = "/SCRIPTS/TOOLS/rfsuite-core/" .. path
+  local fullPath = _G.rfsuite.paths.core .. "/" .. path
   local chunk = assert(loadScript(fullPath, "t"))
   return chunk()
 end
@@ -142,7 +142,7 @@ local function saveModel(i18n)
   local session = getSession()
   -- A module that will not load answers as saveByMcuId does when it has no store: "unavailable".
   local ok, err = false, "unavailable"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/model_preferences.lua", "t")
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/model_preferences.lua", "t")
   if type(chunk) == "function" then
     local loaded, MP = pcall(chunk)
     if loaded and type(MP) == "table" and type(MP.saveByMcuId) == "function" then

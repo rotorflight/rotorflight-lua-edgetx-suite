@@ -70,8 +70,8 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 | Ports | [setup/ports.md](setup/ports.md) | yes | read-only while armed | written |
 | Mixer → Swash | `setup/mixer/swash.md` | no | read-only while armed | to write |
 | Mixer → Geometry | `setup/mixer/swashgeometry.md` | no | read-only while armed | to write |
-| Mixer → Tail | `setup/mixer/tail.md` | no | read-only while armed | to write |
-| Mixer → Trims | `setup/mixer/trims.md` | no | read-only while armed | to write |
+| Mixer → Tail | [setup/mixer/tail.md](setup/mixer/tail.md) | yes | read-only while armed | written |
+| Mixer → Trims | [setup/mixer/trims.md](setup/mixer/trims.md) | yes | read-only while armed | written |
 | Servos → PWM Output | `setup/servos/pwm.md` | no | read-only while armed | to write |
 | Servos → BUS Output | `setup/servos/bus.md` | no | read-only while armed | to write |
 | Controls → Modes | [setup/controls/modes.md](setup/controls/modes.md) | yes | read-only while armed | written |
@@ -103,6 +103,7 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 | ESC & Motors → ESC Tools → ZTW | [setup/esc_motors/esc_tools/escmfg/ztw.md](setup/esc_motors/esc_tools/escmfg/ztw.md) | no | read-only while armed, lit for one ESC telemetry protocol | written |
 | ESC & Motors → ESC Tools → ESC Configurator (the shared run page) | `setup/esc_motors/esc_tools/run.md` | no | read-only while armed | to write |
 | ESC & Motors → Motor Override | `setup/esc_motors/motor_override.md` | yes | read-only while armed, needs MSP API 12.09 | to write |
+| ESC & Motors → SRXL2 ESC | [setup/esc_motors/srxl2.md](setup/esc_motors/srxl2.md) | yes | read-only while armed, needs MSP API 12.10, lit for the SRXL2 ESC telemetry protocol | written |
 | Governor → General | [setup/governor/general.md](setup/governor/general.md) | yes | read-only while armed | written |
 | Governor → Ramp Time | [setup/governor/time.md](setup/governor/time.md) | yes | read-only while armed | written |
 | Governor → Filters | `setup/governor/filters.md` | yes | read-only while armed | to write |

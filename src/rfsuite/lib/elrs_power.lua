@@ -117,7 +117,7 @@ end
 local function configProvider()
   local config = type(_G) == "table" and _G.rfsuite and _G.rfsuite.elrs_config or nil
   if config or type(loadScript) ~= "function" then return config end
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/elrs_config.lua", "t")
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/elrs_config.lua", "t")
   if type(chunk) ~= "function" then return nil end
   local ok, loaded = pcall(chunk)
   if ok then return loaded end

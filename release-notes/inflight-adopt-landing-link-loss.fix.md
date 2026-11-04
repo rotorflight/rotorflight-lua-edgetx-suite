@@ -1,0 +1,2 @@
+- **In-flight tuning checks settings changed in the air again after a landing behind a link loss (`widgets/dashboard/inflight/drive.lua`)**:
+  - When the link was lost in the air and came back after the landing, settings changed during the flight were taken while the overlay still counted the flight, and it drove the channels on the ground before the setup check ran again; with trims in use it stayed that way, without reading the trims again. The landing is now taken first, and output waits for the trim read and the setup check (#823).

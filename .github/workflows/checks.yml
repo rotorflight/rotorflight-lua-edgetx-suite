@@ -70,11 +70,23 @@ jobs:
       - name: Silent ground profile selections
         run: lua5.3 bin/dashboard/verify_inflight_audio.lua
 
+      - name: In-flight settings adopted after a landing are checked first
+        run: lua5.3 bin/dashboard/verify_inflight_landing_resettle.lua
+
       - name: In-flight list picker and help limits
         run: lua5.3 bin/dashboard/verify_inflight_flightlist.lua
 
+      - name: Leaving in-flight tuning builds the dashboard once
+        run: lua5.3 bin/dashboard/verify_tuning_close_key.lua
+
+      - name: A preferences reload reads the radio-wide settings once
+        run: lua5.3 bin/dashboard/verify_reload_locale_once.lua
+
       - name: In-flight session and view lifetimes
         run: lua5.3 bin/dashboard/verify_inflight_lifetimes.lua
+
+      - name: In-flight slots that touch the tuning pair in part
+        run: lua5.3 bin/dashboard/verify_inflight_foreign_slots.lua
 
   startup-compile:
     # The configuration tool compiles the installed suite at start (src/rfsuite/lib/precompile.lua).
@@ -277,8 +289,20 @@ jobs:
           lua5.3 bin/themes/verify_voltage_save.lua
           lua5.3 bin/dashboard/verify_offline_theme_settings.lua
 
+      - name: Check the switch to a model's own theme over passes
+        run: lua5.3 bin/dashboard/verify_theme_switch_passes.lua
+
+      - name: Check the dashboard theme across a reconnect
+        run: lua5.3 bin/dashboard/verify_theme_reconnect.lua
+
+      - name: Check that a battery pick does not make its own dashboard reload
+        run: lua5.3 bin/dashboard/verify_battery_pick_own_write.lua
+
       - name: Check per-model reset rollback
         run: lua5.3 bin/dashboard/verify_overrides_reset.lua
+
+      - name: Check the battery prompt's registry load per pass
+        run: lua5.3 bin/dashboard/verify_battery_pick_passes.lua
 
       - name: Check dashboard tile choices and theme key pages
         run: lua5.3 bin/dashboard/verify_field_choices.lua
@@ -291,6 +315,9 @@ jobs:
 
       - name: Check dashboard standby integration
         run: lua5.3 bin/tests/dashboard_standby_integration_test.lua
+
+      - name: Check who drives the background work with dashboard and service widget
+        run: lua5.3 bin/dashboard/verify_background_driver.lua
 
       - name: Check shared ELRS configuration reads
         run: lua5.3 bin/tests/elrs_config_test.lua
@@ -400,6 +427,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_esc_parameters_pack.lua
       - run: lua5.3 bin/msp/verify_esc_readback_after_save.lua
+      - run: lua5.3 bin/msp/verify_srxl2_esc_config.lua
       - run: lua5.3 bin/ui/verify_confirm_dialog_no_retain.lua
 
   esc-yge-flag-bit3:
@@ -465,6 +493,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_armed_state.lua
+      - run: lua5.3 bin/msp/verify_uid_empty_retry.lua
 
   msp-resend-on-break:
     name: MSP resend on a broken reply
@@ -540,6 +569,8 @@ jobs:
       - run: lua5.3 bin/flight_log/verify_free_id.lua
       - run: lua5.3 bin/flight_log/verify_registry_bak_fallback.lua
       - run: lua5.3 bin/flight_log/verify_page_refusal_message.lua
+      - run: lua5.3 bin/flight_log/verify_battery_pick_load.lua
+      - run: lua5.3 bin/flight_log/verify_flight_log_cells.lua
 
   governor-effective-mode:
     name: Governor effective mode
@@ -589,6 +620,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/diagnostics/verify_elrs_probe_armed.lua
 
+  validate-sensors-wakeup:
+    name: Validate Sensors wakeup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/diagnostics/verify_validate_sensors_wakeup.lua
+
   telemetry-sync-slots:
     name: Telemetry slots after a save
     runs-on: ubuntu-latest
@@ -596,6 +635,22 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/telemetry/verify_telemetry_sync_slots.lua
+
+  adjustment-teller-source:
+    name: Adjustment teller from the decoder
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/telemetry/verify_adjustment_teller_source.lua
+
+  teller-playback:
+    name: Adjustment teller plays through the playback module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/telemetry/verify_teller_playback.lua
 
   power-saves:
     name: Power page saves
@@ -626,6 +681,14 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/core/verify_require_nil_module.lua
 
+  rfsbg-preferences-reload:
+    name: Background decoder re-reads the settings only on a change
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/core/verify_rfsbg_preferences_reload.lua
+
   msp-compact-framing:
     name: MSP compact framing
     runs-on: ubuntu-latest
@@ -633,3 +696,35 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 bin/msp/verify_msp_compact_framing.lua
+
+  mixer-live-override:
+    name: Mixer live override (Tail and Trims)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/mixer/verify_live_override.lua
+
+  save-notice-text:
+    name: Save notice text
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/ui/verify_save_notice_text.lua
+  telemetry-drain-failed-load:
+    name: Telemetry drain and a module that does not load
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/telemetry/verify_drain_failed_load.lua
+
+  msp-version-deps-retry:
+    name: MSP version read and a module that does not load
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: lua5.3 bin/msp/verify_msp_version_deps_retry.lua
+

@@ -49,7 +49,7 @@
 
 local M = {}
 
-local BASE_PATH = "/SCRIPTS/TOOLS/rfsuite-core/"
+local BASE_PATH = _G.rfsuite.paths.core .. "/"
 local HOME_PATH = BASE_PATH .. "ui/home.lua"
 
 -- The module cache entries the tool brings and the dashboard does not use. Dropped on close.

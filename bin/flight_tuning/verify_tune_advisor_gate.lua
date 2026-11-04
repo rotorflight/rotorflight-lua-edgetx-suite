@@ -47,6 +47,7 @@ function del() return 0 end
 function rename() return 1 end
 
 local CAPTURE = "src/rfsuite/tasks/events/tune_capture.lua"
+_G.rfsuite = { paths = dofile("src/rfsuite/lib/paths.lua") }
 local capture = assert(loadfile(CAPTURE))()
 
 -- ---------------------------------------------------------------------------
@@ -132,7 +133,7 @@ end
 do
   -- The mark comes from the real queue: completeOnErrorReplyAttempt hands the error reply to
   -- processReply, and only __errorReply tells it from an answer.
-  _G.rfsuite = nil
+  _G.rfsuite = { paths = dofile("src/rfsuite/lib/paths.lua") }
   _G.loadScript = function(path)
     local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
     return assert(loadfile("src/rfsuite/" .. relative))

@@ -1,8 +1,9 @@
 local M = {}
 
 local USER_ROOTS = {
-  "/SCRIPTS/TOOLS/rfsuite.user",
-  "SCRIPTS:/TOOLS/rfsuite.user"
+  _G.rfsuite.paths.user,
+  -- The same folder in the radio's volume form, `SCRIPTS:` in place of `/SCRIPTS`.
+  "SCRIPTS:" .. string.sub(_G.rfsuite.paths.user, #"/SCRIPTS" + 1)
 }
 
 -- Reload request file monitored by the dashboard widget via fstat size.
@@ -37,7 +38,7 @@ local function loadConfigStore()
     return _G.rfsuite.require("lib/config_store.lua")
   end
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript("/SCRIPTS/TOOLS/rfsuite-core/lib/config_store.lua", mode)
+  local chunk = loadScript(_G.rfsuite.paths.core .. "/lib/config_store.lua", mode)
   if not chunk then return nil end
   local ok, mod = pcall(chunk)
   if ok and type(mod) == "table" then return mod end

@@ -10,6 +10,7 @@ getGeneralSettings=function() return {language="en"} end
 io={open=function() return {} end, close=function() end}
 local cache={}
 rfsuite={session={}, preferences={audio_events={adjustment_events=true}}}
+_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
 loadScript=function(path)
   return loadfile(string.gsub(path, "^/SCRIPTS/TOOLS/rfsuite%-core/", "src/rfsuite/"))
 end

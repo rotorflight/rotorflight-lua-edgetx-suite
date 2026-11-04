@@ -1,0 +1,2 @@
+- **The Urban, Grid and Deck battery pickers carry only the half that is called (`widgets/dashboard/themes/{urban,grid,deck}/battpick.lua`)**:
+  - Each theme's `battpick.lua` drops `M.build` and its press helpers, written for a host hook (`batteryPick(children, widget)`) that nothing calls since the picker became a theme view (`pickview.lua`); the module the picker loads is smaller, and the picture and every press are unchanged.

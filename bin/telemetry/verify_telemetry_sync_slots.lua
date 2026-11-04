@@ -78,6 +78,7 @@ local function runCase(closeBeforeSaved, eq)
     ["lib/api_version.lua"] = {}
   }
   _G.rfsuite = { session = session, palette = {} }
+  _G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")
   function loadScript(path)
     local relative = string.match(path, "^/SCRIPTS/TOOLS/rfsuite%-core/(.+)$")
     local mod = assert(modules[relative], "unexpected module: " .. tostring(path))

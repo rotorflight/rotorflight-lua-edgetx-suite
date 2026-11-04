@@ -158,6 +158,18 @@ standing LVGL tree down; the scene is then built in chunks of eight boxes, one c
 and swapped in at the end. So the modules of one theme are independent screens that share
 nothing at runtime except what they both read off the state table.
 
+A reload that moves to another theme is spread over two logic ticks of the widget's background
+work: the module is loaded on the first — with the shared modules of the new theme — and the
+readings its boxes and `sources` name are collected, with the first snapshot of them, on the next;
+where that tick reads the telemetry and the one after it will not, one tick later, and where every
+tick reads (ticks half a second or more apart) beside the read rather than wait without end. No
+scene is queued in between. A phase change within one theme loads in one tick. A reload that
+falls due in the tick that reads the telemetry, or in the one that brought the model's preferences
+in — at connect, a model with a theme of its own — is carried to the next tick; it is carried at
+most twice, so where ticks come further apart than the telemetry read it still runs beside a read.
+Together these keep the largest pieces of a theme switch in widget calls of their own wherever
+ticks come closer together than the telemetry read.
+
 A phase change that resolves to the *same* module does not reload anything, and does not rebuild
 the scene either. That is what keeps the two optional phases free for a theme that does not
 declare them: entering `armed` on a theme without an `armed` module leaves the preflight scene
@@ -219,6 +231,37 @@ before. "In use" goes by folder: a theme that loads modules from another folder 
 `@aerc/common.lua`, a user copy of Urban with the shipped Urban's modules) does not keep that folder
 in use, so those modules are read from the card again on its next load after a release.
 
+On a reconnect the widget resolves no theme while the link is up and the board's UID read has no
+outcome yet, and a preferences reload that falls due in that window waits for it too: the model's
+preferences are loaded by that UID, and a theme resolved without them would be the radio's, release
+the model's theme and read it from the card again seconds later. The read has an outcome once it is
+answered or has given up after its retries; without a UID the radio's theme is resolved then.
+The connection screen's soft timeout does not end the wait. A read that cannot go out does not
+settle: arming takes a read still on the queue off it and MSP sends nothing while armed, so a model
+armed before its UID was read keeps the connection screen until the disarm, when the read is sent
+again and settles. A dashboard built during the wait waits as well: EdgeTX builds every widget again when it loads the
+screens' layout again (a model selected, the screens edited), and the link and the MSP runtime carry
+on through that, so the new widget starts without a theme and takes it through the same wait.
+Losing the link releases nothing either: the per-model file drops out of the widget's check of the
+preferences files when the board's id goes with the link, and that is not taken as a change. The
+model's preferences stay in hand until the next board connects -- a board whose API version is
+refused does not, so they also stay behind its refusal screen -- so its theme stays loaded across a
+disconnect on the ground as it does after a flight, and a reload for a radio setting saved while the
+link is down reads the radio's file alone. A change found while its reload waits (armed, offline
+after a flight, off screen, or for the UID) is not looked for again until the reload has run; the
+reload then checks the files once and reads only the one that moved since the last reload, as an
+undeferred reload does; both where both moved, the check cannot tell which, or a change was
+signalled only by the reload request, which names no file -- when it was found, or while it waited.
+A battery picked on the dashboard is saved to the model's preferences and moves the reload request
+like any save, so that the tool and the other widgets read it. The dashboard that saved it already
+holds what it wrote: it looks at the files just before and just after its own save, and where they
+stood before it as it last saw them, it takes them as they stand after it, without a reload or a
+theme resolve. A save made elsewhere since its last look (once a second) that the look can see -- the
+reload request, or a preference file's size or time, moved -- leaves nothing taken, and the pick is
+reloaded with it; one made after the pick is found at the next look, as any save is. Where it cannot
+take its save as its own (a reload already waiting, a preference file it cannot stat), the pick is
+reloaded. Without `fstat` the dashboard sees no save at all, its own or another's, so no save is reloaded for.
+
 Load a shared module through `rfsuite.require` wherever the theme loads it, `configure.lua`
 included. A module loaded with `loadScript` alone has no cache entry, so its global cannot be
 released with the rest, and the next load of the theme would pair it with fresh copies of the
@@ -261,7 +304,8 @@ stop at the instruction limit goes to the card every time, as the widget's own `
 fault, and the widget waits 1.2 s before the next try). A
 build that is stopped at the limit only sometimes is drawn again as soon as one try completes,
 which starts the count over; one that is stopped three times in a row stays *Dashboard error*. A
-theme reload starts over: choosing a theme, any change to the preferences, the flight
+theme reload starts over: choosing a theme, any change to the preferences (a battery picked on the
+dashboard itself, taken as its own, is not one, see above), the flight
 controller reconnecting, or a flight phase that brings up another of the theme's modules. Until
 then the error stays on screen, even if the cause has gone away by itself: a build that raises
 for as little as three tries in a row in flight can leave *Dashboard error* up for the rest of
