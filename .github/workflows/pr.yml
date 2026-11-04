@@ -5,47 +5,12 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  # The test jobs are not written out here. The first job reads every
-  # bin/**/*.ci.json, checks it, and passes the list on as a matrix, so a new
-  # test adds its own .ci.json and script and leaves this file alone. A bad file,
-  # too few jobs or a test script nothing runs turn it red, and no registered test then runs.
-  test-discover:
-    name: Find the test jobs
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.discover.outputs.matrix }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Prove the reader can go red
-        run: python bin/ci/test_jobs.py --self-test
-
-      - name: Read the test job metadata
-        id: discover
-        run: python bin/ci/test_jobs.py --github-output
-
-  tests:
-    name: ${{ matrix.name }}
-    needs: test-discover
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.test-discover.outputs.matrix) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: ${{ matrix.step }}
-        run: ${{ matrix.run }}
+  # The gates measure the tree they are given, so they are one list in checks.yml.
+  # The jobs below are the ones only a pull request can run: the archives named after
+  # its number, and the rules that read its body.
+  gates:
+    name: Gates
+    uses: ./.github/workflows/checks.yml
 
   create-zip:
     name: Build PR ZIP (${{ matrix.lang }})
@@ -84,74 +49,6 @@ jobs:
           path: rfsuite-radio-install-v${{ env.GIT_VER }}_${{ matrix.lang }}.zip
           if-no-files-found: error
 
-  instruction-budget:
-    name: Instruction budget
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Lua 5.3
-        run: sudo apt-get update && sudo apt-get install -y lua5.3
-
-      - name: Prove the gate can go red
-        run: lua5.3 bin/accounting/measure.lua --self-test
-
-      - name: Account instructions per pass
-        run: lua5.3 bin/accounting/measure.lua --check
-
-      - name: In-flight trim routing
-        run: lua5.3 bin/dashboard/verify_inflight_trims.lua
-
-      - name: Grouped in-flight tuning and session ownership
-        run: lua5.3 bin/dashboard/verify_inflight_groups.lua
-
-      - name: In-flight fullscreen release and exit safety
-        run: lua5.3 bin/dashboard/verify_inflight_surface.lua
-
-      - name: Multi-profile ground transactions and SD baseline
-        run: lua5.3 bin/dashboard/verify_inflight_profiles.lua
-      - name: Silent ground profile selections
-        run: lua5.3 bin/dashboard/verify_inflight_audio.lua
-
-      - name: In-flight settings adopted after a landing are checked first
-        run: lua5.3 bin/dashboard/verify_inflight_landing_resettle.lua
-
-      - name: In-flight list picker and help limits
-        run: lua5.3 bin/dashboard/verify_inflight_flightlist.lua
-
-      - name: Leaving in-flight tuning builds the dashboard once
-        run: lua5.3 bin/dashboard/verify_tuning_close_key.lua
-
-      - name: A preferences reload reads the radio-wide settings once
-        run: lua5.3 bin/dashboard/verify_reload_locale_once.lua
-
-      - name: In-flight session and view lifetimes
-        run: lua5.3 bin/dashboard/verify_inflight_lifetimes.lua
-
-      - name: In-flight slots that touch the tuning pair in part
-        run: lua5.3 bin/dashboard/verify_inflight_foreign_slots.lua
-
-  i18n-precompiler:
-    name: i18n precompiler
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Prove the checks can go red
-        run: python .vscode/scripts/test_precompile_i18n.py --self-test
-
-      - name: Precompile one page and compare
-        run: python .vscode/scripts/test_precompile_i18n.py
-
   documentation-rule:
     name: Documentation rule
     runs-on: ubuntu-latest
@@ -182,92 +79,6 @@ jobs:
         run: |
           python bin/docs/verify_documentation_rule.py             --base '${{ github.event.pull_request.base.sha }}'             --body-file pr-body.txt
 
-  menu-structure:
-    # docs/reference/menu-structure.md is generated from the menu definition, the page
-    # registry, the English titles and the files under docs/pages/. A change to any of them
-    # that does not regenerate the page turns this red; `python3 bin/docs/menu_structure.py`
-    # writes it.
-    name: Menu structure page
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Prove the check can go red
-        run: python3 bin/docs/menu_structure.py --self-test
-
-      - name: Check the page matches the menu definition
-        run: python3 bin/docs/menu_structure.py --check
-
-  translation-coverage:
-    name: Translation coverage
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Prove the check can go red
-        run: python bin/i18n/check_translations.py --self-test
-
-      - name: Report the strings a locale build cannot translate
-        run: python bin/i18n/check_translations.py
-
-  i18n-resolver:
-    # Added because a resolver self-test that only ran in checks.yml reached
-    # master broken: the restore of the read-only case chmod-ed back to
-    # stat.S_IWRITE, which on POSIX leaves the file --w------- with no read
-    # bit, so the self-test's own read-back raised. It passed on Windows,
-    # where the same call only toggles the read-only attribute, and pr.yml did
-    # not run the step -- so the first run on any push was the failing one.
-    # A gate nobody watches on a pull request is not known to be a gate.
-    name: i18n resolver
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Prove the resolver can report a failure
-        run: python .vscode/scripts/resolve_i18n_tags.py --self-test
-
-  release-notes:
-    name: Release notes
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Prove the checks can go red
-        run: |
-          python bin/release/collect_release_notes.py --self-test
-          python bin/release/verify_release_notes_rule.py --self-test
-
-      - name: Check the pending release notes
-        run: python bin/release/collect_release_notes.py --check
-
   release-notes-rule:
     name: Release notes rule
     runs-on: ubuntu-latest
@@ -296,17 +107,4 @@ jobs:
           python bin/release/verify_release_notes_rule.py \
             --base '${{ github.event.pull_request.base.sha }}' \
             --body-file pr-body.txt
-
-  undeclared-globals:
-    # luacheck over the shipped tree, scoped to undeclared globals: 111 (setting a non-standard
-    # global), 112 (mutating an undefined one) and 113 (reading one). .luacheckrc lists the names
-    # EdgeTX publishes, so a hit is a missing `local` or a name the radio does not have, which is
-    # nil there. The style warnings luacheck also reports (line length, unused values) stay advisory.
-    name: Undeclared globals
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua-check
-      - run: luacheck --version
-      - run: luacheck src --only 111 112 113 --codes
 

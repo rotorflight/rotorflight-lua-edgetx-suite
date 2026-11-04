@@ -4,11 +4,7 @@ name: Gates
 # publish, so a release tag or a direct push to master runs the same gates a pull
 # request does instead of going straight from checkout to artefact.
 #
-# pr.yml still carries its own copy of these jobs. It is the gate that has been
-# protecting master so far, and rewriting it belongs in its own change -- but that
-# does mean a check added here has to be added there too, which is the same
-# "keep in sync" convention that let an untranslated artefact through in the first
-# place. Worth collapsing; not worth doing in the same commit as a fix.
+# pr.yml calls this file too, so a pull request and a tag run one list of gates.
 #
 # No inputs: every gate below measures the tree it is given, so a caller that
 # passes a base and a body was carrying two arguments nothing read. The
@@ -130,7 +126,14 @@ jobs:
         run: python .vscode/scripts/test_precompile_i18n.py
 
   i18n-resolver:
-    name: i18n resolver exit status
+    # Added because a resolver self-test that only ran in checks.yml reached
+    # master broken: the restore of the read-only case chmod-ed back to
+    # stat.S_IWRITE, which on POSIX leaves the file --w------- with no read
+    # bit, so the self-test's own read-back raised. It passed on Windows,
+    # where the same call only toggles the read-only attribute, and pr.yml did
+    # not run the step -- so the first run on any push was the failing one.
+    # A gate nobody watches on a pull request is not known to be a gate.
+    name: i18n resolver
     runs-on: ubuntu-latest
 
     steps:
