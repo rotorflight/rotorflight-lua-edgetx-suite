@@ -773,7 +773,7 @@ return {
         collectiveLimit = "Collective (deg)",
         totalLimit = "Total (deg)",
         fullStick = "Full-stick collective",
-        fullStickHint = "The blade pitch the collective stick gives at full stick, set for each rate profile on the switch. About 12 degrees is usual for 3D, less for sport flying. Keep it at or below the collective limit.",
+        fullStickHint = "The blade pitch the collective stick gives at full stick, set for each rate profile on the switch. About 12 degrees is usual for 3D, less for sport flying.",
         degrees = "Degrees",
         noBinding = "Full travel without binding",
         tail = "Tail rotor",

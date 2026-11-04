@@ -21,7 +21,7 @@ function M.new(w, ctx, diagrams)
     [w.L.servo1Trim]=w.L.shortTrim1, [w.L.servo2Trim]=w.L.shortTrim2, [w.L.servo3Trim]=w.L.shortTrim3
   } or {}
   local controlH = large and 44 or width >= 480 and 32 or 26
-  local rowY = large and 108 or height <= 272 and 76 or 88
+  local rowY = large and 108 or height <= 272 and 80 or 88
   local rowH = large and 52 or math.min(controlH+6, math.floor((height-2*controlH-31-rowY)/3))
   if card and card.link=="overview" and not large then
     rowH=math.min(rowH,math.floor((height-2*controlH-31-rowY)/4))
@@ -182,7 +182,7 @@ function M.new(w, ctx, diagrams)
     end
     if not card.servo and not (card.instructions and width<400) then
     all[#all + 1] = label(10, large and 94 or 48, large and not wideText and formX-30 or width-20, card.summary or card.detail)
-    all[#all].h = wideText and rowY-100 or large and (illustrated and 98 or height-controlH-154) or rowY-52
+    all[#all].h = wideText and rowY-100 or large and (illustrated and 98 or height-controlH-154) or rowY-48
     all[#all].color = palette.muted
     -- A card may lead with a warning or a live prompt instead of a muted summary.
     if card.summaryColor then all[#all].color = palette[card.summaryColor] or all[#all].color end

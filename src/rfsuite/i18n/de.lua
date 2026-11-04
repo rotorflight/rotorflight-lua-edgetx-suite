@@ -773,7 +773,7 @@ return {
         collectiveLimit = "Kollektiv (Grad)",
         totalLimit = "Gesamt (Grad)",
         fullStick = "Kollektiv bei Vollausschlag",
-        fullStickHint = "Der Blattwinkel des Kollektivknüppels bei Vollausschlag, je Ratenprofil auf dem Schalter. Etwa 12 Grad sind für 3D üblich, weniger für Sportflug. Höchstens das kollektive Limit einstellen.",
+        fullStickHint = "Der Blattwinkel des Kollektivknüppels bei Vollausschlag, je Ratenprofil auf dem Schalter. Etwa 12 Grad sind für 3D üblich, weniger für Sportflug.",
         degrees = "Grad",
         noBinding = "Gesamter Weg ohne Klemmen",
         tail = "Heckrotor",
