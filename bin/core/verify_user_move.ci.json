@@ -1,0 +1,7 @@
+{
+  "id": "user-move",
+  "name": "The move of the pilot's data to the new user folder",
+  "commands": [
+    "lua5.3 bin/core/verify_user_move.lua"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "card-path-literals",
+  "name": "No card root spelled outside the allowed files",
+  "commands": [
+    "lua5.3 bin/core/verify_card_path_literals.lua"
+  ]
+}
