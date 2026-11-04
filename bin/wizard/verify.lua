@@ -10,6 +10,14 @@ local function check(ok, name)
 end
 local function eq(a,b,name) check(a == b, name .. " (" .. tostring(a) .. "/" .. tostring(b) .. ")") end
 local function load(path) return assert(loadfile(ROOT .. path))() end
+-- The page collects once per build. Here that is a full collection of a far larger heap on each of
+-- thousands of builds, which triples the run and changes no result. BENCH.collect-once-per-build
+-- counts the page's call through its own wrapper, which this one lets through.
+local realCollect = collectgarbage
+collectgarbage = function(what, ...)
+  if what == "collect" and string.find(debug.getinfo(2, "S").source, "helicopter_setup/page.lua", 1, true) then return 0 end
+  return realCollect(what, ...)
+end
 function getTime() return ticks end
 COLOR_THEME_PRIMARY1, COLOR_THEME_PRIMARY2, COLOR_THEME_PRIMARY3, COLOR_THEME_SECONDARY1 = 1, 2, 3, 4
 -- Keep RGB channels intact in exported scenes for the desktop renderer.
