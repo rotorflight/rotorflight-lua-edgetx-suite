@@ -9,8 +9,11 @@ local function read(path)
   io.close(file)
   -- This is a fixed Lua data record, read without compiling or running card code.
   -- A bounded read also rejects truncated, oversized and unsupported records.
-  local value = type(text) == "string" and tonumber(string.match(text, "^return { version = 1, completed = (%d+) }\r?\n$"))
+  local value = type(text) == "string" and tonumber(string.match(text, "^return { version = 2, completed = (%d+) }\r?\n$"))
   if value and value >= 0 and value <= MAX and value % 1 == 0 then return value, true end
+  -- Version 1 numbered its bits for the former step order. It is nothing to warn about: the next
+  -- save replaces it, and until then the record counts as empty.
+  if type(text) == "string" and string.match(text, "^return { version = 1, completed = %d+ }\r?\n$") then return nil, true, true end
   return nil, true
 end
 local function location(identity, modelFile)
@@ -36,9 +39,9 @@ function M.new(identity, modelFile)
   end
   function h:load()
     if not self.path then self.invalid = true; return end
-    local mask, found = read(self.path)
-    if not found then mask, found = read(self.path .. ".tmp") end
-    self.invalid = found and mask == nil
+    local mask, found, former = read(self.path)
+    if not found then mask, found, former = read(self.path .. ".tmp") end
+    self.invalid = found and mask == nil and not former
     self:publish(mask or 0)
   end
   function h:save(mask)
@@ -50,7 +53,7 @@ function M.new(identity, modelFile)
     local temporary = self.path .. ".tmp"
     local file = io.open(temporary, "w")
     if not file then return false end
-    local wrote = io.write(file, "return { version = 1, completed = " .. mask .. " }\n")
+    local wrote = io.write(file, "return { version = 2, completed = " .. mask .. " }\n")
     io.close(file)
     if not wrote or read(temporary) ~= mask then return false end
     local _, exists = read(self.path)

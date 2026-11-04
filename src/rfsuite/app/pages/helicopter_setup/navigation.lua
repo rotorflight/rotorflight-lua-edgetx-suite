@@ -34,7 +34,7 @@ function M.attach(w, ctx)
   end
   function w:startStep(index, complete)
     if not self:usable() or not index or index < 1 or index > 19 or index % 1 ~= 0 then return end
-    if index >= 10 and index ~= 11 and self.rebootPending then self.message = self.L.pendingReboot; return end
+    if index >= 11 and self.rebootPending then self.message = self.L.pendingReboot; return end
     self.overview, self.singleStep, self.selectedStep = nil, not complete, index
     self.checks, self.preparationDone, self.preparationCard = {}, nil, nil
     -- Started from the menu, the step is a new visit even when it is the one just left.
@@ -43,7 +43,7 @@ function M.attach(w, ctx)
   end
   function w:standalonePreparation()
     if not self.singleStep then return false end
-    return (self.step > 1 and self.step < 11) or (self.step >= 13 and self.step <= 16) or
+    return (self.step > 1 and self.step < 10) or self.step == 11 or (self.step >= 13 and self.step <= 16) or
       (self.step == 17 and not self:motorised()) or self.step == 18
   end
   -- A prerequisite row: the packed sensor is live, missing after four reads, or still being checked.
@@ -119,7 +119,7 @@ function M.attach(w, ctx)
   function w:buildPreparation()
     if self:standalonePreparation() and not self.preparationDone then
       local rows = { self:check("blades", self.L.bladesRemoved) }
-      rows[2] = self.step < 11 and self:check("unplugged", self.L.servosUnplugged) or
+      rows[2] = self.step < 10 and self:check("unplugged", self.L.servosUnplugged) or
         self:check("servoSettings", self.L.servoSettingsChecked)
       self.cards = {self:cardDef(self.L.prepareStep, self.L.prepareStepHint, rows)}
       self.card, self.preparationCard = 1, true
@@ -129,7 +129,7 @@ function M.attach(w, ctx)
   end
   function w:preparationComplete()
     if self.preparationCard then
-      return self:ack("blades") and self:ack(self.step < 11 and "unplugged" or "servoSettings")
+      return self:ack("blades") and self:ack(self.step < 10 and "unplugged" or "servoSettings")
     end
     return true
   end

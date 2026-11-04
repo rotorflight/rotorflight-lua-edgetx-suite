@@ -21,7 +21,7 @@ local function loadDependency(index)
 end
 -- Helpers only one step uses are loaded when that step first asks for them and dropped once the
 -- visit has left it. The ESC helpers stay while an ESC parameter session still refers to them.
-local STEP_HELPERS = { [17] = 1, [18] = 13, [19] = 10, [21] = 10, [22] = 10 }
+local STEP_HELPERS = { [17] = 1, [18] = 13, [19] = 11, [21] = 11, [22] = 11 }
 local ESC_HELPERS = { [21] = true, [22] = true }
 local function helper(index)
   local module = modules[index]
@@ -60,7 +60,7 @@ local toolText = _G.rfsuite and _G.rfsuite.palette and _G.rfsuite.palette.text o
 local loadingPoints = {{24,0},{24,0}}
 local loadingFraction = 0
 local keys = { "sensors", "receiver", "modes", "profiles", "rates", "swash", "servoType", "governor", "motor",
-  "escTelemetry", "connect", "throttle", "servos", "direction", "level", "pitch", "tail", "gyro", "finish" }
+  "connect", "escTelemetry", "throttle", "servos", "direction", "level", "pitch", "tail", "gyro", "finish" }
 -- What a scene is built from. A published scene stays current while every input still holds the
 -- value it was built with; comparing them leaves a steady frame without a new string to collect.
 local SCENE_FIELDS = { "step", "card", "cards", "confirmExit", "disconnectExit", "overview", "historyFailure", "error" }

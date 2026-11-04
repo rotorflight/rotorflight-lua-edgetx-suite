@@ -80,7 +80,7 @@ return function(h)
   end)
   case("CHOICE.throttle-range", function()
     for _, config in ipairs({{0,0},{0,9},{1,9}}) do
-      local w=world();settle(w);w.step=10
+      local w=world();settle(w);w.step=11
       w.data.motor_config.motor_pwm_protocol=config[1]
       w.data.esc_sensor_config.protocol=config[2]
       w.data.feature_config.enabledFeatures=0
@@ -239,7 +239,7 @@ return function(h)
   case("CHOICE.elrs-rate", function() elrsChoice("rate") end)
   case("CHOICE.elrs-ratio", function() elrsChoice("ratio") end)
   case("CHOICE.power-sources-preserve-unknown", function()
-    local w=world();settle(w);w.step=10
+    local w=world();settle(w);w.step=11
     w.data.battery_config.voltageMeterSource=254;w.data.battery_config.currentMeterSource=253
     step(w,"escTelemetry")
     for _, spec in ipairs({{L.voltageSource,"voltageMeterSource"},{L.currentSource,"currentMeterSource"}}) do
@@ -1973,7 +1973,7 @@ return function(h)
     end
   end)
   case("S11.telemetry-on-takes-first-free-port",function()
-    local w=world();settle(w);w.step=10;w.data.motor_config.motor_pwm_protocol=0
+    local w=world();settle(w);w.step=11;w.data.motor_config.motor_pwm_protocol=0
     local sc=w.data.serial_config
     w.data.esc_sensor_config.protocol=0
     local free
@@ -2057,13 +2057,12 @@ return function(h)
     eq(eeprom,1,id.." save still reaches EEPROM")
   end
   case("S10.card-order-and-save",function()
-    local w=world();settle(w);w.step=11;w.rebootPending=nil;w.data.motor={motor_1=1000,motor_2=1000}
-    local c=step(w,"connect");cardOrder(c,{L.battery,L.plugServos,L.battery},"S10")
-    eq(c[1].rows[1].label,L.batteryOff,"S10 the battery comes off before the servos")
-    c[2].rows[3].set(2);c[2].rows[4].set(2)
-    check(not w.validate(),"S10 servos cannot be confirmed with the battery still on")
-    c[1].rows[1].set(2)
-    check(w.validate(),"S10 all three confirmations complete the step")
+    local w=world();settle(w);w.step=10;w.rebootPending=nil;w.data.motor={motor_1=1000,motor_2=1000}
+    local c=step(w,"connect");cardOrder(c,{L.plugServos},"S10")
+    check(string.find(c[1].detail,L.connectHint,1,true)~=nil,"S10 the one card says what to plug in")
+    check(not w.validate(),"S10 an unanswered card stays open")
+    c[1].rows[3].set(2);c[1].rows[4].set(2)
+    check(w.validate(),"S10 both confirmations complete the step")
     noConfigWrites(w,"S10")
     w.rebootPending=true;c=step(w,"connect");cardOrder(c,{L.connect},"S10 restart")
     eq(c[1].rows[1].label,L.servosUnplugged,"S10 restart retains unplugged confirmation")
@@ -2071,11 +2070,11 @@ return function(h)
   end)
   case("CORE.esc-before-spin",function()
     local labels=load("app/pages/helicopter_setup/labels.lua")
-    eq(labels.steps[10],labels.escTelemetry,"CORE step 10 label is ESC telemetry")
-    eq(labels.steps[11],labels.connect,"CORE step 11 label is connect servos")
+    eq(labels.steps[10],labels.connect,"CORE step 10 label is connect servos")
+    eq(labels.steps[11],labels.escTelemetry,"CORE step 11 label is ESC telemetry")
     eq(labels.steps[12],labels.spinTest,"CORE step 12 label is spin test")
     local manifest=load("app/manifest.lua")
-    for index,key in pairs({[10]="escTelemetry",[11]="connect",[12]="spinTest"}) do
+    for index,key in pairs({[10]="connect",[11]="escTelemetry",[12]="spinTest"}) do
       local id=string.format("helicopter_setup_step_%02d_page",index)
       local title="@i18n(app.modules.helicopter_setup."..key..")@"
       eq(manifest.menus[id].title,title,"CORE direct step title follows "..key)
@@ -2089,11 +2088,14 @@ return function(h)
     end
     local w=world();settle(w);w.data.motor_config.motor_pwm_protocol=0
     w.data.motor={motor_1=1000,motor_2=1000}
-    -- ESC telemetry comes before Connect servos, so its port restart happens with the servos
-    -- still unplugged; Connect servos then leads into the spin test.
-    w:navigate(10,1);drain(w)
+    -- The motor's restarts are done at Connect servos, then ESC telemetry leads into the spin test.
+    w.rebootPending=nil;w:navigate(10,1);drain(w)
+    eq(w.cards[1].title,L.plugServos,"CORE controller loads connect servos at step 10")
+    eq(#w.cards,1,"CORE connect servos is one card")
+    w.checks.connected,w.checks.blades=true,true;w.card=#w.cards;w:next();drain(w)
+    eq(w.step,11,"CORE connect advances to ESC telemetry")
     eq(w.cards[1].detail,L.telemetryBatteryHint,"CORE ESC telemetry begins with battery connection")
-    eq(w.cards[2].title,L.escTelemetry,"CORE controller loads telemetry at step 10")
+    eq(w.cards[2].title,L.escTelemetry,"CORE controller loads telemetry at step 11")
     local function polls(command,name)
       q.sent={};w.pollIndex=2;w.lastPoll=nil;w:poll();drain(w)
       local found=false
@@ -2102,22 +2104,18 @@ return function(h)
     end
     polls(139,"ESC telemetry")
     w.card=#w.cards;w:next();drain(w)
-    eq(w.step,11,"CORE ESC telemetry advances to connect servos")
-    eq(w.cards[1].detail,L.unplugBatteryHint,"CORE connect starts with the battery unplugged")
-    eq(w.cards[3].detail,L.batteryUnpluggedHint,"CORE connection gate ends with battery unplugged")
-    w.checks.batteryOff,w.checks.connected,w.checks.blades=true,true,true;w.card=#w.cards;w:next();drain(w)
-    eq(w.step,12,"CORE connect advances to spin test")
+    eq(w.step,12,"CORE ESC telemetry advances to spin test")
     eq(w.cards[1].detail,L.fullThrottleHint,"CORE controller loads calibration at step 12")
     polls(104,"spin test")
     local mask=1<<10
     load("app/pages/helicopter_setup/history.lua").attach(w,{new=function() return {mask=mask} end})
     eq(w.history.mask,mask,"CORE existing history stays keyed by index")
     w.step=11;w:updateHistoryHints()
-    eq(w.historyHint,L.historyRecheck,"CORE stored bit 11 is read as connect servos")
+    eq(w.historyHint,L.historyRecheck,"CORE stored bit 11 is read as ESC telemetry")
     w.step=10;w:updateHistoryHints()
-    eq(w.historyHint,nil,"CORE history never migrates bit 11 to ESC telemetry")
+    eq(w.historyHint,nil,"CORE stored bit 11 is not connect servos")
     w.step=12;w:updateHistoryHints()
-    eq(w.historyHint,nil,"CORE history never migrates bit 11 to spin test")
+    eq(w.historyHint,nil,"CORE stored bit 11 is not the spin test")
   end)
   case("S12.card-order-save-and-calibration-navigation",function()
     local w=world();settle(w);w.step=12;w.card=1;w.data.motor_config.motor_pwm_protocol=0
@@ -2158,7 +2156,7 @@ return function(h)
     eq(c[1].detail,L.connectBatteryHint,"S12 non-PWM keeps the battery connected")
   end)
   case("S11.card-order-and-save",function()
-    local w=world();settle(w);w.step=10;w.data.motor_config.motor_pwm_protocol=5
+    local w=world();settle(w);w.step=11;w.data.motor_config.motor_pwm_protocol=5
     w.data.esc_sensor_config.protocol=1
     local c=step(w,"escTelemetry")
     cardOrder(c,{L.connectBattery,L.escTelemetry,L.port,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 serial")
@@ -2830,8 +2828,6 @@ return function(h)
     step(w,"connect");check(not w.validate(),"S10 missing main motor blocks connection gate")
     w.data.motor.motor_1=1000;w.data.motor.motor_2=1000
     w.checks.connected,w.checks.blades=true,true
-    check(not w.validate(),"S10 the battery must be confirmed off")
-    w.checks.batteryOff=true
     check(w.validate(),"S10 required outputs and physical answers allow next")
   end)
   case("S12.motor-hold-and-calibration",function()
@@ -4104,11 +4100,11 @@ return function(h)
       end
     end
     fs.failure=nil
-    fs.files[a.path]="return { version = 1, completed = 524288 }\n";a:load()
+    fs.files[a.path]="return { version = 2, completed = 524288 }\n";a:load()
     check(a.invalid and a.mask==0,"CORE out-of-range history is unknown")
     check(not a:save(1),"CORE unreadable history needs explicit reset")
     check(a:save(0),"CORE explicit reset replaces unreadable history")
-    fs.files[a.path]="return { version = 1, completed = 2 }\n"..string.rep("x",10000)
+    fs.files[a.path]="return { version = 2, completed = 2 }\n"..string.rep("x",10000)
     h.measure("history read",function() a:load() end)
     check(a.invalid,"CORE oversized history is refused after one bounded read")
     local invalid=Store.new("../another-board");invalid:load()
@@ -4127,7 +4123,7 @@ return function(h)
     local record=fs.files[a.path]
     local chunk=assert(_G.load(record,"history-data","t",{}))
     local data=chunk()
-    eq(data.version,1,"CORE saved history is valid versioned Lua data")
+    eq(data.version,2,"CORE saved history is valid versioned Lua data")
     eq(data.completed,7,"CORE Lua history contains the exact completion bits")
     fs.files[a.path.."c"]="invalid compiled overlay"
     local original=loadScript
@@ -4137,12 +4133,19 @@ return function(h)
     eq(a.mask,7,"CORE history reads Lua data directly despite a bytecode overlay")
     check(a:save(0),"CORE Lua history remains resettable")
     a:load();eq(a.mask,0,"CORE reset Lua completion persists")
-    fs.files[a.path]="return { version = 2, completed = 7 }\n";a:load()
+    fs.files[a.path]="return { version = 3, completed = 7 }\n";a:load()
     check(a.invalid and a.mask==0,"CORE unknown Lua version never supplies completion")
     check(not a:save(1),"CORE unknown Lua record requires explicit reset")
     check(a:save(0),"CORE explicit reset replaces an unsupported Lua record")
     local b=Store.new("board-temporary")
-    fs.files[b.path..".tmp"]="return { version = 1, completed = 16 }\n";b:load()
+    fs.files[b.path..".tmp"]="return { version = 2, completed = 16 }\n";b:load()
+    -- A record of the former step order counts as empty, warns of nothing, and the next save replaces it.
+    local former=Store.new("former-order","/user/former-order.lua")
+    fs.files[former.path]="return { version = 1, completed = 1023 }\n";former:load()
+    eq(former.mask,0,"CORE a former step order's record counts as empty")
+    check(not former.invalid,"CORE a former step order's record is not reported unreadable")
+    check(former:save(4),"CORE the next save replaces a former record")
+    eq(fs.files[former.path],"return { version = 2, completed = 4 }\n","CORE the replaced record has the current version")
     eq(b.mask,16,"CORE interrupted Lua save remains recoverable")
     fs:restore()
   end)
@@ -4200,7 +4203,7 @@ return function(h)
   end)
   local function escWorld(protocol, throttle, governor)
     local w=world();settle(w)
-    w.step,w.overview,w.card=10,nil,1
+    w.step,w.overview,w.card=11,nil,1
     w.data.motor_config.motor_pwm_protocol=throttle or 0
     w.data.esc_sensor_config.protocol,w.data.esc_sensor_config.half_duplex=protocol,1
     w.data.serial_config.port_1_function_mask=1024
@@ -4290,9 +4293,7 @@ return function(h)
       escRead(w,yge.simulatorResponse)
       local s=w.escParams
       s.changes,s.restart={governor=1},restart or nil
-      w:navigate(11);settle(w);w:navigate(10);settle(w)
-      check(w.unpluggedAgain and #step(w,"escTelemetry")==1,"S11 coming back asks for unplugged servos first")
-      w.checks.unplugged,w.checks.blades=true,true
+      w:navigate(12);settle(w);w:navigate(11);settle(w)
       local cards=step(w,"escTelemetry")
       check(w.escParams==s and s.changes and s.restart==(restart or nil),"S11 navigation retains unresolved expectation and restart latch")
       check(not w.validate(),"S11 re-entering cannot complete unresolved ESC verification")
@@ -4758,7 +4759,7 @@ return function(h)
     session.apiVersion=version
   end)
   case("S11.power-live-sources-and-warning",function()
-    local w=world();settle(w);w.step=10
+    local w=world();settle(w);w.step=11
     local cards=step(w,"escTelemetry")
     local voltage=powerCard(cards,L.voltageSource);local current=powerCard(cards,L.currentSource)
     local liveIndex,powerIndex
@@ -4813,19 +4814,17 @@ return function(h)
     voltage.rows[1].set(2)
     eq(smart.rows[2].get(),"","POWER warning clears with a voltage source")
   end)
-  case("S10.esc-step-asks-unplugged-again",function()
-    local w=world();settle(w);w.step=11;w.rebootPending=nil;w.checks.unplugged=true
-    w:navigate(10,1);settle(w);w.step=10
-    check(w.unpluggedAgain and not w.checks.unplugged,"S10 coming back from Connect servos clears the unplugged answer")
-    local c=step(w,"escTelemetry")
-    eq(#c,1,"S10 coming back from Connect servos shows only the unplugged card")
-    eq(c[1].rows[2].label,L.servosUnplugged,"S10 the card asks for unplugged servos")
-    w.buildRequested=nil;check(not w.validate(),"S10 Next does not leave the card unanswered")
-    check(not w.buildRequested,"S10 an unanswered card opens nothing")
-    w.checks.blades,w.checks.unplugged=true,true
-    check(not w.validate(),"S10 Next on the answered card stays in the step")
-    check(w.buildRequested,"S10 the answered card opens the step's own cards")
-    check(#step(w,"escTelemetry")>1,"S10 the step's cards follow the answer")
+  case("S10.back-before-connect-asks-unplugged-again",function()
+    local w=world();settle(w);w.step=10;w.rebootPending=nil;w.checks.unplugged=true
+    w:navigate(9,1);settle(w)
+    check(not w.checks.unplugged,"S10 going back in front of Connect servos clears the unplugged answer")
+    w.step=11;w.checks.unplugged=true;w:navigate(10,1);settle(w)
+    check(w.checks.unplugged,"S10 a move that stays behind Connect servos keeps it")
+    -- A restart the Motor step owes is asked about on Connect servos, with the answer given anew.
+    w.step=9;w.rebootPending=true;w.checks.unplugged=nil;w.step=10
+    local c=step(w,"connect")
+    check(not w.validate(),"S10 the restart card waits for the answer")
+    check(c[1].rows[1].label==L.servosUnplugged,"S10 the restart card asks for unplugged servos")
   end)
   case("S09.one-to-two-stages-keeps-an-intermediate-tail",function()
     local w=world();settle(w);w.step=9;w.data.mixer_config.tail_rotor_mode=0;w.gear=nil
@@ -4840,19 +4839,17 @@ return function(h)
     eq(m.main_rotor_gear_ratio_1/m.main_rotor_gear_ratio_0,main,"S09 one to two stages keeps the main ratio")
   end)
   case("S10.restart-asks-again-after-connect",function()
-    local w=world();settle(w);w.step=10;w.rebootPending=nil;w.checks.unplugged=nil
+    -- The servos are in at ESC telemetry and their frame rate is already live: its restart asks nothing.
+    local w=world();settle(w);w.step=11;w.rebootPending=nil;w.checks.unplugged=nil
     step(w,"escTelemetry");q.sent={}
     w:reboot();settle(w)
-    check(w.entryRebootGate,"S10 a restart without the unplugged answer shows the restart card")
-    eq(w.cards[1].rows[2].label,L.servosUnplugged,"S10 the restart card asks for unplugged servos")
-    for _,m in ipairs(q.sent) do check(m.command~=68,"S10 no restart is sent before the answer") end
-    w.checks.unplugged,w.checks.blades=true,true;w:next();settle(w)
+    check(not w.entryRebootGate,"S11 the telemetry restart shows no servo card")
     local reboot=false
     for _,m in ipairs(q.sent) do if m.command==68 then reboot=true end end
-    check(reboot,"S10 the confirmed restart card restarts the FC")
+    check(reboot,"S11 the telemetry restart goes out with the servos connected")
   end)
   case("S11.power-card-saves-before-the-next",function()
-    local w=world();settle(w);w.step=10;w.rebootPending=nil
+    local w=world();settle(w);w.step=11;w.rebootPending=nil
     local cards=step(w,"escTelemetry");w.cards=cards
     local voltage=powerCard(cards,L.voltageSource);local index
     for i,card in ipairs(cards) do if card==voltage then index=i end end
@@ -4867,7 +4864,7 @@ return function(h)
     for _,m in ipairs(q.sent) do check(m.command~=250,"POWER an unchanged Power card moves on without a save") end
   end)
   case("S11.power-roundtrip-save-discard-and-failure",function()
-    local w=world();settle(w);w.step=10
+    local w=world();settle(w);w.step=11
     local original=h.api("battery_config").buildWritePayload(w.saved.battery_config)
     for _,length in ipairs({15,27,81}) do
       local raw={};for i=1,length do raw[i]=h.api("battery_config").simulatorResponse[i] end
@@ -4912,7 +4909,7 @@ return function(h)
     eq(smart and smart[1],3,"POWER SmartFuel mode uses wire ID 3")
     for i=2,4 do eq(smart and smart[i],originalSmart[i],"POWER SmartFuel tuning preserved") end
     eq(next(w.dirty),nil,"POWER successful save clears drafts after EEPROM")
-    w=world();settle(w);w.step=10;cards=step(w,"escTelemetry")
+    w=world();settle(w);w.step=11;cards=step(w,"escTelemetry")
     powerCard(cards,L.voltageSource).rows[1].set(3)
     powerCard(cards,L.smartFuel).rows[1].set(4)
     q.sent={};w:discard(function() end);settle(w)
@@ -4923,7 +4920,7 @@ return function(h)
       check(m.command~=250,"POWER discard does not persist a draft")
     end
     for _,command in ipairs({33,0x4001}) do
-      w=world();settle(w);w.step=10;cards=step(w,"escTelemetry")
+      w=world();settle(w);w.step=11;cards=step(w,"escTelemetry")
       powerCard(cards,command==33 and L.voltageSource or L.smartFuel).rows[1].set(3)
       q.sent={};h.setFailCommand(command);w:save();drain(w);h.setFailCommand(nil)
       check(w.error~=nil,"POWER failed configuration write remains visible")
@@ -4966,7 +4963,7 @@ return function(h)
         end
         eq(index,#labels,"POWER one help line per row")
       end
-      local w=world();settle(w);w.step=10
+      local w=world();settle(w);w.step=11
       w.i18n=load("i18n/init.lua").new(locale)
       local cards=step(w,"escTelemetry")
       for _,size in ipairs({{480,320},{480,272},{800,480}}) do

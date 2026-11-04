@@ -68,7 +68,7 @@ function M.attach(w, params, status)
   end
   -- Runs after load/scene construction, never from the page's build path.
   function w:escTick()
-    if self.step ~= 10 or self.overview then return end
+    if self.step ~= 11 or self.overview then return end
     if not self:escLinkReady() then return end
     if not self.escAttempted then self:readEsc(); return true end
   end

@@ -6,7 +6,7 @@ local READS = { "status", "boxids", "mode_ranges", "mode_ranges_extra", "adjustm
   "servo_configurations", "servo", "rc_tuning", "tail_motor_output", "name",
   "battery_config", "battery_profile", "smartfuel_config" }
 local STEPS = { "sensors", "receiver", "modes", "profiles", "rates", "swash", "servoType", "governor", "motor",
-  "escTelemetry", "connect", "throttle", "servos", "direction", "level", "pitch", "tail", "gyro", "finish" }
+  "connect", "escTelemetry", "throttle", "servos", "direction", "level", "pitch", "tail", "gyro", "finish" }
 -- The per-profile APIs (profileLoop's kinds pid, rates and rescue). These are written by the
 -- loop itself, never by the generic dirty-API save.
 local PROFILE_APIS = { governor_profile = true, rc_tuning = true, rescue_profile = true }
@@ -534,7 +534,7 @@ function M.new(runtime, transport, mathModule, labels)
   -- when the step is entered from another step and when it is started from the step menu, so a
   -- "blades removed" answer or a finished calibration never carries into a new visit.
   function w:resetVisit(step)
-    local owned = ({ [1] = {"orientation", "unplugged", "blades"}, [11] = {"batteryOff", "connected"}, [12] = {"motorDirection", "escBlades"},
+    local owned = ({ [1] = {"orientation", "unplugged", "blades"}, [10] = {"connected"}, [12] = {"motorDirection", "escBlades"},
       [13] = {"servoUp0", "servoUp1", "servoUp2", "servoCentre0", "servoCentre1", "servoCentre2", "servoCentre3"},
       [14] = {"control1", "control2", "control4"}, [15] = {"level"}, [16] = {"pitch"},
       [17] = {"tailCentre", "tailDirection"}, [18] = {"gyro1", "gyro2", "gyro3"}, [19] = {"finish"} })[step]
@@ -544,7 +544,7 @@ function M.new(runtime, transport, mathModule, labels)
       self.calibratedEsc, self.escStage = nil, nil
       if self.rangeSource == "calibrated" then self.rangeSource = nil end
     end
-    if step == 10 then
+    if step == 11 then
       if self.escParams then self.escParams.block = nil end
       self.escAttempted,self.escBusy,self.escResultKey=nil,nil,nil
     end
@@ -560,7 +560,8 @@ function M.new(runtime, transport, mathModule, labels)
   end
   function w:navigate(step, card)
     if self.transition or not self.ready then return end
-    if self.step >= 11 and step <= 10 then self.checks.unplugged, self.unpluggedAgain = nil, true end
+    -- Back in front of Connect servos, a later restart asks again whether the servos are out.
+    if self.step >= 10 and step <= 9 then self.checks.unplugged = nil end
     if step ~= self.step then self:resetVisit(step) end
     -- Full throttle must remain active while the battery instruction is displayed.
     -- Back and every other transition still release all overrides.
@@ -623,8 +624,8 @@ function M.new(runtime, transport, mathModule, labels)
     end
     if self.card < #self.cards then self:navigate(self.step, self.card + 1); return end
     if self.validate and not self.validate() then return end
-    -- ESC telemetry (10) restarts before the servos are plugged in at Connect servos (11);
-    -- from there on every step restarts a pending change before it moves on.
+    -- Connect servos (10) restarts what the steps before it owe, with the servos still out; from
+    -- there on every step restarts a pending change before it moves on.
     if self.rebootPending and self.step >= 10 then self:reboot(); return end
     if not next(self.dirty) then
       if self.finishStep then self:finishStep() elseif self.step == 19 then self:close() else self:navigate(self.step + 1, 1) end
@@ -733,9 +734,6 @@ function M.new(runtime, transport, mathModule, labels)
     self.card=1;self:rebuild()
   end
   function w:reboot()
-    -- ESC telemetry restarts with the servos still unplugged. Coming back to it from Connect
-    -- servos cleared that answer, so any restart from it asks for it again first.
-    if self.step == 10 and not self.checks.unplugged then self:showRebootGate(); return end
     self:save(function()
       if self.logInfo then self:log("info", "reboot") end
       self.transition = true; self.message = self.L.rebooting; self.rebootAt = now(); self.rebootPhase = "sent"
@@ -863,11 +861,11 @@ function M.new(runtime, transport, mathModule, labels)
     local api = switches and (self.pollIndex==1 and "status" or "rc") or
       attitudeCheck and (self.pollIndex%2==1 and "attitude" or self.pollIndex==2 and "status" or "servo") or
       self.pollIndex == 1 and "status" or self.pollIndex == 2 and "servo" or
-      ({ [1] = "attitude", [2] = "rx_channels", [3] = "rc", [4] = "rc", [10] = "motor_telemetry", [11] = "motor",
+      ({ [1] = "attitude", [2] = "rx_channels", [3] = "rc", [4] = "rc", [10] = "motor", [11] = "motor_telemetry",
         [12] = "motor", [14] = "rc_command", [17] = self:motorised() and "motor" or "rc_command" })[self.step]
     -- On Power cards, replace the unused servo poll with one nine-byte selected-source reading.
     local card = self.cards and self.cards[self.card]
-    if self.step == 10 and card and card.power and self.pollIndex == 2 then api = "analog" end
+    if self.step == 11 and card and card.power and self.pollIndex == 2 then api = "analog" end
     if self.motorHold then api = "motor" end
     if not api then return end
     local selectedSources = self.sent.battery_config or self.saved.battery_config
@@ -1012,8 +1010,8 @@ function M.new(runtime, transport, mathModule, labels)
       end
       if self:buildModelPreparation() then self:rebuild();return end
       -- A range transaction owns its motor reboot; first keep ESC restart/readback reachable.
-      self.entryRebootGate = self.returnToSuite and self.step >= 10 and self.step ~= 11 and self.rebootPending
-        and not (self.step == 10 and self.escRangeExpected) or nil
+      self.entryRebootGate = self.returnToSuite and self.step >= 11 and self.rebootPending
+        and not (self.step == 11 and self.escRangeExpected) or nil
       if self.entryRebootGate then self:showRebootGate();return end
       local key = STEPS[self.step]
       self.validate, self.onLive, self.commit = nil, nil, nil

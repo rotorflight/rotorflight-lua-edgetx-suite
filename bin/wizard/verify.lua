@@ -224,8 +224,8 @@ eq(q.sent[1].command,119,"the ARM box bit is read before the arming block")
 eq(q.sent[2].command,101,"the arming state is read before the arming block")
 eq(q.sent[3].command,99,"arming disabled before configuration writes")
 eq(q.sent[3].payload[1],1,"arming disabled payload")
-local steps = { "sensors","receiver","modes","profiles","rates","swash","servoType","governor","motor","escTelemetry",
-  "connect","throttle","servos","direction","level","pitch","tail","gyro","finish" }
+local steps = { "sensors","receiver","modes","profiles","rates","swash","servoType","governor","motor","connect",
+  "escTelemetry","throttle","servos","direction","level","pitch","tail","gyro","finish" }
 local view = load(PATH .. "view.lua")
 local diagrams = load(PATH .. "diagrams.lua")
 for i=1,#arg do if arg[i]=="--view" then view=assert(loadfile(arg[i+1]))() end end

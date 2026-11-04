@@ -33,7 +33,7 @@ return function()
       if fs.failure=="rename" then return 7 end
       assert(fs.files[to]==nil,"FatFs cannot rename onto an existing file")
       fs.files[to],fs.files[from]=fs.files[from],nil
-      if fs.failure=="readback" then fs.files[to]="return { version = 1, completed = 0 }\n" end
+      if fs.failure=="readback" then fs.files[to]="return { version = 2, completed = 0 }\n" end
       return 0
     end
   end
