@@ -497,6 +497,42 @@ local function run(mutate)
     check("an option has none", source.icon({ id = "a", label = "A" }) == nil)
   end
 
+  -- Every row the roll can show has its picture in both schemes: the firmware reports a missing one on
+  -- every read of it, and shows nothing.
+  do
+    local w, r = open()
+    local tree = Views.session(w).tree
+    local source = r.source
+    local missing, seen = {}, 0
+    local function has(row, scheme)
+      local path = string.gsub(source.icon(row), "/roll_icons/%a+/", "/roll_icons/" .. scheme .. "/")
+      local f = io.open(path, "rb")
+      if f then f:close() end
+      seen = seen + 1
+      if not f then missing[#missing + 1] = path end
+    end
+    local function walk(rows)
+      for i = 1, #rows do
+        has(rows[i], "light")
+        has(rows[i], "dark")
+        local below = Tree.children(w, tree, rows[i])
+        if below ~= nil then walk(below) end
+      end
+    end
+    w.preferences.general.preview_setup_wizard = true
+    w.preferences.general.developer_tools = true
+    w.preferences.general.preview_inflight_tuning = true
+    Tree.refresh(tree)
+    walk(Tree.top(w, tree))
+    local entries = { "erase_blackbox", "inflight_tuning", "battery_pick", "tool", "flight_log", "battery_profile" }
+    for i = 1, #entries do
+      local entry = Menu.entry(w, entries[i])
+      has(entry, "light")
+      has(entry, "dark")
+    end
+    check("every row's picture is on disk, " .. seen .. " read: " .. table.concat(missing, ", "), #missing == 0 and seen > 150)
+  end
+
   -- The tree goes with the visit, and is read outside the module cache.
   do
     local w, r = open()
