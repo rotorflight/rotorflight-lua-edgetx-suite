@@ -262,6 +262,8 @@ function M.quick(widget, entries, t)
     end,
     noticeClose = t("widgets.dashboard.roll_close", "Close"),
     icon = function(row)
+      -- Rows of the menus only: a choice's options and a question's answers have no picture.
+      if row.tree ~= true and row.kind == nil then return nil end
       if row.iconFile == nil then
         local look = (Look ~= nil and Look.schemeName(widget)) or "light"
         row.iconFile = ICON_ROOT .. look .. "/" .. tostring(row.icon or row.id) .. ".png"

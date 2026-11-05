@@ -418,6 +418,45 @@ local function run(mutate)
     w.state.armed = false
   end
 
+  -- What the roll costs: a build at depth, and a pass of the firmware's sweep over every getter of the scene.
+  do
+    local function sweep(node)
+      for _, key in ipairs({ "visible", "file", "text", "color", "scrollTo" }) do
+        if type(node[key]) == "function" then node[key]() end
+      end
+      if node.children ~= nil then
+        for i = 1, #node.children do sweep(node.children[i]) end
+      end
+    end
+    local function counted(fn)
+      local n = 0
+      debug.sethook(function() n = n + 1 end, "", 1)
+      fn()
+      debug.sethook()
+      return n
+    end
+    local w, r = open()
+    toSetup(w, r)
+    local children
+    local built = counted(function() children = build(w) end)
+    check("a build at depth stays inside a call: " .. built, built < 20000 * 0.8)
+    local function all() for i = 1, #children do sweep(children[i]) end end
+    local pass = counted(all)
+    check("a pass of its getters stays well inside one: " .. pass, pass < 20000 * 0.4)
+    moveTo(r.levels[3], "mixer")
+    local detent = counted(all)
+    check("and a detent to a row with a list adds a bounded preview: " .. detent, detent < 20000 * 0.4)
+    local images = 0
+    for i = 1, #children do if children[i].type == "image" then images = images + 1 end end
+    check("six picture slots", images == 6)
+    -- The pictures: in the scheme's folder, off a grey row, none on an option.
+    local source = r.source
+    local row = r.levels[3].rows[r.levels[3].index]
+    check("a row's picture is in the scheme's folder", string.find(source.icon(row), "/roll_icons/light/setup_mixer_icon.png", 1, true) ~= nil)
+    check("a quick menu row has one", string.find(source.icon(r.levels[1].rows[r.levels[1].index]), "/roll_icons/light/tool.png", 1, true) ~= nil)
+    check("an option has none", source.icon({ id = "a", label = "A" }) == nil)
+  end
+
   -- The tree goes with the visit, and is read outside the module cache.
   do
     local w, r = open()
