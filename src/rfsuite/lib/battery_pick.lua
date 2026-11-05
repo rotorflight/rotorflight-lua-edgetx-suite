@@ -317,6 +317,18 @@ function M.readProfile(callback)
   return true
 end
 
+--- What a pack's profile rests on: the board's capacities and cell counts. By value, as the battery
+--- page's save changes the shared table in place.
+function M.configKey(config)
+  if type(config) ~= "table" then return "" end
+  local parts = {}
+  for i = 0, PROFILE_COUNT - 1 do
+    parts[#parts + 1] = tostring(config["batteryCapacity_" .. i])
+    parts[#parts + 1] = tostring(config["batteryCellCount_" .. i])
+  end
+  return table.concat(parts, ",")
+end
+
 --- Whether the link says the model is armed: what the flight's own record goes by.
 function M.armedOnLink()
   local state = mspState()

@@ -709,7 +709,7 @@ local function run(mutate)
       for i = 1, count do list[i] = { id = "n" .. i, name = "N" .. i, cap = 2000, cycles = i, targetProfile = 0 } end
       -- As the load publishes it: each pack's profile worked out in the load's own steps.
       w.state.batteryPick = { loaded = true, pending = true, candidates = list,
-        resolvedFor = Menu.configKey(w.state.battery_config), resolvedPacks = list }
+        resolvedFor = req("lib/battery_pick.lua").configKey(w.state.battery_config), resolvedPacks = list }
       Views.navigate(w, "openView:battery_pick")
       return w
     end

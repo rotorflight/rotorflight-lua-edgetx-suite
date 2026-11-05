@@ -1812,11 +1812,8 @@ local function batteryPickLoadStep(self)
   pick.candidates = list
   -- Each pack's profile is worked out in the load's own steps; the picker need not do it again in its
   -- build, unless the configuration has changed since.
-  local Menu = requireModule("widgets/dashboard/fullscreen_menu.lua")
-  if type(Menu) == "table" and type(Menu.configKey) == "function" then
-    local now = Menu.configKey(self.state.battery_config)
-    if now == Menu.configKey(load.cfg) then pick.resolvedFor, pick.resolvedPacks = now, list end
-  end
+  local now = BatteryPick.configKey(self.state.battery_config)
+  if now == BatteryPick.configKey(load.cfg) then pick.resolvedFor, pick.resolvedPacks = now, list end
 
   local id = BatteryPick.selectedId(session)
   pick.selectedId = id
@@ -1944,9 +1941,18 @@ local function batteryPickApplyStep(self)
   local entry = batteryPickEntry(pick, id)
 
   local _, setsProfile = BatteryPick.settings(self.preferences)
+  -- A press left up that needed no write after all: told as the card answered, as a written one is.
+  local function recorded()
+    if record(id) then
+      widgetLog(self, "battery pick not stored on the card", "warn")
+      pick.applied = "not stored"
+      if press ~= nil then press.report("failed") end
+      return false
+    end
+    return true
+  end
   if entry == nil or setsProfile ~= true then
-    record(id)
-    settled(press)
+    if recorded() then settled(press) end
     return true
   end
 
@@ -1959,9 +1965,10 @@ local function batteryPickApplyStep(self)
   -- the feature entirely on a board whose profile read never came back. The picker offers no pack
   -- without a profile; the other route here, rfsuite.batteryPick, records it and sends nothing.
   if target == nil or (pick.boardProfile ~= nil and target == pick.boardProfile) then
-    record(id)
-    pick.applied = "skipped"
-    settled(press)
+    if recorded() then
+      pick.applied = "skipped"
+      settled(press)
+    end
     return true
   end
 
