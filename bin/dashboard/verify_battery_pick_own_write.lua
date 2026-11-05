@@ -429,7 +429,7 @@ do
   local w = world.w
   local reports = {}
   local function press(id)
-    w._batteryPickReport = function(value) reports[#reports + 1] = value end
+    w._batteryPickPress = { report = function(value) reports[#reports + 1] = value end }
     w._batteryPickRequest = id
     -- The scripted board is on profile 2 from the start; a known match would send nothing.
     w.state.batteryPick.boardProfile = nil
@@ -509,6 +509,42 @@ do
   answers[#answers](true)
   passes(world, 3)
   expect(storedPack(world) == "p1000", "control: a pick after that still records", tostring(storedPack(world)))
+
+  -- A write out and a later answer from outside: the press is told, and is not left saying SENDING.
+  reports = {}
+  press("p1300")
+  passes(world, 3)
+  expect(#reports == 0, "a press out has no outcome yet", #reports .. " report(s)")
+  w._batteryPickRequest = false
+  passes(world, 3)
+  expect(reports[#reports] == "failed", "a later answer from elsewhere settles the press", tostring(reports[#reports]))
+  answers[#answers](true)
+  passes(world, 3)
+  expect(#reports == 1, "and the earlier reply says nothing more", #reports .. " report(s)")
+
+  -- The same pack picked twice: each write answers for itself.
+  press("p1300")
+  passes(world, 3)
+  local first = answers[#answers]
+  press("p1300")
+  passes(world, 3)
+  local second = answers[#answers]
+  first(false)
+  passes(world, 3)
+  second(true)
+  passes(world, 3)
+  expect(storedPack(world) == "p1300", "an earlier failure does not throw away the later write's answer", tostring(storedPack(world)))
+  press("p1000")
+  passes(world, 3)
+  first = answers[#answers]
+  press("p1000")
+  passes(world, 3)
+  first(true)
+  passes(world, 3)
+  expect(storedPack(world) == "p1300", "nor does an earlier success record before the later write has answered", tostring(storedPack(world)))
+  answers[#answers](true)
+  passes(world, 3)
+  expect(storedPack(world) == "p1000", "control: the later write's answer records", tostring(storedPack(world)))
 
   -- Refused at the write: the same as given up.
   BatteryPick.applyProfile = function() return false, "noqueue" end

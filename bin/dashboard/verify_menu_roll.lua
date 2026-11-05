@@ -649,7 +649,7 @@ local function run(mutate)
     Menu.run(w, Menu.entry(w, "battery_pick"), rows[1])
     check("it stays open through a pick that writes, or it would close and raise again",
       Views.condition("batteryPickPending", w) == true)
-    w._batteryPickRequest, w._batteryPickReport = nil, nil
+    w._batteryPickRequest, w._batteryPickPress = nil, nil
     w._viewStack = nil
     local q = openPicker(false)
     rows = roll(q).levels[1].rows
@@ -666,6 +666,15 @@ local function run(mutate)
     Views.navigate(q, "openView:menu")
     check("a menu opened over it stays", Views.finish(q, session, "battery_pick") == false and Views.top(q) == "menu")
     check("nor does a visit begun since end", Views.finish(q, {}, "menu") == false)
+    -- What the answer closes was fixed at the press, whatever has opened before the job ran.
+    local r = openPicker(true)
+    local rows = roll(r).levels[1].rows
+    Menu.run(r, Menu.entry(r, "battery_pick"), rows[1])
+    check("the press holds the view it was made on", r._batteryPickPress ~= nil and r._batteryPickPress.top == "battery_pick"
+      and r._batteryPickPress.visit == r._viewStack)
+    Views.navigate(r, "openView:menu")
+    check("a menu opened before the job ran stays",
+      Views.finish(r, r._batteryPickPress.visit, r._batteryPickPress.top) == false and Views.top(r) == "menu")
   end
   do
     -- A replaced configuration or list is worked out again, and the picker's key moves.
@@ -676,6 +685,11 @@ local function run(mutate)
     local key = page.renderKey(w)
     w.state.battery_config = { batteryCapacity_0 = 9999 }
     check("a replaced configuration moves the key", page.renderKey(w) ~= key)
+    key = page.renderKey(w)
+    local same = {}
+    for i, pack in ipairs(w.state.batteryPick.candidates) do same[i] = pack end
+    w.state.batteryPick.candidates = same
+    check("a replaced list of the same length moves it too", page.renderKey(w) ~= key)
     rows = Menu.entry(w, "battery_pick").options()
     check("and the pack is worked out again", rows[2].selectable == true)
     w.state.batteryPick.candidates = { { id = "z", name = "Z", cap = 1, profile = 4 } }

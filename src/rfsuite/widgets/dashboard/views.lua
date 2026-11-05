@@ -140,7 +140,7 @@ end
 function CONDITIONS.batteryPickPending(widget)
   local pick = widget.state and widget.state.batteryPick or nil
   if type(pick) ~= "table" or pick.pending ~= true then return false end
-  return widget._batteryPickRequest == nil or widget._batteryPickReport ~= nil
+  return widget._batteryPickRequest == nil or widget._batteryPickPress ~= nil
 end
 
 -- The suite's tool, which is opened only while the model is disarmed (tool_host.lua says why),

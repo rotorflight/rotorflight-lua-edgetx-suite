@@ -1866,6 +1866,20 @@ local function batteryPickApplyStep(self)
     return entry
   end
 
+  -- A press that stayed up for an answer it now has: say so, and close what it left up.
+  local function settled(press)
+    if press == nil then return end
+    press.report("ok")
+    local Views = viewsModule()
+    if Views then Views.finish(self, press.visit, press.top) end
+  end
+  -- A write still out that a later answer replaces: its reply records nothing, so its press is told now.
+  local function supersede()
+    local out = pick.writing
+    pick.writing = nil
+    if out ~= nil and out.press ~= nil then out.press.report("failed") end
+  end
+
   -- The board has answered a pick's write. The pilot may have closed the picker since: the profile
   -- has arrived all the same, so the pack is recorded, and only a picker still up is closed.
   local written = self._batteryPickWritten
@@ -1876,12 +1890,12 @@ local function batteryPickApplyStep(self)
     if self.state.armed == true then
       widgetLog(self, "battery pick not recorded: the model armed before the answer was taken", "warn")
       pick.applied = "refused:armed"
+      if written.press ~= nil then written.press.report("failed") end
       return true
     end
     record(written.id)
     pick.applied = "written"
-    local Views = viewsModule()
-    if Views then Views.finish(self, written.visit, written.top) end
+    settled(written.press)
     return true
   end
 
@@ -1889,10 +1903,10 @@ local function batteryPickApplyStep(self)
   self._batteryPickRequest = nil
   -- `false` is the "no battery" answer; nil would be indistinguishable from no request at all.
   if request == nil then return true end
-  local report = self._batteryPickReport
-  self._batteryPickReport = nil
+  local press = self._batteryPickPress
+  self._batteryPickPress = nil
   -- The pilot's latest answer stands: the answer to a write still out for an earlier one records nothing.
-  pick.writing = nil
+  supersede()
 
   -- Refused while armed, here as well as by hiding BATTERY: a picker that was already open when
   -- the model armed, or a caller of rfsuite.batteryPick, still arrives at this step, and a pack
@@ -1900,7 +1914,7 @@ local function batteryPickApplyStep(self)
   if self.state.armed == true then
     widgetLog(self, "battery pick refused: the model is armed", "warn")
     pick.applied = "refused:armed"
-    if report then report("failed") end
+    if press ~= nil then press.report("failed") end
     return true
   end
   -- Normalised here, before the candidate lookup below, and not only inside select(): an id
@@ -1912,6 +1926,7 @@ local function batteryPickApplyStep(self)
   local _, setsProfile = BatteryPick.settings(self.preferences)
   if entry == nil or setsProfile ~= true then
     record(id)
+    settled(press)
     return true
   end
 
@@ -1926,35 +1941,28 @@ local function batteryPickApplyStep(self)
   if target == nil or (pick.boardProfile ~= nil and target == pick.boardProfile) then
     record(id)
     pick.applied = "skipped"
-    -- The press expected a write and stayed up for its answer: there is none to wait for.
-    if report then
-      report("ok")
-      local Views = viewsModule()
-      if Views then Views.navigate(self, "done") end
-    end
+    settled(press)
     return true
   end
 
   -- The reply is handled outside the job pass, so the card write waits for the next one, and that
-  -- runs while the widget is on screen. A reply that outlives its connection, or a later pick,
-  -- records nothing.
-  local visit = self._viewStack
-  local Views = viewsModule()
-  local top = Views and Views.top(self) or nil
-  pick.writing = id
+  -- runs while the widget is on screen. A reply that outlives its connection, or one to a write a
+  -- later pick has replaced, records nothing: each write is its own table, as the same pack can be
+  -- picked twice.
+  local write = { press = press }
+  pick.writing = write
   local queued, why = BatteryPick.applyProfile(target, { reason = "battery pick", answer = function(ok)
-    if self.state.batteryPick ~= pick or pick.writing ~= id then
+    if self.state.batteryPick ~= pick or pick.writing ~= write then
       widgetLog(self, "battery pick answer ignored: the pick was replaced", "debug")
       return
     end
     pick.writing = nil
     if ok then
-      self._batteryPickWritten = { id = id, target = target, visit = visit, top = top }
-      if report then report("ok") end
+      self._batteryPickWritten = { id = id, target = target, press = press }
     else
       widgetLog(self, "battery pick not recorded: the profile write was given up", "warn")
       pick.applied = "failed"
-      if report then report("failed") end
+      if press ~= nil then press.report("failed") end
     end
   end })
   -- A queued write can still be dropped, so the board's answer from the load no longer says which
@@ -1965,7 +1973,7 @@ local function batteryPickApplyStep(self)
   else
     pick.writing = nil
     pick.applied = "refused:" .. tostring(why)
-    if report then report("failed") end
+    if press ~= nil then press.report("failed") end
   end
   return true
 end
@@ -4856,7 +4864,7 @@ function Runtime.new(zone, options)
       self.state.batteryPick = newBatteryPickState()
       self._batteryPickRequest = nil
       self._batteryPickWritten = nil
-      self._batteryPickReport = nil
+      self._batteryPickPress = nil
       self._batteryPickPicked = nil
       self._viewStack = nil
       self.modelPreferences = nil

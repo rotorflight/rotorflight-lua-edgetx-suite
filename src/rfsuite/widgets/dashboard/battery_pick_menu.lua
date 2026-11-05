@@ -64,7 +64,7 @@ function M.renderKey(widget)
   if state == nil then return "" end
   local pick = state.batteryPick
   local key = tostring(state.battery_config) .. "|" .. tostring(type(pick) == "table" and pick.selectedId or "")
-    .. "|" .. tostring(type(pick) == "table" and type(pick.candidates) == "table" and #pick.candidates or 0)
+    .. "|" .. tostring(type(pick) == "table" and pick.candidates or "")
   if Look.style(widget) == "rotary" then
     local Roll = rollModule()
     if Roll then key = key .. "|" .. Roll.renderKey(widget) end

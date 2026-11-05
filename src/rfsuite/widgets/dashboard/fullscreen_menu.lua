@@ -148,11 +148,12 @@ local function requestPick(widget, id, writes)
   else
     widget._batteryPickRequest = id
   end
-  widget._batteryPickReport = nil
+  widget._batteryPickPress = nil
   if writes and Views and type(Views.reporter) == "function" then
     local report = Views.reporter(widget, "battery_pick")
     report("busy")
-    widget._batteryPickReport = report
+    -- What the answer closes is what stood when the pilot pressed: the job may run passes later.
+    widget._batteryPickPress = { report = report, visit = Views.session(widget), top = Views.top(widget) }
   end
 end
 
