@@ -1133,6 +1133,14 @@ do
   lines = 0
   value = value + 10; row.set(value)
   eq(lines, 1, "ROTARY the next tick traces again")
+  -- The same on the way that waits for a fresh status.
+  spin:tick()
+  lines = 0
+  spin.statusAt = ticks - 301
+  for _ = 1, 30 do spin:applyEdit(function() end) end
+  eq(lines, 1, "ROTARY one trace line while edits wait for a status")
+  spin.pendingEdit, spin.pendingEditDropped, spin.statusQueued = nil, nil, nil
+  spin.statusAt = ticks
   Log.emitf = emitf
   _G.rfsuite.Log, _G.rfsuite.preferences = savedLog, savedPrefs
 end

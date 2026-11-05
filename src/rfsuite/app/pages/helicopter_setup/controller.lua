@@ -224,7 +224,10 @@ function M.new(runtime, transport, mathModule, labels)
       return
     end
     self.pendingEdit, self.pendingEditDropped = fn, dropped
-    if self.logTrace then self:log("trace", "edit waits for a fresh status") end
+    if self.logTrace and not self.editLogged then
+      self.editLogged = true
+      self:log("trace", "edit waits for a fresh status")
+    end
     if not self.statusQueued then
       self.statusQueued = true
       self.bus:urgent({ api = "status", after = function(d)
