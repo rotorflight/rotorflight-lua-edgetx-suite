@@ -5,7 +5,7 @@
   "inputs": {
     "bin/wizard/source-map.json": "c4cc0185cbf9644c6750654e77d21a0f01759db0ad0a1ab9dad4c1ba490fedbe",
     "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "1750296f3f160c4c328b331cf34673bb803e936266f19712698dac996c6ea56a",
-    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "70089668a279359e53eedf8fb2b59430dd76d6edaef458c6acffa6a6694321c9",
+    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "d42c1806c4de6d279f6dd1d883e7cb10d3f821bf5f1841abc1b88150c25b0cd2",
     "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "cbc550ea2e412419e3560b258e008f6ad86c4a3dbaf7539089e29164f30b0c5a",
     "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "2da65f54ecf424df2a75e37bdf7c4f8618429eb3c623a1bdf0939a21579431bf",
     "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "c3ea5efadee0e508809b7442720ce5260e3b4abc10e9e0bf922e1288c154c396",
