@@ -571,30 +571,22 @@ local function compileHoldsConnect(self)
   return false
 end
 
--- The splash line while the pass runs, and the request to restart once it has finished. It names
--- the work the way the tool's start screen does, and the count in it moves once a second at most:
--- the splash is rebuilt whenever its line changes, and a count taken on every pass would turn every
--- pass into a build.
+-- The line while the pass runs, and the request to restart once it has finished. It names the work
+-- the way the tool's start screen does: a bar shows how far it is, because a count of files means
+-- nothing to whoever is holding the radio. The bar reads _compileFill through its own size.
 local function compileStatusLine(self, t)
   if Compile and Compile.needsRestart() then
+    self._compileFill, self._compileRestart = nil, true
     if _G.rfsuite.paths.moveFailed then
       return (t and t("app.restart_radio.move_failed")) or "Settings not moved: card full? Please restart the radio."
     end
     return (t and t("app.restart_radio.splash")) or "Suite updated. Please restart the radio."
   end
-  local now = nowSeconds()
-  if self._compileLine == nil or (now - (self._compileLineAt or 0)) >= 1 then
-    local done, total = 0, 0
-    if Compile then done, total = Compile.getProgress() end
-    local headline = (t and t("app.preparing")) or "Preparing suite"
-    if total > 0 then
-      self._compileLine = headline .. " (" .. tostring(done) .. "/" .. tostring(total) .. ")"
-    else
-      self._compileLine = headline
-    end
-    self._compileLineAt = now
-  end
-  return self._compileLine
+  self._compileRestart = nil
+  local done, total = 0, 0
+  if Compile then done, total = Compile.getProgress() end
+  self._compileFill = total > 0 and done / total or nil
+  return (t and t("app.preparing")) or "Preparing suite"
 end
 
 local function tickMspRuntime(self, carry)
@@ -645,9 +637,9 @@ local function tickMspRuntime(self, carry)
   end
 end
 
-local function buildConnectionSplash(zone, statusLine, title)
+local function buildConnectionSplash(zone, statusLine, title, progress)
   if DashboardSplash and type(DashboardSplash.build) == "function" then
-    return DashboardSplash.build(zone, statusLine, title)
+    return DashboardSplash.build(zone, statusLine, title, progress)
   end
 
   local w = (zone and zone.w) or LCD_W or 320
@@ -1187,10 +1179,25 @@ local function jobCapped(self, kind)
 end
 
 local function splashJobStep(self)
-  local statusLine = self.statusLine or "Please wait..."
-  local t = (self.i18n and type(self.i18n.t) == "function") and self.i18n.t or nil
-  local title = (t and t("widgets.dashboard.connecting_fbl")) or "Connecting FBL..."
-  local splash = buildConnectionSplash(self.zone, statusLine, title)
+  -- Title, line and bar are read by their objects rather than built into them, so what they say
+  -- changes without a rebuild. A rebuild is not free: lvgl.clear() leaves each object's native wrapper
+  -- allocated until the state ends (EdgeTX clearRefs nulls the pointer the finalizer would delete),
+  -- and no Lua call gets that back. While the compile pass holds the connection nothing is being
+  -- connected, so the title says what is happening instead.
+  self._splashTitle = self._splashTitle or function()
+    local t = (self.i18n and type(self.i18n.t) == "function") and self.i18n.t or nil
+    if self._compileRestart then return (t and t("app.restart_radio.title")) or "Restart the radio" end
+    if self._compileHolding then return (t and t("app.preparing")) or "Preparing suite" end
+    return (t and t("widgets.dashboard.connecting_fbl")) or "Connecting FBL..."
+  end
+  self._splashLine = self._splashLine or function()
+    if self._compileHolding and not self._compileRestart then return "" end
+    return self.statusLine or "Please wait..."
+  end
+  self._compileBar = self._compileBar or function()
+    return self._compileHolding and self._compileFill or nil
+  end
+  local splash = buildConnectionSplash(self.zone, self._splashLine, self._splashTitle, self._compileBar)
   -- At full screen the splash carries the tool control, so the tool can be opened while the
   -- dashboard is still waiting for the link. A zone takes no press, so it is not drawn there.
   if self._job and self._job.fullscreenSplash then
@@ -1357,7 +1364,6 @@ local function standbyJobStep(self)
   if job.children then
     if job.zoneW ~= self.zone.w or job.zoneH ~= self.zone.h
         or job.layout ~= dashboard.standby_layout or job.i18n ~= self.i18n
-        or job.statusLine ~= self.statusLine
         or job.infoKind ~= (self.state and self.state.standbyInfoKind or nil)
         or dashboard.standby_enabled ~= true or self._toolHost ~= nil
         or job.flightMode ~= self.flightMode or job.connectionReady ~= self.connectionReady
@@ -1414,17 +1420,23 @@ local function standbyJobStep(self)
   local function text(key, fallback)
     return texts[key] or fallback
   end
-  local info = { text = texts.info_text or "", level = infoKind == "api_unsupported" and "warning" or "info" }
+  self._compileBar = self._compileBar or function()
+    return self._compileHolding and self._compileFill or nil
+  end
+  local info = { text = texts.info_text or "", level = infoKind == "api_unsupported" and "warning" or "info",
+    progress = self._compileBar }
   job.previousElrsWidths = self._standbyCache.elrsActiveWidths or self._standbyCache.elrsWidths
   local preparingWidths = {}
   for width in pairs(job.previousElrsWidths or {}) do preparingWidths[width] = true end
   self._standbyCache.elrsWidths = preparingWidths
   job.elrsWidths = {}
   self._standbyCache.elrsBuildWidths = job.elrsWidths
-  job.children = DashboardStandby.build(self.zone, self.statusLine, text, items, values, self._standbyCache, info)
+  -- A label reading the line, as on the splash: see splashJobStep.
+  self._statusLineText = self._statusLineText or function() return self.statusLine or "Please wait..." end
+  job.children = DashboardStandby.build(self.zone, self._statusLineText, text, items, values, self._standbyCache, info)
   self._standbyCache.elrsBuildWidths = nil
   job.zoneW, job.zoneH, job.layout = self.zone.w, self.zone.h, dashboard.standby_layout
-  job.i18n, job.statusLine, job.infoKind = self.i18n, self.statusLine, infoKind
+  job.i18n, job.infoKind = self.i18n, infoKind
   job.flightMode, job.connectionReady = self.flightMode, self.connectionReady
   job.armed = self.state and self.state.armed == true
   job.hadInflight = self.state and self.state.hadInflightFlight == true
@@ -5368,14 +5380,13 @@ function Runtime.new(zone, options)
     end
     if (not ready or uidWait) and self.flightMode ~= "postflight" and self.flightMode ~= "offline"
       and not explicitView and not tuningMode then
-      local statusLine = self.statusLine or "Please wait..."
       -- Full screen and the zone are two splashes, because only the first carries the tool control.
       local fullscreenSplash = event ~= nil
       local useStandby = standbyRenderActive
       if useStandby then
         self._standbyCache = self._standbyCache or {}
       end
-      local splashKey = (useStandby and "standby|" or "splash|") .. tostring(statusLine) .. "|info="
+      local splashKey = (useStandby and "standby|" or "splash|") .. "info="
         .. tostring(self.state.standbyInfoKind) .. "|" .. tostring(self.state.zoneW) .. "x" .. tostring(self.state.zoneH)
         .. (fullscreenSplash and "|fs" or "") .. (useStandby
           and ("|" .. tostring(dashboardPrefs.standby_layout)

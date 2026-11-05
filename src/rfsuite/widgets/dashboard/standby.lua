@@ -736,9 +736,32 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
       text = fitLine(info and info.text or "", infoWidth, SMLSIZE),
       color = COLOR_THEME_PRIMARY1, font = SMLSIZE },
     { type = "label", x = contentMargin, y = footerY + statusY, w = contentWidth,
-      h = statusH, text = tostring(statusLine or ""),
+      h = statusH, text = type(statusLine) == "function" and statusLine or tostring(statusLine or ""),
       color = COLOR_THEME_PRIMARY2, font = SMLSIZE },
     }
+    -- The compile pass's bar, on the line's row and clear of its words: see runtime.lua. It starts at
+    -- the middle, or after the words where a narrow zone leaves them past it, and a zone with no room
+    -- left keeps the words alone. Measured here and only here: a new kind of line rebuilds the scene
+    -- (standbyInfoKind), and the restart request that follows the words hides the bar. A micro layout
+    -- has no such row.
+    local progress = info and info.progress
+    local line = type(statusLine) == "function" and statusLine() or statusLine
+    local barX = math.max(math.floor(w / 2), contentMargin + measure(line or "", SMLSIZE) + 6)
+    local barW = w - barX - contentMargin
+    if progress and barW >= 40 then
+      local barH = math.min(10, statusH)
+      local barY = footerY + statusY + math.floor((statusH - barH) / 2)
+      local fillW = barW - 4
+      children[#children + 1] = { type = "rectangle", x = barX, y = barY, w = barW, h = barH,
+        color = COLOR_THEME_DISABLED, filled = true,
+        visible = function() return progress() ~= nil end }
+      children[#children + 1] = { type = "rectangle", x = barX + 2, y = barY + 2, w = 1, h = barH - 4,
+        color = COLOR_THEME_PRIMARY2, filled = true,
+        visible = function() return progress() ~= nil end,
+        size = function()
+          return math.max(1, math.floor(fillW * math.min(1, progress() or 0) + 0.5)), barH - 4
+        end }
+    end
   end
   for r = 1, #rows do
     local row = rows[r]
