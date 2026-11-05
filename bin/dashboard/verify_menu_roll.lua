@@ -137,6 +137,23 @@ local function run(mutate)
   local function roll(w) return w._viewStack.roll end
   local function detent(box, h, row) box.scrolled(0, row * h) end
 
+  -- Every colour these pages read is a role of both schemes: an unset colour draws white.
+  do
+    local Schemes = req("lib/color_schemes.lua")
+    for _, name in ipairs({ "light", "dark" }) do
+      for _, role in ipairs(Look.ROLES) do
+        check(name .. " has the role " .. role[2], Schemes.SCHEMES[name][role[2]] ~= nil)
+      end
+      local colors = Look.colors({ preferences = { general = { color_scheme = name } } })
+      for _, role in ipairs(Look.ROLES) do
+        check(name .. " gives " .. role[1], type(colors[role[1]]) == "number")
+      end
+      check(name .. " gives far", type(colors.far) == "number")
+    end
+    check("the two schemes differ", Look.colors({ preferences = { general = { color_scheme = "dark" } } }).bg
+      ~= Look.colors({ preferences = { general = { color_scheme = "light" } } }).bg)
+  end
+
   -- The card is what a radio with no choice gets.
   do
     local w = newWidget(nil)

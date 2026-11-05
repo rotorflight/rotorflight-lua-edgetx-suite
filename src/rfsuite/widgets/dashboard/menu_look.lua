@@ -29,20 +29,20 @@ M.KEY = "color_scheme"
 
 -- The name each of these pages reads a colour by, and the scheme's role it is.
 M.ROLES = {
-  bg = "page",
-  panel = "card",
-  off = "raised",
-  head = "header",
-  headText = "headerText",
-  text = "text",
-  muted = "muted",
-  disabled = "disabled",
-  accent = "accent",
-  onAccent = "onAccent",
-  fill = "selection",
-  close = "error",
-  onClose = "onError",
-  rule = "rule",
+  { "bg", "page" },
+  { "panel", "card" },
+  { "off", "raised" },
+  { "head", "header" },
+  { "headText", "headerText" },
+  { "text", "text" },
+  { "muted", "muted" },
+  { "disabled", "disabled" },
+  { "accent", "accent" },
+  { "onAccent", "onAccent" },
+  { "fill", "selection" },
+  { "close", "error" },
+  { "onClose", "onError" },
+  { "rule", "rule" },
 }
 
 -- The rotary style's outermost rows, a step paler than `muted`. Not a role of the schemes.
@@ -68,7 +68,10 @@ function M.colors(widget)
   if name ~= lastName then
     local scheme = Schemes.colors(name)
     local colors = {}
-    for own, role in pairs(M.ROLES) do colors[own] = scheme[role] end
+    for i = 1, #M.ROLES do
+      local role = M.ROLES[i]
+      colors[role[1]] = scheme[role[2]]
+    end
     colors.far = lcd.RGB(FAR[name])
     lastName, lastColors = name, colors
     local Log = requireModule("lib/log.lua")
