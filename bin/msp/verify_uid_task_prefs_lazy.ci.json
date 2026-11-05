@@ -1,0 +1,7 @@
+{
+  "id": "uid-task-prefs-lazy",
+  "name": "UID connect task loads the preferences module only when it needs it",
+  "commands": [
+    "lua5.3 bin/msp/verify_uid_task_prefs_lazy.lua"
+  ]
+}

@@ -39,11 +39,13 @@ function M.wakeup()
 
   -- If MspRuntime has already resolved UID and model preferences, reuse it immediately
   if session.mcu_id and session.mcu_id ~= "" then
-    if not ModelPreferences then ModelPreferences = loadModule("lib/model_preferences.lua") end
-    if not session.modelPreferences and ModelPreferences and type(ModelPreferences.loadByMcuId) == "function" then
-      local prefs, filePath = ModelPreferences.loadByMcuId(session.mcu_id, true)
-      session.modelPreferences = prefs
-      session.modelPreferencesFile = filePath
+    if not session.modelPreferences then
+      if not ModelPreferences then ModelPreferences = loadModule("lib/model_preferences.lua") end
+      if ModelPreferences and type(ModelPreferences.loadByMcuId) == "function" then
+        local prefs, filePath = ModelPreferences.loadByMcuId(session.mcu_id, true)
+        session.modelPreferences = prefs
+        session.modelPreferencesFile = filePath
+      end
     end
     session.modelPreferencesResolved = true
     done = true
