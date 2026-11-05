@@ -95,9 +95,8 @@ local MODEL_SCHEMA = {
   audio_events = { open = true },
   -- Which battery the flight log last booked a flight against.
   flightlog = { open = true },
-  -- What the setup assistant has been told about this machine: a resume cursor and one key per
-  -- procedure the pilot passed over, the radio-side ones carrying the transmitter model in the
-  -- key (app/pages/setup_wizard/store.lua).
+  -- What the setup assistant, since removed, stored about this machine. Nothing writes it now;
+  -- it stays known so a pilot's existing file keeps its section.
   setup_wizard = { open = true },
   -- Where the name a rename replaced was kept before it moved to a store of its own. Read once
   -- at rename time so a rename in effect across an update is not stranded.
