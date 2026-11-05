@@ -56,10 +56,9 @@ local init = {
   },
   -- The full screen views, on a host that has theme views; any other host ignores the key. The quick
   -- menu, the battery picker and the battery profile page are the host's own, the same on every
-  -- theme. `deck_menu` is the
-  -- is
-  -- theme's own menu (the battery profiles and the tuning surface, opened by a tap on the model
-  -- picture's card), `deck_link` its ELRS link page (opened by a tap on the link cluster),
+  -- theme. `deck_menu` is the theme's own menu (the battery profiles and the tuning surface, opened
+  -- by a tap on the model picture's card), `deck_link` its ELRS link page (opened by a tap on the
+  -- link cluster),
   -- `deck_telemetry` its telemetry page (opened by a tap on a card showing a reading or on the
   -- value row; its tiles are chosen on the Telemetry settings page).
   -- `deck_battery` its battery page (opened by a tap on the charge card or the battery strip).

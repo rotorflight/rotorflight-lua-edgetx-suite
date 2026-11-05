@@ -55,10 +55,9 @@ local init = {
   },
   -- The full screen views, on a host that has theme views; any other host ignores the key. The quick
   -- menu, the battery picker and the battery profile page are the host's own, the same on every
-  -- theme. `urban_menu` is the
-  -- is
-  -- theme's own menu (the battery profiles and the tuning surface, opened by a tap on the flight
-  -- view's profile row), `urban_link` its ELRS link page (opened by a tap on the link bars),
+  -- theme. `urban_menu` is the theme's own menu (the battery profiles and the tuning surface,
+  -- opened by a tap on the flight view's profile row), `urban_link` its ELRS link page (opened by a
+  -- tap on the link bars),
   -- `urban_telemetry` its telemetry page (opened by a tap on the value rows; its tiles are chosen
   -- on the Telemetry settings page).
   -- `urban_battery` its battery page (opened by a tap on the battery gauge).

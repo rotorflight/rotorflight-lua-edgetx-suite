@@ -56,10 +56,9 @@ local init = {
   },
   -- The full screen views, on a host that has theme views; any other host ignores the key. The quick
   -- menu, the battery picker and the battery profile page are the host's own, the same on every
-  -- theme. `grid_menu` is the
-  -- is
-  -- theme's own menu (the battery profiles and the tuning surface, opened by a tap on the flight
-  -- view's extra tile), `grid_link` its ELRS link page (opened by a tap on the link bars),
+  -- theme. `grid_menu` is the theme's own menu (the battery profiles and the tuning surface, opened
+  -- by a tap on the flight view's extra tile), `grid_link` its ELRS link page (opened by a tap on
+  -- the link bars),
   -- `grid_telemetry` its telemetry page (opened by a tap on a value tile; its tiles are chosen
   -- on the Telemetry settings page).
   -- `grid_battery` its battery page (opened by a tap on the battery card or gauge).

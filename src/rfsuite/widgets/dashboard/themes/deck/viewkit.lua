@@ -4,8 +4,8 @@
 -- The views are registered in init.lua (`views`) and exist only on a host that has theme views;
 -- the host loads a view's module the first time the view is built, so this file loads in a
 -- fullscreen job pass and never in the pass that reloads the theme. Every view draws its header
--- through K.header, the battery picker (battpick.lua) included, so the picker, the menus and the
--- link view read as one set -- and as the flight view they open from: a white page, black text,
+-- through K.header, so the theme's own menu and its link, telemetry, battery and status views
+-- read as one set -- and as the flight view they open from: a white page, black text,
 -- 1 px lines, outlined controls, and colour only where it means something.
 --
 -- Nothing here decides what a press does. Every press a view binds is `ctx.action(...)` or
