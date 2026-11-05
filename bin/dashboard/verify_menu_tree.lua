@@ -415,6 +415,12 @@ local function run(mutate)
     check("the picker's roll is on top", Views.topRoll(w) ~= r and Views.topRoll(w).view == "battery_pick")
     Views.navigate(w, "closeView")
     check("the menu's place is under it", Views.topRoll(w) == r and r.base == 2 and rowId(r.levels[2]) == "setup")
+    Views.navigate(w, "openView:battery_pick")
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    Views.navigate(w, "done")
+    check("and a prompt that is answered or closed hands back to it too", Views.topRoll(w) == r and Views.top(w) == "menu" and r.base == 2)
+    Views.navigate(w, "done")
+    check("while the menu's own close ends the visit", Views.topRoll(w) == nil)
   end
 
   -- on the first row selectable now, and with all grey on the first.

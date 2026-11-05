@@ -779,6 +779,15 @@ function M.navigate(widget, after)
     if widget._viewStack ~= nil then M.dropRoll(widget, closed) end
     M.invalidate(widget)
   elseif verb == "done" then
+    -- A view over a rolling menu, such as the battery prompt, hands back to the place under it.
+    local top = M.top(widget)
+    if top ~= nil and top ~= M.DEFAULT_VIEW and M.roll(widget, M.DEFAULT_VIEW) ~= nil then
+      M.dropRoll(widget, top)
+      local at = indexOf(widget._viewStack, top)
+      if at ~= nil then table.remove(widget._viewStack, at) end
+      M.invalidate(widget)
+      return
+    end
     newSession(widget)
     if widget._viewBase == nil then
       exitFullscreen(widget)
