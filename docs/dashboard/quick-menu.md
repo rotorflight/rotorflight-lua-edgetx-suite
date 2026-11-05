@@ -102,11 +102,15 @@ capacity alone. With no profile known to be in force, it shows the title and the
 On every theme, ERASE BLACKBOX shows under its title how full the blackbox is, where the flight
 controller has reported it.
 
+![The quick menu as cards, in the light scheme, on a TX16S MK3](../images/dashboard/quick-menu/menu-card.png)
+
 ## The rotary style
 
 *System* → *Settings* → *General* → *Appearance* → *Menu style* → *Rotary* draws the widget's menu
 and its battery picker as rolling lists instead of buttons, on every theme. The card is what they
 are as they come.
+
+![The quick menu in the rotary style, the focus on the battery profiles](../images/dashboard/quick-menu/menu-rotary.png)
 
 The left list holds the entries that are offered now, BATTERY PROFILE last. The current one always
 stands in the larger row in the middle, and the list ends where it ends: it does not wrap, and the
@@ -217,9 +221,14 @@ menu. Each pack shows its capacity, its cycles where they are recorded and its b
 
 As **cards** the packs stand in two columns from two packs up, with *NO BATTERY* on the row of its
 own at the foot. Where more packs exist than fit, the grid scrolls, by a swipe or the wheel, so every
-pack can be reached. In the **rotary style** the packs and *NO BATTERY* roll on the left and what is
+pack can be reached. Past forty packs the picker rolls whichever style is chosen, because the cards are
+all built at once and the rolling list only draws the rows on screen. In the **rotary style** the packs and *NO BATTERY* roll on the left and what is
 known about the current one stands on the right. It starts on the pack in force, and on *NO BATTERY*
 where there is none, so a stray press does no harm.
+
+![The battery picker as cards: a pack with no profile on this board is pale and says so, and the grid scrolls](../images/dashboard/quick-menu/picker-card.png)
+
+![The battery picker in the rotary style, on the same pack](../images/dashboard/quick-menu/picker-rotary.png)
 
 With *Set the pack's battery profile* on (the [Flight Log](../pages/tools/flight_log.md) page), a
 pack only counts once its profile has reached the flight controller:
