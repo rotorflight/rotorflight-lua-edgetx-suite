@@ -105,7 +105,10 @@ do
   _G.rfsuite.session.mcu_id = MCU_ID
   task.wakeup()
   equal(moduleLoads, 1, label .. ": no second load after reset")
-  equal(type(_G.rfsuite.session.modelPreferences), "table", label .. ": resolved again after reset")
+  local again = _G.rfsuite.session.modelPreferences
+  equal(again and again.dashboard and again.dashboard.model_theme_preflight, "system/urban",
+    label .. ": read from the board's file again after reset")
+  equal(_G.rfsuite.session.modelPreferencesFile, storedFile, label .. ": modelPreferencesFile again after reset")
   expectResolved(task, label .. " after reset")
 end
 
