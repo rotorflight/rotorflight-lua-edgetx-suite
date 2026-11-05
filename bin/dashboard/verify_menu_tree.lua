@@ -522,6 +522,14 @@ local function run(mutate)
     local r = Views.topRoll(w)
     Roll.back(w)
     check("with no base layer RTN on the first level leaves the menu", Views.topRoll(w) == nil and Views.top(w) == nil)
+    -- A view under it is returned to.
+    w = newWidget()
+    w.state.batteryPick = { loaded = true, candidates = { { id = "a", name = "A", cap = 3000 } } }
+    Views.navigate(w, "openView:battery_pick")
+    Views.navigate(w, "openView:menu")
+    build(w)
+    Roll.back(w)
+    check("with a view under it RTN returns to that view", Views.top(w) == "battery_pick")
   end
   do
     -- A battery profile's choices are grey without a connection, with the focus already on them.
@@ -569,7 +577,14 @@ local function run(mutate)
     opened = {}
     check("a press in that stretch is taken", Views.key(w, EVT_VIRTUAL_ENTER) == true)
     check("and opens nothing", #opened == 0 and Views.topRoll(w) == r)
+    check("a finger too", Views.key(w, EVT_TOUCH_FIRST, { x = 1, y = 100 }) == true and r.touchX == nil)
+    local base = r.base
+    Views.key(w, EVT_VIRTUAL_EXIT)
+    check("RTN still answers: it is the way out", r.focus == 1 and r.base == base)
     w.theme, w.built = {}, true
+    Roll.press(w)
+    moveTo(r.levels[2], "logs")
+    r.slots = nil
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("with the scene back it acts", #opened == 1)
   end

@@ -279,8 +279,9 @@ function M.quick(widget, entries, t)
     end,
     close = function() Views.navigate(widget, "done") end,
     back = function()
-      -- Under a menu with no base layer there is nothing to return to: it is what full screen shows.
-      if Views.top(widget) == nil or widget._viewBase == nil then
+      -- With no base layer and nothing under it there is nothing to return to: it is what full screen
+      -- shows. A view it was opened over is returned to.
+      if Views.top(widget) == nil or (widget._viewBase == nil and #Views.session(widget) <= 1) then
         Views.navigate(widget, "done")
       else
         Views.navigate(widget, "closeView")

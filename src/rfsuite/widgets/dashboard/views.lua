@@ -1002,10 +1002,14 @@ function M.key(widget, event, touch)
   -- which delivers it here rather than to a button, RTN's step back to the left list, and the finger.
   local rolling = M.topRoll(widget)
   if rolling ~= nil then
-    -- A reconnect takes the theme and the scene with it until the board's id has been read: what stands
-    -- on screen says what held before, so nothing is acted on by it.
-    if widget.theme == nil and widget.built ~= true then return true end
     local enter, exitKey = _G.EVT_VIRTUAL_ENTER, _G.EVT_VIRTUAL_EXIT
+    -- A reconnect takes the theme and the scene with it until the board's id has been read, which waits
+    -- while the model is armed: what stands on screen says what held before, so a press or a finger is
+    -- not acted on by it. RTN and the other keys carry on: they are the way out.
+    if widget.theme == nil and widget.built ~= true
+      and (event == enter or (touch ~= nil and event ~= exitKey)) then
+      return true
+    end
     local own = M.find(widget, rolling.view)
     if own ~= nil and own.load ~= nil then
       -- A theme's look has taken the view over since it was opened.
