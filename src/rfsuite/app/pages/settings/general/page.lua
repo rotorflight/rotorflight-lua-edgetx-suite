@@ -169,7 +169,7 @@ local function buildAppearance(cursorY, children, x, w, i18n)
     },
     ui.config.color_scheme,
     ui.runtime.getValueSetter("color_scheme"),
-    { helpText = t(i18n, "help_color_scheme", "Light or dark colors for the dashboard's quick menu and the pages it opens. The rest of the suite does not follow it yet.") }
+    { helpText = t(i18n, "help_color_scheme", "Light or dark colors for the dashboard's quick menu and the pages it opens, on every theme. The rest of the suite does not follow it yet.") }
   )
   cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
     t(i18n, "menu_style", "Menu style"),
@@ -179,7 +179,7 @@ local function buildAppearance(cursorY, children, x, w, i18n)
     },
     ui.config.menu_style,
     ui.runtime.getValueSetter("menu_style"),
-    { helpText = t(i18n, "help_menu_style", "Card: a button for each entry. Rotary: two rolling lists for the wheel or a finger. For now this sets the quick menu only; a theme that draws its own menu keeps it.") }
+    { helpText = t(i18n, "help_menu_style", "Card: a button for each entry. Rotary: two rolling lists for the wheel or a finger. Sets the quick menu and the battery picker, on every theme.") }
   )
   return cursorY
 end
