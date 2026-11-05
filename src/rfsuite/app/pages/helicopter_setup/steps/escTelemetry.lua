@@ -22,6 +22,7 @@ return function(w)
     if w.data.esc_sensor_config.protocol == previous then return end
     w.escParams,w.escAttempted,w.escResultKey,w.escBusy=nil,nil,nil,nil
     w.rangeChoice,w.rangeSource,w.escRangeExpected=nil,nil,nil
+    w:escUseHalfDuplex()
     -- Turned on without a telemetry port: the first free port is taken, as the pilot would.
     if usesPort() and port.get() == 0 and port.values[1] ~= L.noPort then port.set(1) end
     if not usesPort() then

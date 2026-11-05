@@ -320,6 +320,7 @@ local L = {
   saved = "@i18n(app.modules.helicopter_setup.saved)@",
   disconnected = "@i18n(app.modules.helicopter_setup.disconnected)@",
   detectedTelemetryOnly = "@i18n(app.modules.helicopter_setup.detectedTelemetryOnly)@",
+  escUseHalfDuplex = "@i18n(app.modules.helicopter_setup.escUseHalfDuplex)@",
   reload = "@i18n(app.modules.helicopter_setup.reload)@",
   stale = "@i18n(app.modules.helicopter_setup.stale)@",
   back = "@i18n(app.modules.helicopter_setup.back)@",

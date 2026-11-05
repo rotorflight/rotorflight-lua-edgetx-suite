@@ -4935,7 +4935,7 @@ return function(h)
     for _,locale in ipairs({"en","de"}) do
       local strings=load("i18n/"..locale..".lua").app.modules.helicopter_setup
       local helps={rangeChoiceHelp={"rangeQuestion"},rangeManualHelp={"rangeConfirm"},rangeSummaryHelp={"throttleRange"},
-        escLinkHelp={"escRead"},escRestartHelp={"escBatteryCycle","escVerify"},
+        escLinkHelp={"escRead","escUseHalfDuplex"},escRestartHelp={"escBatteryCycle","escVerify"},
         escModeHelp={"escCurrentMode","escExpectedMode","escSetMode"},
         escCurrentHelp={"escModel","escFirmware","escZero","escFull"},
         escRangeHelp={"rangeStop","rangeMin","rangeMax","rangeUse"}}

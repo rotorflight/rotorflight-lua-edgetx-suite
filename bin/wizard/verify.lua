@@ -1115,74 +1115,66 @@ do
   Log.emitf = emitf
   _G.rfsuite.Log, _G.rfsuite.preferences = savedLog, savedPrefs
 end
--- Wiring detection on an ESC this page can program starts from half-duplex.
+-- An ESC this page can program is configured half-duplex by an ordinary edit, never a hidden write.
 do
-  local trialCommand = api("esc_sensor_trial").command
-  local configWrite = api("esc_sensor_config").writeCommand
   local function setup(target)
     local lw = world()
-    lw.data.esc_sensor_config.protocol, lw.data.esc_sensor_config.half_duplex, lw.data.esc_sensor_config.pin_swap = 9, 0, 0
-    lw.data.board_info = { target_name = target }
-    lw.saved.esc_sensor_config = nil
-    lw.dirty.esc_sensor_config, lw.dirty.serial_config, lw.rebootPending = nil, nil, nil
-    lw.hasPort = function() return true end
-    return lw
+    local c = lw.data.esc_sensor_config
+    c.protocol, c.half_duplex, c.pin_swap = 1, 0, 0
+    lw.data.board_info = target and { target_name = target } or nil
+    lw.dirty.esc_sensor_config, lw.rebootPending = nil, nil
+    lw.step = 11
+    lw.statusAt = ticks
+    return lw, c
   end
-  local function trialReply(state, half, swap)
-    return function(m, b)
-      if m.command == trialCommand then return { state, 0, half, swap, 0, 0 } end
-      return b
+  local function protocolRow(lw)
+    local cards = load(PATH .. "steps/escTelemetry.lua")(lw)
+    for _, card in ipairs(cards) do
+      for _, row in ipairs(card.rows or {}) do
+        if row.label == L.protocol and row.set then return row end
+      end
     end
   end
-  local function drive(lw, n)
-    for _ = 1, n do lw.statusAt = ticks; lw:tick(); pump(); ticks = ticks + 1 end
+  local function choose(lw, protocol)
+    local row = protocolRow(lw)
+    check(row ~= nil, "HALF the type row is found")
+    for i, value in ipairs(lw:telemetryProtocols()) do
+      if value[1] == protocol then row.set(i); return end
+    end
+    check(false, "HALF protocol " .. protocol .. " is offered")
   end
-  local lw = setup("STM32F7X2")
+  local lw, c = setup("STM32F7X2")
   q.sent = {}
-  q.reply = trialReply(2, 1, 1)
-  lw:startTrial("esc_sensor_trial")
-  drive(lw, 8)
-  local first, start
-  for i, m in ipairs(q.sent) do
-    if not first and m.command == configWrite then first = i end
-    if not start and m.command == trialCommand and m.payload[1] == 1 then start = i end
-  end
-  check(first and start and first < start, "TRIAL the preset is written before the trial starts")
-  eq(q.sent[first].payload[2], 1, "TRIAL the search starts half-duplex")
-  eq(q.sent[first].payload[11], 1, "TRIAL the search starts pin-swapped on this MCU")
-  eq(lw.data.esc_sensor_config.half_duplex, 1, "TRIAL half-duplex found is kept")
-  eq(lw.message, L.detectedSave, "TRIAL a programmable wiring asks for Save")
-  q.reply = nil
-  lw:stopTrial(true)
-  eq(lw.data.esc_sensor_config.half_duplex, 0, "TRIAL discard restores the page's value")
-  q.sent = {}
-  drive(lw, 8)
-  local order = {}
-  for _, m in ipairs(q.sent) do
-    if m.command == configWrite then order[#order+1] = "config" .. m.payload[2]
-    elseif m.command == trialCommand then order[#order+1] = "trial" .. m.payload[1] end
-  end
-  eq(table.concat(order, ","), "trial2,config0,trial1,trial2", "TRIAL stop, own values back, the port reopened on them")
-  -- F4 has no pin swap; telemetry-only is said as such.
-  local f4 = setup("STM32F405")
-  q.sent = {}
-  q.reply = trialReply(2, 0, 0)
-  f4:startTrial("esc_sensor_trial")
-  drive(f4, 8)
-  local written
-  for _, m in ipairs(q.sent) do if m.command == configWrite then written = m; break end end
-  check(written ~= nil, "TRIAL F4 preset written")
-  eq(written.payload[11], 0, "TRIAL no pin swap on F4")
-  eq(f4.message, L.detectedTelemetryOnly, "TRIAL telemetry only is said")
-  q.reply = nil
-  f4:stopTrial(true)
-  -- Controls: a family this page cannot program, and half-duplex already on, start as configured.
-  local other = setup("STM32F7X2")
-  other.data.esc_sensor_config.protocol = 1
-  check(other:escTrialPreset() == nil, "TRIAL an ESC this page cannot program keeps the plain search")
-  local on = setup("STM32F7X2")
-  on.data.esc_sensor_config.half_duplex = 1
-  check(on:escTrialPreset() == nil, "TRIAL half-duplex already on needs no preset")
+  choose(lw, 9)
+  eq(c.protocol, 9, "HALF the type is chosen")
+  eq(c.half_duplex, 1, "HALF a programmable ESC is configured half-duplex")
+  eq(c.pin_swap, 1, "HALF pin swap on this MCU")
+  check(lw.dirty.esc_sensor_config == true and lw.rebootPending == true, "HALF an ordinary edit, saved with the restart")
+  eq(#q.sent, 0, "HALF nothing is written before Save")
+  local f4, cf = setup("STM32F405")
+  choose(f4, 9)
+  eq(cf.half_duplex, 1, "HALF F4 half-duplex")
+  eq(cf.pin_swap, 0, "HALF no pin swap on F4")
+  local unknown, cu = setup(nil)
+  choose(unknown, 9)
+  eq(cu.pin_swap, 1, "HALF a missing board record does not skip the swapped wiring")
+  -- Controls: an ESC this page cannot program keeps its wiring, and half-duplex already on stays as set.
+  local plain, cp = setup("STM32F7X2")
+  choose(plain, 2)
+  eq(cp.half_duplex, 0, "HALF an ESC this page cannot program keeps half-duplex off")
+  local set, cs = setup("STM32F7X2")
+  cs.half_duplex, cs.pin_swap = 1, 0
+  choose(set, 9)
+  eq(cs.pin_swap, 0, "HALF half-duplex already on keeps its pin swap")
+  -- What detection reports, and the button for an ESC saved without half-duplex.
+  local found, cd = setup("STM32F7X2")
+  cd.protocol = 9
+  check(found:escTelemetryOnly() == true, "HALF telemetry only is recognised")
+  found:escUseHalfDuplex()
+  eq(cd.half_duplex, 1, "HALF the button sets half-duplex")
+  check(found:escTelemetryOnly() == false, "HALF half-duplex is no longer telemetry only")
+  cd.protocol = 2
+  check(found:escTelemetryOnly() == false, "HALF no such claim for an ESC this page cannot program")
   q.sent = {}
 end
 print("Source contracts: "..#contractCases.." scenario groups")

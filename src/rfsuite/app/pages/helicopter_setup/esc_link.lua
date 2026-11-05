@@ -21,19 +21,22 @@ function M.attach(w, params, status)
       and motor and (motor.voltage > 0 or motor.temperature > 0)
       and self.motorTelemetryAt and getTime() - self.motorTelemetryAt <= 300
   end
-  -- The wiring a detection starts from. The firmware walks outward from what is configured and
-  -- keeps the first wiring that delivers frames, so an ESC this page can program tries half-duplex
-  -- first: telemetry alone would otherwise end the search on a wiring that cannot program it.
-  -- F4 boards have no pin swap. Nil when the search can start from what is configured.
-  function w:escTrialPreset()
+  -- Wiring detection walks outward from the configured wiring and keeps the first one that delivers
+  -- frames, and an ESC that sends telemetry by itself delivers them without half-duplex too. So an ESC
+  -- this page can program is configured half-duplex, an ordinary edit saved with the restart, and the
+  -- search then reaches the wirings that can program it first. F4 boards have no pin swap.
+  function w:escUseHalfDuplex()
     local config = self.data.esc_sensor_config
-    if not params.families[config.protocol] or config.half_duplex == 1 then return nil end
+    if not params.families[config.protocol] or config.half_duplex == 1 then return end
     local target = self.data.board_info and self.data.board_info.target_name
-    local swap = type(target) == "string" and not string.find(target, "F4", 1, true)
-    local preset = {}
-    for key, value in pairs(config) do preset[key] = value end
-    preset.half_duplex, preset.pin_swap = 1, swap and 1 or 0
-    return preset
+    local f4 = type(target) == "string" and string.find(target, "F4", 1, true) ~= nil
+    if self.logDebug then self:log("debug", "ESC wiring set half-duplex, pin swap %s", f4 and 0 or 1) end
+    self:field("esc_sensor_config", "half_duplex", 1, true)
+    self:field("esc_sensor_config", "pin_swap", f4 and 0 or 1, true)
+  end
+  function w:escTelemetryOnly()
+    local config = self.data.esc_sensor_config
+    return params.families[config.protocol] ~= nil and config.half_duplex ~= 1
   end
   function w:escRefresh()
     self.buildRequested = true; self:rebuild()
@@ -202,7 +205,9 @@ function M.attach(w, params, status)
     -- or a mode was picked but not written; both start from the current state then.
     cards.stale = function() return linkState() ~= stateText or selected ~= 1 end
     add(L.escLink,L.escLinkHelp,{
-      self:button(L.escRead,function() self:readEsc() end,function() return not self.escBusy and self:escLinkReady() end)
+      self:button(L.escRead,function() self:readEsc() end,function() return not self.escBusy and self:escLinkReady() end),
+      self:button(L.escUseHalfDuplex,function() self:applyEdit(function() self:escUseHalfDuplex(); self:escRefresh() end) end,
+        function() return not self.escBusy and self:escTelemetryOnly() end)
     }, stateText)
     if s and s.changes then
       add(L.escRestartTitle,L.escRestartHelp,{
