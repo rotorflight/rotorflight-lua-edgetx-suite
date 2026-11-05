@@ -35,8 +35,8 @@ later.
 
 The menu has its own colours, Rotorflight's, in a light or a dark scheme: *System* → *Settings* →
 *General* → *Appearance* → *Color scheme*, light as it comes. So it looks the same whichever
-dashboard theme is selected and whatever the radio's theme is. Urban, Grid and Deck draw the menu
-in their own look once the connection is ready, and every theme shows the widget's menu before it.
+dashboard theme is selected and whatever the radio's theme is, a dark theme included: the scheme is
+the pilot's choice and does not follow the theme.
 
 Hardware shortcuts are set on [Keys](../pages/settings/dashboard/keys.md), for every theme and
 model. They can also open the core menu on the connection screen, before the FC is ready.
@@ -105,9 +105,8 @@ controller has reported it.
 ## The rotary style
 
 *System* → *Settings* → *General* → *Appearance* → *Menu style* → *Rotary* draws the widget's menu
-as two rolling lists instead of buttons. A theme that
-draws the menu itself, as Urban, Grid and Deck do, keeps its own. The card is what the menu is as
-it comes.
+and its battery picker as rolling lists instead of buttons, on every theme. The card is what they
+are as they come.
 
 The left list holds the entries that are offered now, BATTERY PROFILE last. The current one always
 stands in the larger row in the middle, and the list ends where it ends: it does not wrap, and the
@@ -127,6 +126,10 @@ ERASE BLACKBOX asks its question in the right list, with the focus on its CANCEL
 cannot erase. A battery profile is written as on [its page](#the-battery-profile-page): the header
 says *SENDING...*, the menu closes when the flight controller has answered, and it stays up with
 *NOT SAVED* where it did not.
+
+BATTERY shows this model's packs in the right list, each with its capacity, cycles and profile under
+its name; where that does not fit, the profile is left out first. The focus starts as it does in
+[the battery picker](#the-battery-picker).
 
 The wheel moves the focus rather than reporting a turn, and the focus passes the widget itself at
 the point where the list was last at rest. A detent onto that point shows on the next detent. The
@@ -204,8 +207,37 @@ in the air would never reach the board, for the same reason given for ERASE BLAC
 Before the connection is ready — with the link lost while the page is open, or the page opened by
 a key on the connection screen — it looks the same, and the foot line says *CHANGEABLE ONLY WHEN
 CONNECTED*. That note wins over the armed one: the arm state is the last one the board sent, and
-a lost link does not clear it. A theme's own look of the page is drawn only while the connection is
-ready, so before it this is always the widget's page.
+a lost link does not clear it.
+
+## The battery picker
+
+The picker asks which pack is on the craft: on its own once per connection, or from BATTERY in the
+menu. Each pack shows its capacity, its cycles where they are recorded and its battery profile, and
+*NO BATTERY* always has the last place.
+
+As **cards** the packs stand in two columns from two packs up, with *NO BATTERY* on the row of its
+own at the foot. Where more packs exist than fit, the grid scrolls, by a swipe or the wheel, so every
+pack can be reached. In the **rotary style** the packs and *NO BATTERY* roll on the left and what is
+known about the current one stands on the right. It starts on the pack in force, and on *NO BATTERY*
+where there is none, so a stray press does no harm.
+
+With *Set the pack's battery profile* on (the [Flight Log](../pages/tools/flight_log.md) page), a
+pack only counts once its profile has reached the flight controller:
+
+- **A pack with no clear profile on this board cannot be picked.** It is still listed, paler, with
+  *no profile*: no profile has its capacity, more than one has, or the board has not reported its
+  configuration yet. It can be picked as soon as that has arrived. A pack with `profile=` in the
+  registry can be picked at once.
+- **A pick that moves the board says *SENDING...* and stays up.** When the flight controller has
+  answered, the pack is recorded and the picker closes. Closing it meanwhile does not cancel: an
+  answer that arrives later still records the pack.
+- **A write that fails says *NOT SAVED* and changes nothing.** The pack that was in force stays in
+  force, with its profile. Another press tries again, and the **X** or a short press on the return
+  key closes the picker.
+- **A pack in force that has lost its profile stays in force**, marked and paler, until another
+  answer replaces it.
+
+With that setting off, every pack can be picked and the picker closes at once.
 
 ## Closing it
 
@@ -245,7 +277,7 @@ menus:
 | `press` | The work an `action` does when it is pressed, and nothing else. Optional: a row whose whole effect is its `after` has none. |
 | `after` | What follows the press, as data: `done`, `openView:<id>`, `closeView`, `exitFullscreen`, `openTool` or `none`. Missing means `none`. The actions are described in [dashboard views](../developer/dashboard-views.md). |
 | `confirm` | Optional, the question the row asks before its press is performed: a table of already-translated strings — `title`, `message`, the optional `detail`, and the labels `confirmLabel` and `cancelLabel`. Present, the press is held until the pilot answers — see [the erase confirmation](#the-erase-confirmation). |
-| `options` | For a `choice`: a list, or a function returning one, of `{ id, label, detail, current, press, after }`. `id` is what a run is matched by: a battery profile's number, 1 to 6, and a pack's registry id. `detail` is an optional second, smaller line under the label. The battery profiles are one, and the battery picker's packs are the other. |
+| `options` | For a `choice`: a list, or a function returning one, of `{ id, label, detail, current, selectable, press, after }`. `selectable = false` is shown and refused. `id` is what a run is matched by: a battery profile's number, 1 to 6, and a pack's registry id. `detail` is an optional second, smaller line under the label. The battery profiles are one, and the battery picker's packs are the other. |
 | `values` | Optional, a function `values(w)` returning texts for a row that shows a value beside its title, longest first, each a shortening of the one before. BATTERY PROFILE has one: the profile in force as `6S / 2000mAh / Warn 3.50V`, then `6S / 2000mAh`, then `2000mAh`, from the parts the flight controller reports; an empty list where no profile is known to be in force. |
 | `armedNote` | Optional, already translated: what a page of the entry's options says while the model is armed and none of them can be pressed. BATTERY PROFILE has one. |
 | `notReadyNote` | Optional, already translated: what that page says before the connection is ready, when none of them can be pressed either; it is shown in place of `armedNote` when both apply. BATTERY PROFILE has one. |
@@ -302,12 +334,24 @@ options; each runs with `M.run(widget, entry, option, "none", report)`, so the p
 **BATTERY is the battery prompt's record.** `battery_pick` is a `choice` with `view =
 "battery_pick"`: in the menu it is the BATTERY button, and the battery picker
 (`widgets/dashboard/battery_pick_menu.lua`) is the view that draws its options. They are one per
-pack this model has — `label` the pack's name, `detail` the capacity and profile line under it,
-`pack` the registry entry, `id` its registry id, `current` for the pack picked this connection
-— and a last one marked `none`, *NO BATTERY*. Each records the pick and is followed by `done`. Its `close` ends the
+pack this model has — `label` the pack's name, `detail` the capacity, cycles and profile line under
+it, `details` that line and its shortenings, `facts` the same facts one by one, `pack` the registry
+entry, `id` its registry id, `current` for the pack in force, `selectable` and `writes` for what a
+pick can do on this board — and a last one marked `none`, *NO BATTERY*. Each records the pick and is
+followed by `done`, or by `none` where it `writes`: the runtime's apply step sends the profile first,
+records the pack on the answer and then closes the picker. Its `close` ends the
 prompt for this connection, which is what the picker's X and a short press on RTN do. What a
 pick does is therefore written in one place, the record; the picker is only its drawing.
 `options()` needs no argument: the widget is the one the list was made for.
+
+**The rotary style is one module for any menu.** `widgets/dashboard/menu_roll.lua` holds the wheel,
+the finger, the columns and the place in the lists, and knows nothing about the menu it draws: it
+draws a description, a table of a title, the rows, what a row leads to and what a press does. The
+descriptions of the quick menu and the picker are `widgets/dashboard/menu_roll_sources.lua`, whose
+head lists the fields. Another menu is another description. The place is held as a path of levels,
+two of which are on screen; the first two are all that exist today. `widgets/dashboard/menu_look.lua`
+holds what these pages share in the card style as well: the colors, the two layout profiles and
+`frame`, the header with its title and close box.
 
 Two things are worth knowing before adding an entry:
 

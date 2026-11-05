@@ -23,8 +23,8 @@ Always available.
 | Safety & Prompts | Confirm on Save | Asks before a Save writes to the flight controller. On as it comes. |
 | Safety & Prompts | Show Disarm Warning on Save/Reload | Warns before a Save or Reload while the model is armed. On as it comes. |
 | Safety & Prompts | Confirm on Reload | Asks before a Reload replaces edits that are not saved. On as it comes. |
-| Appearance | Color scheme | *Light* or *Dark*: the colors of the dashboard's [quick menu](../../dashboard/quick-menu.md) and the pages it opens. *Light* as it comes. |
-| Appearance | Menu style | *Card*: a button for each entry, as it comes. *Rotary*: [two rolling lists](../../dashboard/quick-menu.md#the-rotary-style) for the wheel or a finger. For now this sets the quick menu only, and a theme that draws its own menu keeps it. |
+| Appearance | Color scheme | *Light* or *Dark*: the colors of the dashboard's [quick menu](../../dashboard/quick-menu.md) and the pages it opens, on every theme. *Light* as it comes. |
+| Appearance | Menu style | *Card*: a button for each entry, as it comes. *Rotary*: [rolling lists](../../dashboard/quick-menu.md#the-rotary-style) for the wheel or a finger. Sets the quick menu and the [battery picker](../../dashboard/quick-menu.md#the-battery-picker), on every theme. |
 | Preview | Setup Assistant | Shows the unfinished setup assistant in the menu. It asks once when turned on, because it can write to the flight controller. Off as it comes. |
 | Preview | In-flight tuning | Shows the unfinished [in-flight tuning](../../dashboard/inflight-tuning.md) surface, which changes parameters in flight. It asks once when turned on. Off as it comes. |
 | Development | Developer Tools | Shows the developer pages and tools in the menu. Off as it comes. |
@@ -33,8 +33,8 @@ Always available.
 
 - **The color scheme reaches the quick menu, the battery picker, the battery profile page and the
   erase question, and nothing else yet.** The suite's own pages, in-flight tuning, the start and
-  standby screens and the dashboard themes keep their colors. A theme that draws these pages
-  itself, as Urban, Grid and Deck do, draws them in its own colors.
+  standby screens and the dashboard themes keep their colors, so a dark theme opens a light menu
+  until the scheme is set to dark.
 - **The widget picks a saved scheme up with its next reload of the settings**, which follows a
   save on its own.
 - **A preview feature is already in the suite but not finished.** It stays hidden until it is
