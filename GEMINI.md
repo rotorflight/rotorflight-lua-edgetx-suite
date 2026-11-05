@@ -39,6 +39,19 @@ The project uses VS Code tasks for deployment and testing in the EdgeTX Simulato
 - **User Config**: `SCRIPTS/RFSUITE/user/`
 - **Widgets**: `WIDGETS/rfsuite/`
 
+## Agent Skills
+
+Step-by-step skills for tasks that need local tools are in
+[rotorflight-agent-skills](https://github.com/rotorflight/rotorflight-agent-skills).
+In Claude Code, install them with `/plugin marketplace add rotorflight/rotorflight-agent-skills`
+and `/plugin install rotorflight-dev@rotorflight`. Other agents: clone that repository and read
+the skill's `SKILL.md` before starting the task.
+
+| Skill | Use it to |
+| --- | --- |
+| [edgetx-simulator](https://github.com/rotorflight/rotorflight-agent-skills/blob/master/skills/edgetx-simulator/SKILL.md) | run the EdgeTX suite in the EdgeTX simulator |
+| [firmware-sitl](https://github.com/rotorflight/rotorflight-agent-skills/blob/master/skills/firmware-sitl/SKILL.md) | build and run the firmware on a PC, drive it over MSP/CRSF/UDP |
+
 ## Development Conventions
 
 ### Module Loading
