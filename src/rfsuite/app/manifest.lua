@@ -229,16 +229,18 @@ local manifest = {
     esc_tools_menu = {
       title = "@i18n(app.modules.esc_motors.esc_tools)@",
       pages = {
-        { id = "am32", title = "AM32", menuId = "setup_esc_motors_esc_tools_am32_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/am32/icon.png", row = 1, col = 1, enabledWhen = "escProto1", lockedWhileArmed = true },
+        { id = "am32", title = "AM32", menuId = "setup_esc_motors_esc_tools_am32_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/am32/icon.png", row = 1, col = 1, enabledWhen = "escProtoAm32", lockedWhileArmed = true },
         { id = "blheli_s", title = "BLHeli_S", menuId = "setup_esc_motors_esc_tools_blheli_s_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/blheli_s/icon.png", row = 1, col = 2, enabledWhen = "escProto1", lockedWhileArmed = true },
         { id = "bluejay", title = "Bluejay", menuId = "setup_esc_motors_esc_tools_bluejay_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/bluejay/icon.png", row = 1, col = 3, enabledWhen = "escProto1", lockedWhileArmed = true },
         { id = "flrtr", title = "Flyrotor", menuId = "setup_esc_motors_esc_tools_flrtr_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/flrtr/icon.png", row = 1, col = 4, enabledWhen = "escProto10", lockedWhileArmed = true },
-        { id = "hw5", title = "Hobbywing V5", menuId = "setup_esc_motors_esc_tools_hw5_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/hw5/icon.png", row = 1, col = 5, enabledWhen = "escProto3", lockedWhileArmed = true },
-        { id = "omp", title = "OMP", menuId = "setup_esc_motors_esc_tools_omp_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/omp/icon.png", row = 2, col = 1, enabledWhen = "escProto6", lockedWhileArmed = true },
-        { id = "scorp", title = "Scorpion", menuId = "setup_esc_motors_esc_tools_scorp_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/scorp/icon.png", row = 2, col = 2, enabledWhen = "escProto4", lockedWhileArmed = true },
-        { id = "xdfly", title = "XDFly", menuId = "setup_esc_motors_esc_tools_xdfly_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/xdfly/icon.png", row = 2, col = 3, enabledWhen = "escProto12", lockedWhileArmed = true },
-        { id = "yge", title = "YGE", menuId = "setup_esc_motors_esc_tools_yge_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/yge/icon.png", row = 2, col = 4, enabledWhen = "escProto9", lockedWhileArmed = true },
-        { id = "ztw", title = "ZTW", menuId = "setup_esc_motors_esc_tools_ztw_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/ztw/icon.png", row = 2, col = 5, enabledWhen = "escProto7", lockedWhileArmed = true }
+        -- A Goosky ESC runs AM32 firmware, so this is the AM32 page under the name on the ESC.
+        { id = "goosky", title = "Goosky", menuId = "setup_esc_motors_esc_tools_goosky_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/goosky/icon.png", row = 1, col = 5, enabledWhen = "escProtoAm32", lockedWhileArmed = true },
+        { id = "hw5", title = "Hobbywing V5", menuId = "setup_esc_motors_esc_tools_hw5_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/hw5/icon.png", row = 2, col = 1, enabledWhen = "escProto3", lockedWhileArmed = true },
+        { id = "omp", title = "OMP", menuId = "setup_esc_motors_esc_tools_omp_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/omp/icon.png", row = 2, col = 2, enabledWhen = "escProto6", lockedWhileArmed = true },
+        { id = "scorp", title = "Scorpion", menuId = "setup_esc_motors_esc_tools_scorp_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/scorp/icon.png", row = 2, col = 3, enabledWhen = "escProto4", lockedWhileArmed = true },
+        { id = "xdfly", title = "XDFly", menuId = "setup_esc_motors_esc_tools_xdfly_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/xdfly/icon.png", row = 2, col = 4, enabledWhen = "escProto12", lockedWhileArmed = true },
+        { id = "yge", title = "YGE", menuId = "setup_esc_motors_esc_tools_yge_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/yge/icon.png", row = 2, col = 5, enabledWhen = "escProto9", lockedWhileArmed = true },
+        { id = "ztw", title = "ZTW", menuId = "setup_esc_motors_esc_tools_ztw_page", icon = "@pages/setup/esc_motors/esc_tools/escmfg/ztw/icon.png", row = 3, col = 1, enabledWhen = "escProto7", lockedWhileArmed = true }
       }
     },
     governor_menu = {
@@ -640,6 +642,10 @@ local manifest = {
     },
     setup_esc_motors_esc_tools_flrtr_page = {
       title = "Flyrotor Configurator",
+      pages = {}
+    },
+    setup_esc_motors_esc_tools_goosky_page = {
+      title = "Goosky Configurator",
       pages = {}
     },
     setup_esc_motors_esc_tools_hw5_page = {

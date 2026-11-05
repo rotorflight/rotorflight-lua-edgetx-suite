@@ -51,7 +51,7 @@ claim nothing supports.
 | FlyRotor | yes | that something is being reported, and nothing more — the layout is not published |
 | XDFly, OMP Hobby, ZTW | yes | the same: that something is being reported |
 | Hobbywing V4 | no | — |
-| BLHeli32, BLHeli_S, AM32 | no | — |
+| BLHeli32, BLHeli_S, AM32, Goosky | no | — |
 | Castle | no | — |
 
 **OpenYGE is read differently on purpose.** Its byte holds the motor state in one half and a

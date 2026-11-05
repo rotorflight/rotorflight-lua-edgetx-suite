@@ -89,6 +89,8 @@ local entries = {
   setup_esc_motors_esc_tools_blheli_s_page = definePage("setup/esc_motors/esc_tools/escmfg/blheli_s"),
   setup_esc_motors_esc_tools_bluejay_page = definePage("setup/esc_motors/esc_tools/escmfg/bluejay"),
   setup_esc_motors_esc_tools_flrtr_page = definePage("setup/esc_motors/esc_tools/escmfg/flrtr"),
+  -- The AM32 page: a Goosky ESC runs AM32 firmware. Only the tile and the title differ.
+  setup_esc_motors_esc_tools_goosky_page = definePage("setup/esc_motors/esc_tools/escmfg/am32"),
   setup_esc_motors_esc_tools_hw5_page = definePage("setup/esc_motors/esc_tools/escmfg/hw5"),
   setup_esc_motors_esc_tools_omp_page = definePage("setup/esc_motors/esc_tools/escmfg/omp"),
   setup_esc_motors_esc_tools_scorp_page = definePage("setup/esc_motors/esc_tools/escmfg/scorp"),

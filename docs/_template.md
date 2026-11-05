@@ -21,6 +21,7 @@ sidebar_position: <order of the tile in its menu, times 10>
        visibleWhen = "preview..."     -> Hidden until *System* → *Settings* → *General* → *Preview* → *<Feature>* is on.
        hideWhenDisabled = true        -> Not listed at all while its condition is off.
        enabledWhen = "escProto<n>"    -> Lit only while the flight controller reports this ESC telemetry protocol.
+       enabledWhen = "escProtoAm32"   -> Lit only while the flight controller reports BLHELI32 or GOOSKY.
      Leave out the lines that do not apply. If none apply, write: Always available. -->
 
 ## Settings
