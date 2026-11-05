@@ -50,6 +50,11 @@ end
 -- refuses a battery pick made while armed, and a battery profile's press queues nothing while
 -- armed or before the connection is ready -- and its close has to work whatever the state.
 local function refused(widget, entry, option)
+  if option ~= nil and option.selectable == false then return true end
+  if option ~= nil and entry.id == "battery_pick" and option ~= entry.close and Views
+    and type(Views.status) == "function" and Views.status(widget, entry.id) == "busy" then
+    return true
+  end
   if option ~= nil and entry.view ~= nil then return false end
   if isEntryVisible(entry, widget) then return false end
   if Log and type(Log.emit) == "function" then
@@ -202,7 +207,7 @@ local function batteryPickOptions(widget, t)
   local selectedId = type(pick) == "table" and pick.selectedId or nil
   local config = widget.state and widget.state.battery_config or nil
   if #candidates > 0 then resolvePacks(pick, config) end
-  local setsProfile = false
+  local setsProfile = picksSetProfile(widget)
 
   local profileFmt = t("widgets.dashboard.battery_pick_profile", "Profile %d")
   local noProfile = t("widgets.dashboard.battery_pick_profile_none", "no profile")
@@ -391,6 +396,7 @@ function BUILD.battery_pick(widget, t)
     title = t("widgets.dashboard.battery_pick_open", "BATTERY"),
     visibleWhen = "batteryPickHasPacks",
     after = "openView:battery_pick",
+    writesProfile = picksSetProfile(widget),
     options = function() return batteryPickOptions(widget, t) end,
     close = {
       press = function() dismissBatteryPick(widget) end,

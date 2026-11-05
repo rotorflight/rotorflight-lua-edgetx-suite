@@ -601,6 +601,54 @@ local function run(mutate)
     check("RTN on the picker ends the prompt", w.state.batteryPick.dismissed == true and w.state.batteryPick.pending == false)
   end
   do
+    -- With the switch on, what has no profile on this board is shown and takes no press.
+    local w, children = openPicker(true)
+    local r = roll(w)
+    local rows = r.levels[1].rows
+    check("Pack A has its profile", rows[1].selectable == true and rows[1].writes == true)
+    check("Pack B has none and cannot be picked", rows[2].selectable == false)
+    check("NO BATTERY always can", rows[#rows].selectable ~= false)
+    r.levels[1].index = 2
+    check("it says why", string.find(labelsOf(children), "no profile", 1, true) ~= nil)
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("a press on it does nothing", w._batteryPickRequest == nil and w._viewStack.roll ~= nil)
+    check("nor can a theme's run reach it", (function()
+      Menu.run(w, Menu.entry(w, "battery_pick"), rows[2])
+      return w._batteryPickRequest == nil
+    end)())
+    r.levels[1].index = 1
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("a pack that writes stays up and says so", w._batteryPickRequest == "a" and w._viewStack.roll ~= nil
+      and Views.status(w, "battery_pick") == "busy")
+    w._batteryPickRequest = nil
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("a second press while it is sent does nothing", w._batteryPickRequest == nil)
+  end
+  do
+    -- A pack in force that has lost its profile: marked, not started on.
+    local w
+    do
+      adds, exits, toolOpened = {}, 0, 0
+      w = newWidget("rotary")
+      w.preferences.flightlog = { enabled = true, set_fc_profile = true }
+      w.state.batteryPick = { loaded = true, selectedId = "b", candidates = {
+        { id = "a", name = "A", cap = 3000 }, { id = "b", name = "B", cap = 9999 } } }
+      Views.navigate(w, "openView:battery_pick")
+      req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    end
+    local r = roll(w)
+    local rows = r.levels[1].rows
+    check("it stays marked", rows[2].current == true and rows[2].selectable == false)
+    check("the roll starts on NO BATTERY", rows[r.levels[1].index].none == true)
+    check("a pack in force with a profile is started on", (function()
+      w._viewStack.roll = nil
+      w.state.batteryPick.selectedId = "a"
+      req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+      local again = roll(w)
+      return again.levels[1].index == 1
+    end)())
+  end
+  do
     -- In the quick menu the same start rule holds on the BATTERY row.
     adds, exits, toolOpened = {}, 0, 0
     local w = newWidget("rotary")
@@ -667,6 +715,12 @@ if selfTest then
     end },
     { "a detent is not summed", function(t)
       return (string.gsub(t, "local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))
+    end },
+    { "a theme's run reaches a pack without a profile", function(t)
+      return (string.gsub(t, "if option ~= nil and option.selectable == false then return true end\n", ""))
+    end },
+    { "a second pick over one still being sent", function(t)
+      return (string.gsub(t, "Views.status%(widget, entry.id%) == \"busy\" then", "false then"))
     end },
     { "the picker starts on the first pack", function(t)
       return (string.gsub(t, "if row.none == true then fallback = i end\n", ""))

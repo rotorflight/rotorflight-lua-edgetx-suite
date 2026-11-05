@@ -321,7 +321,9 @@ end
 --- makes the board apply and broadcast it.
 --
 -- The armed guard is here and nowhere else. `opts.reason` only reaches the log line, so that a
--- write in the log can be told from the quick menu's.
+-- write in the log can be told from the quick menu's. `opts.answer(ok)`, where given, is called
+-- once: true when the EEPROM write has been answered, false when either message is given up --
+-- out of retries, timed out or dropped by a clear of the queue.
 function M.applyProfile(index0, opts)
   local reason = (type(opts) == "table" and type(opts.reason) == "string") and opts.reason or "battery pick"
 
@@ -358,16 +360,30 @@ function M.applyProfile(index0, opts)
     return false, "noapi"
   end
 
+  local answer = (type(opts) == "table" and type(opts.answer) == "function") and opts.answer or nil
+  local answered = false
+  local function settle(ok)
+    if answered then return end
+    answered = true
+    log(string.format("profile write %s (%s): profile %d", ok and "answered" or "given up", reason, index + 1),
+      ok and "info" or "warn")
+    if answer then answer(ok) end
+  end
+  local function givenUp() settle(false) end
+
   state.queue:add({
     command = api.writeCommand,
     payload = api.buildWritePayload({ batteryProfile = index }),
-    simulatorResponse = {}
+    simulatorResponse = {},
+    errorHandler = givenUp
   })
   state.queue:add({
     command = eeprom.writeCommand,
     payload = eeprom.buildWritePayload({}),
     simulatorResponse = {},
-    isWrite = true
+    isWrite = true,
+    processReply = function() settle(true) end,
+    errorHandler = givenUp
   })
   log(string.format("profile write queued (%s): profile %d", reason, index + 1), "info")
   return true, "queued"

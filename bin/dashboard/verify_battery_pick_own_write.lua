@@ -279,7 +279,7 @@ do
   expect(_G.rfsuite.session.flightlog and _G.rfsuite.session.flightlog.batteryId == "p1300",
     "control: the pick is in the session")
   expect(world.w.state.batteryPick.pending == false, "control: the prompt is answered")
-  expect(world.w.state.batteryPick.applied == "queued" or world.w.state.batteryPick.applied == "skipped",
+  expect(world.w.state.batteryPick.applied == "written" or world.w.state.batteryPick.applied == "skipped",
     "control: the pick reached the profile write", tostring(world.w.state.batteryPick.applied))
   expect(world.prefReloads == 0, "own pick: the dashboard does not reload its preferences",
     world.prefReloads .. " reload(s)")
@@ -357,6 +357,14 @@ for _, case in ipairs(CASES) do
       return stat(path)
     end
   end
+  -- The board is already on the pack's profile, so nothing is sent and the pick lands on the card in
+  -- the pass that takes the request, which is the moment this case is about.
+  do
+    local pick = world.w.state.batteryPick
+    for _, pack in ipairs(pick.candidates) do
+      if pack.id == "p1000" then pick.boardProfile = pack.targetProfile end
+    end
+  end
   _G.rfsuite.batteryPick.select("p1000")
   for _ = 1, 5 do
     passes(world, 1)
@@ -400,6 +408,119 @@ do
   expect(world.w.state.batteryPick.candidates[2].targetProfile == 2,
     "replaced configuration: the picked pack takes the profile the new configuration gives",
     tostring(world.w.state.batteryPick.candidates[2].targetProfile))
+end
+
+-- 4. The board first, the card after its answer: a write that fails leaves pack and profile as they
+-- were. The answer is handed in by hand, so each state between the press and the reply can be read.
+do
+  if trace then print("scenario: the board first") end
+  local world = newWorld()
+  connectAndLoad(world)
+  passes(world, 30)
+  local BatteryPick = _G.rfsuite.require("lib/battery_pick.lua")
+  local realApply = BatteryPick.applyProfile
+  local answers, applied = {}, 0
+  BatteryPick.applyProfile = function(target, opts)
+    applied = applied + 1
+    answers[#answers + 1] = opts.answer
+    world.lastTarget = target
+    return true, "queued"
+  end
+  local w = world.w
+  local reports = {}
+  local function press(id)
+    w._batteryPickReport = function(value) reports[#reports + 1] = value end
+    w._batteryPickRequest = id
+    -- The scripted board is on profile 2 from the start; a known match would send nothing.
+    w.state.batteryPick.boardProfile = nil
+  end
+
+  press("p1300")
+  passes(world, 3)
+  expect(applied == 1 and world.lastTarget == 1, "a pick sends the pack's profile", applied .. " write(s)")
+  expect(storedPack(world) == nil, "nothing is on the card before the board has answered", tostring(storedPack(world)))
+  expect(_G.rfsuite.session.flightlog == nil or _G.rfsuite.session.flightlog.batteryId == nil,
+    "nothing is in the session before the board has answered")
+  expect(w.state.batteryPick.pending == true, "the prompt stands while the write is out")
+
+  answers[1](false)
+  passes(world, 3)
+  expect(reports[#reports] == "failed", "a write given up says so", tostring(reports[#reports]))
+  expect(storedPack(world) == nil and w.state.batteryPick.selectedId == nil, "a write given up records no pack",
+    tostring(storedPack(world)))
+  expect(w.state.batteryPick.pending == true, "the prompt still stands, for another press")
+  answers[1](true)
+  passes(world, 3)
+  expect(storedPack(world) == nil, "a late answer to the write given up records nothing", tostring(storedPack(world)))
+
+  press("p1300")
+  passes(world, 3)
+  answers[2](true)
+  expect(storedPack(world) == nil, "the reply itself writes no card: the job pass does", tostring(storedPack(world)))
+  passes(world, 3)
+  expect(storedPack(world) == "p1300", "an answered write records the pack", tostring(storedPack(world)))
+  expect(w.state.batteryPick.selectedId == "p1300" and w.state.batteryPick.pending == false,
+    "and answers the prompt")
+  expect(w.state.batteryPick.boardProfile == 1, "and the board's profile is known", tostring(w.state.batteryPick.boardProfile))
+
+  -- A failed pick of another pack leaves the one in force, with its profile.
+  press("p1000")
+  passes(world, 3)
+  answers[3](false)
+  passes(world, 3)
+  expect(storedPack(world) == "p1300" and w.state.batteryPick.selectedId == "p1300",
+    "a failed pick of another pack leaves the one before it", tostring(storedPack(world)))
+
+  -- The pilot closes the picker while the write is out: the answer still records the pack.
+  press("p1000")
+  passes(world, 3)
+  w.state.batteryPick.dismissed, w.state.batteryPick.pending = true, false
+  answers[4](true)
+  passes(world, 3)
+  expect(storedPack(world) == "p1000", "an answer after the picker was closed still records the pack",
+    tostring(storedPack(world)))
+
+  -- A later pick overtakes an earlier one still out.
+  press("p1300")
+  passes(world, 3)
+  press("p1000")
+  passes(world, 3)
+  local before = storedPack(world)
+  answers[5](true)
+  passes(world, 3)
+  expect(storedPack(world) == before, "an answer to a pick overtaken by another records nothing", tostring(storedPack(world)))
+  answers[6](true)
+  passes(world, 3)
+  expect(storedPack(world) == "p1000", "the later pick's answer does", tostring(storedPack(world)))
+
+  -- Refused at the write: the same as given up.
+  BatteryPick.applyProfile = function() return false, "noqueue" end
+  w.state.batteryPick.boardProfile = nil
+  reports = {}
+  press("p1300")
+  passes(world, 3)
+  expect(reports[#reports] == "failed" and storedPack(world) == "p1000", "a write refused at once records nothing",
+    tostring(reports[#reports]) .. ", " .. tostring(storedPack(world)))
+
+  BatteryPick.applyProfile = realApply
+
+  -- The real write: its last message's reply answers once, and either message's failure answers false.
+  local added = {}
+  local Runtime = _G.rfsuite.require("tasks/msp/runtime.lua")
+  local getState = Runtime.getState
+  Runtime.getState = function() return { queue = { add = function(_, m) added[#added + 1] = m end } } end
+  local got = {}
+  local ok = BatteryPick.applyProfile(1, { answer = function(v) got[#got + 1] = v end })
+  expect(ok == true and #added == 2, "the write queues two messages", tostring(#added))
+  added[1].errorHandler(added[1], "timeout")
+  added[2].errorHandler(added[2], "dropped")
+  added[2].processReply(added[2], "")
+  expect(#got == 1 and got[1] == false, "a given-up chain answers false, once", #got .. " answer(s)")
+  added, got = {}, {}
+  BatteryPick.applyProfile(1, { answer = function(v) got[#got + 1] = v end })
+  added[2].processReply(added[2], "")
+  expect(#got == 1 and got[1] == true, "the last reply answers true", #got .. " answer(s)")
+  Runtime.getState = getState
 end
 
 -- The instruction probe's own control: a loop it must count.
