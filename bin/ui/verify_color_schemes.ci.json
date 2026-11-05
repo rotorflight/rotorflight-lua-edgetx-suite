@@ -1,0 +1,7 @@
+{
+  "id": "color-schemes",
+  "name": "Colour schemes: roles and contrast",
+  "commands": [
+    "lua5.3 bin/ui/verify_color_schemes.lua"
+  ]
+}
