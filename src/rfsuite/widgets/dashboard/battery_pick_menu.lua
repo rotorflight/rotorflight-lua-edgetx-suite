@@ -87,15 +87,18 @@ local function packCard(nodes, widget, entry, option, x, y, w, h, p, colors, nam
     press = function() run(widget, entry, option) end,
   }
   local pad = p.isLarge and 8 or 3
+  local subH = Look.lineHeight(SMLSIZE, p.smallH)
+  -- The two lines stand in the middle of the card, whatever height the room gave it.
+  local top = y + math.max(0, math.floor((h - nameH - subH) / 2))
   nodes[#nodes + 1] = {
-    type = "label", x = x, y = y + pad, w = w, text = option.label, color = tColor, align = CENTER, font = p.rowFont,
+    type = "label", x = x, y = top, w = w, text = option.label, color = tColor, align = CENTER, font = p.rowFont,
   }
   local detail = option.detail or ""
   if type(option.details) == "table" then
     detail = Menu.fitFirst(option.details, SMLSIZE, w - 2 * pad) or detail
   end
   nodes[#nodes + 1] = {
-    type = "label", x = x, y = y + pad + nameH + (p.isLarge and 2 or 0), w = w,
+    type = "label", x = x, y = top + nameH, w = w,
     text = detail, color = tColor, align = CENTER, font = SMLSIZE,
   }
 end

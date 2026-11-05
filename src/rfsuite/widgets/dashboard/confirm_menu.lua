@@ -98,6 +98,10 @@ function M.build(children, widget)
     padding, titleStep, lineH, gap, btnH, btnTextOffY = 12, 24, 16, 8, 36, -4
   end
 
+  -- A face's own height where the firmware says it: the figures above are for placing, and a line
+  -- placed by them runs into the next one on an 800x480 radio.
+  lineH = math.max(lineH, Look.lineHeight(font, lineH))
+
   local panelW = math.min(dW - padding * 2, isLarge and 560 or 440)
   local innerW = panelW - padding * 2
   -- Room for the title, up to two lines of question, an optional detail line and the buttons.
