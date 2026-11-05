@@ -849,7 +849,7 @@ function M.build(children, widget, source, colors)
     if source.opens ~= nil then
       -- The mark that a row opens something further.
       children[#children + 1] = {
-        type = "label", x = colX + colW - pad - markW, y = slotY(offset) + math.floor((h - fontH) / 2), w = markW,
+        type = "label", x = colX + colW - pad - markW, y = y, w = markW,
         font = font, align = RIGHT, color = (isMid and hasFocus) and colors.accent or color,
         text = function()
           local item = itemAt(roll, side, offset)

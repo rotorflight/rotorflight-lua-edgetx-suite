@@ -143,7 +143,13 @@ local function connectionNow()
   else
     linkUp = type(session) == "table" and session.rawRfConnected == true
   end
-  return session, ConnectionStatus.read(session, linkUp, Tree.connected(), Events)
+  -- Asked by the firmware's own sweep, outside the widget's pass: the connect runner counts per context,
+  -- and only the widget's holds the tasks that run here.
+  local previous = type(session) == "table" and session.event_context or nil
+  if type(session) == "table" then session.event_context = "widget" end
+  local status, detail, taskName, done, total, failed = ConnectionStatus.read(session, linkUp, Tree.connected(), Events)
+  if type(session) == "table" then session.event_context = previous end
+  return session, status, detail, taskName, done, total, failed
 end
 
 local Look = requireModule("widgets/dashboard/menu_look.lua")
