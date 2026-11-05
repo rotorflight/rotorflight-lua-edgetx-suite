@@ -92,7 +92,8 @@ arming-disable retain the wizard's existing lifecycle.
 | API | Field | Direction in this integration | Source definition |
 | --- | --- | --- | --- |
 | esc_sensor_config | protocol | existing read | src/rfsuite/tasks/msp/api/esc_sensor_config.lua:47 |
-| esc_sensor_config | half_duplex | existing read | src/rfsuite/tasks/msp/api/esc_sensor_config.lua:48 |
+| esc_sensor_config | half_duplex | read; written with the type card or Use half-duplex | src/rfsuite/tasks/msp/api/esc_sensor_config.lua:48 |
+| esc_sensor_config | pin_swap | read; written with half_duplex, off on F4 | src/rfsuite/tasks/msp/api/esc_sensor_config.lua:57 |
 | serial_config | port_1..12_function_mask | existing read | src/rfsuite/tasks/msp/api/serial_config.lua:13 |
 | feature_config | enabledFeatures | existing read | src/rfsuite/tasks/msp/api/feature_config.lua:17 |
 | governor_config | gov_mode | existing read | src/rfsuite/tasks/msp/api/governor_config.lua:60 |

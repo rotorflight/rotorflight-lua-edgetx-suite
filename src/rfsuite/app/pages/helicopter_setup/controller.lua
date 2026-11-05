@@ -172,8 +172,10 @@ function M.new(runtime, transport, mathModule, labels)
       self.data[name] = servo and { servo_count = index, servos = records } or { adjustment_ranges = records }
     end)
   end
-  function w:read(api, after, optional, payload)
-    self.bus:add({ api = api, payload = payload, optional = optional, after = after })
+  -- `retry` asks once more after a lost reply, so one lost frame does not end a visit. Only for a
+  -- read whose next request is another command, or whose repeated answer means the same.
+  function w:read(api, after, optional, payload, retry)
+    self.bus:add({ api = api, payload = payload, optional = optional, after = after, maxRetries = retry and 1 or nil })
   end
   function w:write(api, data, after, optional, decode)
     self.bus:add({ api = api, write = true, data = data, after = after, optional = optional, decode = decode })
@@ -244,7 +246,7 @@ function M.new(runtime, transport, mathModule, labels)
   -- has none, or an old one, from a link that has only just come back. A refused block is a
   -- failure the pilot can retry once the model is disarmed; nothing is sent before then.
   function w:blockArming()
-    self:read("boxids", function(d) self.data.boxids = d end)
+    self:read("boxids", function(d) self.data.boxids = d end, nil, nil, true)
     self:read("status", function(d)
       local armed = self:fcArmed(d)
       if self.logDebug then self:log("debug", "arming block check, armed %s", tostring(armed)) end
@@ -252,7 +254,7 @@ function M.new(runtime, transport, mathModule, labels)
         if self.logInfo then self:log("info", "arming block refused, armed %s", tostring(armed)) end
         self:fail("arming_disable", "armed")
       end
-    end)
+    end, nil, nil, true)
     self:write("arming_disable", { disabled = true })
   end
   function w:retry()
@@ -267,7 +269,7 @@ function M.new(runtime, transport, mathModule, labels)
       if (d.arming_disable_flags & (1 << 16)) == 0 then self:fail("arming_disable", "not active"); return end
       self.locked = true; self:acceptStatus(d)
       if not self.ready then self:load() else self.transition = nil; self:rebuild() end
-    end)
+    end, nil, nil, true)
   end
   function w:touch(api, reboot, live)
     self.dirty[api] = true
@@ -690,7 +692,14 @@ function M.new(runtime, transport, mathModule, labels)
     end
     if self.escBusy then return end
     if not self.ready then
-      self.bus:cancel();self.transition=nil;self:close();return
+      self.bus:cancel();self.transition=nil
+      -- Nothing to take back, and a release sent to a silent board would only wait for its reply.
+      if not self.bus.wrote then
+        self.cleanPhysicalExit,self.active=true,false
+        if self.requestClose then self.requestClose() end
+        return
+      end
+      self:close();return
     end
     if self.transition then return end
     if self.historyFailure then
@@ -823,7 +832,7 @@ function M.new(runtime, transport, mathModule, labels)
       if count > 26 or (count > 8 and count < 18) then self:fail("status", "servo count"); return end
       self.loadTotal = #READS + 40 + count
       self.locked = true; self:acceptStatus(d)
-    end)
+    end, nil, nil, true)
     if self.loadHistory then self:run(function() self:loadHistory() end) end
     if self.historyMode then
       self:run(function()
@@ -881,7 +890,7 @@ function M.new(runtime, transport, mathModule, labels)
         end
       end, api == "tail_motor_output" or api == "board_info" or api == "telemetry_config"
         or api == "battery_config" or api == "battery_profile" or api == "smartfuel_config",
-        api == "tail_motor_output" and {0} or nil) end
+        api == "tail_motor_output" and {0} or nil, true) end
       self:run(function()
         -- A reload reads current RAM; unsaved APIs retain their original discard baseline.
         -- Mode extras share the mode table's dirty flag and rollback boundary.
@@ -893,7 +902,7 @@ function M.new(runtime, transport, mathModule, labels)
     end
     -- Loading many API blocks can take seconds over telemetry. Read the lock
     -- again immediately before offering bench controls.
-    self:read("status", function(d) self:acceptStatus(d) end)
+    self:read("status", function(d) self:acceptStatus(d) end, nil, nil, true)
     self:run(function()
       self.identity = self:session().mcu_id
       local inputs = self.data.mixer_input.inputs
@@ -935,7 +944,7 @@ function M.new(runtime, transport, mathModule, labels)
       job.after = function(d, err) self:pollReply(job, d, err) end
       self.pollJob = job
     end
-    job.api, job.optional = api, api == "analog"
+    job.api, job.optional, job.maxRetries = api, api == "analog", 1
     job.voltageSource = selectedSources and selectedSources.voltageMeterSource
     job.currentSource = selectedSources and selectedSources.currentMeterSource
     self.bus:add(job)
@@ -1050,7 +1059,7 @@ function M.new(runtime, transport, mathModule, labels)
       end
       if age > 100 and not self.statusQueued then
         self.statusQueued = true
-        self.bus:urgent({ api = "status", after = function(d)
+        self.bus:urgent({ api = "status", maxRetries = 1, after = function(d)
           self.statusQueued = nil; self:acceptStatus(d)
         end })
       end

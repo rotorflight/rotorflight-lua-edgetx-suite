@@ -1055,18 +1055,39 @@ do
   eq(closed, 0, "DEAD after a write Back does not leave")
   check(written.disconnectExit == true, "DEAD after a write the power-off demand stands")
   session.mcu_id = identity
-  -- One lost reply: a read is asked again, a write is not.
+  -- One lost reply: the load's reads ask the queue for one more attempt, a write never, and
+  -- numbered records never, because a late reply carries no index.
   local retried = beginWorld()
-  local readRetries, writeRetries
-  for _ = 1, 60 do
+  local seen = {}
+  for _ = 1, 1000 do
     retried:tick()
     local m = q.messages[1]
-    if m and not m.isWrite and readRetries == nil then readRetries = m.maxRetries end
-    if m and m.isWrite and writeRetries == nil then writeRetries = m.maxRetries end
+    if m then
+      local kind = m.isWrite and "write" or (m.command == 156 or m.command == 125) and "record" or "read"
+      seen[kind] = seen[kind] or {}
+      seen[kind][m.maxRetries or 0] = true
+    end
     pump(); ticks = ticks + 1
+    if retried.ready or retried.error then break end
   end
-  eq(readRetries, 1, "RETRY a read is asked once more")
-  eq(writeRetries, 0, "RETRY a write is never repeated by the queue")
+  check(retried.ready, "RETRY the load finished")
+  check(seen.read and seen.read[1] and not seen.read[0], "RETRY every read of the load asks for one more attempt")
+  check(seen.write and seen.write[0] and not seen.write[1], "RETRY no write asks for a second attempt")
+  check(seen.record and seen.record[0] and not seen.record[1], "RETRY a numbered record is never asked twice")
+  -- Back on a load that failed before anything was written waits for no reply.
+  local failing = beginWorld()
+  failCommand = 119
+  run(failing, 40)
+  failCommand = nil
+  check(failing.error ~= nil, "DEAD failed load control")
+  check(not failing.bus.wrote, "DEAD nothing was written before the failure")
+  closed = 0
+  failing.requestClose = function() closed = closed + 1 end
+  q.sent = {}
+  failing:back()
+  for _ = 1, 5 do pump() end
+  eq(closed, 1, "DEAD Back on an unwritten failed load leaves")
+  eq(#q.sent, 0, "DEAD and sends nothing")
   -- A late status during a calibration pauses the controls; a held output still ends the visit.
   local calibrating = world()
   calibrating.calibrationAt = ticks
@@ -1080,7 +1101,7 @@ do
   holding.statusAt = ticks - 301
   q.messages = {}
   holding:tick()
-  check(holding.error ~= nil, "CAL a running test still fails closed on a late status")
+  check(holding.error ~= nil, "CAL a running wiring or alignment test still fails closed on a late status")
 end
 -- A held rotary between two refreshes: EdgeTX bills those callbacks to the refresh before them.
 do
@@ -1150,7 +1171,14 @@ do
   eq(c.half_duplex, 1, "HALF a programmable ESC is configured half-duplex")
   eq(c.pin_swap, 1, "HALF pin swap on this MCU")
   check(lw.dirty.esc_sensor_config == true and lw.rebootPending == true, "HALF an ordinary edit, saved with the restart")
-  eq(#q.sent, 0, "HALF nothing is written before Save")
+  for _ = 1, 5 do lw.statusAt = ticks; lw:tick(); pump(); ticks = ticks + 1 end
+  local wroteConfig = false
+  for _, m in ipairs(q.sent) do if m.command == api("esc_sensor_config").writeCommand then wroteConfig = true end end
+  check(not wroteConfig, "HALF nothing is written before Save")
+  -- Back to an ESC this page cannot program before saving: the wiring is what it was.
+  choose(lw, 2)
+  eq(c.half_duplex, 0, "HALF the round trip takes half-duplex back")
+  eq(c.pin_swap, 0, "HALF the round trip takes pin swap back")
   local f4, cf = setup("STM32F405")
   choose(f4, 9)
   eq(cf.half_duplex, 1, "HALF F4 half-duplex")

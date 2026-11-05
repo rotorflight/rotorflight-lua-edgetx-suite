@@ -31,8 +31,17 @@ function M.attach(w, params, status)
     local target = self.data.board_info and self.data.board_info.target_name
     local f4 = type(target) == "string" and string.find(target, "F4", 1, true) ~= nil
     if self.logDebug then self:log("debug", "ESC wiring set half-duplex, pin swap %s", f4 and 0 or 1) end
+    self.escWiringBefore = self.escWiringBefore or { config.half_duplex, config.pin_swap }
     self:field("esc_sensor_config", "half_duplex", 1, true)
     self:field("esc_sensor_config", "pin_swap", f4 and 0 or 1, true)
+  end
+  -- Choosing an ESC this page cannot program takes back what choosing one it can program did.
+  function w:escRestoreWiring()
+    local before = self.escWiringBefore
+    if not before or params.families[self.data.esc_sensor_config.protocol] then return end
+    self.escWiringBefore = nil
+    self:field("esc_sensor_config", "half_duplex", before[1], true)
+    self:field("esc_sensor_config", "pin_swap", before[2], true)
   end
   function w:escTelemetryOnly()
     local config = self.data.esc_sensor_config
