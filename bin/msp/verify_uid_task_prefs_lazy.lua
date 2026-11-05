@@ -61,13 +61,16 @@ end
 -- the previous link's, which the task must clear on the way through.
 do
   local label = "preferences present"
-  local held = { dashboard = {} }
+  local heldDashboard = { model_theme_preflight = "system/held" }
+  local held = { dashboard = heldDashboard }
   local task = newTask()
   _G.rfsuite.session = { mcu_id = MCU_ID, modelPreferences = held, modelPreferencesFile = "held.ini",
     modelPreferencesResolved = false }
   task.wakeup()
   equal(moduleLoads, 0, label .. ": lib/model_preferences.lua loads")
   equal(_G.rfsuite.session.modelPreferences, held, label .. ": the same preferences object")
+  equal(held.dashboard, heldDashboard, label .. ": the same nested table")
+  equal(heldDashboard.model_theme_preflight, "system/held", label .. ": the same value inside it")
   equal(_G.rfsuite.session.modelPreferencesFile, "held.ini", label .. ": the same preferences file")
   expectResolved(task, label)
 
@@ -95,6 +98,9 @@ do
   -- The same instance after reset(), which clears the session's half: the module it holds is used.
   task.reset()
   equal(_G.rfsuite.session.modelPreferences, nil, label .. ": reset clears the preferences")
+  equal(_G.rfsuite.session.modelPreferencesFile, nil, label .. ": reset clears the preferences file")
+  equal(_G.rfsuite.session.modelPreferencesResolved, nil, label .. ": reset clears the resolved flag")
+  equal(_G.rfsuite.session.mcu_id, nil, label .. ": reset clears the UID")
   equal(task.isComplete(), false, label .. ": reset reopens the task")
   _G.rfsuite.session.mcu_id = MCU_ID
   task.wakeup()
