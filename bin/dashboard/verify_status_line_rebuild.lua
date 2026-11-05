@@ -8,7 +8,8 @@
 -- each cleared object's wrapper allocated. What is counted is the clears. What the pilot reads is
 -- checked by asking the objects themselves: the bar's size, the labels' text, no file count, and no
 -- word of connecting while nothing connects. A change of the status line itself, and a new zone
--- size that does belong to a rebuild, are the rest.
+-- size that does belong to a rebuild, are the rest. The line of the connect tasks is driven too, and
+-- the standby screen's bar is held against its words in the narrow zones.
 -- No pixels, hardware or memory are measured. Exit status: 0 green, 1 failed expectations, 2 bad CLI.
 
 local ROOT = "."
@@ -151,8 +152,118 @@ local function leg(name, standby)
   check(clears > 0, name .. ": a new zone size still rebuilds", clears .. " clears")
 end
 
+-- The connect tasks say what they are doing through the same line. Their step and their count change
+-- while the kind of line stays the same, so nothing may clear. Held well inside the splash's soft
+-- timeout, after which the dashboard would build for a reason of its own.
+local function onconnectLeg(name, standby)
+  done, running, restart = 0, false, false
+  local MspRuntime = assert(_G.rfsuite.require("tasks/msp/runtime.lua"))
+  local Events = assert(_G.rfsuite.require("tasks/events/runtime.lua"))
+  local saved = { MspRuntime.getState, MspRuntime.getProgressValues, MspRuntime.isFblConnected,
+    Events.isOnconnectActive, Events.getOnconnectProgress, Events.getOnconnectPendingTaskName }
+  local step, task = 1, "apiversion"
+  MspRuntime.getState = function()
+    return { lastConnected = true, versionReadCompleted = true, unsupportedApi = false,
+      values = { apiVersion = "12.0" } }
+  end
+  MspRuntime.getProgressValues = function() return 1, 1 end
+  MspRuntime.isFblConnected = function() return true end
+  Events.isOnconnectActive = function() return true end
+  Events.getOnconnectProgress = function() return { done = step - 1, total = 8 } end
+  Events.getOnconnectPendingTaskName = function() return task end
+
+  local runtime = assert(loadfile(root .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
+  local widget = runtime.new({ x = 0, y = 0, w = 800, h = 458 }, {})
+  widget.preferences = widget.preferences or {}
+  widget.preferences.dashboard = widget.preferences.dashboard or {}
+  widget.preferences.dashboard.standby_enabled = standby
+  widget.flightMode = "preflight"
+
+  cycle(widget, 60)
+  check(widget.state.standbyInfoKind == "suite_loading", name .. ": the connect tasks are what it waits for",
+    widget.state.standbyInfoKind)
+  check(shows("(1/8)"), name .. ": the first step is on the screen")
+
+  clears = 0
+  step = 2
+  cycle(widget, 30)
+  check(shows("(2/8)"), name .. ": a new count reaches the label")
+  check(not shows("(1/8)"), name .. ": and the old one has gone")
+  local line = widget.statusLine
+  step, task = 3, "not-a-known-task"
+  cycle(widget, 30)
+  check(shows("(3/8)") and widget.statusLine ~= line, name .. ": a new step reaches the label", widget.statusLine)
+  check(widget.state.standbyInfoKind == "suite_loading", name .. ": the kind of line stayed the same",
+    widget.state.standbyInfoKind)
+  check(clears == 0, name .. ": neither of them clears anything", clears .. " clears")
+
+  -- The control, in this same state: something that does belong to a rebuild is seen.
+  clears = 0
+  widget.state.zoneW = 480
+  widget.zone = { x = 0, y = 0, w = 480, h = 272 }
+  cycle(widget, 40)
+  check(clears > 0, name .. ": a new zone size still rebuilds", clears .. " clears")
+
+  MspRuntime.getState, MspRuntime.getProgressValues, MspRuntime.isFblConnected = saved[1], saved[2], saved[3]
+  Events.isOnconnectActive, Events.getOnconnectProgress, Events.getOnconnectPendingTaskName = saved[4], saved[5], saved[6]
+end
+
+-- The standby screen's bar against its words: asked of the objects a zone gets. The bar's track is
+-- the rectangle with a visibility and no size of its own; the fill reads its size.
+local function findStatusLabel(children, text)
+  for i = 1, #children do
+    local c = children[i]
+    if c.type == "label" and type(c.text) == "function" and c.text() == text then return c end
+  end
+end
+
+local function findBarTrack(children)
+  for i = 1, #children do
+    local c = children[i]
+    if c.type == "rectangle" and type(c.visible) == "function" and c.size == nil then return c end
+  end
+end
+
+local function barBesideLine(locale, zoneW, zoneH, expectX)
+  local Standby = assert(loadfile(root .. "/src/rfsuite/widgets/dashboard/standby.lua"))()
+  local text = assert(loadfile(root .. "/src/rfsuite/i18n/" .. locale .. ".lua"))().app.preparing
+  local name = string.format("bar at %dx%d, %s", zoneW, zoneH, locale)
+  local children = Standby.build({ x = 0, y = 0, w = zoneW, h = zoneH }, function() return text end,
+    function(_, fallback) return fallback end, {}, {}, {},
+    { text = "", progress = function() return 0.5 end })
+  local label, track = findStatusLabel(children, text), findBarTrack(children)
+  check(label ~= nil, name .. ": the line stands")
+  check(track ~= nil, name .. ": the bar stands")
+  if label and track then
+    local ends = label.x + lcd.sizeText(text, SMLSIZE)
+    check(ends <= track.x, name .. ": the bar starts after the words", ends .. " against " .. track.x)
+    check(track.x + track.w <= zoneW, name .. ": and ends inside the zone", track.x + track.w)
+    if expectX then check(track.x == expectX, name .. ": where the words leave room, at the middle", track.x) end
+  end
+end
+
+local function noRoomForBar(zoneW, zoneH)
+  local Standby = assert(loadfile(root .. "/src/rfsuite/widgets/dashboard/standby.lua"))()
+  local children = Standby.build({ x = 0, y = 0, w = zoneW, h = zoneH }, function() return "Preparing suite" end,
+    function(_, fallback) return fallback end, {}, {}, {},
+    { text = "", progress = function() return 0.5 end })
+  check(findBarTrack(children) == nil, string.format("bar at %dx%d: no room, so the words stand alone", zoneW, zoneH))
+  check(findStatusLabel(children, "Preparing suite") ~= nil, string.format("bar at %dx%d: the words stay", zoneW, zoneH))
+end
+
 leg("splash", false)
 leg("standby", true)
+onconnectLeg("splash, connect tasks", false)
+onconnectLeg("standby, connect tasks", true)
+
+for _, locale in ipairs({ "en", "de" }) do
+  barBesideLine(locale, 800, 458, 400)
+  barBesideLine(locale, 480, 320, 240)
+  barBesideLine(locale, 480, 272, 240)
+  -- Half of what is left of a 480-wide screen with sliders and both vertical trims on.
+  barBesideLine(locale, 206, 244)
+end
+noRoomForBar(120, 244)
 
 if failures > 0 then
   print(string.format("status line: %d of %d checks failed", failures, checks))

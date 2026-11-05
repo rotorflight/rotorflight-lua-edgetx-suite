@@ -739,12 +739,16 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
       h = statusH, text = type(statusLine) == "function" and statusLine or tostring(statusLine or ""),
       color = COLOR_THEME_PRIMARY2, font = SMLSIZE },
     }
-    -- The compile pass's bar, on the line's row and clear of its words: see runtime.lua. A micro
-    -- layout has no such row.
+    -- The compile pass's bar, on the line's row and clear of its words: see runtime.lua. It starts at
+    -- the middle, or after the words where a narrow zone leaves them past it, and a zone with no room
+    -- left keeps the words alone. Measured here and only here: a new kind of line rebuilds the scene
+    -- (standbyInfoKind), and the restart request that follows the words hides the bar. A micro layout
+    -- has no such row.
     local progress = info and info.progress
-    if progress then
-      local barX = math.floor(w / 2)
-      local barW = w - barX - contentMargin
+    local line = type(statusLine) == "function" and statusLine() or statusLine
+    local barX = math.max(math.floor(w / 2), contentMargin + measure(line or "", SMLSIZE) + 6)
+    local barW = w - barX - contentMargin
+    if progress and barW >= 40 then
       local barH = math.min(10, statusH)
       local barY = footerY + statusY + math.floor((statusH - barH) / 2)
       local fillW = barW - 4
