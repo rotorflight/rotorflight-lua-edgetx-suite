@@ -153,12 +153,16 @@ end
 -- What the pilot does
 -- ---------------------------------------------------------------------------
 
+local function sideOf(roll)
+  return (roll.focus == 2) and "right" or "left"
+end
+
 local function moveBy(roll, delta)
   local level = (roll.focus == 2) and rightLevel(roll) or leftLevel(roll)
   local rows = level and level.rows or nil
   local before = level and level.index or 1
   if level ~= nil then level.index = clamp(before + delta, rows and #rows or 0) end
-  trace("level " .. tostring(roll.focus) .. " " .. tostring(before) .. " -> " .. tostring(level and level.index))
+  trace(sideOf(roll) .. " " .. tostring(before) .. " -> " .. tostring(level and level.index))
 end
 
 -- A detent, or several where the wheel outran the callbacks. The sum is taken from the ladder
@@ -231,10 +235,6 @@ local function rowAt(roll, x, y)
     if y >= top and y < top + ((offset == 0) and geo.midH or geo.rowH) then return side, offset end
   end
   return side, nil
-end
-
-local function sideOf(roll)
-  return (roll.focus == 2) and "right" or "left"
 end
 
 -- The list a touch acts on takes the focus. Answers whether that side has a list to act on.
