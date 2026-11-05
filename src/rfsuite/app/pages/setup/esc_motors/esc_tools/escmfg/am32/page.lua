@@ -579,6 +579,7 @@ end
 
 function M.getHeaderActions()
   return {
+    help = true,
     save = true,
     reload = true,
     menu = true
@@ -627,7 +628,12 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "AM32")
+  -- The Goosky tile opens this page under a menu id of its own (app/pages/init.lua). The ESC reports
+  -- no brand, so the name comes from the tile and everything the ESC did report stays as it is.
+  local menu = ctx.menu
+  local goosky = menu and type(menu.getCurrentMenuId) == "function"
+    and menu.getCurrentMenuId() == "setup_esc_motors_esc_tools_goosky_page"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), goosky and "Goosky" or "AM32")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -664,7 +670,7 @@ function M.build(ctx)
   local cursorY = y
   if Controls and type(Controls.appendStaticSectionHeader) == "function" then
     local headerTitle = title
-    if ui.escModel and ui.escModel ~= "" and ui.escModel ~= title then
+    if not goosky and ui.escModel and ui.escModel ~= "" and ui.escModel ~= title then
       if string.find(string.lower(ui.escModel), string.lower(title), 1, true) then
         headerTitle = ui.escModel
       else
@@ -675,10 +681,28 @@ function M.build(ctx)
     cursorY = cursorY + (Controls.STATIC_SECTION_H or 50)
   end
 
-  if Controls and type(Controls.appendEscSubheader) == "function" then
+  local parsed = ui.parsedCache
+  if goosky then
+    if parsed then
+      children[#children + 1] = {
+        type = "label",
+        x = x, y = cursorY,
+        text = string.format(pageText(i18n, "esc_goosky_summary", "Goosky AM32 / EEPROM %s / v%s"),
+          tostring(parsed.eeprom_version), tostring(parsed.version_major) .. "." .. tostring(parsed.version_minor)),
+        color = Palette.text,
+        font = SMLSIZE
+      }
+      cursorY = cursorY + 18
+    end
+  elseif Controls and type(Controls.appendEscSubheader) == "function" then
     cursorY = cursorY + Controls.appendEscSubheader(children, x, cursorY, w, ui.escFirmware, ui.escVersion)
   end
   local rowH
+  local label
+  local openHelp = ctx.openHelp
+  local function onRowHelp(text, helpTitle)
+    if type(openHelp) == "function" and type(text) == "string" and text ~= "" then openHelp(text, helpTitle) end
+  end
   local hasMultipleEscs = (ui.motorCount == nil) or (ui.motorCount >= 2)
   if hasMultipleEscs then
     local escOptions = {
@@ -697,7 +721,12 @@ function M.build(ctx)
         ui.dirty = false
         queueAm32Read(false)
       end
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_target",
+        "Which ESC this page reads and writes. Changing it connects again and reads that ESC."),
+      helpTitle = targetLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
   end
 
@@ -733,10 +762,20 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, motorDirectionLabel, dirOpts, ui.config.motor_direction, function(val)
       ui.config.motor_direction = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_motor_direction",
+        "The direction the motor turns. Reversed swaps it without rewiring."),
+      helpTitle = motorDirectionLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_motor_kv", "Motor KV"), {
+    label = pageText(i18n, "esc_motor_kv", "Motor KV")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_motor_kv",
+        "The motor's KV, 20 to 10220 in steps of 40. The ESC derives its low-speed throttle limit and RPM levels from it."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 20, max = 10220, step = 40, suffix = "KV",
       get = function() return ui.config.motor_kv end,
       set = function(val)
@@ -746,7 +785,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_motor_poles", "Motor Poles"), {
+    label = pageText(i18n, "esc_motor_poles", "Motor Poles")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_motor_poles",
+        "The motor's pole count, 2 to 36. The ESC derives its RPM levels and start-up timing from it."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 2, max = 36, step = 1,
       get = function() return ui.config.motor_poles end,
       set = function(val)
@@ -756,7 +800,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_startup_power", "Startup Power"), {
+    label = pageText(i18n, "esc_startup_power", "Startup Power")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_startup_power",
+        "The extra drive when the motor starts, 50 to 150 %, on top of the minimum duty."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 50, max = 150, step = 1, suffix = "%",
       get = function() return ui.config.startup_power end,
       set = function(val)
@@ -775,10 +824,20 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, brakeOnStopLabel, brakeOpts, ui.config.brake_on_stop, function(val)
       ui.config.brake_on_stop = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_brake_on_stop",
+        "What the ESC does at zero throttle: Off coasts, Brake drags by Brake Strength, Active brakes while armed."),
+      helpTitle = brakeOnStopLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_brake_strength", "Brake Strength"), {
+    label = pageText(i18n, "esc_brake_strength", "Brake Strength")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_brake_strength",
+        "How hard the Brake setting of Brake on Stop drags the stopped motor, 0 to 10."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 0, max = 10, step = 1,
       get = function() return ui.config.brake_strength end,
       set = function(val)
@@ -788,7 +847,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_running_brake_level", "Running Brake Level"), {
+    label = pageText(i18n, "esc_running_brake_level", "Running Brake Level")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_running_brake_level",
+        "Drag while the motor runs, set through the ESC's dead time, 0 to 10. 10 leaves the dead time as built."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 0, max = 10, step = 1,
       get = function() return ui.config.running_brake_level end,
       set = function(val)
@@ -798,7 +862,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_beep_volume", "Beep Volume"), {
+    label = pageText(i18n, "esc_beep_volume", "Beep Volume")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_beep_volume",
+        "Volume of the ESC's own beeps, 0 to 11."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 0, max = 11, step = 1,
       get = function() return ui.config.beep_volume end,
       set = function(val)
@@ -819,21 +888,36 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, bidirectionalMode, offOnOpts, ui.config.bidirectional_mode, function(val)
       ui.config.bidirectional_mode = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_bidirectional_mode",
+        "On, the throttle range runs through a centre point into reverse as well as forward."),
+      helpTitle = bidirectionalMode,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
     local sinusoidalStartup = pageText(i18n, "esc_sinusoidal_startup", "Sinusoidal Startup")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, sinusoidalStartup, offOnOpts, ui.config.sinusoidal_startup, function(val)
       ui.config.sinusoidal_startup = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_sinusoidal_startup",
+        "Starts the motor with a sine drive before normal commutation takes over. Needs Complementary PWM."),
+      helpTitle = sinusoidalStartup,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
     local complementaryPwmLabel = pageText(i18n, "esc_complementary_pwm", "Complementary PWM")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, complementaryPwmLabel, offOnOpts, ui.config.complementary_pwm, function(val)
       ui.config.complementary_pwm = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_complementary_pwm",
+        "Complementary switching of the output stage. Off, zero throttle switches the outputs off or brakes, and Sinusoidal Startup stops working."),
+      helpTitle = complementaryPwmLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
     local varPwmOpts = {
@@ -841,16 +925,28 @@ function M.build(ctx)
       { value = 1, label = pageText(i18n, "am32_opt_variable", "Variable") },
       { value = 2, label = "RPM" }
     }
-    rowH = Controls.appendComboSelect(children, x, cursorY, w, pageText(i18n, "esc_variable_pwm_frequency", "Variable PWM Frequency"), varPwmOpts, ui.config.variable_pwm_frequency, function(val)
+    label = pageText(i18n, "esc_variable_pwm_frequency", "Variable PWM Frequency")
+    rowH = Controls.appendComboSelect(children, x, cursorY, w, label, varPwmOpts, ui.config.variable_pwm_frequency, function(val)
       ui.config.variable_pwm_frequency = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_variable_pwm_frequency",
+        "How the PWM frequency moves: Fixed stays at PWM Frequency, Variable maps motor speed onto a range, RPM derives it from the averaged speed."),
+      helpTitle = label,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendComboSelect(children, x, cursorY, w, pageText(i18n, "esc_stuck_rotor_protection", "Stuck Rotor Protection"), offOnOpts, ui.config.stuck_rotor_protection, function(val)
+    label = pageText(i18n, "esc_stuck_rotor_protection", "Stuck Rotor Protection")
+    rowH = Controls.appendComboSelect(children, x, cursorY, w, label, offOnOpts, ui.config.stuck_rotor_protection, function(val)
       ui.config.stuck_rotor_protection = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_stuck_rotor_protection",
+        "Turns the outputs off and zeroes the input when the ESC keeps losing the motor's back EMF, as a stuck rotor does."),
+      helpTitle = label,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
     local timingOpts = {
@@ -863,10 +959,20 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, timingAdvanceLabel, timingOpts, ui.config.timing_advance, function(val)
       ui.config.timing_advance = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_timing_advance",
+        "Commutation timing advance. Ignored while Auto Advance is on."),
+      helpTitle = timingAdvanceLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_pwm_frequency", "PWM Frequency"), {
+    label = pageText(i18n, "esc_pwm_frequency", "PWM Frequency")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_pwm_frequency",
+        "Switching frequency of the outputs, 8 to 144 kHz. Used as set while Variable PWM Frequency is Fixed."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 8, max = 144, step = 1, suffix = "kHz",
       get = function() return ui.config.pwm_frequency end,
       set = function(val)
@@ -880,31 +986,56 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, stallProtectionLabel, offOnOpts, ui.config.stall_protection, function(val)
       ui.config.stall_protection = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_stall_protection",
+        "On, the ESC raises its drive at low speed to keep the motor from stalling, up to a fixed cap."),
+      helpTitle = stallProtectionLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
     local intervalTelemetry = pageText(i18n, "esc_interval_telemetry", "Interval Telemetry")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, intervalTelemetry, offOnOpts, ui.config.interval_telemetry, function(val)
       ui.config.interval_telemetry = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_interval_telemetry",
+        "On, the ESC sends serial telemetry at a fixed interval rather than on each request."),
+      helpTitle = intervalTelemetry,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
     local rcCarReversingLabel = pageText(i18n, "esc_rc_car_reversing", "RC Car Reversing")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, rcCarReversingLabel, offOnOpts, ui.config.rc_car_reversing, function(val)
       ui.config.rc_car_reversing = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_rc_car_reversing",
+        "Car-style proportional reverse. It overrides Bidirectional, Sinusoidal Startup, Variable PWM, Complementary PWM and Stuck Rotor Protection."),
+      helpTitle = rcCarReversingLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
     local useHallSensorsLabel = pageText(i18n, "esc_use_hall_sensors", "Use Hall Sensors")
     rowH = Controls.appendComboSelect(children, x, cursorY, w, useHallSensorsLabel, offOnOpts, ui.config.use_hall_sensors, function(val)
       ui.config.use_hall_sensors = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_use_hall_sensors",
+        "Uses the motor's hall sensors. Only an ESC built with hall inputs honours it."),
+      helpTitle = useHallSensorsLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_sine_mode_range", "Sine Mode Range"), {
+    label = pageText(i18n, "esc_sine_mode_range", "Sine Mode Range")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_sine_mode_range",
+        "The throttle point where the input mapping leaves the sine range, 5 to 25."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 5, max = 25, step = 1,
       get = function() return ui.config.sine_mode_range end,
       set = function(val)
@@ -914,7 +1045,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_sine_mode_power", "Sine Mode Power"), {
+    label = pageText(i18n, "esc_sine_mode_power", "Sine Mode Power")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_sine_mode_power",
+        "Scales the drive during sine start-up, 1 to 10."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 1, max = 10, step = 1,
       get = function() return ui.config.sine_mode_power end,
       set = function(val)
@@ -928,12 +1064,22 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, autoAdvanceLabel, offOnOpts, ui.config.auto_advance, function(val)
       ui.config.auto_advance = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_auto_advance",
+        "On, the ESC sets the advance from the duty cycle itself and ignores Timing Advance."),
+      helpTitle = autoAdvanceLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
   elseif ui.currentSection == 3 then
     -- Limits Settings
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_servo_low_threshold", "Servo Low Threshold"), {
+    label = pageText(i18n, "esc_servo_low_threshold", "Servo Low Threshold")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_servo_low_threshold",
+        "Servo pulse read as the bottom of the throttle range, 750 to 1250 us. For a PWM input, not for DShot."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 750, max = 1250, step = 2, suffix = "us",
       get = function() return ui.config.servo_low_threshold end,
       set = function(val)
@@ -943,7 +1089,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_servo_high_threshold", "Servo High Threshold"), {
+    label = pageText(i18n, "esc_servo_high_threshold", "Servo High Threshold")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_servo_high_threshold",
+        "Servo pulse read as the top of the throttle range, 1750 to 2250 us. For a PWM input, not for DShot."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 1750, max = 2250, step = 2, suffix = "us",
       get = function() return ui.config.servo_high_threshold end,
       set = function(val)
@@ -953,7 +1104,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_servo_neutral", "Servo Neutral"), {
+    label = pageText(i18n, "esc_servo_neutral", "Servo Neutral")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_servo_neutral",
+        "Centre pulse of a bidirectional PWM input, 1374 to 1630 us. Not for DShot."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 1374, max = 1630, step = 1, suffix = "us",
       get = function() return ui.config.servo_neutral end,
       set = function(val)
@@ -963,7 +1119,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_servo_dead_band", "Servo Dead Band"), {
+    label = pageText(i18n, "esc_servo_dead_band", "Servo Dead Band")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_servo_dead_band",
+        "Width around the centre pulse that counts as neutral on a bidirectional input, 0 to 100."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 0, max = 100, step = 1,
       get = function() return ui.config.servo_dead_band end,
       set = function(val)
@@ -982,10 +1143,20 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, lowVoltageCutoffLabel, lvcOpts, ui.config.low_voltage_cutoff, function(val)
       ui.config.low_voltage_cutoff = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_low_voltage_cutoff",
+        "Stops the motor on a low battery until the next power cycle: Cell uses the threshold per cell, Absolute a fixed voltage."),
+      helpTitle = lowVoltageCutoffLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_low_voltage_threshold", "Low Voltage Threshold"), {
+    label = pageText(i18n, "esc_low_voltage_threshold", "Low Voltage Threshold")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_low_voltage_threshold",
+        "Voltage per cell that trips the Cell cutoff, 250 to 350 cV, that is 2.50 to 3.50 V."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 250, max = 350, step = 1, suffix = "cV",
       get = function() return ui.config.low_voltage_threshold end,
       set = function(val)
@@ -995,7 +1166,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_temperature_limit", "Temperature Limit"), {
+    label = pageText(i18n, "esc_temperature_limit", "Temperature Limit")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_temperature_limit",
+        "ESC temperature around which it ramps its drive down, from 10 below to 10 above. 141 turns the limit off."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 70, max = 141, step = 1, suffix = "C",
       get = function() return ui.config.temperature_limit end,
       set = function(val)
@@ -1005,7 +1181,12 @@ function M.build(ctx)
     })
     cursorY = cursorY + rowH
 
-    rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_current_limit", "Current Limit"), {
+    label = pageText(i18n, "esc_current_limit", "Current Limit")
+    rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
+      helpText = pageText(i18n, "help_am32_current_limit",
+        "Current the ESC holds its drive to, in amps. 0 and 202 turn it off. The radio notes it for the dashboard's ESC load."),
+      helpTitle = label,
+      onHelp = onRowHelp,
       min = 0, max = 202, step = 2,
       get = function() return ui.config.current_limit end,
       set = function(val)
@@ -1026,7 +1207,12 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, protocolLabel, protoOpts, ui.config.esc_protocol, function(val)
       ui.config.esc_protocol = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_am32_protocol",
+        "The input signal the ESC accepts. Auto detects it; the others fix it to one."),
+      helpTitle = protocolLabel,
+      onHelp = onRowHelp
+    })
     cursorY = cursorY + rowH
   end
 

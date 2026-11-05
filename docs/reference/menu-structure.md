@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**120 entries, 99 of them open a page, 67 of those pages are documented.**
+**121 entries, 100 of them open a page, 68 of those pages are documented.**
 
 ## Diagrams
 
@@ -225,36 +225,38 @@ flowchart LR
   n37 --> n40
   n41["Flyrotor"]:::documented
   n37 --> n41
-  n42["Hobbywing V5"]:::documented
+  n42["Goosky"]:::documented
   n37 --> n42
-  n43["OMP"]:::documented
+  n43["Hobbywing V5"]:::documented
   n37 --> n43
-  n44["Scorpion"]:::documented
+  n44["OMP"]:::documented
   n37 --> n44
-  n45["XDFly"]:::documented
+  n45["Scorpion"]:::documented
   n37 --> n45
-  n46["YGE"]:::documented
+  n46["XDFly"]:::documented
   n37 --> n46
-  n47["ZTW"]:::documented
+  n47["YGE"]:::documented
   n37 --> n47
-  n48["Motor Override"]:::undocumented
-  n33 --> n48
-  n49["SRXL2 ESC"]:::documented
+  n48["ZTW"]:::documented
+  n37 --> n48
+  n49["Motor Override"]:::undocumented
   n33 --> n49
-  n50["Governor"]:::menu
-  n0 --> n50
-  n51["General"]:::documented
-  n50 --> n51
-  n52["Ramp Time"]:::documented
-  n50 --> n52
-  n53["Filters"]:::undocumented
-  n50 --> n53
-  n54["Bypass Curve"]:::undocumented
-  n50 --> n54
-  n55["Model"]:::documented
-  n0 --> n55
-  n56["GPS"]:::undocumented
+  n50["SRXL2 ESC"]:::documented
+  n33 --> n50
+  n51["Governor"]:::menu
+  n0 --> n51
+  n52["General"]:::documented
+  n51 --> n52
+  n53["Ramp Time"]:::documented
+  n51 --> n53
+  n54["Filters"]:::undocumented
+  n51 --> n54
+  n55["Bypass Curve"]:::undocumented
+  n51 --> n55
+  n56["Model"]:::documented
   n0 --> n56
+  n57["GPS"]:::undocumented
+  n0 --> n57
   classDef section stroke:#78909c,stroke-width:3px,font-weight:bold
   classDef menu stroke:#1e88e5,stroke-width:2px
   classDef documented stroke:#43a047,stroke-width:2px
@@ -452,11 +454,12 @@ Section `configuration`.
 | Setup &rsaquo; ESC & Motors &rsaquo; Throttle | `throttle` | `setup_esc_motors_throttle_page` | `setup/esc_motors/throttle` | [setup/esc_motors/throttle.md](../pages/setup/esc_motors/throttle.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; Telemetry | `telemetry` | `setup_esc_motors_telemetry_page` | `setup/esc_motors/telemetry` | [setup/esc_motors/telemetry.md](../pages/setup/esc_motors/telemetry.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; RPM | `rpm` | `setup_esc_motors_rpm_page` | `setup/esc_motors/rpm` | **none** | `lockedWhileArmed = true` |
-| Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools | `esc_tools` | `esc_tools_menu` | menu, 10 entries | &mdash; | `lockedWhileArmed = true` |
-| Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; AM32 | `am32` | `setup_esc_motors_esc_tools_am32_page` | `setup/esc_motors/esc_tools/escmfg/am32` | [setup/esc_motors/esc_tools/escmfg/am32.md](../pages/setup/esc_motors/esc_tools/escmfg/am32.md) | `enabledWhen = "escProto1"`, `lockedWhileArmed = true` |
+| Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools | `esc_tools` | `esc_tools_menu` | menu, 11 entries | &mdash; | `lockedWhileArmed = true` |
+| Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; AM32 | `am32` | `setup_esc_motors_esc_tools_am32_page` | `setup/esc_motors/esc_tools/escmfg/am32` | [setup/esc_motors/esc_tools/escmfg/am32.md](../pages/setup/esc_motors/esc_tools/escmfg/am32.md) | `enabledWhen = "escProtoAm32"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; BLHeli_S | `blheli_s` | `setup_esc_motors_esc_tools_blheli_s_page` | `setup/esc_motors/esc_tools/escmfg/blheli_s` | [setup/esc_motors/esc_tools/escmfg/blheli_s.md](../pages/setup/esc_motors/esc_tools/escmfg/blheli_s.md) | `enabledWhen = "escProto1"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; Bluejay | `bluejay` | `setup_esc_motors_esc_tools_bluejay_page` | `setup/esc_motors/esc_tools/escmfg/bluejay` | [setup/esc_motors/esc_tools/escmfg/bluejay.md](../pages/setup/esc_motors/esc_tools/escmfg/bluejay.md) | `enabledWhen = "escProto1"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; Flyrotor | `flrtr` | `setup_esc_motors_esc_tools_flrtr_page` | `setup/esc_motors/esc_tools/escmfg/flrtr` | [setup/esc_motors/esc_tools/escmfg/flrtr.md](../pages/setup/esc_motors/esc_tools/escmfg/flrtr.md) | `enabledWhen = "escProto10"`, `lockedWhileArmed = true` |
+| Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; Goosky | `goosky` | `setup_esc_motors_esc_tools_goosky_page` | `setup/esc_motors/esc_tools/escmfg/am32` | [setup/esc_motors/esc_tools/escmfg/am32.md](../pages/setup/esc_motors/esc_tools/escmfg/am32.md) | `enabledWhen = "escProtoAm32"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; Hobbywing V5 | `hw5` | `setup_esc_motors_esc_tools_hw5_page` | `setup/esc_motors/esc_tools/escmfg/hw5` | [setup/esc_motors/esc_tools/escmfg/hw5.md](../pages/setup/esc_motors/esc_tools/escmfg/hw5.md) | `enabledWhen = "escProto3"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; OMP | `omp` | `setup_esc_motors_esc_tools_omp_page` | `setup/esc_motors/esc_tools/escmfg/omp` | [setup/esc_motors/esc_tools/escmfg/omp.md](../pages/setup/esc_motors/esc_tools/escmfg/omp.md) | `enabledWhen = "escProto6"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; ESC & Motors &rsaquo; ESC Tools &rsaquo; Scorpion | `scorp` | `setup_esc_motors_esc_tools_scorp_page` | `setup/esc_motors/esc_tools/escmfg/scorp` | [setup/esc_motors/esc_tools/escmfg/scorp.md](../pages/setup/esc_motors/esc_tools/escmfg/scorp.md) | `enabledWhen = "escProto4"`, `lockedWhileArmed = true` |

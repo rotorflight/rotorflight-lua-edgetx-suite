@@ -17,8 +17,8 @@ startup power and commutation timing, the temperature protection and the ESC's b
 Lit only while the flight controller reports this ESC telemetry protocol. Read-only while
 the model is armed.
 
-The same protocol lights the *AM32* and *Bluejay* tiles beside it, because what the flight
-controller reports is the telemetry protocol and all three share it. BLHeli_S and Bluejay
+The same protocol lights the *AM32*, *Goosky* and *Bluejay* tiles beside it, because what the
+flight controller reports is the telemetry protocol and they share it. BLHeli_S and Bluejay
 report the same ESC family as well, so this page tells them apart by the ESC's main revision
 and refuses a Bluejay block rather than decoding it with its own field list — the two layouts
 share five header fields and then diverge. That check, and what a refused read leaves on the
