@@ -37,7 +37,7 @@ Empty places are skipped, so the menu has no gaps: a dash in *Position 1* and *B
   *MAIN MENU* only while disarmed, *FLIGHT LOG*
   only while the model is disarmed. Taking an entry
   out here hides it always.
-- **BATTERY PROFILE is not a position.** The menu always draws it as its last row, under the
+- **BATTERY PROFILE is not a position.** The menu always draws it as its last row or entry, under the
   entries chosen here, while the connection is ready, the model is disarmed and the flight controller has reported a
   battery profile with a capacity.
 - **A list saved by an earlier version that names BATTERY PROFILE** reads without it. One that

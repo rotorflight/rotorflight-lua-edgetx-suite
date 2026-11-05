@@ -134,9 +134,13 @@ end
 -- the prompt counts as answered, or a surface that stays up after the press -- the theme under
 -- the picker -- would see the picker open again at once. The test is against nil because
 -- `false` is a request too: it is the "no battery" answer.
+--
+-- A pick that writes stays up for the board's answer, so it counts as still open: answered here, the
+-- picker would be taken off the stack on this pass and raised again when the apply step has run.
 function CONDITIONS.batteryPickPending(widget)
   local pick = widget.state and widget.state.batteryPick or nil
-  return type(pick) == "table" and pick.pending == true and widget._batteryPickRequest == nil
+  if type(pick) ~= "table" or pick.pending ~= true then return false end
+  return widget._batteryPickRequest == nil or widget._batteryPickPress ~= nil
 end
 
 -- The suite's tool, which is opened only while the model is disarmed (tool_host.lua says why),
@@ -675,6 +679,8 @@ function M.navigate(widget, after)
     M.invalidate(widget)
   elseif verb == "closeView" then
     pop(widget)
+    -- The rolling menu starts over the next time it is opened.
+    if widget._viewStack ~= nil then widget._viewStack.roll = nil end
     M.invalidate(widget)
   elseif verb == "done" then
     newSession(widget)
@@ -807,6 +813,14 @@ function M.reporter(widget, id)
   return report
 end
 
+--- End this visit for a press whose answer has come, if what it left up is still on top: `session`
+--- and `top` as they stood at the press. A view opened over it since, or a visit begun since, stays.
+function M.finish(widget, session, top)
+  if session == nil or widget._viewStack ~= session or M.top(widget) ~= top then return false end
+  M.navigate(widget, "done")
+  return true
+end
+
 --- The outcome of the last run of entry `id` in this visit: nil, "busy", "ok" or "failed".
 function M.status(widget, id)
   local session = widget._viewStack
@@ -874,7 +888,32 @@ end
 -- navigation. The runtime calls this ahead of builds and connection splashes, except while the
 -- tool or tuning owns input. Radio-wide choices also work without a theme base; Theme keys
 -- return false there so LVGL can handle them.
-function M.key(widget, event)
+function M.key(widget, event, touch)
+  -- A menu in the rolling style: the wheel's press while the focus is still on the fullscreen widget,
+  -- which delivers it here rather than to a button, RTN's step back to the left list, and the finger.
+  local session = widget._viewStack
+  local rolling = session ~= nil and session.roll or nil
+  if rolling ~= nil and (M.top(widget) or widget._viewId) == rolling.view then
+    local enter, exitKey = _G.EVT_VIRTUAL_ENTER, _G.EVT_VIRTUAL_EXIT
+    local own = M.find(widget, rolling.view)
+    if own ~= nil and own.load ~= nil then
+      -- A theme's look has taken the view over since it was opened.
+      session.roll = nil
+    elseif touch ~= nil and event ~= enter and event ~= exitKey then
+      local Roll = requireModule("widgets/dashboard/menu_roll.lua")
+      if type(Roll) == "table" and Roll.touch(widget, event, touch) then return true end
+    elseif (enter ~= nil and event == enter) or (exitKey ~= nil and event == exitKey) then
+      local Roll = requireModule("widgets/dashboard/menu_roll.lua")
+      if type(Roll) == "table" then
+        if event == enter then
+          Roll.press(widget)
+        else
+          Roll.back(widget)
+        end
+        return true
+      end
+    end
+  end
   local name = keyName(event)
   if name == nil then return false end
   local top = M.top(widget)

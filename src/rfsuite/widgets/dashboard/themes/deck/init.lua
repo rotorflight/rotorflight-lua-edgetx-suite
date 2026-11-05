@@ -54,11 +54,11 @@ local init = {
     { id = "keys",   title = "@i18n(app.pages.settings_dashboard_settings.urban_page_keys)@",   icon = "icons/keys.png" },
     { id = "telemetry", title = "@i18n(app.pages.settings_dashboard_settings.urban_page_telemetry)@", icon = "icons/telemetry.png" },
   },
-  -- The full screen views, on a host that has theme views; any other host ignores the key and
-  -- draws its own menu and picker. `menu`, `battery_pick` and `battery_profile` are the host's own,
-  -- drawn in this theme's look: what they offer and what their presses do stay the host's. `deck_menu` is this
-  -- theme's own menu (the battery profiles and the tuning surface, opened by a tap on the model
-  -- picture's card), `deck_link` its ELRS link page (opened by a tap on the link cluster),
+  -- The full screen views, on a host that has theme views; any other host ignores the key. The quick
+  -- menu, the battery picker and the battery profile page are the host's own, the same on every
+  -- theme. `deck_menu` is the theme's own menu (the battery profiles and the tuning surface, opened
+  -- by a tap on the model picture's card), `deck_link` its ELRS link page (opened by a tap on the
+  -- link cluster),
   -- `deck_telemetry` its telemetry page (opened by a tap on a card showing a reading or on the
   -- value row; its tiles are chosen on the Telemetry settings page).
   -- `deck_battery` its battery page (opened by a tap on the charge card or the battery strip).
@@ -70,9 +70,6 @@ local init = {
   -- radio's own picker stores it). Until the pilot names one, `default` stands: 0, no switch --
   -- the view then opens by its tap only.
   views = {
-    { id = "menu",         module = "menuview.lua" },
-    { id = "battery_pick", module = "pickview.lua" },
-    { id = "battery_profile", module = "profileview.lua" },
     { id = "deck_menu",    module = "toolsview.lua" },
     { id = "deck_link",    module = "linkview.lua", where = "both",
       openWhen = { switch = { pref = "link_switch", default = 0 } } },

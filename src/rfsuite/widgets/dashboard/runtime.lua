@@ -1822,6 +1822,10 @@ local function batteryPickLoadStep(self)
   local list = load.packs
   pick.byId = load.byId
   pick.candidates = list
+  -- Each pack's profile is worked out in the load's own steps; the picker need not do it again in its
+  -- build, unless the configuration has changed since.
+  local now = BatteryPick.configKey(self.state.battery_config)
+  if now == BatteryPick.configKey(load.cfg) then pick.resolvedFor, pick.resolvedPacks = now, list end
 
   local id = BatteryPick.selectedId(session)
   pick.selectedId = id
@@ -1855,66 +1859,161 @@ local function takeBatteryPickOpen(self, Views, pick)
   if Views.top(self) ~= "battery_pick" then Views.navigate(self, "openView:battery_pick") end
 end
 
---- Perform a pick: record it, and write the pack's battery profile when that is switched on.
+--- Perform a pick: move the board onto the pack's battery profile when that is switched on, and
+--- record the pack. The board comes first and the card after its answer, so a pick whose write fails
+--- records nothing. A lost answer does not say what the board did: it may have taken the profile while
+--- the pack before stands, until the next connection reads the board again or a pick moves it.
 local function batteryPickApplyStep(self)
+  local pick = self.state.batteryPick
+  local BatteryPick = requireModule("lib/battery_pick.lua")
+  if type(BatteryPick) ~= "table" then
+    self._batteryPickRequest, self._batteryPickWritten = nil, nil
+    return true
+  end
+  local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+
+  local function armed()
+    return self.state.armed == true or (type(BatteryPick.armedOnLink) == "function" and BatteryPick.armedOnLink())
+  end
+
+  -- Answers whether the store refused the pack. With no model store yet it is kept for this connection,
+  -- as it always was, and that is no refusal.
+  local function record(id)
+    local stored, why = BatteryPick.select(session, id)
+    self._batteryPickPicked = true
+    pick.pending = false
+    pick.selectedId = id
+    pick.applied = nil
+    local entry = batteryPickEntry(pick, id)
+    pick.selectedName = entry and entry.name or nil
+    return stored == false and why ~= "nostore"
+  end
+
+  -- A press that stayed up for an answer it now has: say so, and close what it left up.
+  local function settled(press)
+    if press == nil then return end
+    press.report("ok")
+    local Views = viewsModule()
+    if Views then Views.finish(self, press.visit, press.top) end
+  end
+  -- A write still out that a later answer replaces: its reply records nothing, so its press is told now.
+  local function supersede()
+    local out = pick.writing
+    pick.writing = nil
+    if out ~= nil and out.press ~= nil then out.press.report("failed") end
+  end
+
+  -- The board has answered a pick's write. The pilot may have closed the picker since: the profile
+  -- has arrived all the same, so the pack is recorded, and only a picker still up is closed.
+  local written = self._batteryPickWritten
+  if written ~= nil then
+    self._batteryPickWritten = nil
+    pick.boardProfile = written.target
+    -- Armed since the answer: a pack recorded now would be written against the flight in progress.
+    if armed() then
+      widgetLog(self, "battery pick not recorded: the model armed before the answer was taken", "warn")
+      pick.applied = "refused:armed"
+      if written.press ~= nil then written.press.report("failed") end
+      return true
+    end
+    if record(written.id) then
+      -- In the session for this connection, not on the card: said, as the board has moved.
+      widgetLog(self, "battery pick not stored on the card", "warn")
+      pick.applied = "written:not stored"
+      if written.press ~= nil then written.press.report("failed") end
+      return true
+    end
+    pick.applied = "written"
+    settled(written.press)
+    return true
+  end
+
   local request = self._batteryPickRequest
   self._batteryPickRequest = nil
   -- `false` is the "no battery" answer; nil would be indistinguishable from no request at all.
   if request == nil then return true end
+  local press = self._batteryPickPress
+  self._batteryPickPress = nil
+  -- The pilot's latest answer stands: the answer to a write still out for an earlier one records nothing.
+  supersede()
 
-  local pick = self.state.batteryPick
   -- Refused while armed, here as well as by hiding BATTERY: a picker that was already open when
   -- the model armed, or a caller of rfsuite.batteryPick, still arrives at this step, and a pack
   -- recorded now would be written against the flight in progress.
-  if self.state.armed == true then
+  if armed() then
     widgetLog(self, "battery pick refused: the model is armed", "warn")
     pick.applied = "refused:armed"
+    if press ~= nil then press.report("failed") end
     return true
   end
-  local BatteryPick = requireModule("lib/battery_pick.lua")
-  if type(BatteryPick) ~= "table" then return true end
   -- Normalised here, before the candidate lookup below, and not only inside select(): an id
   -- handed in as a number would otherwise be recorded and still match no candidate, so the
   -- pack's profile would never be written. `false` and "" both come back as nil.
   local id = BatteryPick.normalizeId(request)
-
-  local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-  BatteryPick.select(session, id)
-
-  self._batteryPickPicked = true
-  pick.pending = false
-  pick.selectedId = id
-  pick.applied = nil
-
   local entry = batteryPickEntry(pick, id)
-  pick.selectedName = entry and entry.name or nil
 
   local _, setsProfile = BatteryPick.settings(self.preferences)
-  if entry == nil or setsProfile ~= true then return true end
+  -- A press left up that needed no write after all: told as the card answered, as a written one is.
+  local function recorded()
+    if record(id) then
+      widgetLog(self, "battery pick not stored on the card", "warn")
+      pick.applied = "not stored"
+      if press ~= nil then press.report("failed") end
+      return false
+    end
+    return true
+  end
+  if entry == nil or setsProfile ~= true then
+    if recorded() then settled(press) end
+    return true
+  end
 
   -- Resolved again here rather than reused from the load: the board's battery configuration
   -- may have arrived in between, and that is what turns a `cap=` into a profile.
   local target = BatteryPick.targetProfile(entry, self.state.battery_config)
   entry.targetProfile = target
-  if target == nil then
-    pick.applied = "skipped"
-    return true
-  end
   -- Where the board has answered and is already on that profile, nothing is sent. Where it has
   -- NOT answered, the write goes out all the same: it is idempotent, and refusing it would lose
-  -- the feature entirely on a board whose profile read never came back.
-  if pick.boardProfile ~= nil and target == pick.boardProfile then
-    pick.applied = "skipped"
+  -- the feature entirely on a board whose profile read never came back. The picker offers no pack
+  -- without a profile; the other route here, rfsuite.batteryPick, records it and sends nothing.
+  if target == nil or (pick.boardProfile ~= nil and target == pick.boardProfile) then
+    if recorded() then
+      pick.applied = "skipped"
+      settled(press)
+    end
     return true
   end
 
-  local queued, why = BatteryPick.applyProfile(target, { reason = "battery pick" })
-  pick.applied = queued and "queued" or ("refused:" .. tostring(why))
-  -- A queued write carries no reply handler and can still be dropped (retries exhausted, the
-  -- queue cleared on arming or on a link loss), so the board's answer from the load no longer
-  -- says which profile it is on. Forgotten rather than set to the target: the next pick then
-  -- always writes.
-  if queued then pick.boardProfile = nil end
+  -- The reply is handled outside the job pass, so the card write waits for the next one, and that
+  -- runs while the widget is on screen. A reply that outlives its connection, or one to a write a
+  -- later pick has replaced, records nothing: each write is its own table, as the same pack can be
+  -- picked twice.
+  local write = { press = press }
+  pick.writing = write
+  local queued, why = BatteryPick.applyProfile(target, { reason = "battery pick", answer = function(ok)
+    if self.state.batteryPick ~= pick or pick.writing ~= write then
+      widgetLog(self, "battery pick answer ignored: the pick was replaced", "debug")
+      return
+    end
+    pick.writing = nil
+    if ok then
+      self._batteryPickWritten = { id = id, target = target, press = press }
+    else
+      widgetLog(self, "battery pick not recorded: the profile write was given up", "warn")
+      pick.applied = "failed"
+      if press ~= nil then press.report("failed") end
+    end
+  end })
+  -- A queued write can still be dropped, so the board's answer from the load no longer says which
+  -- profile it is on. Forgotten rather than set to the target: the next pick then always writes.
+  if queued then
+    pick.applied = "queued"
+    pick.boardProfile = nil
+  else
+    pick.writing = nil
+    pick.applied = "refused:" .. tostring(why)
+    if press ~= nil then press.report("failed") end
+  end
   return true
 end
 
@@ -4803,6 +4902,8 @@ function Runtime.new(zone, options)
       -- reading the event runtime takes when it drops the flight log's pending entry.
       self.state.batteryPick = newBatteryPickState()
       self._batteryPickRequest = nil
+      self._batteryPickWritten = nil
+      self._batteryPickPress = nil
       self._batteryPickPicked = nil
       self._viewStack = nil
       self.modelPreferences = nil
@@ -5126,7 +5227,7 @@ function Runtime.new(zone, options)
       end
       local Views = viewsModule()
       local handled, exited
-      if event ~= 0 and Views then handled, exited = Views.key(self, event) end
+      if event ~= 0 and Views then handled, exited = Views.key(self, event, touchState) end
       if handled then
         -- Zero is an idle fullscreen event. Nil would instead leave fullscreen;
         -- forwarding the handled key would also activate LVGL's focused control.
@@ -5600,7 +5701,7 @@ function Runtime.new(zone, options)
     if self._job == nil then
       local pick = self.state.batteryPick
       if pick.load ~= nil and pick.loaded == true then pick.load = nil end
-      if self._batteryPickRequest ~= nil and pick.loaded == true then
+      if (self._batteryPickRequest ~= nil or self._batteryPickWritten ~= nil) and pick.loaded == true then
         -- The pick saves the model's store, and the save moves the reload request so that the
         -- tool and every other widget read the store again. This dashboard already holds what
         -- the pick writes -- the session's table, which it reads from -- so where the files stand
@@ -5714,6 +5815,10 @@ function Runtime.new(zone, options)
         else
           widget._batteryPickRequest = id
         end
+        -- A press still waiting for the job is replaced with its request, and is told so.
+        local press = widget._batteryPickPress
+        widget._batteryPickPress = nil
+        if press ~= nil then press.report("failed") end
       end,
       -- The two below run outside the widget's pcall, so the views module is reached through its
       -- loader, which returns nil rather than raising. Without the module dismiss() still ends
