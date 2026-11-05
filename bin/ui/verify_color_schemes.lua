@@ -54,19 +54,35 @@ end
 check(rawget(_G, "M") == nil, "the module leaves no global behind")
 check(Schemes.SCHEMES[Schemes.DEFAULT] ~= nil, "the default names a scheme")
 
--- Both schemes carry the same roles, each a whole 0xRRGGBB.
+-- Both schemes carry exactly these roles, each a whole 0xRRGGBB, and the developer page names them.
+-- A role added or removed changes this list, both schemes and the page together.
+local ROLES = {
+  "page", "card", "raised", "header", "headerText", "text", "muted", "disabled", "accent", "accentInk",
+  "onAccent", "selection", "warning", "error", "onError", "ok", "onOk", "rule",
+}
+local listed = {}
+for _, role in ipairs(ROLES) do listed[role] = true end
+
 local names = { "light", "dark" }
 for _, name in ipairs(names) do
   local scheme = Schemes.SCHEMES[name]
   check(type(scheme) == "table", name .. ": scheme exists")
-  local other = Schemes.SCHEMES[name == "light" and "dark" or "light"]
-  local roles = 0
-  for role, value in pairs(scheme) do
-    roles = roles + 1
-    check(math.type(value) == "integer" and value >= 0 and value <= 0xFFFFFF, name .. "." .. role .. ": a whole 0xRRGGBB")
-    check(other[role] ~= nil, role .. ": also in the other scheme than " .. name)
+  for _, role in ipairs(ROLES) do
+    check(scheme[role] ~= nil, name .. ": has role " .. role)
   end
-  check(roles > 0, name .. ": has roles")
+  for role, value in pairs(scheme) do
+    check(listed[role] == true, name .. "." .. role .. ": a role this test does not list")
+    check(math.type(value) == "integer" and value >= 0 and value <= 0xFFFFFF, name .. "." .. role .. ": a whole 0xRRGGBB")
+  end
+end
+
+do
+  local file = assert(io.open("docs/developer/color-schemes.md", "r"))
+  local page = file:read("a")
+  file:close()
+  for _, role in ipairs(ROLES) do
+    check(string.find(page, "`" .. role .. "`", 1, true) ~= nil, "docs/developer/color-schemes.md: names role " .. role)
+  end
 end
 
 -- Each foreground against each surface it is drawn on; 4.5 for text, 3 for a line or a disabled text.
