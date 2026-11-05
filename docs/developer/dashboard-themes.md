@@ -1013,7 +1013,7 @@ screen changes:
 | `ctx.keys` | a table the theme fills with actions for the keys, `exit`, `pageDown`, `pageUp`, `mdl`, `sys` and `tele`; see below |
 | `ctx.condition(name)` | whether a named condition holds, from the list in [dashboard views](dashboard-views.md#conditions) |
 | `ctx.entries()` | the quick menu's entries, as `fullscreen_menu.lua` returns them: the ones the pilot has put in it, in the pilot's order |
-| `ctx.menu(children, entries)` | the quick menu's builder: appends the menu for `entries` (the menu's own when omitted) to `children`; a list handed in chooses and orders the menu's own entries by `id`, and an item whose id the menu does not have is left out; BATTERY PROFILE is drawn as the menu's last row where it is offered, whatever the list names |
+| `ctx.menu(children, entries)` | the quick menu's builder: appends the menu for `entries` (the menu's own when omitted) to `children`; a list handed in chooses and orders the menu's own entries by id and cannot bring a press of its own |
 | `ctx.entry(id)` | the quick menu's record `id` — `erase_blackbox`, `inflight_tuning`, `battery_pick`, `tool`, `flight_log`, `battery_profile` — or `nil`; whether or not the pilot has put it in the quick menu (`battery_profile` is never in the pilot's list: the quick menu draws it as a row of its own) |
 | `ctx.list(name)` | the records of a named menu, in its order: `"quick"` is the quick menu as the pilot has arranged it on *Settings* → *Dashboard* → *Quick Settings*; any other name gives an empty list |
 | `ctx.visible(entry)` | whether the entry is offered now — the test the quick menu makes before drawing the row |
@@ -1169,6 +1169,9 @@ views = {
 | `module` | The file that draws it, relative to the theme folder. |
 | `openWhen` | Optional. What opens the view on its own: the name of a condition, a switch position (`{ switch = "SA", pos = "up" }`, `{ switch = "L01" }`), a switch the theme's own settings name (`{ switch = { pref = "<key>", default = "SA" }, pos = "down" }`), or a function of the state. See [what else a theme's view may open on](dashboard-views.md#what-else-a-themes-view-may-open-on); the view opens when it rises, [not while it holds](dashboard-views.md#views-that-open-themselves). Ignored where the id replaces a look. |
 | `where` | Optional. `"fullscreen"` (the default), `"zone"` for a view that takes the widget zone instead ([zone views](dashboard-views.md#zone-views)), or `"both"`. |
+
+The quick menu, the picker and the battery profile page are meant to look the same on every theme, and
+no shipped theme replaces them; a look of a theme's own stays possible and is the exception.
 
 The list is read on the first fullscreen pass after the theme on screen has changed, with the
 `fullscreen` key and for the same reason, and only where the phase module on screen is

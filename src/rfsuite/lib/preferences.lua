@@ -87,6 +87,10 @@ local SCHEMA = {
       save_confirm                 = true,
       save_armed_warning           = true,
       reload_confirm               = true,
+      -- appearance: "light" or "dark" (widgets/dashboard/menu_look.lua)
+      color_scheme                 = "light",
+      -- "card" or "rotary"; for now the dashboard's quick menu reads it
+      menu_style                   = "card",
       -- preview features
       preview_setup_wizard         = false,
       preview_inflight_tuning      = false,

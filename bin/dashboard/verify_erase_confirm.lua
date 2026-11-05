@@ -72,7 +72,7 @@ local QUEUE = {}
 function QUEUE:add(msg) adds[#adds + 1] = msg end
 
 _G.lcd = {
-  RGB = function(r, g, b) return (r * 65536) + (g * 256) + b end,
+  RGB = function(r, g, b) if g == nil then return r end return (r * 65536) + (g * 256) + b end,
   exitFullScreen = function() exits = exits + 1 end,
 }
 

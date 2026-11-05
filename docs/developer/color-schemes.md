@@ -9,7 +9,7 @@ sidebar_label: Colour schemes
 It is the one place a scheme colour is defined. Change a value there and everything that reads the
 role follows.
 
-**Nothing reads it yet.** The tool's `ui/palette.lua` and the widget's own colours stay as they are
+**The widget's menu pages read it, through `widgets/dashboard/menu_look.lua`.** The tool's `ui/palette.lua` and the widget's own colours stay as they are
 until they are moved onto it, each in a pull request of its own.
 
 ## Using it

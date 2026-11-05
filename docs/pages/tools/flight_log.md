@@ -139,9 +139,10 @@ connection, so the question is asked again. The quick menu itself is described o
 [its own page](../../dashboard/quick-menu.md).
 
 *NO BATTERY* is an answer like any other. It clears the choice, and the flight's line is written
-with its battery column empty. It always has the bottom row of the picker to itself. The picker
-the widget draws for a theme without one of its own shows as many packs as fit above it and no
-more; the Urban, Grid and Deck themes draw their own picker, which scrolls.
+with its battery column empty. It always has the last place in the picker, which looks the same on
+every theme and follows the *Menu style* of [General settings](../settings/general.md); where more
+packs exist than fit, it scrolls. What it shows and how it answers:
+[the battery picker](../../dashboard/quick-menu.md#the-battery-picker).
 
 ### The battery profile
 
@@ -174,11 +175,17 @@ configuration reply: firmware that does sends the six cell counts after the six 
 Where the reply has no such block, the profiles share one cell count, `cells=` is not used, and
 the first profile set to the pack's capacity is the one selected.
 
+With this setting on, the picker offers only the packs for which those rules give one profile; the
+others are listed, paler, with *no profile*. The pack is recorded when the flight controller has
+answered the write, so a write that fails leaves the pack before it in force and the picker says
+*NOT SAVED*. A lost answer does not say what the flight controller did: it may have taken the profile,
+and the next connection reads it again.
+
 The write is `MSP_SET_BATTERY_PROFILE` followed by the EEPROM write that makes the board apply
 and broadcast the change — the same pair the dashboard's *BATTERY PROFILE* buttons send. It is
 **refused while the model is armed**, and it is skipped when the board reported that profile on
 connecting and no profile has been written since — by a pick or by the *BATTERY PROFILE*
-buttons. The log says which of those happened, under the tag `rfsuite.battery_pick`.
+buttons, and then the pack is recorded at once. The log says which of those happened, under the tag `rfsuite.battery_pick`.
 
 ## What a line holds
 
