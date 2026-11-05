@@ -125,25 +125,34 @@ local function optionsAt(apiVersion)
   return byLabel, values, #(offered or {})
 end
 
+-- The whole list, in order: a number in the middle that moves selects another protocol as surely
+-- as a wrong one at the end. The head is fixed; each API level adds to it.
+local HEAD = { "NONE", "BLHELI32", "HOBBYWING V4", "HOBBYWING V5", "SCORPION", "KONTRONIK", "OMP", "ZTW", "APD",
+  "OPENYGE", "FLYROTOR", "GRAUPNER" }
+local function expectedAt(tail)
+  local list = {}
+  for i = 1, #HEAD do list[i] = HEAD[i] end
+  for i = 1, #tail do list[#list + 1] = tail[i] end
+  return list
+end
+
+local function checkList(apiVersion, tail)
+  local _, values, count = optionsAt(apiVersion)
+  local expected = expectedAt(tail)
+  check(apiVersion .. " offers " .. #expected .. " entries", count == #expected, count)
+  for i = 1, #expected do
+    check(string.format("%s: %s is %d", apiVersion, expected[i], i - 1), values[i - 1] == expected[i], values[i - 1])
+  end
+end
+
 print("telemetry page: what each API level is offered")
 do
-  local at10, values10, count10 = optionsAt("12.0.10")
-  check("12.10 offers GOOSKY at 16", at10.GOOSKY == 16, at10.GOOSKY)
-  check("12.10 keeps RECORD at 15", at10.RECORD == 15, at10.RECORD)
-  check("12.10 keeps SRXL2 at 14", at10.SRXL2 == 14, at10.SRXL2)
-  check("12.10 keeps BLHELI32 at 1", at10.BLHELI32 == 1, at10.BLHELI32)
-  check("12.10 has no gap in its numbers", count10 == 17 and values10[16] == "GOOSKY", count10)
+  checkList("12.0.10", { "XDFLY", "FrSky F.BUS", "SRXL2", "RECORD", "GOOSKY" })
   check("every row of the page has its own help", rows > 0 and rows == rowsWithHelp,
     tostring(rowsWithHelp) .. " of " .. tostring(rows))
-
-  local at9, _, count9 = optionsAt("12.0.9")
-  check("12.9 is not offered GOOSKY", at9.GOOSKY == nil, at9.GOOSKY)
-  check("12.9 keeps RECORD at 14", at9.RECORD == 14, at9.RECORD)
-  check("12.9 keeps its fifteen entries", count9 == 15, count9)
-
-  local at8 = optionsAt("12.0.8")
-  check("12.8 is not offered GOOSKY", at8.GOOSKY == nil, at8.GOOSKY)
-  check("12.8 keeps RECORD at 13", at8.RECORD == 13, at8.RECORD)
+  checkList("12.0.9", { "XDFLY", "FrSky F.BUS", "RECORD" })
+  checkList("12.0.8", { "XDFLY", "RECORD" })
+  checkList("12.0.7", { "RECORD" })
 end
 
 -- The block of ui/home.lua that sets the conditions, from the loop to the mark it writes last,
