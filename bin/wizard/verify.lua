@@ -1010,6 +1010,181 @@ do
   Log.emitf, Log.emit = emitf, emit
   _G.rfsuite.Log, _G.rfsuite.preferences = saved, nil
 end
+-- A link that does not answer when the page opens, and one lost reply later on.
+do
+  local session = _G.rfsuite.session
+  local function run(lw, n)
+    for _ = 1, n or 1000 do lw:tick(); pump(); ticks = ticks + 1; if lw.ready or lw.error then break end end
+  end
+  local function writes()
+    local n = 0
+    for _, m in ipairs(q.sent) do if m.isWrite then n = n + 1 end end
+    return n
+  end
+  -- The board's identity never arrived: nothing is sent, and the page says so.
+  local identity = session.mcu_id
+  session.mcu_id = nil
+  local dead = beginWorld()
+  run(dead, 20)
+  check(dead.suspended == true, "DEAD an unusable link at entry suspends the visit")
+  check(not dead.recoveryRequired, "DEAD no identity is no record of an interrupted visit")
+  eq(writes(), 0, "DEAD nothing is written")
+  check(not dead.ready and not dead.error, "DEAD no error screen while nothing was tried")
+  -- The identity arrives: the page reads on by itself, with no Retry to press.
+  session.mcu_id = identity
+  run(dead)
+  check(dead.ready and not dead.error, "DEAD the visit loads once the link answers")
+  -- Back on a dead link with nothing written leaves at once.
+  session.mcu_id = nil
+  local gone = beginWorld()
+  run(gone, 20)
+  local closed = 0
+  gone.requestClose = function() closed = closed + 1 end
+  gone:back()
+  eq(closed, 1, "DEAD Back leaves when nothing was written")
+  check(gone.disconnectExit == nil and gone.cleanPhysicalExit == true, "DEAD no power-off demand when nothing was written")
+  session.mcu_id = identity
+  -- After a write the power-off demand stands (control of the two checks above).
+  local written = world()
+  check(written.bus.wrote == true, "DEAD a loaded visit has written")
+  session.mcu_id = nil
+  written:tick()
+  closed = 0
+  written.requestClose = function() closed = closed + 1 end
+  written:back()
+  eq(closed, 0, "DEAD after a write Back does not leave")
+  check(written.disconnectExit == true, "DEAD after a write the power-off demand stands")
+  session.mcu_id = identity
+  -- One lost reply: a read is asked again, a write is not.
+  local retried = beginWorld()
+  local readRetries, writeRetries
+  for _ = 1, 60 do
+    retried:tick()
+    local m = q.messages[1]
+    if m and not m.isWrite and readRetries == nil then readRetries = m.maxRetries end
+    if m and m.isWrite and writeRetries == nil then writeRetries = m.maxRetries end
+    pump(); ticks = ticks + 1
+  end
+  eq(readRetries, 1, "RETRY a read is asked once more")
+  eq(writeRetries, 0, "RETRY a write is never repeated by the queue")
+  -- A late status during a calibration pauses the controls; a held output still ends the visit.
+  local calibrating = world()
+  calibrating.calibrationAt = ticks
+  calibrating.statusAt = ticks - 301
+  q.messages = {}
+  calibrating:tick()
+  check(not calibrating.error, "CAL a late status during a calibration is no error")
+  check(calibrating.statusWaiting == true, "CAL the controls pause for the status")
+  local holding = world()
+  holding.trial = { api = "board_auto_align", due = ticks + 1000, untilAt = ticks + 10000 }
+  holding.statusAt = ticks - 301
+  q.messages = {}
+  holding:tick()
+  check(holding.error ~= nil, "CAL a running test still fails closed on a late status")
+end
+-- A held rotary between two refreshes: EdgeTX bills those callbacks to the refresh before them.
+do
+  local Log = load("lib/log.lua")
+  local savedLog, savedPrefs = _G.rfsuite.Log, _G.rfsuite.preferences
+  _G.rfsuite.Log, _G.rfsuite.preferences = Log, { general = { debug_level = "trace" } }
+  local emitf, lines = Log.emitf, 0
+  Log.emitf = function(tag, level, fmt, ...)
+    if string.find(fmt, "edit ", 1, true) then lines = lines + 1 end
+    return emitf(tag, level, fmt, ...)
+  end
+  local printed = print
+  print = function() end
+  local spin = world()
+  print = printed
+  check(spin.logTrace == true, "ROTARY trace control: the page traces")
+  lines = 0
+  spin.statusAt = ticks
+  local row = spin:n("battery_config", "batteryCapacity", "x", 0, 20000)
+  local value = 1000
+  local used = 0
+  debug.sethook(function() used = used + 1 end, "", 1)
+  for _ = 1, 30 do value = value + 10; row.set(value) end
+  debug.sethook()
+  eq(spin.data.battery_config.batteryCapacity, value, "ROTARY every detent took the value")
+  eq(lines, 1, "ROTARY one trace line between two ticks")
+  check(used < 6000, "ROTARY thirty detents stay far below the 20000 of a call: " .. used)
+  spin:tick()
+  lines = 0
+  value = value + 10; row.set(value)
+  eq(lines, 1, "ROTARY the next tick traces again")
+  Log.emitf = emitf
+  _G.rfsuite.Log, _G.rfsuite.preferences = savedLog, savedPrefs
+end
+-- Wiring detection on an ESC this page can program starts from half-duplex.
+do
+  local trialCommand = api("esc_sensor_trial").command
+  local configWrite = api("esc_sensor_config").writeCommand
+  local function setup(target)
+    local lw = world()
+    lw.data.esc_sensor_config.protocol, lw.data.esc_sensor_config.half_duplex, lw.data.esc_sensor_config.pin_swap = 9, 0, 0
+    lw.data.board_info = { target_name = target }
+    lw.saved.esc_sensor_config = nil
+    lw.dirty.esc_sensor_config, lw.dirty.serial_config, lw.rebootPending = nil, nil, nil
+    lw.hasPort = function() return true end
+    return lw
+  end
+  local function trialReply(state, half, swap)
+    return function(m, b)
+      if m.command == trialCommand then return { state, 0, half, swap, 0, 0 } end
+      return b
+    end
+  end
+  local function drive(lw, n)
+    for _ = 1, n do lw.statusAt = ticks; lw:tick(); pump(); ticks = ticks + 1 end
+  end
+  local lw = setup("STM32F7X2")
+  q.sent = {}
+  q.reply = trialReply(2, 1, 1)
+  lw:startTrial("esc_sensor_trial")
+  drive(lw, 8)
+  local first, start
+  for i, m in ipairs(q.sent) do
+    if not first and m.command == configWrite then first = i end
+    if not start and m.command == trialCommand and m.payload[1] == 1 then start = i end
+  end
+  check(first and start and first < start, "TRIAL the preset is written before the trial starts")
+  eq(q.sent[first].payload[2], 1, "TRIAL the search starts half-duplex")
+  eq(q.sent[first].payload[11], 1, "TRIAL the search starts pin-swapped on this MCU")
+  eq(lw.data.esc_sensor_config.half_duplex, 1, "TRIAL half-duplex found is kept")
+  eq(lw.message, L.detectedSave, "TRIAL a programmable wiring asks for Save")
+  q.reply = nil
+  lw:stopTrial(true)
+  eq(lw.data.esc_sensor_config.half_duplex, 0, "TRIAL discard restores the page's value")
+  q.sent = {}
+  drive(lw, 8)
+  local order = {}
+  for _, m in ipairs(q.sent) do
+    if m.command == configWrite then order[#order+1] = "config" .. m.payload[2]
+    elseif m.command == trialCommand then order[#order+1] = "trial" .. m.payload[1] end
+  end
+  eq(table.concat(order, ","), "trial2,config0,trial1,trial2", "TRIAL stop, own values back, the port reopened on them")
+  -- F4 has no pin swap; telemetry-only is said as such.
+  local f4 = setup("STM32F405")
+  q.sent = {}
+  q.reply = trialReply(2, 0, 0)
+  f4:startTrial("esc_sensor_trial")
+  drive(f4, 8)
+  local written
+  for _, m in ipairs(q.sent) do if m.command == configWrite then written = m; break end end
+  check(written ~= nil, "TRIAL F4 preset written")
+  eq(written.payload[11], 0, "TRIAL no pin swap on F4")
+  eq(f4.message, L.detectedTelemetryOnly, "TRIAL telemetry only is said")
+  q.reply = nil
+  f4:stopTrial(true)
+  -- Controls: a family this page cannot program, and half-duplex already on, start as configured.
+  local other = setup("STM32F7X2")
+  other.data.esc_sensor_config.protocol = 1
+  check(other:escTrialPreset() == nil, "TRIAL an ESC this page cannot program keeps the plain search")
+  local on = setup("STM32F7X2")
+  on.data.esc_sensor_config.half_duplex = 1
+  check(on:escTrialPreset() == nil, "TRIAL half-duplex already on needs no preset")
+  q.sent = {}
+end
 print("Source contracts: "..#contractCases.." scenario groups")
 for name,count in pairs(worst) do print(string.format("BUDGET %-12s %d / 14000",name,count)) end
 if arg[1]=="--export" then

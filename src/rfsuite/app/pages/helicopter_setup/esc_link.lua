@@ -21,6 +21,20 @@ function M.attach(w, params, status)
       and motor and (motor.voltage > 0 or motor.temperature > 0)
       and self.motorTelemetryAt and getTime() - self.motorTelemetryAt <= 300
   end
+  -- The wiring a detection starts from. The firmware walks outward from what is configured and
+  -- keeps the first wiring that delivers frames, so an ESC this page can program tries half-duplex
+  -- first: telemetry alone would otherwise end the search on a wiring that cannot program it.
+  -- F4 boards have no pin swap. Nil when the search can start from what is configured.
+  function w:escTrialPreset()
+    local config = self.data.esc_sensor_config
+    if not params.families[config.protocol] or config.half_duplex == 1 then return nil end
+    local target = self.data.board_info and self.data.board_info.target_name
+    local swap = type(target) == "string" and not string.find(target, "F4", 1, true)
+    local preset = {}
+    for key, value in pairs(config) do preset[key] = value end
+    preset.half_duplex, preset.pin_swap = 1, swap and 1 or 0
+    return preset
+  end
   function w:escRefresh()
     self.buildRequested = true; self:rebuild()
   end

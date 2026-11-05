@@ -85,7 +85,10 @@ local function buildLoading(ctx)
   children[#children+1]={type="rectangle",x=0,y=0,w=ctx.w,h=ctx.h,filled=true,color=palette.background}
   children[#children+1]={type="label",x=24,y=y-34,w=ctx.w-48,h=28,text="@i18n(app.modules.helicopter_setup.name)@",font=ctx.w>=700 and MIDSIZE or SMLSIZE,color=palette.text}
   children[#children+1]={type="label",x=24,y=y,w=ctx.w-48,h=28,
-      text=function() return w and w.ready and "@i18n(app.modules.helicopter_setup.preparingView)@" or w and w.loadingText or "@i18n(app.modules.helicopter_setup.loading)@" end,font=SMLSIZE,color=palette.text}
+      text=function()
+        if w and w.suspended then return "@i18n(app.modules.helicopter_setup.fcNoAnswer)@" end
+        return w and w.ready and "@i18n(app.modules.helicopter_setup.preparingView)@" or w and w.loadingText or "@i18n(app.modules.helicopter_setup.loading)@"
+      end,font=SMLSIZE,color=palette.text}
   children[#children+1]={type="label",x=24,y=y+30,w=ctx.w-48,h=30,text="@i18n(app.modules.helicopter_setup.loadingHint)@",font=SMLSIZE,color=palette.muted}
   children[#children+1]={type="line",pts={{24,y+68},{ctx.w-24,y+68}},thickness=3,color=palette.border}
   children[#children+1]={type="line",pts=function() return loadingPoints end,thickness=7,color=palette.accent}
@@ -131,7 +134,7 @@ function M.wakeup(ctx)
     if w.logTrace then w:log("trace", "collected after a new scene") end
   end
   if ctx and ctx.requestRebuild then context.requestRebuild = ctx.requestRebuild end
-  loadingFraction = w and (w.ready and 1 or 0.2+0.8*(w.progress or 0)/math.max(1,w.loadTotal or 1)) or 0.2*(stage-1)/#deps
+  loadingFraction = w and (w.ready and 1 or w.suspended and 0 or 0.2+0.8*(w.progress or 0)/math.max(1,w.loadTotal or 1)) or 0.2*(stage-1)/#deps
   loadingPoints[2][1]=24+math.floor((context.w-48)*math.min(1,loadingFraction))
   if not palette then palette = assert(loadScript(BASE .. deps[20], "t"))() end
   modules[20] = modules[20] or palette

@@ -105,12 +105,25 @@ function M.attach(w)
       self.trial.config,self.trial.keys,self.trial.before,self.trial.dirtyBefore=name,keys,{},self.dirty[name]
       for _,key in ipairs(keys) do self.trial.before[key]=self.data[name][key] end
     end
-    self:trialRequest(api,1,function(d,error)
-      if error then
-        self:stopTrial()
-        self.message = api == "board_auto_align" and self.L.manualAlign or self.L.unsupported
-      else self:trialReply(d) end
-    end)
+    local function start()
+      self:trialRequest(api,1,function(d,error)
+        if error then
+          self:stopTrial()
+          self.message = api == "board_auto_align" and self.L.manualAlign or self.L.unsupported
+        else self:trialReply(d) end
+      end)
+    end
+    local preset = api == "esc_sensor_trial" and self.escTrialPreset and self:escTrialPreset()
+    if preset then
+      -- Written to RAM only. stopTrial puts the page's own values back, whatever the outcome.
+      local trial = self.trial
+      trial.preset, trial.presetPending = true, true
+      if self.logDebug then self:log("debug", "detection starts half-duplex, pin swap %s", preset.pin_swap) end
+      self:write("esc_sensor_config", preset, function()
+        trial.presetPending = nil
+        if self.trial == trial then start() end
+      end)
+    else start() end
   end
   function w:trialReply(d)
     local trial = self.trial; if not trial then return end
@@ -149,9 +162,11 @@ function M.attach(w)
       local a = self.data.esc_sensor_config
       a.half_duplex, a.pin_swap = d.half_duplex, d.pin_swap
       self:touch("esc_sensor_config", true)
+      trial.telemetryOnly = trial.preset and d.half_duplex ~= 1
     end
     if self.logInfo then self:log("info", "trial %s found", trial.api) end
-    self.message = trial.api == "board_auto_align" and self.L.detected or self.L.detectedSave
+    self.message = trial.api == "board_auto_align" and self.L.detected or
+      trial.telemetryOnly and self.L.detectedTelemetryOnly or self.L.detectedSave
     if trial.api == "board_auto_align" then self.trial = nil
     else trial.success = true end
   end
@@ -165,11 +180,23 @@ function M.attach(w)
       self.message=self.L.ready
     end
     if trial and trial.api ~= "board_auto_align" and self:allowed() then
+      if trial.presetPending then self.bus:dropApi("esc_sensor_config") end
       self.bus:dropApi(trial.api)
       local api,q=self.bus.apis[trial.api],self.bus:queue()
       if api and q then
         q:add({command=api.command,payload=api.buildPayload(2),isWrite=true,
           client="helicopter-cleanup",maxRetries=0})
+        -- The firmware restored the wiring the trial started from, which was the preset. The page's
+        -- own values go back to RAM, and a start and stop reopens the port on them.
+        local config = trial.preset and self.bus.apis.esc_sensor_config
+        if config then
+          q:add({command=config.writeCommand,payload=config.buildWritePayload(self.data.esc_sensor_config),
+            isWrite=true,client="helicopter-cleanup",maxRetries=0})
+          q:add({command=api.command,payload=api.buildPayload(1),isWrite=true,
+            client="helicopter-cleanup",maxRetries=0})
+          q:add({command=api.command,payload=api.buildPayload(2),isWrite=true,
+            client="helicopter-cleanup",maxRetries=0})
+        end
       end
     end
   end

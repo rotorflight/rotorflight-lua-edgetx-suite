@@ -110,13 +110,18 @@ function M.new(runtime, allowed, failed)
     local generation = self.generation
     p = { job = j, api = api }
     self.pending = p
+    -- From here on the flight controller may hold something of this visit.
+    if j.write then self.wrote = true end
     if container == j then self.first = self.first + 1 else container.current = nil end
     q:add({
       command = j.write and api.writeCommand or api.command,
       payload = payload or {}, isWrite = j.write == true,
       client = j.override and "helicopter-overrides" or "helicopter-setup",
       -- Queue timeouts are seconds; a lost override reply must leave room for the next refresh.
-      timeout = j.override and 0.3 or j.timeout or 2, maxRetries = j.override and 0 or j.maxRetries or 0,
+      -- One reply lost on the telemetry link must not end a visit: a read is asked once more.
+      -- A write is never repeated here; its reply decides what happens next.
+      timeout = j.override and 0.3 or j.timeout or 2,
+      maxRetries = j.override and 0 or j.maxRetries or (j.write and 0 or 1),
       retryOnErrorReply = j.retryOnErrorReply,
       processReply = function(_, buf)
         if self.generation == generation then p.buf, p.done = buf, true end

@@ -31,7 +31,7 @@ MSP queue and API modules. It never opens another telemetry transport.
 | `acc_calibration` / `attitude` | 205 / 108 | Empty calibration command; S16 tenths of degrees roll/pitch and S16 degree yaw. |
 | `board_auto_align` | `0x5F13` | U8 start; query state and three signed alignment angles. Optional firmware extension. |
 | `rx_serial_trial` | `0x5F12` | U8 start/stop; state, combination, inversion, half-duplex, pin swap and elapsed time. Wire codec retained; radio wizard directs detection to USB and sends no START. |
-| `esc_sensor_trial` | `0x5F0C` | U8 start/stop; state, combination, half-duplex, pin swap and elapsed time. Optional firmware extension. |
+| `esc_sensor_trial` | `0x5F0C` | U8 start/stop; state, combination, half-duplex, pin swap and elapsed time. Optional firmware extension. The firmware searches outward from the configured wiring, so for an ESC the wizard can program, MSP_SET_ESC_SENSOR_CONFIG first sets half-duplex (and pin swap, except on F4) in RAM; stopping writes the page's own values back and starts and stops the trial once more, which reopens the port on them. This preset differs from the Configurator's and the Ethos suite's detection. |
 
 Bulk adjustment command 52 returns 588 bytes, beyond the firmware's 320-byte
 telemetry response buffer. A servo table with bus channels can also exceed it.

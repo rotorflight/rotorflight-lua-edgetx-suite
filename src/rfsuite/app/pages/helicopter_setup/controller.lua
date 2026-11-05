@@ -272,7 +272,12 @@ function M.new(runtime, transport, mathModule, labels)
   function w:touch(api, reboot, live)
     self.dirty[api] = true
     self.edits = self.edits + 1
-    if self.logTrace then self:log("trace", "edit %s reboot=%s live=%s", api, tostring(reboot), tostring(live)) end
+    -- A held rotary calls this many times between two refreshes, and EdgeTX bills those callbacks
+    -- to the budget of the refresh before them, so a line is written once per tick.
+    if self.logTrace and not self.editLogged then
+      self.editLogged = true
+      self:log("trace", "edit %s reboot=%s live=%s", api, tostring(reboot), tostring(live))
+    end
     if reboot then self.rebootPending = true end
     if live then self.live[api] = true end
     self.message = reboot and self.L.pendingReboot or live and self.L.liveApplied or self.L.pendingSave
@@ -674,6 +679,13 @@ function M.new(runtime, transport, mathModule, labels)
   function w:back()
     if self.logTrace then self:log("trace", "back on %s card %s", STEPS[self.step], self.card) end
     if not self:allowed() then
+      -- Nothing was written in this visit, so nothing can be left running: no power cycle to ask for.
+      if not self.bus.wrote then
+        if self.logInfo then self:log("info", "left, nothing was written") end
+        self:release();self.cleanPhysicalExit,self.active=true,false
+        if self.requestClose then self.requestClose() end
+        return
+      end
       self:release();self.disconnectExit=true;self:rebuild();return
     end
     if self.escBusy then return end
@@ -799,7 +811,9 @@ function M.new(runtime, transport, mathModule, labels)
     self.data.battery_config, self.data.battery_profile, self.data.smartfuel_config = nil, nil, nil
     self.data.analog, self.analogAt = nil, nil
     self.statusQueued, self.statusWaiting, self.beforeStatusWait = nil, nil, nil
-    self.recoveryRequired=self:session().helicopterSetupRecovery==self:session().mcu_id
+    -- Before the board's identity is known both sides are nil, which is no record of a past visit.
+    local mcuId=self:session().mcu_id
+    self.recoveryRequired=mcuId~=nil and self:session().helicopterSetupRecovery==mcuId
     self.loadingText, self.loadTotal = self.L.loading, #READS + 66
     self.locked = false
     self:blockArming()
@@ -972,6 +986,7 @@ function M.new(runtime, transport, mathModule, labels)
     return list
   end
   function w:tick()
+    self.editLogged = nil
     if self.logInfo then self:logChanges() end
     if self.escParams and self.escParams:observe(self.escSignature) and not self.escBusy then
       self:escResult(nil,"restart")
@@ -994,6 +1009,8 @@ function M.new(runtime, transport, mathModule, labels)
       self.suspended,self.disconnectExit = nil,nil
       if self.logInfo then self:log("info", "link back") end
       if self.rebootPhase then self.rebootPhase = nil; self.rebootPending = nil; self:load()
+      -- The link was not usable when the page opened and nothing was written: read it now.
+      elseif not self.bus.wrote then self:load()
       else self.error = "link"; self.message = self.L.reload end
       return
     end
@@ -1021,7 +1038,7 @@ function M.new(runtime, transport, mathModule, labels)
         -- No stale status may authorize an edit or keep a test running. An idle
         -- read-only visit can await its outstanding fresh reply without claiming
         -- that configuration was lost. Mutations and tests still fail closed.
-        if self.transition or self.motorHold or next(self.holds) or self.trial or self.calibrationAt or not self.bus:readOnly() then
+        if self.transition or self.motorHold or next(self.holds) or self.trial or not self.bus:readOnly() then
           self:fail("status", self.L.stale); self.message = self.L.stale; return
         end
         if not self.statusWaiting then
