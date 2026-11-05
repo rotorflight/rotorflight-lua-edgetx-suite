@@ -87,7 +87,11 @@ local function loadWorld(mutate)
     cache[path] = mod
     return mod
   end
-  _G.rfsuite = { require = requireStub, session = { dataflash = { used = 50, total = 100 } } }
+  _G.rfsuite = {
+    require = requireStub, session = { dataflash = { used = 50, total = 100 }, fblConnected = true },
+    paths = { core = SRC:sub(1, -2), user = "/none" },
+  }
+  _G.loadScript = function(path) return loadfile(path) end
   return requireStub("widgets/dashboard/views.lua"), requireStub("widgets/dashboard/fullscreen_menu.lua"), requireStub
 end
 
@@ -137,7 +141,7 @@ local function run(mutate)
     Views.navigate(w, "openView:menu")
     return w, scene(Menu, w)
   end
-  local function roll(w) return w._viewStack.roll end
+  local function roll(w) return Views.topRoll(w) end
   local function detent(box, h, row) box.scrolled(0, row * h) end
 
   -- Every colour these pages read is a role of both schemes: an unset colour draws white.
@@ -252,14 +256,14 @@ local function run(mutate)
     end)())
   end
 
-  -- A row with nothing behind it runs at once.
+  -- MAIN MENU leads on, and opens nothing by itself.
   do
     local w, s = open()
     local r = roll(w)
     detent(s.forward, s.forward.h, 1)
     check("MAIN MENU is current", r.levels[1].rows[r.levels[1].index].id == "tool")
     Roll.press(w)
-    check("a press runs it", toolOpened == 1)
+    check("a press moves the focus into the suite's menu", toolOpened == 0 and r.focus == 2 and #r.levels[2].rows > 0)
   end
 
   -- The question: on the right, the safe answer first, and nothing queued before the answer.
@@ -306,9 +310,9 @@ local function run(mutate)
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("a press writes", #adds == 2)
     check("and it writes the profile in force's own number here", adds[1].payload.batteryProfile == 1)
-    check("the menu stays up while it is sent", w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "busy")
+    check("the menu stays up while it is sent", roll(w) ~= nil and Views.status(w, "battery_profile") == "busy")
     adds[#adds].processReply(adds[#adds], {})
-    check("an answered write closes the menu", w._viewStack == nil or w._viewStack.roll == nil)
+    check("an answered write closes the menu", w._viewStack == nil or roll(w) == nil)
   end
   do
     -- The wheel rests on another profile: the scene is built again, and that profile is what is written.
@@ -393,17 +397,17 @@ local function run(mutate)
     local w = open()
     local entry = Views.find(w, "menu")
     entry.load = function() return {} end
-    check("ENTER is no longer the roll's", Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and w._viewStack.roll == nil)
+    check("ENTER is no longer the roll's", Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and roll(w) == nil)
   end
   do
     local w = toProfile()
     Views.key(w, EVT_VIRTUAL_ENTER)
     adds[1].errorHandler(adds[1], "timeout")
     check("a failed write stays up and says so",
-      w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "failed")
+      roll(w) ~= nil and Views.status(w, "battery_profile") == "failed")
     adds[#adds].processReply(adds[#adds], {})
     check("the last message's answer does not close over a failed one",
-      w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "failed")
+      roll(w) ~= nil and Views.status(w, "battery_profile") == "failed")
   end
   do
     -- A reply to a write from before the menu was closed says nothing about the menu opened since.
@@ -415,7 +419,7 @@ local function run(mutate)
     scene(Menu, w)
     local session = w._viewStack
     late.processReply(late, {})
-    check("an old reply leaves the new menu up", w._viewStack == session and session.roll ~= nil)
+    check("an old reply leaves the new menu up", w._viewStack == session and roll(w) ~= nil)
   end
   do
     -- The right list follows the left entry, from the one in force.
@@ -460,7 +464,7 @@ local function run(mutate)
     check("and runs nothing", toolOpened == 0 and #adds == 0)
     scene(Menu, w)
     tap(w, g.leftX + 5, g.slotY(0) + 2)
-    check("a tap on the middle row is a press", toolOpened == 1)
+    check("a tap on the middle row is a press", r.focus == 2)
   end
   do
     local w = open()
@@ -502,6 +506,8 @@ local function run(mutate)
   do
     -- A touch on the header is no row.
     local w = open()
+    local Sources = req("widgets/dashboard/menu_roll_sources.lua")
+    Roll.build({}, w, Sources.quick(w, { Menu.entry(w, "erase_blackbox"), Menu.entry(w, "flight_log") }, function(_, f) return f end), Look.colors(w))
     local r = roll(w)
     r.levels[1].index = 2
     local g = geoOf(w)
@@ -555,10 +561,10 @@ local function run(mutate)
   -- Drawn as buttons, the keys are the buttons' again.
   do
     local w = open()
-    check("the rolling menu has its state", w._viewStack.roll ~= nil)
+    check("the rolling menu has its state", roll(w) ~= nil)
     w.preferences.general.menu_style = nil
     scene(Menu, w)
-    check("the card ends it", w._viewStack.roll == nil)
+    check("the card ends it", roll(w) == nil)
     check("and ENTER is not answered for it", Views.key(w, EVT_VIRTUAL_ENTER) ~= true)
   end
 
@@ -612,7 +618,7 @@ local function run(mutate)
     check("a pack without a cycle count leaves it out", string.find(labelsOf(children), "cycles", 1, true) == nil)
     r.levels[1].index = 1
     Views.key(w, EVT_VIRTUAL_ENTER)
-    check("with the switch off a press picks at once", w._batteryPickRequest == "a" and (w._viewStack == nil or w._viewStack.roll == nil))
+    check("with the switch off a press picks at once", w._batteryPickRequest == "a" and (w._viewStack == nil or roll(w) == nil))
   end
   do
     local w = openPicker(false)
@@ -630,14 +636,14 @@ local function run(mutate)
     r.levels[1].index = 2
     check("it says why", string.find(labelsOf(children), "no profile", 1, true) ~= nil)
     Views.key(w, EVT_VIRTUAL_ENTER)
-    check("a press on it does nothing", w._batteryPickRequest == nil and w._viewStack.roll ~= nil)
+    check("a press on it does nothing", w._batteryPickRequest == nil and roll(w) ~= nil)
     check("nor can a theme's run reach it", (function()
       Menu.run(w, Menu.entry(w, "battery_pick"), rows[2])
       return w._batteryPickRequest == nil
     end)())
     r.levels[1].index = 1
     Views.key(w, EVT_VIRTUAL_ENTER)
-    check("a pack that writes stays up and says so", w._batteryPickRequest == "a" and w._viewStack.roll ~= nil
+    check("a pack that writes stays up and says so", w._batteryPickRequest == "a" and roll(w) ~= nil
       and Views.status(w, "battery_pick") == "busy")
     w._batteryPickRequest = nil
     Views.key(w, EVT_VIRTUAL_ENTER)
@@ -727,13 +733,13 @@ local function run(mutate)
     for i = 1, #children do
       if children[i].type == "box" and children[i].children ~= nil and #children[i].children > 0 then box = true end
     end
-    check("forty packs are still cards", w._viewStack.roll == nil and box)
+    check("forty packs are still cards", roll(w) == nil and box)
     check("and their build stays well inside a call: " .. n, n < 20000 * 0.9)
     w = big(41)
     cost(w)
     check("forty-one roll", roll(w) ~= nil and roll(w).view == "battery_pick")
     Views.key(w, EVT_VIRTUAL_ENTER)
-    check("and the wheel's press is answered", w._batteryPickRequest ~= nil or w._viewStack == nil or w._viewStack.roll == nil)
+    check("and the wheel's press is answered", w._batteryPickRequest ~= nil or w._viewStack == nil or roll(w) == nil)
     -- What a pack says follows its language, its profile and whether it can be picked.
     do
       local q = big(2)
@@ -816,7 +822,7 @@ local function run(mutate)
     check("it stays marked", rows[2].current == true and rows[2].selectable == false)
     check("the roll starts on NO BATTERY", rows[r.levels[1].index].none == true)
     check("a pack in force with a profile is started on", (function()
-      w._viewStack.roll = nil
+      Views.dropRoll(w, "battery_pick")
       w.state.batteryPick.selectedId = "a"
       req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
       local again = roll(w)
@@ -851,12 +857,16 @@ local function run(mutate)
     check("and the rest is honoured after it", Menu.renderKey(w) ~= key or r.steppedAt == nil)
   end
 
-  -- The model arming takes the list away from under the right side.
+  -- The model arming greys the list under the right side, with the place kept.
   do
     local w, r = toProfile()
     w.state.armed = true
     scene(Menu, w)
-    check("what the right list showed has gone: back to the left", r.focus == 1)
+    check("the place stays while the model is armed", r.focus == 2)
+    local written = #adds
+    Roll.press(w)
+    check("and a press writes nothing", #adds == written)
+    w.state.armed = false
   end
 end
 
@@ -871,7 +881,7 @@ if selfTest then
       return (string.gsub(t, "Menu.run%(widget, entry, choice, \"none\", report%)", "Menu.run(widget, entry, choice, \"done\", report)"))
     end },
     { "a write's success closes whatever it finds", function(t)
-      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and session.roll == roll\n      and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
+      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and Views.roll%(widget, roll.view%) == roll\n      and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
     end },
     { "a position reported twice counts", function(t)
       return (string.gsub(t, "if sy == window.y then return end\n", ""))

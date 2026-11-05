@@ -913,7 +913,8 @@ local function syncActivePageModule()
   end
   state.activePageMenuId = currentMenuId
   -- The page the tool was opened on (see openLanding) is that only until another one is up.
-  if state.landingMenuId ~= nil and currentMenuId ~= state.landingMenuId then
+  if state.landingMenuId ~= nil and currentMenuId ~= state.landingMenuId
+    and state.visitMenuId ~= state.landingMenuId then
     state.landingMenuId = nil
   end
   -- The latch belongs to the page that is leaving. Re-entering it is a fresh attempt.
@@ -951,6 +952,7 @@ local function leaveCurrentPage(fromEvent)
   -- The page a host opened the tool on (openLanding): the pilot came from the host and not from
   -- the menu above the page, so leaving the page closes the tool, as leaving the menu does.
   if state.landingMenuId ~= nil and state.menu.getCurrentMenuId() == state.landingMenuId then
+    logf("trace", "back on the landing %s closes the tool", tostring(state.landingMenuId))
     state.lastBackTick = now
     state.isClosing = true
     return
@@ -1477,6 +1479,17 @@ local function returnToRootOnDisconnect()
   end
   local page = getActivePageModule()
   if page and page.handlesDisconnect == true then return end
+
+  -- A visit from the host's menu goes back there: the place the pilot came from shows what the lost
+  -- link means for each of its rows, and the tool's root would be a screen he never asked for.
+  if state.visitMenuId ~= nil then
+    logf("info", "link lost on a visit to %s, the tool closes", tostring(state.visitMenuId))
+    closeHelpDialogIfOpen()
+    state.leavePromptVisible = false
+    state.leavePromptAnswers = nil
+    state.isClosing = true
+    return
+  end
 
   closeHelpDialogIfOpen()
   state.pendingMenuOpen = nil
@@ -3525,10 +3538,26 @@ function M.init(opts)
     end
   end
   state.landingMenuId = nil
+  state.visitMenuId = nil
+  state.landingRefused = nil
   local landing = state.hosted and type(opts) == "table" and opts.landing or nil
   if type(landing) == "string" then
+    -- The conditions as they stand now rather than as a registry made a moment ago starts them, for
+    -- the walk below: hosted, the flight controller's state is already known to this Lua state.
+    state.fblConnected = readFblConnected()
+    state.menu.setCondition("fblConnected", state.fblConnected)
+    state.menu.setCondition("modelArmed", isModelArmed())
     if openLanding(landing) then
       state.landingMenuId = landing
+      -- A visit (`opts.visit`): the page or menu is the edge of the tool for as long as it stays
+      -- open, whichever pages the pilot goes through below it.
+      if opts.visit == true then state.visitMenuId = landing end
+    elseif opts.visit == true then
+      -- The host's menu offered it and the tool does not. Never the tiles in its place: the visit
+      -- ends, and the host says so.
+      logf("warn", "visit to %s refused by the menu, the tool closes", landing)
+      state.landingRefused = true
+      state.isClosing = true
     else
       logf("info", "landing %s not offered, the tool opens on its menu", landing)
     end
@@ -3536,6 +3565,11 @@ function M.init(opts)
   logStep("init: first build", true)
   M.buildUI()
   logStep("init: done", true)
+end
+
+--- Whether the page of a visit was refused when the tool opened (`opts.visit`, M.init).
+function M.landingRefused()
+  return state.landingRefused == true
 end
 
 -- Hoisted out of `M.run`. EdgeTX drives `run()` from the standalone window's event

@@ -380,6 +380,7 @@ function BUILD.inflight_tuning(widget, t)
     kind = "action",
     title = t("widgets.dashboard.inflight_open", "IN-FLIGHT TUNING"),
     visibleWhen = "previewInflightTuning",
+    existsWhen = "inflightSwitchedOn",
     press = function()
         widget.inflightFullscreen = true
         widget.built = false
@@ -407,6 +408,7 @@ function BUILD.battery_pick(widget, t)
     view = "battery_pick",
     title = t("widgets.dashboard.battery_pick_open", "BATTERY"),
     visibleWhen = "batteryPickHasPacks",
+    existsWhen = "batteryPickKnowsPacks",
     after = "openView:battery_pick",
     writesProfile = picksSetProfile(widget),
     options = function() return batteryPickOptions(widget, t) end,
@@ -493,6 +495,7 @@ function BUILD.battery_profile(widget, t)
     view = "battery_profile",
     title = t("widgets.dashboard.battery_profile", "BATTERY PROFILE"),
     visibleWhen = "batteryProfileOffered",
+    existsWhen = "batteryProfileExists",
     after = "openView:battery_profile",
     -- What a page of profiles says while the model is armed and nothing on it can be pressed.
     armedNote = t("widgets.dashboard.battery_profile_armed", "CHANGEABLE ONLY WHEN DISARMED"),
@@ -929,7 +932,7 @@ function M.build(children, widget, entries)
 
   -- Drawn as buttons: a rolling menu from before, a theme's look registered since or the pilot's
   -- choice changed, has stopped answering the wheel.
-  if widget._viewStack ~= nil then widget._viewStack.roll = nil end
+  if Views and type(Views.dropRoll) == "function" then Views.dropRoll(widget, Views.DEFAULT_VIEW) end
 
   local style = cardStyle(widget, t)
   local frame = style.frame(children)

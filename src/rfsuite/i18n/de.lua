@@ -4390,6 +4390,8 @@ return {
       battery_profile_armed = "NUR ENTSCHÄRFT ÄNDERBAR",
       battery_profile_not_ready = "NUR VERBUNDEN ÄNDERBAR",
       battery_profile_busy = "WIRD GESENDET...",
+      roll_not_armed = "Nicht im scharfen Zustand",
+      roll_needs_fc = "Braucht den Flight Controller",
       battery_profile_ok = "GESETZT UND GESPEICHERT",
       battery_profile_failed = "NICHT GESPEICHERT",
       battery_pick_title = "WELCHER AKKU?",

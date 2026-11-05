@@ -5,13 +5,16 @@
 --
 --   wheel    moves the list that has the focus; the left one shows on the right what its current
 --            row leads to
---   press    moves the focus right where the row leads to a list or a question, else acts
---   RTN      from the right returns left, from the left is the description's `back`
+--   press    moves the focus right where the row leads to a list or a question; on the right, where
+--            the row leads to a list, both columns shift by one level; else acts
+--   RTN      takes back one press: from the right returns left with nothing shifting, from the left
+--            shifts both columns back a level, and on the first level is the description's `back`
 --   finger   a swipe rolls the list it starts on, a row's height a row; a tap on the middle row is
 --            a press, a tap on any other brings it to the middle and runs nothing
 --
--- The place is a path of levels, each a list and the row current in it, with the focus on one of
--- them. Two columns show two levels at a time: the one with the focus and the one beside it.
+-- The place is a path of levels, each a list and the row current in it. Two columns show two levels
+-- of it at a time: `base` is the one on the left, the next the one on the right, and `focus` says
+-- which of the two has the wheel (1 left, 2 right).
 --
 -- The wheel. A Lua widget never receives EVT_ROTARY_*: the encoder moves LVGL's focus along the
 -- scene's focusable objects in creation order, wrapping, and the fullscreen widget itself is one of
@@ -71,22 +74,25 @@ local MEASURED_ROWS = 40
 -- Ten milliseconds a tick: how long the wheel has to rest before the scene is built again.
 local REST_TICKS = 60
 
--- The roll of this visit for `view`, made where there is none. A visit has one: only the view on top
--- takes the wheel, and a menu a picker opened over is not returned to.
+-- The roll of this visit for `view`, made where there is none. One per view: only the view on top
+-- takes the wheel, and a menu a picker opened over keeps its place under it. A roll a visit to the
+-- tool left (views.lua, `toolClosed`) has only its place so far, and is completed here.
 local function rollOf(widget, view)
   if not (Views and type(Views.session) == "function") then return nil end
   local session = Views.session(widget)
-  local roll = session.roll
-  if roll == nil or roll.view ~= view then
-    roll = { view = view, levels = { { rows = {}, index = 1 } }, focus = 1, position = 0, epoch = 0 }
-    session.roll = roll
+  session.rolls = session.rolls or {}
+  local roll = session.rolls[view]
+  if roll == nil or roll.levels == nil then
+    local kept = roll
+    roll = { view = view, levels = { { rows = {}, index = 1 } }, base = 1, focus = 1, position = 0, epoch = 0 }
+    if kept ~= nil then roll.restore, roll.couldNotOpen = kept.restore, kept.couldNotOpen end
+    session.rolls[view] = roll
   end
   return roll
 end
 
 local function current(widget)
-  local session = widget._viewStack
-  return session and session.roll or nil
+  return Views and Views.topRoll(widget) or nil
 end
 
 local function clamp(value, count)
@@ -105,51 +111,89 @@ local function rebuild(widget, roll)
 end
 
 -- Where a list starts: on the row marked current where it can be pressed, else on the answer that
--- changes nothing where the list has one, else on its first row.
+-- changes nothing where the list has one, else on its first row that can be pressed, and with none
+-- on its first.
 local function startIndex(rows, source)
-  local fallback = 1
+  local none, open = nil, nil
   for i = 1, #rows do
     local row = rows[i]
-    if row.none == true then fallback = i end
-    if row.current == true and not (source.off and source.off(row)) then return i end
+    local off = source.off ~= nil and source.off(row) == true
+    if row.none == true then none = i end
+    if row.current == true and not off then return i end
+    if open == nil and not off then open = i end
   end
-  return fallback
+  return none or open or 1
 end
 
--- The left level and the right one: the first two for as long as there are two levels.
-local function leftLevel(roll) return roll.levels[1] end
+local function leftLevel(roll) return roll.levels[roll.base] end
 
 -- What the right list holds now: the level the focus is on, else what the left row leads to. Asked
 -- again only when the left row changes.
 local function rightLevel(roll)
   local left = leftLevel(roll)
-  local right = roll.levels[2]
+  local right = roll.levels[roll.base + 1]
   if roll.focus == 2 then return right end
   if right == nil or right.forIndex ~= left.index then
     local source = roll.source
     local row = left.rows[left.index]
     local rows = (row ~= nil and source.preview ~= nil) and source.preview(row) or nil
     right = { rows = rows, forIndex = left.index, index = rows and startIndex(rows, source) or 1 }
-    roll.levels[2] = right
+    roll.levels[roll.base + 1] = right
   end
   return right
-end
-
-local function rightRows(roll)
-  local right = rightLevel(roll)
-  return right and right.rows or nil
-end
-
-local function moveLeft(widget, roll)
-  roll.focus = 1
-  roll.levels[2] = nil
-  trace("focus left")
-  rebuild(widget, roll)
 end
 
 local function isOff(roll, row)
   local off = roll.source and roll.source.off
   return off ~= nil and row ~= nil and off(row) == true
+end
+
+-- A row that cannot be pressed has nothing to show on the right: it says why instead.
+local function rightRows(roll)
+  local right = rightLevel(roll)
+  if right == nil then return nil end
+  if roll.focus == 1 then
+    local left = leftLevel(roll)
+    if isOff(roll, left.rows[left.index]) then return nil end
+  end
+  return right.rows
+end
+
+-- Everything below `depth` goes, and the wheel is there.
+local function cutTo(roll, depth)
+  for i = #roll.levels, depth + 1, -1 do roll.levels[i] = nil end
+  roll.base = depth
+  roll.focus = 1
+end
+
+local function moveLeft(widget, roll)
+  roll.focus = 1
+  roll.levels[roll.base + 1] = nil
+  trace("focus left at level " .. tostring(roll.base))
+  rebuild(widget, roll)
+end
+
+-- The rows from the first list down to the one pressed.
+local function pathTo(roll, depth)
+  local path = {}
+  for i = 1, depth do
+    local level = roll.levels[i]
+    path[i] = level.rows and level.rows[level.index] or nil
+  end
+  return path
+end
+
+--- Where the wheel stands, as what the rows ARE: enough to find the place again in lists made afresh
+--- (`M.build`, after a visit to the tool).
+function M.place(roll)
+  local depth = (roll.focus == 2) and (roll.base + 1) or roll.base
+  local ids = {}
+  for i = 1, depth do
+    local level = roll.levels[i]
+    local row = level.rows and level.rows[level.index] or nil
+    ids[i] = row and row.id or false
+  end
+  return { ids = ids, base = roll.base, focus = roll.focus }
 end
 
 -- ---------------------------------------------------------------------------
@@ -185,31 +229,50 @@ function M.press(widget)
   local left = leftLevel(roll)
   local row = left.rows[left.index]
   if roll.focus == 2 then
-    local right = roll.levels[2]
+    local right = roll.levels[roll.base + 1]
     local choice = right and right.rows and right.rows[right.index] or nil
     if row == nil or choice == nil or isOff(roll, choice) then return end
-    if source.act({ row, choice }, roll) == "back" then moveLeft(widget, roll) end
+    if right.question == nil and source.enter ~= nil then
+      local rows, question = source.enter(choice)
+      if rows ~= nil then
+        -- Both columns shift: the level just left stands on the left with that row in the middle.
+        roll.base = roll.base + 1
+        roll.levels[roll.base + 1] = { rows = rows, question = question, forIndex = right.index, index = startIndex(rows, source) }
+        trace("shift to level " .. tostring(roll.base))
+        rebuild(widget, roll)
+        return
+      end
+    end
+    if source.act(pathTo(roll, roll.base + 1), roll) == "back" then moveLeft(widget, roll) end
     return
   end
   if row == nil or isOff(roll, row) then return end
   local rows, question
   if source.enter ~= nil then rows, question = source.enter(row) end
   if rows ~= nil then
-    roll.levels[2] = { rows = rows, question = question, forIndex = left.index, index = startIndex(rows, source) }
+    roll.levels[roll.base + 1] = { rows = rows, question = question, forIndex = left.index, index = startIndex(rows, source) }
     roll.focus = 2
     trace("focus right")
     rebuild(widget, roll)
     return
   end
-  source.act({ row }, roll)
+  source.act(pathTo(roll, roll.base), roll)
 end
 
---- RTN: from the right back to the left, from the left the description's own. Answers true.
+--- RTN: one press taken back. Answers true.
 function M.back(widget)
   local roll = current(widget)
   if roll == nil or roll.source == nil then return false end
   if roll.focus == 2 then
     moveLeft(widget, roll)
+    return true
+  end
+  if roll.base > 1 then
+    -- What was on the left goes back to being what its row shows on the right, and keeps its place.
+    roll.levels[roll.base + 1] = nil
+    roll.base = roll.base - 1
+    trace("shift back to level " .. tostring(roll.base))
+    rebuild(widget, roll)
     return true
   end
   roll.source.back()
@@ -245,7 +308,7 @@ local function focusSide(roll, side)
   if side == sideOf(roll) then return true end
   if side == "left" then
     roll.focus = 1
-    roll.levels[2] = nil
+    roll.levels[roll.base + 1] = nil
     return true
   end
   local right = rightLevel(roll)
@@ -454,58 +517,106 @@ local function indexOfRow(rows, row)
   return nil
 end
 
+-- Back to a place M.place took, in lists made afresh. A row that has gone ends the walk: the wheel is
+-- on the nearest level above it, and no other row has taken its place under the press.
+local function restorePlace(roll, source, place)
+  local levels = roll.levels
+  local ids = place.ids
+  local depth = 1
+  for i = 1, #ids do
+    local level = levels[i]
+    local rowIndex = nil
+    if level ~= nil and level.rows ~= nil then
+      for k = 1, #level.rows do
+        if ids[i] ~= false and level.rows[k].id == ids[i] then rowIndex = k end
+      end
+    end
+    if rowIndex == nil then
+      trace("place: row " .. tostring(ids[i]) .. " has gone, at level " .. tostring(i))
+      cutTo(roll, math.max(1, i - 1))
+      if level ~= nil and i > 1 then
+        -- Above it, the row that led there stands, and shows on the right what it holds now.
+        levels[i] = nil
+      end
+      return
+    end
+    level.index = rowIndex
+    depth = i
+    if i < #ids then
+      local rows = source.preview and source.preview(level.rows[rowIndex]) or nil
+      levels[i + 1] = { rows = rows, forIndex = rowIndex, index = 1 }
+    end
+  end
+  roll.base = math.min(place.base, depth)
+  roll.focus = (place.focus == 2 and depth > roll.base) and 2 or 1
+end
+
 -- The scene is built again whenever the wheel rests, and the lists are made afresh with it, for what
 -- they say about the choice in force. The pilot's place in them goes by what the row IS: a row can
 -- come or go above it, and the same number can then be another row.
 local function refreshLists(roll, source)
-  local left = leftLevel(roll)
-  local right = roll.levels[2]
-  local before = left.rows[left.index]
-  local beforeChoice = (right ~= nil and right.question == nil and right.rows ~= nil and right.forIndex == left.index)
-    and right.rows[right.index] or nil
+  local levels = roll.levels
+  local first = levels[1]
+  local before = first.rows[first.index]
+  local beforeIndex = first.index
 
-  left.rows = source.rows()
-  trace("left list " .. tostring(#left.rows))
-  local found = indexOfRow(left.rows, before)
+  if source.refresh ~= nil then source.refresh() end
+  first.rows = source.rows()
+  trace("first list " .. tostring(#first.rows))
+  local found = indexOfRow(first.rows, before)
   if found == nil then
-    -- The row the pilot was on has gone: the model armed, or the link dropped. On a first build there
-    -- was none, and the list starts where it starts.
-    left.index = (before == nil) and startIndex(left.rows, source) or clamp(left.index, #left.rows)
-    roll.focus = 1
-    roll.levels[2] = nil
+    -- The row the pilot was on has gone. On a first build there was none, and the list starts where
+    -- it starts.
+    first.index = (before == nil) and startIndex(first.rows, source) or clamp(first.index, #first.rows)
+    cutTo(roll, 1)
   else
-    left.index = found
-    if right ~= nil then right.forIndex = found end
-    local row = left.rows[found]
-    if right ~= nil and right.question ~= nil then
-      -- A question stands, in what the row says now.
-      local rows, question
-      if source.enter ~= nil then rows, question = source.enter(row) end
-      if rows ~= nil and question ~= nil then
-        right.rows, right.question = rows, question
-      else
-        roll.focus = 1
-        roll.levels[2] = nil
+    first.index = found
+    local depth = 2
+    while levels[depth] ~= nil do
+      local parent, level = levels[depth - 1], levels[depth]
+      local row = parent.rows[parent.index]
+      if level.question ~= nil then
+        -- A question stands, in what the row says now, and only for as long as the row can be pressed.
+        local rows, question
+        if source.enter ~= nil and not isOff(roll, row) then rows, question = source.enter(row) end
+        if rows ~= nil and question ~= nil then
+          level.rows, level.question = rows, question
+        else
+          cutTo(roll, depth - 1)
+        end
+        break
       end
-    elseif beforeChoice ~= nil then
-      right.rows = source.preview and source.preview(row) or nil
-      local place = indexOfRow(right.rows, beforeChoice)
-      if place ~= nil then
-        right.index = place
-      else
-        -- The option the pilot was on has gone. Another one must not take its place under the same
-        -- press: the focus goes back to the left, and the list starts over on the one in force.
-        roll.focus = 1
-        right.index = right.rows and startIndex(right.rows, source) or 1
+      local chosen = (level.rows ~= nil and level.forIndex == beforeIndex) and level.rows[level.index] or nil
+      if chosen == nil then
+        cutTo(roll, math.min(roll.base, depth - 1))
+        break
       end
-    else
-      roll.levels[2] = nil
+      beforeIndex = level.index
+      level.rows = source.preview and source.preview(row) or nil
+      level.forIndex = parent.index
+      local place = indexOfRow(level.rows, chosen)
+      if place == nil then
+        -- The row the pilot was on has gone. Another must not take its place under the same press:
+        -- the wheel goes to the level above, which shows this list from its start.
+        level.index = level.rows and startIndex(level.rows, source) or 1
+        for i = #levels, depth + 1, -1 do levels[i] = nil end
+        roll.base = math.min(roll.base, depth - 1)
+        roll.focus = 1
+        break
+      end
+      level.index = place
+      depth = depth + 1
     end
   end
+  if roll.restore ~= nil then
+    restorePlace(roll, source, roll.restore)
+    roll.restore = nil
+  end
   roll.position, roll.steppedAt = 0, nil
-  if roll.focus == 2 and (roll.levels[2] == nil or roll.levels[2].rows == nil) then
+  local right = levels[roll.base + 1]
+  if roll.focus == 2 and (right == nil or right.rows == nil) then
     roll.focus = 1
-    roll.levels[2] = nil
+    levels[roll.base + 1] = nil
   end
 end
 
@@ -638,8 +749,8 @@ function M.build(children, widget, source, colors)
         color = colors.muted, text = subText(roll, side),
       }
     end
-    if side == "left" and source.opens ~= nil then
-      -- The mark that a left row opens something on the right.
+    if source.opens ~= nil then
+      -- The mark that a row opens something further.
       children[#children + 1] = {
         type = "label", x = colX + colW - pad - markW, y = slotY(offset) + math.floor((h - fontH) / 2), w = markW,
         font = font, align = RIGHT, color = (isMid and hasFocus) and colors.accent or color,
@@ -666,6 +777,19 @@ function M.build(children, widget, source, colors)
     if source.details == nil then row("right", rightX, offset) end
   end
 
+  -- Beside a row that cannot be pressed: why, in the place of what it would show.
+  if source.reason ~= nil then
+    children[#children + 1] = {
+      type = "label", x = rightX + 4, y = midY + math.floor((midH - nearH) / 2), w = colW - 8, font = nearFont,
+      align = CENTER, color = colors.muted,
+      text = function()
+        if roll.focus ~= 1 then return "" end
+        local left = leftLevel(roll)
+        return source.reason(left.rows[left.index]) or ""
+      end,
+    }
+  end
+
   -- Beside a row that leads to no list: what is known about it, taking no focus.
   if source.details ~= nil then
     for line = 1, 2 * REACH + 1 do
@@ -684,7 +808,7 @@ function M.build(children, widget, source, colors)
     end
   end
 
-  local right = roll.levels[2]
+  local right = roll.levels[roll.base + 1]
   local question = onRight and right and right.question or nil
   if question ~= nil then
     children[#children + 1] = {
