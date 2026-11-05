@@ -5777,6 +5777,10 @@ function Runtime.new(zone, options)
         else
           widget._batteryPickRequest = id
         end
+        -- A press still waiting for the job is replaced with its request, and is told so.
+        local press = widget._batteryPickPress
+        widget._batteryPickPress = nil
+        if press ~= nil then press.report("failed") end
       end,
       -- The two below run outside the widget's pcall, so the views module is reached through its
       -- loader, which returns nil rather than raising. Without the module dismiss() still ends

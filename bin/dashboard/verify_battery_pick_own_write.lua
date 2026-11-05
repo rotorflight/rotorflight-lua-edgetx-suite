@@ -522,6 +522,16 @@ do
   passes(world, 3)
   expect(#reports == 1, "and the earlier reply says nothing more", #reports .. " report(s)")
 
+  -- A press the job has not taken yet, replaced from outside: told, and not closed as done.
+  reports = {}
+  press("p1300")
+  _G.rfsuite.batteryPick.select(nil)
+  expect(reports[1] == "failed" and w._batteryPickPress == nil, "a press replaced before the job ran is told at once",
+    tostring(reports[1]))
+  passes(world, 3)
+  expect(#reports == 1 and (storedPack(world) == nil or storedPack(world) == ""),
+    "and the answer that replaced it is what stands", #reports .. " report(s), " .. tostring(storedPack(world)))
+
   -- The same pack picked twice: each write answers for itself.
   press("p1300")
   passes(world, 3)
