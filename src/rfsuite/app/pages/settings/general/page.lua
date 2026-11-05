@@ -25,6 +25,8 @@ local CONFIG_SCHEMA = {
   { key = "save_confirm",                 type = "bool",   default = true   },
   { key = "save_armed_warning",           type = "bool",   default = true   },
   { key = "reload_confirm",               type = "bool",   default = true   },
+  { key = "color_scheme",                 type = "string", default = "light" },
+  { key = "menu_style",                   type = "string", default = "card" },
   { key = "preview_setup_wizard",         type = "bool",   default = false  },
   { key = "preview_inflight_tuning",      type = "bool",   default = false  },
   { key = "developer_tools",              type = "bool",   default = false  },
@@ -46,6 +48,7 @@ local ui = {
   dirty = false,
   sections = {
     safety      = true,
+    appearance  = false,
     preview     = false,
     development = false,
   },
@@ -137,14 +140,47 @@ local SAFETY_ITEMS = {
 }
 
 local function buildSafety(cursorY, children, x, w, i18n)
+  -- One complete literal key each, the form the packager translates in place.
+  local help = {
+    save_confirm = t(i18n, "help_save_confirm", "Asks before a Save writes to the flight controller."),
+    save_armed_warning = t(i18n, "help_save_armed_warning", "Warns before a Save or Reload while the model is armed."),
+    reload_confirm = t(i18n, "help_reload_confirm", "Asks before a Reload replaces edits that are not saved."),
+  }
   for _, item in ipairs(SAFETY_ITEMS) do
     local k = item.key
     cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
       t(i18n, item.labelKey, item.fallback),
       ui.runtime.getBoolGetter(k),
-      ui.runtime.getBoolSetter(k)
+      ui.runtime.getBoolSetter(k),
+      { helpText = help[k] }
     )
   end
+  return cursorY
+end
+
+-- The colours of the dashboard's quick menu and the pages it opens (widgets/dashboard/menu_look.lua).
+-- The widget reads the value with its reload of the preferences file.
+local function buildAppearance(cursorY, children, x, w, i18n)
+  cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+    t(i18n, "color_scheme", "Color scheme"),
+    {
+      { value = "light", label = t(i18n, "color_scheme_light", "Light") },
+      { value = "dark", label = t(i18n, "color_scheme_dark", "Dark") },
+    },
+    ui.config.color_scheme,
+    ui.runtime.getValueSetter("color_scheme"),
+    { helpText = t(i18n, "help_color_scheme", "Light or dark colors for the dashboard's quick menu and the pages it opens, on every theme. The rest of the suite does not follow it yet.") }
+  )
+  cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+    t(i18n, "menu_style", "Menu style"),
+    {
+      { value = "card", label = t(i18n, "menu_style_card", "Card") },
+      { value = "rotary", label = t(i18n, "menu_style_rotary", "Rotary") },
+    },
+    ui.config.menu_style,
+    ui.runtime.getValueSetter("menu_style"),
+    { helpText = t(i18n, "help_menu_style", "Card: a button for each entry. Rotary: two rolling lists for the wheel or a finger. Sets the quick menu and the battery picker, on every theme.") }
+  )
   return cursorY
 end
 
@@ -242,11 +278,16 @@ local function getPreviewSetter(item)
 end
 
 local function buildPreview(cursorY, children, x, w, i18n)
+  local help = {
+    preview_setup_wizard = t(i18n, "help_preview_setup_wizard", "Shows the unfinished setup assistant in the menu; it can write to the flight controller."),
+    preview_inflight_tuning = t(i18n, "help_preview_inflight_tuning", "Shows the unfinished in-flight tuning surface, which changes parameters in flight."),
+  }
   for _, item in ipairs(PREVIEW_ITEMS) do
     cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
       t(i18n, item.labelKey, item.labelFallback),
       ui.runtime.getBoolGetter(item.key),
-      getPreviewSetter(item)
+      getPreviewSetter(item),
+      { helpText = help[item.key] }
     )
   end
   return cursorY
@@ -256,7 +297,8 @@ local function buildDevelopment(cursorY, children, x, w, i18n)
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     t(i18n, "developer_tools", "Developer Tools"),
     ui.runtime.getBoolGetter("developer_tools"),
-    ui.runtime.getBoolSetter("developer_tools")
+    ui.runtime.getBoolSetter("developer_tools"),
+    { helpText = t(i18n, "help_developer_tools", "Shows the developer pages and tools in the menu.") }
   )
   return cursorY
 end
@@ -266,6 +308,7 @@ end
 
 local SECTIONS = {
   { key = "safety",      titleKey = "section_safety",      titleFallback = "Safety & Prompts", build = buildSafety      },
+  { key = "appearance",  titleKey = "section_appearance",  titleFallback = "Appearance",       build = buildAppearance  },
   { key = "preview",     titleKey = "section_preview",     titleFallback = "Preview",          build = buildPreview     },
   { key = "development", titleKey = "section_development", titleFallback = "Development",      build = buildDevelopment },
 }

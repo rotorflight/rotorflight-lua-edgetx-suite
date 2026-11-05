@@ -148,13 +148,9 @@ M.T = {
   arm_flag_24 = "@i18n(app.modules.fblstatus.arming_disable_flag_24)@",
   arm_flag_25 = "@i18n(app.modules.fblstatus.arming_disable_flag_25)@",
   arm_flag_26 = "@i18n(app.modules.fblstatus.arming_disable_flag_26)@",
-  -- The full screen views (menuview, pickview, toolsview, linkview, telemview): their titles, what
+  -- The full screen views (toolsview, linkview, telemview): their titles, what
   -- the theme's own menu says about the work it ran, the link view's row names, and what the
   -- telemetry view says when every tile is switched off.
-  view_menu = "@i18n(widgets.dashboard.urban_quick_settings)@",
-  view_pick = "@i18n(widgets.dashboard.urban_which_battery)@",
-  pick_cycles = "@i18n(widgets.dashboard.urban_pick_cycles)@",
-  pick_profile = "@i18n(widgets.dashboard.urban_pick_profile)@",
   view_tools = "@i18n(widgets.dashboard.urban_profile_tuning)@",
   view_telemetry = "@i18n(widgets.dashboard.urban_telemetry)@",
   no_tiles = "@i18n(widgets.dashboard.urban_no_tiles)@",
@@ -170,7 +166,6 @@ M.T = {
   connected = "@i18n(widgets.dashboard.urban_connected)@",
   no_events = "@i18n(widgets.dashboard.urban_no_events)@",
   esc = "ESC",
-  blackbox = "@i18n(app.modules.blackbox.name)@",
   active = "@i18n(widgets.dashboard.urban_active)@",
   unavailable = "@i18n(widgets.dashboard.urban_not_available)@",
   run_busy = "@i18n(widgets.dashboard.urban_sending)@",

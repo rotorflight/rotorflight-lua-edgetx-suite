@@ -148,13 +148,15 @@ function M.build(ctx)
 
   local options = placeOptions(i18n)
   local placeFmt = t(i18n, "place", "Position %d")
+  local placeHelp = t(i18n, "help_place", "The entry in this place; the dash leaves it empty, and an entry chosen twice counts at its first place.")
   for i = 1, #Order.OFFERED do
     cursorY = cursorY + Controls.appendComboSelect(
       children, x, cursorY, w,
       string.format(placeFmt, i),
       options,
       ui.config[i],
-      ui.runtime.getValueSetter(i)
+      ui.runtime.getValueSetter(i),
+      { helpText = placeHelp }
     )
   end
 end

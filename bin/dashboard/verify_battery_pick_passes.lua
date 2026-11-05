@@ -190,8 +190,8 @@ do
   end)
   local pick = widget.state.batteryPick
   check("a pick requested mid-load waits for the list", requested and not applyBeforeLoadEnd)
-  check("a pick requested mid-load finds its pack and queues the profile write",
-    pick.selectedId == "25" and pick.selectedName == "Pack 25" and pick.applied == "queued",
+  check("a pick requested mid-load finds its pack and its profile is written",
+    pick.selectedId == "25" and pick.selectedName == "Pack 25" and pick.applied == "written",
     string.format("selected=%s name=%s applied=%s", tostring(pick.selectedId), tostring(pick.selectedName),
       tostring(pick.applied)))
 end
@@ -216,8 +216,8 @@ do
   end)
   local pick = widget.state.batteryPick
   check("a pick requested before the first load step waits for the list", requested and not applyBeforeLoadEnd)
-  check("a pick requested before the first load step finds its pack and queues the profile write",
-    pick.selectedId == "25" and pick.selectedName == "Pack 25" and pick.applied == "queued",
+  check("a pick requested before the first load step finds its pack and its profile is written",
+    pick.selectedId == "25" and pick.selectedName == "Pack 25" and pick.applied == "written",
     string.format("selected=%s name=%s applied=%s", tostring(pick.selectedId), tostring(pick.selectedName),
       tostring(pick.applied)))
 end

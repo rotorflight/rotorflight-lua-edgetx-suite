@@ -24,6 +24,8 @@ local Views = requireModule("widgets/dashboard/views.lua")
 
 local Log = requireModule("lib/log.lua")
 
+local Look = requireModule("widgets/dashboard/menu_look.lua")
+
 -- An entry without `visibleWhen` is always there. A named condition is resolved in views.lua,
 -- where a name that is not known is false and hides its entry, which is what an unresolvable
 -- condition does in `app/menu_registry.lua` as well.
@@ -48,6 +50,11 @@ end
 -- refuses a battery pick made while armed, and a battery profile's press queues nothing while
 -- armed or before the connection is ready -- and its close has to work whatever the state.
 local function refused(widget, entry, option)
+  if option ~= nil and option.selectable == false then return true end
+  if option ~= nil and entry.id == "battery_pick" and option ~= entry.close and Views
+    and type(Views.status) == "function" and Views.status(widget, entry.id) == "busy" then
+    return true
+  end
   if option ~= nil and entry.view ~= nil then return false end
   if isEntryVisible(entry, widget) then return false end
   if Log and type(Log.emit) == "function" then
@@ -129,8 +136,9 @@ end
 -- A pick records a REQUEST on the widget and nothing else. The pick, the card write and the
 -- flight controller write all happen in the runtime's job pass: an LVGL press callback runs
 -- inside the firmware's event dispatch, where a card write or a queue turn is the one thing a
--- widget must not do.
-local function requestPick(widget, id)
+-- widget must not do. A pick that moves the board onto another profile says so at once, and the
+-- job hands the same reporter the board's answer.
+local function requestPick(widget, id, writes)
   -- `false` rather than nil for "no battery": nil is what the runtime reads as "no request at
   -- all", so the answer that clears the pack would never reach the job. Written out rather than
   -- as `(id == nil) and false or id`, which cannot produce `false` at all -- the `or` arm takes
@@ -139,6 +147,13 @@ local function requestPick(widget, id)
     widget._batteryPickRequest = false
   else
     widget._batteryPickRequest = id
+  end
+  widget._batteryPickPress = nil
+  if writes and Views and type(Views.reporter) == "function" then
+    local report = Views.reporter(widget, "battery_pick")
+    report("busy")
+    -- What the answer closes is what stood when the pilot pressed: the job may run passes later.
+    widget._batteryPickPress = { report = report, visit = Views.session(widget), top = Views.top(widget) }
   end
 end
 
@@ -152,20 +167,55 @@ local function dismissBatteryPick(widget)
   end
 end
 
+-- The board's profile for each pack, worked out once per battery configuration: asking for it logs
+-- every exit, and the options are made afresh on every build of the picker.
+local function resolvePacks(pick, config)
+  local BatteryPick = requireModule("lib/battery_pick.lua")
+  if type(BatteryPick) ~= "table" or type(BatteryPick.targetProfile) ~= "function" then return end
+  local key = BatteryPick.configKey(config)
+  if pick.resolvedFor == key and pick.resolvedPacks == pick.candidates then return end
+  pick.resolvedFor, pick.resolvedPacks = key, pick.candidates
+  for i = 1, #pick.candidates do
+    local pack = pick.candidates[i]
+    pack.targetProfile = BatteryPick.targetProfile(pack, config)
+    pack.pickFacts = nil
+  end
+end
+
+-- Whether a pick also moves the board onto the pack's profile (Settings of the Flight Log page).
+local function picksSetProfile(widget)
+  local BatteryPick = requireModule("lib/battery_pick.lua")
+  if type(BatteryPick) ~= "table" or type(BatteryPick.settings) ~= "function" then return false end
+  local _, setsProfile = BatteryPick.settings(widget.preferences)
+  return setsProfile == true
+end
+
 -- The prompt's options: one per pack this model has, in registry order, and NO BATTERY last.
 --
 -- Every string an option carries is built here, once per call, so what draws them builds none.
--- `label` is the pack's name and `detail` the line under it; `pack` is the registry entry
--- itself, for a surface that wants to lay the same facts out differently. A pack's option
--- carries the pack's `id`, by which a run is matched to it. NO BATTERY is marked `none`, because
--- the picker reserves the foot row for it before the packs are laid out.
+-- `label` is the pack's name and `detail` the line under it. `details` holds that line and its
+-- shortenings, longest first, for a surface that has less room, and `facts` the same facts one by
+-- one; `pack` is the registry entry itself. A pack's option carries the pack's `id`, by which a run
+-- is matched to it. NO BATTERY is marked `none`, because the picker reserves the foot row for it
+-- before the packs are laid out, and it is the answer in force where no pack is.
+--
+-- Where a pick moves the board onto the pack's profile, a pack with no clear profile on this board
+-- cannot be picked: `selectable` is false, it is still listed, and it says why. `writes` marks a
+-- pick that sends something, whose press stays up until the board has answered (see the runtime's
+-- apply step) and is stored only then.
 local function batteryPickOptions(widget, t)
   local pick = widget.state and widget.state.batteryPick or nil
   local candidates = (type(pick) == "table" and type(pick.candidates) == "table") and pick.candidates or {}
   local selectedId = type(pick) == "table" and pick.selectedId or nil
+  local config = widget.state and widget.state.battery_config or nil
+  if #candidates > 0 then resolvePacks(pick, config) end
+  local setsProfile = picksSetProfile(widget)
 
   local profileFmt = t("widgets.dashboard.battery_pick_profile", "Profile %d")
   local noProfile = t("widgets.dashboard.battery_pick_profile_none", "no profile")
+  local cyclesFmt = t("widgets.dashboard.battery_pick_cycles", "%d cycles")
+  -- What a pack's kept words were made in: another language makes them anew.
+  local wordsKey = profileFmt .. noProfile .. cyclesFmt
 
   local options = {}
   for i = 1, #candidates do
@@ -173,30 +223,57 @@ local function batteryPickOptions(widget, t)
 
     local nameText = pack.name
     if type(nameText) ~= "string" or nameText == "" then nameText = tostring(pack.id) end
-    local capText = ""
-    if type(pack.cap) == "number" and pack.cap > 0 then
-      capText = string.format("%d mAh", math.floor(pack.cap))
-    end
-    local profileText = noProfile
-    if type(pack.targetProfile) == "number" then
-      profileText = string.format(profileFmt, pack.targetProfile + 1)
-    end
-    local detail = capText
-    if detail ~= "" then
-      detail = detail .. "  -  " .. profileText
-    else
-      detail = profileText
+    local target = pack.targetProfile
+    local hasProfile = type(target) == "number"
+    local selectable = (not setsProfile) or hasProfile
+
+    -- What a pack says is made once and kept on the pack, while its language and its profile stand: the
+    -- options are made afresh on every build, so a list of many packs would pay for these strings on each.
+    local facts = pack.pickFacts
+    if facts == nil or pack.pickKey ~= wordsKey or pack.pickTarget ~= target then
+      facts = {}
+      if type(pack.cap) == "number" and pack.cap > 0 then
+        facts[#facts + 1] = string.format("%d mAh", math.floor(pack.cap))
+      end
+      if type(pack.cycles) == "number" then
+        facts[#facts + 1] = string.format(cyclesFmt, math.floor(pack.cycles))
+      end
+      facts[#facts + 1] = hasProfile and string.format(profileFmt, target + 1) or noProfile
+      pack.pickFacts, pack.pickKey, pack.pickTarget = facts, wordsKey, target
+      pack.pickDetails, pack.pickDetailsOff = nil, nil
     end
 
+    -- Short of room the profile goes first, and where the pack cannot be picked for want of one, the
+    -- reason stays.
+    local details
+    if selectable then details = pack.pickDetails else details = pack.pickDetailsOff end
+    if details == nil then
+      details = { table.concat(facts, " - ") }
+      if selectable then
+        if #facts > 1 then details[#details + 1] = table.concat(facts, " - ", 1, #facts - 1) end
+        if #facts > 2 then details[#details + 1] = facts[1] end
+        pack.pickDetails = details
+      else
+        if #facts > 2 then details[#details + 1] = facts[1] .. " - " .. facts[#facts] end
+        if #facts > 1 then details[#details + 1] = facts[#facts] end
+        pack.pickDetailsOff = details
+      end
+    end
+
+    local writes = setsProfile and hasProfile and target ~= pick.boardProfile
     local id = pack.id
     options[i] = {
       id = id,
       label = nameText,
-      detail = detail,
+      detail = details[1],
+      details = details,
+      facts = facts,
       current = (selectedId ~= nil and id == selectedId),
+      selectable = selectable,
+      writes = writes,
       pack = pack,
-      press = function() requestPick(widget, id) end,
-      after = "done"
+      press = function() requestPick(widget, id, writes) end,
+      after = writes and "none" or "done"
     }
   end
 
@@ -205,6 +282,7 @@ local function batteryPickOptions(widget, t)
   options[#options + 1] = {
     label = t("widgets.dashboard.battery_pick_none", "NO BATTERY"),
     none = true,
+    current = selectedId == nil,
     press = function() requestPick(widget, nil) end,
     after = "done"
   }
@@ -330,6 +408,7 @@ function BUILD.battery_pick(widget, t)
     title = t("widgets.dashboard.battery_pick_open", "BATTERY"),
     visibleWhen = "batteryPickHasPacks",
     after = "openView:battery_pick",
+    writesProfile = picksSetProfile(widget),
     options = function() return batteryPickOptions(widget, t) end,
     close = {
       press = function() dismissBatteryPick(widget) end,
@@ -626,6 +705,10 @@ local function perform(widget, entry, option, after, report)
   if Views and type(Views.navigate) == "function" then Views.navigate(widget, after) end
 end
 
+--- The work and what follows it, for a surface that has already had the pilot's answer to the
+--- entry's `confirm` itself. Everything else goes through `M.run`.
+M.perform = perform
+
 --- Run an entry, or one of its options: the work, then the action that follows it. This is the
 --- one place both happen, for the menu's own buttons, the picker's and a theme's alike.
 --
@@ -668,8 +751,8 @@ end
 -- zone is wide enough and in one where it is not. The raster does not shrink or grow with the
 -- number of entries shown, so a button keeps its size and its place whatever is hidden at the
 -- moment; places with nothing in them stay empty. Under the raster, always on the row after its
--- last, is the BATTERY PROFILE row, the width of the zone. The themes with views of their own lay
--- their menus out by the same numbers.
+-- last, is the BATTERY PROFILE row, the width of the zone. This is the one layout: a theme that
+-- restyles the menu hands in its look (`style` at M.build) and the numbers stay here.
 M.PLACES = 6
 M.TWO_COLUMNS_FROM = 300
 
@@ -699,12 +782,122 @@ function M.fitFirst(texts, font, maxW, measure)
   return texts[#texts]
 end
 
---- Rebuilt when the profile in force moves, which the BATTERY PROFILE row names, and when the
---- board's battery configuration arrives or goes, which decides whether the row is there.
+--- What moves the menu: the profile in force, which the BATTERY PROFILE row names, and the board's
+--- battery configuration arriving or going, which decides whether the row is there. A state alone
+--- is what a theme's view has to key on, so a theme asks this rather than writing it out again.
+function M.stateKey(state)
+  if state == nil then return "" end
+  return tostring(state.batteryProfile) .. (state.battery_config ~= nil and "|c" or "|")
+end
+
+--- How full the blackbox of `entry` is as a whole percentage, or nil where nothing has been read.
+function M.fillPercent(entry)
+  local info = type(entry.info) == "function" and entry.info() or nil
+  if type(info) ~= "table" then return nil end
+  local used, total = tonumber(info.used), tonumber(info.total)
+  if used == nil or total == nil or total <= 0 then return nil end
+  return math.floor(used * 100 / total + 0.5)
+end
+
+-- Which style the pilot has chosen for the widget's own menu.
+local function menuStyle(widget)
+  return Look and Look.style(widget) or "card"
+end
+
+local function rollModule()
+  local Roll = requireModule("widgets/dashboard/menu_roll.lua")
+  if type(Roll) == "table" and type(Roll.build) == "function" then return Roll end
+  return nil
+end
+
+--- How the last pick's write went, in the words the picker shows; "" while there is nothing to say.
+function M.pickStatusText(widget, t)
+  local status = Views and type(Views.status) == "function" and Views.status(widget, "battery_pick") or nil
+  if status == "busy" then return t("widgets.dashboard.battery_profile_busy", "SENDING...") end
+  if status == "failed" then return t("widgets.dashboard.battery_profile_failed", "NOT SAVED") end
+  return ""
+end
+
+--- Rebuilt when `stateKey` moves. The rolling style also when the model arms or disarms, or the
+--- connection comes or goes, which decide what its lists hold, and when it asks to be built again.
 function M.renderKey(widget)
   local state = widget and widget.state or nil
   if state == nil then return "" end
-  return tostring(state.batteryProfile) .. (state.battery_config ~= nil and "|c" or "|")
+  local key = M.stateKey(state)
+  if menuStyle(widget) == "rotary" then
+    local Roll = rollModule()
+    if Roll then
+      key = key .. (state.armed == true and "|a" or "|") .. (state.connectionReady == true and "r" or "")
+        .. "|" .. Roll.renderKey(widget)
+    end
+  end
+  return key
+end
+
+-- The card style's drawing, in the colours of the scheme the pilot has chosen (menu_look.lua).
+--
+-- `frame(children)` draws the background and the header with its close box and answers where the
+-- content goes; `button` draws one entry, `valueRow` the BATTERY PROFILE row, and `fillText` words
+-- the blackbox's fill under ERASE BLACKBOX.
+local function cardStyle(widget, t)
+  local p = Look.profile(widget.zone.h)
+  local colors = Look.colors(widget)
+  local titleFont, fontH, paddingX, btnTextOffY = p.titleFont, p.fontH, p.paddingX, p.btnTextOffY
+  local isLarge, smallH = p.isLarge, p.smallH
+
+  return {
+    frame = function(children)
+      local _, _, top = Look.frame(children, widget, t("widgets.dashboard.quick_settings", "QUICK SETTINGS"),
+        pressFor(widget, nil, "done"))
+      local dW, dH = widget.zone.w, widget.zone.h
+      return {
+        x = paddingX, w = dW - paddingX * 2, zoneW = dW,
+        top = top, bottom = dH - p.gapY,
+        gapX = paddingX, gapY = p.gapY,
+      }
+    end,
+    button = function(children, x, y, w, h, name, sub, press)
+      children[#children+1] = {
+        type = "button", x=x, y=y, w=w, h=h, color=colors.fill, press = press
+      }
+      if type(sub) == "string" and sub ~= "" then
+        local top = y + math.floor((h - fontH - smallH)/2) + btnTextOffY
+        children[#children+1] = {
+          type = "label", x=x, y=top, w=w, text=name, color=colors.text, align=CENTER, font=titleFont
+        }
+        children[#children+1] = {
+          type = "label", x=x, y=top + fontH + (isLarge and 8 or 2), w=w, text=sub, color=colors.muted, align=CENTER, font=SMLSIZE
+        }
+      else
+        children[#children+1] = {
+          type = "label", x=x, y=y + math.floor((h - fontH)/2) + btnTextOffY, w=w,
+          text=name, color=colors.text, align=CENTER, font=titleFont
+        }
+      end
+    end,
+    valueRow = function(children, x, y, w, h, name, values, press)
+      local textY = y + math.floor((h - fontH)/2) + btnTextOffY
+      children[#children+1] = {
+        type = "button", x=x, y=y, w=w, h=h, color=colors.fill, press = press
+      }
+      local titleW = textWidth(name, titleFont) or math.floor(w / 3)
+      children[#children+1] = {
+        type = "label", x=x + paddingX, y=textY, w=titleW + paddingX,
+        text=name, color=colors.text, align=LEFT, font=titleFont
+      }
+      local valueW = w - titleW - 4 * paddingX
+      local marks = {}
+      for i = 1, #values do marks[i] = values[i] .. M.OPENS_MARK end
+      local value = M.fitFirst(marks, titleFont, valueW) or M.OPENS_MARK
+      children[#children+1] = {
+        type = "label", x=x + w - paddingX - valueW, y=textY, w=valueW,
+        text=value, color=colors.text, align=RIGHT, font=titleFont
+      }
+    end,
+    fillText = function(percent)
+      return string.format(t("widgets.dashboard.erase_blackbox_confirm_used", "%d%% used"), percent)
+    end,
+  }
 end
 
 --- Draw the menu.
@@ -719,135 +912,61 @@ end
 -- names it does not draw it twice.
 function M.build(children, widget, entries)
   entries = entries or M.entries(widget)
-  local dW = widget.zone.w
-  local dH = widget.zone.h
-  local dX = 0
-  local dY = 0
-
   local t = translator(widget)
 
-  local bg_color = COLOR_THEME_PRIMARY3 or BLACK
-  if bg_color == BLACK and lcd and type(lcd.RGB) == "function" then
-     bg_color = lcd.RGB(40, 40, 40)
-  end
-  local btn_color = COLOR_THEME_PRIMARY1 or DARKGREY
-
-  -- 1. Full Background
-  children[#children+1] = {
-    type = "rectangle", x=dX, y=dY, w=dW, h=dH, color=bg_color, filled=true
-  }
-
-  -- Layout Profile Definition
-  -- TX16S MK3 is 800x480 (dH ~480)
-  -- Standard TX16S is 480x272 (dH ~272)
-  local isLarge = dH > 350
-
-  local headerH, titleFont, fontH, closeSize, contentGap, gapY, paddingX
-  local headTextOffY, closeTextOffY, btnTextOffY
-
-  if isLarge then
-    -- Layout for TX16S MK3 (Large High-Res)
-    headerH = 60
-    titleFont = MIDSIZE
-    fontH = 24
-    closeSize = 44
-    contentGap = 20
-    gapY = 10
-    paddingX = 15
-    headTextOffY = -6
-    closeTextOffY = -8
-    btnTextOffY = -8
-  else
-    -- Layout for standard TX16S (480x272)
-    headerH = 22
-    titleFont = SMLSIZE
-    fontH = 12
-    closeSize = 20
-    contentGap = 5
-    gapY = 8
-    paddingX = 5
-    headTextOffY = -2
-    closeTextOffY = -4
-    btnTextOffY = -4
+  if menuStyle(widget) == "rotary" and Look ~= nil then
+    local Roll = rollModule()
+    local Sources = Roll and requireModule("widgets/dashboard/menu_roll_sources.lua") or nil
+    if Roll == nil or type(Sources) ~= "table" then
+      if Log and type(Log.emit) == "function" then
+        Log.emit("rfsuite.widget", "rotary menu did not load, drawing the card", "warn")
+      end
+    else
+      Roll.build(children, widget, Sources.quick(widget, entries, t), Look.colors(widget))
+      return
+    end
   end
 
-  -- 2. Header
-  children[#children+1] = {
-    type = "rectangle", x=dX, y=dY, w=dW, h=headerH, color=btn_color, filled=true
-  }
+  -- Drawn as buttons: a rolling menu from before, a theme's look registered since or the pilot's
+  -- choice changed, has stopped answering the wheel.
+  if widget._viewStack ~= nil then widget._viewStack.roll = nil end
 
-  children[#children+1] = {
-    type = "label", x=dX + paddingX, y=dY + math.floor((headerH - fontH)/2) + headTextOffY, w=dW-60,
-    text=t("widgets.dashboard.quick_settings", "QUICK SETTINGS"), color=WHITE, align=LEFT, font=titleFont
-  }
+  local style = cardStyle(widget, t)
+  local frame = style.frame(children)
+  if frame == nil then return end
 
-  -- 3. Close Button (X)
-  local cx = dX + dW - closeSize - (isLarge and 8 or 1)
-  local cy = dY + math.floor((headerH - closeSize)/2)
+  local function run(entry) M.run(widget, entry) end
 
-  children[#children+1] = {
-    type = "button", x=cx, y=cy, w=closeSize, h=closeSize, color=COLOR_THEME_SECONDARY1 or RED,
-    press = pressFor(widget, nil, "done")
-  }
-
-  children[#children+1] = {
-    type = "label", x=cx, y=cy + math.floor((closeSize - fontH)/2) + closeTextOffY, w=closeSize, text="X", color=WHITE, align=CENTER, font=titleFont
-  }
-
-  -- 4. The raster, then the BATTERY PROFILE row: rows of one height, the raster's and the
-  -- battery row's alike.
-  local contentY = dY + headerH + contentGap
-  local bottom = dY + dH - gapY
-  local cols = (dW >= M.TWO_COLUMNS_FROM) and 2 or 1
+  -- The raster, then the BATTERY PROFILE row: rows of one height, the raster's and the battery
+  -- row's alike.
+  local contentY, bottom = frame.top, frame.bottom
+  local gapX, gapY = frame.gapX, frame.gapY
+  local cols = (frame.zoneW >= M.TWO_COLUMNS_FROM) and 2 or 1
   local rows = math.ceil(M.PLACES / cols)
   local rowH = math.floor((bottom - contentY - rows * gapY) / (rows + 1))
-  local cellW = math.floor((dW - paddingX * (cols + 1)) / cols)
+  local cellW = math.floor((frame.w - (cols - 1) * gapX) / cols)
 
   local place = 0
   for _, entry in ipairs(entries) do
     if entry.id ~= "battery_profile" and isEntryVisible(entry, widget) then
       place = place + 1
       if place > M.PLACES then break end
-      local bx = dX + paddingX + ((place - 1) % cols) * (cellW + paddingX)
+      local bx = frame.x + ((place - 1) % cols) * (cellW + gapX)
       local by = contentY + math.floor((place - 1) / cols) * (rowH + gapY)
-      children[#children+1] = {
-        type = "button", x=bx, y=by, w=cellW, h=rowH, color=btn_color,
-        press = function() M.run(widget, entry) end
-      }
-      children[#children+1] = {
-        type = "label", x=bx, y=by + math.floor((rowH - fontH)/2) + btnTextOffY, w=cellW,
-        text=entry.title, color=WHITE, align=CENTER, font=titleFont
-      }
+      local sub = nil
+      local percent = M.fillPercent(entry)
+      if percent ~= nil then sub = style.fillText(percent) end
+      style.button(children, bx, by, cellW, rowH, entry.title or "", sub, function() run(entry) end)
     end
   end
 
-  -- 5. BATTERY PROFILE, on the row after the raster's last: its title on the left, the profile in
+  -- BATTERY PROFILE, on the row after the raster's last: its title on the left, the profile in
   -- force on the right, as long as it fits, and the mark that it opens a page.
   local profile = M.entry(widget, "battery_profile")
   if profile ~= nil and isEntryVisible(profile, widget) then
-    local rowW = dW - paddingX * 2
-    local bx = dX + paddingX
-    local by = contentY + rows * (rowH + gapY)
-    local textY = by + math.floor((rowH - fontH)/2) + btnTextOffY
-    children[#children+1] = {
-      type = "button", x=bx, y=by, w=rowW, h=rowH, color=btn_color,
-      press = function() M.run(widget, profile) end
-    }
-    local title = profile.title or ""
-    local titleW = textWidth(title, titleFont) or math.floor(rowW / 3)
-    children[#children+1] = {
-      type = "label", x=bx + paddingX, y=textY, w=titleW + paddingX,
-      text=title, color=WHITE, align=LEFT, font=titleFont
-    }
-    local valueW = rowW - titleW - 4 * paddingX
-    local marks = {}
     local values = type(profile.values) == "function" and profile.values(widget) or {}
-    for i = 1, #values do marks[i] = values[i] .. M.OPENS_MARK end
-    local value = M.fitFirst(marks, titleFont, valueW) or M.OPENS_MARK
-    children[#children+1] = {
-      type = "label", x=bx + rowW - paddingX - valueW, y=textY, w=valueW,
-      text=value, color=WHITE, align=RIGHT, font=titleFont
-    }
+    style.valueRow(children, frame.x, contentY + rows * (rowH + gapY), frame.w, rowH, profile.title or "", values,
+      function() run(profile) end)
   end
 end
 

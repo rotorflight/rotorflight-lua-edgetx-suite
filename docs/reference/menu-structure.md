@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**142 entries, 120 of them open a page, 89 of those pages are documented.**
+**142 entries, 120 of them open a page, 90 of those pages are documented.**
 
 ## Diagrams
 
@@ -365,7 +365,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   n0["Settings"]:::menu
-  n1["General"]:::undocumented
+  n1["General"]:::documented
   n0 --> n1
   n2["Dashboard"]:::menu
   n0 --> n2
@@ -565,7 +565,7 @@ Section `system`.
 | Tools &rsaquo; Diagnostics &rsaquo; Info | `info` | `diagnostics_info_page` | `tools/diagnostics/info` | [tools/diagnostics/info.md](../pages/tools/diagnostics/info.md) | `lockedWhileArmed = true` |
 | Logs | `logs` | `logs_page` | `logs` | [logs.md](../pages/logs.md) | &mdash; |
 | Settings | `settings` | `settings_admin` | menu, 5 entries | &mdash; | &mdash; |
-| Settings &rsaquo; General | `general` | `settings_general_page` | `settings/general` | **none** | &mdash; |
+| Settings &rsaquo; General | `general` | `settings_general_page` | `settings/general` | [settings/general.md](../pages/settings/general.md) | &mdash; |
 | Settings &rsaquo; Dashboard | `dashboard` | `settings_dashboard_menu` | menu, 6 entries | &mdash; | &mdash; |
 | Settings &rsaquo; Dashboard &rsaquo; Theme | `dashboard_theme` | `settings_dashboard_theme_page` | `settings/dashboard/theme` | [settings/dashboard/theme.md](../pages/settings/dashboard/theme.md) | &mdash; |
 | Settings &rsaquo; Dashboard &rsaquo; Settings | `dashboard_settings` | `settings_dashboard_settings_menu` | no page file and no entries | &mdash; | menu: `_dynamicThemes = true` |

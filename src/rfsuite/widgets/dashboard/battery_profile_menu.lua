@@ -29,6 +29,7 @@ end
 
 local Menu = requireModule("widgets/dashboard/fullscreen_menu.lua")
 local Views = requireModule("widgets/dashboard/views.lua")
+local Look = requireModule("widgets/dashboard/menu_look.lua")
 
 local ID = "battery_profile"
 
@@ -40,17 +41,6 @@ end
 
 local function navigate(widget, after)
   if Views and type(Views.navigate) == "function" then Views.navigate(widget, after) end
-end
-
--- The height the firmware lays a line of `font` out in, or `fallback` where it cannot say. The
--- layout profile's `fontH` is a placement figure, not the face's height: MIDSIZE on an 800x480
--- radio is taller than it, and a line placed `fontH` under a capacity runs into it there.
-local function lineHeight(font, fallback)
-  if lcd and type(lcd.sizeText) == "function" then
-    local ok, _, h = pcall(lcd.sizeText, "Ag", font)
-    if ok and type(h) == "number" and h > 0 then return h end
-  end
-  return fallback
 end
 
 --- What RTN does while the page is on top: what its back box does.
@@ -75,51 +65,6 @@ function M.build(children, widget)
 
   local t = (widget.i18n and type(widget.i18n.t) == "function") and widget.i18n.t or function(k, f) return f or k end
 
-  local bg_color = COLOR_THEME_PRIMARY3 or BLACK
-  if bg_color == BLACK and lcd and type(lcd.RGB) == "function" then
-    bg_color = lcd.RGB(40, 40, 40)
-  end
-  local btn_color = COLOR_THEME_PRIMARY1 or BLACK
-  local accent_color = COLOR_THEME_SECONDARY1 or WHITE
-  local off_color = (lcd and type(lcd.RGB) == "function") and lcd.RGB(90, 90, 90) or btn_color
-
-  children[#children+1] = {
-    type = "rectangle", x=dX, y=dY, w=dW, h=dH, color=bg_color, filled=true
-  }
-
-  -- The same two layout profiles fullscreen_menu.lua uses: a large high-resolution radio, and
-  -- the standard 480x272 one.
-  local isLarge = dH > 350
-
-  local headerH, titleFont, rowFont, fontH, smallH, closeSize, contentGap, gapY, paddingX
-  local headTextOffY, closeTextOffY
-
-  if isLarge then
-    headerH = 60
-    titleFont = MIDSIZE
-    rowFont = MIDSIZE
-    fontH = 24
-    smallH = 16
-    closeSize = 44
-    contentGap = 20
-    gapY = 10
-    paddingX = 15
-    headTextOffY = -6
-    closeTextOffY = -8
-  else
-    headerH = 22
-    titleFont = SMLSIZE
-    rowFont = SMLSIZE
-    fontH = 12
-    smallH = 10
-    closeSize = 20
-    contentGap = 5
-    gapY = 6
-    paddingX = 5
-    headTextOffY = -2
-    closeTextOffY = -4
-  end
-
   local entry = record(widget)
   local armed = widget.state and widget.state.armed == true
   -- The runtime sets `state.connectionReady` together with the widget's own `connectionReady`,
@@ -127,35 +72,14 @@ function M.build(children, widget)
   local notReady = not (widget.state and widget.state.connectionReady == true)
   local inert = armed or notReady
 
-  -- The header: the back box, the title, the close box.
-  children[#children+1] = {
-    type = "rectangle", x=dX, y=dY, w=dW, h=headerH, color=btn_color, filled=true
-  }
-  local bx = dX + (isLarge and 8 or 1)
-  local by = dY + math.floor((headerH - closeSize)/2)
-  children[#children+1] = {
-    type = "button", x=bx, y=by, w=closeSize, h=closeSize, color=btn_color,
-    press = function() navigate(widget, "closeView") end
-  }
-  children[#children+1] = {
-    type = "label", x=bx, y=by + math.floor((closeSize - fontH)/2) + closeTextOffY, w=closeSize,
-    text="<", color=WHITE, align=CENTER, font=titleFont
-  }
-  local titleX = bx + closeSize + paddingX
-  children[#children+1] = {
-    type = "label", x=titleX, y=dY + math.floor((headerH - fontH)/2) + headTextOffY, w=dW - titleX - closeSize - 2 * paddingX,
-    text=(entry and entry.title) or t("widgets.dashboard.battery_profile", "BATTERY PROFILE"),
-    color=WHITE, align=LEFT, font=titleFont
-  }
-  local cx = dX + dW - closeSize - (isLarge and 8 or 1)
-  children[#children+1] = {
-    type = "button", x=cx, y=by, w=closeSize, h=closeSize, color=COLOR_THEME_SECONDARY1 or RED,
-    press = function() navigate(widget, "done") end
-  }
-  children[#children+1] = {
-    type = "label", x=cx, y=by + math.floor((closeSize - fontH)/2) + closeTextOffY, w=closeSize,
-    text="X", color=WHITE, align=CENTER, font=titleFont
-  }
+  local p, colors, listY = Look.frame(children, widget,
+    (entry and entry.title) or t("widgets.dashboard.battery_profile", "BATTERY PROFILE"),
+    function() navigate(widget, "done") end,
+    function() navigate(widget, "closeView") end)
+  local titleFont, rowFont, fontH, smallH = p.titleFont, p.rowFont, p.fontH, p.smallH
+  local gapY, paddingX, headTextOffY = p.gapY, p.paddingX, p.headTextOffY
+  local isLarge = p.isLarge
+  local btn_color, accent_color, off_color = colors.fill, colors.accent, colors.off
 
   -- The foot line: why nothing can be pressed before the connection is ready or while the model
   -- is armed, else how the last write from this page went, where there was one. Not ready wins:
@@ -179,7 +103,7 @@ function M.build(children, widget)
   local footY = bottom - fontH
   children[#children+1] = {
     type = "label", x=dX + paddingX, y=footY + headTextOffY, w=dW - 2 * paddingX,
-    text=foot or "", color=WHITE, align=CENTER, font=titleFont
+    text=foot or "", color=colors.text, align=CENTER, font=titleFont
   }
 
   -- The profiles: three columns from five up on a wide zone, so six are two rows; two below that,
@@ -190,8 +114,7 @@ function M.build(children, widget)
   if dW < 200 then cols = 1 end
   if #options > 4 and dW >= 400 then cols = 3 end
   local rows = math.ceil(#options / cols)
-  local labelH = lineHeight(rowFont, fontH)
-  local listY = dY + headerH + contentGap
+  local labelH = Look.lineHeight(rowFont, fontH)
   local btnW = math.floor((dW - paddingX * (cols + 1)) / cols)
   local btnH = math.floor((footY - gapY - listY - (rows - 1) * gapY) / rows)
 
@@ -201,7 +124,7 @@ function M.build(children, widget)
     local y = listY + math.floor((i - 1) / cols) * (btnH + gapY)
     local isCurrent = option.current == true
     local bColor = isCurrent and accent_color or (inert and off_color or btn_color)
-    local tColor = isCurrent and BLACK or WHITE
+    local tColor = isCurrent and colors.onAccent or colors.text
 
     -- Not ready or armed, a profile is a filled box rather than a button: nothing to press.
     if inert then
