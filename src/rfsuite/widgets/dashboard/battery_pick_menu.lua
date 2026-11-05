@@ -56,14 +56,14 @@ local function rollModule()
   return nil
 end
 
---- Rebuilt when what the flight controller reported arrives, which decides what can be picked, and
---- when the pack in force or the list changes. A write's outcome rebuilds it on its own (views.lua,
---- `reporter`).
+--- Rebuilt when what the flight controller reported arrives or is replaced, which decides what can
+--- be picked and which profile a pack names, and when the pack in force or the list changes. A write's
+--- outcome rebuilds it on its own (views.lua, `reporter`).
 function M.renderKey(widget)
   local state = widget and widget.state or nil
   if state == nil then return "" end
   local pick = state.batteryPick
-  local key = (state.battery_config ~= nil and "c" or "") .. "|" .. tostring(type(pick) == "table" and pick.selectedId or "")
+  local key = tostring(state.battery_config) .. "|" .. tostring(type(pick) == "table" and pick.selectedId or "")
     .. "|" .. tostring(type(pick) == "table" and type(pick.candidates) == "table" and #pick.candidates or 0)
   if Look.style(widget) == "rotary" then
     local Roll = rollModule()
@@ -72,24 +72,20 @@ function M.renderKey(widget)
   return key
 end
 
--- One pack as a card. A pack that cannot be picked is a filled box rather than a button: the wheel
--- passes over it and a press has nothing to land on.
+-- One pack as a card. A pack that cannot be picked is still a button: the wheel walks the buttons and
+-- the grid scrolls the focused one into view, so a box in its place could not be reached and read. Its
+-- press does nothing, because the menu's `run` refuses it.
 local function packCard(nodes, widget, entry, option, x, y, w, h, p, colors, nameH)
   local isCurrent = option.current == true
-  local inert = option.selectable == false
   local bColor = isCurrent and colors.accent or colors.fill
   local tColor = isCurrent and colors.onAccent or colors.text
-  if inert then
-    bColor, tColor = colors.panel, colors.disabled
-    if isCurrent then tColor = colors.muted end
-    nodes[#nodes + 1] = { type = "rectangle", x = x, y = y, w = w, h = h, color = bColor, filled = true }
-    Look.outline(nodes, x, y, w, h, isCurrent and colors.accent or colors.rule, 1)
-  else
-    nodes[#nodes + 1] = {
-      type = "button", x = x, y = y, w = w, h = h, color = bColor,
-      press = function() run(widget, entry, option) end,
-    }
+  if option.selectable == false then
+    bColor, tColor = colors.panel, isCurrent and colors.muted or colors.disabled
   end
+  nodes[#nodes + 1] = {
+    type = "button", x = x, y = y, w = w, h = h, color = bColor,
+    press = function() run(widget, entry, option) end,
+  }
   local pad = p.isLarge and 8 or 3
   nodes[#nodes + 1] = {
     type = "label", x = x, y = y + pad, w = w, text = option.label, color = tColor, align = CENTER, font = p.rowFont,

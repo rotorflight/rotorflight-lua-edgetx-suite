@@ -134,9 +134,13 @@ end
 -- the prompt counts as answered, or a surface that stays up after the press -- the theme under
 -- the picker -- would see the picker open again at once. The test is against nil because
 -- `false` is a request too: it is the "no battery" answer.
+--
+-- A pick that writes stays up for the board's answer, so it counts as still open: answered here, the
+-- picker would be taken off the stack on this pass and raised again when the apply step has run.
 function CONDITIONS.batteryPickPending(widget)
   local pick = widget.state and widget.state.batteryPick or nil
-  return type(pick) == "table" and pick.pending == true and widget._batteryPickRequest == nil
+  if type(pick) ~= "table" or pick.pending ~= true then return false end
+  return widget._batteryPickRequest == nil or widget._batteryPickReport ~= nil
 end
 
 -- The suite's tool, which is opened only while the model is disarmed (tool_host.lua says why),
@@ -807,6 +811,14 @@ function M.reporter(widget, id)
   end
   runs[id] = report
   return report
+end
+
+--- End this visit for a press whose answer has come, if what it left up is still on top: `session`
+--- and `top` as they stood at the press. A view opened over it since, or a visit begun since, stays.
+function M.finish(widget, session, top)
+  if session == nil or widget._viewStack ~= session or M.top(widget) ~= top then return false end
+  M.navigate(widget, "done")
+  return true
 end
 
 --- The outcome of the last run of entry `id` in this visit: nil, "busy", "ok" or "failed".

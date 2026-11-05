@@ -493,6 +493,23 @@ do
   passes(world, 3)
   expect(storedPack(world) == "p1000", "the later pick's answer does", tostring(storedPack(world)))
 
+  -- A write out, the picker closed and opened again, and NO BATTERY chosen: the later answer stands.
+  press("p1300")
+  passes(world, 3)
+  press(false)
+  passes(world, 3)
+  expect(storedPack(world) == nil or storedPack(world) == "", "NO BATTERY over a write still out clears the pack",
+    tostring(storedPack(world)))
+  answers[#answers](true)
+  passes(world, 3)
+  expect(storedPack(world) == nil or storedPack(world) == "", "and the earlier write's answer does not bring it back",
+    tostring(storedPack(world)))
+  press("p1000")
+  passes(world, 3)
+  answers[#answers](true)
+  passes(world, 3)
+  expect(storedPack(world) == "p1000", "control: a pick after that still records", tostring(storedPack(world)))
+
   -- Refused at the write: the same as given up.
   BatteryPick.applyProfile = function() return false, "noqueue" end
   w.state.batteryPick.boardProfile = nil

@@ -642,6 +642,76 @@ local function run(mutate)
     check("a second press while it is sent does nothing", w._batteryPickRequest == nil)
   end
   do
+    -- The prompt while a pick is out. A writing one stays open, a closing one counts as answered.
+    local w = openPicker(true)
+    local rows = roll(w).levels[1].rows
+    check("the prompt is open", Views.condition("batteryPickPending", w) == true)
+    Menu.run(w, Menu.entry(w, "battery_pick"), rows[1])
+    check("it stays open through a pick that writes, or it would close and raise again",
+      Views.condition("batteryPickPending", w) == true)
+    w._batteryPickRequest, w._batteryPickReport = nil, nil
+    w._viewStack = nil
+    local q = openPicker(false)
+    rows = roll(q).levels[1].rows
+    Menu.run(q, Menu.entry(q, "battery_pick"), rows[1])
+    check("a pick that closes counts as the answer", Views.condition("batteryPickPending", q) == false)
+  end
+  do
+    -- The answer closes what the press left up, and nothing that came over it.
+    local w = openPicker(true)
+    local session = w._viewStack
+    check("with the picker on top it closes", Views.top(w) == "battery_pick" and Views.finish(w, session, "battery_pick") == true)
+    local q = openPicker(true)
+    session = q._viewStack
+    Views.navigate(q, "openView:menu")
+    check("a menu opened over it stays", Views.finish(q, session, "battery_pick") == false and Views.top(q) == "menu")
+    check("nor does a visit begun since end", Views.finish(q, {}, "menu") == false)
+  end
+  do
+    -- A replaced configuration or list is worked out again, and the picker's key moves.
+    local w = openPicker(true)
+    local rows = roll(w).levels[1].rows
+    check("no match while the capacity is on no profile", rows[2].selectable == false)
+    local page = req("widgets/dashboard/battery_pick_menu.lua")
+    local key = page.renderKey(w)
+    w.state.battery_config = { batteryCapacity_0 = 9999 }
+    check("a replaced configuration moves the key", page.renderKey(w) ~= key)
+    rows = Menu.entry(w, "battery_pick").options()
+    check("and the pack is worked out again", rows[2].selectable == true)
+    w.state.batteryPick.candidates = { { id = "z", name = "Z", cap = 1, profile = 4 } }
+    rows = Menu.entry(w, "battery_pick").options()
+    check("a replaced list under the same configuration too", rows[1].selectable == true)
+  end
+  do
+    -- As cards: every pack is a button the wheel can reach, and a grey one's press does nothing.
+    adds, exits, toolOpened = {}, 0, 0
+    local w = newWidget(nil)
+    w.preferences.flightlog = { enabled = true, set_fc_profile = true }
+    w.state.batteryPick = { loaded = true, pending = true, candidates = {} }
+    for i = 1, 12 do
+      w.state.batteryPick.candidates[i] = { id = "n" .. i, name = "N" .. i, cap = 7000 + i, cycles = i }
+    end
+    Views.navigate(w, "openView:battery_pick")
+    local children = {}
+    req("widgets/dashboard/battery_pick_menu.lua").build(children, w)
+    local cells
+    for i = 1, #children do
+      if children[i].type == "box" and children[i].children ~= nil then cells = children[i].children end
+    end
+    check("more packs than the room scroll in a box", cells ~= nil)
+    local buttons = 0
+    local press
+    for i = 1, #(cells or {}) do
+      if cells[i].type == "button" then
+        buttons = buttons + 1
+        press = press or cells[i].press
+      end
+    end
+    check("each pack a button, grey ones too", buttons == 12)
+    if press then press() end
+    check("a grey card's press does nothing", w._batteryPickRequest == nil)
+  end
+  do
     -- A pack in force that has lost its profile: marked, not started on.
     local w
     do
@@ -735,6 +805,9 @@ if selfTest then
     end },
     { "a theme's run reaches a pack without a profile", function(t)
       return (string.gsub(t, "if option ~= nil and option.selectable == false then return true end\n", ""))
+    end },
+    { "a replaced list keeps its old profiles", function(t)
+      return (string.gsub(t, " and pick.resolvedPacks == pick.candidates then return end", " then return end"))
     end },
     { "a second pick over one still being sent", function(t)
       return (string.gsub(t, "Views.status%(widget, entry.id%) == \"busy\" then", "false then"))

@@ -170,8 +170,8 @@ end
 -- every exit, and the options are made afresh on every build of the picker.
 local function resolvePacks(pick, config)
   local key = config or false
-  if pick.resolvedFor == key then return end
-  pick.resolvedFor = key
+  if pick.resolvedFor == key and pick.resolvedPacks == pick.candidates then return end
+  pick.resolvedFor, pick.resolvedPacks = key, pick.candidates
   local BatteryPick = requireModule("lib/battery_pick.lua")
   if type(BatteryPick) ~= "table" or type(BatteryPick.targetProfile) ~= "function" then return end
   for i = 1, #pick.candidates do

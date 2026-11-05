@@ -1871,11 +1871,17 @@ local function batteryPickApplyStep(self)
   local written = self._batteryPickWritten
   if written ~= nil then
     self._batteryPickWritten = nil
-    record(written.id)
     pick.boardProfile = written.target
+    -- Armed since the answer: a pack recorded now would be written against the flight in progress.
+    if self.state.armed == true then
+      widgetLog(self, "battery pick not recorded: the model armed before the answer was taken", "warn")
+      pick.applied = "refused:armed"
+      return true
+    end
+    record(written.id)
     pick.applied = "written"
     local Views = viewsModule()
-    if Views and written.visit ~= nil and self._viewStack == written.visit then Views.navigate(self, "done") end
+    if Views then Views.finish(self, written.visit, written.top) end
     return true
   end
 
@@ -1885,6 +1891,8 @@ local function batteryPickApplyStep(self)
   if request == nil then return true end
   local report = self._batteryPickReport
   self._batteryPickReport = nil
+  -- The pilot's latest answer stands: the answer to a write still out for an earlier one records nothing.
+  pick.writing = nil
 
   -- Refused while armed, here as well as by hiding BATTERY: a picker that was already open when
   -- the model armed, or a caller of rfsuite.batteryPick, still arrives at this step, and a pack
@@ -1927,15 +1935,21 @@ local function batteryPickApplyStep(self)
     return true
   end
 
-  -- The reply is handled outside the job pass, so the card write waits for the next one. A reply
-  -- that outlives its connection, or a later pick, records nothing.
+  -- The reply is handled outside the job pass, so the card write waits for the next one, and that
+  -- runs while the widget is on screen. A reply that outlives its connection, or a later pick,
+  -- records nothing.
   local visit = self._viewStack
+  local Views = viewsModule()
+  local top = Views and Views.top(self) or nil
   pick.writing = id
   local queued, why = BatteryPick.applyProfile(target, { reason = "battery pick", answer = function(ok)
-    if self.state.batteryPick ~= pick or pick.writing ~= id then return end
+    if self.state.batteryPick ~= pick or pick.writing ~= id then
+      widgetLog(self, "battery pick answer ignored: the pick was replaced", "debug")
+      return
+    end
     pick.writing = nil
     if ok then
-      self._batteryPickWritten = { id = id, target = target, visit = visit }
+      self._batteryPickWritten = { id = id, target = target, visit = visit, top = top }
       if report then report("ok") end
     else
       widgetLog(self, "battery pick not recorded: the profile write was given up", "warn")
