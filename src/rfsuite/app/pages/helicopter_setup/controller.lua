@@ -127,9 +127,6 @@ function M.new(runtime, transport, mathModule, labels)
     self:log(declined and "warn" or "error", "%s failed: %s", api, reason)
     self.message, self.transition = self.L.failed, nil
     self.closing = nil
-    -- One lost reply during the load: Retry follows by itself once, after the late replies have had
-    -- their time. Only an unanswered read: a refusal or a wrong reply stays on the screen.
-    self.loadRetryAt = not self.ready and not self.loadRetried and (reason == "max_retries" or reason == "timeout") and now() + 300 or nil
     if api~="cleanup" then self:release() end
     -- A failed multi-profile transaction must restore the selected profile, too.
     if self.restoreProfile and self:allowed() then
@@ -913,7 +910,6 @@ function M.new(runtime, transport, mathModule, labels)
       self.startTail = self.data.mixer_config.tail_rotor_mode
       self.savedRebootPending = self.rebootPending
       self.ready, self.transition, self.buildRequested = true, nil, true
-      self.loadRetried = nil
       if self.logInfo then self:log("info", "load ready") end
       self.message = self.L.ready
       self:rebuild()
@@ -946,19 +942,16 @@ function M.new(runtime, transport, mathModule, labels)
       job.after = function(d, err) self:pollReply(job, d, err) end
       self.pollJob = job
     end
-    job.api, job.optional = api, true
+    -- A reading only shown may go unanswered. Everything else ends a test that relies on it.
+    job.api, job.optional = api, api == "analog" or api == "attitude"
     job.voltageSource = selectedSources and selectedSources.voltageMeterSource
     job.currentSource = selectedSources and selectedSources.currentMeterSource
     self.bus:add(job)
   end
   function w:pollReply(job, d, err)
     local api = job.api
-    -- One lost live reading: what was read last stands, with its age, until the next poll answers.
-    -- The status age decides what a lost status means.
-    if err and api ~= "analog" then
-      if self.logDebug then self:log("debug", "%s poll unanswered: %s", api, tostring(err)) end
-      return
-    end
+    -- The last attitude stands, with its age, until the next poll answers.
+    if err and api == "attitude" then return end
     self.data[api] = not err and d or nil
     if api == "analog" then
       self.analogAt = not err and now() or nil
@@ -1042,12 +1035,6 @@ function M.new(runtime, transport, mathModule, labels)
         end, true)
       end
       if not self.bus:idle() then self.bus:tick() end
-      return
-    end
-    if self.loadRetryAt and self.error and now() >= self.loadRetryAt and self.bus:idle() then
-      self.loadRetryAt, self.loadRetried = nil, true
-      if self.logInfo then self:log("info", "load read again by itself") end
-      self:retry()
       return
     end
     if self.cleanupFailed and (self.cleanupPending or 0)==0 and not self.error then

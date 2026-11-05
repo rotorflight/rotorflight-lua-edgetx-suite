@@ -1067,48 +1067,13 @@ do
   end
   check(once.ready, "ONCE the load finished")
   check(asked[0] and not asked[1], "ONCE nothing of the load is sent twice")
-  -- A lost reply during the load: read again by itself once, then the error stays.
-  local again = beginWorld()
-  local realPump = pump
-  local function lossyPump(command, n)
-    local m = q.messages[1]
-    if m and m.command == command and n[1] > 0 then
-      n[1] = n[1] - 1
-      table.remove(q.messages, 1)
-      if m.errorHandler then m.errorHandler(m, "max_retries") end
-      return
-    end
-    return realPump()
-  end
-  local losses = { 1 }
-  for _ = 1, 3000 do
-    again:tick(); lossyPump(119, losses); ticks = ticks + 1
-    if again.ready then break end
-  end
-  check(again.ready and not again.error, "RELOAD one lost reply during the load reads again by itself")
-  eq(losses[1], 0, "RELOAD the reply was lost")
-  local twice = beginWorld()
-  losses = { 2 }
-  local errorSeenAt
-  for i = 1, 3000 do
-    twice:tick(); lossyPump(119, losses); ticks = ticks + 1
-    if twice.ready then break end
-    if twice.error and losses[1] == 0 and not errorSeenAt then errorSeenAt = i end
-    if errorSeenAt and i > errorSeenAt + 500 then break end
-  end
-  check(twice.error ~= nil and not twice.ready, "RELOAD a second lost reply stays on the screen")
-  -- A refusal is not read again.
-  local refused = beginWorld()
-  refused.loadRetried = nil
-  refused:fail("arming_disable", "armed")
-  check(refused.loadRetryAt == nil, "RELOAD a refusal is not read again")
-  -- A lost live reading keeps the last value and ends nothing.
+  -- Only a reading that is just shown may go unanswered.
   local polled = world()
-  local stored = polled.data.status
   polled:pollReply({ api = "attitude" }, nil, "max_retries")
-  check(polled.error == nil, "POLL a lost reading ends nothing")
-  polled:pollReply({ api = "status" }, nil, "max_retries")
-  check(polled.data.status == stored, "POLL a lost status keeps the last one")
+  check(polled.error == nil, "POLL a lost attitude ends nothing")
+  polled.step, polled.pollJob, polled.lastPoll, polled.pollIndex = 11, nil, nil, 0
+  polled:poll()
+  check(polled.pollJob and polled.pollJob.optional == false or polled.pollJob == nil, "POLL a status poll is not optional")
   -- Back on a load that failed before anything was written waits for no reply.
   local failing = beginWorld()
   failCommand = 119

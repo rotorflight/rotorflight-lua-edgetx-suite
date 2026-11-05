@@ -66,10 +66,9 @@ page reads on by itself once the link is usable. **Back** leaves at once while n
 written in this visit; once something has been written, a lost link asks for the flight controller
 to be powered off first, because test outputs cannot be confirmed off.
 
-One lost telemetry frame does not end a visit. A live reading that is not answered keeps its last
-value until the next one. A load that loses a reply reads again by itself once, as **Try again**
-does; after that the error stays. No request is sent twice, because a late reply could not be told
-from the answer to a later one.
+An unanswered attitude or power reading keeps its last value until the next one. Any other request
+that goes unanswered shows the error with **Try again**. These requests are not sent twice, because
+a late reply could not be told from the answer to a later one.
 
 A status older than three seconds immediately blocks editing. Active tests and
 pending writes still fail closed and release overrides. During an idle read-only

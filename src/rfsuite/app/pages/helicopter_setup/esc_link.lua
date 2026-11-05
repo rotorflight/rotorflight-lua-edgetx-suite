@@ -25,19 +25,24 @@ function M.attach(w, params, status)
   -- frames, and an ESC that sends telemetry by itself delivers them without half-duplex too. So an ESC
   -- this page can program is configured half-duplex, an ordinary edit saved with the restart, and the
   -- search then reaches the wirings that can program it first. F4 boards have no pin swap.
+  function w:escPinSwap()
+    local target = self.data.board_info and self.data.board_info.target_name
+    return type(target) == "string" and string.find(target, "F4", 1, true) and 0 or 1
+  end
   function w:escUseHalfDuplex()
     local config = self.data.esc_sensor_config
     if not params.families[config.protocol] or config.half_duplex == 1 then return end
-    local target = self.data.board_info and self.data.board_info.target_name
-    local f4 = type(target) == "string" and string.find(target, "F4", 1, true) ~= nil
-    if self.logDebug then self:log("debug", "ESC wiring set half-duplex, pin swap %s", f4 and 0 or 1) end
+    local swap = self:escPinSwap()
+    if self.logDebug then self:log("debug", "ESC wiring set half-duplex, pin swap %s", swap) end
     self:field("esc_sensor_config", "half_duplex", 1, true)
-    self:field("esc_sensor_config", "pin_swap", f4 and 0 or 1, true)
+    self:field("esc_sensor_config", "pin_swap", swap, true)
   end
-  -- Moving from an ESC this page can program to one it cannot takes the wiring back to what is saved.
+  -- Moving from an ESC this page can program to one it cannot takes back the wiring choosing it set.
+  -- Any other wiring, a detected one for instance, stays.
   function w:escRestoreWiring(previous)
     local config, saved = self.data.esc_sensor_config, self.saved.esc_sensor_config
     if not saved or not params.families[previous] or params.families[config.protocol] then return end
+    if config.half_duplex ~= 1 or config.pin_swap ~= self:escPinSwap() then return end
     self:field("esc_sensor_config", "half_duplex", saved.half_duplex, true)
     self:field("esc_sensor_config", "pin_swap", saved.pin_swap, true)
   end
