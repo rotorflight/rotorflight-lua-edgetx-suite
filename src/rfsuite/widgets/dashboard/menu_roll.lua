@@ -172,7 +172,9 @@ end
 
 local function moveLeft(widget, roll)
   roll.focus = 1
-  roll.levels[roll.base + 1] = nil
+  -- Nothing shifts, and the right list stays where it was; a question has been taken back with its press.
+  local right = roll.levels[roll.base + 1]
+  if right ~= nil and right.question ~= nil then roll.levels[roll.base + 1] = nil end
   trace("focus left at level " .. tostring(roll.base))
   rebuild(widget, roll)
 end
@@ -547,7 +549,7 @@ local function makeSlot(roll, side, offset, key)
     return EMPTY
   end
   local source = roll.source
-  slot = {
+  local slot = {
     item = item,
     text = item.title or item.label or "",
     off = source.off ~= nil and source.off(item) == true,

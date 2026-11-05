@@ -776,7 +776,11 @@ function M.navigate(widget, after)
     local closed = M.top(widget)
     pop(widget)
     -- That view's rolling menu starts over the next time it is opened; one under it keeps its place.
-    if widget._viewStack ~= nil then M.dropRoll(widget, closed) end
+    if widget._viewStack ~= nil then
+      M.dropRoll(widget, closed)
+      -- What the quick menu read for its way on goes with it.
+      if closed == M.DEFAULT_VIEW then widget._viewStack.tree = nil end
+    end
     M.invalidate(widget)
   elseif verb == "done" then
     -- A view over a rolling menu, such as the battery prompt, hands back to the place under it.
@@ -998,6 +1002,9 @@ function M.key(widget, event, touch)
   -- which delivers it here rather than to a button, RTN's step back to the left list, and the finger.
   local rolling = M.topRoll(widget)
   if rolling ~= nil then
+    -- A reconnect takes the theme and the scene with it until the board's id has been read: what stands
+    -- on screen says what held before, so nothing is acted on by it.
+    if widget.theme == nil and widget.built ~= true then return true end
     local enter, exitKey = _G.EVT_VIRTUAL_ENTER, _G.EVT_VIRTUAL_EXIT
     local own = M.find(widget, rolling.view)
     if own ~= nil and own.load ~= nil then

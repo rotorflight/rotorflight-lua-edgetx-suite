@@ -97,7 +97,7 @@ end
 
 local function newWidget(style)
   return {
-    zone = { w = 800, h = 480 }, connectionReady = true, built = true, renderKey = "test",
+    zone = { w = 800, h = 480 }, connectionReady = true, built = true, renderKey = "test", theme = {},
     state = {
       armed = false, connectionReady = true, batteryProfile = 2,
       battery_config = { batteryCapacity_0 = 2000, batteryCapacity_1 = 3000, batteryCapacity_2 = 4000 },

@@ -55,10 +55,11 @@ local function trace(msg)
 end
 
 -- How the work of entry `id` is going, in the words for the header; nil while there is nothing to say.
-local function statusWord(widget, t, id)
+local function statusWord(widget, t, id, other)
   local status = Views.status(widget, id)
-  if status == "busy" then return t("widgets.dashboard.battery_profile_busy", "SENDING...") end
-  if status == "failed" then return t("widgets.dashboard.battery_profile_failed", "NOT SAVED") end
+  local also = other ~= nil and Views.status(widget, other) or nil
+  if status == "busy" or also == "busy" then return t("widgets.dashboard.battery_profile_busy", "SENDING...") end
+  if status == "failed" or also == "failed" then return t("widgets.dashboard.battery_profile_failed", "NOT SAVED") end
   return nil
 end
 
@@ -119,6 +120,7 @@ end
 local function whyOf(widget, row)
   if widget.state and widget.state.armed == true then return REASON_ARMED end
   if row.tree == true then return treeWhy(widget, row) end
+  if row.needsConnection == true and widget.connectionReady ~= true then return REASON_FC end
   if row.id ~= nil and row.kind ~= nil then return quickWhy(widget, row) end
   return nil
 end
@@ -172,7 +174,12 @@ function M.quick(widget, entries, t)
   local function listOf(row)
     if row.id == "tool" and row.tree ~= true then return Tree.top(widget, tree) end
     if row.tree == true then return Tree.children(widget, tree, row) end
-    return optionsOf(widget, row)
+    local options = optionsOf(widget, row)
+    -- A battery profile is written to the board: with no connection its choices are grey like the row.
+    if options ~= nil and row.id == "battery_profile" then
+      for i = 1, #options do options[i].needsConnection = true end
+    end
+    return options
   end
   return {
     id = Views.DEFAULT_VIEW,
@@ -242,7 +249,7 @@ function M.quick(widget, entries, t)
     end,
     -- One message by rank: how a write went, or that a page could not be opened; then the connection.
     status = function(roll)
-      local word = statusWord(widget, t, "battery_profile") or statusWord(widget, t, "battery_pick")
+      local word = statusWord(widget, t, "battery_profile", "battery_pick")
       if word ~= nil then return word, "headText" end
       if roll ~= nil and roll.couldNotOpen == true then
         return t("widgets.dashboard.roll_could_not_open", "Could not open"), "error"
@@ -257,8 +264,8 @@ function M.quick(widget, entries, t)
       return connectionWord, connectionRole
     end,
     notice = function()
-      local session, status, detail, taskName, done, total, failed = connectionNow()
-      return ConnectionStatus.notice(widget.i18n, session, status, detail, taskName, done, total, failed)
+      local rfSession, status, detail, taskName, done, total, failed = connectionNow()
+      return ConnectionStatus.notice(widget.i18n, rfSession, status, detail, taskName, done, total, failed)
     end,
     noticeClose = t("widgets.dashboard.roll_close", "Close"),
     icon = function(row)
@@ -272,7 +279,8 @@ function M.quick(widget, entries, t)
     end,
     close = function() Views.navigate(widget, "done") end,
     back = function()
-      if Views.top(widget) == nil then
+      -- Under a menu with no base layer there is nothing to return to: it is what full screen shows.
+      if Views.top(widget) == nil or widget._viewBase == nil then
         Views.navigate(widget, "done")
       else
         Views.navigate(widget, "closeView")

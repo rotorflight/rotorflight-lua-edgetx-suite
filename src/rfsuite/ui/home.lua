@@ -1471,6 +1471,12 @@ local function returnToRootOnDisconnect()
   -- A visit from the host's menu goes back there: the place the pilot came from shows what the lost
   -- link means for each of its rows, and the tool's root would be a screen he never asked for.
   if state.visitMenuId ~= nil then
+    -- A save that restarts the board takes the link with it, and its outcome is the pilot's to read:
+    -- it holds the page until then, and the back key leaves as it does from any page.
+    if SavePipeline and (SavePipeline.blocksNavigation() or SavePipeline.hasOutcome()) then
+      logf("info", "link lost on a visit to %s, the save holds the page", tostring(state.visitMenuId))
+      return
+    end
     logf("info", "link lost on a visit to %s, the tool closes", tostring(state.visitMenuId))
     closeHelpDialogIfOpen()
     state.leavePromptVisible = false

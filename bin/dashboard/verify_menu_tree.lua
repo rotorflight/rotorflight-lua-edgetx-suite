@@ -100,7 +100,7 @@ end
 
 local function newWidget()
   return {
-    zone = { w = 800, h = 480 }, connectionReady = true, built = true, renderKey = "test",
+    zone = { w = 800, h = 480 }, connectionReady = true, built = true, renderKey = "test", theme = {},
     state = { armed = false, connectionReady = true, batteryProfile = 2,
       battery_config = { batteryCapacity_0 = 2000, batteryCapacity_1 = 3000 } },
     preferences = { general = { menu_style = "rotary" }, dashboard = {} },
@@ -150,9 +150,8 @@ local function run(mutate)
   do
     local w, r = open()
     moveTo(r.levels[1], "tool")
-    local right = r.levels[2]
     build(w)
-    right = r.levels[2]
+    local right = r.levels[2]
     check("MAIN MENU previews the suite's top level", right ~= nil and right.rows[1].id == "flight_tuning" and right.rows[2].id == "setup")
     check("in the manifest's order, the system section after", find(right.rows, "tools") ~= nil and find(right.rows, "settings") ~= nil)
     check("the preview takes no focus", r.focus == 1)
@@ -501,6 +500,78 @@ local function run(mutate)
     check("a row's picture is in the scheme's folder", string.find(source.icon(row), "/roll_icons/light/setup_mixer_icon.png", 1, true) ~= nil)
     check("a quick menu row has one", string.find(source.icon(r.levels[1].rows[r.levels[1].index]), "/roll_icons/light/tool.png", 1, true) ~= nil)
     check("an option has none", source.icon({ id = "a", label = "A" }) == nil)
+  end
+
+  -- From the review of the finished branch: each of these was read wrong once.
+  do
+    -- RTN from the right: the right list stays where it was.
+    local w, r = open()
+    toSetup(w, r)
+    moveTo(r.levels[3], "mixer")
+    r.slots = nil
+    Roll.back(w); build(w)
+    check("RTN leaves the right list on its row", r.focus == 1 and r.base == 2 and r.levels[3] ~= nil and rowId(r.levels[3]) == "mixer")
+    Roll.press(w); build(w)
+    check("and a press goes back to it", r.focus == 2 and rowId(r.levels[3]) == "mixer")
+  end
+  do
+    -- A menu with no base layer: RTN on the first level leaves, rather than drawing the menu again.
+    local w = newWidget()
+    Views.navigate(w, "openView:menu")
+    build(w)
+    local r = Views.topRoll(w)
+    Roll.back(w)
+    check("with no base layer RTN on the first level leaves the menu", Views.topRoll(w) == nil and Views.top(w) == nil)
+  end
+  do
+    -- A battery profile's choices are grey without a connection, with the focus already on them.
+    local w, r = open()
+    moveTo(r.levels[1], "battery_profile")
+    Roll.press(w); build(w)
+    local choice = r.levels[2].rows[r.levels[2].index]
+    check("a profile can be pressed while connected", r.source.off(choice) ~= true)
+    w.connectionReady = false
+    check("and not without a connection", r.source.off(choice) == true and r.source.reason(choice) == "Needs the flight controller")
+    w.connectionReady = true
+  end
+  do
+    -- One message by rank: a write under way before an older failure of another write.
+    local w, r = open()
+    local session = Views.session(w)
+    session.status = { battery_profile = "failed", battery_pick = "busy" }
+    check("SENDING outranks an older NOT SAVED", r.source.status(r) == "SENDING...")
+    session.status = { battery_profile = "failed" }
+    check("NOT SAVED stands alone", r.source.status(r) == "NOT SAVED")
+    session.status = nil
+    r.couldNotOpen = true
+    check("Could not open comes next", r.source.status(r) == "Could not open")
+    r.couldNotOpen = nil
+    Roll.press(w)
+  end
+  do
+    -- Nothing prepared stays where the rest of the radio's scripts can reach it.
+    local w = open()
+    build(w)
+    local saw = rawget(_G, "slot")
+    check("a prepared slot is no global", saw == nil)
+    -- What the menu read for its way on goes with it, however it closes.
+    Views.navigate(w, "closeView")
+    check("RTN out of the menu lets the tree go", w._viewStack == nil or w._viewStack.tree == nil)
+  end
+  do
+    -- A reconnect's scene is what held before: while no scene can be built, nothing is acted on by it.
+    local w, r = open()
+    moveTo(r.levels[1], "tool")
+    Roll.press(w); build(w)
+    moveTo(r.levels[2], "logs")
+    r.slots = nil
+    w.theme, w.built = nil, false
+    opened = {}
+    check("a press in that stretch is taken", Views.key(w, EVT_VIRTUAL_ENTER) == true)
+    check("and opens nothing", #opened == 0 and Views.topRoll(w) == r)
+    w.theme, w.built = {}, true
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("with the scene back it acts", #opened == 1)
   end
 
   -- Every row the roll can show has its picture in both schemes: the firmware reports a missing one on

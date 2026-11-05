@@ -121,7 +121,7 @@ leads to something. On opening, the first row that can be pressed now is the cur
 - **A press** runs the current entry. Where it leads to a choice, a question or a further list, the
   focus moves to the right list instead. A press on a right row that leads on shifts both columns
   by a level; any other press there finishes, and the menu closes.
-- **RTN** takes back one press: from the right list the focus returns left and nothing shifts; from
+- **RTN** takes back one press: from the right list the focus returns left, and nothing shifts or moves; from
   the left list at depth both columns shift back a level; on the first level it closes the menu.
 - **A swipe** rolls the list it starts on, one row for a row's height. A list on the right takes
   the focus when it is swiped.
@@ -405,7 +405,7 @@ and with `needsFc` where it needs a connection, its ancestors' condition include
 menu says with `existsWhen` what is left of its `visibleWhen` once the passing states are taken out.
 `Views.visit(widget, menuId, place)` opens the tool on a page from a roll and keeps the place on the widget;
 `Views.toolClosed` takes the host's outcome: `back` and `failed` return to the place, anything else forgets
-it. `lib/connection_status.lua` holds the connection's words for the tool's header and this one, and
+it, and a `done` from a view over a rolling menu hands back to the place under it. `lib/connection_status.lua` holds the connection's words for the tool's header and this one, and
 `bin/dashboard/make_roll_icons.py` makes the pictures under `widgets/dashboard/roll_icons/` from the manifest's
 icons (`--check` says where one is stale). `widgets/dashboard/menu_look.lua`
 holds what these pages share in the card style as well: the colors, the two layout profiles and

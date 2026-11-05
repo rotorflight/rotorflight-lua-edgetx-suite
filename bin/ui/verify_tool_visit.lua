@@ -138,5 +138,24 @@ do
   check(state.isClosing ~= true and state.menu.isRoot(), "off a visit it walks to the root (control)")
 end
 
+-- A save that holds the page keeps it through the lost link its restart causes.
+do
+  connected = true
+  local state = openWith(PAGE, true)
+  local lost = hidden("returnToRootOnDisconnect")
+  local i = 1
+  while true do
+    local name, value = debug.getupvalue(lost, i)
+    if not name then break end
+    if name == "SavePipeline" then
+      debug.upvaluejoin(lost, i, function() return value end, 1)
+      debug.setupvalue(lost, i, { blocksNavigation = function() return true end, hasOutcome = function() return false end })
+    end
+    i = i + 1
+  end
+  lost()
+  check(state.isClosing ~= true and state.menu.getCurrentMenuId() == PAGE, "a save holding the page keeps it through a lost link")
+end
+
 print(checks .. " checks, " .. failures .. " failures")
 os.exit(failures == 0 and 0 or 1)
