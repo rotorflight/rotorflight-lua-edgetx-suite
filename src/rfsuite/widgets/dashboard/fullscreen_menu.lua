@@ -214,6 +214,8 @@ local function batteryPickOptions(widget, t)
   local profileFmt = t("widgets.dashboard.battery_pick_profile", "Profile %d")
   local noProfile = t("widgets.dashboard.battery_pick_profile_none", "no profile")
   local cyclesFmt = t("widgets.dashboard.battery_pick_cycles", "%d cycles")
+  -- What a pack's kept words were made in: another language makes them anew.
+  local wordsKey = profileFmt .. noProfile .. cyclesFmt
 
   local options = {}
   for i = 1, #candidates do
@@ -225,10 +227,10 @@ local function batteryPickOptions(widget, t)
     local hasProfile = type(target) == "number"
     local selectable = (not setsProfile) or hasProfile
 
-    -- What a pack says is made once per configuration and kept on the pack: the options are made afresh
-    -- on every build, so a list of many packs would pay for these strings on each.
+    -- What a pack says is made once and kept on the pack, while its language and its profile stand: the
+    -- options are made afresh on every build, so a list of many packs would pay for these strings on each.
     local facts = pack.pickFacts
-    if facts == nil then
+    if facts == nil or pack.pickKey ~= wordsKey or pack.pickTarget ~= target then
       facts = {}
       if type(pack.cap) == "number" and pack.cap > 0 then
         facts[#facts + 1] = string.format("%d mAh", math.floor(pack.cap))
@@ -237,13 +239,14 @@ local function batteryPickOptions(widget, t)
         facts[#facts + 1] = string.format(cyclesFmt, math.floor(pack.cycles))
       end
       facts[#facts + 1] = hasProfile and string.format(profileFmt, target + 1) or noProfile
-      pack.pickFacts = facts
+      pack.pickFacts, pack.pickKey, pack.pickTarget = facts, wordsKey, target
       pack.pickDetails, pack.pickDetailsOff = nil, nil
     end
 
     -- Short of room the profile goes first, and where the pack cannot be picked for want of one, the
     -- reason stays.
-    local details = selectable and pack.pickDetails or pack.pickDetailsOff
+    local details
+    if selectable then details = pack.pickDetails else details = pack.pickDetailsOff end
     if details == nil then
       details = { table.concat(facts, " - ") }
       if selectable then

@@ -733,6 +733,27 @@ local function run(mutate)
     check("forty-one roll", roll(w) ~= nil and roll(w).view == "battery_pick")
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("and the wheel's press is answered", w._batteryPickRequest ~= nil or w._viewStack == nil or w._viewStack.roll == nil)
+    -- What a pack says follows its language, its profile and whether it can be picked.
+    do
+      local q = big(2)
+      local pick = q.state.batteryPick
+      local entry = Menu.entry(q, "battery_pick")
+      check("the words say the profile", string.find(entry.options()[1].detail, "Profile 1", 1, true) ~= nil)
+      pick.candidates[1].targetProfile = 3
+      check("a new profile is said", string.find(entry.options()[1].detail, "Profile 4", 1, true) ~= nil)
+      q.i18n = { t = function(key, fallback)
+        if key == "widgets.dashboard.battery_pick_cycles" then return "%d Zyklen" end
+        return fallback
+      end }
+      check("another language is said", string.find(Menu.entry(q, "battery_pick").options()[1].detail, "Zyklen", 1, true) ~= nil)
+      q = big(2)
+      q.state.batteryPick.candidates[1].targetProfile = nil
+      local off = Menu.entry(q, "battery_pick").options()[1]
+      check("no profile: the reason stays when shortened", off.selectable == false and off.details[#off.details] == "no profile")
+      q.preferences.flightlog.set_fc_profile = false
+      local on = Menu.entry(q, "battery_pick").options()[1]
+      check("the switch off: the profile goes first when shortened", on.selectable == true and string.find(on.details[#on.details], "mAh", 1, true) ~= nil)
+    end
     w = big(100)
     n = cost(w)
     check("a hundred roll inside a call: " .. n, n < 20000 * 0.9)
@@ -866,8 +887,11 @@ if selfTest then
     { "a long list stays cards", function(t)
       return (string.gsub(t, "#pick.candidates > CARDS_MAX", "false"))
     end },
+    { "a pack's words outlive its language or profile", function(t)
+      return (string.gsub(t, "if facts == nil or pack.pickKey ~= wordsKey or pack.pickTarget ~= target then", "if facts == nil then"))
+    end },
     { "a pack's words made afresh on every build", function(t)
-      return (string.gsub(t, "pack.pickFacts = facts\n", ""))
+      return (string.gsub(t, "pack.pickFacts, pack.pickKey, pack.pickTarget = facts, wordsKey, target\n", ""))
     end },
     { "a replaced list keeps its old profiles", function(t)
       return (string.gsub(t, " and pick.resolvedPacks == pick.candidates then return end", " then return end"))
