@@ -1,0 +1,9 @@
+{
+  "id": "status-line-rebuild",
+  "name": "Dashboard status line",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_status_line_rebuild.lua"
+  ],
+  "step": "Check a new status line on the connection screen rebuilds nothing",
+  "rationale": "lvgl.clear() leaves each cleared object's native wrapper allocated, and the compile pass's count changes the line once a second. This runs the real runtime against a stand-in pass, on the splash and on the standby screen."
+}

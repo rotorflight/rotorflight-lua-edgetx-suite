@@ -453,9 +453,10 @@ from what the previous one sent. The settings on screen, the ESC's name and its 
 to the page's own initial ones when the page is left as well, so a visit whose read fails does not
 show the previous ESC's either.
 
-The ESC Tools grid lights AM32, BLHeli_S and Bluejay together, because what lights them is the
-ESC telemetry protocol, which all three share. Which of the three pages fits is still the
-pilot's choice; on the BLHeli_S and Bluejay pages these checks make a wrong choice visible
+The ESC Tools grid lights AM32, Goosky, BLHeli_S and Bluejay together on *BLHELI32*, because what
+lights them is the ESC telemetry protocol, which they share; *GOOSKY* lights AM32 and Goosky alone.
+The Goosky tile opens the AM32 page, so all of this holds for it as it does for AM32. Which of the
+pages fits is still the pilot's choice; on the BLHeli_S and Bluejay pages these checks make a wrong choice visible
 instead of writing it to the ESC.
 
 A save the page is left during still reaches the ESC: its write is already queued and is sent.

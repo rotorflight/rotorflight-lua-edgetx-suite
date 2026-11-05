@@ -1,0 +1,9 @@
+{
+  "id": "goosky-esc",
+  "name": "Goosky ESC",
+  "commands": [
+    "lua5.3 bin/esc/verify_goosky.lua"
+  ],
+  "step": "Check the Goosky protocol numbers and tiles",
+  "rationale": "A board stores whatever protocol number it is sent, so the Telemetry page is built at each API level and the numbers it offers are read back. The tiles run through the real manifest and menu registry."
+}

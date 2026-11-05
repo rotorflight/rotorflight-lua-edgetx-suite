@@ -1,0 +1,4 @@
+- **Goosky ESC (`app/pages/setup/esc_motors/telemetry`, `app/manifest.lua`, `ui/home.lua`, `docs/pages/setup/esc_motors/esc_tools/escmfg/am32.md`)**:
+  - *Setup* -> *ESC & Motors* -> *Telemetry* offers *GOOSKY* (16) from MSP API 12.10, behind *RECORD*. A Goosky ESC runs AM32 firmware and sends BLHeli32 telemetry, so the firmware treats it as an alias of *BLHELI32*.
+  - *ESC Tools* gains a *Goosky* tile that opens the AM32 page under that name, its summary line reading *Goosky AM32 / EEPROM n / vX.Y*. It and the *AM32* tile are lit on either protocol; *BLHeli_S* and *Bluejay* stay on *BLHELI32* alone.
+  - Each setting of the Telemetry page and of the AM32 page now has its own help, the AM32 page's *Section* selector excepted. The Telemetry page's help keeps its introduction and the wiring detection buttons, the AM32 page's one sentence, and the AM32 page's header help is lit from the first visit.
