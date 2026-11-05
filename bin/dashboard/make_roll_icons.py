@@ -60,9 +60,9 @@ def motifs():
         text = re.sub(r"\n    %s = \{.*?\n    \},?" % menu, "\n", text, flags=re.S)
     pages = page_icons()
     found, fell = {}, []
-    for line in text.split("\n"):
-        if line.strip().startswith("--") or "menuId =" not in line or " id = " not in line:
-            continue
+    # An entry can run over several lines; a comment is no entry.
+    text = re.sub(r"^\s*--.*$", "", text, flags=re.M)
+    for line in re.findall(r'\{ id = "\w+",(?:[^{}]|\{[^{}]*\})*?menuId = "\w+"(?:[^{}]|\{[^{}]*\})*?\}', text, flags=re.S):
         icon = re.search(r'icon = "@pages/([^"]+)\.png"', line)
         if icon:
             found[icon.group(1).replace("/", "_")] = icon.group(1)
