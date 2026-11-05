@@ -257,9 +257,16 @@ do
   local api = assert(loadfile(source("src/rfsuite/" .. apiPath)))()
   local queue = { add = function() end }
   local rows, helped, headers = 0, 0, {}
-  local function row(opts)
+  local shownHelp, titles, setTarget = {}, {}, nil
+  -- Press the row's `?` the way the control does, and read what reaches the page's own help route.
+  local function row(label, opts)
     rows = rows + 1
-    if type(opts) == "table" and type(opts.helpText) == "string" and opts.helpText ~= "" then helped = helped + 1 end
+    if type(opts) == "table" and type(opts.helpText) == "string" and opts.helpText ~= "" then
+      helped = helped + 1
+      if type(opts.onHelp) == "function" then opts.onHelp(opts.helpText, opts.helpTitle) end
+      local last = shownHelp[#shownHelp]
+      if last and last.text == opts.helpText and last.title == label then titles[#titles + 1] = label end
+    end
     return 1
   end
   local pageModules = {
@@ -274,11 +281,12 @@ do
         headers[#headers + 1] = "subheader " .. tostring(firmware)
         return 1
       end,
-      appendComboSelect = function(_, _, _, _, label, _, _, _, opts)
+      appendComboSelect = function(_, _, _, _, label, _, _, onSelect, opts)
         if label == "Section" then return 1 end
-        return row(opts)
+        if label == "ESC Target" then setTarget = onSelect end
+        return row(label, opts)
       end,
-      appendNumberField = function(_, _, _, _, _, opts) return row(opts) end
+      appendNumberField = function(_, _, _, _, label, opts) return row(label, opts) end
     },
     ["ui/loading_overlay.lua"] = {},
     ["ui/confirm_dialog.lua"] = {},
@@ -295,6 +303,7 @@ do
     return function() return value end
   end
   _G.rfsuite = { palette = Palette, paths = cardPaths(), session = { esc4WayMotorCount = 2 } }
+  local openHelp = function(text, title) shownHelp[#shownHelp + 1] = { text = text, title = title } end
   local page = assert(loadfile(source("src/rfsuite/app/pages/setup/esc_motors/esc_tools/escmfg/am32/page.lua")))()
   local ui
   for i = 1, 30 do
@@ -309,9 +318,11 @@ do
       menu = { getCurrentMenuId = function() return menuId end } })
     ui.notice, ui.loading, ui.saving = nil, false, false
     ui.currentSection, ui.parsedCache, ui.escModel, ui.escFirmware = section, parsed, parsed and "AM32", parsed and "SW2.19"
-    rows, helped, headers = 0, 0, {}
+    -- As after a reply: the read this build queued has been answered.
+    ui.runtime.readPending = false
+    rows, helped, headers, shownHelp, titles = 0, 0, {}, {}, {}
     local children = {}
-    page.build({ children = children, x = 0, y = 0, w = 600, h = 400, i18n = {},
+    page.build({ children = children, x = 0, y = 0, w = 600, h = 400, i18n = {}, openHelp = openHelp,
       menu = { getCurrentMenuId = function() return menuId end } })
     return children
   end
@@ -320,6 +331,28 @@ do
       if child.type == "label" and child.text == wanted then return true end
     end
     return false
+  end
+  -- Any line of that shape, whatever its numbers, so a stale one with other versions fails too.
+  local function hasSummary(children)
+    for _, child in ipairs(children) do
+      if child.type == "label" and type(child.text) == "string"
+        and string.find(child.text, "Goosky AM32", 1, true) then return true end
+    end
+    return false
+  end
+  local function rebuildOnly(menuId)
+    local context = { children = {}, x = 0, y = 0, w = 600, h = 400, i18n = {}, openHelp = openHelp,
+      menu = { getCurrentMenuId = function() return menuId end } }
+    -- A target change reloads the page, and that build stops at the safety notice. Past it, as the
+    -- pilot goes, or a line left behind would never be drawn and this check could not fail.
+    page.build(context)
+    ui.notice, ui.loading, ui.saving = nil, false, false
+    headers = {}
+    local children = {}
+    context.children = children
+    page.build(context)
+    check("the build reached the page's own heading", headers[1] ~= nil)
+    return children
   end
 
   local GOOSKY, AM32 = "setup_esc_motors_esc_tools_goosky_page", "setup_esc_motors_esc_tools_am32_page"
@@ -331,18 +364,29 @@ do
   check("Goosky: the summary line as the issue words it",
     hasLabel(children, "Goosky AM32 / EEPROM 3 / v2.19"))
   children = build(GOOSKY, 1, nil)
-  check("Goosky: no summary line before the ESC has answered", not hasLabel(children, "Goosky AM32 / EEPROM 3 / v2.19")
+  check("Goosky: no summary line before the ESC has answered", not hasSummary(children)
     and headers[1] == "Goosky Configurator", headers[1])
+
+  build(GOOSKY, 1, parsed)
+  page.onReload({ requestRebuild = function() end })
+  check("Goosky: Reload drops the line until the ESC has answered again", not hasSummary(rebuildOnly(GOOSKY)))
+  children = build(GOOSKY, 1, parsed)
+  check("Goosky: the line is back for the next test", hasSummary(children))
+  check("the ESC Target row was offered", type(setTarget) == "function")
+  if setTarget then setTarget(1) end
+  check("Goosky: another ESC Target drops the line until that ESC has answered", not hasSummary(rebuildOnly(GOOSKY)))
 
   children = build(AM32, 1, parsed)
   check("AM32: the title is unchanged", headers[1] == "AM32 Configurator - AM32", headers[1])
   check("AM32: the firmware line is unchanged", headers[2] == "subheader SW2.19", headers[2])
-  check("AM32: no Goosky line", not hasLabel(children, "Goosky AM32 / EEPROM 3 / v2.19"))
+  check("AM32: no Goosky line", not hasSummary(children))
 
   for section = 1, 3 do
     build(AM32, section, parsed)
     check(string.format("section %d: every row has its own help", section), rows > 0 and rows == helped,
       tostring(helped) .. " of " .. tostring(rows))
+    check(string.format("section %d: each help reaches the page under its own row's title", section),
+      #shownHelp == helped and #titles == helped, tostring(#titles) .. " of " .. tostring(helped))
   end
   check("the header help is declared", page.getHeaderActions().help == true)
   _G.loadScript = saved
