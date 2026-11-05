@@ -47,11 +47,18 @@ _G.SMLSIZE = 1
 _G.MIDSIZE = 2
 
 local offered = nil
-local rowsWithHelp, rows = 0, 0
-local function countRow(opts)
+local rowsWithHelp, rows, rowsReached = 0, 0, 0
+local shownRowHelp = nil
+-- Press the row's `?` the way the control does, and read what reaches the page's own help route.
+local function countRow(label, opts)
   rows = rows + 1
   if type(opts) == "table" and type(opts.helpText) == "string" and opts.helpText ~= "" then
     rowsWithHelp = rowsWithHelp + 1
+    shownRowHelp = nil
+    if type(opts.onHelp) == "function" then opts.onHelp(opts.helpText, opts.helpTitle) end
+    if shownRowHelp and shownRowHelp.text == opts.helpText and shownRowHelp.title == label then
+      rowsReached = rowsReached + 1
+    end
   end
   return 1
 end
@@ -63,12 +70,12 @@ local modules = {
   ["ui/controls.lua"] = {
     STATIC_SECTION_H = 1,
     appendStaticSectionHeader = function() end,
-    appendComboSelect = function(_, _, _, _, _, options, _, _, opts)
+    appendComboSelect = function(_, _, _, _, label, options, _, _, opts)
       offered = options
-      return countRow(opts)
+      return countRow(label, opts)
     end,
-    appendRadioSwitch = function(_, _, _, _, _, _, _, _, opts) return countRow(opts) end,
-    appendNumberField = function(_, _, _, _, _, opts) return countRow(opts) end
+    appendRadioSwitch = function(_, _, _, _, label, _, _, _, opts) return countRow(label, opts) end,
+    appendNumberField = function(_, _, _, _, label, opts) return countRow(label, opts) end
   },
   ["tasks/msp/runtime.lua"] = {
     getState = function()
@@ -102,7 +109,7 @@ local configReply = { 1, 0, 200, 0, 52, 18, 120, 86, 9, 30, 0, 3, 4, 5 }
 
 -- The options the real page offers at one API level, as { label = value }.
 local function optionsAt(apiVersion)
-  queued, offered, rows, rowsWithHelp = {}, nil, 0, 0
+  queued, offered, rows, rowsWithHelp, rowsReached = {}, nil, 0, 0, 0
   _G.rfsuite = { palette = Palette, paths = cardPaths(), session = {
     signature = "board", apiVersion = apiVersion, isConnected = true, fblConnected = true,
     setup_esc_motors_telemetry = {
@@ -116,7 +123,8 @@ local function optionsAt(apiVersion)
   if queued[1] and queued[1].command == ConfigApi.command then
     queued[1].processReply(queued[1], configReply)
   end
-  page.build({ children = {}, x = 0, y = 0, w = 600, h = 400, i18n = {}, requestRebuild = function() end })
+  page.build({ children = {}, x = 0, y = 0, w = 600, h = 400, i18n = {}, requestRebuild = function() end,
+    openHelp = function(text, title) shownRowHelp = { text = text, title = title } end })
   local byLabel, values = {}, {}
   for i = 1, #(offered or {}) do
     byLabel[offered[i].label] = offered[i].value
@@ -153,6 +161,8 @@ do
   checkList("12.0.10", { "XDFLY", "FrSky F.BUS", "SRXL2", "RECORD", "GOOSKY" })
   check("every row of the page has its own help", rows > 0 and rows == rowsWithHelp,
     tostring(rowsWithHelp) .. " of " .. tostring(rows))
+  check("each help reaches the page under its own row's title", rowsReached == rowsWithHelp,
+    tostring(rowsReached) .. " of " .. tostring(rowsWithHelp))
   checkList("12.0.9", { "XDFLY", "FrSky F.BUS", "RECORD" })
   checkList("12.0.8", { "XDFLY", "RECORD" })
   checkList("12.0.7", { "RECORD" })

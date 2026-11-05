@@ -451,7 +451,7 @@ return {
     ["page.setup_esc_motors_esc_tools_am32_page.build"] = { target = 6200, measured = 4944 },
     ["page.setup_esc_motors_esc_tools_blheli_s_page.build"] = { target = 6350, measured = 5050 },
     ["page.setup_esc_motors_esc_tools_bluejay_page.build"] = { target = 6450, measured = 5126 },
-    ["page.setup_esc_motors_esc_tools_goosky_page.build"] = { target = 6600, measured = 5259 },
+    ["page.setup_esc_motors_esc_tools_goosky_page.build"] = { target = 6600, measured = 5273 },
     ["page.setup_esc_motors_esc_tools_flrtr_page.build"] = { target = 8850, measured = 7074 },
     -- The option labels now go through pageText; this run reads the unprecompiled source, where each call is a
     -- lookup, while the package carries them as literals. 5047 -> 7857 measured; target as --emit gives.
