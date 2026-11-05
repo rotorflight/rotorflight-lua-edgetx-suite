@@ -138,10 +138,13 @@ end
 
 local function checkList(apiVersion, tail)
   local _, values, count = optionsAt(apiVersion)
+  local shown = offered or {}
   local expected = expectedAt(tail)
   check(apiVersion .. " offers " .. #expected .. " entries", count == #expected, count)
   for i = 1, #expected do
     check(string.format("%s: %s is %d", apiVersion, expected[i], i - 1), values[i - 1] == expected[i], values[i - 1])
+    check(string.format("%s: %s stands at row %d", apiVersion, expected[i], i),
+      shown[i] ~= nil and shown[i].label == expected[i], shown[i] and shown[i].label)
   end
 end
 
@@ -153,6 +156,7 @@ do
   checkList("12.0.9", { "XDFLY", "FrSky F.BUS", "RECORD" })
   checkList("12.0.8", { "XDFLY", "RECORD" })
   checkList("12.0.7", { "RECORD" })
+  checkList("12.0.6", { "RECORD" })
 end
 
 -- The block of ui/home.lua that sets the conditions, from the loop to the mark it writes last,
