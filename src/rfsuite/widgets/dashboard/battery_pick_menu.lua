@@ -47,6 +47,17 @@ function M.back(widget)
   if entry ~= nil then run(widget, entry, entry.close) end
 end
 
+-- The most packs drawn as cards. Every card is built at once, about 300 instructions each, and a widget
+-- call is stopped at 20 000: past this the rolling list, which draws only the rows on screen, is what
+-- can show them all, whichever style the pilot has chosen.
+local CARDS_MAX = 40
+
+local function rolling(widget)
+  if Look.style(widget) == "rotary" then return true end
+  local pick = widget.state and widget.state.batteryPick or nil
+  return type(pick) == "table" and type(pick.candidates) == "table" and #pick.candidates > CARDS_MAX
+end
+
 local function rollModule()
   local Roll = requireModule("widgets/dashboard/menu_roll.lua")
   if type(Roll) == "table" and type(Roll.build) == "function" then return Roll end
@@ -65,7 +76,7 @@ function M.renderKey(widget)
   local pick = state.batteryPick
   local key = tostring(state.battery_config) .. "|" .. tostring(type(pick) == "table" and pick.selectedId or "")
     .. "|" .. tostring(type(pick) == "table" and pick.candidates or "")
-  if Look.style(widget) == "rotary" then
+  if rolling(widget) then
     local Roll = rollModule()
     if Roll then key = key .. "|" .. Roll.renderKey(widget) end
   end
@@ -106,7 +117,7 @@ end
 function M.build(children, widget)
   local t = (widget.i18n and type(widget.i18n.t) == "function") and widget.i18n.t or function(k, f) return f or k end
 
-  if Look.style(widget) == "rotary" then
+  if rolling(widget) then
     local Roll = rollModule()
     local Sources = Roll and requireModule("widgets/dashboard/menu_roll_sources.lua") or nil
     if Roll and type(Sources) == "table" then

@@ -1810,6 +1810,11 @@ local function batteryPickLoadStep(self)
   local list = load.packs
   pick.byId = load.byId
   pick.candidates = list
+  -- Each pack's profile is worked out in the load's own steps; the picker need not do it again in its
+  -- build, unless the configuration has changed since.
+  if load.source == self.state.battery_config then
+    pick.resolvedFor, pick.resolvedPacks = load.source or false, list
+  end
 
   local id = BatteryPick.selectedId(session)
   pick.selectedId = id

@@ -178,6 +178,7 @@ local function resolvePacks(pick, config)
   for i = 1, #pick.candidates do
     local pack = pick.candidates[i]
     pack.targetProfile = BatteryPick.targetProfile(pack, config)
+    pack.pickFacts = nil
   end
 end
 
@@ -220,33 +221,40 @@ local function batteryPickOptions(widget, t)
 
     local nameText = pack.name
     if type(nameText) ~= "string" or nameText == "" then nameText = tostring(pack.id) end
-    local capText = nil
-    if type(pack.cap) == "number" and pack.cap > 0 then
-      capText = string.format("%d mAh", math.floor(pack.cap))
-    end
-    local cyclesText = nil
-    if type(pack.cycles) == "number" then
-      cyclesText = string.format(cyclesFmt, math.floor(pack.cycles))
-    end
     local target = pack.targetProfile
     local hasProfile = type(target) == "number"
-    local profileText = hasProfile and string.format(profileFmt, target + 1) or noProfile
     local selectable = (not setsProfile) or hasProfile
 
-    local facts = {}
-    if capText ~= nil then facts[#facts + 1] = capText end
-    if cyclesText ~= nil then facts[#facts + 1] = cyclesText end
-    facts[#facts + 1] = profileText
+    -- What a pack says is made once per configuration and kept on the pack: the options are made afresh
+    -- on every build, so a list of many packs would pay for these strings on each.
+    local facts = pack.pickFacts
+    if facts == nil then
+      facts = {}
+      if type(pack.cap) == "number" and pack.cap > 0 then
+        facts[#facts + 1] = string.format("%d mAh", math.floor(pack.cap))
+      end
+      if type(pack.cycles) == "number" then
+        facts[#facts + 1] = string.format(cyclesFmt, math.floor(pack.cycles))
+      end
+      facts[#facts + 1] = hasProfile and string.format(profileFmt, target + 1) or noProfile
+      pack.pickFacts = facts
+      pack.pickDetails, pack.pickDetailsOff = nil, nil
+    end
 
     -- Short of room the profile goes first, and where the pack cannot be picked for want of one, the
     -- reason stays.
-    local details = { table.concat(facts, " - ") }
-    if selectable then
-      if #facts > 1 then details[#details + 1] = table.concat(facts, " - ", 1, #facts - 1) end
-      if #facts > 2 then details[#details + 1] = facts[1] end
-    else
-      if #facts > 2 then details[#details + 1] = facts[1] .. " - " .. profileText end
-      if #facts > 1 then details[#details + 1] = profileText end
+    local details = selectable and pack.pickDetails or pack.pickDetailsOff
+    if details == nil then
+      details = { table.concat(facts, " - ") }
+      if selectable then
+        if #facts > 1 then details[#details + 1] = table.concat(facts, " - ", 1, #facts - 1) end
+        if #facts > 2 then details[#details + 1] = facts[1] end
+        pack.pickDetails = details
+      else
+        if #facts > 2 then details[#details + 1] = facts[1] .. " - " .. facts[#facts] end
+        if #facts > 1 then details[#details + 1] = facts[#facts] end
+        pack.pickDetailsOff = details
+      end
     end
 
     local writes = setsProfile and hasProfile and target ~= pick.boardProfile

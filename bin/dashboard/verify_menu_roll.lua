@@ -18,6 +18,7 @@ local SRC = ROOT .. "/src/rfsuite/"
 local ROLL = "widgets/dashboard/menu_roll.lua"
 local SOURCES = "widgets/dashboard/menu_roll_sources.lua"
 local MENU = "widgets/dashboard/fullscreen_menu.lua"
+local PICKER = "widgets/dashboard/battery_pick_menu.lua"
 
 local selfTest = false
 for i = 1, #arg do
@@ -78,7 +79,7 @@ local function loadWorld(mutate)
       local f = assert(io.open(SRC .. path, "rb"))
       local text = f:read("a")
       f:close()
-      if (path == ROLL or path == SOURCES or path == MENU) and mutate then text = mutate(text) end
+      if (path == ROLL or path == SOURCES or path == MENU or path == PICKER) and mutate then text = mutate(text) end
       mod = assert(load(text, "@" .. path))()
     end
     cache[path] = mod
@@ -697,6 +698,48 @@ local function run(mutate)
     check("a replaced list under the same configuration too", rows[1].selectable == true)
   end
   do
+    -- A list too long to build as cards rolls, whichever style is chosen, within a widget call's limit.
+    local function big(count)
+      adds, exits, toolOpened = {}, 0, 0
+      local w = newWidget(nil)
+      w.preferences.flightlog = { enabled = true, set_fc_profile = true }
+      local list = {}
+      for i = 1, count do list[i] = { id = "n" .. i, name = "N" .. i, cap = 2000, cycles = i, targetProfile = 0 } end
+      -- As the load publishes it: each pack's profile worked out in the load's own steps.
+      w.state.batteryPick = { loaded = true, pending = true, candidates = list,
+        resolvedFor = w.state.battery_config, resolvedPacks = list }
+      Views.navigate(w, "openView:battery_pick")
+      return w
+    end
+    local page = req("widgets/dashboard/battery_pick_menu.lua")
+    local function cost(w)
+      local children = {}
+      local n = 0
+      debug.sethook(function() n = n + 1 end, "", 1)
+      page.build(children, w)
+      debug.sethook()
+      return n, children
+    end
+    local w = big(40)
+    local n, children = cost(w)
+    local box = false
+    for i = 1, #children do
+      if children[i].type == "box" and children[i].children ~= nil and #children[i].children > 0 then box = true end
+    end
+    check("forty packs are still cards", w._viewStack.roll == nil and box)
+    check("and their build stays well inside a call: " .. n, n < 20000 * 0.9)
+    w = big(41)
+    cost(w)
+    check("forty-one roll", roll(w) ~= nil and roll(w).view == "battery_pick")
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("and the wheel's press is answered", w._batteryPickRequest ~= nil or w._viewStack == nil or w._viewStack.roll == nil)
+    w = big(100)
+    n = cost(w)
+    check("a hundred roll inside a call: " .. n, n < 20000 * 0.9)
+    local again = cost(w)
+    check("and a build at rest pays less per pack: " .. again, again < n)
+  end
+  do
     -- As cards: every pack is a button the wheel can reach, and a grey one's press does nothing.
     adds, exits, toolOpened = {}, 0, 0
     local w = newWidget(nil)
@@ -820,6 +863,12 @@ if selfTest then
     { "a theme's run reaches a pack without a profile", function(t)
       return (string.gsub(t, "if option ~= nil and option.selectable == false then return true end\n", ""))
     end },
+    { "a long list stays cards", function(t)
+      return (string.gsub(t, "#pick.candidates > CARDS_MAX", "false"))
+    end },
+    { "a pack's words made afresh on every build", function(t)
+      return (string.gsub(t, "pack.pickFacts = facts\n", ""))
+    end },
     { "a replaced list keeps its old profiles", function(t)
       return (string.gsub(t, " and pick.resolvedPacks == pick.candidates then return end", " then return end"))
     end },
@@ -842,7 +891,7 @@ if selfTest then
     local file = assert(io.open(SRC .. ROLL, "rb"))
     local source = string.gsub(file:read("a"), "\r\n", "\n")
     file:close()
-    for _, path in ipairs({ SOURCES, MENU }) do
+    for _, path in ipairs({ SOURCES, MENU, PICKER }) do
       file = assert(io.open(SRC .. path, "rb"))
       source = source .. string.gsub(file:read("a"), "\r\n", "\n")
       file:close()
