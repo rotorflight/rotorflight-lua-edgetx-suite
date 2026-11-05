@@ -46,9 +46,6 @@ M.ROLES = {
   { "rule", "rule" },
 }
 
--- The rotary style's outermost rows, a step paler than `muted`. Not a role of the schemes.
-local FAR = { light = 0x969DA3, dark = 0x68737D }
-
 --- The menu style a widget's preferences name, `general.menu_style`: "rotary", else "card".
 function M.style(widget)
   local prefs = widget and widget.preferences or nil
@@ -73,7 +70,6 @@ function M.colors(widget)
       local role = M.ROLES[i]
       colors[role[1]] = scheme[role[2]]
     end
-    colors.far = lcd.RGB(FAR[name])
     lastName, lastColors = name, colors
     local Log = requireModule("lib/log.lua")
     if Log and type(Log.emit) == "function" then Log.emit("rfsuite.widget", "menu colors: " .. name, "debug") end

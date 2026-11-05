@@ -621,7 +621,8 @@ function M.build(children, widget, source, colors)
     elseif math.abs(offset) == 1 then
       font, fontH, color = nearFont, nearH, colors.muted
     else
-      font, fontH, color = farFont, farH, colors.far
+      -- The step outward is the smaller face: the colour has to stay readable on the page.
+      font, fontH, color = farFont, farH, colors.muted
     end
     local y = slotY(offset) + math.floor((h - fontH) / 2)
     if isMid then y = slotY(offset) + math.floor((h - fontH - farH) / 2) end

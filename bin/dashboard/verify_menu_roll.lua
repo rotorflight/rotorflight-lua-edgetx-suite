@@ -151,7 +151,6 @@ local function run(mutate)
       for _, role in ipairs(Look.ROLES) do
         check(name .. " gives " .. role[1], type(colors[role[1]]) == "number")
       end
-      check(name .. " gives far", type(colors.far) == "number")
     end
     check("the two schemes differ", Look.colors({ preferences = { general = { color_scheme = "dark" } } }).bg
       ~= Look.colors({ preferences = { general = { color_scheme = "light" } } }).bg)
