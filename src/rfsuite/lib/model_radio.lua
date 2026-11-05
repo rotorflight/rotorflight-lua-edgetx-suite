@@ -111,8 +111,6 @@ end
 -- this file writes is linear, at offset zero and without a curve, so negating each line's weight
 -- cancels the revert exactly.
 --
--- It is one function because the three writers and the two read-backs have to agree: a weight
--- stored by one and interpreted by the other is the same fact twice, and two copies of it drift.
 -- `nil` where the model cannot be read -- a sign that cannot be established is not guessed.
 function M.outputSign(channel)
   local output = M.getOutput(channel)
