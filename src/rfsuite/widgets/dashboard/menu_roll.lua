@@ -105,6 +105,7 @@ end
 -- The ladder position is left alone here: detents can still arrive on the standing scene until the
 -- new one is built, and M.build starts the count over.
 local function rebuild(widget, roll)
+  roll.slots = nil
   roll.epoch = roll.epoch + 1
   roll.steppedAt = nil
   if Views and type(Views.invalidate) == "function" then Views.invalidate(widget) end
@@ -212,6 +213,7 @@ local function moveBy(roll, delta)
   local rows = level and level.rows or nil
   local before = level and level.index or 1
   if level ~= nil then level.index = clamp(before + delta, rows and #rows or 0) end
+  roll.slots = nil
   if Log and type(Log.wanted) == "function" and Log.wanted("trace") then
     local row = rows and level and rows[level.index] or nil
     trace(sideOf(roll) .. " " .. tostring(before) .. " -> " .. tostring(level and level.index) .. " " .. tostring(row and row.id))
@@ -397,6 +399,7 @@ function M.touch(widget, event, touch)
   if event == _G.EVT_TOUCH_FIRST then
     -- Against the box under the whole screen, and the one rectangle over it starts at the same corner.
     roll.touchX, roll.touchY = touch.x, touch.y
+    roll.slots = nil
     roll.slide, roll.sliding, roll.focusBefore, roll.slideOn = 0, false, roll.focus, nil
     return true
   end
@@ -525,36 +528,70 @@ local function itemAt(roll, side, offset)
   return level.rows[level.index + offset]
 end
 
-local function rowText(roll, side, offset)
-  return function()
-    local item = itemAt(roll, side, offset)
-    if item == nil then return "" end
-    return item.title or item.label or ""
+-- What the firmware's sweep reads, on every pass and for every label of the scene. That sweep runs on
+-- what the widget's pass left of its budget, and a stop inside it disables the widget, so on the pass
+-- that builds the scene it has to cost next to nothing: each slot is worked out once per move of the
+-- wheel or build, and read from here until the next. What decides a row between two builds -- armed, the
+-- link -- is in the render key, so a change of it builds the scene.
+local EMPTY = { text = "", sub = "" }
+
+local function makeSlot(roll, side, offset, key)
+  local slots = roll.slots
+  if slots == nil then
+    slots = {}
+    roll.slots = slots
   end
+  local item = itemAt(roll, side, offset)
+  if item == nil then
+    slots[key] = EMPTY
+    return EMPTY
+  end
+  local source = roll.source
+  slot = {
+    item = item,
+    text = item.title or item.label or "",
+    off = source.off ~= nil and source.off(item) == true,
+    current = item.current == true,
+    opens = source.opens ~= nil and source.opens(item) == true,
+    icon = source.icon ~= nil and source.icon(item) or nil,
+    why = source.reason ~= nil and source.reason(item) or nil,
+  }
+  if offset == 0 then
+    local sub
+    -- On the right there is no column further to say why a row cannot be pressed: it says so here.
+    if side == "right" and slot.why ~= nil then
+      sub = slot.why
+    elseif source.sub ~= nil then
+      sub = source.sub(item)
+    else
+      sub = item.detail
+    end
+    slot.sub = sub or ""
+  end
+  slots[key] = slot
+  return slot
+end
+
+local function slotOf(roll, side, offset, key)
+  local slots = roll.slots
+  local slot = slots and slots[key]
+  if slot ~= nil then return slot end
+  return makeSlot(roll, side, offset, key)
+end
+
+local function slotKey(side, offset)
+  return (side == "left") and offset or (offset + 10)
+end
+
+local function rowText(roll, side, offset)
+  local key = slotKey(side, offset)
+  return function() return slotOf(roll, side, offset, key).text end
 end
 
 -- What a current row says under its name.
 local function subText(roll, side)
-  -- Asked on every pass the menu is up, and a row's second line only changes with the row.
-  local lastItem, lastText = nil, ""
-  return function()
-    local item = itemAt(roll, side, 0)
-    -- On the right there is no column further to say why a row cannot be pressed: it says so here.
-    if side == "right" and item ~= nil and roll.source.reason ~= nil then
-      local why = roll.source.reason(item)
-      if why ~= nil then return why end
-    end
-    if item == lastItem then return lastText end
-    lastItem, lastText = item, ""
-    if item == nil then return lastText end
-    local sub = roll.source.sub
-    if sub ~= nil then
-      lastText = sub(item) or ""
-    else
-      lastText = item.detail or ""
-    end
-    return lastText
-  end
+  local key = slotKey(side, 0)
+  return function() return slotOf(roll, side, 0, key).sub or "" end
 end
 
 -- The middle row's face for a list: the large one where every name in it fits the width, else the
@@ -676,6 +713,7 @@ local function refreshLists(roll, source)
     roll.restore = nil
   end
   roll.position, roll.steppedAt = 0, nil
+  roll.slots = nil
   local right = levels[roll.base + 1]
   if roll.focus == 2 and (right == nil or right.rows == nil) then
     roll.focus = 1
@@ -805,8 +843,7 @@ function M.build(children, widget, source, colors)
   local function shaded(side, offset, color, offColor)
     if source.off == nil then return color end
     return function()
-      local item = itemAt(roll, side, offset)
-      if item ~= nil and source.off(item) then return offColor end
+      if slotOf(roll, side, offset, slotKey(side, offset)).off == true then return offColor end
       return color
     end
   end
@@ -819,13 +856,10 @@ function M.build(children, widget, source, colors)
     children[#children + 1] = {
       type = "image", x = colX + pad, y = slotY(offset) + math.floor((h - iconSize) / 2), w = iconSize, h = iconSize,
       visible = function()
-        local item = itemAt(roll, side, offset)
-        return item ~= nil and source.icon(item) ~= nil and not source.off(item)
+        local slot = slotOf(roll, side, offset, slotKey(side, offset))
+        return slot.icon ~= nil and slot.off ~= true
       end,
-      file = function()
-        local item = itemAt(roll, side, offset)
-        return item ~= nil and source.icon(item) or ""
-      end,
+      file = function() return slotOf(roll, side, offset, slotKey(side, offset)).icon or "" end,
     }
   end
 
@@ -864,10 +898,7 @@ function M.build(children, widget, source, colors)
       children[#children + 1] = {
         type = "label", x = colX + colW - pad - markW, y = y, w = markW,
         font = font, align = RIGHT, color = (isMid and hasFocus) and colors.accent or color,
-        text = function()
-          local item = itemAt(roll, side, offset)
-          return (item ~= nil and source.opens(item)) and ">" or ""
-        end,
+        text = function() return slotOf(roll, side, offset, slotKey(side, offset)).opens == true and ">" or "" end,
       }
     end
     if side == "right" or source.marks then
@@ -875,10 +906,7 @@ function M.build(children, widget, source, colors)
       local dot = large and 4 or 3
       children[#children + 1] = {
         type = "circle", x = colX + pad + dot, y = slotY(offset) + math.floor(h / 2), radius = dot, color = colors.accent, filled = true,
-        visible = function()
-          local item = itemAt(roll, side, offset)
-          return item ~= nil and item.current == true
-        end,
+        visible = function() return slotOf(roll, side, offset, slotKey(side, offset)).current == true end,
       }
     end
   end
@@ -894,8 +922,7 @@ function M.build(children, widget, source, colors)
       align = CENTER, color = colors.muted,
       text = function()
         if roll.focus ~= 1 then return "" end
-        local left = leftLevel(roll)
-        return source.reason(left.rows[left.index]) or ""
+        return slotOf(roll, "left", 0, 0).why or ""
       end,
     }
   end
@@ -908,7 +935,7 @@ function M.build(children, widget, source, colors)
         type = "label", x = rightX + 4, y = slotY(offset) + math.floor(((offset == 0) and midH or rowH) / 2 - nearH / 2),
         w = colW - 8, font = nearFont, align = CENTER, color = colors.text,
         text = function()
-          local item = itemAt(roll, "left", 0)
+          local item = slotOf(roll, "left", 0, 0).item
           local lines = item and source.details(item) or nil
           -- The lines stand around the middle slot.
           local first = lines and (REACH + 1 - math.floor((#lines - 1) / 2)) or 1

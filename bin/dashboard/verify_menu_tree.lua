@@ -435,15 +435,29 @@ local function run(mutate)
     w.state.armed = false
   end
 
-  -- What the roll costs: a build at depth, and a pass of the firmware's sweep over every getter of the scene.
+  -- What the roll costs: a build at depth, and a pass of the firmware's sweep over every getter of the
+  -- scene. The sweep runs on what the pass that built the scene left, and a stop in it disables the widget.
+  -- Walking the scene is the firmware's C, so only the getters are counted.
   do
-    local function sweep(node)
-      for _, key in ipairs({ "visible", "file", "text", "color", "scrollTo" }) do
-        if type(node[key]) == "function" then node[key]() end
+    local KEYS = { "visible", "file", "text", "color", "scrollTo" }
+    local function priced(nodes)
+      local n = 0
+      local function hook() n = n + 1 end
+      local function walk(node)
+        for k = 1, #KEYS do
+          local getter = node[KEYS[k]]
+          if type(getter) == "function" then
+            debug.sethook(hook, "", 1)
+            getter()
+            debug.sethook()
+          end
+        end
+        if node.children ~= nil then
+          for i = 1, #node.children do walk(node.children[i]) end
+        end
       end
-      if node.children ~= nil then
-        for i = 1, #node.children do sweep(node.children[i]) end
-      end
+      for i = 1, #nodes do walk(nodes[i]) end
+      return n
     end
     local function counted(fn)
       local n = 0
@@ -457,18 +471,27 @@ local function run(mutate)
     local children
     local built = counted(function() children = build(w) end)
     check("a build at depth stays inside a call: " .. built, built < 20000 * 0.8)
-    local function all() for i = 1, #children do sweep(children[i]) end end
-    local pass = counted(all)
-    check("a pass of its getters stays well inside one: " .. pass, pass < 20000 * 0.4)
-    moveTo(r.levels[3], "mixer")
-    local detent = counted(all)
-    check("and a detent to a row with a list adds a bounded preview: " .. detent, detent < 20000 * 0.4)
+    local first = priced(children)
+    check("the first sweep over a new scene is cheap: " .. first, first < 20000 * 0.25)
+    local pass = priced(children)
+    check("a sweep at rest reads prepared values: " .. pass, pass < 20000 * 0.1)
+    Roll.back(w)
+    children = build(w)
+    priced(children)
+    local box
+    for i = 1, #children do if children[i].type == "box" and children[i].scrolled ~= nil then box = children[i]; break end end
+    box.scrolled(0, 16)
+    local detent = priced(children)
+    check("and a sweep after a detent, its preview made: " .. detent, detent < 20000 * 0.25)
+    w, r = open()
+    toSetup(w, r)
+    children = build(w)
     local images = 0
     for i = 1, #children do if children[i].type == "image" then images = images + 1 end end
     check("six picture slots", images == 6)
     -- The pictures: in the scheme's folder, off a grey row, none on an option.
     local source = r.source
-    local row = r.levels[3].rows[r.levels[3].index]
+    local row = find(r.levels[3].rows, "mixer")
     check("a row's picture is in the scheme's folder", string.find(source.icon(row), "/roll_icons/light/setup_mixer_icon.png", 1, true) ~= nil)
     check("a quick menu row has one", string.find(source.icon(r.levels[1].rows[r.levels[1].index]), "/roll_icons/light/tool.png", 1, true) ~= nil)
     check("an option has none", source.icon({ id = "a", label = "A" }) == nil)

@@ -425,15 +425,18 @@ local function run(mutate)
     -- The right list follows the left entry, from the one in force.
     local w, r = toProfile()
     r.levels[2].index = 3
+    r.slots = nil
     Views.key(w, EVT_VIRTUAL_EXIT)
     local s = scene(Menu, w)
     detent(s.forward, s.forward.h, -1 + 1)
     r.levels[1].index = 1
+    r.slots = nil
     for i = 1, #s.children do
       local node = s.children[i]
       if node.type == "label" and type(node.text) == "function" then node.text() end
     end
     r.levels[1].index = #r.levels[1].rows
+    r.slots = nil
     for i = 1, #s.children do
       local node = s.children[i]
       if node.type == "label" and type(node.text) == "function" then node.text() end
@@ -510,6 +513,7 @@ local function run(mutate)
     Roll.build({}, w, Sources.quick(w, { Menu.entry(w, "erase_blackbox"), Menu.entry(w, "flight_log") }, function(_, f) return f end), Look.colors(w))
     local r = roll(w)
     r.levels[1].index = 2
+    r.slots = nil
     local g = geoOf(w)
     tap(w, 20, 30)
     check("a tap on the header moves nothing", r.levels[1].index == 2 and toolOpened == 0)
@@ -611,12 +615,15 @@ local function run(mutate)
     check("its title is the picker's", string.find(labelsOf(children), "WHICH BATTERY?", 1, true) ~= nil)
     forward.scrolled(0, -1 * 0)
     r.levels[1].index = 1
+    r.slots = nil
     local text = labelsOf(children)
     check("the first pack's facts stand on the right",
       string.find(text, "3000 mAh", 1, true) ~= nil and string.find(text, "12 cycles", 1, true) ~= nil)
     r.levels[1].index = 3
+    r.slots = nil
     check("a pack without a cycle count leaves it out", string.find(labelsOf(children), "cycles", 1, true) == nil)
     r.levels[1].index = 1
+    r.slots = nil
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("with the switch off a press picks at once", w._batteryPickRequest == "a" and (w._viewStack == nil or roll(w) == nil))
   end
@@ -634,6 +641,7 @@ local function run(mutate)
     check("Pack B has none and cannot be picked", rows[2].selectable == false)
     check("NO BATTERY always can", rows[#rows].selectable ~= false)
     r.levels[1].index = 2
+    r.slots = nil
     check("it says why", string.find(labelsOf(children), "no profile", 1, true) ~= nil)
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("a press on it does nothing", w._batteryPickRequest == nil and roll(w) ~= nil)
@@ -642,6 +650,7 @@ local function run(mutate)
       return w._batteryPickRequest == nil
     end)())
     r.levels[1].index = 1
+    r.slots = nil
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("a pack that writes stays up and says so", w._batteryPickRequest == "a" and roll(w) ~= nil
       and Views.status(w, "battery_pick") == "busy")
