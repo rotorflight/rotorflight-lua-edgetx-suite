@@ -261,7 +261,7 @@ for _, locale in ipairs({ "en", "de" }) do
   barBesideLine(locale, 480, 320, 240)
   barBesideLine(locale, 480, 272, 240)
   -- Half of what is left of a 480-wide screen with sliders and both vertical trims on.
-  barBesideLine(locale, 206, 244)
+  barBesideLine(locale, 198, 244)
 end
 noRoomForBar(120, 244)
 
