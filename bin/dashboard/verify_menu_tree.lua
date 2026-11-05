@@ -231,6 +231,9 @@ local function run(mutate)
     Roll.back(w); build(w)
     check("from the left at depth both columns shift back, focus stays left", r.base == 1 and r.focus == 1 and rowId(r.levels[1]) == "tool")
     check("and the level left shows on the right in its place", r.levels[2] ~= nil and rowId(r.levels[2]) == "setup")
+    Roll.press(w); build(w)
+    check("a press goes back into it on that row", r.focus == 2 and rowId(r.levels[2]) == "setup")
+    Roll.back(w); build(w)
     local closed = false
     local source = r.source
     local before = source.back

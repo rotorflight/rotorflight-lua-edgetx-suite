@@ -263,7 +263,14 @@ function M.press(widget)
   local rows, question
   if source.enter ~= nil then rows, question = source.enter(row) end
   if rows ~= nil then
-    roll.levels[roll.base + 1] = { rows = rows, question = question, forIndex = left.index, index = startIndex(rows, source) }
+    -- What the row already shows on the right keeps its place: after an RTN that is the row left from.
+    local shown = roll.levels[roll.base + 1]
+    if question == nil and shown ~= nil and shown.forIndex == left.index and shown.question == nil and shown.rows ~= nil then
+      shown.rows = rows
+      shown.index = clamp(shown.index, #rows)
+    else
+      roll.levels[roll.base + 1] = { rows = rows, question = question, forIndex = left.index, index = startIndex(rows, source) }
+    end
     roll.focus = 2
     trace("focus right")
     rebuild(widget, roll)
