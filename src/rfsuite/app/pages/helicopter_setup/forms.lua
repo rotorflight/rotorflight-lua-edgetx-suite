@@ -159,7 +159,11 @@ function M.protocols(w)
     if self:apiAtLeast(8) then names[#names+1]="XDFLY" end
     if self:apiAtLeast(9) then names[#names+1]="FBUS" end
     if self:apiAtLeast(10) then names[#names+1]="SRXL2" end
-    local e={}; for i,n in ipairs(names) do e[i]={i-1,n} end; return e
+    local e={}; for i,n in ipairs(names) do e[i]={i-1,n} end
+    -- Listed only while the FC stores it: API 12.10 does not say the firmware has Goosky, and a
+    -- Goosky ESC reads the same on BLHeli32.
+    if (self.data.esc_sensor_config or {}).protocol == 16 then e[#e+1]={16,"Goosky"} end
+    return e
   end
 end
 

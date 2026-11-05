@@ -697,7 +697,7 @@ return {
         fastRpm = "Schnelle Drehzahlquelle",
         rpmMissing = "Schnelle Drehzahlquelle fehlt",
         motor = "Motor und ESC",
-        motorHint = "ESC-Protokoll wählen. Blätter bleiben abgenommen. Einen neuen ESC zuerst einrichten: BEC-Spannung, Motor-Timing, ESC-Governor aus bei FC-Governor, Drehrichtung. Unter Konfiguration > Setup > ESC & Motoren > ESC-Werkzeuge für AM32, BLHeli_S, Bluejay, Flyrotor, Hobbywing V5, OMP, Scorpion, XDFly, YGE und ZTW. Die Einträge sind verfügbar, wenn das ESC-Telemetrieprotokoll des FC passt.",
+        motorHint = "ESC-Protokoll wählen. Blätter bleiben abgenommen. Einen neuen ESC zuerst einrichten: BEC-Spannung, Motor-Timing, ESC-Governor aus bei FC-Governor, Drehrichtung. Unter Konfiguration > Setup > ESC & Motoren > ESC-Werkzeuge für AM32, BLHeli_S, Bluejay, Flyrotor, Goosky, Hobbywing V5, OMP, Scorpion, XDFly, YGE und ZTW. Die Einträge sind verfügbar, wenn das ESC-Telemetrieprotokoll des FC passt.",
         motorPoles = "Hauptmotorpole",
         bidirectionalDshot = "Bidirektionales DShot",
         gearing = "Hauptgetriebe",

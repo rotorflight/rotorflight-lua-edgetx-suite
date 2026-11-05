@@ -1165,6 +1165,20 @@ do
       end
     end
   end
+  do
+    -- The numbers are ESC_SENSOR_PROTO_* in the firmware, and each name has to sit on its own.
+    local lw = setup("STM32F7X2")
+    local expected = {"BLHeli32","Hobbywing V4","Hobbywing V5","Scorpion","Kontronik","OMPHobby","ZTW","APD","OpenYGE","FLYROTOR","Graupner","XDFLY","FBUS","SRXL2"}
+    local byNumber = {}
+    for _, value in ipairs(lw:telemetryProtocols()) do byNumber[value[1]] = value[2] end
+    for number, name in ipairs(expected) do eq(byNumber[number], name, "HALF protocol " .. number .. " is " .. name) end
+    eq(byNumber[16], nil, "HALF Goosky is not offered to an FC that does not store it")
+    lw.data.esc_sensor_config.protocol = 16
+    local stored = {}
+    for _, value in ipairs(lw:telemetryProtocols()) do stored[value[1]] = value[2] end
+    eq(stored[16], "Goosky", "HALF a stored Goosky keeps its name")
+    lw.data.esc_sensor_config.protocol = 9
+  end
   local function choose(lw, protocol)
     local row = protocolRow(lw)
     check(row ~= nil, "HALF the type row is found")
