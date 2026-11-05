@@ -8,13 +8,13 @@
     "src/rfsuite/app/pages/helicopter_setup/controller.lua": "a13e67222add69d8515ba1c4f060b93f055d52ff7e3047c3c933abd8a44d3854",
     "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "cbc550ea2e412419e3560b258e008f6ad86c4a3dbaf7539089e29164f30b0c5a",
     "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "2da65f54ecf424df2a75e37bdf7c4f8618429eb3c623a1bdf0939a21579431bf",
-    "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "9c734d0e0025cbf2f2892a370739ab4135b99fc8c848c52c021f49e045be853d",
+    "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "8d77adba86d0f4148bb9767525598f77efd23d28f83beb054768e5d0b5780a87",
     "src/rfsuite/app/pages/helicopter_setup/feedback.lua": "090eef79170ade86f5f767b7d3eeb2eff02a72cd5c1fb4ea22d0ed22bae25d61",
     "src/rfsuite/app/pages/helicopter_setup/forms.lua": "046d92b6c1b1af45b6ea90886e616075ec83a8dfd819118389a6bc606690ee51",
     "src/rfsuite/app/pages/helicopter_setup/help.lua": "210bc647674c7bdf88e1ac00cf623c53858bb0721623f089caa1f95465ac2c46",
     "src/rfsuite/app/pages/helicopter_setup/history.lua": "3c9e7c3b5fee1c601e082a465252735b3d5898e5ff65f7168cf15d9726c12a49",
     "src/rfsuite/app/pages/helicopter_setup/history_store.lua": "968b6be6187f4dd76ccd3c668faf2bbd9cd1e9a3ec6a121c62a78562f10d9bba",
-    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "da65f057ae173f045255f21c0f99833f78591f2d3fe8bb09288276bb9f979cff",
+    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "a224af394638f658f037ec7799355d89da71694b5c67c2c2696b10f289b7f949",
     "src/rfsuite/app/pages/helicopter_setup/math.lua": "f125cbdc577a170e8060688d69552d248e5ed6b092852c03139cc2d11d05b1a0",
     "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "7c49d52c6b21a57b3963037a4eba577f9746c232d435565fae5d1b67fb86c7cd",
     "src/rfsuite/app/pages/helicopter_setup/page.lua": "7bb2f7dc902a93e945f5077c1f30e91f4083b54770aaabef63fc7b34ad723007",
@@ -23,7 +23,7 @@
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",
     "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "1455b81e5a3f60d7a06feae5ca589ee05bd19db6954cc15f55dcf44c746158c2",
     "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua": "a423aa3c4712965c5d12a0a265d0476c82c8a6beda2b714284b80c3ba83548b2",
-    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "3ad5261e5c767abe14ec421364bece9787bd749d83b92e274cde16eb9c115699",
+    "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "e3705c078eb6af9b83b3f01dc9ede704d37fd7b5fe3ef83e8260949c32f25230",
     "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua": "14125159bcd7123906b4665811bfdb558481667ce17cdd03bd7e15458c733f94",
     "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "1fc741fbd225890a7a4753bcbf158321681e90c7fd6fdb8020547e86127445d5",
     "src/rfsuite/app/pages/helicopter_setup/steps/gyro.lua": "934b4990c6eae2c40a352551325e9b866607ade22208427f0ab7e7f5af0a59d8",
@@ -42,12 +42,12 @@
     "src/rfsuite/app/pages/helicopter_setup/steps/throttle.lua": "bc1745c86d27c2a43d9c063dfd64635c104d81a1d08c76eff7f8c7e09800f774",
     "src/rfsuite/app/pages/helicopter_setup/transport.lua": "e4e83be47a1959d605d99cf8b1af520ec3ddf0dd4f1b2bd9b8ae13d0b5d4343e",
     "src/rfsuite/app/pages/helicopter_setup/view.lua": "494761e9779e16559a170de8f93d65c8de7e293c85690f54f5c2e80ae63bb176",
-    "src/rfsuite/app/pages/helicopter_setup/workflow.lua": "084364319216aa75e789601020ff4c37cf36317342cbc854c359c60caba5d532",
+    "src/rfsuite/app/pages/helicopter_setup/workflow.lua": "3edbd986956bbbbc6d88e9d0ed3a22e8a751a9485bfc1a78d2f14399995f78ed",
     "src/rfsuite/app/pages/setup/esc_motors/throttle/page.lua": "76542a5f84b98f8715c6ed938a463483e76e205912cd70f01555b7cf94fbe5aa",
     "src/rfsuite/app/pages/setup/power/battery/page.lua": "bb94e95ab8cac06d560110554faf9ba0b4ab634abc0eb8bba9fde032a6468949",
     "src/rfsuite/app/pages/setup/power/smartfuel/page.lua": "70eac48cbea056fe6b0644e7d4f980bd2af16f229e16a888330bbcbfcf2a5d5f",
     "src/rfsuite/app/pages/setup/power/sources/page.lua": "ff0846f7298aefacba5e522a01f2945e8111fe94110344dad9e4832c5cbc724e",
-    "src/rfsuite/i18n/en.lua": "763b4af8777d53e31b3383e80df375c3361763369ffb7b9da06fbf58a7710822",
+    "src/rfsuite/i18n/en.lua": "e91b2303cd2b3747516aaf3eff4cd25c53f7b93ff797fec1a6b771c881f82a65",
     "src/rfsuite/lib/esc_params.lua": "2a9f2fb0fd6f762ef396ed20da5a48081a5583687bb2803b870a34ca2635eeaf",
     "src/rfsuite/lib/governor_fields.lua": "2c7407a6d75e7b00de9002dbb4be49696a6a3468b2d76013e1998549a2932a3c",
     "src/rfsuite/lib/power_fields.lua": "2204f3bd87281732a784d9aacd45a432d91cd3ab99a7a649c5976192c345c41e",
@@ -7022,6 +7022,36 @@
             },
             {
               "kind": "MSP write",
+              "label": "esc_sensor_config.half_duplex",
+              "api": "esc_sensor_config",
+              "field": "half_duplex",
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-range-and-operating-mode"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/esc_link.lua",
+              "expression": "self : field ( \"esc_sensor_config\" , \"half_duplex\" , 1 , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "esc_sensor_config.pin_swap",
+              "api": "esc_sensor_config",
+              "field": "pin_swap",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/esc_link.lua",
+              "expression": "self : field ( \"esc_sensor_config\" , \"pin_swap\" , f4 and 0 or 1 , true )"
+            },
+            {
+              "kind": "MSP write",
               "label": "motor_config (record/payload)",
               "api": "motor_config",
               "field": null,
@@ -9047,6 +9077,38 @@
           "rows": [
             {
               "kind": "MSP write",
+              "label": "esc_sensor_config.half_duplex",
+              "api": "esc_sensor_config",
+              "field": "half_duplex",
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-range-and-operating-mode"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/esc_link.lua",
+              "expression": "self : field ( \"esc_sensor_config\" , \"half_duplex\" , 1 , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "esc_sensor_config.pin_swap",
+              "api": "esc_sensor_config",
+              "field": "pin_swap",
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-range-and-operating-mode"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/esc_link.lua",
+              "expression": "self : field ( \"esc_sensor_config\" , \"pin_swap\" , f4 and 0 or 1 , true )"
+            },
+            {
+              "kind": "MSP write",
               "label": "motor_config (record/payload)",
               "api": "motor_config",
               "field": null,
@@ -9456,6 +9518,8 @@
         "esc_sensor_config",
         "feature_config.enabledFeatures",
         "motor_config.use_dshot_telemetry",
+        "esc_sensor_config.half_duplex",
+        "esc_sensor_config.pin_swap",
         "motor_config",
         "esc_parameters_yge.governor",
         "esc_parameters_yge.stick_zero_us",
