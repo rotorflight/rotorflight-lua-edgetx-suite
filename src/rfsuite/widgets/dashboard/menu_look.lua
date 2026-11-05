@@ -44,6 +44,8 @@ M.ROLES = {
   { "close", "error" },
   { "onClose", "onError" },
   { "rule", "rule" },
+  { "warning", "warning" },
+  { "error", "error" },
 }
 
 --- The menu style a widget's preferences name, `general.menu_style`: "rotary", else "card".
@@ -57,6 +59,13 @@ end
 -- The last scheme resolved. A build of a page asks once; the value changes only when the pilot saves
 -- the settings page, and two tables of these colours are not worth keeping side by side.
 local lastName, lastColors = nil, nil
+
+--- The name of the scheme the pilot has chosen.
+function M.schemeName(widget)
+  local prefs = widget and widget.preferences or nil
+  local general = type(prefs) == "table" and prefs.general or nil
+  return Schemes.name(type(general) == "table" and general[M.KEY] or nil)
+end
 
 --- The colours of the scheme the pilot has chosen, as this widget's preferences have it.
 function M.colors(widget)

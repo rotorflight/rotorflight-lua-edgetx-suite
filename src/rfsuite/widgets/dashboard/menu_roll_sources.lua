@@ -19,7 +19,9 @@
 --   opens(row)    true where the row is marked as leading somewhere
 --   sub(row)      the line under a row's name; else its `detail`
 --   marks         the current row is marked in the first list too, not only in the second
---   status()      the header's line about the work a press started; or nil
+--   status(roll)  the header's line: the words, and the name of the colour they take; or nil
+--   notice()      the title and the message a tap on that line shows; or nil
+--   icon(row)     the picture of a row, a file; or nil
 --   close()       the close box
 --   back()        RTN with the focus in the first list
 
@@ -39,6 +41,9 @@ local Menu = requireModule("widgets/dashboard/fullscreen_menu.lua")
 local Views = requireModule("widgets/dashboard/views.lua")
 local Tree = requireModule("widgets/dashboard/menu_tree.lua")
 local Roll = requireModule("widgets/dashboard/menu_roll.lua")
+local ConnectionStatus = requireModule("lib/connection_status.lua")
+local MspRuntime = requireModule("tasks/msp/runtime.lua")
+local Events = requireModule("tasks/events/runtime.lua")
 local Log = requireModule("lib/log.lua")
 
 local TAG = "rfsuite.widget.roll"
@@ -125,11 +130,33 @@ local function quickExists(widget, entry)
   return entry.existsWhen == nil or Views.condition(entry.existsWhen, widget) == true
 end
 
+-- The connection as the tool's header reads it, asked for by what the wheel's pass draws; four times a
+-- second is more than it changes.
+local CONNECTION_TICKS = 25
+
+local function connectionNow()
+  local session = _G.rfsuite and _G.rfsuite.session or nil
+  local msp = MspRuntime and type(MspRuntime.getState) == "function" and MspRuntime.getState() or nil
+  local linkUp
+  if type(msp) == "table" then
+    linkUp = msp.lastConnected == true
+  else
+    linkUp = type(session) == "table" and session.rawRfConnected == true
+  end
+  return session, ConnectionStatus.read(session, linkUp, Tree.connected(), Events)
+end
+
+local Look = requireModule("widgets/dashboard/menu_look.lua")
+local ICON_ROOT = _G.rfsuite.paths.core .. "/widgets/dashboard/roll_icons/"
+
+local KEY_ROLE = { nolink = "warning", handshake = "warning", error = "error", ready = "muted" }
+
 --- The quick menu: the entries offered now, BATTERY PROFILE last where it is, and MAIN MENU rolling on
 --- through the suite's menu.
 function M.quick(widget, entries, t)
   local session = Views.session(widget)
   local tree = Tree.of(widget, session)
+  local connectionAt, connectionWord, connectionRole = nil, nil, nil
   local function reasonOf(row)
     local why = row ~= nil and whyOf(widget, row) or nil
     if why == REASON_ARMED then return t("widgets.dashboard.roll_not_armed", "Not while armed") end
@@ -207,8 +234,33 @@ function M.quick(widget, entries, t)
       if percent == nil then return nil end
       return string.format(t("widgets.dashboard.erase_blackbox_confirm_used", "%d%% used"), percent)
     end,
-    status = function()
-      return statusWord(widget, t, "battery_profile") or statusWord(widget, t, "battery_pick")
+    -- One message by rank: how a write went, or that a page could not be opened; then the connection.
+    status = function(roll)
+      local word = statusWord(widget, t, "battery_profile") or statusWord(widget, t, "battery_pick")
+      if word ~= nil then return word, "headText" end
+      if roll ~= nil and roll.couldNotOpen == true then
+        return t("widgets.dashboard.roll_could_not_open", "Could not open"), "error"
+      end
+      local now = getTime()
+      if connectionAt == nil or now - connectionAt >= CONNECTION_TICKS then
+        connectionAt = now
+        local _, status, detail, _, _, _, failed = connectionNow()
+        local key = ConnectionStatus.stateKey(status, detail, failed)
+        connectionWord, connectionRole = ConnectionStatus.title(widget.i18n, key), KEY_ROLE[key]
+      end
+      return connectionWord, connectionRole
+    end,
+    notice = function()
+      local session, status, detail, taskName, done, total, failed = connectionNow()
+      return ConnectionStatus.notice(widget.i18n, session, status, detail, taskName, done, total, failed)
+    end,
+    noticeClose = t("widgets.dashboard.roll_close", "Close"),
+    icon = function(row)
+      if row.iconFile == nil then
+        local look = (Look ~= nil and Look.schemeName(widget)) or "light"
+        row.iconFile = ICON_ROOT .. look .. "/" .. tostring(row.icon or row.id) .. ".png"
+      end
+      return row.iconFile
     end,
     close = function() Views.navigate(widget, "done") end,
     back = function()

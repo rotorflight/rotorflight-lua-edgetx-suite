@@ -223,6 +223,7 @@ end
 local function stepped(widget, roll, delta)
   if delta == 0 then return end
   moveBy(roll, delta)
+  roll.couldNotOpen = nil
   roll.steppedAt = getTime()
   if math.abs(roll.position) >= LADDER - LADDER_MARGIN then rebuild(widget, roll) end
 end
@@ -231,6 +232,12 @@ end
 function M.press(widget)
   local roll = current(widget)
   if roll == nil or roll.source == nil then return end
+  if roll.notice ~= nil then
+    roll.notice = nil
+    rebuild(widget, roll)
+    return
+  end
+  roll.couldNotOpen = nil
   local source = roll.source
   local left = leftLevel(roll)
   local row = left.rows[left.index]
@@ -269,6 +276,12 @@ end
 function M.back(widget)
   local roll = current(widget)
   if roll == nil or roll.source == nil then return false end
+  if roll.notice ~= nil then
+    roll.notice = nil
+    rebuild(widget, roll)
+    return true
+  end
+  roll.couldNotOpen = nil
   if roll.focus == 2 then
     moveLeft(widget, roll)
     return true
@@ -326,6 +339,14 @@ end
 -- A tap: on the middle row of the list with the focus it is a press; any other row comes to the
 -- middle of its list, and that list takes the focus, and nothing runs.
 local function tapped(widget, roll, x, y)
+  -- On the header's status: its details. The wheel does not reach them.
+  local geo = roll.geo
+  if geo ~= nil and y < geo.top and x >= geo.statusX and x < geo.statusEnd and roll.source.notice ~= nil then
+    roll.notice = { roll.source.notice() }
+    trace("status notice")
+    rebuild(widget, roll)
+    return
+  end
   local side, offset = rowAt(roll, x, y)
   if side == nil or offset == nil then return end
   if offset == 0 and side == sideOf(roll) then
@@ -464,6 +485,29 @@ function M.renderKey(widget)
     roll.steppedAt = nil
   end
   return tostring(roll.epoch)
+end
+
+-- The header's words: the path to the list with the wheel, shortened from the front, the level it is
+-- on always staying.
+local function pathText(roll, source, font, maxW)
+  local depth = (roll.focus == 2) and (roll.base + 1) or roll.base
+  if depth <= 1 then return source.title or "" end
+  local names = {}
+  for i = 1, depth - 1 do
+    local level = roll.levels[i]
+    local row = level.rows and level.rows[level.index] or nil
+    names[#names + 1] = row and (row.title or row.label) or ""
+  end
+  local text = table.concat(names, " > ")
+  if not (lcd and type(lcd.sizeText) == "function") then return text end
+  local first = 1
+  while first < #names do
+    local ok, w = pcall(lcd.sizeText, text, font)
+    if not ok or type(w) ~= "number" or w <= maxW then break end
+    first = first + 1
+    text = "... > " .. table.concat(names, " > ", first)
+  end
+  return text
 end
 
 -- One row of a list, as text read when it is drawn: the rows do not move, what they say does.
@@ -640,6 +684,25 @@ function M.build(children, widget, source, colors)
   refreshLists(roll, source)
 
   local W, H = widget.zone.w, widget.zone.h
+
+  -- The details behind the header's status, over a plain page: nothing under them takes the wheel.
+  if roll.notice ~= nil then
+    local Overlay = requireModule("ui/loading_overlay.lua")
+    children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = H, color = colors.bg, filled = true }
+    if type(Overlay) == "table" and type(Overlay.appendNotice) == "function" then
+      Overlay.appendNotice(children, {
+        x = 0, y = 0, w = W, h = H, title = roll.notice[1], message = roll.notice[2],
+        buttonText = source.noticeClose or "Close",
+        press = function()
+          roll.notice = nil
+          rebuild(widget, roll)
+        end,
+      })
+      return
+    end
+    roll.notice = nil
+  end
+
   local large = H > 350
   local headH = large and 60 or 36
   local pad = large and 14 or 7
@@ -688,7 +751,9 @@ function M.build(children, widget, source, colors)
   children[#children + 1] = { type = "rectangle", x = pad + colW + math.floor(pad / 2), y = top, w = 1, h = bottom - top,
     color = colors.rule, filled = true }
 
-  roll.geo = { leftX = leftX, rightX = rightX, colW = colW, midH = midH, rowH = rowH, slotY = slotY, top = headH }
+  local statusX = math.floor(W / 2)
+  roll.geo = { leftX = leftX, rightX = rightX, colW = colW, midH = midH, rowH = rowH, slotY = slotY, top = headH,
+    statusX = statusX, statusEnd = W - closeSize - 2 * pad }
 
   local windows = {}
 
@@ -712,9 +777,10 @@ function M.build(children, widget, source, colors)
 
   viewport(widget, roll, windows, "reverse", "forward", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0)
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = closeX - pad, h = headH, color = colors.head, filled = true }
+  local headFont = large and MIDSIZE or nearFont
   children[#children + 1] = {
-    type = "label", x = pad, y = math.floor((headH - midH_) / 2), w = math.floor(W / 2), font = large and MIDSIZE or nearFont,
-    text = source.title or "", color = colors.headText, align = LEFT,
+    type = "label", x = pad, y = math.floor((headH - (large and midH_ or nearH)) / 2), w = statusX - pad, font = headFont,
+    text = pathText(roll, source, headFont, statusX - 2 * pad), color = colors.headText, align = LEFT,
   }
 
   local markW = 2 * nearH
@@ -730,6 +796,24 @@ function M.build(children, widget, source, colors)
       if item ~= nil and source.off(item) then return offColor end
       return color
     end
+  end
+
+  -- The pictures: the middle row's and its two neighbours', per list. The slots stay and what they show
+  -- follows the row; the firmware reads a file only when the name it is given changes.
+  local iconSize = large and 32 or 20
+  local function iconSlot(side, colX, offset)
+    local h = (offset == 0) and midH or rowH
+    children[#children + 1] = {
+      type = "image", x = colX + pad, y = slotY(offset) + math.floor((h - iconSize) / 2), w = iconSize, h = iconSize,
+      visible = function()
+        local item = itemAt(roll, side, offset)
+        return item ~= nil and source.icon(item) ~= nil and not source.off(item)
+      end,
+      file = function()
+        local item = itemAt(roll, side, offset)
+        return item ~= nil and source.icon(item) or ""
+      end,
+    }
   end
 
   local function row(side, colX, offset)
@@ -761,6 +845,7 @@ function M.build(children, widget, source, colors)
         color = colors.muted, text = subText(roll, side),
       }
     end
+    if source.icon ~= nil and math.abs(offset) <= 1 then iconSlot(side, colX, offset) end
     if source.opens ~= nil then
       -- The mark that a row opens something further.
       children[#children + 1] = {
@@ -833,8 +918,12 @@ function M.build(children, widget, source, colors)
   if source.status ~= nil then
     children[#children + 1] = {
       type = "label", x = math.floor(W / 2), y = math.floor((headH - farH) / 2), w = closeX - pad - math.floor(W / 2),
-      font = farFont, align = RIGHT, color = colors.headText,
-      text = function() return source.status() or "" end,
+      font = farFont, align = RIGHT,
+      color = function()
+        local _, role = source.status(roll)
+        return colors[role or "headText"] or colors.headText
+      end,
+      text = function() return source.status(roll) or "" end,
     }
   end
 end

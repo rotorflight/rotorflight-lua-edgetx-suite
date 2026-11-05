@@ -364,20 +364,8 @@ local SAVE_PHASE_TEXT = {
   reload    = "reading_back",
 }
 
-local ONCONNECT_TEXT = {
-  apiversion        = "@i18n(app.onconnect.apiversion)@",
-  uid               = "@i18n(app.onconnect.uid)@",
-  rtc               = "@i18n(app.onconnect.rtc)@",
-  status            = "@i18n(app.onconnect.status)@",
-  battery_config    = "@i18n(app.onconnect.battery_config)@",
-  governor_config   = "@i18n(app.onconnect.governor_config)@",
-  esc_sensor_config = "@i18n(app.onconnect.esc_sensor_config)@",
-  smartfuel_config  = "@i18n(app.onconnect.smartfuel_config)@",
-  name              = "@i18n(app.onconnect.name)@",
-  telemetry         = "@i18n(app.onconnect.telemetry)@",
-  flight_stats      = "@i18n(app.onconnect.flight_stats)@",
-  dataflash_summary = "@i18n(app.onconnect.dataflash_summary)@"
-}
+local ConnectionStatus = loadModule("lib/connection_status.lua")
+local ONCONNECT_TEXT = ConnectionStatus.ONCONNECT_TEXT
 
 -- The header's connection button, one glyph per state, alongside the other header glyphs in
 -- `app.actions`. They are FontAwesome code points out of the subset the firmware embeds
@@ -1691,35 +1679,6 @@ local function readTelemetryLinkUp()
   return type(session) == "table" and session.rawRfConnected == true
 end
 
-local function appendStatusPart(parts, value, format)
-  if type(value) == "string" and value ~= "" then
-    parts[#parts + 1] = string.format(format, value)
-  end
-end
-
--- Why the handshake has not completed, where the session already carries a reason. It is
--- resolved into a value of its own rather than read where the notice is composed, because it
--- decides the glyph as well as the wording -- the API version read fails on a backoff that
--- grows, so the reason usually arrives well after the button has already been drawn.
-local function readHandshakeDetail(session)
-  if type(session) ~= "table" then return nil end
-  if session.apiSupported == false then return "api" end
-  if type(session.mspLastError) == "string" and session.mspLastError ~= "" then return "noreply" end
-  return nil
-end
-
--- Which glyph the four states map onto. Two of them share one: waiting for the handshake and
--- reading the configuration are both "working" from outside, and a reason for the handshake
--- not completing, or a connect step that was given up on, is what turns either into a warning.
-local function connectionGlyphKey(status, detail, failed)
-  if status == "nolink" then return "nolink" end
-  if status == "handshake" then
-    return detail and "error" or "handshake"
-  end
-  if status == "chain" then return "handshake" end
-  return failed > 0 and "error" or "ready"
-end
-
 -- The button's own text. Handed to the header as a function, so the firmware resolves it on
 -- its own refresh pass: the glyph follows the state with nothing rebuilding the scene.
 local function currentConnectionGlyph()
@@ -1731,94 +1690,9 @@ end
 -- state nobody asks about costs no formatting at all, and the notice does not have to live
 -- while it is open.
 --
--- Every message here is two lines at most, so it never fills the room the notice box gives it.
--- ui/loading_overlay.lua grows the box by exactly the lines that do not fit
--- (`messageShift = max(0, lines * lineH - messageRoom)`) and puts nothing under the text, so a
--- message that uses all of its room ends with its descenders against the acknowledging button.
--- That box is not this change's to alter, and a caller can stay inside it: the third thing
--- worth saying is always somewhere the pilot can already read it.
 local function buildConnectionNotice(status, detail, taskName, done, total, failed)
   local root = _G and _G.rfsuite
-  local session = root and root.session
-
-  if status == "nolink" then
-    return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_no_link") or "Not connected",
-           state.i18n and state.i18n.t and state.i18n.t("app.home_status.no_link")
-             or "The radio is not receiving telemetry from this model."
-  end
-
-  if status == "handshake" then
-    if detail == "api" then
-      return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_error") or "Connection error",
-             state.i18n and state.i18n.t and state.i18n.t("app.home_status.api_unsupported")
-               or "The flight controller answered with an MSP API version the suite does not support."
-    end
-    if detail == "noreply" then
-      return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_error") or "Connection error",
-             state.i18n and state.i18n.t and state.i18n.t("app.home_status.no_reply")
-               or "Telemetry is arriving, but the flight controller is not answering."
-    end
-    return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_connecting") or "Connecting",
-           state.i18n and state.i18n.t and state.i18n.t("app.home_status.handshake")
-             or "Telemetry is arriving. Waiting for the flight controller to answer."
-  end
-
-  if status == "chain" then
-    -- The same table the start screen names its step from, so the wording a pilot reads before
-    -- the menu appears and the wording he reads behind the button are one string rather than two.
-    local taskText = ONCONNECT_TEXT[taskName or ""] or
-      (state.i18n and state.i18n.t and state.i18n.t("app.home_status.reading") or "Reading the configuration")
-    local message = taskText
-    if total > 0 then
-      message = string.format(
-        state.i18n and state.i18n.t and state.i18n.t("app.home_status.step") or "%s (%d/%d)",
-        taskText, done, total)
-    end
-    return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_connecting") or "Connecting", message
-  end
-
-  local title = failed > 0
-    and (state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_error") or "Connection error")
-    or (state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_connected") or "Connected")
-
-  local lines = {}
-  local craft = nil
-  if type(session) == "table" and type(session.modelName) == "string" and session.modelName ~= "" then
-    craft = session.modelName
-  end
-
-  if failed > 0 then
-    -- A task that gave up counts towards the chain being through, because the chain has moved
-    -- past it -- so a bare "connected" would cover a connect that is missing part of its
-    -- configuration. That is what the pilot opened this for, so it takes the first line and the
-    -- firmware versions give up theirs to it: the versions are on the diagnostics info page
-    -- whatever happens here, and the count is nowhere else.
-    lines[#lines + 1] = string.format(
-      state.i18n and state.i18n.t and state.i18n.t("app.home_status.steps_failed") or "Connect steps not completed: %d",
-      failed)
-    if craft then
-      lines[#lines + 1] = craft
-    end
-  else
-    if craft then
-      lines[#lines + 1] = craft
-    end
-    local versions = {}
-    if type(session) == "table" then
-      appendStatusPart(versions, session.rfVersion,
-        state.i18n and state.i18n.t and state.i18n.t("app.home_status.rf_version") or "Rotorflight %s")
-      appendStatusPart(versions, session.apiVersion,
-        state.i18n and state.i18n.t and state.i18n.t("app.home_status.api_version") or "MSP API %s")
-    end
-    if #versions > 0 then
-      lines[#lines + 1] = table.concat(versions, " - ")
-    end
-  end
-
-  if #lines == 0 then
-    return title, state.i18n and state.i18n.t and state.i18n.t("app.home_status.ready") or "Connected."
-  end
-  return title, table.concat(lines, "\n")
+  return ConnectionStatus.notice(state.i18n, root and root.session, status, detail, taskName, done, total, failed)
 end
 
 local function showConnectionStatusNotice()
@@ -1846,7 +1720,7 @@ local function updateConnectionStatus()
   elseif not state.fblConnected then
     status = "handshake"
     local root = _G and _G.rfsuite
-    detail = readHandshakeDetail(root and root.session)
+    detail = ConnectionStatus.handshakeDetail(root and root.session)
     state.connStatusReady = false
   elseif state.connStatusReady then
     -- The chain is through and nothing it reports can change again. Returning here is what
@@ -1876,7 +1750,7 @@ local function updateConnectionStatus()
   -- the button's text is a function the firmware calls on its own refresh pass, so a state
   -- change costs no scene rebuild at all -- which is the whole reason this is a button in a row
   -- that already exists rather than a line of its own above the content.
-  state.connStatusGlyph = connectionGlyphKey(status, detail, failed)
+  state.connStatusGlyph = ConnectionStatus.stateKey(status, detail, failed)
 
   if status == state.connStatusState
     and detail == state.connStatusDetail
