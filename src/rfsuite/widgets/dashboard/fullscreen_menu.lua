@@ -131,8 +131,9 @@ end
 -- A pick records a REQUEST on the widget and nothing else. The pick, the card write and the
 -- flight controller write all happen in the runtime's job pass: an LVGL press callback runs
 -- inside the firmware's event dispatch, where a card write or a queue turn is the one thing a
--- widget must not do.
-local function requestPick(widget, id)
+-- widget must not do. A pick that moves the board onto another profile says so at once, and the
+-- job hands the same reporter the board's answer.
+local function requestPick(widget, id, writes)
   -- `false` rather than nil for "no battery": nil is what the runtime reads as "no request at
   -- all", so the answer that clears the pack would never reach the job. Written out rather than
   -- as `(id == nil) and false or id`, which cannot produce `false` at all -- the `or` arm takes
@@ -141,6 +142,12 @@ local function requestPick(widget, id)
     widget._batteryPickRequest = false
   else
     widget._batteryPickRequest = id
+  end
+  widget._batteryPickReport = nil
+  if writes and Views and type(Views.reporter) == "function" then
+    local report = Views.reporter(widget, "battery_pick")
+    report("busy")
+    widget._batteryPickReport = report
   end
 end
 
@@ -154,20 +161,52 @@ local function dismissBatteryPick(widget)
   end
 end
 
+-- The board's profile for each pack, worked out once per battery configuration: asking for it logs
+-- every exit, and the options are made afresh on every build of the picker.
+local function resolvePacks(pick, config)
+  local key = config or false
+  if pick.resolvedFor == key then return end
+  pick.resolvedFor = key
+  local BatteryPick = requireModule("lib/battery_pick.lua")
+  if type(BatteryPick) ~= "table" or type(BatteryPick.targetProfile) ~= "function" then return end
+  for i = 1, #pick.candidates do
+    local pack = pick.candidates[i]
+    pack.targetProfile = BatteryPick.targetProfile(pack, config)
+  end
+end
+
+-- Whether a pick also moves the board onto the pack's profile (Settings of the Flight Log page).
+local function picksSetProfile(widget)
+  local BatteryPick = requireModule("lib/battery_pick.lua")
+  if type(BatteryPick) ~= "table" or type(BatteryPick.settings) ~= "function" then return false end
+  local _, setsProfile = BatteryPick.settings(widget.preferences)
+  return setsProfile == true
+end
+
 -- The prompt's options: one per pack this model has, in registry order, and NO BATTERY last.
 --
 -- Every string an option carries is built here, once per call, so what draws them builds none.
--- `label` is the pack's name and `detail` the line under it; `pack` is the registry entry
--- itself, for a surface that wants to lay the same facts out differently. A pack's option
--- carries the pack's `id`, by which a run is matched to it. NO BATTERY is marked `none`, because
--- the picker reserves the foot row for it before the packs are laid out.
+-- `label` is the pack's name and `detail` the line under it. `details` holds that line and its
+-- shortenings, longest first, for a surface that has less room, and `facts` the same facts one by
+-- one; `pack` is the registry entry itself. A pack's option carries the pack's `id`, by which a run
+-- is matched to it. NO BATTERY is marked `none`, because the picker reserves the foot row for it
+-- before the packs are laid out, and it is the answer in force where no pack is.
+--
+-- Where a pick moves the board onto the pack's profile, a pack with no clear profile on this board
+-- cannot be picked: `selectable` is false, it is still listed, and it says why. `writes` marks a
+-- pick that sends something, whose press stays up until the board has answered (see the runtime's
+-- apply step) and is stored only then.
 local function batteryPickOptions(widget, t)
   local pick = widget.state and widget.state.batteryPick or nil
   local candidates = (type(pick) == "table" and type(pick.candidates) == "table") and pick.candidates or {}
   local selectedId = type(pick) == "table" and pick.selectedId or nil
+  local config = widget.state and widget.state.battery_config or nil
+  if #candidates > 0 then resolvePacks(pick, config) end
+  local setsProfile = false
 
   local profileFmt = t("widgets.dashboard.battery_pick_profile", "Profile %d")
   local noProfile = t("widgets.dashboard.battery_pick_profile_none", "no profile")
+  local cyclesFmt = t("widgets.dashboard.battery_pick_cycles", "%d cycles")
 
   local options = {}
   for i = 1, #candidates do
@@ -175,30 +214,49 @@ local function batteryPickOptions(widget, t)
 
     local nameText = pack.name
     if type(nameText) ~= "string" or nameText == "" then nameText = tostring(pack.id) end
-    local capText = ""
+    local capText = nil
     if type(pack.cap) == "number" and pack.cap > 0 then
       capText = string.format("%d mAh", math.floor(pack.cap))
     end
-    local profileText = noProfile
-    if type(pack.targetProfile) == "number" then
-      profileText = string.format(profileFmt, pack.targetProfile + 1)
+    local cyclesText = nil
+    if type(pack.cycles) == "number" then
+      cyclesText = string.format(cyclesFmt, math.floor(pack.cycles))
     end
-    local detail = capText
-    if detail ~= "" then
-      detail = detail .. "  -  " .. profileText
+    local target = pack.targetProfile
+    local hasProfile = type(target) == "number"
+    local profileText = hasProfile and string.format(profileFmt, target + 1) or noProfile
+    local selectable = (not setsProfile) or hasProfile
+
+    local facts = {}
+    if capText ~= nil then facts[#facts + 1] = capText end
+    if cyclesText ~= nil then facts[#facts + 1] = cyclesText end
+    facts[#facts + 1] = profileText
+
+    -- Short of room the profile goes first, and where the pack cannot be picked for want of one, the
+    -- reason stays.
+    local details = { table.concat(facts, " - ") }
+    if selectable then
+      if #facts > 1 then details[#details + 1] = table.concat(facts, " - ", 1, #facts - 1) end
+      if #facts > 2 then details[#details + 1] = facts[1] end
     else
-      detail = profileText
+      if #facts > 2 then details[#details + 1] = facts[1] .. " - " .. profileText end
+      if #facts > 1 then details[#details + 1] = profileText end
     end
 
+    local writes = setsProfile and hasProfile and target ~= pick.boardProfile
     local id = pack.id
     options[i] = {
       id = id,
       label = nameText,
-      detail = detail,
+      detail = details[1],
+      details = details,
+      facts = facts,
       current = (selectedId ~= nil and id == selectedId),
+      selectable = selectable,
+      writes = writes,
       pack = pack,
-      press = function() requestPick(widget, id) end,
-      after = "done"
+      press = function() requestPick(widget, id, writes) end,
+      after = writes and "none" or "done"
     }
   end
 
@@ -207,6 +265,7 @@ local function batteryPickOptions(widget, t)
   options[#options + 1] = {
     label = t("widgets.dashboard.battery_pick_none", "NO BATTERY"),
     none = true,
+    current = selectedId == nil,
     press = function() requestPick(widget, nil) end,
     after = "done"
   }
@@ -728,9 +787,17 @@ local function menuStyle(widget)
 end
 
 local function rollModule()
-  local Roll = requireModule("widgets/dashboard/quick_roll.lua")
+  local Roll = requireModule("widgets/dashboard/menu_roll.lua")
   if type(Roll) == "table" and type(Roll.build) == "function" then return Roll end
   return nil
+end
+
+--- How the last pick's write went, in the words the picker shows; "" while there is nothing to say.
+function M.pickStatusText(widget, t)
+  local status = Views and type(Views.status) == "function" and Views.status(widget, "battery_pick") or nil
+  if status == "busy" then return t("widgets.dashboard.battery_profile_busy", "SENDING...") end
+  if status == "failed" then return t("widgets.dashboard.battery_profile_failed", "NOT SAVED") end
+  return ""
 end
 
 --- Rebuilt when `stateKey` moves. The rolling style also when the model arms or disarms, or the
@@ -749,86 +816,26 @@ function M.renderKey(widget)
   return key
 end
 
--- The widget's own look, in the colours of the scheme the pilot has chosen (menu_look.lua).
+-- The card style's drawing, in the colours of the scheme the pilot has chosen (menu_look.lua).
 --
 -- `frame(children)` draws the background and the header with its close box and answers where the
 -- content goes; `button` draws one entry, `valueRow` the BATTERY PROFILE row, and `fillText` words
--- the blackbox's fill under ERASE BLACKBOX. That is all a theme hands in to restyle the menu.
-local function ownStyle(widget, t)
-  local colors = Look and Look.colors(widget) or {}
-  local dW, dH = widget.zone.w, widget.zone.h
-  local dX, dY = 0, 0
-
-  -- Layout Profile Definition
-  -- TX16S MK3 is 800x480 (dH ~480)
-  -- Standard TX16S is 480x272 (dH ~272)
-  local isLarge = dH > 350
-
-  local headerH, titleFont, fontH, closeSize, contentGap, gapY, paddingX
-  local headTextOffY, closeTextOffY, btnTextOffY
-
-  if isLarge then
-    -- Layout for TX16S MK3 (Large High-Res)
-    headerH = 60
-    titleFont = MIDSIZE
-    fontH = 24
-    closeSize = 44
-    contentGap = 20
-    gapY = 10
-    paddingX = 15
-    headTextOffY = -6
-    closeTextOffY = -8
-    btnTextOffY = -8
-  else
-    -- Layout for standard TX16S (480x272)
-    headerH = 22
-    titleFont = SMLSIZE
-    fontH = 12
-    closeSize = 20
-    contentGap = 5
-    gapY = 8
-    paddingX = 5
-    headTextOffY = -2
-    closeTextOffY = -4
-    btnTextOffY = -4
-  end
-  local smallH = isLarge and 16 or 10
-
-  local function header(children)
-    children[#children+1] = {
-      type = "rectangle", x=dX, y=dY, w=dW, h=dH, color=colors.bg, filled=true
-    }
-
-    children[#children+1] = {
-      type = "rectangle", x=dX, y=dY, w=dW, h=headerH, color=colors.fill, filled=true
-    }
-
-    children[#children+1] = {
-      type = "label", x=dX + paddingX, y=dY + math.floor((headerH - fontH)/2) + headTextOffY, w=dW-60,
-      text=t("widgets.dashboard.quick_settings", "QUICK SETTINGS"), color=colors.text, align=LEFT, font=titleFont
-    }
-
-    -- The close button (X).
-    local cx = dX + dW - closeSize - (isLarge and 8 or 1)
-    local cy = dY + math.floor((headerH - closeSize)/2)
-
-    children[#children+1] = {
-      type = "button", x=cx, y=cy, w=closeSize, h=closeSize, color=colors.close,
-      press = pressFor(widget, nil, "done")
-    }
-
-    children[#children+1] = {
-      type = "label", x=cx, y=cy + math.floor((closeSize - fontH)/2) + closeTextOffY, w=closeSize, text="X", color=colors.onClose, align=CENTER, font=titleFont
-    }
-  end
+-- the blackbox's fill under ERASE BLACKBOX.
+local function cardStyle(widget, t)
+  local p = Look.profile(widget.zone.h)
+  local colors = Look.colors(widget)
+  local titleFont, fontH, paddingX, btnTextOffY = p.titleFont, p.fontH, p.paddingX, p.btnTextOffY
+  local isLarge, smallH = p.isLarge, p.smallH
 
   return {
     frame = function(children)
-      header(children)
+      local _, _, top = Look.frame(children, widget, t("widgets.dashboard.quick_settings", "QUICK SETTINGS"),
+        pressFor(widget, nil, "done"))
+      local dW, dH = widget.zone.w, widget.zone.h
       return {
-        x = dX + paddingX, w = dW - paddingX * 2, zoneW = dW,
-        top = dY + headerH + contentGap, bottom = dY + dH - gapY,
-        gapX = paddingX, gapY = gapY,
+        x = paddingX, w = dW - paddingX * 2, zoneW = dW,
+        top = top, bottom = dH - p.gapY,
+        gapX = paddingX, gapY = p.gapY,
       }
     end,
     button = function(children, x, y, w, h, name, sub, press)
@@ -881,29 +888,24 @@ end
 -- asks for. Taking the list as an argument is the point of the split: the same drawing code
 -- can serve a list assembled somewhere else.
 --
--- `style` is a theme's look (see `ownStyle`); omitted, the widget's own, drawn in the style the
--- pilot has chosen. What the menu holds, how it is laid out and what a press does are the same
--- whoever draws it.
---
 -- Every entry is one button on a place of the raster (M.PLACES), in the order of the list; an
 -- entry that is not offered now takes no place, and an entry past the last place is not drawn.
 -- BATTERY PROFILE is drawn on its own row under the raster and never on a place, so a list that
 -- names it does not draw it twice.
-function M.build(children, widget, entries, style)
+function M.build(children, widget, entries)
   entries = entries or M.entries(widget)
   local t = translator(widget)
 
-  if style == nil then
-    style = ownStyle(widget, t)
-    if menuStyle(widget) == "rotary" and Look ~= nil then
-      local Roll = rollModule()
-      if Roll == nil and Log and type(Log.emit) == "function" then
+  if menuStyle(widget) == "rotary" and Look ~= nil then
+    local Roll = rollModule()
+    local Sources = Roll and requireModule("widgets/dashboard/menu_roll_sources.lua") or nil
+    if Roll == nil or type(Sources) ~= "table" then
+      if Log and type(Log.emit) == "function" then
         Log.emit("rfsuite.widget", "rotary menu did not load, drawing the card", "warn")
       end
-      if Roll then
-        Roll.build(children, widget, entries, Look.colors(widget), t)
-        return
-      end
+    else
+      Roll.build(children, widget, Sources.quick(widget, entries, t), Look.colors(widget))
+      return
     end
   end
 
@@ -911,12 +913,11 @@ function M.build(children, widget, entries, style)
   -- choice changed, has stopped answering the wheel.
   if widget._viewStack ~= nil then widget._viewStack.roll = nil end
 
+  local style = cardStyle(widget, t)
   local frame = style.frame(children)
   if frame == nil then return end
 
-  -- A press: the look's own route where it has one (`ctx.run`, which looks the record up again when
-  -- it is pressed), else the row as drawn.
-  local run = style.run or function(entry) M.run(widget, entry) end
+  local function run(entry) M.run(widget, entry) end
 
   -- The raster, then the BATTERY PROFILE row: rows of one height, the raster's and the battery
   -- row's alike.

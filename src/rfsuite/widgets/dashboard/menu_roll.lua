@@ -1,17 +1,17 @@
--- The quick menu as two rolling lists: the menu on the left, what the selected entry leads to on
--- the right. The current row always stands in the larger middle slot, and the lists end where they
--- end: no wrap, nothing drawn twice, free slots stay empty.
---
--- Which entries there are, whether one is offered and what a press does are the quick menu's own
--- records (fullscreen_menu.lua). This file only draws them and moves through them.
+-- A menu as two rolling columns, for whichever menu hands in a description of itself
+-- (menu_roll_sources.lua says what one holds; this file knows nothing else about the menu). The
+-- current row always stands in the larger middle slot, and the lists end where they end: no wrap,
+-- nothing drawn twice, free slots stay empty.
 --
 --   wheel    moves the list that has the focus; the left one shows on the right what its current
---            entry leads to
---   press    runs the left entry, or moves the focus right where it has a choice or a question;
---            on the right it finishes, and the menu closes
---   RTN      from the right returns left, from the left closes the menu
+--            row leads to
+--   press    moves the focus right where the row leads to a list or a question, else acts
+--   RTN      from the right returns left, from the left is the description's `back`
 --   finger   a swipe rolls the list it starts on, a row's height a row; a tap on the middle row is
 --            a press, a tap on any other brings it to the middle and runs nothing
+--
+-- The place is a path of levels, each a list and the row current in it, with the focus on one of
+-- them. Two columns show two levels at a time: the one with the focus and the one beside it.
 --
 -- The wheel. A Lua widget never receives EVT_ROTARY_*: the encoder moves LVGL's focus along the
 -- scene's focusable objects in creation order, wrapping, and the fullscreen widget itself is one of
@@ -43,9 +43,7 @@ local requireModule = (_G.rfsuite and _G.rfsuite.require) or function(path)
   return nil
 end
 
-local Menu = requireModule("widgets/dashboard/fullscreen_menu.lua")
 local Views = requireModule("widgets/dashboard/views.lua")
-local Look = requireModule("widgets/dashboard/menu_look.lua")
 local Log = requireModule("lib/log.lua")
 
 local TAG = "rfsuite.widget.roll"
@@ -70,44 +68,22 @@ local REACH = 2
 -- Ten milliseconds a tick: how long the wheel has to rest before the scene is built again.
 local REST_TICKS = 60
 
-local function rollOf(widget)
+-- The roll of this visit for `view`, made where there is none. A visit has one: only the view on top
+-- takes the wheel, and a menu a picker opened over is not returned to.
+local function rollOf(widget, view)
   if not (Views and type(Views.session) == "function") then return nil end
   local session = Views.session(widget)
   local roll = session.roll
-  if roll == nil then
-    roll = { side = "left", left = 1, right = 1, position = 0, epoch = 0 }
+  if roll == nil or roll.view ~= view then
+    roll = { view = view, levels = { { rows = {}, index = 1 } }, focus = 1, position = 0, epoch = 0 }
     session.roll = roll
   end
   return roll
 end
 
--- The left list: the pilot's entries that are offered now, BATTERY PROFILE last where it is.
-local function leftList(widget, entries)
-  local out = {}
-  for i = 1, #entries do
-    local entry = entries[i]
-    if entry.id ~= "battery_profile" and Menu.visible(widget, entry) then out[#out + 1] = entry end
-  end
-  local profile = Menu.entry(widget, "battery_profile")
-  if profile ~= nil and Menu.visible(widget, profile) then out[#out + 1] = profile end
-  return out
-end
-
--- The options the entry leads to, or nil where it runs at once.
-local function optionsOf(widget, entry)
-  if entry == nil or entry.view == nil or type(entry.options) ~= "function" then return nil end
-  local options = entry.options(widget)
-  if type(options) ~= "table" or #options == 0 then return nil end
-  return options
-end
-
--- The question's two answers, in the order the wheel meets them, the safe one first: the focus
--- starts on it, so a double press on the row cannot answer for the pilot.
-local function answers(confirm)
-  return {
-    { label = confirm.cancelLabel or "CANCEL", cancel = true },
-    { label = confirm.confirmLabel or "OK", agree = true },
-  }
+local function current(widget)
+  local session = widget._viewStack
+  return session and session.roll or nil
 end
 
 local function clamp(value, count)
@@ -125,130 +101,111 @@ local function rebuild(widget, roll)
   if Views and type(Views.invalidate) == "function" then Views.invalidate(widget) end
 end
 
-local function currentIndex(options)
-  for i = 1, #options do
-    if options[i].current == true then return i end
+-- Where a list starts: on the row marked current where it can be pressed, else on the answer that
+-- changes nothing where the list has one, else on its first row.
+local function startIndex(rows, source)
+  local fallback = 1
+  for i = 1, #rows do
+    local row = rows[i]
+    if row.none == true then fallback = i end
+    if row.current == true and not (source.off and source.off(row)) then return i end
   end
-  return 1
+  return fallback
 end
 
--- What the right list holds now: the question, else what the left entry leads to. Asked again only
--- when the left entry changes.
-local function rightList(widget, roll)
-  if roll.side == "right" and roll.question ~= nil then return roll.questionList end
-  if roll.rightFor ~= roll.left then
-    roll.rightFor = roll.left
-    roll.rightOptions = optionsOf(widget, roll.leftList and roll.leftList[roll.left])
-    roll.right = roll.rightOptions and currentIndex(roll.rightOptions) or 1
+-- The left level and the right one: the first two for as long as there are two levels.
+local function leftLevel(roll) return roll.levels[1] end
+
+-- What the right list holds now: the level the focus is on, else what the left row leads to. Asked
+-- again only when the left row changes.
+local function rightLevel(roll)
+  local left = leftLevel(roll)
+  local right = roll.levels[2]
+  if roll.focus == 2 then return right end
+  if right == nil or right.forIndex ~= left.index then
+    local source = roll.source
+    local row = left.rows[left.index]
+    local rows = (row ~= nil and source.preview ~= nil) and source.preview(row) or nil
+    right = { rows = rows, forIndex = left.index, index = rows and startIndex(rows, source) or 1 }
+    roll.levels[2] = right
   end
-  return roll.rightOptions
+  return right
 end
 
-local function moveTo(widget, roll, side)
-  roll.side = side
-  if side == "left" then roll.question, roll.questionList = nil, nil end
-  trace("side " .. side)
+local function rightRows(roll)
+  local right = rightLevel(roll)
+  return right and right.rows or nil
+end
+
+local function moveLeft(widget, roll)
+  roll.focus = 1
+  roll.levels[2] = nil
+  trace("focus left")
   rebuild(widget, roll)
+end
+
+local function isOff(roll, row)
+  local off = roll.source and roll.source.off
+  return off ~= nil and row ~= nil and off(row) == true
 end
 
 -- ---------------------------------------------------------------------------
 -- What the pilot does
 -- ---------------------------------------------------------------------------
 
+local function moveBy(roll, delta)
+  local level = (roll.focus == 2) and rightLevel(roll) or leftLevel(roll)
+  local rows = level and level.rows or nil
+  local before = level and level.index or 1
+  if level ~= nil then level.index = clamp(before + delta, rows and #rows or 0) end
+  trace("level " .. tostring(roll.focus) .. " " .. tostring(before) .. " -> " .. tostring(level and level.index))
+end
+
 -- A detent, or several where the wheel outran the callbacks. The sum is taken from the ladder
 -- position, so a detent that went unreported on the widget is counted by the next one.
 local function stepped(widget, roll, delta)
   if delta == 0 then return end
-  if roll.side == "left" then
-    local before = roll.left
-    roll.left = clamp(before + delta, roll.leftList and #roll.leftList or 0)
-    trace("left " .. tostring(before) .. " -> " .. tostring(roll.left))
-  else
-    local list = rightList(widget, roll)
-    local before = roll.right
-    roll.right = clamp(before + delta, list and #list or 0)
-    trace("right " .. tostring(before) .. " -> " .. tostring(roll.right))
-  end
+  moveBy(roll, delta)
   roll.steppedAt = getTime()
-  local reach = math.abs(roll.position)
-  if reach >= LADDER - LADDER_MARGIN then rebuild(widget, roll) end
-end
-
-local function finishRight(widget, roll)
-  local list = rightList(widget, roll)
-  local choice = list and list[roll.right] or nil
-  if choice == nil then return end
-  if roll.question ~= nil then
-    if choice.cancel then
-      moveTo(widget, roll, "left")
-      return
-    end
-    local entry = roll.question
-    trace("question answered " .. tostring(entry.id))
-    Menu.perform(widget, entry, nil, entry.after)
-    return
-  end
-  local entry = roll.leftList and roll.leftList[roll.left] or nil
-  if entry == nil then return end
-  if entry.id == "battery_profile" then
-    -- The list stays up until the write has been answered: a failed write must not pass unseen.
-    local base = Views.reporter(widget, entry.id)
-    local session = Views.session(widget)
-    local function report(value)
-      base(value)
-      trace("profile write " .. tostring(value))
-      -- A chain with a failed message stays failed whatever the last answer says, and a reply to a
-      -- write from before the menu was closed says nothing about this menu.
-      if value == "ok" and widget._viewStack == session and session.roll == roll
-        and Views.status(widget, entry.id) == "ok" then
-        Views.navigate(widget, "done")
-      end
-    end
-    Menu.run(widget, entry, choice, "none", report)
-    return
-  end
-  Menu.run(widget, entry, choice)
+  if math.abs(roll.position) >= LADDER - LADDER_MARGIN then rebuild(widget, roll) end
 end
 
 --- A press of the wheel, or a tap on the middle row: what the current row does.
 function M.press(widget)
-  local roll = rollOf(widget)
-  if roll == nil then return end
-  if roll.side == "right" then
-    finishRight(widget, roll)
+  local roll = current(widget)
+  if roll == nil or roll.source == nil then return end
+  local source = roll.source
+  local left = leftLevel(roll)
+  local row = left.rows[left.index]
+  if roll.focus == 2 then
+    local right = roll.levels[2]
+    local choice = right and right.rows and right.rows[right.index] or nil
+    if row == nil or choice == nil or isOff(roll, choice) then return end
+    if source.act({ row, choice }, roll) == "back" then moveLeft(widget, roll) end
     return
   end
-  local entry = roll.leftList and roll.leftList[roll.left] or nil
-  if entry == nil then return end
-  if type(entry.confirm) == "table" then
-    roll.question, roll.questionList = entry, answers(entry.confirm)
-    roll.right = 1
-    moveTo(widget, roll, "right")
+  if row == nil or isOff(roll, row) then return end
+  local rows, question
+  if source.enter ~= nil then rows, question = source.enter(row) end
+  if rows ~= nil then
+    roll.levels[2] = { rows = rows, question = question, forIndex = left.index, index = startIndex(rows, source) }
+    roll.focus = 2
+    trace("focus right")
+    rebuild(widget, roll)
     return
   end
-  local options = optionsOf(widget, entry)
-  if options ~= nil then
-    roll.rightFor, roll.rightOptions = roll.left, options
-    roll.right = currentIndex(options)
-    moveTo(widget, roll, "right")
-    return
-  end
-  trace("run " .. tostring(entry.id))
-  Menu.run(widget, entry)
+  source.act({ row }, roll)
 end
 
---- RTN: from the right back to the left, from the left out of the menu. Answers true.
+--- RTN: from the right back to the left, from the left the description's own. Answers true.
 function M.back(widget)
-  local roll = rollOf(widget)
-  if roll ~= nil and roll.side == "right" then
-    moveTo(widget, roll, "left")
+  local roll = current(widget)
+  if roll == nil or roll.source == nil then return false end
+  if roll.focus == 2 then
+    moveLeft(widget, roll)
     return true
   end
-  if Views.top(widget) == nil then
-    Views.navigate(widget, "done")
-  else
-    Views.navigate(widget, "closeView")
-  end
+  roll.source.back()
   return true
 end
 
@@ -276,15 +233,21 @@ local function rowAt(roll, x, y)
   return side, nil
 end
 
+local function sideOf(roll)
+  return (roll.focus == 2) and "right" or "left"
+end
+
 -- The list a touch acts on takes the focus. Answers whether that side has a list to act on.
-local function focusSide(roll, widget, side)
-  if side == roll.side then return true end
+local function focusSide(roll, side)
+  if side == sideOf(roll) then return true end
   if side == "left" then
-    roll.side, roll.question, roll.questionList = "left", nil, nil
+    roll.focus = 1
+    roll.levels[2] = nil
     return true
   end
-  if rightList(widget, roll) == nil then return false end
-  roll.side = "right"
+  local right = rightLevel(roll)
+  if right == nil or right.rows == nil then return false end
+  roll.focus = 2
   return true
 end
 
@@ -293,43 +256,34 @@ end
 local function tapped(widget, roll, x, y)
   local side, offset = rowAt(roll, x, y)
   if side == nil or offset == nil then return end
-  if offset == 0 and side == roll.side then
+  if offset == 0 and side == sideOf(roll) then
     M.press(widget)
     return
   end
-  if offset == 0 and side == "right" and rightList(widget, roll) ~= nil then
-    -- The preview's middle row is the left entry's choice: as the press on that entry.
+  if offset == 0 and side == "right" and rightRows(roll) ~= nil then
+    -- The preview's middle row is the left row's choice: as the press on that row.
     M.press(widget)
     return
   end
-  local index = ((side == "left") and roll.left or roll.right) + offset
-  local list
-  if side == "left" then list = roll.leftList else list = rightList(widget, roll) end
-  if list == nil or list[index] == nil then return end
-  if not focusSide(roll, widget, side) then return end
-  if side == "left" then roll.left = index else roll.right = index end
+  local level = (side == "left") and leftLevel(roll) or rightLevel(roll)
+  if level == nil or level.rows == nil or level.rows[level.index + offset] == nil then return end
+  local index = level.index + offset
+  if not focusSide(roll, side) then return end
+  level = (side == "left") and leftLevel(roll) or rightLevel(roll)
+  level.index = index
   trace("tap " .. side .. " -> " .. tostring(index))
   rebuild(widget, roll)
 end
 
 -- A row's height of finger is a row: the finger moving up brings the next row to the middle.
-local function swiped(widget, roll, dy)
+local function swiped(roll, dy)
   local geo = roll.geo
   if geo == nil or geo.rowH <= 0 then return end
   roll.slide = (roll.slide or 0) + dy
   while roll.slide <= -geo.rowH or roll.slide >= geo.rowH do
     local delta = (roll.slide < 0) and 1 or -1
     roll.slide = roll.slide + delta * geo.rowH
-    if roll.side == "left" then
-      local before = roll.left
-      roll.left = clamp(before + delta, roll.leftList and #roll.leftList or 0)
-      trace("left " .. tostring(before) .. " -> " .. tostring(roll.left))
-    else
-      local list = rightList(widget, roll)
-      local before = roll.right
-      roll.right = clamp(before + delta, list and #list or 0)
-      trace("right " .. tostring(before) .. " -> " .. tostring(roll.right))
-    end
+    moveBy(roll, delta)
   end
 end
 
@@ -338,12 +292,12 @@ function M.touch(widget, event, touch)
   if _G.EVT_TOUCH_FIRST == nil or type(touch) ~= "table" then
     return false
   end
-  local roll = rollOf(widget)
+  local roll = current(widget)
   if roll == nil then return false end
   if event == _G.EVT_TOUCH_FIRST then
     -- Against the box under the whole screen, and the one rectangle over it starts at the same corner.
     roll.touchX, roll.touchY = touch.x, touch.y
-    roll.slide, roll.sliding, roll.sideBefore, roll.slideOn = 0, false, roll.side, nil
+    roll.slide, roll.sliding, roll.focusBefore, roll.slideOn = 0, false, roll.focus, nil
     return true
   end
   if event == _G.EVT_TOUCH_SLIDE then
@@ -351,9 +305,9 @@ function M.touch(widget, event, touch)
     if not roll.sliding then
       roll.sliding = true
       local side = rowAt(roll, roll.touchX, roll.touchY or 0)
-      if side ~= nil and focusSide(roll, widget, side) then roll.slideOn = true end
+      if side ~= nil and focusSide(roll, side) then roll.slideOn = true end
     end
-    if roll.slideOn then swiped(widget, roll, touch.slideY or 0) end
+    if roll.slideOn then swiped(roll, touch.slideY or 0) end
     return true
   end
   if event == _G.EVT_TOUCH_BREAK then
@@ -361,7 +315,7 @@ function M.touch(widget, event, touch)
     roll.touchX, roll.touchY, roll.sliding, roll.slideOn = nil, nil, false, nil
     if wasSliding then
       -- The focus's outline is drawn with the scene.
-      if roll.side ~= roll.sideBefore then rebuild(widget, roll) end
+      if roll.focus ~= roll.focusBefore then rebuild(widget, roll) end
     elseif x ~= nil then
       tapped(widget, roll, x, y)
     end
@@ -428,12 +382,12 @@ end
 -- ---------------------------------------------------------------------------
 
 --- Part of the view's key: the epoch moves when the scene has to be built again, and it moves here
---- when the wheel has rested, the one place that is asked on every pass while the menu is up.
+--- when the wheel has rested, the one place that is asked on every pass while the menu is up. Not
+--- while a finger is down: a build under it would take the touch away.
 function M.renderKey(widget)
-  local session = widget._viewStack
-  local roll = session and session.roll or nil
+  local roll = current(widget)
   if roll == nil then return "" end
-  if roll.steppedAt ~= nil and not roll.sliding and getTime() - roll.steppedAt >= REST_TICKS then
+  if roll.steppedAt ~= nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS then
     roll.epoch = roll.epoch + 1
     roll.steppedAt = nil
   end
@@ -441,37 +395,34 @@ function M.renderKey(widget)
 end
 
 -- One row of a list, as text read when it is drawn: the rows do not move, what they say does.
-local function itemAt(roll, side, offset, widget)
-  if side == "left" then
-    local list = roll.leftList
-    return list and list[roll.left + offset] or nil
-  end
-  local list = rightList(widget, roll)
-  return list and list[roll.right + offset] or nil
+local function itemAt(roll, side, offset)
+  local level = (side == "left") and leftLevel(roll) or rightLevel(roll)
+  if level == nil or level.rows == nil then return nil end
+  return level.rows[level.index + offset]
 end
 
-local function rowText(roll, side, offset, widget)
+local function rowText(roll, side, offset)
   return function()
-    local item = itemAt(roll, side, offset, widget)
+    local item = itemAt(roll, side, offset)
     if item == nil then return "" end
     return item.title or item.label or ""
   end
 end
 
--- What a current row says under its name: an option's detail, the blackbox's fill.
-local function subText(roll, side, widget, fillFormat)
+-- What a current row says under its name.
+local function subText(roll, side)
   -- Asked on every pass the menu is up, and a row's second line only changes with the row.
   local lastItem, lastText = nil, ""
   return function()
-    local item = itemAt(roll, side, 0, widget)
+    local item = itemAt(roll, side, 0)
     if item == lastItem then return lastText end
     lastItem, lastText = item, ""
     if item == nil then return lastText end
-    if item.detail ~= nil then
-      lastText = item.detail
-    elseif type(item.info) == "function" then
-      local percent = Menu.fillPercent(item)
-      if percent ~= nil then lastText = string.format(fillFormat, percent) end
+    local sub = roll.source.sub
+    if sub ~= nil then
+      lastText = sub(item) or ""
+    else
+      lastText = item.detail or ""
     end
     return lastText
   end
@@ -488,74 +439,77 @@ local function middleFace(list, large, small, maxW)
   return large
 end
 
-local function indexOfEntry(list, entry)
-  if entry == nil then return nil end
-  for i = 1, #list do
-    if list[i].id == entry.id then return i end
+-- A row is the same row by its id, and NO BATTERY by its mark.
+local function indexOfRow(rows, row)
+  if rows == nil or row == nil then return nil end
+  for i = 1, #rows do
+    local candidate = rows[i]
+    if (row.none == true and candidate.none == true) or (row.id ~= nil and candidate.id == row.id) then return i end
   end
   return nil
 end
 
--- An option is a pack or a profile by its id, and NO BATTERY by its mark.
-local function indexOfOption(list, option)
-  if list == nil or option == nil then return nil end
-  for i = 1, #list do
-    local candidate = list[i]
-    if (option.none == true and candidate.none == true) or (option.id ~= nil and candidate.id == option.id) then return i end
-  end
-  return nil
-end
+-- The scene is built again whenever the wheel rests, and the lists are made afresh with it, for what
+-- they say about the choice in force. The pilot's place in them goes by what the row IS: a row can
+-- come or go above it, and the same number can then be another row.
+local function refreshLists(roll, source)
+  local left = leftLevel(roll)
+  local right = roll.levels[2]
+  local before = left.rows[left.index]
+  local beforeChoice = (right ~= nil and right.question == nil and right.rows ~= nil and right.forIndex == left.index)
+    and right.rows[right.index] or nil
 
---- Draw the menu. `entries` is the list the menu was asked to draw.
-function M.build(children, widget, entries, colors, t)
-  local roll = rollOf(widget)
-  if roll == nil then return end
-
-  -- The scene is built again whenever the wheel rests, and the lists are made afresh with it, for
-  -- what they say about the profile in force. The pilot's place in them goes by what the row IS: an
-  -- entry can come or go above it, and the same number can then be another entry.
-  local before = roll.leftList and roll.leftList[roll.left] or nil
-  local beforeOption = (roll.question == nil and roll.rightOptions ~= nil and roll.rightFor == roll.left)
-    and roll.rightOptions[roll.right] or nil
-  roll.leftList = leftList(widget, entries)
-  trace("left list " .. tostring(#roll.leftList))
-  local found = indexOfEntry(roll.leftList, before)
-  if found ~= nil then
-    roll.left = found
-    if roll.rightOptions ~= nil and beforeOption ~= nil then
-      roll.rightFor = found
-      roll.rightOptions = optionsOf(widget, roll.leftList[found])
-      local place = indexOfOption(roll.rightOptions, beforeOption)
+  left.rows = source.rows()
+  trace("left list " .. tostring(#left.rows))
+  local found = indexOfRow(left.rows, before)
+  if found == nil then
+    -- The row the pilot was on has gone: the model armed, or the link dropped. On a first build there
+    -- was none, and the list starts where it starts.
+    left.index = (before == nil) and startIndex(left.rows, source) or clamp(left.index, #left.rows)
+    roll.focus = 1
+    roll.levels[2] = nil
+  else
+    left.index = found
+    if right ~= nil then right.forIndex = found end
+    local row = left.rows[found]
+    if right ~= nil and right.question ~= nil then
+      -- A question stands, in what the row says now.
+      local rows, question
+      if source.enter ~= nil then rows, question = source.enter(row) end
+      if rows ~= nil and question ~= nil then
+        right.rows, right.question = rows, question
+      else
+        roll.focus = 1
+        roll.levels[2] = nil
+      end
+    elseif beforeChoice ~= nil then
+      right.rows = source.preview and source.preview(row) or nil
+      local place = indexOfRow(right.rows, beforeChoice)
       if place ~= nil then
-        roll.right = place
+        right.index = place
       else
         -- The option the pilot was on has gone. Another one must not take its place under the same
         -- press: the focus goes back to the left, and the list starts over on the one in force.
-        roll.side = "left"
-        roll.right = roll.rightOptions and currentIndex(roll.rightOptions) or 1
+        roll.focus = 1
+        right.index = right.rows and startIndex(right.rows, source) or 1
       end
     else
-      roll.rightFor, roll.rightOptions = nil, nil
+      roll.levels[2] = nil
     end
-    -- A question stands, in what the row says now.
-    if roll.question ~= nil then
-      roll.question = roll.leftList[found]
-      if type(roll.question.confirm) == "table" then
-        roll.questionList = answers(roll.question.confirm)
-      else
-        roll.side, roll.question, roll.questionList = "left", nil, nil
-      end
-    end
-  else
-    -- The row the pilot was on has gone: the model armed, or the link dropped.
-    roll.left = clamp(roll.left, #roll.leftList)
-    roll.side, roll.question, roll.questionList = "left", nil, nil
-    roll.rightFor, roll.rightOptions = nil, nil
   end
   roll.position, roll.steppedAt = 0, nil
-  if roll.side == "right" and rightList(widget, roll) == nil then
-    roll.side, roll.question, roll.questionList = "left", nil, nil
+  if roll.focus == 2 and (roll.levels[2] == nil or roll.levels[2].rows == nil) then
+    roll.focus = 1
+    roll.levels[2] = nil
   end
+end
+
+--- Draw the menu `source` describes (menu_roll_sources.lua) into the view it names.
+function M.build(children, widget, source, colors)
+  local roll = rollOf(widget, source.id)
+  if roll == nil then return end
+  roll.source = source
+  refreshLists(roll, source)
 
   local W, H = widget.zone.w, widget.zone.h
   local large = H > 350
@@ -581,7 +535,8 @@ function M.build(children, widget, entries, colors, t)
   local rowH = math.floor(avail / (slots - 1 + (large and 1.75 or 1.65)))
   local midH = avail - (slots - 1) * rowH
   local midY = top + REACH * (rowH + gap)
-  local activeX = (roll.side == "right") and rightX or leftX
+  local onRight = roll.focus == 2
+  local activeX = onRight and rightX or leftX
 
   local function slotY(offset)
     if offset < 0 then return midY + offset * (rowH + gap) end
@@ -594,9 +549,9 @@ function M.build(children, widget, entries, colors, t)
     children[#children + 1] = { type = "rectangle", x = x, y = midY, w = colW, h = midH, color = color, filled = true, rounded = radius }
   end
   surface(activeX, colors.fill)
-  if roll.side == "right" then
+  if onRight then
     surface(leftX, colors.off)
-  elseif rightList(widget, roll) ~= nil then
+  elseif rightRows(roll) ~= nil then
     surface(rightX, colors.off)
   end
   children[#children + 1] = { type = "rectangle", x = activeX, y = midY, w = colW, h = midH, color = colors.accent,
@@ -614,6 +569,7 @@ function M.build(children, widget, entries, colors, t)
   viewport(widget, roll, windows, "forward", "reverse", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0)
 
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = headH, color = colors.head, filled = true }
+  children[#children + 1] = { type = "rectangle", x = 0, y = headH, w = W, h = 1, color = colors.rule, filled = true }
 
   -- Over every surface and empty, not scrolling: a touch reaches the widget against this box, with
   -- its coordinates. Labels take no touch, and the close box and the rectangle below come after it.
@@ -623,25 +579,34 @@ function M.build(children, widget, entries, colors, t)
   children[#children + 1] = {
     type = "button", x = closeX, y = closeY, w = closeSize, h = closeSize, color = colors.close, cornerRadius = radius,
     text = "X", textColor = colors.onClose,
-    press = function() Views.navigate(widget, "done") end,
+    press = function() source.close() end,
   }
 
   viewport(widget, roll, windows, "reverse", "forward", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0)
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = closeX - pad, h = headH, color = colors.head, filled = true }
   children[#children + 1] = {
     type = "label", x = pad, y = math.floor((headH - midH_) / 2), w = math.floor(W / 2), font = large and MIDSIZE or nearFont,
-    text = t("widgets.dashboard.quick_settings", "QUICK SETTINGS"), color = colors.headText, align = LEFT,
+    text = source.title or "", color = colors.headText, align = LEFT,
   }
 
-  local fillFormat = t("widgets.dashboard.erase_blackbox_confirm_used", "%d%% used")
-
   local markW = 2 * nearH
-  local leftFace = middleFace(roll.leftList, midFont, nearFont, colW - 2 * markW)
-  local rightFace = middleFace(rightList(widget, roll), midFont, nearFont, colW - 2 * markW)
+  local leftFace = middleFace(leftLevel(roll).rows, midFont, nearFont, colW - 2 * markW)
+  local rightFace = middleFace(rightRows(roll), midFont, nearFont, colW - 2 * markW)
+
+  -- A row that cannot be pressed reads paler wherever it stands. Only a menu that has such rows pays
+  -- for the colour being asked on every pass.
+  local function shaded(side, offset, color, offColor)
+    if source.off == nil then return color end
+    return function()
+      local item = itemAt(roll, side, offset)
+      if item ~= nil and source.off(item) then return offColor end
+      return color
+    end
+  end
 
   local function row(side, colX, offset)
     local isMid = offset == 0
-    local hasFocus = side == roll.side
+    local hasFocus = side == sideOf(roll)
     local h = isMid and midH or rowH
     local font, fontH, color
     if isMid then
@@ -656,32 +621,35 @@ function M.build(children, widget, entries, colors, t)
     local y = slotY(offset) + math.floor((h - fontH) / 2)
     if isMid then y = slotY(offset) + math.floor((h - fontH - farH) / 2) end
     children[#children + 1] = {
-      type = "label", x = colX + 4, y = y, w = colW - 8, font = font, align = CENTER, color = color,
-      text = rowText(roll, side, offset, widget),
+      type = "label", x = colX + 4, y = y, w = colW - 8, font = font, align = CENTER,
+      -- On the selected surface the disabled colour has no contrast left, so the middle row takes muted.
+      color = shaded(side, offset, color, isMid and colors.muted or colors.disabled),
+      text = rowText(roll, side, offset),
     }
     if isMid then
       children[#children + 1] = {
         type = "label", x = colX + 4, y = y + fontH + (large and 4 or 1), w = colW - 8, font = farFont, align = CENTER,
-        color = colors.muted, text = subText(roll, side, widget, fillFormat),
+        color = colors.muted, text = subText(roll, side),
       }
     end
-    -- The mark that a left row opens something on the right.
-    if side == "left" then
+    if side == "left" and source.opens ~= nil then
+      -- The mark that a left row opens something on the right.
       children[#children + 1] = {
         type = "label", x = colX + colW - pad - markW, y = slotY(offset) + math.floor((h - fontH) / 2), w = markW,
         font = font, align = RIGHT, color = (isMid and hasFocus) and colors.accent or color,
         text = function()
-          local item = itemAt(roll, side, offset, widget)
-          return (item ~= nil and item.view ~= nil) and ">" or ""
+          local item = itemAt(roll, side, offset)
+          return (item ~= nil and source.opens(item)) and ">" or ""
         end,
       }
-    else
-      -- The option in force.
+    end
+    if side == "right" or source.marks then
+      -- The choice in force.
       local dot = large and 4 or 3
       children[#children + 1] = {
         type = "circle", x = colX + pad + dot, y = slotY(offset) + math.floor(h / 2), radius = dot, color = colors.accent, filled = true,
         visible = function()
-          local item = itemAt(roll, side, offset, widget)
+          local item = itemAt(roll, side, offset)
           return item ~= nil and item.current == true
         end,
       }
@@ -689,28 +657,44 @@ function M.build(children, widget, entries, colors, t)
   end
   for offset = -REACH, REACH do
     row("left", leftX, offset)
-    row("right", rightX, offset)
+    if source.details == nil then row("right", rightX, offset) end
   end
 
-  if roll.question ~= nil then
-    local confirm = roll.question.confirm
+  -- Beside a row that leads to no list: what is known about it, taking no focus.
+  if source.details ~= nil then
+    for line = 1, 2 * REACH + 1 do
+      local offset = line - REACH - 1
+      children[#children + 1] = {
+        type = "label", x = rightX + 4, y = slotY(offset) + math.floor(((offset == 0) and midH or rowH) / 2 - nearH / 2),
+        w = colW - 8, font = nearFont, align = CENTER, color = colors.text,
+        text = function()
+          local item = itemAt(roll, "left", 0)
+          local lines = item and source.details(item) or nil
+          -- The lines stand around the middle slot.
+          local first = lines and (REACH + 1 - math.floor((#lines - 1) / 2)) or 1
+          return lines and lines[line - first + 1] or ""
+        end,
+      }
+    end
+  end
+
+  local right = roll.levels[2]
+  local question = onRight and right and right.question or nil
+  if question ~= nil then
     children[#children + 1] = {
       type = "label", x = rightX + pad, y = headH + 2, w = colW - 2 * pad, font = farFont, align = LEFT, color = colors.text,
-      text = (confirm.message or "") .. ((type(confirm.detail) == "string" and confirm.detail ~= "") and (" " .. confirm.detail) or ""),
+      text = (question.message or "") .. ((type(question.detail) == "string" and question.detail ~= "") and (" " .. question.detail) or ""),
     }
   end
 
-  -- In the header: how a profile's write went.
-  children[#children + 1] = {
-    type = "label", x = math.floor(W / 2), y = math.floor((headH - farH) / 2), w = closeX - pad - math.floor(W / 2),
-    font = farFont, align = RIGHT, color = colors.headText,
-    text = function()
-      local status = Views.status(widget, "battery_profile")
-      if status == "busy" then return t("widgets.dashboard.battery_profile_busy", "SENDING...") end
-      if status == "failed" then return t("widgets.dashboard.battery_profile_failed", "NOT SAVED") end
-      return ""
-    end,
-  }
+  -- In the header: how a write went.
+  if source.status ~= nil then
+    children[#children + 1] = {
+      type = "label", x = math.floor(W / 2), y = math.floor((headH - farH) / 2), w = closeX - pad - math.floor(W / 2),
+      font = farFont, align = RIGHT, color = colors.headText,
+      text = function() return source.status() or "" end,
+    }
+  end
 end
 
 return M

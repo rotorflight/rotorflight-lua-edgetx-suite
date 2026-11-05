@@ -877,20 +877,21 @@ end
 -- tool or tuning owns input. Radio-wide choices also work without a theme base; Theme keys
 -- return false there so LVGL can handle them.
 function M.key(widget, event, touch)
-  -- The quick menu's rolling style: the wheel's press while the focus is still on the fullscreen
-  -- widget, which delivers it here rather than to a button, and RTN's step back to the left list.
+  -- A menu in the rolling style: the wheel's press while the focus is still on the fullscreen widget,
+  -- which delivers it here rather than to a button, RTN's step back to the left list, and the finger.
   local session = widget._viewStack
-  if session ~= nil and session.roll ~= nil and (M.top(widget) or widget._viewId) == M.DEFAULT_VIEW then
+  local rolling = session ~= nil and session.roll or nil
+  if rolling ~= nil and (M.top(widget) or widget._viewId) == rolling.view then
     local enter, exitKey = _G.EVT_VIRTUAL_ENTER, _G.EVT_VIRTUAL_EXIT
-    local own = M.find(widget, M.DEFAULT_VIEW)
+    local own = M.find(widget, rolling.view)
     if own ~= nil and own.load ~= nil then
-      -- A theme's look has taken the menu over since it was opened.
+      -- A theme's look has taken the view over since it was opened.
       session.roll = nil
     elseif touch ~= nil and event ~= enter and event ~= exitKey then
-      local Roll = requireModule("widgets/dashboard/quick_roll.lua")
+      local Roll = requireModule("widgets/dashboard/menu_roll.lua")
       if type(Roll) == "table" and Roll.touch(widget, event, touch) then return true end
     elseif (enter ~= nil and event == enter) or (exitKey ~= nil and event == exitKey) then
-      local Roll = requireModule("widgets/dashboard/quick_roll.lua")
+      local Roll = requireModule("widgets/dashboard/menu_roll.lua")
       if type(Roll) == "table" then
         if event == enter then
           Roll.press(widget)
@@ -976,12 +977,9 @@ end
 --   ctx.condition(name)        `condition(name, widget)`
 --   ctx.entries()              the quick menu's entries, `fullscreen_menu.entries(widget)`: the
 --                              ones the pilot has put in it, in the pilot's order
---   ctx.menu(children, list, style)
---                              the quick menu's builder, appending to `children`; `list`
+--   ctx.menu(children, list)   the quick menu's builder, appending to `children`; `list`
 --                              defaults to the menu's own entries, and one handed in chooses
---                              and orders them by id -- it cannot bring a press of its own.
---                              `style` is the theme's look, the functions fullscreen_menu.lua
---                              names at `ownStyle`; the layout and the presses stay the menu's
+--                              and orders them by id -- it cannot bring a press of its own
 --
 -- and, for a theme that draws the entries itself -- the theme draws, the widget acts:
 --
@@ -1020,13 +1018,13 @@ function M.bind(widget)
     -- A list a theme hands in chooses and orders the menu's own entries and nothing more: each
     -- item is replaced by the menu's record of that id, and an item whose id the menu does not
     -- have is left out, so no press of the theme's is ever drawn as one of the menu's.
-    menu = function(children, entries, style)
+    menu = function(children, entries)
       local m = menuModule()
       if not (m and type(m.build) == "function") then return children end
       if entries ~= nil then
         entries = type(m.coreList) == "function" and m.coreList(widget, entries) or {}
       end
-      m.build(children, widget, entries, style)
+      m.build(children, widget, entries)
       return children
     end,
     entry = function(id)

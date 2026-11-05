@@ -1,9 +1,9 @@
 -- Checks the quick menu's rotary style, offline, with desktop Lua 5.3, from the repository root:
 --
---   lua5.3 bin/dashboard/verify_quick_roll.lua               the checks; exit 1 on any failure
---   lua5.3 bin/dashboard/verify_quick_roll.lua --self-test   proves the checks can go red
+--   lua5.3 bin/dashboard/verify_menu_roll.lua               the checks; exit 1 on any failure
+--   lua5.3 bin/dashboard/verify_menu_roll.lua --self-test   proves the checks can go red
 --
--- What is REAL: widgets/dashboard/quick_roll.lua, fullscreen_menu.lua, views.lua, menu_look.lua and
+-- What is REAL: widgets/dashboard/menu_roll.lua, menu_roll_sources.lua, fullscreen_menu.lua, views.lua, menu_look.lua and
 -- quick_menu_order.lua, loaded from the tree. What is STUBBED: the firmware (a wheel detent is the
 -- `scrolled` call LVGL makes for the focus move) and the flight controller side, so a press is
 -- judged by what it queues and whether it leaves the menu.
@@ -15,14 +15,16 @@ do
   if dir then ROOT = string.match(dir, "^(.*)[/\\]bin[/\\]dashboard$") or (dir .. "/../..") end
 end
 local SRC = ROOT .. "/src/rfsuite/"
-local ROLL = "widgets/dashboard/quick_roll.lua"
+local ROLL = "widgets/dashboard/menu_roll.lua"
+local SOURCES = "widgets/dashboard/menu_roll_sources.lua"
+local MENU = "widgets/dashboard/fullscreen_menu.lua"
 
 local selfTest = false
 for i = 1, #arg do
   if arg[i] == "--self-test" then
     selfTest = true
   else
-    io.stderr:write("usage: lua5.3 bin/dashboard/verify_quick_roll.lua [--self-test]\n")
+    io.stderr:write("usage: lua5.3 bin/dashboard/verify_menu_roll.lua [--self-test]\n")
     os.exit(2)
   end
 end
@@ -41,7 +43,7 @@ _G.getTime = function() return now end
 local QUEUE = {}
 function QUEUE:add(msg) adds[#adds + 1] = msg end
 _G.lcd = {
-  RGB = function(r, g, b) return (r * 65536) + (g * 256) + b end,
+  RGB = function(r, g, b) if g == nil then return r end return (r * 65536) + (g * 256) + b end,
   exitFullScreen = function() exits = exits + 1 end,
 }
 
@@ -76,7 +78,7 @@ local function loadWorld(mutate)
       local f = assert(io.open(SRC .. path, "rb"))
       local text = f:read("a")
       f:close()
-      if path == ROLL and mutate then text = mutate(text) end
+      if (path == ROLL or path == SOURCES or path == MENU) and mutate then text = mutate(text) end
       mod = assert(load(text, "@" .. path))()
     end
     cache[path] = mod
@@ -147,9 +149,9 @@ local function run(mutate)
     local w, s = open()
     local r = roll(w)
     check("two ladders", s.forward ~= nil and s.reverse ~= nil)
-    check("left list holds three rows", #r.leftList == 3)
-    check("BATTERY PROFILE is last", r.leftList[#r.leftList].id == "battery_profile")
-    check("starts on the first row", r.left == 1)
+    check("left list holds three rows", #r.levels[1].rows == 3)
+    check("BATTERY PROFILE is last", r.levels[1].rows[#r.levels[1].rows].id == "battery_profile")
+    check("starts on the first row", r.levels[1].index == 1)
   end
 
   -- The rows are no buttons: the wheel's walk holds the two ladders and the close box.
@@ -164,46 +166,46 @@ local function run(mutate)
     local r = roll(w)
     local h = s.forward.h
     detent(s.forward, h, 1)
-    check("a detent forward moves one row", r.left == 2)
+    check("a detent forward moves one row", r.levels[1].index == 2)
     detent(s.forward, h, 2)
-    check("a second detent moves on", r.left == 3)
+    check("a second detent moves on", r.levels[1].index == 3)
     detent(s.forward, h, 3)
-    check("the list ends: no wrap past the last row", r.left == 3)
+    check("the list ends: no wrap past the last row", r.levels[1].index == 3)
     detent(s.forward, h, 2)
-    check("turning back at the end moves at once", r.left == 2)
+    check("turning back at the end moves at once", r.levels[1].index == 2)
   end
   do
     local w, s = open()
     local r = roll(w)
     local h = s.forward.h
     detent(s.forward, h, 1)
-    check("one forward", r.left == 2)
+    check("one forward", r.levels[1].index == 2)
     -- Back onto the widget reports nothing, and the reverse ladder then counts both detents.
     detent(s.reverse, h, 12 - 1)
-    check("the detent over the widget is not lost in the sum", r.left == 1)
+    check("the detent over the widget is not lost in the sum", r.levels[1].index == 1)
     -- Coming back into the forward ladder: its reset to the spare row is acknowledged, not counted.
     s.forward.scrolled(0, 0)
-    check("the ladder's own reset is not a detent", r.left == 1)
+    check("the ladder's own reset is not a detent", r.levels[1].index == 1)
     s.forward.scrolled(0, 0)
-    check("nor is the same position reported again", r.left == 1)
+    check("nor is the same position reported again", r.levels[1].index == 1)
   end
   do
     -- A build asked for near a ladder's end: detents still on the standing scene count one each.
     local w, s = open()
     local r = roll(w)
-    r.leftList = {}
-    for i = 1, 30 do r.leftList[i] = { id = "row" .. i, title = "row" } end
+    r.levels[1].rows = {}
+    for i = 1, 30 do r.levels[1].rows[i] = { id = "row" .. i, title = "row" } end
     local h = s.forward.h
     for row = 1, 9 do detent(s.forward, h, row) end
-    check("nine detents, nine rows", r.left == 10)
+    check("nine detents, nine rows", r.levels[1].index == 10)
     detent(s.forward, h, 10)
-    check("the detent after the build was asked for is one row", r.left == 11)
+    check("the detent after the build was asked for is one row", r.levels[1].index == 11)
   end
   do
     local w, s = open()
     local r = roll(w)
     s.forward.scrolled(0, 7)
-    check("a finger's fraction of a row is not a detent", r.left == 1)
+    check("a finger's fraction of a row is not a detent", r.levels[1].index == 1)
   end
 
   -- The middle row's text follows the selection, and the left entry's choice shows on the right.
@@ -212,7 +214,7 @@ local function run(mutate)
     local r = roll(w)
     local h = s.forward.h
     detent(s.forward, h, 2)
-    check("the profile row is current", r.leftList[r.left].id == "battery_profile")
+    check("the profile row is current", r.levels[1].rows[r.levels[1].index].id == "battery_profile")
     local shown = false
     for i = 1, #s.children do
       local node = s.children[i]
@@ -236,7 +238,7 @@ local function run(mutate)
     local w, s = open()
     local r = roll(w)
     detent(s.forward, s.forward.h, 1)
-    check("MAIN MENU is current", r.leftList[r.left].id == "tool")
+    check("MAIN MENU is current", r.levels[1].rows[r.levels[1].index].id == "tool")
     Roll.press(w)
     check("a press runs it", toolOpened == 1)
   end
@@ -246,10 +248,10 @@ local function run(mutate)
     local w, s = open()
     local r = roll(w)
     Roll.press(w)
-    check("the press raises the question on the right", r.side == "right" and r.question ~= nil)
+    check("the press raises the question on the right", r.focus == 2 and r.levels[2].question ~= nil)
     check("nothing is queued by the question", #adds == 0)
     Roll.press(w)
-    check("a double press lands on CANCEL", r.side == "left" and #adds == 0 and exits == 0)
+    check("a double press lands on CANCEL", r.focus == 1 and #adds == 0 and exits == 0)
   end
   do
     local w = open()
@@ -257,7 +259,7 @@ local function run(mutate)
     Roll.press(w)
     local s = scene(Menu, w)
     detent(s.forward, s.forward.h, 1)
-    check("one detent reaches ERASE", r.right == 2)
+    check("one detent reaches ERASE", r.levels[2].index == 2)
     Roll.press(w)
     check("ERASE queues the erase", #adds >= 1)
   end
@@ -266,7 +268,7 @@ local function run(mutate)
     local r = roll(w)
     Roll.press(w)
     Views.key(w, EVT_VIRTUAL_EXIT)
-    check("RTN on the question goes back and erases nothing", r.side == "left" and #adds == 0)
+    check("RTN on the question goes back and erases nothing", r.focus == 1 and #adds == 0)
   end
 
   -- A profile: stays up until answered; a failed write stays visible.
@@ -280,8 +282,8 @@ local function run(mutate)
   end
   do
     local w, r = toProfile()
-    check("the focus moves right on a choice", r.side == "right")
-    check("and starts on the one in force", r.right == 2)
+    check("the focus moves right on a choice", r.focus == 2)
+    check("and starts on the one in force", r.levels[2].index == 2)
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("a press writes", #adds == 2)
     check("and it writes the profile in force's own number here", adds[1].payload.batteryProfile == 1)
@@ -294,7 +296,7 @@ local function run(mutate)
     local w, r = toProfile()
     local s = scene(Menu, w)
     detent(s.forward, s.forward.h, 1)
-    check("one detent on the right moves one option", r.right == 3)
+    check("one detent on the right moves one option", r.levels[2].index == 3)
     now = now + 100
     Menu.renderKey(w)
     s = scene(Menu, w)
@@ -302,7 +304,7 @@ local function run(mutate)
       local node = s.children[i]
       if node.type == "label" and type(node.text) == "function" then node.text() end
     end
-    check("a build keeps the place on the right", r.right == 3)
+    check("a build keeps the place on the right", r.levels[2].index == 3)
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("and the press writes that option", adds[1] ~= nil and adds[1].payload.batteryProfile == 2)
   end
@@ -311,19 +313,19 @@ local function run(mutate)
     local w, r = toProfile()
     local s = scene(Menu, w)
     detent(s.forward, s.forward.h, 1)
-    check("on the third profile", r.right == 3)
+    check("on the third profile", r.levels[2].index == 3)
     -- ERASE BLACKBOX leaves the list, so the row's number changes under it.
-    Roll.build({}, w, { Menu.entry(w, "tool") }, Look.colors(w), function(_, f) return f end)
-    check("the row keeps its entry", r.leftList[r.left].id == "battery_profile" and r.left == 2 and r.side == "right")
-    check("and the option its place", r.right == 3)
+    Roll.build({}, w, req("widgets/dashboard/menu_roll_sources.lua").quick(w, { Menu.entry(w, "tool") }, function(_, f) return f end), Look.colors(w))
+    check("the row keeps its entry", r.levels[1].rows[r.levels[1].index].id == "battery_profile" and r.levels[1].index == 2 and r.focus == 2)
+    check("and the option its place", r.levels[2].index == 3)
   end
   do
     -- The option under the focus goes: no other one takes its place under the same press.
     local w, r = toProfile()
-    check("focus on the profile in force", r.side == "right" and r.right == 2)
+    check("focus on the profile in force", r.focus == 2 and r.levels[2].index == 2)
     w.state.battery_config.batteryCapacity_1 = 0
     scene(Menu, w)
-    check("the option gone, the focus is back on the left", r.side == "left")
+    check("the option gone, the focus is back on the left", r.focus == 1)
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("and the press writes nothing", #adds == 0)
   end
@@ -332,10 +334,10 @@ local function run(mutate)
     local w = open()
     local r = roll(w)
     Roll.press(w)
-    check("the question has the fill", string.find(r.question.confirm.detail or "", "50", 1, true) ~= nil)
+    check("the question has the fill", string.find(r.levels[2].question.detail or "", "50", 1, true) ~= nil)
     _G.rfsuite.session.dataflash = { used = 80, total = 100 }
     scene(Menu, w)
-    check("it says the fill as it is now", r.side == "right" and string.find(r.question.confirm.detail or "", "80", 1, true) ~= nil)
+    check("it says the fill as it is now", r.focus == 2 and string.find(r.levels[2].question.detail or "", "80", 1, true) ~= nil)
     _G.rfsuite.session.dataflash = { used = 50, total = 100 }
   end
   do
@@ -343,14 +345,14 @@ local function run(mutate)
     local w, r = toProfile()
     w.state.battery_config = nil
     scene(Menu, w)
-    check("no profile row, so back on the left", r.side == "left")
+    check("no profile row, so back on the left", r.focus == 1)
     local q = open()
     local rq = roll(q)
     Roll.press(q)
     q.connectionReady = false
     q.state.connectionReady = false
     scene(Menu, q)
-    check("the link gone, the erase question goes with its row", rq.side == "left" and rq.question == nil)
+    check("the link gone, the erase question goes with its row", rq.focus == 1 and (rq.levels[2] == nil or rq.levels[2].question == nil))
   end
   do
     -- ERASE current: CANCEL is the labelled row above it.
@@ -359,7 +361,7 @@ local function run(mutate)
     Roll.press(w)
     local s = scene(Menu, w)
     detent(s.forward, s.forward.h, 1)
-    check("ERASE is current", r.right == 2)
+    check("ERASE is current", r.levels[2].index == 2)
     local seen = false
     for i = 1, #s.children do
       local node = s.children[i]
@@ -399,26 +401,26 @@ local function run(mutate)
   do
     -- The right list follows the left entry, from the one in force.
     local w, r = toProfile()
-    r.right = 3
+    r.levels[2].index = 3
     Views.key(w, EVT_VIRTUAL_EXIT)
     local s = scene(Menu, w)
     detent(s.forward, s.forward.h, -1 + 1)
-    r.left = 1
+    r.levels[1].index = 1
     for i = 1, #s.children do
       local node = s.children[i]
       if node.type == "label" and type(node.text) == "function" then node.text() end
     end
-    r.left = #r.leftList
+    r.levels[1].index = #r.levels[1].rows
     for i = 1, #s.children do
       local node = s.children[i]
       if node.type == "label" and type(node.text) == "function" then node.text() end
     end
-    check("coming back to a choice starts on the one in force", r.right == 2)
+    check("coming back to a choice starts on the one in force", r.levels[2].index == 2)
   end
   do
     local w, r = toProfile()
     Views.key(w, EVT_VIRTUAL_EXIT)
-    check("RTN returns left", r.side == "left")
+    check("RTN returns left", r.focus == 1)
     Views.key(w, EVT_VIRTUAL_EXIT)
     check("RTN from the left closes the menu", Views.top(w) == nil)
   end
@@ -435,7 +437,7 @@ local function run(mutate)
     local r = roll(w)
     local g = geoOf(w)
     tap(w, g.leftX + 5, g.slotY(1) + 2)
-    check("a tap on the row under the middle brings it there", r.left == 2)
+    check("a tap on the row under the middle brings it there", r.levels[1].index == 2)
     check("and runs nothing", toolOpened == 0 and #adds == 0)
     scene(Menu, w)
     tap(w, g.leftX + 5, g.slotY(0) + 2)
@@ -446,7 +448,7 @@ local function run(mutate)
     local r = roll(w)
     local g = geoOf(w)
     tap(w, g.leftX + 5, g.slotY(-2) + 2)
-    check("a tap on a free slot does nothing", r.left == 1 and toolOpened == 0)
+    check("a tap on a free slot does nothing", r.levels[1].index == 1 and toolOpened == 0)
   end
   do
     -- A swipe: a row's height a row, the finger moving up to the next.
@@ -455,11 +457,11 @@ local function run(mutate)
     local g = geoOf(w)
     touch(w, EVT_TOUCH_FIRST, { x = g.leftX + 5, y = g.slotY(1) })
     touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -math.floor(g.rowH / 2) })
-    check("half a row moves nothing", r.left == 1)
+    check("half a row moves nothing", r.levels[1].index == 1)
     touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -math.floor(g.rowH / 2) - 1 })
-    check("a row's height moves one row", r.left == 2)
+    check("a row's height moves one row", r.levels[1].index == 2)
     touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -10 * g.rowH })
-    check("the list ends", r.left == #r.leftList)
+    check("the list ends", r.levels[1].index == #r.levels[1].rows)
     touch(w, EVT_TOUCH_BREAK, { x = g.leftX + 5, y = 0 })
     check("a swipe is no tap", toolOpened == 0 and #adds == 0)
   end
@@ -474,7 +476,7 @@ local function run(mutate)
     touch(w, EVT_TOUCH_FIRST, { x = g.rightX + 5, y = g.slotY(0) })
     touch(w, EVT_TOUCH_SLIDE, { x = g.rightX + 5, y = 0, slideY = -(g.rowH + 1) })
     touch(w, EVT_TOUCH_BREAK, { x = g.rightX + 5, y = 0 })
-    check("the swipe brought ERASE to the middle", r.right == 2)
+    check("the swipe brought ERASE to the middle", r.levels[2].index == 2)
     touch(w, EVT_TOUCH_BREAK, { x = g.rightX + 5, y = 0 })
     check("and a stray release does not answer the question", #adds == 0)
   end
@@ -482,22 +484,22 @@ local function run(mutate)
     -- A touch on the header is no row.
     local w = open()
     local r = roll(w)
-    r.left = 2
+    r.levels[1].index = 2
     local g = geoOf(w)
     tap(w, 20, 30)
-    check("a tap on the header moves nothing", r.left == 2 and toolOpened == 0)
+    check("a tap on the header moves nothing", r.levels[1].index == 2 and toolOpened == 0)
     tap(w, g.rightX + 5, g.slotY(0) + 2)
     check("a tap on an empty right column runs nothing", toolOpened == 0)
     touch(w, EVT_TOUCH_FIRST, { x = g.rightX + 5, y = g.slotY(0) + 2 })
     touch(w, EVT_TOUCH_SLIDE, { x = g.rightX + 5, y = 0, slideY = -(g.rowH + 1) })
     touch(w, EVT_TOUCH_BREAK, { x = g.rightX + 5, y = 0 })
-    check("a swipe on an empty right column moves nothing", r.left == 2 and r.side == "left")
+    check("a swipe on an empty right column moves nothing", r.levels[1].index == 2 and r.focus == 1)
   end
   do
     -- RTN and the wheel's press arriving with a touch table stay what they are.
     local w, r = toProfile()
     Views.key(w, EVT_VIRTUAL_EXIT, {})
-    check("RTN with a table still steps back", r.side == "left")
+    check("RTN with a table still steps back", r.focus == 1)
   end
   do
     -- On the right: a swipe takes the focus there, and a press writes where it stopped.
@@ -507,12 +509,12 @@ local function run(mutate)
     detent(s.forward, s.forward.h, 2)
     s = scene(Menu, w)
     local g = geoOf(w)
-    check("the preview is up, the focus left", r.side == "left" and r.left == #r.leftList)
+    check("the preview is up, the focus left", r.focus == 1 and r.levels[1].index == #r.levels[1].rows)
     touch(w, EVT_TOUCH_FIRST, { x = g.rightX + 5, y = g.slotY(0) })
     touch(w, EVT_TOUCH_SLIDE, { x = g.rightX + 5, y = 0, slideY = -(g.rowH + 1) })
     touch(w, EVT_TOUCH_BREAK, { x = g.rightX + 5, y = 0 })
-    check("the swipe took the focus right", r.side == "right")
-    check("and moved one option", r.right == 3)
+    check("the swipe took the focus right", r.focus == 2)
+    check("and moved one option", r.levels[2].index == 3)
     scene(Menu, w)
     tap(w, g.rightX + 5, g.slotY(0) + 2)
     check("a tap on its middle writes that one", adds[1] ~= nil and adds[1].payload.batteryProfile == 2)
@@ -526,9 +528,9 @@ local function run(mutate)
     local key = Menu.renderKey(w)
     now = now + 100
     check("the key moves once the wheel has rested", Menu.renderKey(w) ~= key)
-    check("the selection is kept", r.left == 2)
+    check("the selection is kept", r.levels[1].index == 2)
     scene(Menu, w)
-    check("and the built ladder starts over", r.position == 0 and r.left == 2)
+    check("and the built ladder starts over", r.position == 0 and r.levels[1].index == 2)
   end
 
   -- Drawn as buttons, the keys are the buttons' again.
@@ -541,12 +543,97 @@ local function run(mutate)
     check("and ENTER is not answered for it", Views.key(w, EVT_VIRTUAL_ENTER) ~= true)
   end
 
+  -- The battery picker in the rotary style: its own view, a roll of its own.
+  local function openPicker(setsProfile, cap2)
+    adds, exits, toolOpened = {}, 0, 0
+    local w = newWidget("rotary")
+    w._viewBase = "theme"
+    w.preferences.flightlog = { enabled = true, set_fc_profile = setsProfile == true }
+    w.state.batteryPick = {
+      loaded = true, pending = true,
+      candidates = {
+        { id = "a", name = "Pack A", cap = 3000, cycles = 12 },
+        { id = "b", name = "Pack B", cap = cap2 or 9999, cycles = 3 },
+        { id = "c", name = "Pack C", cap = 4000 },
+      },
+    }
+    Views.navigate(w, "openView:battery_pick")
+    local children = {}
+    req("widgets/dashboard/battery_pick_menu.lua").build(children, w)
+    local boxes = {}
+    for i = 1, #children do
+      if children[i].type == "box" and children[i].scrolled ~= nil then boxes[#boxes + 1] = children[i] end
+    end
+    return w, children, boxes[1]
+  end
+  local function labelsOf(children)
+    local out = {}
+    for i = 1, #children do
+      local node = children[i]
+      if node.type == "label" then
+        local text = node.text
+        if type(text) == "function" then text = text() end
+        out[#out + 1] = text
+      end
+    end
+    return table.concat(out, "|")
+  end
+  do
+    local w, children, forward = openPicker(false)
+    local r = roll(w)
+    check("the picker has a roll of its own", r ~= nil and r.view == "battery_pick" and forward ~= nil)
+    check("with no pack in force it starts on NO BATTERY", r.levels[1].rows[r.levels[1].index].none == true)
+    check("its title is the picker's", string.find(labelsOf(children), "WHICH BATTERY?", 1, true) ~= nil)
+    forward.scrolled(0, -1 * 0)
+    r.levels[1].index = 1
+    local text = labelsOf(children)
+    check("the first pack's facts stand on the right",
+      string.find(text, "3000 mAh", 1, true) ~= nil and string.find(text, "12 cycles", 1, true) ~= nil)
+    r.levels[1].index = 3
+    check("a pack without a cycle count leaves it out", string.find(labelsOf(children), "cycles", 1, true) == nil)
+    r.levels[1].index = 1
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("with the switch off a press picks at once", w._batteryPickRequest == "a" and (w._viewStack == nil or w._viewStack.roll == nil))
+  end
+  do
+    local w = openPicker(false)
+    Views.key(w, EVT_VIRTUAL_EXIT)
+    check("RTN on the picker ends the prompt", w.state.batteryPick.dismissed == true and w.state.batteryPick.pending == false)
+  end
+  do
+    -- In the quick menu the same start rule holds on the BATTERY row.
+    adds, exits, toolOpened = {}, 0, 0
+    local w = newWidget("rotary")
+    w.preferences.flightlog = { enabled = true }
+    w.preferences.dashboard.quick_menu = "battery_pick"
+    w.state.batteryPick = { loaded = true, candidates = { { id = "a", name = "A", cap = 3000 }, { id = "b", name = "B", cap = 4000 } } }
+    Views.navigate(w, "openView:menu")
+    scene(Menu, w)
+    local r = roll(w)
+    check("BATTERY is offered", r.levels[1].rows[1].id == "battery_pick")
+    Roll.press(w)
+    check("the focus starts on NO BATTERY there too", r.focus == 2 and r.levels[2].rows[r.levels[2].index].none == true)
+  end
+  do
+    -- A finger down: the scene is not built under it, however long the wheel has rested.
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 1)
+    local g = geoOf(w)
+    touch(w, EVT_TOUCH_FIRST, { x = g.leftX + 5, y = g.slotY(0) })
+    local key = Menu.renderKey(w)
+    now = now + 100
+    check("no build while a finger is down", Menu.renderKey(w) == key)
+    touch(w, EVT_TOUCH_BREAK, { x = g.leftX + 5, y = g.slotY(0) })
+    check("and the rest is honoured after it", Menu.renderKey(w) ~= key or r.steppedAt == nil)
+  end
+
   -- The model arming takes the list away from under the right side.
   do
     local w, r = toProfile()
     w.state.armed = true
     scene(Menu, w)
-    check("what the right list showed has gone: back to the left", r.side == "left")
+    check("what the right list showed has gone: back to the left", r.focus == 1)
   end
 end
 
@@ -554,32 +641,41 @@ if selfTest then
   local MUTANTS = {
     { "the list wraps", function(t) return (string.gsub(t, "if value > count then return count end", "if value > count then return 1 end")) end },
     { "ERASE first", function(t)
-      return (string.gsub(t, "{ label = confirm.cancelLabel or \"CANCEL\", cancel = true },\n    { label = confirm.confirmLabel or \"OK\", agree = true },",
-        "{ label = confirm.confirmLabel or \"OK\", agree = true },\n    { label = confirm.cancelLabel or \"CANCEL\", cancel = true },"))
+      return (string.gsub(t, "{ id = \"cancel\", label = confirm.cancelLabel or \"CANCEL\", cancel = true },\n    { id = \"agree\", label = confirm.confirmLabel or \"OK\", agree = true },",
+        "{ id = \"agree\", label = confirm.confirmLabel or \"OK\", agree = true },\n    { id = \"cancel\", label = confirm.cancelLabel or \"CANCEL\", cancel = true },"))
     end },
     { "closes before the answer", function(t)
       return (string.gsub(t, "Menu.run%(widget, entry, choice, \"none\", report%)", "Menu.run(widget, entry, choice, \"done\", report)"))
     end },
     { "a write's success closes whatever it finds", function(t)
-      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and session.roll == roll\n        and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
+      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and session.roll == roll\n      and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
     end },
     { "a position reported twice counts", function(t)
       return (string.gsub(t, "if sy == window.y then return end\n", ""))
     end },
     { "a build forgets the place on the right", function(t)
-      return (string.gsub(t, "roll.right = place\n", "roll.right = 1\n"))
+      return (string.gsub(t, "right.index = place\n", "right.index = 1\n"))
     end },
     { "another option takes a gone one's place", function(t)
-      return (string.gsub(t, "roll.side = \"left\"\n        roll.right = roll.rightOptions and currentIndex%(roll.rightOptions%) or 1", "roll.right = 1"))
+      return (string.gsub(t, "roll.focus = 1\n        right.index = right.rows and startIndex%(right.rows, source%) or 1", "right.index = 1"))
     end },
     { "a question keeps what it said", function(t)
-      return (string.gsub(t, "roll.question = roll.leftList%[found%]\n", ""))
+      return (string.gsub(t, "right.rows, right.question = rows, question\n", ""))
     end },
     { "the place goes by the row's number", function(t)
-      return (string.gsub(t, "local found = indexOfEntry%(roll.leftList, before%)", "local found = (before ~= nil and roll.leftList[roll.left] ~= nil) and roll.left or nil"))
+      return (string.gsub(t, "local found = indexOfRow%(left.rows, before%)", "local found = (before ~= nil and left.rows[left.index] ~= nil) and left.index or nil"))
     end },
     { "a detent is not summed", function(t)
       return (string.gsub(t, "local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))
+    end },
+    { "the picker starts on the first pack", function(t)
+      return (string.gsub(t, "if row.none == true then fallback = i end\n", ""))
+    end },
+    { "RTN on the picker only closes the view", function(t)
+      return (string.gsub(t, "    close = close,\n    back = close,", "    close = close,\n    back = function() Views.navigate(widget, \"closeView\") end,"))
+    end },
+    { "a build under the finger", function(t)
+      return (string.gsub(t, "roll.steppedAt ~= nil and roll.touchX == nil and", "roll.steppedAt ~= nil and"))
     end },
   }
   quiet = true
@@ -588,6 +684,11 @@ if selfTest then
     local file = assert(io.open(SRC .. ROLL, "rb"))
     local source = string.gsub(file:read("a"), "\r\n", "\n")
     file:close()
+    for _, path in ipairs({ SOURCES, MENU }) do
+      file = assert(io.open(SRC .. path, "rb"))
+      source = source .. string.gsub(file:read("a"), "\r\n", "\n")
+      file:close()
+    end
     local mutated = MUTANTS[i][2](source)
     if mutated == source then
       print("SELF-TEST: mutant did not apply: " .. MUTANTS[i][1])

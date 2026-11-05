@@ -226,10 +226,8 @@ local function newCtx(log, state)
   ctx.action = function(after) log.actions[#log.actions + 1] = after end
   ctx.condition = function() return false end
   ctx.entries = function() return Menu and Menu.entries(widget) or {} end
-  ctx.menu = function(children, entries, style)
+  ctx.menu = function(children)
     log.menuBuilt = true
-    -- A theme that hands in its look is checked on what that look draws.
-    if style ~= nil and Menu ~= nil then Menu.build(children, widget, entries, style) end
     return children
   end
   ctx.entry = function(id) return Menu and Menu.entry(widget, id) or nil end

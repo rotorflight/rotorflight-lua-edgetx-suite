@@ -1,82 +1,54 @@
--- The colours of the widget's own quick menu and of the pages it opens: the battery picker, the
--- battery profile page and the erase question.
+-- What the widget's own menu pages have in common: the quick menu, the battery picker, the battery
+-- profile page and the erase question. Their colours, the two layout profiles and the frame around
+-- a page -- background, header, title, close box -- are written here once.
 --
--- Two fixed schemes instead of the radio theme's colours, for the reason a dashboard theme paints
--- its own surface: a radio theme is chosen for the radio's own screens, and on an arbitrary one the
--- text and the buttons here have no guaranteed contrast. The values are the Rotorflight
--- Configurator's light and dark themes; `fill` is the selected row's blue of the in-flight tuning
--- list, and its light counterpart.
+-- The colours are the suite's two schemes (lib/color_schemes.lua), under the names of what they are
+-- used for on these pages; a change of a value there reaches every page here. They do not come from
+-- the radio theme, for the reason a dashboard theme paints its own surface: a radio theme is chosen
+-- for the radio's own screens, and on an arbitrary one the text and the buttons have no guaranteed
+-- contrast. Every dashboard theme shows these pages the same.
 --
 -- The pilot's choice is `general.color_scheme` in the radio's preferences, on Settings > General >
--- Appearance; anything else reads as light. A theme that draws these views itself draws them in
--- its own colours and does not read this.
+-- Appearance; anything else reads as light.
 
 local M = {}
 
-M.KEY = "color_scheme"
-M.DEFAULT = "light"
+local requireModule = (_G.rfsuite and _G.rfsuite.require) or function(path)
+  local fullPath = string.sub(path, 1, 1) == "/" and path or (_G.rfsuite.paths.core .. "/" .. path)
+  local chunk = loadScript(fullPath, "t")
+  if chunk then
+    local ok, mod = pcall(chunk)
+    if ok and type(mod) == "table" then return mod end
+  end
+  return nil
+end
 
-local SCHEMES = {
-  light = {
-    bg       = { 241, 242, 243 },
-    text     = { 19, 21, 22 },
-    muted    = { 84, 92, 100 },
-    fill     = { 207, 229, 244 },
-    accent   = { 0, 123, 199 },
-    onAccent = { 255, 255, 255 },
-    off      = { 227, 230, 232 },
-    panel    = { 255, 255, 255 },
-    close    = { 197, 38, 27 },
-    onClose  = { 255, 255, 255 },
-    head     = { 30, 33, 36 },
-    headText = { 244, 245, 246 },
-    far      = { 150, 157, 163 },
-    rule     = { 214, 218, 221 },
-  },
-  dark = {
-    bg       = { 16, 18, 19 },
-    text     = { 244, 245, 246 },
-    muted    = { 172, 179, 185 },
-    fill     = { 30, 52, 67 },
-    accent   = { 60, 168, 236 },
-    onAccent = { 16, 21, 24 },
-    off      = { 37, 41, 44 },
-    panel    = { 26, 28, 31 },
-    close    = { 243, 113, 104 },
-    onClose  = { 16, 21, 24 },
-    head     = { 30, 33, 36 },
-    headText = { 244, 245, 246 },
-    far      = { 104, 115, 125 },
-    rule     = { 51, 56, 61 },
-  },
+local Schemes = requireModule("lib/color_schemes.lua")
+
+M.KEY = "color_scheme"
+
+-- The name each of these pages reads a colour by, and the scheme's role it is.
+M.ROLES = {
+  bg = "page",
+  panel = "card",
+  off = "raised",
+  head = "header",
+  headText = "headerText",
+  text = "text",
+  muted = "muted",
+  disabled = "disabled",
+  accent = "accent",
+  onAccent = "onAccent",
+  fill = "selection",
+  close = "error",
+  onClose = "onError",
+  rule = "rule",
 }
 
--- What a role falls back to on a firmware build without lcd.RGB.
-local function fallback(role)
-  if role == "text" or role == "onAccent" or role == "onClose" or role == "headText" then return WHITE end
-  if role == "close" then return COLOR_THEME_SECONDARY1 or RED end
-  if role == "muted" or role == "off" or role == "far" or role == "rule" then return COLOR_THEME_DISABLED or DARKGREY end
-  if role == "accent" then return COLOR_THEME_SECONDARY1 or BLUE end
-  if role == "fill" then return COLOR_THEME_PRIMARY1 or BLACK end
-  return COLOR_THEME_PRIMARY3 or BLACK
-end
+-- The rotary style's outermost rows, a step paler than `muted`. Not a role of the schemes.
+local FAR = { light = 0x969DA3, dark = 0x68737D }
 
-local function resolve(name)
-  local colors = {}
-  for role, value in pairs(SCHEMES[name]) do
-    local color = nil
-    if lcd and type(lcd.RGB) == "function" then
-      local ok, c = pcall(lcd.RGB, value[1], value[2], value[3])
-      if ok then color = c end
-    end
-    if color == nil then color = fallback(role) end
-    colors[role] = color
-  end
-  return colors
-end
-
---- The menu style a widget's preferences name, `general.menu_style`: "rotary", else "card". It is
---- a setting of the suite's and for now only the quick menu reads it.
+--- The menu style a widget's preferences name, `general.menu_style`: "rotary", else "card".
 function M.style(widget)
   local prefs = widget and widget.preferences or nil
   local general = type(prefs) == "table" and prefs.general or nil
@@ -84,27 +56,94 @@ function M.style(widget)
   return "card"
 end
 
--- The name a stored value stands for.
-function M.scheme(value)
-  if type(value) == "string" and SCHEMES[value] ~= nil then return value end
-  return M.DEFAULT
-end
-
--- The last scheme resolved. A build of the menu asks once; the value changes only when the pilot
--- saves the settings page, and two tables of ten colours are not worth keeping side by side.
+-- The last scheme resolved. A build of a page asks once; the value changes only when the pilot saves
+-- the settings page, and two tables of these colours are not worth keeping side by side.
 local lastName, lastColors = nil, nil
 
 --- The colours of the scheme the pilot has chosen, as this widget's preferences have it.
 function M.colors(widget)
   local prefs = widget and widget.preferences or nil
   local general = type(prefs) == "table" and prefs.general or nil
-  local name = M.scheme(type(general) == "table" and general[M.KEY] or nil)
+  local name = Schemes.name(type(general) == "table" and general[M.KEY] or nil)
   if name ~= lastName then
-    lastName, lastColors = name, resolve(name)
-    local Log = _G.rfsuite and _G.rfsuite.require and _G.rfsuite.require("lib/log.lua") or nil
+    local scheme = Schemes.colors(name)
+    local colors = {}
+    for own, role in pairs(M.ROLES) do colors[own] = scheme[role] end
+    colors.far = lcd.RGB(FAR[name])
+    lastName, lastColors = name, colors
+    local Log = requireModule("lib/log.lua")
     if Log and type(Log.emit) == "function" then Log.emit("rfsuite.widget", "menu colors: " .. name, "debug") end
   end
   return lastColors
+end
+
+-- The two layout profiles: the large high-resolution radio, and the standard one. Placement figures:
+-- `fontH` is where a line goes, not the face's height (see M.lineHeight).
+local LARGE = {
+  isLarge = true, headerH = 60, fontH = 24, smallH = 16, closeSize = 44, contentGap = 20,
+  gapY = 10, paddingX = 15, edge = 8, headTextOffY = -6, closeTextOffY = -8, btnTextOffY = -8,
+}
+local SMALL = {
+  isLarge = false, headerH = 22, fontH = 12, smallH = 10, closeSize = 20, contentGap = 5,
+  gapY = 6, paddingX = 5, edge = 1, headTextOffY = -2, closeTextOffY = -4, btnTextOffY = -4,
+}
+
+--- The layout profile for a zone of height `dH`.
+function M.profile(dH)
+  local p = (dH > 350) and LARGE or SMALL
+  -- The faces are the firmware's constants, read when asked for rather than when this file loads.
+  p.titleFont = p.isLarge and MIDSIZE or SMLSIZE
+  p.rowFont = p.titleFont
+  return p
+end
+
+--- The height the firmware lays a line of `font` out in, or `fallback` where it cannot say. The
+--- profile's `fontH` is a placement figure: MIDSIZE on an 800x480 radio is taller than it, and a line
+--- placed `fontH` under another runs into it there.
+function M.lineHeight(font, fallback)
+  if lcd and type(lcd.sizeText) == "function" then
+    local ok, _, h = pcall(lcd.sizeText, "Ag", font)
+    if ok and type(h) == "number" and h > 0 then return h end
+  end
+  return fallback
+end
+
+--- A page's frame: the background, the header with its title and close box, and a back box where
+--- `backPress` is given. Answers the layout profile, the colours and where the content starts.
+function M.frame(children, widget, title, closePress, backPress)
+  local dW, dH = widget.zone.w, widget.zone.h
+  local p = M.profile(dH)
+  local colors = M.colors(widget)
+
+  children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = dW, h = dH, color = colors.bg, filled = true }
+  children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = dW, h = p.headerH, color = colors.head, filled = true }
+  children[#children + 1] = { type = "rectangle", x = 0, y = p.headerH, w = dW, h = 1, color = colors.rule, filled = true }
+
+  local boxY = math.floor((p.headerH - p.closeSize) / 2)
+  local labelY = boxY + math.floor((p.closeSize - p.fontH) / 2) + p.closeTextOffY
+  local titleX = p.paddingX
+  if backPress ~= nil then
+    children[#children + 1] = {
+      type = "button", x = p.edge, y = boxY, w = p.closeSize, h = p.closeSize, color = colors.fill, press = backPress,
+    }
+    children[#children + 1] = {
+      type = "label", x = p.edge, y = labelY, w = p.closeSize, text = "<", color = colors.text, align = CENTER, font = p.titleFont,
+    }
+    titleX = p.edge + p.closeSize + p.paddingX
+  end
+  children[#children + 1] = {
+    type = "label", x = titleX, y = math.floor((p.headerH - p.fontH) / 2) + p.headTextOffY,
+    w = dW - titleX - p.closeSize - 2 * p.paddingX, text = title or "", color = colors.headText, align = LEFT, font = p.titleFont,
+  }
+
+  local closeX = dW - p.closeSize - p.edge
+  children[#children + 1] = {
+    type = "button", x = closeX, y = boxY, w = p.closeSize, h = p.closeSize, color = colors.close, press = closePress,
+  }
+  children[#children + 1] = {
+    type = "label", x = closeX, y = labelY, w = p.closeSize, text = "X", color = colors.onClose, align = CENTER, font = p.titleFont,
+  }
+  return p, colors, p.headerH + p.contentGap
 end
 
 --- A box outline drawn as four lines: a line is created not clickable, so the outline can lie over
