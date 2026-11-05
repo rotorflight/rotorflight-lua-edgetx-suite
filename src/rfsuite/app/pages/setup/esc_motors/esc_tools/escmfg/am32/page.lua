@@ -1184,7 +1184,7 @@ function M.build(ctx)
     label = pageText(i18n, "esc_current_limit", "Current Limit")
     rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
       helpText = pageText(i18n, "help_am32_current_limit",
-        "Current the ESC holds its drive to, in amps. 0 and 202 turn it off."),
+        "Current the ESC holds its drive to, in amps. 0 and 202 turn it off. The radio notes it for the dashboard's ESC load."),
       helpTitle = label,
       onHelp = onRowHelp,
       min = 0, max = 202, step = 2,

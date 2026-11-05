@@ -1686,7 +1686,7 @@ return {
         help_am32_low_voltage_cutoff = "Stops the motor on a low battery until the next power cycle: Cell uses the threshold per cell, Absolute a fixed voltage.",
         help_am32_low_voltage_threshold = "Voltage per cell that trips the Cell cutoff, 250 to 350 cV, that is 2.50 to 3.50 V.",
         help_am32_temperature_limit = "ESC temperature around which it ramps its drive down, from 10 below to 10 above. 141 turns the limit off.",
-        help_am32_current_limit = "Current the ESC holds its drive to, in amps. 0 and 202 turn it off.",
+        help_am32_current_limit = "Current the ESC holds its drive to, in amps. 0 and 202 turn it off. The radio notes it for the dashboard's ESC load.",
         help_am32_protocol = "The input signal the ESC accepts. Auto detects it; the others fix it to one.",
         help_scorp = "Settings held by the Scorpion speed controller itself. They are read from it when the page opens and written back to it on SAVE; the flight controller only passes them through. The radio keeps none of them, except the current limit, which it notes for this flight controller so that the dashboard can show the current as an ESC load percentage.",
         help_yge = "Settings held by the YGE speed controller itself: read from it when the page opens and written back to it on SAVE; the flight controller only passes them through.",
