@@ -697,7 +697,7 @@ return {
         fastRpm = "Fast RPM source",
         rpmMissing = "Fast RPM source missing",
         motor = "Motor & ESC",
-        motorHint = "Choose the ESC protocol. Keep blades removed. Set up a new ESC first: BEC voltage, motor timing, ESC governor off when using the FC governor, and direction. Use Configuration > Setup > ESC & Motors > ESC Tools for AM32, BLHeli_S, Bluejay, Flyrotor, Hobbywing V5, OMP, Scorpion, XDFly, YGE and ZTW. Entries are available when the FC's ESC telemetry protocol matches.",
+        motorHint = "Choose the ESC protocol. Keep blades removed. Set up a new ESC first: BEC voltage, motor timing, ESC governor off when using the FC governor, and direction. Use Configuration > Setup > ESC & Motors > ESC Tools for AM32, BLHeli_S, Bluejay, Flyrotor, Goosky, Hobbywing V5, OMP, Scorpion, XDFly, YGE and ZTW. Entries are available when the FC's ESC telemetry protocol matches.",
         motorPoles = "Main motor poles",
         bidirectionalDshot = "Bidirectional DShot",
         gearing = "Main gearing",
