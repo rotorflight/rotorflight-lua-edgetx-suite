@@ -127,6 +127,9 @@ function M.new(runtime, transport, mathModule, labels)
     self:log(declined and "warn" or "error", "%s failed: %s", api, reason)
     self.message, self.transition = self.L.failed, nil
     self.closing = nil
+    -- One lost reply during the load: Retry follows by itself once, after the late replies have had
+    -- their time. Only an unanswered read: a refusal or a wrong reply stays on the screen.
+    self.loadRetryAt = not self.ready and not self.loadRetried and (reason == "max_retries" or reason == "timeout") and now() + 300 or nil
     if api~="cleanup" then self:release() end
     -- A failed multi-profile transaction must restore the selected profile, too.
     if self.restoreProfile and self:allowed() then
@@ -172,10 +175,8 @@ function M.new(runtime, transport, mathModule, labels)
       self.data[name] = servo and { servo_count = index, servos = records } or { adjustment_ranges = records }
     end)
   end
-  -- `retry` asks once more after a lost reply, so one lost frame does not end a visit. Only for a
-  -- read whose next request is another command, or whose repeated answer means the same.
-  function w:read(api, after, optional, payload, retry)
-    self.bus:add({ api = api, payload = payload, optional = optional, after = after, maxRetries = retry and 1 or nil })
+  function w:read(api, after, optional, payload)
+    self.bus:add({ api = api, payload = payload, optional = optional, after = after })
   end
   function w:write(api, data, after, optional, decode)
     self.bus:add({ api = api, write = true, data = data, after = after, optional = optional, decode = decode })
@@ -246,7 +247,7 @@ function M.new(runtime, transport, mathModule, labels)
   -- has none, or an old one, from a link that has only just come back. A refused block is a
   -- failure the pilot can retry once the model is disarmed; nothing is sent before then.
   function w:blockArming()
-    self:read("boxids", function(d) self.data.boxids = d end, nil, nil, true)
+    self:read("boxids", function(d) self.data.boxids = d end)
     self:read("status", function(d)
       local armed = self:fcArmed(d)
       if self.logDebug then self:log("debug", "arming block check, armed %s", tostring(armed)) end
@@ -254,7 +255,7 @@ function M.new(runtime, transport, mathModule, labels)
         if self.logInfo then self:log("info", "arming block refused, armed %s", tostring(armed)) end
         self:fail("arming_disable", "armed")
       end
-    end, nil, nil, true)
+    end)
     self:write("arming_disable", { disabled = true })
   end
   function w:retry()
@@ -269,7 +270,7 @@ function M.new(runtime, transport, mathModule, labels)
       if (d.arming_disable_flags & (1 << 16)) == 0 then self:fail("arming_disable", "not active"); return end
       self.locked = true; self:acceptStatus(d)
       if not self.ready then self:load() else self.transition = nil; self:rebuild() end
-    end, nil, nil, true)
+    end)
   end
   function w:touch(api, reboot, live)
     self.dirty[api] = true
@@ -832,7 +833,7 @@ function M.new(runtime, transport, mathModule, labels)
       if count > 26 or (count > 8 and count < 18) then self:fail("status", "servo count"); return end
       self.loadTotal = #READS + 40 + count
       self.locked = true; self:acceptStatus(d)
-    end, nil, nil, true)
+    end)
     if self.loadHistory then self:run(function() self:loadHistory() end) end
     if self.historyMode then
       self:run(function()
@@ -890,7 +891,7 @@ function M.new(runtime, transport, mathModule, labels)
         end
       end, api == "tail_motor_output" or api == "board_info" or api == "telemetry_config"
         or api == "battery_config" or api == "battery_profile" or api == "smartfuel_config",
-        api == "tail_motor_output" and {0} or nil, true) end
+        api == "tail_motor_output" and {0} or nil) end
       self:run(function()
         -- A reload reads current RAM; unsaved APIs retain their original discard baseline.
         -- Mode extras share the mode table's dirty flag and rollback boundary.
@@ -902,7 +903,7 @@ function M.new(runtime, transport, mathModule, labels)
     end
     -- Loading many API blocks can take seconds over telemetry. Read the lock
     -- again immediately before offering bench controls.
-    self:read("status", function(d) self:acceptStatus(d) end, nil, nil, true)
+    self:read("status", function(d) self:acceptStatus(d) end)
     self:run(function()
       self.identity = self:session().mcu_id
       local inputs = self.data.mixer_input.inputs
@@ -912,6 +913,7 @@ function M.new(runtime, transport, mathModule, labels)
       self.startTail = self.data.mixer_config.tail_rotor_mode
       self.savedRebootPending = self.rebootPending
       self.ready, self.transition, self.buildRequested = true, nil, true
+      self.loadRetried = nil
       if self.logInfo then self:log("info", "load ready") end
       self.message = self.L.ready
       self:rebuild()
@@ -944,13 +946,19 @@ function M.new(runtime, transport, mathModule, labels)
       job.after = function(d, err) self:pollReply(job, d, err) end
       self.pollJob = job
     end
-    job.api, job.optional, job.maxRetries = api, api == "analog", 1
+    job.api, job.optional = api, true
     job.voltageSource = selectedSources and selectedSources.voltageMeterSource
     job.currentSource = selectedSources and selectedSources.currentMeterSource
     self.bus:add(job)
   end
   function w:pollReply(job, d, err)
     local api = job.api
+    -- One lost live reading: what was read last stands, with its age, until the next poll answers.
+    -- The status age decides what a lost status means.
+    if err and api ~= "analog" then
+      if self.logDebug then self:log("debug", "%s poll unanswered: %s", api, tostring(err)) end
+      return
+    end
     self.data[api] = not err and d or nil
     if api == "analog" then
       self.analogAt = not err and now() or nil
@@ -1036,6 +1044,12 @@ function M.new(runtime, transport, mathModule, labels)
       if not self.bus:idle() then self.bus:tick() end
       return
     end
+    if self.loadRetryAt and self.error and now() >= self.loadRetryAt and self.bus:idle() then
+      self.loadRetryAt, self.loadRetried = nil, true
+      if self.logInfo then self:log("info", "load read again by itself") end
+      self:retry()
+      return
+    end
     if self.cleanupFailed and (self.cleanupPending or 0)==0 and not self.error then
       self:fail("cleanup",self.L.cleanupFailed);return
     end
@@ -1059,7 +1073,7 @@ function M.new(runtime, transport, mathModule, labels)
       end
       if age > 100 and not self.statusQueued then
         self.statusQueued = true
-        self.bus:urgent({ api = "status", maxRetries = 1, after = function(d)
+        self.bus:urgent({ api = "status", after = function(d)
           self.statusQueued = nil; self:acceptStatus(d)
         end })
       end

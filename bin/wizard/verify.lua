@@ -1055,25 +1055,60 @@ do
   eq(closed, 0, "DEAD after a write Back does not leave")
   check(written.disconnectExit == true, "DEAD after a write the power-off demand stands")
   session.mcu_id = identity
-  -- One lost reply: the load's reads ask the queue for one more attempt, a write never, and
-  -- numbered records never, because a late reply carries no index.
-  local retried = beginWorld()
-  local seen = {}
+  -- No request is sent twice: a reply carries no reference to the request it answers.
+  local once = beginWorld()
+  local asked = {}
   for _ = 1, 1000 do
-    retried:tick()
+    once:tick()
     local m = q.messages[1]
-    if m then
-      local kind = m.isWrite and "write" or (m.command == 156 or m.command == 125) and "record" or "read"
-      seen[kind] = seen[kind] or {}
-      seen[kind][m.maxRetries or 0] = true
-    end
+    if m then asked[m.maxRetries or 0] = true end
     pump(); ticks = ticks + 1
-    if retried.ready or retried.error then break end
+    if once.ready or once.error then break end
   end
-  check(retried.ready, "RETRY the load finished")
-  check(seen.read and seen.read[1] and not seen.read[0], "RETRY every read of the load asks for one more attempt")
-  check(seen.write and seen.write[0] and not seen.write[1], "RETRY no write asks for a second attempt")
-  check(seen.record and seen.record[0] and not seen.record[1], "RETRY a numbered record is never asked twice")
+  check(once.ready, "ONCE the load finished")
+  check(asked[0] and not asked[1], "ONCE nothing of the load is sent twice")
+  -- A lost reply during the load: read again by itself once, then the error stays.
+  local again = beginWorld()
+  local realPump = pump
+  local function lossyPump(command, n)
+    local m = q.messages[1]
+    if m and m.command == command and n[1] > 0 then
+      n[1] = n[1] - 1
+      table.remove(q.messages, 1)
+      if m.errorHandler then m.errorHandler(m, "max_retries") end
+      return
+    end
+    return realPump()
+  end
+  local losses = { 1 }
+  for _ = 1, 3000 do
+    again:tick(); lossyPump(119, losses); ticks = ticks + 1
+    if again.ready then break end
+  end
+  check(again.ready and not again.error, "RELOAD one lost reply during the load reads again by itself")
+  eq(losses[1], 0, "RELOAD the reply was lost")
+  local twice = beginWorld()
+  losses = { 2 }
+  local errorSeenAt
+  for i = 1, 3000 do
+    twice:tick(); lossyPump(119, losses); ticks = ticks + 1
+    if twice.ready then break end
+    if twice.error and losses[1] == 0 and not errorSeenAt then errorSeenAt = i end
+    if errorSeenAt and i > errorSeenAt + 500 then break end
+  end
+  check(twice.error ~= nil and not twice.ready, "RELOAD a second lost reply stays on the screen")
+  -- A refusal is not read again.
+  local refused = beginWorld()
+  refused.loadRetried = nil
+  refused:fail("arming_disable", "armed")
+  check(refused.loadRetryAt == nil, "RELOAD a refusal is not read again")
+  -- A lost live reading keeps the last value and ends nothing.
+  local polled = world()
+  local stored = polled.data.status
+  polled:pollReply({ api = "attitude" }, nil, "max_retries")
+  check(polled.error == nil, "POLL a lost reading ends nothing")
+  polled:pollReply({ api = "status" }, nil, "max_retries")
+  check(polled.data.status == stored, "POLL a lost status keeps the last one")
   -- Back on a load that failed before anything was written waits for no reply.
   local failing = beginWorld()
   failCommand = 119
@@ -1143,6 +1178,7 @@ do
     local c = lw.data.esc_sensor_config
     c.protocol, c.half_duplex, c.pin_swap = 1, 0, 0
     lw.data.board_info = target and { target_name = target } or nil
+    lw.saved.esc_sensor_config = { protocol = 1, half_duplex = 0, pin_swap = 0 }
     lw.dirty.esc_sensor_config, lw.rebootPending = nil, nil
     lw.step = 11
     lw.statusAt = ticks

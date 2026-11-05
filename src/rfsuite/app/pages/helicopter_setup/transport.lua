@@ -118,8 +118,8 @@ function M.new(runtime, allowed, failed)
       payload = payload or {}, isWrite = j.write == true,
       client = j.override and "helicopter-overrides" or "helicopter-setup",
       -- Queue timeouts are seconds; a lost override reply must leave room for the next refresh.
-      -- Off unless a job asks for it. The queue matches a reply by its command alone, so a late
-      -- reply to a repeated indexed or per-profile read would be taken for the next record.
+      -- Never repeated for this page. The queue matches a reply by its command alone, so a late
+      -- reply to a repeated request could be taken for a later record, profile or status.
       timeout = j.override and 0.3 or j.timeout or 2, maxRetries = j.override and 0 or j.maxRetries or 0,
       retryOnErrorReply = j.retryOnErrorReply,
       processReply = function(_, buf)

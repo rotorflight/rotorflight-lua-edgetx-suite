@@ -66,9 +66,10 @@ page reads on by itself once the link is usable. **Back** leaves at once while n
 written in this visit; once something has been written, a lost link asks for the flight controller
 to be powered off first, because test outputs cannot be confirmed off.
 
-The load's reads, the status and the live readings are asked once more when a reply is lost, so one
-lost telemetry frame does not end a visit. Reads of numbered records and of each profile are not
-repeated, because a late reply could not be told from the next record, and a write is never repeated.
+One lost telemetry frame does not end a visit. A live reading that is not answered keeps its last
+value until the next one. A load that loses a reply reads again by itself once, as **Try again**
+does; after that the error stays. No request is sent twice, because a late reply could not be told
+from the answer to a later one.
 
 A status older than three seconds immediately blocks editing. Active tests and
 pending writes still fail closed and release overrides. During an idle read-only
