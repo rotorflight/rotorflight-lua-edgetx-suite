@@ -584,6 +584,7 @@ function M.build(ctx)
   local hasXdfly = ApiVersion.isAtLeast(rawApiVersion, {12, 0, 8})
   local hasFbus = ApiVersion.isAtLeast(rawApiVersion, {12, 0, 9})
   local hasSrxl2 = ApiVersion.isAtLeast(rawApiVersion, {12, 0, 10})
+  local hasGoosky = ApiVersion.isAtLeast(rawApiVersion, {12, 0, 10})
 
   -- These numbers are the flight controller's own protocol enum and a board stores whatever
   -- it is sent, so an entry the board does not have is not an unused label: it is a different
@@ -614,6 +615,9 @@ function M.build(ctx)
   if hasFbus then appendProtocol("FrSky F.BUS") end
   if hasSrxl2 then appendProtocol("SRXL2") end
   appendProtocol("RECORD")
+  -- Behind RECORD rather than in front of it, so RECORD keeps its number. 16 on the board only
+  -- with the three entries above present, which 12.10 guarantees; an alias of BLHELI32 there.
+  if hasGoosky then appendProtocol("GOOSKY") end
 
   local proto = ui.config.protocol
   local function fieldsActive() return not trialBusy() and not ui.runtime.trial.mustRead end
@@ -642,7 +646,7 @@ function M.build(ctx)
     {
       active = fieldsActive,
       helpText = pageText(i18n, "help_p1_telemetry",
-        "The protocol on the ESC's telemetry wire; NONE reads nothing. XDFLY needs API 12.08, FrSky F.BUS 12.09, SRXL2 12.10."),
+        "The protocol on the ESC's telemetry wire; NONE reads nothing. XDFLY needs API 12.08, FrSky F.BUS 12.09, SRXL2 and GOOSKY 12.10; a Goosky ESC reads the same on GOOSKY and BLHELI32."),
       helpTitle = label,
       onHelp = onRowHelp
     }

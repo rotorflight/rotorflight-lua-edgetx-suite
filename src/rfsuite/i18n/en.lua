@@ -1555,7 +1555,7 @@ return {
         consumption_correction = "Consumption Correction",
         help_title_telemetry = "Telemetry Help",
         help_intro_telemetry = "How the flight controller reads the ESC's telemetry wire; each setting has its own help.",
-        help_p1_telemetry = "The protocol on the ESC's telemetry wire; NONE reads nothing. XDFLY needs API 12.08, FrSky F.BUS 12.09, SRXL2 12.10.",
+        help_p1_telemetry = "The protocol on the ESC's telemetry wire; NONE reads nothing. XDFLY needs API 12.08, FrSky F.BUS 12.09, SRXL2 and GOOSKY 12.10; a Goosky ESC reads the same on GOOSKY and BLHELI32.",
         help_half_duplex = "Uses the Tx pin for both sending and receiving. Forward programming of a supported ESC needs it.",
         help_pin_swap = "Swaps the Rx and Tx pins of the port. Not supported on F4 flight controllers.",
         help_voltage_correction = "Scales the voltage the ESC reports, -99 to 125 %. 0 leaves the reading as it is.",
