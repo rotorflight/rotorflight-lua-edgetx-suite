@@ -20,7 +20,7 @@ gets a message instead of the settings.
 
 | Setting | What it does |
 | --- | --- |
-| Telemetry Protocol | The protocol the speed controller speaks: *NONE*, *BLHELI32*, *HOBBYWING V4*, *HOBBYWING V5*, *SCORPION*, *KONTRONIK*, *OMP*, *ZTW*, *APD*, *OPENYGE*, *FLYROTOR*, *GRAUPNER*, and *RECORD*, which logs the raw bytes to the blackbox instead of decoding them. *XDFLY* is offered on MSP API 12.08 and later, *FrSky F.BUS* on 12.09 and later, *SRXL2* on 12.10 and later. |
+| Telemetry Protocol | The protocol the speed controller speaks: *NONE*, *BLHELI32*, *HOBBYWING V4*, *HOBBYWING V5*, *SCORPION*, *KONTRONIK*, *OMP*, *ZTW*, *APD*, *OPENYGE*, *FLYROTOR*, *GRAUPNER*, and *RECORD*, which logs the raw bytes to the blackbox instead of decoding them. *XDFLY* is offered on MSP API 12.08 and later, *FrSky F.BUS* on 12.09 and later, *SRXL2* and *GOOSKY* on 12.10 and later. A Goosky ESC runs AM32 firmware and sends BLHeli32 telemetry, so *GOOSKY* and *BLHELI32* read it the same way. |
 | Half Duplex | The telemetry line is shared with the output rather than a separate receive line. Greyed out while the protocol is *NONE*. |
 | Pin Swap | Swaps the port's two pins. MSP API 12.07 and later. Greyed out while the protocol is *NONE*. |
 | Voltage Correction | Scales the voltage the speed controller reports. -99 to 125 %, default 0. MSP API 12.08 and later. |
@@ -35,7 +35,13 @@ gets a message instead of the settings.
   added to the firmware in front of *RECORD*, so *RECORD* has a different number on each of
   those firmware generations. The page builds the list from the reported API version for that
   reason: the board stores whatever number it is sent, so offering an entry the board does not
-  have would select a different protocol than the one named.
+  have would select a different protocol than the one named. *GOOSKY* stands behind *RECORD*
+  rather than in front of it, so it moves no other number.
+- **A flight controller that reports MSP API 12.10 but predates the Goosky protocol has no
+  entry at that number.** It stores the value and then reads no ESC telemetry at all. If the
+  readings stop after selecting *GOOSKY*, select *BLHELI32* instead.
+- *GOOSKY* and *BLHELI32* both light the [AM32](esc_tools/escmfg/am32.md) and *Goosky* tiles
+  under *ESC Tools*.
 - A protocol the board reports that this build has no name for is shown as an unknown value
   and cannot be selected; that is a flight controller newer than the suite.
 - The telemetry wire itself is assigned on *Setup* → *Ports*; this page only says what is

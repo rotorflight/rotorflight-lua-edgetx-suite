@@ -676,4 +676,20 @@ do
   lcd.sizeText, LCD_W, LCD_H = savedSizeText, savedW, savedH
 end
 
+-- The status line is read by its label, so a new line rebuilds nothing; a plain string still works.
+do
+  local function holds(line)
+    local tree = standby.build({ x = 0, y = 0, w = 800, h = 480 }, line, function(_, fallback) return fallback end,
+      standby.decode("clock"), {}, {}, { text = "", level = "info" })
+    local found = false
+    for i = 1, #tree do
+      local node = tree[i]
+      if node.type == "label" and node.text == (type(line) == "function" and line or "the line") then found = true end
+    end
+    return found
+  end
+  check("a status line given as a function stays one on its label", holds(function() return "the line" end))
+  check("a status line given as a string is shown", holds("the line"))
+end
+
 print(string.format("standby regression: %d checks passed", passed))

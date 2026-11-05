@@ -614,14 +614,22 @@ function M.build(ctx)
   if hasFbus then appendProtocol("FrSky F.BUS") end
   if hasSrxl2 then appendProtocol("SRXL2") end
   appendProtocol("RECORD")
+  -- API 12.10 as SRXL2. Behind RECORD rather than in front of it, so RECORD keeps its number; 16
+  -- on the board, with the three entries above present, and an alias of BLHELI32 there.
+  if hasSrxl2 then appendProtocol("GOOSKY") end
 
   local proto = ui.config.protocol
   local function fieldsActive() return not trialBusy() and not ui.runtime.trial.mustRead end
+  local openHelp = ctx.openHelp
+  local function onRowHelp(text, label)
+    if type(openHelp) == "function" and type(text) == "string" and text ~= "" then openHelp(text, label) end
+  end
 
   -- 1. Telemetry Protocol
+  local label = pageText(i18n, "telemetry_protocol", "Telemetry Protocol")
   cursorY = cursorY + Controls.appendComboSelect(
     children, x, cursorY, w,
-    pageText(i18n, "telemetry_protocol", "Telemetry Protocol"),
+    label,
     protocolOptions,
     proto,
     function(newVal)
@@ -634,41 +642,66 @@ function M.build(ctx)
         end
       end
     end,
-    { active = fieldsActive }
+    {
+      active = fieldsActive,
+      helpText = pageText(i18n, "help_p1_telemetry",
+        "The protocol on the ESC's telemetry wire; NONE reads nothing. XDFLY needs API 12.08, FrSky F.BUS 12.09, SRXL2 and GOOSKY 12.10; a Goosky ESC reads the same on GOOSKY and BLHELI32."),
+      helpTitle = label,
+      onHelp = onRowHelp
+    }
   )
 
   -- 2. Half Duplex
+  label = pageText(i18n, "half_duplex", "Half Duplex")
   cursorY = cursorY + Controls.appendRadioSwitch(
     children, x, cursorY, w,
-    pageText(i18n, "half_duplex", "Half Duplex"),
+    label,
     function() return ui.config.half_duplex ~= 0 end,
     function(nextBool)
       ui.config.half_duplex = nextBool and 1 or 0
       ui.dirty = true
     end,
-    function() return proto ~= 0 and fieldsActive() end
+    function() return proto ~= 0 and fieldsActive() end,
+    {
+      helpText = pageText(i18n, "help_half_duplex",
+        "Uses the Tx pin for both sending and receiving. Forward programming of a supported ESC needs it."),
+      helpTitle = label,
+      onHelp = onRowHelp
+    }
   )
 
   -- 3. Pin Swap (if apiVersion >= 12.0.7)
   if hasPinSwap then
+    label = pageText(i18n, "pin_swap", "Pin Swap")
     cursorY = cursorY + Controls.appendRadioSwitch(
       children, x, cursorY, w,
-      pageText(i18n, "pin_swap", "Pin Swap"),
+      label,
       function() return ui.config.pin_swap ~= 0 end,
       function(nextBool)
         ui.config.pin_swap = nextBool and 1 or 0
         ui.dirty = true
       end,
-      function() return proto ~= 0 and fieldsActive() end
+      function() return proto ~= 0 and fieldsActive() end,
+      {
+        helpText = pageText(i18n, "help_pin_swap",
+          "Swaps the Rx and Tx pins of the port. Not supported on F4 flight controllers."),
+        helpTitle = label,
+        onHelp = onRowHelp
+      }
     )
   end
 
   -- 4. Voltage Correction (if apiVersion >= 12.0.8)
   if hasCorrections then
+    label = pageText(i18n, "voltage_correction", "Voltage Correction")
     cursorY = cursorY + Controls.appendNumberField(
       children, x, cursorY, w,
-      pageText(i18n, "voltage_correction", "Voltage Correction"),
+      label,
       {
+        helpText = pageText(i18n, "help_voltage_correction",
+          "Scales the voltage the ESC reports, -99 to 125 %. 0 leaves the reading as it is."),
+        helpTitle = label,
+        onHelp = onRowHelp,
         min = -99,
         max = 125,
         suffix = "%",
@@ -682,10 +715,15 @@ function M.build(ctx)
     )
 
     -- 5. Current Correction
+    label = pageText(i18n, "current_correction", "Current Correction")
     cursorY = cursorY + Controls.appendNumberField(
       children, x, cursorY, w,
-      pageText(i18n, "current_correction", "Current Correction"),
+      label,
       {
+        helpText = pageText(i18n, "help_current_correction",
+          "Scales the current the ESC reports, -99 to 125 %. 0 leaves the reading as it is."),
+        helpTitle = label,
+        onHelp = onRowHelp,
         min = -99,
         max = 125,
         suffix = "%",
@@ -699,10 +737,15 @@ function M.build(ctx)
     )
 
     -- 6. Consumption Correction
+    label = pageText(i18n, "consumption_correction", "Consumption Correction")
     cursorY = cursorY + Controls.appendNumberField(
       children, x, cursorY, w,
-      pageText(i18n, "consumption_correction", "Consumption Correction"),
+      label,
       {
+        helpText = pageText(i18n, "help_consumption_correction",
+          "Scales the consumed capacity the ESC reports, -99 to 125 %. 0 leaves the reading as it is."),
+        helpTitle = label,
+        onHelp = onRowHelp,
         min = -99,
         max = 125,
         suffix = "%",

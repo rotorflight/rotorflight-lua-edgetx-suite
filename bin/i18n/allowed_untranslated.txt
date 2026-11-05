@@ -23,6 +23,8 @@ Bluejay
 Bluejay Configurator
 Flyrotor
 Flyrotor Configurator
+Goosky
+Goosky Configurator
 Hobbywing V5
 Hobbywing V5 Configurator
 OMP
