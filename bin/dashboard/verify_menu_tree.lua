@@ -308,6 +308,23 @@ local function run(mutate)
     w.state.armed = true
     check("armed: every row is grey", source.off(find(r.levels[2].rows, "logs")) == true)
     check("armed outranks the connection in the words", source.reason(setup) == "Not while armed")
+    -- What is drawn: the right list's rows give way to the reason where the left row is grey, and a grey
+    -- right row says why under its title.
+    local function labelText(children, want)
+      for i = 1, #children do
+        local node = children[i]
+        if node.type == "label" and type(node.text) == "function" and node.text() == want then return true end
+      end
+      return false
+    end
+    local children = build(w)
+    check("a grey right row says why under its title", labelText(children, "Not while armed"))
+    Roll.back(w)
+    children = build(w)
+    r.levels[1].index = 1
+    for i = 1, #r.levels[1].rows do if r.levels[1].rows[i].id == "tool" then r.levels[1].index = i end end
+    check("a grey left row says why on the right", labelText(children, "Not while armed"))
+    check("and its list is not drawn", not labelText(children, "Setup"))
     w.state.armed = false
     _G.rfsuite.session.fblConnected = true
   end

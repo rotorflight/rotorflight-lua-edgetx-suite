@@ -521,6 +521,7 @@ end
 local function itemAt(roll, side, offset)
   local level = (side == "left") and leftLevel(roll) or rightLevel(roll)
   if level == nil or level.rows == nil then return nil end
+  if side == "right" and rightRows(roll) == nil then return nil end
   return level.rows[level.index + offset]
 end
 
@@ -538,6 +539,11 @@ local function subText(roll, side)
   local lastItem, lastText = nil, ""
   return function()
     local item = itemAt(roll, side, 0)
+    -- On the right there is no column further to say why a row cannot be pressed: it says so here.
+    if side == "right" and item ~= nil and roll.source.reason ~= nil then
+      local why = roll.source.reason(item)
+      if why ~= nil then return why end
+    end
     if item == lastItem then return lastText end
     lastItem, lastText = item, ""
     if item == nil then return lastText end
