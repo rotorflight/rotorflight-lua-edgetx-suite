@@ -251,6 +251,103 @@ do
     paths.setup_esc_motors_esc_tools_goosky_page)
 end
 
+print("the AM32 page: its name under each tile, and a help on every row")
+do
+  local apiPath = "tasks/msp/api/esc_parameters_am32.lua"
+  local api = assert(loadfile(source("src/rfsuite/" .. apiPath)))()
+  local queue = { add = function() end }
+  local rows, helped, headers = 0, 0, {}
+  local function row(opts)
+    rows = rows + 1
+    if type(opts) == "table" and type(opts.helpText) == "string" and opts.helpText ~= "" then helped = helped + 1 end
+    return 1
+  end
+  local pageModules = {
+    ["app/pages/settings/common.lua"] = {
+      pageT = function() return function(_, _, fallback) return fallback end end,
+      resetPageState = function() end
+    },
+    ["ui/controls.lua"] = {
+      STATIC_SECTION_H = 1,
+      appendStaticSectionHeader = function(_, _, _, _, text) headers[#headers + 1] = text end,
+      appendEscSubheader = function(_, _, _, _, firmware)
+        headers[#headers + 1] = "subheader " .. tostring(firmware)
+        return 1
+      end,
+      appendComboSelect = function(_, _, _, _, label, _, _, _, opts)
+        if label == "Section" then return 1 end
+        return row(opts)
+      end,
+      appendNumberField = function(_, _, _, _, _, opts) return row(opts) end
+    },
+    ["ui/loading_overlay.lua"] = {},
+    ["ui/confirm_dialog.lua"] = {},
+    ["tasks/msp/runtime.lua"] = { getState = function() return { queue = queue } end },
+    [apiPath] = api,
+    ["app/pages/setup/esc_motors/esc_tools/escmfg/am32/init.lua"] = {},
+    ["app/pages/setup/esc_motors/esc_tools/esc_current_limit.lua"] = { remember = function() end }
+  }
+  local saved = _G.loadScript
+  _G.loadScript = function(path)
+    local relative = string.match(path, "RFSUITE/core/(.+)$")
+    local value = pageModules[relative]
+    if not value then return nil end
+    return function() return value end
+  end
+  _G.rfsuite = { palette = Palette, paths = cardPaths(), session = { esc4WayMotorCount = 2 } }
+  local page = assert(loadfile(source("src/rfsuite/app/pages/setup/esc_motors/esc_tools/escmfg/am32/page.lua")))()
+  local ui
+  for i = 1, 30 do
+    local name, value = debug.getupvalue(page.hasUnsavedChanges, i)
+    if name == "ui" then ui = value; break end
+    if not name then break end
+  end
+  assert(ui, "page state not found")
+
+  local function build(menuId, section, parsed)
+    page.build({ children = {}, x = 0, y = 0, w = 600, h = 400, i18n = {},
+      menu = { getCurrentMenuId = function() return menuId end } })
+    ui.notice, ui.loading, ui.saving = nil, false, false
+    ui.currentSection, ui.parsedCache, ui.escModel, ui.escFirmware = section, parsed, parsed and "AM32", parsed and "SW2.19"
+    rows, helped, headers = 0, 0, {}
+    local children = {}
+    page.build({ children = children, x = 0, y = 0, w = 600, h = 400, i18n = {},
+      menu = { getCurrentMenuId = function() return menuId end } })
+    return children
+  end
+  local function hasLabel(children, wanted)
+    for _, child in ipairs(children) do
+      if child.type == "label" and child.text == wanted then return true end
+    end
+    return false
+  end
+
+  local GOOSKY, AM32 = "setup_esc_motors_esc_tools_goosky_page", "setup_esc_motors_esc_tools_am32_page"
+  local parsed = api.parse(api.simulatorResponse)
+  check("the reply carries the EEPROM layout version", parsed.eeprom_version == 3, parsed.eeprom_version)
+
+  local children = build(GOOSKY, 1, parsed)
+  check("Goosky: the title names the brand", headers[1] == "Goosky Configurator", headers[1])
+  check("Goosky: the summary line as the issue words it",
+    hasLabel(children, "Goosky AM32 / EEPROM 3 / v2.19"))
+  children = build(GOOSKY, 1, nil)
+  check("Goosky: no summary line before the ESC has answered", not hasLabel(children, "Goosky AM32 / EEPROM 3 / v2.19")
+    and headers[1] == "Goosky Configurator", headers[1])
+
+  children = build(AM32, 1, parsed)
+  check("AM32: the title is unchanged", headers[1] == "AM32 Configurator - AM32", headers[1])
+  check("AM32: the firmware line is unchanged", headers[2] == "subheader SW2.19", headers[2])
+  check("AM32: no Goosky line", not hasLabel(children, "Goosky AM32 / EEPROM 3 / v2.19"))
+
+  for section = 1, 3 do
+    build(AM32, section, parsed)
+    check(string.format("section %d: every row has its own help", section), rows > 0 and rows == helped,
+      tostring(helped) .. " of " .. tostring(rows))
+  end
+  check("the header help is declared", page.getHeaderActions().help == true)
+  _G.loadScript = saved
+end
+
 print("")
 if failures == 0 then
   print(string.format("all %d checks passed", checks))

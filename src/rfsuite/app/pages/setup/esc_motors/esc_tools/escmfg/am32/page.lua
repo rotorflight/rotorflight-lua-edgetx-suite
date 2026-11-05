@@ -628,7 +628,12 @@ function M.build(ctx)
   local h = ctx.h
   local i18n = ctx.i18n
 
-  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), "AM32")
+  -- The Goosky tile opens this page under a menu id of its own (app/pages/init.lua). The ESC reports
+  -- no brand, so the name comes from the tile and everything the ESC did report stays as it is.
+  local menu = ctx.menu
+  local goosky = menu and type(menu.getCurrentMenuId) == "function"
+    and menu.getCurrentMenuId() == "setup_esc_motors_esc_tools_goosky_page"
+  local title = string.format(pageText(i18n, "configurator_title", "%s Configurator"), goosky and "Goosky" or "AM32")
   if type(ui.runtime.syncHeaderTitle) == "function" then
     ui.runtime.syncHeaderTitle(title, M.getHeaderActions())
   end
@@ -665,7 +670,7 @@ function M.build(ctx)
   local cursorY = y
   if Controls and type(Controls.appendStaticSectionHeader) == "function" then
     local headerTitle = title
-    if ui.escModel and ui.escModel ~= "" and ui.escModel ~= title then
+    if not goosky and ui.escModel and ui.escModel ~= "" and ui.escModel ~= title then
       if string.find(string.lower(ui.escModel), string.lower(title), 1, true) then
         headerTitle = ui.escModel
       else
@@ -676,7 +681,20 @@ function M.build(ctx)
     cursorY = cursorY + (Controls.STATIC_SECTION_H or 50)
   end
 
-  if Controls and type(Controls.appendEscSubheader) == "function" then
+  local parsed = ui.parsedCache
+  if goosky then
+    if parsed then
+      children[#children + 1] = {
+        type = "label",
+        x = x, y = cursorY,
+        text = string.format(pageText(i18n, "esc_goosky_summary", "Goosky AM32 / EEPROM %s / v%s"),
+          tostring(parsed.eeprom_version), tostring(parsed.version_major) .. "." .. tostring(parsed.version_minor)),
+        color = Palette.text,
+        font = SMLSIZE
+      }
+      cursorY = cursorY + 18
+    end
+  elseif Controls and type(Controls.appendEscSubheader) == "function" then
     cursorY = cursorY + Controls.appendEscSubheader(children, x, cursorY, w, ui.escFirmware, ui.escVersion)
   end
   local rowH
