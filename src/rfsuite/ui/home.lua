@@ -4450,5 +4450,6 @@ return {
   useLvgl = true,
   requestRebuild = scheduleBuildUI,
   requestClose = requestClose,
-  releasePages = releasePages
+  releasePages = releasePages,
+  landingRefused = M.landingRefused
 }
