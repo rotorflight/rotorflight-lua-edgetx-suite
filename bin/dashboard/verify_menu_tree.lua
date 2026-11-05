@@ -82,7 +82,7 @@ local function loadWorld(mutate)
   _G.rfsuite = {
     require = requireStub,
     session = { fblConnected = true, apiVersion = "12.10" },
-    paths = { core = SRC:sub(1, -2), user = "/none" },
+    paths = { core = string.sub(SRC, 1, -2), user = "/none" },
   }
   _G.loadScript = function(path) return loadfile(path) end
   return requireStub("widgets/dashboard/views.lua"), requireStub("widgets/dashboard/fullscreen_menu.lua"), requireStub

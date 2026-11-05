@@ -117,10 +117,13 @@ local function startIndex(rows, source)
   local none, open = nil, nil
   for i = 1, #rows do
     local row = rows[i]
-    local off = source.off ~= nil and source.off(row) == true
     if row.none == true then none = i end
-    if row.current == true and not off then return i end
-    if open == nil and not off then open = i end
+    -- Asked only where the answer decides anything: a long list has one row in force.
+    if row.current == true or open == nil then
+      local off = source.off ~= nil and source.off(row) == true
+      if row.current == true and not off then return i end
+      if open == nil and not off then open = i end
+    end
   end
   return none or open or 1
 end
@@ -209,7 +212,10 @@ local function moveBy(roll, delta)
   local rows = level and level.rows or nil
   local before = level and level.index or 1
   if level ~= nil then level.index = clamp(before + delta, rows and #rows or 0) end
-  trace(sideOf(roll) .. " " .. tostring(before) .. " -> " .. tostring(level and level.index))
+  if Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+    local row = rows and level and rows[level.index] or nil
+    trace(sideOf(roll) .. " " .. tostring(before) .. " -> " .. tostring(level and level.index) .. " " .. tostring(row and row.id))
+  end
 end
 
 -- A detent, or several where the wheel outran the callbacks. The sum is taken from the ladder
@@ -617,6 +623,12 @@ local function refreshLists(roll, source)
   if roll.focus == 2 and (right == nil or right.rows == nil) then
     roll.focus = 1
     levels[roll.base + 1] = nil
+  end
+  if Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+    local place = M.place(roll)
+    local ids = {}
+    for i = 1, #place.ids do ids[i] = tostring(place.ids[i]) end
+    trace("place " .. table.concat(ids, "/") .. " base=" .. tostring(place.base) .. " focus=" .. tostring(place.focus))
   end
 end
 

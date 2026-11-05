@@ -89,7 +89,7 @@ local function loadWorld(mutate)
   end
   _G.rfsuite = {
     require = requireStub, session = { dataflash = { used = 50, total = 100 }, fblConnected = true },
-    paths = { core = SRC:sub(1, -2), user = "/none" },
+    paths = { core = string.sub(SRC, 1, -2), user = "/none" },
   }
   _G.loadScript = function(path) return loadfile(path) end
   return requireStub("widgets/dashboard/views.lua"), requireStub("widgets/dashboard/fullscreen_menu.lua"), requireStub
@@ -887,16 +887,16 @@ if selfTest then
       return (string.gsub(t, "if sy == window.y then return end\n", ""))
     end },
     { "a build forgets the place on the right", function(t)
-      return (string.gsub(t, "right.index = place\n", "right.index = 1\n"))
+      return (string.gsub(t, "level.index = place\n", "level.index = 1\n"))
     end },
     { "another option takes a gone one's place", function(t)
-      return (string.gsub(t, "roll.focus = 1\n        right.index = right.rows and startIndex%(right.rows, source%) or 1", "right.index = 1"))
+      return (string.gsub(t, "level.index = level.rows and startIndex%(level.rows, source%) or 1\n        for i = #levels, depth %+ 1, %-1 do levels%[i%] = nil end\n        roll.base = math.min%(roll.base, depth %- 1%)\n        roll.focus = 1\n", "level.index = 1\n"))
     end },
     { "a question keeps what it said", function(t)
-      return (string.gsub(t, "right.rows, right.question = rows, question\n", ""))
+      return (string.gsub(t, "level.rows, level.question = rows, question\n", ""))
     end },
     { "the place goes by the row's number", function(t)
-      return (string.gsub(t, "local found = indexOfRow%(left.rows, before%)", "local found = (before ~= nil and left.rows[left.index] ~= nil) and left.index or nil"))
+      return (string.gsub(t, "local found = indexOfRow%(first.rows, before%)", "local found = (before ~= nil and first.rows[first.index] ~= nil) and first.index or nil"))
     end },
     { "a detent is not summed", function(t)
       return (string.gsub(t, "local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))
@@ -920,7 +920,7 @@ if selfTest then
       return (string.gsub(t, "Views.status%(widget, entry.id%) == \"busy\" then", "false then"))
     end },
     { "the picker starts on the first pack", function(t)
-      return (string.gsub(t, "if row.none == true then fallback = i end\n", ""))
+      return (string.gsub(t, "if row.none == true then none = i end\n", ""))
     end },
     { "RTN on the picker only closes the view", function(t)
       return (string.gsub(t, "    close = close,\n    back = close,", "    close = close,\n    back = function() Views.navigate(widget, \"closeView\") end,"))
