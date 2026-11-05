@@ -45,6 +45,8 @@ local QUEUE = {}
 function QUEUE:add(msg) adds[#adds + 1] = msg end
 _G.lcd = {
   RGB = function(r, g, b) if g == nil then return r end return (r * 65536) + (g * 256) + b end,
+  -- A rough width, so a budget below counts the rows a build measures.
+  sizeText = function(text) return #tostring(text) * 8, 16 end,
   exitFullScreen = function() exits = exits + 1 end,
 }
 
@@ -707,7 +709,7 @@ local function run(mutate)
       for i = 1, count do list[i] = { id = "n" .. i, name = "N" .. i, cap = 2000, cycles = i, targetProfile = 0 } end
       -- As the load publishes it: each pack's profile worked out in the load's own steps.
       w.state.batteryPick = { loaded = true, pending = true, candidates = list,
-        resolvedFor = w.state.battery_config, resolvedPacks = list }
+        resolvedFor = Menu.configKey(w.state.battery_config), resolvedPacks = list }
       Views.navigate(w, "openView:battery_pick")
       return w
     end
@@ -746,6 +748,15 @@ local function run(mutate)
         return fallback
       end }
       check("another language is said", string.find(Menu.entry(q, "battery_pick").options()[1].detail, "Zyklen", 1, true) ~= nil)
+      -- The battery page's save changes the shared table in place.
+      q = big(2)
+      local packs = Menu.entry(q, "battery_pick").options()
+      q.state.batteryPick.resolvedFor = nil
+      Menu.entry(q, "battery_pick").options()
+      q.state.batteryPick.candidates[1].cap = 3000
+      q.state.battery_config.batteryCapacity_0 = 3000
+      local moved = Menu.entry(q, "battery_pick").options()[1]
+      check("a save in place is worked out again", moved.selectable == true and moved.detail ~= packs[1].detail)
       q = big(2)
       q.state.batteryPick.candidates[1].targetProfile = nil
       local off = Menu.entry(q, "battery_pick").options()[1]

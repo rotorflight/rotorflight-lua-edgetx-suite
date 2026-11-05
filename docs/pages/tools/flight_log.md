@@ -177,8 +177,9 @@ the first profile set to the pack's capacity is the one selected.
 
 With this setting on, the picker offers only the packs for which those rules give one profile; the
 others are listed, paler, with *no profile*. The pack is recorded when the flight controller has
-answered the write, so a write that fails leaves the pack before it in force, with its profile, and
-the picker says *NOT SAVED*.
+answered the write, so a write that fails leaves the pack before it in force and the picker says
+*NOT SAVED*. A lost answer does not say what the flight controller did: it may have taken the profile,
+and the next connection reads it again.
 
 The write is `MSP_SET_BATTERY_PROFILE` followed by the EEPROM write that makes the board apply
 and broadcast the change — the same pair the dashboard's *BATTERY PROFILE* buttons send. It is

@@ -240,9 +240,10 @@ pack only counts once its profile has reached the flight controller:
 - **A pick that moves the board says *SENDING...* and stays up.** When the flight controller has
   answered, the pack is recorded and the picker closes. Closing it meanwhile does not cancel: an
   answer that arrives later still records the pack.
-- **A write that fails says *NOT SAVED* and changes nothing.** The pack that was in force stays in
-  force, with its profile. Another press tries again, and the **X** or a short press on the return
-  key closes the picker.
+- **A write that fails says *NOT SAVED* and records nothing.** The pack that was in force stays in
+  force. Another press tries again, and the **X** or a short press on the return key closes the
+  picker. A lost answer does not say what the flight controller did: it may have taken the profile,
+  and the next connection reads it again.
 - **A pack in force that has lost its profile stays in force**, marked and paler, until another
   answer replaces it.
 

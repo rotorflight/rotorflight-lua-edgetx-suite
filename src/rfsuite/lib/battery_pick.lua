@@ -83,7 +83,7 @@ function M.newLoad(session, cfg)
     snapshot = {}
     for key, value in pairs(cfg) do snapshot[key] = value end
   end
-  local load = { cfg = snapshot, source = cfg, packs = {}, byId = {} }
+  local load = { cfg = snapshot, packs = {}, byId = {} }
   local FlightLog = requireModule("lib/flight_log.lua")
   if type(FlightLog) ~= "table" or type(FlightLog.newRegistryReader) ~= "function" then
     log("no registry reader in lib/flight_log.lua, no packs loaded", "warn")
@@ -165,7 +165,7 @@ function M.select(session, id)
 
   if type(session.modelPreferences) ~= "table" or session.mcu_id == nil then
     log("select kept for this connection only: no model store yet", "info")
-    return false
+    return false, "nostore"
   end
   if type(session.modelPreferences.flightlog) ~= "table" then
     session.modelPreferences.flightlog = {}
@@ -315,6 +315,12 @@ function M.readProfile(callback)
     end
   })
   return true
+end
+
+--- Whether the link says the model is armed: what the flight's own record goes by.
+function M.armedOnLink()
+  local state = mspState()
+  return state ~= nil and state.lastArmed == true
 end
 
 --- Move the board onto a battery profile: MSP_SET_BATTERY_PROFILE, then the EEPROM write that

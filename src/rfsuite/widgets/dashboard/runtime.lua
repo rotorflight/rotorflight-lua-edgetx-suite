@@ -1812,8 +1812,10 @@ local function batteryPickLoadStep(self)
   pick.candidates = list
   -- Each pack's profile is worked out in the load's own steps; the picker need not do it again in its
   -- build, unless the configuration has changed since.
-  if load.source == self.state.battery_config then
-    pick.resolvedFor, pick.resolvedPacks = load.source or false, list
+  local Menu = requireModule("widgets/dashboard/fullscreen_menu.lua")
+  if type(Menu) == "table" and type(Menu.configKey) == "function" then
+    local now = Menu.configKey(self.state.battery_config)
+    if now == Menu.configKey(load.cfg) then pick.resolvedFor, pick.resolvedPacks = now, list end
   end
 
   local id = BatteryPick.selectedId(session)
@@ -1849,8 +1851,9 @@ local function takeBatteryPickOpen(self, Views, pick)
 end
 
 --- Perform a pick: move the board onto the pack's battery profile when that is switched on, and
---- record the pack. The board comes first and the card after its answer, so a write that fails
---- leaves what held before standing, on both: pack and profile still belong together.
+--- record the pack. The board comes first and the card after its answer, so a pick whose write fails
+--- records nothing. A lost answer does not say what the board did: it may have taken the profile while
+--- the pack before stands, until the next connection reads the board again or a pick moves it.
 local function batteryPickApplyStep(self)
   local pick = self.state.batteryPick
   local BatteryPick = requireModule("lib/battery_pick.lua")
@@ -1860,15 +1863,21 @@ local function batteryPickApplyStep(self)
   end
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
 
+  local function armed()
+    return self.state.armed == true or (type(BatteryPick.armedOnLink) == "function" and BatteryPick.armedOnLink())
+  end
+
+  -- Answers whether the store refused the pack. With no model store yet it is kept for this connection,
+  -- as it always was, and that is no refusal.
   local function record(id)
-    BatteryPick.select(session, id)
+    local stored, why = BatteryPick.select(session, id)
     self._batteryPickPicked = true
     pick.pending = false
     pick.selectedId = id
     pick.applied = nil
     local entry = batteryPickEntry(pick, id)
     pick.selectedName = entry and entry.name or nil
-    return entry
+    return stored == false and why ~= "nostore"
   end
 
   -- A press that stayed up for an answer it now has: say so, and close what it left up.
@@ -1892,13 +1901,19 @@ local function batteryPickApplyStep(self)
     self._batteryPickWritten = nil
     pick.boardProfile = written.target
     -- Armed since the answer: a pack recorded now would be written against the flight in progress.
-    if self.state.armed == true then
+    if armed() then
       widgetLog(self, "battery pick not recorded: the model armed before the answer was taken", "warn")
       pick.applied = "refused:armed"
       if written.press ~= nil then written.press.report("failed") end
       return true
     end
-    record(written.id)
+    if record(written.id) then
+      -- In the session for this connection, not on the card: said, as the board has moved.
+      widgetLog(self, "battery pick not stored on the card", "warn")
+      pick.applied = "written:not stored"
+      if written.press ~= nil then written.press.report("failed") end
+      return true
+    end
     pick.applied = "written"
     settled(written.press)
     return true
@@ -1916,7 +1931,7 @@ local function batteryPickApplyStep(self)
   -- Refused while armed, here as well as by hiding BATTERY: a picker that was already open when
   -- the model armed, or a caller of rfsuite.batteryPick, still arrives at this step, and a pack
   -- recorded now would be written against the flight in progress.
-  if self.state.armed == true then
+  if armed() then
     widgetLog(self, "battery pick refused: the model is armed", "warn")
     pick.applied = "refused:armed"
     if press ~= nil then press.report("failed") end

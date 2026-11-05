@@ -38,6 +38,7 @@ M.ROLES = {
   { "muted", "muted" },
   { "disabled", "disabled" },
   { "accent", "accent" },
+  { "accentInk", "accentInk" },
   { "onAccent", "onAccent" },
   { "fill", "selection" },
   { "close", "error" },

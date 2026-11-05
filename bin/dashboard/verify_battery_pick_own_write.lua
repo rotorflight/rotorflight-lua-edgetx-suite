@@ -410,8 +410,8 @@ do
     tostring(world.w.state.batteryPick.candidates[2].targetProfile))
 end
 
--- 4. The board first, the card after its answer: a write that fails leaves pack and profile as they
--- were. The answer is handed in by hand, so each state between the press and the reply can be read.
+-- 4. The board first, the card after its answer: a write that fails leaves the recorded pack as it
+-- was. The answer is handed in by hand, so each state between the press and the reply can be read.
 do
   if trace then print("scenario: the board first") end
   local world = newWorld()
@@ -555,6 +555,36 @@ do
   answers[#answers](true)
   passes(world, 3)
   expect(storedPack(world) == "p1000", "control: the later write's answer records", tostring(storedPack(world)))
+
+  -- The board has answered and the card refuses: the press is told, as the pack did not reach the store.
+  do
+    local select = BatteryPick.select
+    BatteryPick.select = function() return false end
+    reports = {}
+    local before = storedPack(world)
+    press("p1300")
+    passes(world, 3)
+    answers[#answers](true)
+    passes(world, 3)
+    BatteryPick.select = select
+    expect(reports[#reports] == "failed" and storedPack(world) == before, "a card that refuses the pack says so",
+      tostring(reports[#reports]))
+  end
+
+  -- Armed on the link since the answer, whatever the telemetry says: nothing recorded.
+  do
+    local armedOnLink = BatteryPick.armedOnLink
+    reports = {}
+    local before = storedPack(world)
+    press("p1300")
+    passes(world, 3)
+    answers[#answers](true)
+    BatteryPick.armedOnLink = function() return true end
+    passes(world, 3)
+    BatteryPick.armedOnLink = armedOnLink
+    expect(reports[#reports] == "failed" and storedPack(world) == before, "armed on the link: the answer records nothing",
+      tostring(reports[#reports]) .. ", " .. tostring(storedPack(world)))
+  end
 
   -- Refused at the write: the same as given up.
   BatteryPick.applyProfile = function() return false, "noqueue" end

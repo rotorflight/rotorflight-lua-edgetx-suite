@@ -65,6 +65,9 @@ local LADDER_SIZE = 16
 -- The slots either side of the middle one.
 local REACH = 2
 
+-- The most rows whose names a build measures to choose the middle row's face.
+local MEASURED_ROWS = 40
+
 -- Ten milliseconds a tick: how long the wheel has to rest before the scene is built again.
 local REST_TICKS = 60
 
@@ -429,9 +432,11 @@ local function subText(roll, side)
 end
 
 -- The middle row's face for a list: the large one where every name in it fits the width, else the
--- face under it, the same for the whole list so a row does not change size as it comes to the middle.
+-- face under it, the same for the whole list so a row does not change size as it comes to the middle. A
+-- long list takes the smaller one without measuring every name in a build.
 local function middleFace(list, large, small, maxW)
   if type(list) ~= "table" or not (lcd and type(lcd.sizeText) == "function") then return large end
+  if #list > MEASURED_ROWS then return small end
   for i = 1, #list do
     local ok, w = pcall(lcd.sizeText, list[i].title or list[i].label or "", large)
     if ok and type(w) == "number" and w > maxW then return small end

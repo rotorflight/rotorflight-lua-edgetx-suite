@@ -208,7 +208,7 @@ function M.build(children, widget)
     }
     children[#children + 1] = {
       type = "label", x = p.paddingX, y = noneY + math.floor((noneH - p.fontH) / 2) + p.btnTextOffY, w = fullW,
-      text = none.label, color = noneCurrent and colors.accent or colors.text, align = CENTER, font = p.titleFont,
+      text = none.label, color = noneCurrent and colors.accentInk or colors.text, align = CENTER, font = p.titleFont,
     }
   end
 end

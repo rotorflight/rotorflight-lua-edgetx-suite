@@ -167,10 +167,24 @@ local function dismissBatteryPick(widget)
   end
 end
 
+-- What a pack's profile rests on: the board's capacities and cell counts. By value, as the battery page's
+-- save changes the shared table in place.
+local function configKey(config)
+  if type(config) ~= "table" then return "" end
+  local parts = {}
+  for i = 0, 5 do
+    parts[#parts + 1] = tostring(config["batteryCapacity_" .. i])
+    parts[#parts + 1] = tostring(config["batteryCellCount_" .. i])
+  end
+  return table.concat(parts, ",")
+end
+
+M.configKey = configKey
+
 -- The board's profile for each pack, worked out once per battery configuration: asking for it logs
 -- every exit, and the options are made afresh on every build of the picker.
 local function resolvePacks(pick, config)
-  local key = config or false
+  local key = configKey(config)
   if pick.resolvedFor == key and pick.resolvedPacks == pick.candidates then return end
   pick.resolvedFor, pick.resolvedPacks = key, pick.candidates
   local BatteryPick = requireModule("lib/battery_pick.lua")
