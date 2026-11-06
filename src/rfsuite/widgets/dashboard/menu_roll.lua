@@ -74,6 +74,9 @@ local MEASURED_ROWS = 40
 -- Ten milliseconds a tick: how long the wheel has to rest before the scene is built again.
 local REST_TICKS = 60
 
+-- How long a press may wait to open its page. Longer means the menu was covered, and the press is over.
+local OPENING_TICKS = 300
+
 -- The roll of this visit for `view`, made where there is none. One per view: only the view on top
 -- takes the wheel, and a menu a picker opened over keeps its place under it. A roll a visit to the
 -- tool left (views.lua, `toolClosed`) has only its place so far, and is completed here.
@@ -299,6 +302,14 @@ end
 function M.back(widget)
   local roll = current(widget)
   if roll == nil or roll.source == nil then return false end
+  if roll.opening ~= nil then
+    -- RTN in that moment takes the press back; once the tool is starting there is nothing left here to do.
+    if not roll.opening.started then
+      roll.opening, roll.slots = nil, nil
+      trace("opening called off by RTN")
+    end
+    return true
+  end
   if roll.notice ~= nil then
     roll.notice = nil
     rebuild(widget, roll)
@@ -410,6 +421,7 @@ function M.touch(widget, event, touch)
   end
   local roll = current(widget)
   if roll == nil then return false end
+  if roll.opening ~= nil then return true end
   if event == _G.EVT_TOUCH_FIRST then
     -- Against the box under the whole screen, and the one rectangle over it starts at the same corner.
     roll.touchX, roll.touchY = touch.x, touch.y
@@ -506,13 +518,22 @@ function M.renderKey(widget)
   if roll == nil then return "" end
   local opening = roll.opening
   if opening ~= nil then
-    -- One pass for the words to be drawn; the next one starts what holds the screen.
-    if not opening.waited then
-      opening.waited = true
-    else
-      roll.opening, roll.slots = nil, nil
-      trace("opening now")
-      opening.run()
+    -- One pass for the words to be drawn; the next one starts what holds the screen. The words stay until
+    -- the tool takes the screen: the request only schedules it.
+    if not opening.started then
+      if getTime() - opening.at >= OPENING_TICKS then
+        roll.opening, roll.slots = nil, nil
+        trace("opening given up, the menu was covered")
+      elseif not opening.waited then
+        opening.waited = true
+      else
+        opening.started = true
+        trace("opening now")
+        if opening.run() == false then
+          roll.opening, roll.slots = nil, nil
+          trace("opening refused")
+        end
+      end
     end
     return tostring(roll.epoch)
   end
@@ -594,6 +615,8 @@ local function makeSlot(roll, side, offset, key)
       sub = item.detail
     end
     slot.sub = sub or ""
+    -- A slot made again while a page is opening says so as well.
+    if roll.opening ~= nil and side == sideOf(roll) then slot.sub = roll.opening.text end
   end
   slots[key] = slot
   return slot
@@ -618,9 +641,9 @@ end
 --- Say `text` under the current row, and run `open` a pass later: loading the tool holds the screen for a
 --- while, and the pilot has to see that the press was taken before it starts.
 function M.openNext(roll, text, open)
+  roll.opening = { run = open, text = text, at = getTime(), waited = false, started = false }
   local slot = slotOf(roll, sideOf(roll), 0, slotKey(sideOf(roll), 0))
   if slot ~= EMPTY then slot.sub = text end
-  roll.opening = { run = open, waited = false }
 end
 
 -- What a current row says under its name.

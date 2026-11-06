@@ -183,6 +183,11 @@ local function run(mutate)
     check("the model page is on this level", moveTo(r.levels[3], "model"))
     do
       local place = Roll.place(r)
+      -- The row's slot already made, as it is on a radio: the words have to reach it.
+      local before = build(w)
+      for i = 1, #before do
+        if type(before[i].text) == "function" then before[i].text() end
+      end
       w._toolOpeningCheck = true
       Roll.press(w)
       local slot = r.slots and r.slots[Roll.place(r).focus == 2 and 10 or 0]
@@ -192,9 +197,50 @@ local function run(mutate)
       Roll.renderKey(w)
       check("the first pass only lets it be drawn", #opened == 0 and r.opening ~= nil)
       w._toolOpeningCheck = nil
+      -- Whatever moves the row now, the place is the one the press was made on.
+      local rows = r.levels[3].rows
+      r.levels[3].index = (rows[1].id == "model") and 2 or 1
       Roll.renderKey(w)
-      check("the next one opens it, once, from the place", #opened == 1 and r.opening == nil and w._rollPlace ~= nil
-        and w._rollPlace.base == place.base)
+      check("the next one opens it, once, from the place", #opened == 1 and w._rollPlace ~= nil
+        and w._rollPlace.base == place.base and w._rollPlace.ids[3] == "model")
+      local slot2 = r.slots and r.slots[Roll.place(r).focus == 2 and 10 or 0]
+      check("and the words stay until the tool takes the screen", slot2 ~= nil and slot2.sub == "Opening...")
+    end
+    -- The moment between the press and the start.
+    do
+      local w2, r2 = open()
+      toSetup(w2, r2)
+      moveTo(r2.levels[3], "model")
+      w2._toolOpeningCheck = true
+      Roll.press(w2)
+      local before = Roll.place(r2)
+      r2.slots = nil
+      local made = build(w2)
+      local says = false
+      for i = 1, #made do
+        if type(made[i].text) == "function" and made[i].text() == "Opening..." then says = true end
+      end
+      check("a scene built in that moment says it too", says)
+      check("a finger in that moment is not taken", Roll.touch(w2, _G.EVT_TOUCH_FIRST or 1, { x = 1, y = 100 }) ~= false and r2.touchX == nil)
+      Roll.back(w2)
+      w2._toolOpeningCheck = nil
+      passes(w2); passes(w2)
+      check("RTN in that moment takes the press back", #opened == 0 and r2.opening == nil and Roll.place(r2).focus == before.focus)
+      -- Covered by something else, the press does not wait for ever.
+      w2._toolOpeningCheck = true
+      Roll.press(w2)
+      now = now + 400
+      w2._toolOpeningCheck = nil
+      Roll.renderKey(w2)
+      check("a press left waiting is over", #opened == 0 and r2.opening == nil)
+    end
+    do
+      -- The rest of this case goes on from a fresh open at the same page.
+      local w3, r3 = open()
+      toSetup(w3, r3)
+      moveTo(r3.levels[3], "model")
+      Roll.press(w3)
+      w, r = w3, r3
     end
     check("a press opens that page", #opened == 1 and opened[1].page == "setup_model_page" and opened[1].visit == true)
     check("the place is kept on the widget", type(w._rollPlace) == "table" and w._rollPlace.ids[3] == "model")
@@ -689,6 +735,14 @@ if selfTest then
         return (string.gsub(t, "reaches%(entry.minApiVersion%) ~= true", "reaches(entry.minApiVersion) == false", 1)) end },
     { "a press that opens a page says nothing", function(t)
         return (string.gsub(t, "if slot ~= EMPTY then slot.sub = text end", "", 1)) end },
+    { "RTN leaves the press to open its page", function(t)
+        return (string.gsub(t, "roll.opening, roll.slots = nil, nil\n      trace%(\"opening called off by RTN\"%)", "trace(\"x\")", 1)) end },
+    { "a slot made again forgets the words", function(t)
+        return (string.gsub(t, "if roll.opening ~= nil and side == sideOf%(roll%) then slot.sub = roll.opening.text end", "", 1)) end },
+    { "the place is taken when it opens", function(t)
+        return (string.gsub(t, "return Views.visit%(widget, entry.menuId, place%)", "return Views.visit(widget, entry.menuId, Roll.place(roll))", 1)) end },
+    { "a covered press waits for ever", function(t)
+        return (string.gsub(t, "if getTime%(%) %- opening.at >= OPENING_TICKS then", "if false then", 1)) end },
     { "a page opens before the words are drawn", function(t)
         return (string.gsub(t, "if not opening.waited then", "if false then", 1)) end },
     { "a row's kind is lost", function(t)
