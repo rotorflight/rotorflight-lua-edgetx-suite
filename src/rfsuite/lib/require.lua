@@ -80,6 +80,14 @@ local function requireModule(path, forceReload)
     return modules[fullPath]
   end
 
+  -- What each module costs, for a log read at debug. Asked once per load; a load already takes far
+  -- longer than the question. A module that loads others carries theirs in its figure.
+  local Logger = _G.rfsuite and _G.rfsuite.Log
+  local luaBefore = nil
+  if type(Logger) == "table" and type(Logger.wanted) == "function" and Logger.wanted("debug") then
+    luaBefore = math.floor(collectgarbage("count") + 0.5)
+  end
+
   local chunk, err = loadScript(fullPath, _G.rfsuite.loadMode)
   if not chunk then
     if type(err) == "string" then
@@ -119,12 +127,21 @@ local function requireModule(path, forceReload)
   -- drops what a forced reload of a module that used to return a table left in the cache.
   modules[fullPath] = result
 
+  if luaBefore then
+    pcall(Logger.emitf, "rfsuite.require", "debug", "loaded %s, lua %d -> %d kB", tostring(fullPath), luaBefore,
+      math.floor(collectgarbage("count") + 0.5))
+  end
+
   return result
 end
 
 local function clearModule(path)
   local fullPath = normalizePath(path)
   if fullPath then
+    local Logger = _G.rfsuite and _G.rfsuite.Log
+    if modules[fullPath] ~= nil and type(Logger) == "table" and type(Logger.emitf) == "function" then
+      pcall(Logger.emitf, "rfsuite.require", "debug", "released %s", tostring(fullPath))
+    end
     modules[fullPath] = nil
   end
 end

@@ -432,6 +432,27 @@ do
   check(#said == 1, "require: a load that keeps failing is said once", #said)
   check(said[1] ~= nil and said[1].level == "error", "require: and it is an error line", said[1] and said[1].level)
 
+  -- A load and a release, at debug and not at off.
+  local function loadCase(level, expected)
+    world()
+    begin(level, true)
+    control("require " .. level, level == "off" and "error" or level)
+    local path = "widgets/dashboard/keys.lua"
+    _G.rfsuite.clearModule(path)
+    begin(level, true)
+    _G.rfsuite.require(path)
+    local loaded = find("rfsuite.require", "loaded ")
+    check(#loaded == expected, "require " .. level .. ": a load is said " .. expected .. " time(s)", #loaded)
+    if expected > 0 then
+      check(loaded[1].level == "debug" and string.find(loaded[1].msg, "lua %d+ %-> %d+ kB") ~= nil,
+        "require " .. level .. ": a debug line with the figures", loaded[1].msg)
+    end
+    _G.rfsuite.clearModule(path)
+    check(#find("rfsuite.require", "released ") == expected, "require " .. level .. ": a release is said " .. expected .. " time(s)", nil)
+  end
+  loadCase("off", 0)
+  loadCase("debug", 1)
+
   world()
   begin("info", true)
   control("uid info", "info")
