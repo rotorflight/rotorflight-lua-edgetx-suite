@@ -90,6 +90,14 @@ local function hostLogTransition(msg)
   hostLog(msg)
 end
 
+-- A step of an open or a close. Not on a pass of the running tool; the memory figures are asked
+-- for only when the line will be written.
+local function hostStep(msg)
+  if Log and type(Log.wanted) == "function" and Log.wanted("debug") then
+    pcall(Log.emit, "rfsuite.widget.tool", msg .. ", " .. Log.resources(), "debug")
+  end
+end
+
 local function isCpuLimit(err)
   local fn = _G.rfsuite and _G.rfsuite.isCpuLimitError
   if type(fn) == "function" then return fn(err) == true end
@@ -166,16 +174,19 @@ end
 
 local function dropToolModules()
   local modules = _G.rfsuite and _G.rfsuite.modules
-  if type(modules) ~= "table" then return end
+  if type(modules) ~= "table" then return 0 end
+  local dropped = 0
   for path in pairs(modules) do
     for i = 1, #TOOL_PREFIXES do
       local prefix = TOOL_PREFIXES[i]
       if string.sub(path, 1, #prefix) == prefix then
         modules[path] = nil
+        dropped = dropped + 1
         break
       end
     end
   end
+  return dropped
 end
 
 -- A save that restarts the flight controller holds the page, and Back on it dismisses it once the
@@ -255,7 +266,8 @@ local function finish(widget, reason)
     root.confirmDialogSlot.pending = {}
   end
 
-  dropToolModules()
+  local dropped = dropToolModules()
+  hostStep("tool modules dropped: " .. tostring(dropped))
 
   widget._job = nil
   widget.built = false
@@ -277,6 +289,7 @@ function M.request(widget, landing)
     hostLog("tool not opened: the model is armed", "warn")
     return false
   end
+  hostStep("tool asked for, landing " .. tostring(landing))
   widget._toolHost = { phase = "load", cpuHits = 0, landing = landing }
   widget.built = false
   widget.renderKey = nil
@@ -330,6 +343,7 @@ local function loadStep(widget, host)
     finish(widget, "load failed")
     return
   end
+  hostStep("tool loaded")
   host.home = home
   host.phase = "init"
   host.cpuHits = 0
@@ -350,6 +364,7 @@ local function runStep(widget, host, event, touchState)
   -- closing sequence takes it down over the passes that follow, writes included.
   if not host.closing and (event == nil or modelArmed()) then
     host.closing = true
+    hostStep(event == nil and "tool closing: fullscreen was left" or "tool closing: the model armed")
     leaveSave()
     if type(home.requestClose) == "function" then pcall(home.requestClose) end
   end
