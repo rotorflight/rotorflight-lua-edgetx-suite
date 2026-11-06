@@ -14,6 +14,7 @@ function M.release(owner)
     -- Loaded by this module for the TX battery field. It holds no state, so a theme that keeps
     -- its own reference loses nothing.
     _G.rfsuite.clearModule("lib/radio_status.lua")
+    _G.rfsuite.clearModule("lib/color_schemes.lua")
   end
 end
 
@@ -29,8 +30,10 @@ local function loadRadioStatus()
   return chunk and chunk() or nil
 end
 local RadioStatus = loadRadioStatus()
--- Joined once here, so a build does not join it again.
-local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
+local function loadSchemes()
+  if _G.rfsuite and type(_G.rfsuite.require) == "function" then return _G.rfsuite.require("lib/color_schemes.lua") end
+  return assert(loadScript(_G.rfsuite.paths.core .. "/lib/color_schemes.lua", "t"))()
+end
 
 M.KEY_ENABLED = "standby_enabled"
 M.KEY_LAYOUT = "standby_layout"
@@ -678,7 +681,10 @@ function M.snapshot(items, cache, zone)
   return cache.snapshotValues
 end
 
-function M.build(zone, statusLine, i18n, items, values, cache, info)
+function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
+  local Schemes = loadSchemes()
+  local colors = Schemes.colors(scheme)
+  local warningColor, textColor, accentColor = colors.warning, colors.text, colors.accent
   cache = cache or {}
   cache.text = i18n
   local w, h = zone.w or LCD_W, zone.h or LCD_H
@@ -714,30 +720,30 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
   local children
   if micro then
     children = {
-      { type = "rectangle", x = 0, y = 0, w = w, h = h, color = COLOR_THEME_PRIMARY3, filled = true },
+      { type = "rectangle", x = 0, y = 0, w = w, h = h, color = colors.page, filled = true },
       { type = "rectangle", x = 0, y = footerY, w = w, h = footerH,
-        color = COLOR_THEME_SECONDARY2, filled = true },
+        color = colors.raised, filled = true },
       { type = "label", x = 4, y = footerY + 3, w = math.max(1, w - 8), h = footerH - 6,
         text = fitLine(info and info.text or statusLine or "", math.max(1, w - 8), SMLSIZE),
-        color = COLOR_THEME_PRIMARY1, font = SMLSIZE },
+        color = textColor, font = SMLSIZE },
     }
   else
     children = {
-    { type = "rectangle", x = 0, y = 0, w = w, h = h, color = COLOR_THEME_PRIMARY3, filled = true },
+    { type = "rectangle", x = 0, y = 0, w = w, h = h, color = colors.page, filled = true },
     { type = "image", x = contentMargin, y = headerY, w = logoW, h = logoH,
-      file = LOGO_FILE },
+      file = Schemes.logo(scheme) },
     { type = "rectangle", x = contentMargin, y = headerDividerY, w = contentWidth, h = 1,
-      color = COLOR_THEME_SECONDARY1, filled = true },
-    { type = "rectangle", x = 0, y = footerY, w = w, h = stripH, color = COLOR_THEME_SECONDARY2, filled = true },
+      color = accentColor, filled = true },
+    { type = "rectangle", x = 0, y = footerY, w = w, h = stripH, color = colors.raised, filled = true },
     { type = "rectangle", x = contentMargin, y = footerY + markerY, w = 3, h = 13, filled = true,
-      color = info and (info.level == "warning" or info.level == "error") and COLOR_THEME_WARNING
-        or COLOR_THEME_SECONDARY1 },
+      color = info and (info.level == "warning" or info.level == "error") and warningColor
+        or accentColor },
     { type = "label", x = infoX, y = footerY + infoY, w = infoWidth, h = 18,
       text = fitLine(info and info.text or "", infoWidth, SMLSIZE),
-      color = COLOR_THEME_PRIMARY1, font = SMLSIZE },
+      color = textColor, font = SMLSIZE },
     { type = "label", x = contentMargin, y = footerY + statusY, w = contentWidth,
       h = statusH, text = type(statusLine) == "function" and statusLine or tostring(statusLine or ""),
-      color = COLOR_THEME_PRIMARY2, font = SMLSIZE },
+      color = colors.muted, font = SMLSIZE },
     }
     -- The compile pass's bar, on the line's row and clear of its words: see runtime.lua. It starts at
     -- the middle, or after the words where a narrow zone leaves them past it, and a zone with no room
@@ -753,10 +759,10 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
       local barY = footerY + statusY + math.floor((statusH - barH) / 2)
       local fillW = barW - 4
       children[#children + 1] = { type = "rectangle", x = barX, y = barY, w = barW, h = barH,
-        color = COLOR_THEME_DISABLED, filled = true,
+        color = colors.raised, filled = true,
         visible = function() return progress() ~= nil end }
       children[#children + 1] = { type = "rectangle", x = barX + 2, y = barY + 2, w = 1, h = barH - 4,
-        color = COLOR_THEME_PRIMARY2, filled = true,
+        color = accentColor, filled = true,
         visible = function() return progress() ~= nil end,
         size = function()
           return math.max(1, math.floor(fillW * math.min(1, progress() or 0) + 0.5)), barH - 4
@@ -771,9 +777,9 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
     local x, y, boxW = box.x, row.y, box.w
     local label = labels[item.type]
     children[#children + 1] = { type = "rectangle", x = x, y = y, w = boxW, h = row.h,
-      color = COLOR_THEME_SECONDARY2, filled = true, rounded = compact and 5 or 7 }
+      color = colors.card, filled = true, rounded = compact and 5 or 7 }
     children[#children + 1] = { type = "label", x = x + 8, y = y + 3, w = boxW - 16,
-      h = box.detailHeight, text = label, color = COLOR_THEME_SECONDARY1, font = SMLSIZE }
+      h = box.detailHeight, text = label, color = colors.accentInk, font = SMLSIZE }
     if item.type == "elrs" then
       local lineWidth = boxW - 16
       cache.elrsWidths = cache.elrsWidths or {}
@@ -790,7 +796,7 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
             local display = snap._elrsDisplays and snap._elrsDisplays[lineWidth]
             return display and display[field] or "-"
           end,
-          color = COLOR_THEME_PRIMARY1, font = box.font }
+          color = textColor, font = box.font }
       end
       children[#children + 1] = { type = "label", x = x + 8, y = y + row.h - box.detailHeight,
         w = lineWidth, h = box.detailHeight,
@@ -799,7 +805,7 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
           local display = snap._elrsDisplays and snap._elrsDisplays[lineWidth]
           return display and display[3] or "-"
         end,
-        color = COLOR_THEME_PRIMARY1, font = SMLSIZE }
+        color = colors.muted, font = SMLSIZE }
     else
       local valueX = box.detailedGps and x + math.floor(boxW / 2) or x + 8
       local valueY = box.detailedGps and y + 5 or y + box.valueY
@@ -813,8 +819,8 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
         end or function() local snap = cache.snapshotValues or values; return tostring(snap[item.type] or "-") end,
         align = box.detailedGps and RIGHT or nil,
         color = item.type == "tx_battery"
-          and function() return cache.batteryLow and COLOR_THEME_WARNING or COLOR_THEME_PRIMARY1 end
-          or COLOR_THEME_PRIMARY1,
+          and function() return cache.batteryLow and warningColor or textColor end
+          or textColor,
         font = box.font }
       local detail = ""
       if item.type == "tx_gps" and box.detailedGps then
@@ -831,13 +837,13 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
               local snap = cache.snapshotValues or values
               return snap._gpsLines and snap._gpsLines[field] or ""
             end,
-            color = COLOR_THEME_PRIMARY1, font = SMLSIZE }
+            color = textColor, font = SMLSIZE }
         end
         children[#children + 1] = { type = "label", x = x + 8,
           y = y + row.h - box.detailHeight,
           w = boxW - 16, h = box.detailHeight,
           text = fittedDetail(values._gpsTime or labels.gps_time_unavailable, boxW - 16),
-          color = COLOR_THEME_PRIMARY1, font = SMLSIZE }
+          color = colors.muted, font = SMLSIZE }
       elseif item.type == "tx_battery" then
         detail = i18n("tx_battery_detail", "Radio battery")
         local batteryW = compact and 30 or 36
@@ -852,16 +858,16 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
           math.floor((batteryW - 4) * (cache.batteryPercent or 0) / 100))
         children[#children + 1] = { type = "rectangle", x = batteryX + batteryW,
           y = batteryY + 3, w = terminalW, h = batteryH - 6,
-          color = COLOR_THEME_PRIMARY1, filled = true }
+          color = textColor, filled = true }
         children[#children + 1] = { type = "hline", x = batteryX + 2,
           y = batteryY + math.floor(batteryH / 2), w = 1, h = batteryH - 4,
           size = function()
             local fills = cache.batteryFills
             return fills and fills[batteryW] or 0, batteryH - 4
           end,
-          color = function() return cache.batteryLow and COLOR_THEME_WARNING or COLOR_THEME_SECONDARY1 end }
+          color = function() return cache.batteryLow and warningColor or accentColor end }
         children[#children + 1] = { type = "rectangle", x = batteryX, y = batteryY,
-          w = batteryW, h = batteryH, color = COLOR_THEME_PRIMARY1, filled = false,
+          w = batteryW, h = batteryH, color = textColor, filled = false,
           rounded = 2, thickness = 1 }
       elseif item.type == "model" then detail = i18n("model_detail", "EdgeTX model")
       elseif item.type == "timer1" or item.type == "timer2" or item.type == "timer3" then
@@ -878,7 +884,7 @@ function M.build(zone, statusLine, i18n, items, values, cache, info)
           text = item.type == "clock"
             and function() local snap = cache.snapshotValues or values; return tostring(snap.date or "-") end
             or fittedDetail(detail, detailW),
-          color = COLOR_THEME_PRIMARY1, font = SMLSIZE }
+          color = colors.muted, font = SMLSIZE }
       end
     end
     end

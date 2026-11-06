@@ -1,10 +1,16 @@
 local Splash = {}
 
-local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
+local function loadSchemes()
+  if type(_G.rfsuite.require) == "function" then return _G.rfsuite.require("lib/color_schemes.lua") end
+  return assert(loadScript(_G.rfsuite.paths.core .. "/lib/color_schemes.lua", "t"))()
+end
 
 -- title and statusLine are a string, or a function a label reads, so a new text rebuilds nothing.
 -- progress is optional: a function answering 0 to 1, or nil to hide the bar.
-function Splash.build(zone, statusLine, title, progress)
+-- scheme is the stored `general.color_scheme`.
+function Splash.build(zone, statusLine, title, progress, scheme)
+  local Schemes = loadSchemes()
+  local colors = Schemes.colors(scheme)
   local w = (zone and zone.w) or LCD_W or 320
   local h = (zone and zone.h) or LCD_H or 172
   local logoW = math.max(112, math.min(math.floor(w * 0.80), 240))
@@ -21,7 +27,7 @@ function Splash.build(zone, statusLine, title, progress)
       y = 0,
       w = w,
       h = h,
-      color = COLOR_THEME_PRIMARY3,
+      color = colors.page,
       filled = true
     },
     {
@@ -30,7 +36,7 @@ function Splash.build(zone, statusLine, title, progress)
       y = logoY,
       w = logoW,
       h = logoH,
-      file = LOGO_FILE
+      file = Schemes.logo(scheme)
     },
     {
       type = "label",
@@ -39,7 +45,7 @@ function Splash.build(zone, statusLine, title, progress)
       w = w,
       text = type(title) == "function" and title or tostring(title or "Connecting FBL..."),
       align = CENTER,
-      color = COLOR_THEME_PRIMARY2,
+      color = colors.text,
       font = MIDSIZE
     },
     {
@@ -49,7 +55,7 @@ function Splash.build(zone, statusLine, title, progress)
       w = w,
       text = type(statusLine) == "function" and statusLine or tostring(statusLine or "Please wait for telemetry"),
       align = CENTER,
-      color = COLOR_THEME_PRIMARY2,
+      color = colors.muted,
       font = SMLSIZE
     }
   }
@@ -65,14 +71,14 @@ function Splash.build(zone, statusLine, title, progress)
     children[#children + 1] = {
       type = "rectangle",
       x = barX, y = barY, w = barW, h = barH,
-      color = COLOR_THEME_DISABLED,
+      color = colors.raised,
       filled = true,
       visible = function() return progress() ~= nil end
     }
     children[#children + 1] = {
       type = "rectangle",
       x = barX + 2, y = barY + 2, w = 1, h = barH - 4,
-      color = COLOR_THEME_PRIMARY2,
+      color = colors.accent,
       filled = true,
       visible = function() return progress() ~= nil end,
       size = function()

@@ -7,18 +7,22 @@ local fontWidths = { [SMLSIZE] = 7, [MIDSIZE] = 10, [DBLSIZE] = 20 }
 local fontHeights = { [SMLSIZE] = 16, [MIDSIZE] = 22, [DBLSIZE] = 38 }
 lcd = { sizeText = function(value, font)
   return #tostring(value) * (fontWidths[font] or 7), fontHeights[font] or 16
-end }
+end, RGB = function(rgb) return rgb end }
 
 local batterySample = { volts = nil, pct = nil, low = false }
+local Schemes
 rfsuite = { require = function(path)
   if path == "lib/radio_status.lua" then
     return { txBattery = function() return batterySample.volts, batterySample.pct, batterySample.low end }
   end
+  if path == "lib/color_schemes.lua" then return Schemes end
 end }
 
 local source = string.sub(debug.getinfo(1, "S").source, 2)
 local root = string.match(source, "^(.*)[/\\]bin[/\\]dashboard[/\\]") or "."
 rfsuite.paths = dofile(root .. "/src/rfsuite/lib/paths.lua")
+Schemes = dofile(root .. "/src/rfsuite/lib/color_schemes.lua")
+local colors = Schemes.colors(nil)
 local standbyPath = root .. "/src/rfsuite/widgets/dashboard/standby.lua"
 if arg then
   for i = 1, #arg - 1 do if arg[i] == "--standby" then standbyPath = arg[i + 1] end end
@@ -339,7 +343,7 @@ batterySample.volts, batterySample.pct, batterySample.low = 6.8, 100, true
 tick = 1007
 standby.snapshot(batteryItems, unknownBatteryCache)
 check("battery graphic reaches full and uses warning color", unknownSize() > fillSize()
-  and unknownColor() == COLOR_THEME_WARNING)
+  and unknownColor() == colors.warning)
 
 local gpsItems, gpsCache = standby.decode("tx_gps"), { text = text }
 getTxGPS = function()
@@ -486,12 +490,12 @@ local warningScene = standby.build({ w = 480, h = 320 }, "Unsupported API 9.9", 
 local infoMarker, warningMarker, statusFound = false, false, false
 for i = 1, #infoScene do
   local node = infoScene[i]
-  if node.type == "rectangle" and node.w == 3 and node.color == COLOR_THEME_SECONDARY1 then infoMarker = true end
+  if node.type == "rectangle" and node.w == 3 and node.color == colors.accent then infoMarker = true end
   if node.text == "Exact connection reason" then statusFound = true end
 end
 for i = 1, #warningScene do
   local node = warningScene[i]
-  if node.type == "rectangle" and node.w == 3 and node.color == COLOR_THEME_WARNING then warningMarker = true end
+  if node.type == "rectangle" and node.w == 3 and node.color == colors.warning then warningMarker = true end
 end
 check("general information strip uses calm theme accent", infoMarker)
 check("general information strip preserves exact status below", statusFound)
@@ -512,7 +516,7 @@ check("long UTF-8 information is visibly bounded", fittedInfo ~= nil
 local captionAccent = false
 for i = 1, #defaultScene do
   local node = defaultScene[i]
-  if node.type == "label" and node.text == "clock" and node.color == COLOR_THEME_SECONDARY1 then
+  if node.type == "label" and node.text == "clock" and node.color == colors.accentInk then
     captionAccent = true; break
   end
 end
