@@ -425,11 +425,14 @@ do
   assert(Config.snapshot("oversize").status == "unavailable", "oversized field was retained")
 end
 do
-  local started, finished = false, false
+  local started, finished, pinged, asked = false, false, false, false
   for i = 1, #readLines do
     started = started or string.find(readLines[i], "trace: read started for ", 1, true) ~= nil
     finished = finished or string.find(readLines[i], "debug: read finished: ", 1, true) ~= nil
+    pinged = pinged or string.find(readLines[i], "trace: discovery ping ", 1, true) ~= nil
+    asked = asked or string.find(readLines[i], "trace: asked for field ", 1, true) ~= nil
   end
   assert(started and finished, "a read did not log its start and its finish")
+  assert(pinged and asked, "a read did not log what it sent")
 end
 print("elrs_config_test: ok")

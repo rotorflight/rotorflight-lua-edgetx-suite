@@ -681,6 +681,21 @@ function M.snapshot(items, cache, zone)
   return cache.snapshotValues
 end
 
+-- One line of what a snapshot read, in the order of M.TYPES, for the widget's trace line. Only
+-- called when that line is wanted.
+function M.valuesLine(values, cache)
+  local parts = {}
+  for i = 1, #M.TYPES do
+    local kind = M.TYPES[i]
+    local value = values[kind]
+    if kind == "elrs" and value ~= nil and cache and type(cache.elrsCompact) == "table" then
+      value = table.concat(cache.elrsCompact, ", ")
+    end
+    if value ~= nil then parts[#parts + 1] = kind .. " " .. tostring(value) end
+  end
+  return table.concat(parts, "; ")
+end
+
 function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
   local Schemes = loadSchemes()
   local colors = Schemes.colors(scheme)

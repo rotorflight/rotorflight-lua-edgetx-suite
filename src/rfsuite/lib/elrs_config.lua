@@ -213,6 +213,7 @@ local function takeField(st)
       field.id = st.field
       st.fields[kind] = field
       st.values[kind] = field.selectedLabel
+      logRead("trace", "field %s: %s = %s", tostring(st.field), tostring(kind), tostring(field.selectedLabel))
       if kind == "maxPower" then
         local decoder = getPowerDecoder()
         field.milliwatts = decoder and decoder.maxPowerMilliwatts({
@@ -394,6 +395,8 @@ function M.step(context)
         st.plan, st.planAt = planFor(key), 1
         st.field, st.chunk, st.buf, st.phase = st.plan and st.plan[1] or 1, 0, {}, "read"
         st.requestAt, st.expectedRemain = nil, nil
+        logRead("trace", "module %s answered, %s fields, %s", tostring(name), tostring(st.fieldCount),
+          st.plan and "field ids known" or "walking the list")
         if st.fieldCount <= 0 then finish(st, "unavailable", "no_fields", now) end
         break
       end
@@ -409,6 +412,7 @@ function M.step(context)
       if ok and queued then
         st.pings = st.pings + 1
         st.pingAt = now
+        logRead("trace", "discovery ping %s sent", tostring(st.pings))
       end
     end
     return M.snapshot(st.identity)
@@ -430,7 +434,10 @@ function M.step(context)
     st.sent = st.sent + 1
     local ok, queued = pcall(push, PARAMETER_READ, { MODULE, ELRS_LUA, st.field, st.chunk })
     if ok and queued == nil then finish(st, "unavailable", "no_crsf", now)
-    elseif ok and queued then st.requestAt = now end
+    elseif ok and queued then
+      st.requestAt = now
+      logRead("trace", "asked for field %s, chunk %s", tostring(st.field), tostring(st.chunk))
+    end
   end
   return M.snapshot(st.identity)
 end

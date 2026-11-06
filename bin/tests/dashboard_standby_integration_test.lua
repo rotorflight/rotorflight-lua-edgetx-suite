@@ -1263,7 +1263,8 @@ end
 do
   local s = standbyElrsScenario()
   local LogModule = assert(_G.rfsuite.require("lib/log.lua"))
-  local realEmitf, lines = LogModule.emitf, {}
+  local realEmitf, realWanted, lines = LogModule.emitf, LogModule.wanted, {}
+  LogModule.wanted = function() return true end
   LogModule.emitf = function(tag, level, fmt, ...)
     if tag == "rfsuite.widget.standby" then lines[#lines + 1] = level .. ": " .. string.format(fmt, ...) end
     return realEmitf(tag, level, fmt, ...)
@@ -1280,10 +1281,23 @@ do
   s.passes(6)
   check("a build that leaves a saved row out warns", logged("warn: 1 saved row(s) do not fit") == 1)
   check("the build line counts both", logged("info: built: 2/3 rows, ") == 1)
-  check("an unchanged standby builds and warns once", (function() s.passes(3); return logged("info: built: ") == 1 end)())
+  check("a build traces its steps", logged("trace: build: first read of the values done") >= 1
+    and logged(" nodes prepared, swapped in on the next pass") >= 1)
+  local readsBefore = logged("trace: read: clock ")
+  for _ = 1, 3 do
+    for _ = 1, 25 do Stubs.tick() end
+    s.passes(1)
+  end
+  check("each new read of the radio is traced", logged("trace: read: clock ") > readsBefore)
+  s.widget.renderKey = nil
+  s.passes(1)
+  check("a cleared key is told apart from a changed surface",
+    logged("debug: rebuild: nothing about it changed, its key was cleared: standby|") == 1)
+  s.passes(4)
+  check("the cleared key rebuilt it once", (function() s.passes(3); return logged("info: built: ") == 2 end)())
   for _ = 1, 3 do Stubs.tick(); s.widget:background() end
   check("background passes log the release once", logged("debug: released: widget_background") == 1)
-  LogModule.emitf = realEmitf
+  LogModule.emitf, LogModule.wanted = realEmitf, realWanted
   s.restore()
 end
 

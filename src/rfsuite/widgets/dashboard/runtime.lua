@@ -1451,6 +1451,9 @@ local function standbyJobStep(self)
     DashboardStandby.snapshot(items, self._standbyCache, self.zone)
     job.snapshotZoneW, job.snapshotZoneH = self.zone.w, self.zone.h
     job.snapshotLayout, job.snapshotI18n = encodedLayout, self.i18n
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.standby", "trace", "build: first read of the values done")
+    end
     return false
   end
   local values = self._standbyCache.snapshotValues or {}
@@ -1481,6 +1484,9 @@ local function standbyJobStep(self)
   job.armed = self.state and self.state.armed == true
   job.hadInflight = self.state and self.state.hadInflightFlight == true
   job.fblConnected = self.state and self.state.fblConnected == true
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.widget.standby", "trace", "build: %d nodes prepared, swapped in on the next pass", #job.children)
+  end
   return false
 end
 
@@ -5501,7 +5507,12 @@ function Runtime.new(zone, options)
         elseif self._standbyElrsActive and self._standbyElrsConfig then
           cancelStandbyElrs(self, "fc_startup")
         end
-        Standby.snapshot(standbyItems, self._standbyCache, self.zone)
+        local valuesBefore = self._standbyCache and self._standbyCache.snapshotValues
+        local valuesNow = Standby.snapshot(standbyItems, self._standbyCache, self.zone)
+        -- A new table is a new read of the radio, about once a second; the same table is the cache.
+        if valuesNow ~= valuesBefore and Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+          Log.emitf("rfsuite.widget.standby", "trace", "read: %s", Standby.valuesLine(valuesNow, self._standbyCache))
+        end
       end
     elseif self._standbyModule then
       releaseStandby(self, "standby_left")
@@ -5540,10 +5551,17 @@ function Runtime.new(zone, options)
             .. "|overflow=" .. tostring(self._standbyCache and self._standbyCache.valueOverflow == true))
           or "")
       if self.renderKey ~= splashKey then
-        -- The key names everything this surface is rebuilt for, so the pair is the reason.
+        -- The key names everything this surface is rebuilt for, so the pair is the reason. A key
+        -- that some other path cleared says nothing, so the last one is kept to tell the two apart.
         if Log and type(Log.emitf) == "function" then
-          Log.emitf("rfsuite.widget.standby", "debug", "rebuild: %s to %s", tostring(self.renderKey), splashKey)
+          if self.renderKey == nil and self._surfaceKey == splashKey then
+            Log.emitf("rfsuite.widget.standby", "debug", "rebuild: nothing about it changed, its key was cleared: %s", splashKey)
+          else
+            Log.emitf("rfsuite.widget.standby", "debug", "rebuild: %s to %s",
+              tostring(self.renderKey or self._surfaceKey), splashKey)
+          end
         end
+        self._surfaceKey = splashKey
         self.renderKey = splashKey
         self.built = false
       end
