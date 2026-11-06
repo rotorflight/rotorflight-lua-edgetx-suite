@@ -3,6 +3,8 @@ local ROOT = "src/rfsuite/"
 local PATHS = dofile("src/rfsuite/lib/paths.lua")
 local BASE = PATHS.core .. "/"
 local PATH = "app/pages/helicopter_setup/"
+-- The colour scheme every world opens in; WIZARD_SCHEME=dark runs the whole set and an export in dark.
+local SCHEME = os.getenv("WIZARD_SCHEME") or "light"
 local ticks, assertions, failures, worst = 100, 0, 0, {}
 local function check(ok, name)
   assertions = assertions + 1
@@ -21,7 +23,7 @@ end
 function getTime() return ticks end
 COLOR_THEME_PRIMARY1, COLOR_THEME_PRIMARY2, COLOR_THEME_PRIMARY3, COLOR_THEME_SECONDARY1 = 1, 2, 3, 4
 -- Keep RGB channels intact in exported scenes for the desktop renderer.
-lcd = { RGB = function(r,g,b) return (r << 16) | (g << 8) | b end }
+lcd = { RGB = function(r,g,b) if g == nil then return r end return (r << 16) | (g << 8) | b end }
 SMLSIZE, MIDSIZE = 0, 1
 LCD_W, LCD_H = 480, 272
 local armed = false
@@ -205,7 +207,7 @@ local function beginWorld()
   local w = load(PATH .. "controller.lua").new(runtime,load(PATH .. "transport.lua"),H,L)
   w.i18n=i18n
   w.powerFields,w.powerApiVersion=load("lib/power_fields.lua"),load("lib/api_version.lua")
-  w.palette=load(PATH .. "palette.lua")
+  w.scheme=SCHEME;w.palette=load("lib/color_schemes.lua").colors(SCHEME)
   w.newAttitudeView=load(PATH .. "attitude_view.lua").new
   w.newServoCard=load(PATH .. "servo_grid.lua").append
   load(PATH .. "forms.lua").attach(w,load("lib/port_labels.lua"));load(PATH .. "workflow.lua").attach(w);load(PATH .. "navigation.lua").attach(w)
@@ -386,7 +388,7 @@ for _, size in ipairs({ {480,272},{480,320},{800,480} }) do
             if f then f:close() end
             check(item.w>0 and item.h>0 and math.abs(item.w*160-item.h*220)<=220,name.." picture frame keeps its aspect on "..size[1].."x"..size[2])
             -- The 154x112 small pictures are drawn at their own size or reduced, never enlarged.
-            check((string.find(file or "","/gfx/small/")~=nil)==(item.w<=154 and item.h<=112),name.." picture set fits its frame on "..size[1].."x"..size[2])
+            check((string.find(file or "","/gfx/small",1,true)~=nil)==(item.w<=154 and item.h<=112),name.." picture set fits its frame on "..size[1].."x"..size[2])
           end
         end
         check(lines>=4 or images==1,name.." illustrates the task on "..size[1].."x"..size[2])
