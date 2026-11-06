@@ -107,23 +107,30 @@ local function checkGetters(fillList, st, label)
   end
 end
 
--- The covering's four rectangles have to lie before the first fill in the button's children.
-local function checkCovering(fillList, Common, button, label)
+-- The covering's four rectangles have to lie before the first fill in the button's children, on the
+-- button's own edges, two pixels wide. `insetX`, `insetY` are the firmware's padding at this screen.
+local function checkCovering(fillList, Common, insetX, insetY, label)
   for i, f in ipairs(fillList) do
     local p = f.parent
     check(p and p.type == "button", label .. " fill " .. i .. ": not built into a button")
     if p then
+      local expect = {
+        { 0, 0, p.w, 2 }, { 0, p.h - 2, p.w, 2 }, { 0, 0, 2, p.h }, { p.w - 2, 0, 2, p.h },
+      }
       local covering, at = 0, nil
       for k, child in ipairs(p.children) do
         if child == f.node then at = k break end
-        if child.type == "rectangle" and (child.h == 2 or child.w == 2) and child.color == p.color then
-          covering = covering + 1
+        for _, e in ipairs(expect) do
+          if child.type == "rectangle" and child.filled and child.color == p.color
+            and child.x == e[1] - insetX and child.y == e[2] - insetY and child.w == e[3] and child.h == e[4] then
+            covering = covering + 1
+          end
         end
       end
       if Common.tapFrames then
         check(covering == 0, label .. " fill " .. i .. ": covering drawn with the frames on")
       else
-        check(covering == 4, label .. " fill " .. i .. ": " .. covering .. " of 4 covers before it")
+        check(covering == 4, label .. " fill " .. i .. ": " .. covering .. " of 4 covers on the button's edges before it")
         check(p.cornerRadius == 0, label .. ": a covered button keeps its round corners")
       end
       check(at ~= nil, label .. " fill " .. i .. ": missing from its parent's children")
@@ -133,6 +140,10 @@ end
 
 local SIZES = { { name = "outlined", h = 30, font = 2, fontH = 16 }, { name = "plain", h = 14, font = 1, fontH = 12 } }
 
+-- The firmware's padding plus its 2 px frame, per screen class (radio/src/gui/colorlcd/libui/etx_lv_theme.cpp,
+-- pad_button; etx_lv_theme.h, LAYOUT_SCALE), written out so a wrong L.buttonInset cannot cancel itself out here.
+local SCREENS = { { w = 800, insetX = 10, insetY = 5 }, { w = 480, insetX = 8, insetY = 4 } }
+
 for _, theme in ipairs({ "grid", "urban", "deck" }) do
   local prefix = "widgets/dashboard/themes/" .. theme
   local L = _G.rfsuite.require(prefix .. "/layout.lua")
@@ -140,51 +151,58 @@ for _, theme in ipairs({ "grid", "urban", "deck" }) do
   -- Grid and Urban call it their top bar, Deck its header.
   local topBar = L.topBar or L.header
   assert(type(L) == "table" and type(topBar) == "function", theme .. ": layout.lua did not load")
-  local insetX, insetY = L.buttonInset()
 
-  for _, size in ipairs(SIZES) do
-    for _, frames in ipairs({ "on", "off" }) do
-      local label = theme .. " " .. size.name .. " frames " .. frames
-      Common.applyFrames({ tap_frames = frames })
+  for _, screen in ipairs(SCREENS) do
+    _G.LCD_W = screen.w
+    local insetX, insetY = screen.insetX, screen.insetY
+    local gotX, gotY = L.buttonInset()
+    check(gotX == insetX and gotY == insetY,
+      theme .. " at " .. screen.w .. ": inset " .. gotX .. "," .. gotY .. " against the firmware's " .. insetX .. "," .. insetY)
 
-      local st = state({ lq = 80, tq = 80, rss = -70, config = { tap_frames = frames } })
-      local full, zone = {}, {}
-      topBar(full, st, 0, 0, 800, size.h, size.font, size.fontH, ctxFor(), true)
-      topBar(zone, st, 0, 0, 800, size.h, size.font, size.fontH, nil, true)
+    for _, size in ipairs(SIZES) do
+      for _, frames in ipairs({ "on", "off" }) do
+        local label = theme .. " " .. screen.w .. " " .. size.name .. " frames " .. frames
+        Common.applyFrames({ tap_frames = frames })
 
-      noReactiveLine(full, label)
-      local f, z = fills(full), fills(zone)
-      check(#f > 0, label .. ": no fill in the full screen bar")
-      check(#f == #z, label .. ": " .. #f .. " fills in full screen against " .. #z .. " in the zone")
-      for i = 1, math.min(#f, #z) do
-        local x, y = screenPos(f[i], insetX, insetY)
-        local zx, zy = screenPos(z[i])
-        check(x == zx and y == zy, label .. " fill " .. i .. ": at " .. x .. "," .. y .. " against the zone's " .. zx .. "," .. zy)
+        local st = state({ lq = 80, tq = 80, rss = -70, config = { tap_frames = frames } })
+        local full, zone = {}, {}
+        topBar(full, st, 0, 0, screen.w, size.h, size.font, size.fontH, ctxFor(), true)
+        topBar(zone, st, 0, 0, screen.w, size.h, size.font, size.fontH, nil, true)
+
+        noReactiveLine(full, label)
+        local f, z = fills(full), fills(zone)
+        check(#f > 0, label .. ": no fill in the full screen bar")
+        check(#f == #z, label .. ": " .. #f .. " fills in full screen against " .. #z .. " in the zone")
+        for i = 1, math.min(#f, #z) do
+          local x, y = screenPos(f[i], insetX, insetY)
+          local zx, zy = screenPos(z[i])
+          check(x == zx and y == zy, label .. " fill " .. i .. ": at " .. x .. "," .. y .. " against the zone's " .. zx .. "," .. zy)
+        end
+        checkCovering(f, Common, insetX, insetY, label)
+        checkGetters(f, st, label)
       end
-      checkCovering(f, Common, nil, label)
-      checkGetters(f, st, label)
     end
-  end
 
-  -- Deck's battery strip: the same shape, over its own press, at the foot of the screen.
-  if type(L.battStrip) == "function" then
-    for _, frames in ipairs({ "on", "off" }) do
-      local label = "deck strip frames " .. frames
-      Common.applyFrames({ tap_frames = frames })
-      local st = state({ lq = 80, fuel = 60, config = { tap_frames = frames } })
-      local g = { sml = 1, smlH = 12 }
-      local full, zone = {}, {}
-      L.battStrip(full, st, g, 10, 400, 780, 16, ctxFor())
-      L.battStrip(zone, st, g, 10, 400, 780, 16, nil)
-      noReactiveLine(full, label)
-      local f, z = fills(full), fills(zone)
-      check(#f == 1, label .. ": " .. #f .. " fills")
-      if f[1] and z[1] then
-        local x, y = screenPos(f[1], insetX, insetY)
-        check(x == z[1].node.x and y == z[1].node.y, label .. ": fill at " .. x .. "," .. y)
+    -- Deck's battery strip: the same shape, over its own press, at the foot of the screen.
+    if type(L.battStrip) == "function" then
+      for _, frames in ipairs({ "on", "off" }) do
+        local label = "deck strip " .. screen.w .. " frames " .. frames
+        Common.applyFrames({ tap_frames = frames })
+        local st = state({ lq = 80, fuel = 60, config = { tap_frames = frames } })
+        local g = { sml = 1, smlH = 12 }
+        local full, zone = {}, {}
+        L.battStrip(full, st, g, 10, 200, screen.w - 20, 16, ctxFor())
+        L.battStrip(zone, st, g, 10, 200, screen.w - 20, 16, nil)
+        noReactiveLine(full, label)
+        local f, z = fills(full), fills(zone)
+        check(#f == 1, label .. ": " .. #f .. " fills")
+        if f[1] and z[1] then
+          local x, y = screenPos(f[1], insetX, insetY)
+          check(x == z[1].node.x and y == z[1].node.y, label .. ": fill at " .. x .. "," .. y)
+        end
+        checkCovering(f, Common, insetX, insetY, label)
+        checkGetters(f, st, label)
       end
-      checkCovering(f, Common, nil, label)
-      checkGetters(f, st, label)
     end
   end
   Common.applyFrames({ tap_frames = "on" })
