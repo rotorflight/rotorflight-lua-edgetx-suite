@@ -1,0 +1,7 @@
+{
+  "id": "home-owned-frame",
+  "name": "A page that owns its frame and its disconnect",
+  "commands": [
+    "lua5.3 bin/ui/verify_home_owned_frame.lua"
+  ]
+}

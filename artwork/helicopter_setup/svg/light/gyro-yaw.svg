@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#545c64" font-family="Arial, sans-serif">
+<style>.gyro-art.art-d34f5f3fc7 {
+
+
+
+
+
+  color: #545c64;
+}
+
+.body.art-d34f5f3fc7 {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.shaft.art-d34f5f3fc7 {
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.swash.art-d34f5f3fc7 {
+  fill: #007bc7;
+}
+
+.ref.art-d34f5f3fc7 {
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.5;
+}
+
+.move.art-d34f5f3fc7 {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.move-head.art-d34f5f3fc7 {
+  fill: currentColor;
+}
+
+.arrow.art-d34f5f3fc7 {
+  fill: none;
+  stroke: #007bc7;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.head.art-d34f5f3fc7 {
+  fill: #007bc7;
+}</style>
+<g transform="translate(29.272727272727266 19.454545454545453) scale(1.3454545454545455)"><g class="gyro-art art-d34f5f3fc7"><!--[0--><line class="ref art-d34f5f3fc7" x1="60" y1="8" x2="60" y2="82"></line><g transform="rotate(22 60 46)"><path class="body art-d34f5f3fc7" d="M60 14 C67 14 70 24 70 32 C70 40 66 44 62 45 L61 82 L59 82 L58 45 C54 44 50 40 50 32 C50 24 53 14 60 14 Z"></path><path class="arrow art-d34f5f3fc7" d="M62 78 L80 78"></path><path class="head art-d34f5f3fc7" d="M77 73 L84 78 L77 83 Z"></path></g><path class="move art-d34f5f3fc7" d="M42 12 A40 40 0 0 1 82 14"></path><path class="move-head art-d34f5f3fc7" d="M80 8 L88 16 L78 19 Z"></path><!--]--></g></g>
+</svg>

@@ -16,6 +16,7 @@ local Common = nil
 local MspRuntime = nil
 local GovernorApi = nil
 local SavePipeline = nil
+local GovernorFields = nil
 local GovernorConfigApi = nil
 local Governor = nil
 local LoadingOverlay = nil
@@ -91,7 +92,7 @@ local ui = {
 
 local function getFieldLimit(key)
 	if key == "governor_headspeed" then
-		return { min = 0, max = 30000, step = 10 }
+		return GovernorFields.headspeed
 	end
 	-- The firmware's range for both limits (cli/settings.c gov_min_throttle / gov_max_throttle)
 	if key == "governor_min_throttle" or key == "governor_max_throttle" then
@@ -130,6 +131,7 @@ local function ensureDeps()
 	if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
 	if not Sensors then Sensors = loadModule("lib/sensors.lua") end
 	if not Profile then Profile = loadModule("lib/profile.lua") end
+	if not GovernorFields then GovernorFields = loadModule("lib/governor_fields.lua") end
 	if not t then t = Common and Common.pageT("flight_tuning_governor") or nil end
 	if Common and not ui.runtimeBase then
 		ui.runtimeBase = Common.createProfileAwareRuntime({ profileType = "pid" })
@@ -805,6 +807,7 @@ function M.onClose()
 	MspRuntime = nil
 	GovernorApi = nil
 	SavePipeline = nil
+	GovernorFields = nil
 	Governor = nil
 	LoadingOverlay = nil
 	Sensors = nil

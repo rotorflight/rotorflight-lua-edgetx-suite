@@ -6,17 +6,16 @@ sidebar_position: 10
 
 # Setup Assistant
 
-The setup assistant is being replaced by a new guided setup in an upcoming version and is not
-available in this one. Its entry now opens a page that says so; it reads nothing from the flight
-controller and writes nothing.
+The setup assistant has been replaced by [Helicopter Setup](helicopter_setup.md), which now has
+the entry under *Configuration* → *Wizards*. No menu entry opens the setup assistant any more. Its
+code under `src/rfsuite/app/pages/setup_wizard/` remains in the repository, and the Rotorflight
+model template still loads its radio module.
 
 ## Where to find it
 
-*Configuration* → *Wizards* → *Full initial setup*
-
-Hidden until *System* → *Settings* → *General* → *Preview* → *Setup Assistant* is on. Greyed out
-until the flight controller answers. Locked while the model is armed.
+Not reachable from any menu.
 
 ## Related
 
+- [Helicopter Setup](helicopter_setup.md) is the guided setup under *Configuration* → *Wizards*.
 - The individual setup pages under *Configuration* remain available.

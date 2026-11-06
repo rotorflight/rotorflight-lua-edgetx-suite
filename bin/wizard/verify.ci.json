@@ -1,0 +1,8 @@
+{
+  "id": "helicopter-wizard",
+  "name": "Helicopter wizard",
+  "commands": [
+    "lua5.3 bin/wizard/verify.lua"
+  ],
+  "rationale": "Offline protocol, lifecycle and per-call budget checks of the Helicopter Setup page."
+}

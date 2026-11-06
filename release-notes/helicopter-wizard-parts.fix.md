@@ -1,0 +1,1 @@
+- Separate rate profiles, governor mode and throttle type, throttle protocol and gearing, servo connection and battery guidance, PWM ESC calibration, and ESC telemetry into their setup parts. Show each rate profile's selected curve and the motor gearing picture while preserving save fields and safety checks (`helicopter_setup`).

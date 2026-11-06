@@ -1,0 +1,1 @@
+- Use the Configurator pictures for helicopter setup control directions, gyro checks, tail setup, pitch calibration, swash levelling, switches and servo connection, and compose a picture per servo type from the Configurator's servo and pulse-train drawings; retain live input meters and the live pulse reference for servos that match no type (helicopter_setup).

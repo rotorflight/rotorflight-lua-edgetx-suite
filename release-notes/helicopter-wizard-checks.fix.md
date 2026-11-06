@@ -1,0 +1,1 @@
+- Keep completed stick checks clear of the travel meter, restart stick travel after channel detection and show blades-first safety confirmations consistently; a list with nothing chosen shows "Not set" instead of -1, card rows end above the status line on 480-wide screens and the RPM source shows its full text (helicopter_setup).

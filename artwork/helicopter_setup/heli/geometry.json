@@ -1,0 +1,98 @@
+{
+  "sourceSize": [
+    1913,
+    822
+  ],
+  "canvas": [
+    2000,
+    1000
+  ],
+  "placement": [
+    43,
+    182
+  ],
+  "tailAssembly": [
+    [
+      82,
+      270
+    ],
+    [
+      158,
+      270
+    ],
+    [
+      158,
+      422
+    ],
+    [
+      203,
+      422
+    ],
+    [
+      203,
+      483
+    ],
+    [
+      158,
+      483
+    ],
+    [
+      158,
+      640
+    ],
+    [
+      82,
+      640
+    ]
+  ],
+  "tailTranslation": [
+    110,
+    6
+  ],
+  "mainBladeMasks": [
+    [
+      0,
+      145,
+      1012,
+      239
+    ],
+    [
+      1231,
+      145,
+      1912,
+      239
+    ]
+  ],
+  "tailBladeMasks": [
+    [
+      82,
+      270,
+      158,
+      405
+    ],
+    [
+      82,
+      504,
+      158,
+      640
+    ]
+  ],
+  "rotationClockwiseDegrees": 20,
+  "rotationPivot": [
+    1463,
+    900
+  ],
+  "rotationAlignmentY": -6,
+  "ground": 900,
+  "mirror": true,
+  "readableRegions": {
+    "heli-tail-lift": [
+      [
+        844,
+        795,
+        949,
+        852
+      ]
+    ]
+  }
+}

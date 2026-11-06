@@ -1,0 +1,7 @@
+{
+  "id": "esc-yge-block-coverage",
+  "name": "OpenYGE block coverage",
+  "commands": [
+    "lua5.3 bin/esc/verify_yge_block_coverage.lua"
+  ]
+}

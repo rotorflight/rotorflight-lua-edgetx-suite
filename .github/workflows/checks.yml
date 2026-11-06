@@ -57,6 +57,16 @@ jobs:
       - name: ${{ matrix.step }}
         run: ${{ matrix.run }}
 
+  helicopter-wizard:
+    name: Helicopter wizard source checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: python3 bin/wizard/audit_source.py
+      - run: python3 bin/wizard/flow.py --check
+      - run: python3 bin/wizard/verify_negative.py --lua lua5.3
+
   instruction-budget:
     name: Instruction budget
     runs-on: ubuntu-latest

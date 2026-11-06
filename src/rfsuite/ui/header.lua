@@ -96,6 +96,9 @@ function Header.resolveActions(ctx)
       if HelpRegistry and HelpRegistry.hasHelp and HelpRegistry.hasHelp(menuId) then
         actions.help = true
       end
+      if not actions.help and menu.getCurrentMenuHelp and menu.getCurrentMenuHelp() then
+        actions.help = true
+      end
     end
 
     local entryId = menu.getCurrentEntryId and menu.getCurrentEntryId() or nil

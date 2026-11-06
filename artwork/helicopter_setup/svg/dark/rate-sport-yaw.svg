@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#acb3b9" font-family="Arial, sans-serif">
+<style>.rate-curve.art-51ebed2e98 {
+
+
+
+
+
+}
+
+.grid.art-51ebed2e98 {
+  stroke: #33383d;
+  stroke-width: 1;
+}
+
+.axis.art-51ebed2e98 {
+  stroke: #33383d;
+  stroke-width: 1;
+}
+
+.area.art-51ebed2e98 {
+  fill: rgba(60,168,236,.16);
+}
+
+.line.art-51ebed2e98 {
+  fill: none;
+  stroke: #3ca8ec;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.end.art-51ebed2e98 {
+  fill: #3ca8ec;
+  stroke: #1a1c1f;
+  stroke-width: 2;
+}
+
+.value.art-51ebed2e98 {
+  fill: #f4f5f6;
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.tick.art-51ebed2e98 {
+  fill: #acb3b9;
+  font-size: 8px;
+  text-anchor: middle;
+}</style>
+<g transform="translate(9.35483870967742 31.354838709677413) scale(1.6774193548387097)"><g class="rate-curve art-51ebed2e98"><line class="grid art-51ebed2e98" x1="0" y1="0" x2="120" y2="0"></line><line class="grid art-51ebed2e98" x1="0" y1="28" x2="120" y2="28"></line><line class="axis art-51ebed2e98" x1="0" y1="56" x2="120" y2="56"></line><path class="area art-51ebed2e98" d="M0 56 L5 55.219233497902046 L10 54.42433878390829 L15 53.60535130305442 L20 52.75363466591959 L25 51.8612760594403 L30 50.92085437764118 L35 49.9253162751179 L40 48.86789944783531 L45 47.74208076351515 L50 46.54153902738451 L55 45.260127062329516 L60 43.89185006499365 L65 42.43084838036599 L70 40.87138349773426 L75 39.2078264631088 L80 37.43464814783032 L85 35.54641097186373 L90 33.537761786889604 L95 31.403425697967112 L100 29.13820065471491 L105 26.736952680717014 L110 24.194611637714342 L115 21.50616744203939 L120 18.66666666666667 L120 56 L0 56 Z"></path><path class="line art-51ebed2e98" d="M0 56 L5 55.219233497902046 L10 54.42433878390829 L15 53.60535130305442 L20 52.75363466591959 L25 51.8612760594403 L30 50.92085437764118 L35 49.9253162751179 L40 48.86789944783531 L45 47.74208076351515 L50 46.54153902738451 L55 45.260127062329516 L60 43.89185006499365 L65 42.43084838036599 L70 40.87138349773426 L75 39.2078264631088 L80 37.43464814783032 L85 35.54641097186373 L90 33.537761786889604 L95 31.403425697967112 L100 29.13820065471491 L105 26.736952680717014 L110 24.194611637714342 L115 21.50616744203939 L120 18.66666666666667"></path><circle class="end art-51ebed2e98" cx="120" cy="18.66666666666667" r="3"></circle><text class="value art-51ebed2e98" x="120" y="12.666666666666671">400°/s</text><text class="tick art-51ebed2e98" x="60" y="67"></text></g></g>
+</svg>

@@ -1,6 +1,5 @@
 -- EdgeTX MSP API: ANALOG (battery and link readings from the flight controller)
--- Reference module: no shipped page loads it. It is kept for the developer API tester, which
--- loads a module by its name, and as the starting point for a page that needs this message.
+-- The helicopter wizard polls this on its Power cards through its transport.
 --
 -- Nine bytes, and the voltage appears twice: byte 1 is the legacy 0.1 V reading kept for older
 -- consumers, bytes 8-9 the 0.01 V one that should be used. Values are passed on exactly as the

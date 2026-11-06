@@ -1,0 +1,2471 @@
+{
+  "schema": 1,
+  "sourceCommit": "4a57ba971d7ffef06f39bb66b3f376d150a27e25",
+  "frame": [
+    220,
+    160
+  ],
+  "smallFrame": [
+    154,
+    112
+  ],
+  "radioThemes": [
+    "dark"
+  ],
+  "font": "Arial (system font)",
+  "svgComponents": 15,
+  "variants": 53,
+  "svgExports": 106,
+  "customHelicopters": 3,
+  "composites": 7,
+  "exports": [
+    {
+      "name": "esc",
+      "theme": "light",
+      "component": "EscArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "1baedaef0ffff78e3bfbcc8dea299e48f89369a8d1b6c88904f2d963c1bdbd4d",
+        "bytes": 1845
+      }
+    },
+    {
+      "name": "esc",
+      "theme": "dark",
+      "component": "EscArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "b196337b03406accaaba07145da02bcbc4e75c117faf49ff9da3df8c07ec681a",
+        "bytes": 1847
+      },
+      "png": {
+        "sha256": "1a92461d544b5833cb7ae7857575ec50350585ded4760bd6c538a819ef3418bd",
+        "bytes": 3389
+      },
+      "small": {
+        "sha256": "9076080087fd7a6957254edf9030f370e75ca70519fb4a0bc314fa7fd3da03b0",
+        "bytes": 2554
+      }
+    },
+    {
+      "name": "motor-gears",
+      "theme": "light",
+      "component": "MotorGearArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "b2d25950e457c11604aeddd20921552dab03f392f64ea482bf6e628864ca1892",
+        "bytes": 1865
+      }
+    },
+    {
+      "name": "motor-gears",
+      "theme": "dark",
+      "component": "MotorGearArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "c3e8d9e306cbc8431a5ae5e501f2ea280f77a757d6e7342a01bd33bea0c177c9",
+        "bytes": 1867
+      },
+      "png": {
+        "sha256": "89e7fc5d53122f1d80b56d41131a8bb732aee9a07e8d00ad396610c7b503cfc5",
+        "bytes": 9295
+      },
+      "small": {
+        "sha256": "570f35b18d0332295610abd8385fb2256fb59a4458a11d48c64b6d93868ea442",
+        "bytes": 6459
+      }
+    },
+    {
+      "name": "receiver",
+      "theme": "light",
+      "component": "ReceiverArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "09a2df267c551f73f0ea61bc5bfe9d52322c7fef61ee356196c937dda644e521",
+        "bytes": 2676
+      }
+    },
+    {
+      "name": "receiver",
+      "theme": "dark",
+      "component": "ReceiverArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "84b127af7c0ab11bfcb8f2863532b76bd58c9275919b0ecd1dbf06247c5297f1",
+        "bytes": 2680
+      },
+      "png": {
+        "sha256": "d5b7823b6805936bba470f4ff03b8732934c6e606913497d186a2d510dd54146",
+        "bytes": 4466
+      },
+      "small": {
+        "sha256": "42b65805e19c5215d49010fb14720dabbcbeffbd0e5631dfdff810d24a8657ec",
+        "bytes": 3062
+      }
+    },
+    {
+      "name": "servo",
+      "theme": "light",
+      "component": "ServoArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "cd89aa5ee869e71ad9167704604e63a117da0e3175fe4054403f6576f549b053",
+        "bytes": 2024
+      }
+    },
+    {
+      "name": "servo",
+      "theme": "dark",
+      "component": "ServoArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "29dd9b1e442e3e0ea0bedf8a2a8586c769cdb0d6c1b26062e8012d60739ac07d",
+        "bytes": 2026
+      },
+      "png": {
+        "sha256": "b42c78aa8f8e57262f5910d5d47d63e23e7a2f73807bcdf2f04c5f193ae09cb7",
+        "bytes": 5906
+      },
+      "small": {
+        "sha256": "a5f887e6e152cf2fda4cfd84601ddff85be33ae5ab1d5579b91b6c32be0cc965",
+        "bytes": 4138
+      }
+    },
+    {
+      "name": "servo-arm",
+      "theme": "light",
+      "component": "ServoArmArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "ffb42d74e5904329c8f622e094449461fbd8d4db7c9c7318fbd8971c91b1c017",
+        "bytes": 2359
+      }
+    },
+    {
+      "name": "servo-arm",
+      "theme": "dark",
+      "component": "ServoArmArt",
+      "props": {},
+      "index": 0,
+      "svg": {
+        "sha256": "d566c03102702621329b20a9aaddc974928f947243047309903505337218fc1a",
+        "bytes": 2361
+      },
+      "png": {
+        "sha256": "f3065308727383f4fdc6381e6e83bb0a688e810bfc0e2308c3ea625a7458bf12",
+        "bytes": 4733
+      },
+      "small": {
+        "sha256": "d2855b240de1a7959c024bab38b2ef5ef01cbbd08d13b0674eca614a50a322ca",
+        "bytes": 3317
+      }
+    },
+    {
+      "name": "gyro-roll",
+      "theme": "light",
+      "component": "GyroArt",
+      "props": {
+        "axis": "roll"
+      },
+      "index": 0,
+      "viewPadding": 10,
+      "svg": {
+        "sha256": "f73048425f8614da2dea920e34426594b854a392b9c80c8a06086b8b8e462326",
+        "bytes": 1808
+      }
+    },
+    {
+      "name": "gyro-roll",
+      "theme": "dark",
+      "component": "GyroArt",
+      "props": {
+        "axis": "roll"
+      },
+      "index": 0,
+      "viewPadding": 10,
+      "svg": {
+        "sha256": "d4b5f8f8df83ecb656d8db17446ac314b288c60bc9e2db978a1911c49439cd8a",
+        "bytes": 1808
+      },
+      "png": {
+        "sha256": "fdd11011c85d093d6fa8fe800159b0f3b3a0509af0ed888a13640b3673979b3d",
+        "bytes": 4304
+      },
+      "small": {
+        "sha256": "41174c8038a203effeeeec74ae28763578896ee56d1d34a0ce93a35d1044cd56",
+        "bytes": 3364
+      }
+    },
+    {
+      "name": "gyro-pitch",
+      "theme": "light",
+      "component": "GyroArt",
+      "props": {
+        "axis": "pitch"
+      },
+      "index": 0,
+      "viewPadding": 10,
+      "svg": {
+        "sha256": "a59a3f5a65b77badb9eae4f6173bbd04291c7a10f2dd9d93f743bd05c91f842c",
+        "bytes": 1812
+      }
+    },
+    {
+      "name": "gyro-pitch",
+      "theme": "dark",
+      "component": "GyroArt",
+      "props": {
+        "axis": "pitch"
+      },
+      "index": 0,
+      "viewPadding": 10,
+      "svg": {
+        "sha256": "a0a7fd525f1bf3f5811758a7c369cab1d6fe3905357e3ea7933ce03d27c22200",
+        "bytes": 1812
+      },
+      "png": {
+        "sha256": "0202f717f159af8e197daf565354fb70b50b53b48fc26376efc4b1bb404b2d75",
+        "bytes": 4508
+      },
+      "small": {
+        "sha256": "a06c0c2d11645fa049a6ba812da4fe9d99e5f1c76fdaa654f6ddd9f05a1e9f3c",
+        "bytes": 3475
+      }
+    },
+    {
+      "name": "gyro-yaw",
+      "theme": "light",
+      "component": "GyroArt",
+      "props": {
+        "axis": "yaw"
+      },
+      "index": 0,
+      "viewPadding": 10,
+      "svg": {
+        "sha256": "a03fd53cf9818128231177fff1468a4d0f3af4a87426a555d6b3dbf94ca92dfc",
+        "bytes": 1566
+      }
+    },
+    {
+      "name": "gyro-yaw",
+      "theme": "dark",
+      "component": "GyroArt",
+      "props": {
+        "axis": "yaw"
+      },
+      "index": 0,
+      "viewPadding": 10,
+      "svg": {
+        "sha256": "42400e77936bfd6a28d339b7010f3ea9cec6eed2bf228a83340bd2b0e8d55adf",
+        "bytes": 1566
+      },
+      "png": {
+        "sha256": "3a8eee0a168cd203afce37c6f28d938a78a8f38603063e444493d128c9a8102f",
+        "bytes": 3630
+      },
+      "small": {
+        "sha256": "e46cb0e0641bd81ca495ea1fa1140f258a91c695ec27c1aa8fdb9cc78dcb68c7",
+        "bytes": 2833
+      }
+    },
+    {
+      "name": "pitch-0",
+      "theme": "light",
+      "component": "PitchArt",
+      "props": {
+        "angle": 0,
+        "label": "0°"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "08ed35289082f346495f4abf5ee720926aa1f6b3730c42cfa848e05e56e696ac",
+        "bytes": 1363
+      }
+    },
+    {
+      "name": "pitch-0",
+      "theme": "dark",
+      "component": "PitchArt",
+      "props": {
+        "angle": 0,
+        "label": "0°"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "e30ae7106d7bcb326b5200d270758139d70c63a968e99b445545ef8b24fc8d3d",
+        "bytes": 1365
+      },
+      "png": {
+        "sha256": "0e57ec61a0898d437d5f4c0a51fa5e87fc587d472ee206c13c017d4c8180232a",
+        "bytes": 2446
+      },
+      "small": {
+        "sha256": "633c7669577417f018ba31885f0124e10e7806fdf41e383d3495dec3cd258742",
+        "bytes": 1935
+      }
+    },
+    {
+      "name": "pitch-9",
+      "theme": "light",
+      "component": "PitchArt",
+      "props": {
+        "angle": 9,
+        "label": "9°"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "729e123031513198518809733c23a2bb530ea2204c126924ff8f4d889c348853",
+        "bytes": 1465
+      }
+    },
+    {
+      "name": "pitch-9",
+      "theme": "dark",
+      "component": "PitchArt",
+      "props": {
+        "angle": 9,
+        "label": "9°"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "ef581b292f1f720ff8cd192751d41762b051ab24971274c10d4cb149e4c889b1",
+        "bytes": 1467
+      },
+      "png": {
+        "sha256": "f06032679421636917a666a98363efe5a6593c6e0251b8105b22b6864212d2b5",
+        "bytes": 3631
+      },
+      "small": {
+        "sha256": "fabc62b3003968752c944110f20d9761b91416b82cb9a3b4acf520fc12c6b692",
+        "bytes": 3033
+      }
+    },
+    {
+      "name": "rate-trainer-cyclic",
+      "theme": "light",
+      "component": "RateCurve",
+      "props": {
+        "rate": 180,
+        "expo": 40,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "50e1f045d915fbf6043f872ef987481ad5b975e8f0e40c36f3288be155613403",
+        "bytes": 2527
+      }
+    },
+    {
+      "name": "rate-trainer-cyclic",
+      "theme": "dark",
+      "component": "RateCurve",
+      "props": {
+        "rate": 180,
+        "expo": 40,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "831dcf5fde2972bce0e2303fe52c27beb564a03577a5a5acb0be80cd8b00d9cc",
+        "bytes": 2529
+      },
+      "png": {
+        "sha256": "0f8bacd761e9122c52086bcd25a1a48909d1c902594280227dea6a6fb8129d98",
+        "bytes": 3300
+      },
+      "small": {
+        "sha256": "e52a51801ff1b3520705d009a5542f18f621bd50b9d01ef7518ca3c212463959",
+        "bytes": 2213
+      }
+    },
+    {
+      "name": "rate-trainer-yaw",
+      "theme": "light",
+      "component": "RateCurve",
+      "props": {
+        "rate": 270,
+        "expo": 50,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "d050f1230b9e6a8c87a8ffc894752a2e05cfc0f5f51a3119a10bcb99f2b78b54",
+        "bytes": 2517
+      }
+    },
+    {
+      "name": "rate-trainer-yaw",
+      "theme": "dark",
+      "component": "RateCurve",
+      "props": {
+        "rate": 270,
+        "expo": 50,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "3cd7fbdbec98d138b8a7a0e21f4f078695460fdea2c32e9e6876503dd673e90d",
+        "bytes": 2519
+      },
+      "png": {
+        "sha256": "7b07cbe8a73192c7b0bee33b9082222ac206227bdbc33a322cf59b85895042c1",
+        "bytes": 3150
+      },
+      "small": {
+        "sha256": "d9b30fb57bf33cae70112644b0eb8f57152286269db3bde7562dacb6f5bc479d",
+        "bytes": 2248
+      }
+    },
+    {
+      "name": "rate-sport-cyclic",
+      "theme": "light",
+      "component": "RateCurve",
+      "props": {
+        "rate": 250,
+        "expo": 40,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "18477ec4d1fe19831dd2299dab2e2b8dfc0c690551fe84deaba50232ae45111e",
+        "bytes": 2575
+      }
+    },
+    {
+      "name": "rate-sport-cyclic",
+      "theme": "dark",
+      "component": "RateCurve",
+      "props": {
+        "rate": 250,
+        "expo": 40,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "9d18027d255b837ee30aaf4e088939383ce797dbdeabb6b48056df2e0f1132ae",
+        "bytes": 2577
+      },
+      "png": {
+        "sha256": "72f65a08f79025f2a792fafbababc8cb15ff0159709580429238e1602b2a3537",
+        "bytes": 3296
+      },
+      "small": {
+        "sha256": "39bf9dbe448b0ac8a7a88bae45160d63ad6f07fffae72e1971e78b7f58bcc543",
+        "bytes": 2247
+      }
+    },
+    {
+      "name": "rate-sport-yaw",
+      "theme": "light",
+      "component": "RateCurve",
+      "props": {
+        "rate": 400,
+        "expo": 50,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "3d0862ab1239e8ca35ed33fb840a4ff3073aaaaac69aea9ae4044eb4c0d3e27f",
+        "bytes": 2566
+      }
+    },
+    {
+      "name": "rate-sport-yaw",
+      "theme": "dark",
+      "component": "RateCurve",
+      "props": {
+        "rate": 400,
+        "expo": 50,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "d4ef2982de1f70a404190306b6e435087e7c1df2b4a88dd43b3e56d18dbfee1b",
+        "bytes": 2568
+      },
+      "png": {
+        "sha256": "876d912dd933c7fac8d15ac61c4d948b232901280cd9232c3d5fd534c9c92e18",
+        "bytes": 3565
+      },
+      "small": {
+        "sha256": "20144083ea3739f556b1ddd4c25da8dfbd1091fd4335c3d7127413be6ea67bfd",
+        "bytes": 2458
+      }
+    },
+    {
+      "name": "rate-3d-cyclic",
+      "theme": "light",
+      "component": "RateCurve",
+      "props": {
+        "rate": 400,
+        "expo": 30,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "460abc1350a6ba0e81b705f5d9a73b7ef27700bc50d9caff5a1b87f5c783aeaa",
+        "bytes": 2572
+      }
+    },
+    {
+      "name": "rate-3d-cyclic",
+      "theme": "dark",
+      "component": "RateCurve",
+      "props": {
+        "rate": 400,
+        "expo": 30,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "3d5eeded3fedcaff441163d9c5910b3ac7c5ddac949814638bb8431021745ce2",
+        "bytes": 2574
+      },
+      "png": {
+        "sha256": "14ce566c90e8ed77dd8233332bdb26b2a7d10272b162b11d5ae51a3a6ef60130",
+        "bytes": 3478
+      },
+      "small": {
+        "sha256": "94a450e928c5d3a21c52d17720a5381467710ec601e841e55888c06dea7015b2",
+        "bytes": 2459
+      }
+    },
+    {
+      "name": "rate-3d-yaw",
+      "theme": "light",
+      "component": "RateCurve",
+      "props": {
+        "rate": 600,
+        "expo": 40,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "6873e2473e0aec11a5a5afdf9b9be9eed73b66846ebeb512bb100f35b788f147",
+        "bytes": 2510
+      }
+    },
+    {
+      "name": "rate-3d-yaw",
+      "theme": "dark",
+      "component": "RateCurve",
+      "props": {
+        "rate": 600,
+        "expo": 40,
+        "shape": 2.75,
+        "scale": 600,
+        "axisLabel": ""
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "0de1c1ca71ca72e4e80078fcac18355477b5cfb2a43752e59e1bfe106da61132",
+        "bytes": 2512
+      },
+      "png": {
+        "sha256": "c010a2fd3fbcea0707cf89b6b61342e8c6dc57505f3f7840e41ffdf06fdf27ea",
+        "bytes": 3770
+      },
+      "small": {
+        "sha256": "5a9ec92afe69cb0d4f2fcde20864b6be17157e0a0ca0acd517886f4fb0dd302b",
+        "bytes": 2631
+      }
+    },
+    {
+      "name": "stick-center",
+      "theme": "light",
+      "component": "StickIcon",
+      "props": {
+        "x": 0,
+        "y": 0
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "8e78b2924b5b71f6df47aa7067576782646c9b4cd1cf357cafe62282a079b977",
+        "bytes": 990
+      }
+    },
+    {
+      "name": "stick-center",
+      "theme": "dark",
+      "component": "StickIcon",
+      "props": {
+        "x": 0,
+        "y": 0
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "845e15a9a51187d6e5fb25fc75b6ec0dfd4e255c71e9a4ff04f568e16b8874c2",
+        "bytes": 990
+      },
+      "png": {
+        "sha256": "3774b4f9ad24abe3255a576536cc860377eedccc9b8022fe0d5460c6767426a5",
+        "bytes": 3530
+      },
+      "small": {
+        "sha256": "f33661a99521bc59b409f29ff380cd6b5faa000149c67e053a201a71ce4b9b12",
+        "bytes": 2316
+      }
+    },
+    {
+      "name": "stick-left",
+      "theme": "light",
+      "component": "StickIcon",
+      "props": {
+        "x": -1,
+        "y": 0
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "f9b0e950766777569141e860a040845ae821700bb3e0cf34e551c32437f8b321",
+        "bytes": 988
+      }
+    },
+    {
+      "name": "stick-left",
+      "theme": "dark",
+      "component": "StickIcon",
+      "props": {
+        "x": -1,
+        "y": 0
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "7f074e476939415c42fb028ba2b94649edb4986dfe9d83a78acd11f1de741b6e",
+        "bytes": 988
+      },
+      "png": {
+        "sha256": "19f6429c51524d624cacdc778b23150108ca29e73aab93ebabb941bac874d126",
+        "bytes": 3792
+      },
+      "small": {
+        "sha256": "78ea008b3e8069c07340824db322e06125d8dcd988d277c2e100ed76b9a4784b",
+        "bytes": 2389
+      }
+    },
+    {
+      "name": "stick-right",
+      "theme": "light",
+      "component": "StickIcon",
+      "props": {
+        "x": 1,
+        "y": 0
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "80ca4f03fd8a7c97dea33c1d632f4e166b784fd20549475d339d1ae45473d9b1",
+        "bytes": 990
+      }
+    },
+    {
+      "name": "stick-right",
+      "theme": "dark",
+      "component": "StickIcon",
+      "props": {
+        "x": 1,
+        "y": 0
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "7b7be1a689703e7fcdd396eb3c8730edca47cf0b6938c8dab941f5b11580b3fb",
+        "bytes": 990
+      },
+      "png": {
+        "sha256": "edc355bc44a101620b127a888e862e94f053878215b7d09b63b30fd9a6162ccb",
+        "bytes": 3751
+      },
+      "small": {
+        "sha256": "cff84a7cd625aa3341a8c70a217176b2e7763ab003d8731e4c403aab3361dff7",
+        "bytes": 2401
+      }
+    },
+    {
+      "name": "stick-forward",
+      "theme": "light",
+      "component": "StickIcon",
+      "props": {
+        "x": 0,
+        "y": -1
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "e2f93a86385ea134f2f04b82dd8056e91e6c16f6c816c6a4fd4205de3052667d",
+        "bytes": 988
+      }
+    },
+    {
+      "name": "stick-forward",
+      "theme": "dark",
+      "component": "StickIcon",
+      "props": {
+        "x": 0,
+        "y": -1
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "5355eb6da9f959cf56fd322216ad5f7759bfff659a034d06430e119946e2f070",
+        "bytes": 988
+      },
+      "png": {
+        "sha256": "102c74a2e770f3f4906599ad06998a8ef876923c00be5eb8fecb8625af851745",
+        "bytes": 3780
+      },
+      "small": {
+        "sha256": "78d5dbe8f575c6662f6e8b3aa9e8fdcd14a33216660b221394db0e1fa32bbed2",
+        "bytes": 2518
+      }
+    },
+    {
+      "name": "stick-back",
+      "theme": "light",
+      "component": "StickIcon",
+      "props": {
+        "x": 0,
+        "y": 1
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "e0fc6f581fc3362125079b4b8a4124c64b6ae80d7e11cdf5f23a972117b8f716",
+        "bytes": 990
+      }
+    },
+    {
+      "name": "stick-back",
+      "theme": "dark",
+      "component": "StickIcon",
+      "props": {
+        "x": 0,
+        "y": 1
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "8a03eb3d365ee7a494714f6f40f9f9bff31d80a57e38ffdf52bafe61f97ac1d9",
+        "bytes": 990
+      },
+      "png": {
+        "sha256": "8d1f0525b297d1fc1033d24406f334676f55a2a2ba45461d03e0e8d278c8bdaa",
+        "bytes": 3752
+      },
+      "small": {
+        "sha256": "02629ebc8785210db90a58a93e797edd3ef5b7f23428dc47cfd4bfff571b678f",
+        "bytes": 2498
+      }
+    },
+    {
+      "name": "swash-motion-level",
+      "theme": "light",
+      "component": "SwashArt",
+      "props": {
+        "scene": "level"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "1f4424bd8d60c136ad1de9a4cba13002f553865e1587ee62aad89e56422329eb",
+        "bytes": 2696
+      }
+    },
+    {
+      "name": "swash-motion-level",
+      "theme": "dark",
+      "component": "SwashArt",
+      "props": {
+        "scene": "level"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "70921e184b8d138d9415a2cc668d852d696ea70141cff6b963d4eb97c287e364",
+        "bytes": 2700
+      },
+      "png": {
+        "sha256": "11dfb2be2e6a93e5bf013b5e08786f4d13edcff149cc163db3fc4fd483b8eef1",
+        "bytes": 3898
+      },
+      "small": {
+        "sha256": "4caf915603c50c0575a8f42e9dabb329f5601089a3372619a1dc69c969f9f44a",
+        "bytes": 2619
+      }
+    },
+    {
+      "name": "swash-motion-roll",
+      "theme": "light",
+      "component": "SwashArt",
+      "props": {
+        "scene": "roll"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "4d0b124ab63ce30c074ee77ea0f8c7a278ebf6750935eaab4957ee69513b4708",
+        "bytes": 2769
+      }
+    },
+    {
+      "name": "swash-motion-roll",
+      "theme": "dark",
+      "component": "SwashArt",
+      "props": {
+        "scene": "roll"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "7b17dd49139d569c22def4f41443c416ad935a9bc47d5206b8bca20a05d392c4",
+        "bytes": 2773
+      },
+      "png": {
+        "sha256": "bbdac47cae7ecb669e4664302c32a7d7722123f8c17b4639bffc5e9af301d624",
+        "bytes": 4746
+      },
+      "small": {
+        "sha256": "ed2cb0f618d76c3eab0085619b40f1548a7b34b6b65972be9409272ab927bb3b",
+        "bytes": 3533
+      }
+    },
+    {
+      "name": "swash-motion-pitch",
+      "theme": "light",
+      "component": "SwashArt",
+      "props": {
+        "scene": "pitch"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "accd6dfcb26ad00176c9d2ab508bd5b9cbccf725da6b6c7aee6433e39eb00f0b",
+        "bytes": 2687
+      }
+    },
+    {
+      "name": "swash-motion-pitch",
+      "theme": "dark",
+      "component": "SwashArt",
+      "props": {
+        "scene": "pitch"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "98b14ef92cf062ac23875ce82f4400679ab5ac99c26913a5c7e5ea8244129ab7",
+        "bytes": 2691
+      },
+      "png": {
+        "sha256": "51d5fe0cbfc1d1af939ed13a1053b69ab267c68ec402a46bf5ee2f7d26bff08c",
+        "bytes": 4429
+      },
+      "small": {
+        "sha256": "8b730907f6f80285d811d17db833c8de0d69573fb610f62dbc15926df67cb460",
+        "bytes": 3329
+      }
+    },
+    {
+      "name": "swash-motion-collective",
+      "theme": "light",
+      "component": "SwashArt",
+      "props": {
+        "scene": "collective"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "8cd2bc33cb7d1907b29c4beee8da9bf814de35c3f25c37bc17d2166e3b22a13c",
+        "bytes": 2565
+      }
+    },
+    {
+      "name": "swash-motion-collective",
+      "theme": "dark",
+      "component": "SwashArt",
+      "props": {
+        "scene": "collective"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "3410bb6deec07c43ce9994c6601b1e315b718928ded01ee0c9620a9d85678cae",
+        "bytes": 2569
+      },
+      "png": {
+        "sha256": "768cbab9f6c2311c803077587b81efd5433746f270b10fba5117bb6c56b2c384",
+        "bytes": 3411
+      },
+      "small": {
+        "sha256": "f78a778734268793c766df911e7fcc9c6ebfd2e9bb3fa5c64f1a3cb1e47b420e",
+        "bytes": 2479
+      }
+    },
+    {
+      "name": "rotor-cw",
+      "theme": "light",
+      "component": "RotorDirArt",
+      "props": {
+        "dir": "cw"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "51dc699ac95234654c1b14b6b1066d0f3ae0cf1128321256afcca503d75f0c0c",
+        "bytes": 1380
+      }
+    },
+    {
+      "name": "rotor-cw",
+      "theme": "dark",
+      "component": "RotorDirArt",
+      "props": {
+        "dir": "cw"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "312a28c040e63d8578c6d28ded40f5ef3b527176816ef327e6cb35fa17cc1cbe",
+        "bytes": 1380
+      },
+      "png": {
+        "sha256": "1bf1ede2e18af0aa9ac584265eb7d6eb769bdea8c509b5ad54b897383b3b13bd",
+        "bytes": 6138
+      },
+      "small": {
+        "sha256": "c700d5e3e67c7791539bf9f166171400cec3e4f95d6696753683381607527ce2",
+        "bytes": 4238
+      }
+    },
+    {
+      "name": "rotor-ccw",
+      "theme": "light",
+      "component": "RotorDirArt",
+      "props": {
+        "dir": "ccw"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "45d753d1065aa77db0fa416d10fdc2f15d03da63d07f7c692ef1a796917188e8",
+        "bytes": 1419
+      }
+    },
+    {
+      "name": "rotor-ccw",
+      "theme": "dark",
+      "component": "RotorDirArt",
+      "props": {
+        "dir": "ccw"
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "a3685f72d30d00becdf2c1eebb89d85de71b67a7096d6de3ea83243765cce52d",
+        "bytes": 1419
+      },
+      "png": {
+        "sha256": "3a1789a6f7b738e2ec82dda1271b4a91ad44b34fb9df3ff6491d889971ea2752",
+        "bytes": 6196
+      },
+      "small": {
+        "sha256": "990d3401699750385385f58d0673ed63afe79870cfa096257b1e63048104be39",
+        "bytes": 4258
+      }
+    },
+    {
+      "name": "switch-left",
+      "theme": "light",
+      "component": "SwitchFlick",
+      "props": {},
+      "index": 0,
+      "leverAngle": -28,
+      "svg": {
+        "sha256": "1407863326f31e5a0a8eb85a5112cf54421e62ddd47493463597935849c3d29d",
+        "bytes": 1157
+      }
+    },
+    {
+      "name": "switch-left",
+      "theme": "dark",
+      "component": "SwitchFlick",
+      "props": {},
+      "index": 0,
+      "leverAngle": -28,
+      "svg": {
+        "sha256": "23e12ae608338bd9b5aaf09be3183ae4e720629c684cd2e81674c822c1cef955",
+        "bytes": 1157
+      },
+      "png": {
+        "sha256": "f9065b97d28a76162d2c8e7c26ff760af40c4fe2e394d5d53fa45e0fd0b47a19",
+        "bytes": 2970
+      },
+      "small": {
+        "sha256": "239f38f9b0292618ea2ed2862b14504228be22ddb3e7a453002afbf9f65a1307",
+        "bytes": 2170
+      }
+    },
+    {
+      "name": "switch-right",
+      "theme": "light",
+      "component": "SwitchFlick",
+      "props": {},
+      "index": 0,
+      "leverAngle": 28,
+      "svg": {
+        "sha256": "158038fc1adadc077a2001c29dcc259cce99efa2fcc0ac91119d125a677be402",
+        "bytes": 1156
+      }
+    },
+    {
+      "name": "switch-right",
+      "theme": "dark",
+      "component": "SwitchFlick",
+      "props": {},
+      "index": 0,
+      "leverAngle": 28,
+      "svg": {
+        "sha256": "230e5bb6c88964f3dc7c9ff1b70df763cb143e16c2c80aafab56909f0ac02122",
+        "bytes": 1156
+      },
+      "png": {
+        "sha256": "0a80ec5258380b34de9f36d28d53235bca58f59ccd676fd0cfeaeb613595275d",
+        "bytes": 2939
+      },
+      "small": {
+        "sha256": "c6d5aa9e2fe1934f27f415f470ee969536e868c8a33fd9689dc29f1a459d3d6f",
+        "bytes": 2148
+      }
+    },
+    {
+      "name": "tail-servo",
+      "theme": "light",
+      "component": "TailArt",
+      "props": {
+        "kind": "servo",
+        "move": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "c03ef86aae8fa4d24d117e948f77c8ce22c8543756e86b66e0abd75d87aec025",
+        "bytes": 1633
+      }
+    },
+    {
+      "name": "tail-servo",
+      "theme": "dark",
+      "component": "TailArt",
+      "props": {
+        "kind": "servo",
+        "move": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "581b58664025c506739c71f39a4feec6a1c47c201c9879768895632eb6d265d8",
+        "bytes": 1635
+      },
+      "png": {
+        "sha256": "e9499d9f4692d4af7fc585ebbd4f9d4f2ede735f1b14320e4f8156ce78450061",
+        "bytes": 2561
+      },
+      "small": {
+        "sha256": "2caf7b62d83978cb7738943015e1755c26976203a7489824ad4832bcd89028fd",
+        "bytes": 1880
+      }
+    },
+    {
+      "name": "tail-servo-move",
+      "theme": "light",
+      "component": "TailArt",
+      "props": {
+        "kind": "servo",
+        "move": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "e750625f0af17305661e183f2bf13b86238ecbd5a7a496d8426559c877491206",
+        "bytes": 1759
+      }
+    },
+    {
+      "name": "tail-servo-move",
+      "theme": "dark",
+      "component": "TailArt",
+      "props": {
+        "kind": "servo",
+        "move": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "2b4cc506ed6b987746a57db657df27e190b61a5351f1af52184a863a6db967f0",
+        "bytes": 1761
+      },
+      "png": {
+        "sha256": "ab832031d59f873fce00075d824497bee1fd92d46d6ef7c714d315a629fe472f",
+        "bytes": 2780
+      },
+      "small": {
+        "sha256": "73622eae2414e72c3322c1980f12fcf54fbf93f613120a453bae5d49586341a7",
+        "bytes": 1984
+      }
+    },
+    {
+      "name": "tail-motor",
+      "theme": "light",
+      "component": "TailArt",
+      "props": {
+        "kind": "motor",
+        "move": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "c643fcf047a871f9a62b9974c2e787502e1fb42cd6cce791f0c5a39a2d97b416",
+        "bytes": 1459
+      }
+    },
+    {
+      "name": "tail-motor",
+      "theme": "dark",
+      "component": "TailArt",
+      "props": {
+        "kind": "motor",
+        "move": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "fddd8ae040848d88d036e061f01887bcd70090a43a80facce34d99a11f7863c0",
+        "bytes": 1461
+      },
+      "png": {
+        "sha256": "8b2ccdc9ad66da51619c3d369017de53339ab74f60a47c7b6bc5f2da0e90b5d0",
+        "bytes": 2528
+      },
+      "small": {
+        "sha256": "3dee6f9f8107866fdb39a9ba2e35d98d53c9aaf0abfec2db720e8e0396a37794",
+        "bytes": 1832
+      }
+    },
+    {
+      "name": "tail-motor-move",
+      "theme": "light",
+      "component": "TailArt",
+      "props": {
+        "kind": "motor",
+        "move": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "c643fcf047a871f9a62b9974c2e787502e1fb42cd6cce791f0c5a39a2d97b416",
+        "bytes": 1459
+      }
+    },
+    {
+      "name": "tail-motor-move",
+      "theme": "dark",
+      "component": "TailArt",
+      "props": {
+        "kind": "motor",
+        "move": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "fddd8ae040848d88d036e061f01887bcd70090a43a80facce34d99a11f7863c0",
+        "bytes": 1461
+      },
+      "png": {
+        "sha256": "8b2ccdc9ad66da51619c3d369017de53339ab74f60a47c7b6bc5f2da0e90b5d0",
+        "bytes": 2528
+      },
+      "small": {
+        "sha256": "3dee6f9f8107866fdb39a9ba2e35d98d53c9aaf0abfec2db720e8e0396a37794",
+        "bytes": 1832
+      }
+    },
+    {
+      "name": "tail-bidirectional",
+      "theme": "light",
+      "component": "TailArt",
+      "props": {
+        "kind": "bidirectional",
+        "move": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "898750522e2aa0fda850659edffb0dcaf7dc4c9b09fa842f1c9d4d5223a63396",
+        "bytes": 1592
+      }
+    },
+    {
+      "name": "tail-bidirectional",
+      "theme": "dark",
+      "component": "TailArt",
+      "props": {
+        "kind": "bidirectional",
+        "move": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "4d89e91c3b42bb1dbcf4e31514fe3d60c289946e774be8703dd2f38d043b648c",
+        "bytes": 1594
+      },
+      "png": {
+        "sha256": "4d510d6358cfa6d1ea1775de533b0c2bb1c1fb30b02512279bb28c380aa428c8",
+        "bytes": 2947
+      },
+      "small": {
+        "sha256": "2f8c139573b06694c8283f35103d16b5981d7da1dc43d2ea5e1c9a25e645db2e",
+        "bytes": 2094
+      }
+    },
+    {
+      "name": "tail-bidirectional-move",
+      "theme": "light",
+      "component": "TailArt",
+      "props": {
+        "kind": "bidirectional",
+        "move": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "898750522e2aa0fda850659edffb0dcaf7dc4c9b09fa842f1c9d4d5223a63396",
+        "bytes": 1592
+      }
+    },
+    {
+      "name": "tail-bidirectional-move",
+      "theme": "dark",
+      "component": "TailArt",
+      "props": {
+        "kind": "bidirectional",
+        "move": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "4d89e91c3b42bb1dbcf4e31514fe3d60c289946e774be8703dd2f38d043b648c",
+        "bytes": 1594
+      },
+      "png": {
+        "sha256": "4d510d6358cfa6d1ea1775de533b0c2bb1c1fb30b02512279bb28c380aa428c8",
+        "bytes": 2947
+      },
+      "small": {
+        "sha256": "2f8c139573b06694c8283f35103d16b5981d7da1dc43d2ea5e1c9a25e645db2e",
+        "bytes": 2094
+      }
+    },
+    {
+      "name": "swash-direct",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 1,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "a7ee2cc37ef7f3398deada48e7f11393b7b26d125458d9e2fdf23a8343bdb70b",
+        "bytes": 1810
+      }
+    },
+    {
+      "name": "swash-direct",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 1,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "72cbcb8b326380a0ec2a05e450e6926e4f68e6103d7f8175e6f56415ae59233d",
+        "bytes": 1811
+      },
+      "png": {
+        "sha256": "9b1215be793ebc9e8d97c2760e48996b9896197b48593ee1917b240232c48cee",
+        "bytes": 3855
+      },
+      "small": {
+        "sha256": "38948c7fb5368ba9595467aba64d144f67ac715b9a92bcda65f1a34f3fc317b9",
+        "bytes": 2697
+      }
+    },
+    {
+      "name": "swash-direct-tail",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 1,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "1a936e7eac45b418f3b07d06ed612c00c55471734e0b318bc007d52a9b8c1de2",
+        "bytes": 2009
+      }
+    },
+    {
+      "name": "swash-direct-tail",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 1,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "e2c13b501c401772051f72de359597b3901ff9002b0d826bb3ca04a0d9422596",
+        "bytes": 2010
+      },
+      "png": {
+        "sha256": "2c475466810ee8ad3bf3b3b2f8b00205fc9ba7b989577674bd4f69cfaca3dbac",
+        "bytes": 4167
+      },
+      "small": {
+        "sha256": "f8103e8873542f21e0bceb15402a243568be21e45916891365e8e8d6916057b8",
+        "bytes": 2929
+      }
+    },
+    {
+      "name": "swash-120-front",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "61a619c04d5ae28536d7fdab57dec827a9d6a61ff0de18b2f59aafc3d863b33c",
+        "bytes": 2481
+      }
+    },
+    {
+      "name": "swash-120-front",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "2acbf227f35f370971730d7d054a4d32242d037e534ad866b68d2d423be063f9",
+        "bytes": 2482
+      },
+      "png": {
+        "sha256": "b28a27f8eadf62f1a52960e260724ddfe4c9ece4f6d8b8f191bacede2b567c64",
+        "bytes": 5320
+      },
+      "small": {
+        "sha256": "3dd9757e4a6206a61542499142551a60135565fff5098e1440ddcf01d7699c58",
+        "bytes": 3722
+      }
+    },
+    {
+      "name": "swash-120-rear",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": false
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "62e008102b22aa5d704384cb793417ec1dc5a181aa50d872acc40417a1823dc5",
+        "bytes": 2483
+      }
+    },
+    {
+      "name": "swash-120-rear",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": false
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "d2e6a049cd6023392818338dc3839553a8fdd8b9ec5e9949fc4d432ab262c82b",
+        "bytes": 2484
+      },
+      "png": {
+        "sha256": "0e248af9a0b819001991c9dd52cc19716efb58ee047eead4b48681edcc64c875",
+        "bytes": 5228
+      },
+      "small": {
+        "sha256": "650dcec8bfef7cce76910f2cc657b6611f1c04467823fc74132f118a17f5324b",
+        "bytes": 3668
+      }
+    },
+    {
+      "name": "swash-120-front-tail",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "14e9dd9cd9c7b5b4976d15a257b7cbe51d7b253fb429465a235f1e0370abb584",
+        "bytes": 2680
+      }
+    },
+    {
+      "name": "swash-120-front-tail",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "36628fd972f5a2faa6bfac40a21001e911251d19a7047a7771d237162c1c3bc5",
+        "bytes": 2681
+      },
+      "png": {
+        "sha256": "5b595e5bccd0db2b8e03befb87934eb6b1fabffb2dd6bb38fc051ddbd3e59977",
+        "bytes": 5600
+      },
+      "small": {
+        "sha256": "82ddbb86e0bb3764d886d87ee829c48489e5bd1caccebd220ab2937792ccb6a0",
+        "bytes": 3900
+      }
+    },
+    {
+      "name": "swash-120-rear-tail",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": true
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "e1d707a3bdc180c8ed4a0be630fbf21e467f8602e60a528a789961a59c991b11",
+        "bytes": 2682
+      }
+    },
+    {
+      "name": "swash-120-rear-tail",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 2,
+        "tailServo": true
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "a16b566c1091b4c023b81da28a39ad57d63696a7b8944244b3a432074e4ac9e4",
+        "bytes": 2683
+      },
+      "png": {
+        "sha256": "e60c0ba918a4f549c00c33a524d828c60f40a804669d8821a1b4fdab1d1d0fc7",
+        "bytes": 5494
+      },
+      "small": {
+        "sha256": "cf94bcaa7caa5d4df81916b16777705be0bceaf238cc188329c971054f3fe847",
+        "bytes": 3859
+      }
+    },
+    {
+      "name": "swash-135-front",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "0605ed7d219d2559dabbf9fb6d51736b3316477dbcdc4feff441d58ef23da1ca",
+        "bytes": 2483
+      }
+    },
+    {
+      "name": "swash-135-front",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "d4c43b0d51983331bbc9bef90ac2205cf540ab5835236d3b3158382d238aa153",
+        "bytes": 2484
+      },
+      "png": {
+        "sha256": "85ceb73482120a058ca71f967f429761f329510dd47a9d53caec7508c88753bd",
+        "bytes": 5132
+      },
+      "small": {
+        "sha256": "babe149e93cc5e6ad19e4fd96e1c3da25b5048133c55a22d0e52d2209f164c18",
+        "bytes": 3593
+      }
+    },
+    {
+      "name": "swash-135-rear",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": false
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "0a5b75820c3e87652d371581e87171ebef5fc56f9f052a132f8774e99011630e",
+        "bytes": 2484
+      }
+    },
+    {
+      "name": "swash-135-rear",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": false
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "78ed6aee91bb393868d33df0dc497bb31c9b86fcc5a8284a632cd925cd461194",
+        "bytes": 2485
+      },
+      "png": {
+        "sha256": "ed67f85c696c2559d707addc6ec7051530529bb751c70051478764d0a1d65176",
+        "bytes": 5160
+      },
+      "small": {
+        "sha256": "ba2b63098a9326ea0f0839036e4d67ee98701e6e4a4f727ceb5d374c7ec89f6a",
+        "bytes": 3509
+      }
+    },
+    {
+      "name": "swash-135-front-tail",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "8fe056ce9de9f5dca8644618708bd44a3df70e9f4143e43fb3563e7a4ea6e160",
+        "bytes": 2682
+      }
+    },
+    {
+      "name": "swash-135-front-tail",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "1b04a71f016609609c9ff730b5628a051df25cf74409b69777e18e6c4d48d0ee",
+        "bytes": 2683
+      },
+      "png": {
+        "sha256": "463baed21435f9a3101c6bc934e6a46a0eee02ccd38de8366a12498c69e4bc77",
+        "bytes": 5408
+      },
+      "small": {
+        "sha256": "1ed5caac8508658ecc9f3ad43e7ec06e9ea117dda2413a073a08395f322417de",
+        "bytes": 3776
+      }
+    },
+    {
+      "name": "swash-135-rear-tail",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": true
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "c2ecd1d2ee1336440f4b118760e04a39cbd8098d19af625ba2fb39fbfc3e4fb1",
+        "bytes": 2683
+      }
+    },
+    {
+      "name": "swash-135-rear-tail",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 3,
+        "tailServo": true
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "0df5c2ae805e4ef5aa46dc7ba946eafa61c05bfa423f4834be4ea8587dfd53c1",
+        "bytes": 2684
+      },
+      "png": {
+        "sha256": "c286e86929f5347b3519395973ff4fce353e7eebbb0c969c9f48a3e31f3cd1c7",
+        "bytes": 5429
+      },
+      "small": {
+        "sha256": "b2776213a13b2431392b703d289c2ca0d70dc08617e46e963fd6f3e79fb64560",
+        "bytes": 3692
+      }
+    },
+    {
+      "name": "swash-140-front",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "687f276fa7bd3ed295788f1209440206f89f9f1f0327beb89c7edf68427c3d9c",
+        "bytes": 2482
+      }
+    },
+    {
+      "name": "swash-140-front",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "c170bd6020e44474bd3e0c9085a4dae50f6c3a1c174cf711d7a55924fbf1c47b",
+        "bytes": 2483
+      },
+      "png": {
+        "sha256": "7b9e6488fd97d36fad392add7cfd35d5839cc923c7df45e2ba60d2205b5e8444",
+        "bytes": 5331
+      },
+      "small": {
+        "sha256": "38d48d18aa6e642f20e5213ea148425d85690b668c60766f3c2efa7d9eeaa106",
+        "bytes": 3778
+      }
+    },
+    {
+      "name": "swash-140-rear",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": false
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "be8bc795a4e14e1fb64bbc8bc45bd06ebad32acfd83abe3d7884e98f31b25fc2",
+        "bytes": 2482
+      }
+    },
+    {
+      "name": "swash-140-rear",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": false
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "b4126745da6d387be354f88d2a29890a4f3b483a6809be8a76844ff86c3120be",
+        "bytes": 2483
+      },
+      "png": {
+        "sha256": "29a59de8bcb0ed78f6f259b62b3cda5d54226ef14186cf96b0bac75a1de26eb1",
+        "bytes": 5268
+      },
+      "small": {
+        "sha256": "a36bf72a528671d5f82670c2f923817a53d5941a38d7d42e9695528df45ea2f7",
+        "bytes": 3680
+      }
+    },
+    {
+      "name": "swash-140-front-tail",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "147ac7362212f3beb8bc924f8c960d1fb3b99e3ae2738bbf09ae99e9e061be3d",
+        "bytes": 2681
+      }
+    },
+    {
+      "name": "swash-140-front-tail",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "c8d2f1b2fb596483baec9f53108c8dce45aab8beba8bb688f3eebdd2d607317d",
+        "bytes": 2682
+      },
+      "png": {
+        "sha256": "c35f56f2386e1b3e3937c0dd160572cb18e644b10ca6e6d2d4f605aac9561a0a",
+        "bytes": 5605
+      },
+      "small": {
+        "sha256": "42279bedcfc2c0c9cc0f17be4ca794f0cc59c1e6d58ca799698b3be05bee36a0",
+        "bytes": 3960
+      }
+    },
+    {
+      "name": "swash-140-rear-tail",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": true
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "e284bd2bc7a84f0b86866c066b532c1ba7aa333f1fbb9a7a916cbbcf08d6f3a0",
+        "bytes": 2681
+      }
+    },
+    {
+      "name": "swash-140-rear-tail",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 4,
+        "tailServo": true
+      },
+      "index": 1,
+      "svg": {
+        "sha256": "e84ed274631b2a5bd3e5e08dc605fd23fd85404bf55dc48e411213ae8df0579a",
+        "bytes": 2682
+      },
+      "png": {
+        "sha256": "057f3861aeb3471df67b6a8d32ee9ef29a8dfafdebb3c1752e20c1dfcef2512b",
+        "bytes": 5534
+      },
+      "small": {
+        "sha256": "bc65b020bc24792d6d580ec6e66360ea1bd0a389a966d69b0a185298aa9964df",
+        "bytes": 3866
+      }
+    },
+    {
+      "name": "swash-90l",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 5,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "e87c442fff82b4a11ea912cd7d45cd1bf5a6db84f7e7d66227f96257a654eb89",
+        "bytes": 2218
+      }
+    },
+    {
+      "name": "swash-90l",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 5,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "f27f47a736ea31363d467ae2e2668c75e10c511b6683ebb73e8a2d6751965031",
+        "bytes": 2219
+      },
+      "png": {
+        "sha256": "3fb0ad4491b17097126903fa191574b3855530b12042be9cc6b09a5a3d80caa7",
+        "bytes": 4764
+      },
+      "small": {
+        "sha256": "f57184988eeff6c2e959a73ff952727e62ba496ef0c038e51d3578c05744861e",
+        "bytes": 3380
+      }
+    },
+    {
+      "name": "swash-90l-tail",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 5,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "cfb6ae8e650688b75ecdcade6635a9a2143080707cb03ae0f28c5fe01b2d4009",
+        "bytes": 2417
+      }
+    },
+    {
+      "name": "swash-90l-tail",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 5,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "d7ddbbb9db59fc73357502a9ae2cdbf065adcf0af1b01386575d11203c3af79f",
+        "bytes": 2418
+      },
+      "png": {
+        "sha256": "e256c0f12387288b3a607ab92070d3d89788568ca3a5759f8c9035665f29c8c6",
+        "bytes": 5043
+      },
+      "small": {
+        "sha256": "daac7aaba36fbf13e26953fb4bce1411294b898c84aea3c87448371746f95128",
+        "bytes": 3575
+      }
+    },
+    {
+      "name": "swash-90v",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 6,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "2e04f1c8af9b635d42e2a5075bf42c77fa9596e95d799ce1ea9dfc6470eb27c3",
+        "bytes": 2282
+      }
+    },
+    {
+      "name": "swash-90v",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 6,
+        "tailServo": false
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "1a20576828328f59b31ef55234aad3cdd8945ec0e785d56279c0908d67c57751",
+        "bytes": 2283
+      },
+      "png": {
+        "sha256": "a31c33254d105bb4a8395c24756d5d4f71e8e8235e6c9ef51bec8f408dfa61bb",
+        "bytes": 4880
+      },
+      "small": {
+        "sha256": "bd3a7c3ecf5a8b2f63d5d9bc70ad1361eabc7bd9734adcbc5e212f02f6b97489",
+        "bytes": 3309
+      }
+    },
+    {
+      "name": "swash-90v-tail",
+      "theme": "light",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 6,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "4b6fc731c213950a9de6b433b1de0a759d9298b097dbe7483c3cdf77160e5e05",
+        "bytes": 2481
+      }
+    },
+    {
+      "name": "swash-90v-tail",
+      "theme": "dark",
+      "component": "SwashServoDiagram",
+      "props": {
+        "swashType": 6,
+        "tailServo": true
+      },
+      "index": 0,
+      "svg": {
+        "sha256": "77df395fc84e05982af404b408f585d65b5564f790c996265c55e2a17a3a8818",
+        "bytes": 2482
+      },
+      "png": {
+        "sha256": "96681bd2720a4335e8eac47ba6d80170779978fd55e05758c875a6c43af02f69",
+        "bytes": 5162
+      },
+      "small": {
+        "sha256": "77930613d1e89f2293391ea478e3e4e9582601ffb78f40c6daf3b2ff6ef0350e",
+        "bytes": 3513
+      }
+    },
+    {
+      "name": "servo-cyclic-analog",
+      "theme": "light",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 50,
+            "width": 1520
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "40a1792865c96b466fece837424def199683f4752be37d4ccf950c81a46435e7",
+        "bytes": 2370
+      }
+    },
+    {
+      "name": "servo-cyclic-analog",
+      "theme": "dark",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 50,
+            "width": 1520
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "8216827f067abc736b9a11727df9522f436661b5e9c926ff2d89d65fbf4adc8f",
+        "bytes": 2372
+      },
+      "png": {
+        "sha256": "8e659e25e879e54302b6bc268c637ff4d360c1fcb835f5f0eca40ad7f571de66",
+        "bytes": 4864
+      },
+      "small": {
+        "sha256": "3e5833cb525ec3efecded70d68d498334323d67c3a1d8e928f0b0633f0d0a852",
+        "bytes": 3770
+      }
+    },
+    {
+      "name": "servo-cyclic-digital",
+      "theme": "light",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 165,
+            "width": 1520
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "f8757f1418320d04de0efeb54887c5b6d601c0b91a0a0faca9addd7fdb97c230",
+        "bytes": 2542
+      }
+    },
+    {
+      "name": "servo-cyclic-digital",
+      "theme": "dark",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 165,
+            "width": 1520
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "6790490526f5634473bf6c639fa4985d2378e3cd5a27e7ce61625cfd335b9b72",
+        "bytes": 2544
+      },
+      "png": {
+        "sha256": "f31d6892f354ec141eacf7d6ac82865faf44596201bb1dfa25160a1ef36abbb0",
+        "bytes": 6322
+      },
+      "small": {
+        "sha256": "2f75629f22a9c7ebedd792f6a73c2bdb58a73dbc76426945e1874188c7329a2b",
+        "bytes": 4555
+      }
+    },
+    {
+      "name": "servo-cyclic-hiend-digital",
+      "theme": "light",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 333,
+            "width": 1520
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "936ed3aa8de04e1d17d54f21888985296c21ead4aed176ed4b1e66471e3e95dc",
+        "bytes": 2806
+      }
+    },
+    {
+      "name": "servo-cyclic-hiend-digital",
+      "theme": "dark",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 333,
+            "width": 1520
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "d3cf18cc272294ad292333e3bf3e5d2a78963926119b1ac2a34f036a4dd643b7",
+        "bytes": 2808
+      },
+      "png": {
+        "sha256": "970974a9b21be3af42320c8dd2048055e7c2a8f8f6e5e14b502e1714bd40c6f9",
+        "bytes": 5775
+      },
+      "small": {
+        "sha256": "250813988fae06a5cc58746d843c2f433d6880e96f85bcc2c43aa6d489b9f226",
+        "bytes": 3963
+      }
+    },
+    {
+      "name": "servo-cyclic-narrow-band",
+      "theme": "light",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 560,
+            "width": 760
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "d7706d5a80721b0c47feca2917b3e9189d627d81a7236e0ad90244de5693fa9b",
+        "bytes": 3244
+      }
+    },
+    {
+      "name": "servo-cyclic-narrow-band",
+      "theme": "dark",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 560,
+            "width": 760
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "2de7ce1f8d36e1808f9418e63894793c996681d2e4cb67b49479c47fe6c91c23",
+        "bytes": 3246
+      },
+      "png": {
+        "sha256": "6f5b2ae87ef9a7fd9ed628e2025414f36de560d8e7e6dd98c50d9d3305967414",
+        "bytes": 9224
+      },
+      "small": {
+        "sha256": "718da6ab3907b0a0a9ffe56580b0aa2447377d9a4cfca7c90c68179c7624accb",
+        "bytes": 4498
+      }
+    },
+    {
+      "name": "servo-tail-digital",
+      "theme": "light",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 200,
+            "width": 1520
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "db94acc5b5f96cb96b5a3c322e21ded16e231bb0aacd5a1ed914558d1b60964e",
+        "bytes": 2468
+      }
+    },
+    {
+      "name": "servo-tail-digital",
+      "theme": "dark",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 200,
+            "width": 1520
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "d64b1269a03c28d0678de559cf53669253a9207ce83ee10dcc3dc5965b3d2658",
+        "bytes": 2470
+      },
+      "png": {
+        "sha256": "5bfff0407cc9e3f4f2f40d52a959098fe3f036939621fbdda40e012167a5870c",
+        "bytes": 5065
+      },
+      "small": {
+        "sha256": "4b117b602b014afa80cef9d3227edbe91158b845c05873485a7e4245037f8a9c",
+        "bytes": 4030
+      }
+    },
+    {
+      "name": "servo-tail-specific-digital",
+      "theme": "light",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 333,
+            "width": 760
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "49adeada56f6afde88a3615d214cf07bd3ac800043961aaba9231fe41a9fb68a",
+        "bytes": 2892
+      }
+    },
+    {
+      "name": "servo-tail-specific-digital",
+      "theme": "dark",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 333,
+            "width": 760
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "7f4c05a3270122c25aa42810443cd7780d43ae3ad1a08897ec3ece91ea2d0702",
+        "bytes": 2894
+      },
+      "png": {
+        "sha256": "4e1eab64f5d66e73c66cda4b15869a3836567a7da2b005e0cadb9a6cd4b62178",
+        "bytes": 5627
+      },
+      "small": {
+        "sha256": "a8b96fb8ba0de06c572be6509b060f1008a1d8ede69ecb14ff674a4e69c6c127",
+        "bytes": 4290
+      }
+    },
+    {
+      "name": "servo-tail-hiend-specific-digital",
+      "theme": "light",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 560,
+            "width": 760
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "d7706d5a80721b0c47feca2917b3e9189d627d81a7236e0ad90244de5693fa9b",
+        "bytes": 3244
+      }
+    },
+    {
+      "name": "servo-tail-hiend-specific-digital",
+      "theme": "dark",
+      "parts": [
+        {
+          "component": "PulseTrain",
+          "props": {
+            "rate": 560,
+            "width": 760
+          },
+          "box": [
+            10,
+            6,
+            200,
+            40
+          ]
+        },
+        {
+          "component": "ServoArt",
+          "props": {},
+          "box": [
+            20,
+            50,
+            180,
+            104
+          ]
+        }
+      ],
+      "svg": {
+        "sha256": "2de7ce1f8d36e1808f9418e63894793c996681d2e4cb67b49479c47fe6c91c23",
+        "bytes": 3246
+      },
+      "png": {
+        "sha256": "6f5b2ae87ef9a7fd9ed628e2025414f36de560d8e7e6dd98c50d9d3305967414",
+        "bytes": 9224
+      },
+      "small": {
+        "sha256": "718da6ab3907b0a0a9ffe56580b0aa2447377d9a4cfca7c90c68179c7624accb",
+        "bytes": 4498
+      }
+    },
+    {
+      "name": "heli-remove-blades",
+      "sourceSha256": "aafd384870bf2cdc9b686a664fc34f03e08b85e3284577e6d2f0cf2747ab8b20",
+      "png": {
+        "sha256": "5c0ed6d588700987e4ab35bdfffdd20303117c4a1e89cc0e4988db97d84de41a",
+        "bytes": 11915
+      },
+      "small": {
+        "sha256": "3755d9638a02e30bc3c32d15ccf292766d09a2ee4e8b738c4eea3392b50c5fad",
+        "bytes": 6697
+      }
+    },
+    {
+      "name": "heli-level",
+      "sourceSha256": "e3c08f81e13c29b98f2c6cc98b625515f8c91a5a1ea5a70a8ddbaa0735d2a590",
+      "png": {
+        "sha256": "d6a11111a1c8f093fe40cc23cb4d5febe618b9e091d52b0b30f7b3db9e5e9667",
+        "bytes": 10304
+      },
+      "small": {
+        "sha256": "aaf64fd8302f5eb4bc6874ff3fd33c7a4994295606c3010cadf34b373e2a6fec",
+        "bytes": 5737
+      }
+    },
+    {
+      "name": "heli-tail-lift",
+      "sourceSha256": "ccc4aa98d24890b7d868ead4dd706e108ed623492d1c194f05ce328d003024ed",
+      "png": {
+        "sha256": "cbe58fb4374484ea2241018744a5605166d44b8bb150ed428d6c5c366193ef67",
+        "bytes": 11747
+      },
+      "small": {
+        "sha256": "255b5cb6082d8481d0f66be68a79606bbe35e6b8b91f5eec2f7cebbe1a587f97",
+        "bytes": 6316
+      }
+    }
+  ]
+}

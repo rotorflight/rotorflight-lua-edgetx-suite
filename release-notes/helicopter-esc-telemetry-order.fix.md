@@ -1,0 +1,1 @@
+- Connect the servos straight after the Motor step, with the restarts owed so far done there, and establish ESC telemetry before the spin test; clarify when to connect or unplug the flight battery for PWM calibration and other motor protocols (`helicopter_setup`).

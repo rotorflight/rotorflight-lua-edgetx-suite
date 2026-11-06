@@ -1,0 +1,1 @@
+- Add Power source checks, battery cell count and capacity cards, and SmartFuel mode to ESC telemetry in Helicopter Setup, sharing the existing Power page choices and preserving complete FC records on save (helicopter_setup).

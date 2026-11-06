@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#545c64" font-family="Arial, sans-serif">
+<style>.rotor-dir-art.art-aeb2ee2958 {
+
+
+
+
+
+  color: #545c64;
+}
+
+.body.art-aeb2ee2958 {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+.disc.art-aeb2ee2958 {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
+}
+
+.blade.art-aeb2ee2958 {
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.hub.art-aeb2ee2958 {
+  fill: currentColor;
+}
+
+.arrow.art-aeb2ee2958 {
+  fill: none;
+  stroke: #007bc7;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.head.art-aeb2ee2958 {
+  fill: #007bc7;
+}</style>
+<g transform="translate(36 6) scale(2.3125)"><g class="rotor-dir-art art-aeb2ee2958"><path class="body art-aeb2ee2958" d="M32 12 C38 12 41 20 41 28 C41 35 37 38 34 39 L33 58 L31 58 L30 39 C27 38 23 35 23 28 C23 20 26 12 32 12 Z"></path><circle class="disc art-aeb2ee2958" cx="32" cy="28" r="24"></circle><g transform="rotate(-30 32 28)"><line class="blade art-aeb2ee2958" x1="10" y1="28" x2="54" y2="28"></line></g><circle class="hub art-aeb2ee2958" cx="32" cy="28" r="2.6"></circle><g><path class="arrow art-aeb2ee2958" d="M14 12 A24 24 0 0 1 46 8"></path><path class="head art-aeb2ee2958" d="M42 3 L50 8 L42 13 Z"></path></g></g></g>
+</svg>

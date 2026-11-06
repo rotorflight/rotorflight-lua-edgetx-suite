@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#545c64" font-family="Arial, sans-serif">
+<style>.swash-art.art-c4d1d398fc {
+
+
+
+
+
+  color: #545c64;
+}
+
+.body.art-c4d1d398fc {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.hole.art-c4d1d398fc {
+  fill: #f9fafa;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.shaft.art-c4d1d398fc {
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.link.art-c4d1d398fc,
+.arm.art-c4d1d398fc {
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.spline.art-c4d1d398fc {
+  fill: currentColor;
+}
+
+.swash.art-c4d1d398fc {
+  fill: #007bc7;
+}
+
+.inner.art-c4d1d398fc {
+  fill: rgba(0,123,199,.1);
+  stroke: #007bc7;
+  stroke-width: 1;
+}
+
+.ref.art-c4d1d398fc {
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
+}
+
+.arrow.art-c4d1d398fc {
+  fill: none;
+  stroke: #007bc7;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.head.art-c4d1d398fc {
+  fill: #007bc7;
+}
+
+.vial.art-c4d1d398fc {
+  fill: rgba(0,123,199,.1);
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+.mark.art-c4d1d398fc {
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.bubble.art-c4d1d398fc {
+  fill: #007bc7;
+}</style>
+<g transform="translate(6 7.200000000000003) scale(1.7333333333333334)"><g class="swash-art art-c4d1d398fc"><!--[-1--><rect class="body art-c4d1d398fc" x="26" y="70" width="68" height="10" rx="3"></rect><!--[-1--><!--]--><!--]--><line class="shaft art-c4d1d398fc" x1="60" y1="8" x2="60" y2="70"></line><rect class="body art-c4d1d398fc" x="48" y="6" width="24" height="6" rx="3"></rect><!--[--><line class="link art-c4d1d398fc" x1="36" y1="36" x2="36" y2="64"></line><line class="arm art-c4d1d398fc" x1="28" y1="66" x2="36" y2="64"></line><circle class="spline art-c4d1d398fc" cx="28" cy="66" r="2"></circle><line class="link art-c4d1d398fc" x1="84" y1="36" x2="84" y2="64"></line><line class="arm art-c4d1d398fc" x1="92" y1="66" x2="84" y2="64"></line><circle class="spline art-c4d1d398fc" cx="92" cy="66" r="2"></circle><!--]--><g transform="rotate(0 60 33)"><rect class="swash art-c4d1d398fc" x="36" y="31" width="48" height="5" rx="2"></rect><rect class="inner art-c4d1d398fc" x="48" y="27" width="24" height="4" rx="1.5"></rect></g><!--[1--><path class="arrow art-c4d1d398fc" d="M100 50 L100 26"></path><path class="head art-c4d1d398fc" d="M95 31 L100 24 L105 31 Z"></path><line class="ref art-c4d1d398fc" x1="30" y1="42" x2="90" y2="42"></line><!--]--></g></g>
+</svg>

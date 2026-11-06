@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#545c64" font-family="Arial, sans-serif">
+<style>.pitch-art.art-4dafbb7e44 {
+
+
+
+
+
+  color: #545c64;
+}
+
+.blade.art-4dafbb7e44 {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.gauge.art-4dafbb7e44 {
+  fill: rgba(0,123,199,.1);
+  stroke: #007bc7;
+  stroke-width: 1.2;
+}
+
+.bubble.art-4dafbb7e44 {
+  fill: #007bc7;
+}
+
+.ref.art-4dafbb7e44 {
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
+}
+
+.arc.art-4dafbb7e44 {
+  fill: none;
+  stroke: #007bc7;
+  stroke-width: 1.4;
+}
+
+.angle.art-4dafbb7e44 {
+  fill: #007bc7;
+  font-size: 11px;
+  font-weight: 700;
+}</style>
+<g transform="translate(6 34.239999999999995) scale(1.3866666666666667)"><g class="pitch-art art-4dafbb7e44"><line class="ref art-4dafbb7e44" x1="14" y1="40" x2="136" y2="40"></line><g transform="rotate(-9 70 40)"><path class="blade art-4dafbb7e44" d="M20 40 C24 35 40 34.5 70 35.5 C96 36.5 112 38.5 120 40 C110 41.5 96 42.5 70 43 C40 43.5 24 43 20 40 Z"></path><rect class="gauge art-4dafbb7e44" x="50" y="22" width="40" height="11" rx="2"></rect><circle class="bubble art-4dafbb7e44" cx="70" cy="27.5" r="3"></circle></g><!--[0--><path class="arc art-4dafbb7e44" d="M116 40 A46 46 0 0 0 115.43366366737634 32.80401460814938"></path><!--]--><!--[0--><text class="angle art-4dafbb7e44" x="122" y="30">9°</text><!--]--></g></g>
+</svg>

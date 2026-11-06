@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="160" viewBox="0 0 220 160" color="#acb3b9" font-family="Arial, sans-serif">
+<style>.motor-gear-art.art-4c6144e740 {
+
+
+
+
+
+  color: #acb3b9;
+}
+
+.gear.art-4c6144e740 {
+  fill: #1a1c1f;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+.pinion.art-4c6144e740 {
+  fill: rgba(60,168,236,.16);
+  stroke: #3ca8ec;
+  stroke-width: 1.4;
+}
+
+/* The teeth: a dashed ring just inside the rim. */
+.teeth.art-4c6144e740 {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-dasharray: 2 2;
+  opacity: 0.55;
+}
+.teeth.accent.art-4c6144e740 {
+  stroke: #3ca8ec;
+  opacity: 0.8;
+}
+
+.hub.art-4c6144e740 {
+  fill: currentColor;
+}
+
+.motor.art-4c6144e740 {
+  fill: #1a1c1f;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+.shaft.art-4c6144e740 {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.lead.art-4c6144e740 {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}</style>
+<g transform="translate(6 16) scale(1.6)"><g class="motor-gear-art art-4c6144e740"><circle class="gear art-4c6144e740" cx="82" cy="42" r="30"></circle><circle class="teeth art-4c6144e740" cx="82" cy="42" r="27"></circle><circle class="hub art-4c6144e740" cx="82" cy="42" r="4"></circle><circle class="pinion art-4c6144e740" cx="40" cy="42" r="11"></circle><circle class="teeth accent art-4c6144e740" cx="40" cy="42" r="9"></circle><circle class="hub art-4c6144e740" cx="40" cy="42" r="2.4"></circle><rect class="motor art-4c6144e740" x="6" y="30" width="20" height="24" rx="4"></rect><line class="shaft art-4c6144e740" x1="26" y1="42" x2="31" y2="42"></line><path class="lead art-4c6144e740" d="M10 54 C10 66 2 70 2 76"></path><path class="lead art-4c6144e740" d="M16 54 C16 66 10 70 10 76"></path><path class="lead art-4c6144e740" d="M22 54 C22 66 18 70 18 76"></path></g></g>
+</svg>
