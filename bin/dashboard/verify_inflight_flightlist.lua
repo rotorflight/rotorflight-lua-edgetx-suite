@@ -79,7 +79,7 @@ Page.onClose()
 -- sheet under the row's label. Answers each layout's lines as the page shows them.
 local function rowHelps(i18n)
   local found = {}
-  for _, layout in ipairs({ { mode = Setup.TRIM_MODE_NAVIGATE, rows = 10 }, { mode = Setup.TRIM_MODE_ROWS, rows = 13 } }) do
+  for _, layout in ipairs({ { mode = Setup.TRIM_MODE_NAVIGATE, rows = 11 }, { mode = Setup.TRIM_MODE_ROWS, rows = 14 } }) do
     local opened = {}
     local page = { preferences = {}, children = {}, x = 0, y = 0, w = 456, i18n = i18n,
       requestRebuild = function() end, savePreferences = function() return true end,
