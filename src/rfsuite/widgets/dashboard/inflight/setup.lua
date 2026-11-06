@@ -999,6 +999,14 @@ local function checkGvarDetails(radio, index, faults, prefix)
   end
 end
 
+--- Whether a line carries a delay or a slow-up or slow-down. The firmware applies them before the weight,
+-- so the 200 ms the logical switch lets through can be held back or ramped and never arrive whole. A field
+-- the reader does not answer is not held against the line.
+function M.mixHasTiming(mix)
+  return (tonumber(mix.delayUp) or 0) ~= 0 or (tonumber(mix.delayDown) or 0) ~= 0
+    or (tonumber(mix.speedUp) or 0) ~= 0 or (tonumber(mix.speedDown) or 0) ~= 0
+end
+
 local function checkMixLine(radio, channel, gvarIndex, faults, prefix, gated)
   local count = radio.mixesCount(channel)
   if count == nil then return false end
@@ -1044,6 +1052,9 @@ local function checkMixLine(radio, channel, gvarIndex, faults, prefix, gated)
   local offset = tonumber(mix.offset)
   if offset ~= nil and offset ~= 0 then
     faults[#faults + 1] = prefix .. "_mix_offset"
+  end
+  if M.mixHasTiming(mix) then
+    faults[#faults + 1] = prefix .. "_mix_timing"
   end
   local curveType = tonumber(mix.curveType)
   if curveType ~= nil and curveType ~= 0 then

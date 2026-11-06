@@ -602,6 +602,8 @@ local function refusalText(i18n, reason)
     return t(i18n, "plan_same_channel", "The two channels have to be different.")
   elseif reason == "no_ls" then
     return t(i18n, "plan_no_ls", "No logical switch is free to time the pulses; empty one first.")
+  elseif reason == "trim_claimed_twice" then
+    return t(i18n, "check_claim", "Walk and adjust need two different trims")
   end
   return t(i18n, "plan_unsupported", "This radio does not offer the mixer writer.")
 end
@@ -644,11 +646,17 @@ local function modelFile()
   return info and info.filename or nil
 end
 
---- A refusal asks only whether armed is REPORTED. The page works with no flight controller connected:
--- that is how a pilot sets a model up at home, so "cannot tell" does not refuse here.
+--- A set-up and a restore change what the radio sends, so they run with nothing on the link at all, which
+-- is how a pilot sets a model up at home. Asking for armed alone would let them through on a craft that
+-- is powered with its arming flags unreported.
 local function isArmed()
   local armed = ensureArmed()
   return armed ~= nil and armed.isArmed() == true
+end
+
+local function linkUp()
+  local armed = ensureArmed()
+  return armed ~= nil and armed.linkUp() == true
 end
 
 local function finishJob(title, message)
@@ -674,7 +682,9 @@ end
 -- disarm can pass between two slices with nothing to see but the count.
 local function mayGoOn(job)
   local armed = ensureArmed()
-  if armed ~= nil and (armed.isArmed() == true or armed.changeCount() ~= job.armCount) then return false end
+  if armed ~= nil and (armed.isArmed() == true or armed.linkUp() == true or armed.changeCount() ~= job.armCount) then
+    return false
+  end
   return modelFile() == job.modelFile
 end
 
@@ -769,6 +779,27 @@ function JOB_STAGES.backup(job)
   local restoring = job.kind == "restore"
   if not restoring and job.encode == nil then job.encode = store.newEncode(job.plan, job.modelFile) end
   if not restoring and not store.encodeStep(job.encode, ENCODE_SLICE) then return end
+  -- Before the card: the record of the set-up before this one is the only way back to its lines, and it
+  -- is not to be replaced for a write that will not happen.
+  if not mayGoOn(job) then
+    logJob("warn", "setup job stopped before the record: armed or another model")
+    finishJob(restoring and t(i18n, "restore_setup", "Restore previous setup") or t(i18n, "plan_title", "Set up radio"),
+      t(i18n, "plan_stopped_early", "Stopped: a receiver or flight controller came up, or another radio model was selected. Nothing was changed."))
+    return
+  end
+  -- The answer may have stood for a while, and a restore's deletions clear whatever stands there. Its own
+  -- pass: this reads the model's state.
+  if restoring and job.record.state == "complete" and job.rechecked ~= true then
+    job.rechecked = true
+    if not store.stillCarries(radio(), job.record) then
+      logJob("info", "setup job: restore refused, the model changed during the question")
+      ui.recordChecked = false
+      ui.recordOffer = false
+      finishJob(t(i18n, "restore_setup", "Restore previous setup"),
+        t(i18n, "restore_changed", "This radio model changed since the set-up; nothing was restored."))
+    end
+    return
+  end
   local saved
   if restoring then
     saved = store.markState(job.modelFile, "partial")
@@ -796,7 +827,7 @@ function JOB_STAGES.write(job)
     logJob("warn", "setup job stopped: armed or another model, %d step(s) done", job.apply.at - 1)
     modelWritten()
     finishJob(title, t(i18n, "plan_stopped",
-      "Stopped: the model was armed or another radio model was selected. Restore previous setup puts it back."))
+      "Stopped: a receiver or flight controller came up, or another radio model was selected. Restore previous setup puts it back."))
     return
   end
   if not Plan.applyStep(job.apply, WRITE_SLICE) then return end
@@ -806,10 +837,17 @@ function JOB_STAGES.write(job)
     if job.apply.stopped then
       finishJob(title, t(i18n, "restore_failed", "The radio refused part of the restore; the saved setup is kept"))
     else
+      local note = ""
       if not ensureBackup().remove(job.modelFile) then
         logJob("warn", "setup job: the record could not be removed after the restore")
+        -- Still `partial` it would offer this restore again and refuse a set-up. `complete` is offered only
+        -- while the model carries what that set-up wrote, which it no longer does.
+        if not ensureBackup().markState(job.modelFile, "complete") then
+          logJob("warn", "setup job: the record could not be retired either")
+        end
+        note = " " .. t(i18n, "restore_not_removed", "The saved setup could not be deleted from the card.")
       end
-      finishJob(title, t(i18n, "restore_done", "Previous setup restored") .. storeRestored(job.modelFile))
+      finishJob(title, t(i18n, "restore_done", "Previous setup restored") .. note .. storeRestored(job.modelFile))
     end
   elseif job.apply.stopped then
     finishJob(title, string.format("%s (%d/%d)",
@@ -829,18 +867,42 @@ end
 function JOB_STAGES.read(job)
   local i18n = ui.i18n
   local store = ensureBackup()
-  if job.parse == nil then
-    job.modelFile = modelFile()
-    job.parse = store.newParse(job.modelFile)
+  local title = t(i18n, "restore_setup", "Restore previous setup")
+  if job.record == nil then
     if job.parse == nil then
-      finishJob(t(i18n, "restore_setup", "Restore previous setup"),
-        t(i18n, "restore_failed", "The radio refused part of the restore; the saved setup is kept"))
-      return
+      job.modelFile = modelFile()
+      job.parse = store.newParse(job.modelFile)
+      if job.parse == nil then
+        finishJob(title, t(i18n, "restore_failed", "The radio refused part of the restore; the saved setup is kept"))
+        return
+      end
     end
+    if not store.parseStep(job.parse, PARSE_SLICE) then return end
+    job.record = job.parse.record
+    job.parse = nil
+    return
   end
-  if not store.parseStep(job.parse, PARSE_SLICE) then return end
-  job.plan = store.restorePlan(radio(), job.parse.record)
-  job.parse = nil
+  if job.checked ~= true then
+    -- Its own pass: the model's state is read here. A damaged record cannot put anything back and, kept,
+    -- would refuse every set-up, so it goes. The offer was read when the page opened; a function script
+    -- or another widget can have changed the model since. A `partial` record is restored whatever stands.
+    job.checked = true
+    if not store.isWhole(job.record) then
+      local removed = store.remove(job.modelFile)
+      logJob("warn", "setup job: the record is damaged, removed %s", tostring(removed))
+      ui.recordChecked = false
+      ui.recordOffer = false
+      finishJob(title, removed and t(i18n, "restore_damaged", "The saved setup is damaged and was discarded; nothing was changed.")
+        or t(i18n, "restore_damaged_kept", "The saved setup is damaged and could not be deleted; delete it from the card."))
+    elseif job.record.state == "complete" and not store.stillCarries(radio(), job.record) then
+      logJob("info", "setup job: restore refused, the model changed since the set-up")
+      ui.recordChecked = false
+      ui.recordOffer = false
+      finishJob(title, t(i18n, "restore_changed", "This radio model changed since the set-up; nothing was restored."))
+    end
+    return
+  end
+  job.plan = store.restorePlan(radio(), job.record)
   job.stage = "ask"
   requestRebuild()
 end
@@ -887,6 +949,12 @@ local function offerSetup(i18n)
       title = t(i18n, "plan_title", "Set up radio"),
       message = t(i18n, "plan_armed", "Not while the model is armed.")
     }
+  elseif linkUp() then
+    logJob("info", "setup job: set-up refused, the link is up")
+    ui.jobResult = {
+      title = t(i18n, "plan_title", "Set up radio"),
+      message = t(i18n, "plan_connected", "Not while a receiver or flight controller is connected; power it off first.")
+    }
   else
     logJob("debug", "setup job: set-up started")
     ui.job = { kind = "setup", stage = "plan" }
@@ -899,6 +967,12 @@ local function offerRestore(i18n)
     ui.jobResult = {
       title = t(i18n, "restore_setup", "Restore previous setup"),
       message = t(i18n, "plan_armed", "Not while the model is armed.")
+    }
+  elseif linkUp() then
+    logJob("info", "setup job: restore refused, the link is up")
+    ui.jobResult = {
+      title = t(i18n, "restore_setup", "Restore previous setup"),
+      message = t(i18n, "plan_connected", "Not while a receiver or flight controller is connected; power it off first.")
     }
   else
     logJob("debug", "setup job: restore started")
@@ -1270,7 +1344,11 @@ local function buildTrims(children, x, y, w, i18n)
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     trimsLabel,
     ui.runtime.getBoolGetter("trims"),
-    ui.runtime.getBoolSetter("trims"),
+    function(value)
+      -- The check claims trims only while they drive the surface, so its verdict was about the other value.
+      ui.checkDone = false
+      ui.runtime.getBoolSetter("trims")(value)
+    end,
     nil,
     {
       helpText = t(i18n, "help_trims",
