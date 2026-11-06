@@ -25,6 +25,7 @@ end
 local Common = nil
 local Controls = nil
 local Setup = nil
+local Plan = nil
 local Backup = nil
 local LoadingOverlay = nil
 local Armed = nil
@@ -583,15 +584,31 @@ local function requestRebuild()
   if type(ui.requestRebuild) == "function" then ui.requestRebuild() end
 end
 
+--- A step of a job, in the log. Built only when the level passes: a slice runs every pass.
+local function logJob(level, fmt, ...)
+  local log = (_G.rfsuite.require or loadModule)("lib/log.lua")
+  if type(log) == "table" and type(log.wanted) == "function" and log.wanted(level) then
+    log.emit("rfsuite.inflight", string.format(fmt, ...), level)
+  end
+end
+
 local function ensureArmed()
   if Armed == nil then Armed = (_G.rfsuite.require or loadModule)("lib/armed.lua") end
   return Armed
 end
 
+local function ensurePlan()
+  if Plan == nil then
+    Plan = loadModule("widgets/dashboard/inflight/setup_plan.lua")
+    Plan.bind(Setup, (_G.rfsuite.require or loadModule)("lib/log.lua"))
+  end
+  return Plan
+end
+
 local function ensureBackup()
   if Backup == nil then
     Backup = loadModule("widgets/dashboard/inflight/setup_backup.lua")
-    Backup.bind(Setup)
+    Backup.bind(ensurePlan())
   end
   return Backup
 end
@@ -609,6 +626,7 @@ local function isArmed()
 end
 
 local function finishJob(title, message)
+  logJob("info", "setup job ended: %s", tostring(message))
   ui.job = nil
   ui.jobResult = { title = title, message = message }
   requestRebuild()
@@ -647,10 +665,13 @@ function JOB_STAGES.plan(job)
     return
   end
   if job.planJob == nil then
-    job.planJob = Setup.newPlanJob(radio(), ui.config, trimNames())
+    job.planJob = ensurePlan().newPlanJob(radio(), ui.config, trimNames())
     job.modelFile = modelFile()
   end
-  if not Setup.planStep(job.planJob, PLAN_SLICE) then return end
+  if not Plan.planStep(job.planJob, PLAN_SLICE) then
+    logJob("trace", "setup job: plan stage %s", tostring(job.planJob.stage))
+    return
+  end
   local plan = job.planJob.plan
   job.planJob = nil
   job.plan = plan
@@ -661,6 +682,7 @@ function JOB_STAGES.plan(job)
     finishJob(t(i18n, "plan_title", "Set up radio"),
       t(i18n, "plan_nothing", "This radio model already carries this setup; nothing to write."))
   else
+    logJob("info", "setup job: asks, %d step(s) planned", #plan.gvars + #plan.deletions + #plan.insertions + #plan.trims)
     job.stage = "ask"
     requestRebuild()
   end
@@ -682,7 +704,8 @@ function JOB_STAGES.backup(job)
       t(i18n, "plan_no_backup", "The restore data could not be saved; nothing was changed."))
     return
   end
-  job.apply = Setup.newApplyJob(radio(), job.plan)
+  logJob("info", "setup job: record on the card, kept from before %s", tostring(job.keptRecord))
+  job.apply = ensurePlan().newApplyJob(radio(), job.plan)
   job.stage = "write"
   requestRebuild()
 end
@@ -693,19 +716,22 @@ function JOB_STAGES.write(job)
   local title = restoring and t(i18n, "restore_setup", "Restore previous setup")
     or t(i18n, "plan_title", "Set up radio")
   if not mayGoOn(job) then
+    logJob("warn", "setup job stopped: armed or another model, %d step(s) done", job.apply.at - 1)
     modelWritten()
     finishJob(title, t(i18n, "plan_stopped",
       "Stopped: the model was armed or another radio model was selected. Restore previous setup puts it back."))
     return
   end
-  if not Setup.applyStep(job.apply, WRITE_SLICE) then return end
+  if not Plan.applyStep(job.apply, WRITE_SLICE) then return end
   local report = job.apply.report
   modelWritten()
   if restoring then
     if job.apply.stopped then
       finishJob(title, t(i18n, "restore_failed", "The radio refused part of the restore; the saved setup is kept"))
     else
-      ensureBackup().remove(job.modelFile)
+      if not ensureBackup().remove(job.modelFile) then
+        logJob("warn", "setup job: the record could not be removed after the restore")
+      end
       finishJob(title, t(i18n, "restore_done", "Previous setup restored"))
     end
   elseif job.apply.stopped then
@@ -715,7 +741,10 @@ function JOB_STAGES.write(job)
   else
     if not job.keptRecord then
       local store = ensureBackup()
-      store.saveText(job.modelFile, store.encode(job.plan, "complete", job.modelFile))
+      if not store.saveText(job.modelFile, store.encode(job.plan, "complete", job.modelFile)) then
+        -- The set-up stands; the record still says partial, so the restore stays on offer.
+        logJob("warn", "setup job: the record could not be marked complete")
+      end
     end
     finishJob(title, string.format("%s (%d)", t(i18n, "plan_done", "Radio set up"), report.written))
   end
@@ -755,7 +784,10 @@ local function stepRecordCheck()
     if state == nil or state == "partial" then
       ui.recordChecked = true
       ui.recordOffer = state == "partial"
-      if not ui.recordOffer then Backup = nil end
+      if not ui.recordOffer then
+        Backup = nil
+        Plan = nil
+      end
       return ui.recordOffer
     end
     ui.recordParse = store.newParse(file)
@@ -766,6 +798,7 @@ local function stepRecordCheck()
   end
   if not store.parseStep(ui.recordParse, PARSE_SLICE) then return false end
   ui.recordOffer = store.stillCarries(radio(), ui.recordParse.record)
+  logJob("debug", "setup job: restore offered %s", tostring(ui.recordOffer))
   ui.recordParse = nil
   ui.recordChecked = true
   return ui.recordOffer
@@ -780,6 +813,7 @@ local function offerSetup(i18n)
       message = t(i18n, "plan_armed", "Not while the model is armed.")
     }
   else
+    logJob("debug", "setup job: set-up started")
     ui.job = { kind = "setup", stage = "plan" }
   end
   requestRebuild()
@@ -792,6 +826,7 @@ local function offerRestore(i18n)
       message = t(i18n, "plan_armed", "Not while the model is armed.")
     }
   else
+    logJob("debug", "setup job: restore started")
     ui.job = { kind = "restore", stage = "read" }
   end
   requestRebuild()
@@ -837,7 +872,7 @@ local function appendJobBox(children, x, y, w, h, i18n)
             local armed = ensureArmed()
             job.armCount = armed and armed.changeCount() or 0
             job.stage = restoring and "write" or "backup"
-            if restoring then job.apply = Setup.newApplyJob(radio(), job.plan) end
+            if restoring then job.apply = ensurePlan().newApplyJob(radio(), job.plan) end
             requestRebuild()
           end
         }
@@ -1407,6 +1442,7 @@ function M.onClose()
   Controls = nil
   Common = nil
   Setup = nil
+  Plan = nil
   Backup = nil
   LoadingOverlay = nil
   Armed = nil

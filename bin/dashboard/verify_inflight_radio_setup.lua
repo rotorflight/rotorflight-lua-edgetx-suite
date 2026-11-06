@@ -117,7 +117,9 @@ loadScript = function(path) return loadfile(path) end
 
 local Setup = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/inflight/setup.lua"))()
 local Backup = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/inflight/setup_backup.lua"))()
-Backup.bind(Setup)
+local Plan = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/inflight/setup_plan.lua"))()
+Plan.bind(Setup, rfsuite.require("lib/log.lua"))
+Backup.bind(Plan)
 
 local function settings(extra)
   local s = Setup.loadRadioSettings({ inflight = extra or {} })
@@ -164,14 +166,14 @@ local function sameTable(a, b, where)
 end
 
 local function runPlan(radio, config)
-  local job = Setup.newPlanJob(radio, config, nil)
-  local worst, passes = worstSlice(function() return Setup.planStep(job, PLAN_SLICE) end)
+  local job = Plan.newPlanJob(radio, config, nil)
+  local worst, passes = worstSlice(function() return Plan.planStep(job, PLAN_SLICE) end)
   return job.plan, worst, passes
 end
 
 local function runApply(radio, plan)
-  local job = Setup.newApplyJob(radio, plan)
-  local worst, passes = worstSlice(function() return Setup.applyStep(job, WRITE_SLICE) end)
+  local job = Plan.newApplyJob(radio, plan)
+  local worst, passes = worstSlice(function() return Plan.applyStep(job, WRITE_SLICE) end)
   return job, worst, passes
 end
 
@@ -204,12 +206,12 @@ do
   check(#plan.deletions == 60 and plan.deletions[1].line0 == 29, "deletions run highest first")
 
   -- The whole plan at once gives the same answer: the standalone tool's and the old call's.
-  local whole = Setup.plan(radio, config, nil)
+  local whole = Plan.plan(radio, config, nil)
   check(#whole.deletions == #plan.deletions and whole.ls.slot == plan.ls.slot, "plan() is the same plan")
 
   -- A slot something names is not taken.
   world.cf[0] = { switch = LS_BASE + MAX_LS - 1, value = 0 }
-  local named = Setup.plan(radio, config, nil)
+  local named = Plan.plan(radio, config, nil)
   check(named.ls.slot == MAX_LS - 2, "a named slot is left alone, got " .. tostring(named.ls.slot))
 end
 
@@ -217,10 +219,10 @@ end
 do
   world = freshWorld()
   local radio = Setup.radio()
-  local refused = Setup.plan(radio, settings({ bank_gvar = 3, value_gvar = 3 }), nil)
+  local refused = Plan.plan(radio, settings({ bank_gvar = 3, value_gvar = 3 }), nil)
   check(refused.ok ~= true and refused.refused == "same_gvar", "the same variable twice is refused")
   for k = 0, MAX_LS - 1 do world.ls[k] = { func = 1, v1 = 1, v2 = 1, v3 = 0, ["and"] = 0, delay = 0, duration = 0 } end
-  local full = Setup.plan(radio, settings(), nil)
+  local full = Plan.plan(radio, settings(), nil)
   check(full.refused == "no_ls", "no free slot is refused")
 
   world = freshWorld()
