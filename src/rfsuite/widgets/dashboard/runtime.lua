@@ -5116,7 +5116,7 @@ function Runtime.new(zone, options)
       end
       widgetLog(self, utils.withResources("FBL reconnect edge: reset dashboard session state"), "info")
     elseif not isFblConnected and wasFblConnected then
-      if self._recordingOn then
+      if self._recordingOn ~= false then
         utils.milestone("rfsuite.widget", "FBL link lost, phase %s", tostring(self.flightMode))
       end
       -- The event history's two memos go with the connection: the next one starts its governor
@@ -5261,7 +5261,7 @@ function Runtime.new(zone, options)
       -- runs this work whatever is queued.
       self._job = nil
     else
-      if nextMode ~= self.flightMode and self._recordingOn then
+      if nextMode ~= self.flightMode and self._recordingOn ~= false then
         utils.milestone("rfsuite.widget", "phase %s -> %s: armed=%s, connected=%s, ready=%s",
           tostring(self.flightMode), tostring(nextMode), tostring(self.state.armed),
           tostring(isFblConnected), tostring(self.connectionReady))

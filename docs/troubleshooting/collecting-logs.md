@@ -140,7 +140,7 @@ Every line starts with the part of the suite that wrote it, its tag, then its le
 | `rfsuite.events`, `rfsuite.tasks.…` | The connect sequence and the arm and disarm tasks, each with its time and memory. |
 | `rfsuite.sensors` | Which telemetry source was taken, or, while connected, that none was found; once per connection. |
 | `rfsuite.audio`, `rfsuite.inflight` | Announcements, and the in-flight tuning surface. |
-| `rfsuite.require` | A module that did not load and, at *DEBUG*, a few seconds after the dashboard starts, each module loaded with the Lua memory before and after it, and each released. A module that loads others carries their memory in its figure. |
+| `rfsuite.require` | A module that did not load and, at *DEBUG*, a few seconds after the dashboard starts, each module loaded with the Lua memory before and after it, and each released one by one; closing the tool says how many it dropped. A module that loads others carries their memory in its figure. |
 
 **What is using the resources.** At *INFO*, the state line every five seconds says how much of the
 budget the dashboard used and on what, and the milestones carry the memory figures. Compare a figure
@@ -150,6 +150,11 @@ raised the five-second peak, from half the budget up, and each `… built:` line
 **Where a problem began.** Look for the first `error` or `warn` line, then read the lines before it
 at the level you recorded. A phase line, a theme line or `waiting:` says what the dashboard was doing.
 At *TRACE* over the serial port the same stretch shows each read and each build starting.
+
+**Which part of the suite writes what.** The lines that follow the dashboard's own five-second report
+(each module loaded or released, a view, a press, a tool step, the armed edge, a phase, the link lost)
+come from the Lua state the dashboard runs in, and a level changed on the radio reaches them within
+five seconds. The tool started from the *Tools* menu and the background decoder have lines of their own.
 
 **What a level costs.** With the log off, the dashboard builds none of these lines but its errors,
 warnings and base milestones. *TRACE* writes lines every second and adds to what it measures, so

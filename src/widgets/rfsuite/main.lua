@@ -17,6 +17,8 @@ local function logCreateFailure(err)
   if type(Log) == "table" and type(Log.emit) == "function" then
     pcall(Log.emit, "rfsuite.widget", "dashboard not created: " .. tostring(err), "error")
   end
+  local fault = type(_G) == "table" and _G.rfsuite and _G.rfsuite.logFault
+  if type(fault) == "function" then pcall(fault, "widget.create", err) end
 end
 
 local function create(zone, options)

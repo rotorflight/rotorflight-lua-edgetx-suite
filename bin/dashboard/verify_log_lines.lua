@@ -181,6 +181,10 @@ do
     Sensors.getValue("NoSuchSource" .. i)
   end
   check(count("rfsuite.sensors", miss) == 6, "sensors: the rest on later reads, each once", count("rfsuite.sensors", miss))
+  -- A duplicate is said once and never asked again, so the limit leaves it alone. The file holds the
+  -- limit's two exempt key shapes literally.
+  local source = assert(io.open(root .. "/src/rfsuite/lib/sensors.lua")):read("a")
+  check(string.find(source, 'string.sub(key, 1, 4) ~= "dup:"', 1, true) ~= nil, "sensors: a duplicate line is outside the limit")
 end
 
 -- ---------------------------------------------------------------------------
@@ -465,6 +469,20 @@ do
   check(#said == 1, "require: a load that keeps failing is said once", #said)
   check(said[1] ~= nil and said[1].level == "error", "require: and it is an error line", said[1] and said[1].level)
 
+  -- A module that raises while it runs is asked for again too.
+  world()
+  begin("off", true)
+  local raising = "lib/raises_for_this_check.lua"
+  local stubForRaise = _G.loadScript
+  _G.loadScript = function(path, mode)
+    if string.find(path, raising, 1, true) then return function() error("raised on load") end end
+    return stubForRaise(path, mode)
+  end
+  for _ = 1, 3 do _G.rfsuite.require(raising) end
+  _G.loadScript = stubForRaise
+  check(#find("rfsuite.require", "error executing") == 1, "require: a module that keeps raising is said once",
+    #find("rfsuite.require", "error executing"))
+
   -- A load and a release, at debug and not at off.
   local function loadCase(level, expected)
     world()
@@ -595,6 +613,14 @@ do
       if string.match(phases[i].msg, "^phase %S+ %-> %S+") then phaseLines[#phaseLines + 1] = phases[i] end
     end
     local created = find("rfsuite.widget", "dashboard created")
+    -- tasks/events/runtime.lua: the armed edge is a step, behind the flag the dashboard's pass raises.
+    local armedEdge = find("rfsuite.events", "armed edge: running")
+    if level == "debug" then
+      check(#armedEdge >= 2, label .. ": the arm and the disarm edge are said", #armedEdge)
+      check(armedEdge[1] ~= nil and armedEdge[1].level == "debug", label .. ": as debug lines", armedEdge[1] and armedEdge[1].level)
+    else
+      check(#armedEdge == 0, label .. ": the armed edge says nothing below debug", #armedEdge)
+    end
     local built = count("rfsuite.reload", "LVGL BUILD SUCCESS")
     local resolved = count("rfsuite.reload", "resolveTheme:")
 

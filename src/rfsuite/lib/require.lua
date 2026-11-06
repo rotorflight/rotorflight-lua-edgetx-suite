@@ -112,8 +112,13 @@ local function requireModule(path, forceReload)
   if not ok then
     print("[require] Error executing " .. tostring(fullPath) .. ": " .. tostring(result))
     local Log = _G.rfsuite and _G.rfsuite.Log
-    if type(Log) == "table" and type(Log.emit) == "function" then
-      pcall(Log.emit, "rfsuite.require", "error executing " .. tostring(fullPath) .. ": " .. tostring(result), "error", false)
+    local said = _G.rfsuite
+    if type(Log) == "table" and type(Log.emit) == "function" and said then
+      said.requireFailures = said.requireFailures or {}
+      if not said.requireFailures[fullPath] then
+        said.requireFailures[fullPath] = true
+        pcall(Log.emit, "rfsuite.require", "error executing " .. tostring(fullPath) .. ": " .. tostring(result), "error", false)
+      end
     end
     return nil, result
   end

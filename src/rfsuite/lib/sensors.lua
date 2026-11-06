@@ -85,10 +85,13 @@ local debugLineSlot, debugLinesInSlot = nil, 0
 local function debugLog(key, msg)
   if not debugWanted() then return end
   if key and loggedSources[key] then return end
-  local slot = math.floor(nowSeconds() * 5)
-  if slot ~= debugLineSlot then debugLineSlot, debugLinesInSlot = slot, 0 end
-  if debugLinesInSlot >= DEBUG_LINES_PER_SLOT then return end
-  debugLinesInSlot = debugLinesInSlot + 1
+  -- Only the lines a later read asks for again: a duplicate or a promotion is said once.
+  if key and string.sub(key, 1, 4) ~= "dup:" and string.sub(key, 1, 17) ~= "telemetry-promote" then
+    local slot = math.floor(nowSeconds() * 5)
+    if slot ~= debugLineSlot then debugLineSlot, debugLinesInSlot = slot, 0 end
+    if debugLinesInSlot >= DEBUG_LINES_PER_SLOT then return end
+    debugLinesInSlot = debugLinesInSlot + 1
+  end
   if key then loggedSources[key] = true end
   if not taggedLog then
     local L = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
