@@ -38,7 +38,7 @@ local Schemes = assert(loadfile("src/rfsuite/lib/color_schemes.lua"))()
 local NAMES = { "light", "dark" }
 local allowed, expectedPage, expectedLogo = {}, {}, {}
 do
-  -- 0xRRGGBB as this harness's lcd.RGB stands in for it. Taken before colors() converts in place.
+  -- 0xRRGGBB through the stubbed lcd.RGB. Taken before colors() converts in place.
   local raw = {}
   for _, name in ipairs(NAMES) do
     raw[name] = {}
