@@ -1945,6 +1945,7 @@ end
 --- records nothing. A lost answer does not say what the board did: it may have taken the profile while
 --- the pack before stands, until the next connection reads the board again or a pick moves it.
 local function batteryPickApplyStep(self)
+  if self._traceOn then Log.emitf("rfsuite.widget.view", "trace", "battery pick: applying") end
   local pick = self.state.batteryPick
   local BatteryPick = requireModule("lib/battery_pick.lua")
   if type(BatteryPick) ~= "table" then

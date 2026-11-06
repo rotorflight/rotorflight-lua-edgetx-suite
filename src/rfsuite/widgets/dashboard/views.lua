@@ -53,6 +53,14 @@ local function viewLog(msg)
   end
 end
 
+-- A view opening, closing or failing to load. Reached by a press or a condition's rise, never on
+-- an ordinary pass, so the arguments are built without asking first.
+local function viewStep(fmt, ...)
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.widget.view", "debug", fmt, ...)
+  end
+end
+
 -- How deep the stack may grow. A push beyond it is refused rather than dropping the bottom
 -- entry: a view that silently disappeared from under the others would be a way back that no
 -- longer leads anywhere.
@@ -405,6 +413,7 @@ local function push(widget, id, auto)
   stack[#stack + 1] = { id = id, auto = auto and true or nil }
   stack.refused = nil
   widget._viewStack = stack
+  viewStep("%s opened (%s), %d on the stack", tostring(id), auto and "its condition rose" or "asked for", #stack)
   return true
 end
 
@@ -413,6 +422,7 @@ end
 local function pop(widget)
   local stack = widget._viewStack
   if stack == nil then return end
+  viewStep("%s closed, %d left on the stack", tostring(stack[#stack] and stack[#stack].id), math.max(#stack - 1, 0))
   stack[#stack] = nil
   stack.refused = nil
 end
@@ -475,8 +485,12 @@ function M.load(widget, entry)
   end
   if view == nil then
     view = requireModule(entry.module)
-    if type(view) ~= "table" or type(view.build) ~= "function" then return nil end
+    if type(view) ~= "table" or type(view.build) ~= "function" then
+      viewLog("view '" .. tostring(entry.id) .. "' did not load")
+      return nil
+    end
   end
+  viewStep("%s module loaded", tostring(entry.id))
   entry.loaded = view
   return view
 end
@@ -669,6 +683,7 @@ end
 function M.navigate(widget, after)
   local verb, id = M.parseAction(after)
   if verb == "none" then return end
+  viewStep("press: %s %s", tostring(verb), tostring(id))
   if verb == "openView" then
     local entry = M.find(widget, id)
     if entry == nil or entry.failed then
