@@ -3894,7 +3894,7 @@ return {
         help_nav_trim = "Highlights a parameter inside the current group.",
         help_adj_trim = "Moves the value of the highlighted parameter.",
         help_row_trim = "The trim that moves this row of the surface.",
-        help_setup = "Writes this radio model's two channels, variables and trims as set on this page: check Channels and variables first. Restore previous setup puts back what it replaced.",
+        help_setup = "Writes this radio model's channels, variables and trims as set here; check them first. Restore previous setup puts back what it replaced.",
         active_model = "Active radio model",
         restore_setup = "Restore previous setup",
         restore_ask = "Puts back what the last set-up replaced on this radio model.",

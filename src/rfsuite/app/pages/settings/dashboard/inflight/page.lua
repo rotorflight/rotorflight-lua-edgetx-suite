@@ -985,7 +985,7 @@ local function buildGeneral(children, x, y, w, i18n)
     text = "?",
     press = function()
       onRowHelp(t(i18n, "help_setup",
-        "Writes this radio model's two channels, variables and trims as set on this page: check Channels and variables first. Restore previous setup puts back what it replaced."),
+        "Writes this radio model's channels, variables and trims as set here; check them first. Restore previous setup puts back what it replaced."),
         setupLabel)
     end
   }

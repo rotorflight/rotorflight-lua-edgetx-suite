@@ -3922,7 +3922,7 @@ return {
         help_nav_trim = "Markiert einen Parameter in der aktuellen Gruppe.",
         help_adj_trim = "Verstellt den Wert des markierten Parameters.",
         help_row_trim = "Die Trimmung, die diese Reihe der Oberfläche verstellt.",
-        help_setup = "Schreibt die zwei Kanäle, Variablen und Trimmungen dieses Sendermodells wie auf dieser Seite gesetzt: vorher Kanäle und Variablen prüfen. Vorherige Belegung wiederherstellen stellt zurück, was ersetzt wurde.",
+        help_setup = "Schreibt Kanäle, Variablen und Trimmungen dieses Sendermodells wie hier gesetzt; vorher prüfen. Vorherige Belegung wiederherstellen stellt zurück.",
         active_model = "Aktives Modell am Sender",
         restore_setup = "Vorherige Belegung wiederherstellen",
         restore_ask = "Stellt zurück, was die letzte Einrichtung an diesem Sendermodell ersetzt hat.",
