@@ -151,7 +151,6 @@ local WORST = {
   uptime = ">999:59", firmware = "WWWWWWWWWWWWWWWWWWWW",
 }
 local ELRS_WORST = {
-  { "elrs_last_read", "Last read 99999+ s ago", nil },
   { "elrs_packet_rate", "Packet Rate", "1000Hz Full" },
   { "elrs_telemetry_ratio", "Telemetry Ratio", "1:128" },
   { "elrs_max_power", "Max Power", "25/250 mW" },
@@ -292,8 +291,6 @@ local function moduleFits(kind, boxW, height, labels, knownGeometry, measureCach
       labels and labels.gps_satellites or "Sat")
   end
   if kind == "elrs" then
-    local age = labels and labels.elrs_last_read or "Last read %d s ago"
-    if measure(string.gsub(age, "%%d", "99999+"), SMLSIZE, measureCache) > inner then return false end
     for n = 1, #ELRS_COMPACT_WORST do
       local spec = ELRS_COMPACT_WORST[n]
       local line = (labels and labels[spec[1]] or spec[2]) .. " " .. spec[3] .. "  |  "
@@ -477,12 +474,17 @@ local function scaledGpsValue(gps, key, format, unit, minimum, maximum)
   return string.format(format, value / 10) .. unit
 end
 
+-- How long one read of the radio stands, in getTime() ticks of 10 ms. Nothing here has to be exact
+-- to the second except a model timer, the only field that shows seconds.
+local READ_TICKS, READ_TICKS_SECONDS = 500, 100
+
 local function readValues(cache, items, wantsGpsDetails)
   local selected = cache.selectedItems == items and cache.selectedTypes or nil
   if selected == nil then
     selected = {}
     for i = 1, #(items or {}) do selected[items[i].type] = true end
     cache.selectedItems, cache.selectedTypes = items, selected
+    cache.snapshotTicks = (selected.timer1 or selected.timer2 or selected.timer3) and READ_TICKS_SECONDS or READ_TICKS
   end
   local wantsGps = selected.tx_gps == true
   local dt = (selected.clock or selected.date) and safeCall(getDateTime) or nil
@@ -507,7 +509,7 @@ local function readValues(cache, items, wantsGpsDetails)
     uptime = selected.uptime and (now > 359999999 and ">999:59"
       or string.format("%d:%02d", math.floor(now / 360000), math.floor(now / 6000) % 60)) or nil,
     firmware = selected.firmware and bounded(version, 20) or nil,
-    elrs = selected.elrs and M.elrsText(cache, type(getTime) == "function" and getTime() / 100 or 0) or nil,
+    elrs = selected.elrs and M.elrsText(cache) or nil,
   }
   if wantsGps then
     values._gpsTime = cache.text and cache.text("gps_time_unavailable", "Time status unknown")
@@ -546,10 +548,9 @@ local function readValues(cache, items, wantsGpsDetails)
   return values
 end
 
-function M.setElrsSnapshot(cache, snapshot, now)
+function M.setElrsSnapshot(cache, snapshot)
   local old = cache.elrs
   cache.elrs = snapshot
-  cache.elrsNow = now
   if type(old) ~= "table" or type(snapshot) ~= "table" or old.status ~= snapshot.status or old.readAt ~= snapshot.readAt
       or old.identity ~= snapshot.identity or old.packetRate ~= snapshot.packetRate or old.telemetryRatio ~= snapshot.telemetryRatio
       or old.maxPower ~= snapshot.maxPower or old.dynamic ~= snapshot.dynamic then cache.snapshotAt = nil end
@@ -559,8 +560,20 @@ end
 -- module that is not ELRS, or no device information within the discovery pings.
 local NO_MODULE = { no_crsf = true, not_elrs = true, no_answer = true }
 
-function M.elrsText(cache, now)
+function M.elrsText(cache)
   local snap, text = cache.elrs, cache.text
+  -- A retry while no module answered is not news until it has an answer: the field keeps saying
+  -- so rather than blinking to Reading every few seconds.
+  if type(snap) == "table" and snap.status == "reading" and type(snap.previous) == "table"
+      and NO_MODULE[snap.previous.reason] then
+    snap = snap.previous
+  end
+  -- The same answer in the same language is the same text; a finished read is one table until
+  -- the next read replaces it.
+  if cache.elrsShown == snap and cache.elrsShownBy == text and cache.elrsCompact and cache.elrsShownValue then
+    return cache.elrsShownValue
+  end
+  cache.elrsShown, cache.elrsShownBy = snap, text
   if type(snap) ~= "table" or snap.status == "unavailable" then
     local unavailable
     if type(snap) == "table" and NO_MODULE[snap.reason] then
@@ -568,19 +581,17 @@ function M.elrsText(cache, now)
     else
       unavailable = text and text("elrs_unavailable", "Unavailable") or "Unavailable"
     end
-    cache.elrsCompact = { unavailable, "", "" }
+    cache.elrsCompact = { unavailable, "" }
+    cache.elrsShownValue = unavailable
     return unavailable
   end
   if snap.status == "reading" then
     local reading = text and text("elrs_reading", "Reading") or "Reading"
-    cache.elrsCompact = { reading, "", "" }
+    cache.elrsCompact = { reading, "" }
+    cache.elrsShownValue = reading
     return reading
   end
-  local age = math.max(0, math.floor((now or cache.elrsNow or 0) - (snap.readAt or now or 0)))
-  local ageText = age > 99999 and "99999+" or tostring(age)
-  local ageFormat = text and text("elrs_last_read", "Last read %s s ago") or "Last read %s s ago"
-  ageFormat = string.gsub(ageFormat, "%%d", "%%s")
-  local lines = { string.format(ageFormat, ageText) }
+  local lines = {}
   local fields = {
     { "elrs_packet_rate", "Packet Rate", snap.packetRate },
     { "elrs_telemetry_ratio", "Telemetry Ratio", snap.telemetryRatio },
@@ -605,16 +616,24 @@ function M.elrsText(cache, now)
       .. (text and text("elrs_ratio_short", "TLM") or "TLM") .. " " .. ratio,
     (text and text("elrs_power_short", "Max") or "Max") .. " " .. power .. "  |  "
       .. (text and text("elrs_dynamic_short", "Dyn") or "Dyn") .. " " .. dynamic,
-    lines[1],
   }
-  return table.concat(lines, "\n")
+  cache.elrsShownValue = table.concat(lines, "\n")
+  return cache.elrsShownValue
 end
 
 local function prepareElrsDisplay(cache, values, width)
   values._elrsDisplays = values._elrsDisplays or {}
   if values._elrsDisplays[width] ~= nil then return end
-  local lines = {}
-  for i = 1, #(cache.elrsCompact or {}) do lines[i] = fitLine(cache.elrsCompact[i], width, SMLSIZE) end
+  -- A new read of the radio with the same text fits nothing again: measuring is the dear part.
+  if cache.elrsFitted == nil or cache.elrsFittedFor ~= cache.elrsCompact then
+    cache.elrsFitted, cache.elrsFittedFor = {}, cache.elrsCompact
+  end
+  local lines = cache.elrsFitted[width]
+  if lines == nil then
+    lines = {}
+    for i = 1, #(cache.elrsCompact or {}) do lines[i] = fitLine(cache.elrsCompact[i], width, SMLSIZE) end
+    cache.elrsFitted[width] = lines
+  end
   values._elrsDisplays[width] = lines
 end
 
@@ -666,7 +685,8 @@ function M.snapshot(items, cache, zone)
     cache.gpsDetailText = cache.text
     cache.gpsDetailNeeded = wantsGpsDetails
   end
-  if cache.snapshotValues and now < (cache.snapshotAt or 0) + 100
+  if cache.snapshotValues and cache.snapshotAt and cache.selectedItems == items
+      and now < cache.snapshotAt + (cache.snapshotTicks or READ_TICKS)
       and (not wantsGpsDetails or cache.snapshotGpsDetails) then
     return cache.snapshotValues
   end
@@ -817,14 +837,6 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
           end,
           color = textColor, font = box.font }
       end
-      children[#children + 1] = { type = "label", x = x + 8, y = y + row.h - box.detailHeight,
-        w = lineWidth, h = box.detailHeight,
-        text = function()
-          local snap = cache.snapshotValues or values
-          local display = snap._elrsDisplays and snap._elrsDisplays[lineWidth]
-          return display and display[3] or "-"
-        end,
-        color = colors.muted, font = SMLSIZE }
     else
       local valueX = box.detailedGps and x + math.floor(boxW / 2) or x + 8
       local valueY = box.detailedGps and y + 5 or y + box.valueY
@@ -878,8 +890,11 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
         children[#children + 1] = { type = "rectangle", x = batteryX + batteryW,
           y = batteryY + 3, w = terminalW, h = batteryH - 6,
           color = textColor, filled = true }
-        children[#children + 1] = { type = "hline", x = batteryX + 2,
-          y = batteryY + math.floor(batteryH / 2), w = 1, h = batteryH - 4,
+        -- A rectangle, not an hline: a reactive size on a line repaints from the zone's origin to the
+        -- line's end on every pass (lua_lvgl_widget.cpp, LvglWidgetLineBase::setSize compares nothing),
+        -- where a rectangle's lv_obj_set_width returns when the value is the same.
+        children[#children + 1] = { type = "rectangle", x = batteryX + 2,
+          y = batteryY + 2, w = 1, h = batteryH - 4, filled = true,
           size = function()
             local fills = cache.batteryFills
             return fills and fills[batteryW] or 0, batteryH - 4

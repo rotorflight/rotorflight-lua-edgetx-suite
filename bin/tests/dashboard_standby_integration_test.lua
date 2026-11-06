@@ -660,7 +660,7 @@ do
     for i = 1, #Stubs.lvgl.refs do retainedRefs[i] = Stubs.lvgl.refs[i] end
     local batteryGetter = false
     for i = 1, #(retainedTree or {}) do
-      if retainedTree[i].type == "hline" and type(retainedTree[i].size) == "function" then batteryGetter = true end
+      if retainedTree[i].type == "rectangle" and type(retainedTree[i].size) == "function" then batteryGetter = true end
     end
     check(name .. " retained-tree fixture builds the battery tile with its getters",
       retainedWidget._treeKind == "standby" and batteryGetter and #retainedRefs > 0)
@@ -783,7 +783,7 @@ do
   Stubs.tick()
   widget:refresh(0, nil)
   check("identity is cached below one second", calls.identity == identityBefore)
-  for _ = 1, 30 do Stubs.tick() end
+  for _ = 1, 60 do Stubs.tick() end
   widget._job = nil
   widget:refresh(0, nil)
   check("identity refreshes on its bounded cadence", calls.identity > identityBefore)
@@ -1255,6 +1255,31 @@ do
   other._job = nil
   for _ = 1, 2 do Stubs.tick(); other:refresh(0, nil) end
   check("the last standby exit unloads the idle provider", _G.rfsuite.elrs_config == nil)
+  s.restore()
+end
+
+-- A module still starting misses the first pings. The screen keeps saying no module was found and
+-- asks again every ten seconds, one ping each time, until one answers.
+do
+  local s = standbyElrsScenario()
+  s.passes(90)
+  local cache = s.widget._standbyCache
+  check("no module: the first read gives up", cache.elrs.status == "unavailable" and cache.elrs.reason == "no_answer")
+  local pings, said = s.sent(0x28), cache.elrsCompact[1]
+  check("no module: the first read sent its four pings", pings == 4)
+  local retried = false
+  for _ = 1, 110 do
+    s.passes(1)
+    if s.sent(0x28) > pings then retried = true; break end
+  end
+  check("no module: another ping within ten seconds and a bit", retried and s.sent(0x28) == pings + 1)
+  check("no module: the field keeps saying so during the retry", s.widget._standbyCache.elrsCompact[1] == said)
+  Stubs.pushFrame(0x29, elrsInfo(1))
+  s.passes(2)
+  Stubs.pushFrame(0x2B, elrsRateEntry(1))
+  s.passes(70)
+  check("a module that answers a retry is shown", s.widget._standbyCache.elrs.packetRate ~= nil
+    and s.widget._standbyCache.elrsCompact[1] ~= said)
   s.restore()
 end
 

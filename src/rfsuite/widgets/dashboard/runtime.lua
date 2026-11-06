@@ -81,8 +81,7 @@ local function cancelStandbyElrs(self, reason)
     config.cancel(self._standbyElrsOwner, reason)
     if self._standbyCache and self._standbyElrsIdentity and type(config.snapshot) == "function" then
       local Standby = standbyModule(self)
-      local now = type(getTime) == "function" and getTime() / 100 or 0
-      Standby.setElrsSnapshot(self._standbyCache, config.snapshot(self._standbyElrsIdentity), now)
+      Standby.setElrsSnapshot(self._standbyCache, config.snapshot(self._standbyElrsIdentity))
     end
   end
   self._standbyElrsActive = false
@@ -1253,7 +1252,6 @@ local function standbyTexts(self, items, infoKind)
     elrs_reading = t("widgets.dashboard.standby.elrs_reading", "Reading"),
     elrs_unavailable = t("widgets.dashboard.standby.elrs_unavailable", "Unavailable"),
     elrs_no_module = t("widgets.dashboard.standby.elrs_no_module", "No ELRS module"),
-    elrs_last_read = t("widgets.dashboard.standby.elrs_last_read", "Last read %d s ago"),
     elrs_packet_rate = t("widgets.dashboard.standby.elrs_packet_rate", "Packet Rate"),
     elrs_telemetry_ratio = t("widgets.dashboard.standby.elrs_telemetry_ratio", "Telemetry Ratio"),
     elrs_max_power = t("widgets.dashboard.standby.elrs_max_power", "Max Power"),
@@ -1344,7 +1342,6 @@ local function prepareStandbyTextCache(self, items)
       texts.elrs_reading = t("widgets.dashboard.standby.elrs_reading", "Reading")
       texts.elrs_unavailable = t("widgets.dashboard.standby.elrs_unavailable", "Unavailable")
       texts.elrs_no_module = t("widgets.dashboard.standby.elrs_no_module", "No ELRS module")
-      texts.elrs_last_read = t("widgets.dashboard.standby.elrs_last_read", "Last read %d s ago")
       texts.elrs_packet_rate = t("widgets.dashboard.standby.elrs_packet_rate", "Packet Rate")
       texts.elrs_telemetry_ratio = t("widgets.dashboard.standby.elrs_telemetry_ratio", "Telemetry Ratio")
       texts.elrs_max_power = t("widgets.dashboard.standby.elrs_max_power", "Max Power")
@@ -5491,18 +5488,27 @@ function Runtime.new(zone, options)
         local Config, CrsfModule = elrsModules(self)
         if Config then
           local identityNow = type(getTime) == "function" and getTime() or 0
-          if self._standbyElrsIdentity == nil or identityNow >= (self._standbyElrsIdentityAt or 0) + 100 then
+          if self._standbyElrsIdentity == nil or identityNow >= (self._standbyElrsIdentityAt or 0) + 500 then
             local identity = Config.currentIdentity()
             self._standbyElrsIdentityAt = identityNow
             if self._standbyElrsIdentity ~= identity then Config.invalidate(identity); self._standbyElrsIdentity = identity end
           end
           local identity = self._standbyElrsIdentity
-          Config.request(identity, { owner = self._standbyElrsOwner, force = self._standbyElrsActive ~= true })
+          -- A module still booting after the radio started misses the first pings, and a finished
+          -- read is kept for good: so while nothing answered, one more ping every ten seconds.
+          local held = self._standbyCache and self._standbyCache.elrs
+          local retry = self._standbyElrsActive == true and type(held) == "table" and held.status == "unavailable"
+            and (held.reason == "no_answer" or held.reason == "no_crsf") and nowSeconds() - (held.readAt or 0) >= 10
+          if retry and Log and type(Log.emitf) == "function" then
+            Log.emitf("rfsuite.widget.standby", "trace", "ELRS: no module so far (%s), trying again", tostring(held.reason))
+          end
+          Config.request(identity, { owner = self._standbyElrsOwner, force = retry or self._standbyElrsActive ~= true,
+            maxPings = retry and 1 or nil })
           self._standbyElrsActive = true
           local snapshot = Config.step({ owner = self._standbyElrsOwner, identity = identity, crsf = CrsfModule,
             push = crossfireTelemetryPush, now = nowSeconds(), allow = true })
           self._standbyCache = self._standbyCache or {}
-          Standby.setElrsSnapshot(self._standbyCache, snapshot, nowSeconds())
+          Standby.setElrsSnapshot(self._standbyCache, snapshot)
         end
         elseif self._standbyElrsActive and self._standbyElrsConfig then
           cancelStandbyElrs(self, "fc_startup")

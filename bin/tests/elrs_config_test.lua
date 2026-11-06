@@ -425,6 +425,18 @@ do
   assert(Config.snapshot("oversize").status == "unavailable", "oversized field was retained")
 end
 do
+  Config.invalidate(nil)
+  local crsf, push, _, sent = transport()
+  drain(crsf)
+  local identity = Config.currentIdentity()
+  assert(Config.request(identity, { owner = "retry", maxPings = 1 }))
+  Config.step({ owner = "retry", identity = identity, crsf = crsf, push = push, now = 10 })
+  Config.step({ owner = "retry", identity = identity, crsf = crsf, push = push, now = 11.1 })
+  local answer = Config.snapshot(identity)
+  assert(#sent == 1 and answer.status == "unavailable" and answer.reason == "no_answer",
+    "a retry is one ping, then no answer")
+end
+do
   local started, finished, pinged, asked = false, false, false, false
   for i = 1, #readLines do
     started = started or string.find(readLines[i], "trace: read started for ", 1, true) ~= nil

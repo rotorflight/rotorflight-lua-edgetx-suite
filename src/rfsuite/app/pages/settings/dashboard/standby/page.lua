@@ -46,7 +46,6 @@ end
 local function fitLabels(i18n)
   local labels = {}
   for i = 1, #Standby.TYPES do local id = Standby.TYPES[i]; labels[id] = typeLabel(i18n, id) end
-  labels.elrs_last_read = t(i18n, "elrs_last_read", "Last read %d s ago")
   labels.elrs_rate_short = t(i18n, "elrs_rate_short", "Rate")
   labels.elrs_ratio_short = t(i18n, "elrs_ratio_short", "TLM")
   labels.elrs_power_short = t(i18n, "elrs_power_short", "Max")

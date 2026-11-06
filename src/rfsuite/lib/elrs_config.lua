@@ -296,7 +296,7 @@ function M.request(identityKey, context)
   logRead("trace", "read started for %s, %s", tostring(owner), quarantine and "draining first" or "discovery ping")
   active = {
     owner = owner, identity = identityKey, generation = generation, status = "reading",
-    sent = 0, pings = 0, phase = quarantine and "drain" or "ping", pingAt = nil,
+    sent = 0, pings = 0, maxPings = context.maxPings or MAX_PINGS, phase = quarantine and "drain" or "ping", pingAt = nil,
     values = {}, fields = {}, buf = {},
   }
   return true, "reading"
@@ -404,7 +404,7 @@ function M.step(context)
     if st.phase == "ping" and (st.pingAt == nil or now - st.pingAt >= PING_RETRY) then
       -- No device information after every discovery ping: no ELRS module answers on this radio.
       -- A send budget spent on a full output buffer says nothing about the module.
-      if st.pings >= MAX_PINGS then finish(st, "unavailable", "no_answer", now); return last end
+      if st.pings >= st.maxPings then finish(st, "unavailable", "no_answer", now); return last end
       if st.sent >= MAX_SENDS then finish(st, "unavailable", "timeout", now); return last end
       st.sent = st.sent + 1
       local ok, queued = pcall(push, DEVICE_PING, { MODULE, RADIO })
