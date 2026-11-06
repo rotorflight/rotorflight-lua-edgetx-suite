@@ -424,6 +424,7 @@ local function traceInstructionUsage(self)
   if self._shmOn == nil then
     self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
     self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
+    _G.rfsuite.logModuleLoads = self._shmOn
   end
 
   self._shmPass = (self._shmPass or 0) + 1
@@ -474,6 +475,7 @@ local function traceInstructionUsage(self)
 
   self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
   self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
+  _G.rfsuite.logModuleLoads = self._shmOn
 
   -- The state line: this state's budget and memory and the radio's, every interval, at INFO so a
   -- log taken for a report carries it. Built only while somebody is recording -- with the log off

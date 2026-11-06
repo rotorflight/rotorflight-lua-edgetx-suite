@@ -440,6 +440,8 @@ do
     local path = "widgets/dashboard/keys.lua"
     _G.rfsuite.clearModule(path)
     begin(level, true)
+    -- The dashboard's first pass raises this; its create runs without it.
+    _G.rfsuite.logModuleLoads = level == "debug"
     _G.rfsuite.require(path)
     local loaded = find("rfsuite.require", "loaded ")
     check(#loaded == expected, "require " .. level .. ": a load is said " .. expected .. " time(s)", #loaded)
@@ -452,6 +454,7 @@ do
   end
   loadCase("off", 0)
   loadCase("debug", 1)
+  _G.rfsuite.logModuleLoads = nil
 
   world()
   begin("info", true)
@@ -464,6 +467,31 @@ do
   check(#resolved == 1, "uid: the file the model's preferences came from is said", #resolved)
   task.wakeup()
   check(#find("rfsuite.tasks.onconnect", "model preferences:") == 1, "uid: and only once", nil)
+end
+
+-- ---------------------------------------------------------------------------
+-- 5c. the widget's entry: a create that stops says so
+-- ---------------------------------------------------------------------------
+
+do
+  world()
+  begin("off", true)
+  control("entry off", "error")
+  local stubLoadScript = _G.loadScript
+  _G.loadScript = function(path, mode)
+    if string.find(path, "dashboard/runtime.lua", 1, true) or string.find(path, "WIDGETS/rfsuite/app.lua", 1, true) then
+      return function() return { new = function() error("CPU limit reached") end } end
+    end
+    return stubLoadScript(path, mode)
+  end
+  local entry = assert(loadfile(root .. "/src/widgets/rfsuite/main.lua"))()
+  local widget = entry.create({ x = 0, y = 0, w = 800, h = 480 }, {})
+  _G.loadScript = stubLoadScript
+  check(widget == nil, "entry: a create that raises hands out no widget", widget)
+  local said = find("rfsuite.widget", "dashboard not created")
+  check(#said == 1, "entry: a create that stops is said once", #said)
+  check(said[1] ~= nil and said[1].level == "error" and contains(said[1].msg, "CPU limit"),
+    "entry: as an error, with the reason", said[1] and said[1].msg)
 end
 
 -- ---------------------------------------------------------------------------

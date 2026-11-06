@@ -12,6 +12,13 @@ if lvgl == nil then
   }
 end
 
+local function logCreateFailure(err)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emit) == "function" then
+    pcall(Log.emit, "rfsuite.widget", "dashboard not created: " .. tostring(err), "error")
+  end
+end
+
 local function create(zone, options)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local requireChunk = loadScript("/SCRIPTS/RFSUITE/core/lib/require.lua", mode)
@@ -25,14 +32,17 @@ local function create(zone, options)
   if not appChunk then return nil end
 
   local ok, res = pcall(appChunk, zone, options)
+  if not ok then logCreateFailure(res) end
   if ok and res ~= nil then
     if type(res) == "function" then
       local okFn, widget = pcall(res, zone, options)
       if okFn then return widget end
+      logCreateFailure(widget)
     elseif type(res) == "table" then
       if type(res.new) == "function" then
         local okNew, widget = pcall(res.new, zone, options)
         if okNew then return widget end
+        logCreateFailure(widget)
       else
         return res
       end

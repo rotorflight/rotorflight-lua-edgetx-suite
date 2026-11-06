@@ -80,13 +80,12 @@ local function requireModule(path, forceReload)
     return modules[fullPath]
   end
 
-  -- What each module costs, for a log read at debug. Asked once per load; a load already takes far
-  -- longer than the question. A module that loads others carries theirs in its figure.
-  local Logger = _G.rfsuite and _G.rfsuite.Log
-  local luaBefore = nil
-  if type(Logger) == "table" and type(Logger.wanted) == "function" and Logger.wanted("debug") then
-    luaBefore = math.floor(collectgarbage("count") + 0.5)
-  end
+  -- What each module costs, for a log read at debug. A module that loads others carries theirs in
+  -- its figure. The dashboard raises this flag from its first pass on (traceInstructionUsage), and
+  -- not in its create, which loads some twenty modules in one call close to the instruction limit:
+  -- a line per load there stopped the widget while it was being created, at debug and trace only.
+  local Logger = _G.rfsuite and _G.rfsuite.logModuleLoads and _G.rfsuite.Log
+  local luaBefore = Logger and math.floor(collectgarbage("count") + 0.5) or nil
 
   local chunk, err = loadScript(fullPath, _G.rfsuite.loadMode)
   if not chunk then
@@ -138,8 +137,8 @@ end
 local function clearModule(path)
   local fullPath = normalizePath(path)
   if fullPath then
-    local Logger = _G.rfsuite and _G.rfsuite.Log
-    if modules[fullPath] ~= nil and type(Logger) == "table" and type(Logger.emitf) == "function" then
+    local Logger = _G.rfsuite and _G.rfsuite.logModuleLoads and _G.rfsuite.Log
+    if Logger and modules[fullPath] ~= nil then
       pcall(Logger.emitf, "rfsuite.require", "debug", "released %s", tostring(fullPath))
     end
     modules[fullPath] = nil
