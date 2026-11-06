@@ -665,6 +665,25 @@ local function middleFace(list, large, small, maxW)
   return large
 end
 
+-- The suite's lists keep their titles for a visit, so what they were measured to is kept with the roll: every
+-- rest of the wheel builds the scene again, and measuring text is the firmware's work.
+local function faceOf(roll, list, large, small, maxW)
+  local first = type(list) == "table" and list[1] or nil
+  if first == nil or first.tree ~= true then return middleFace(list, large, small, maxW) end
+  local faces = roll.faces
+  if faces == nil then
+    faces = {}
+    roll.faces = faces
+  end
+  local key = tostring(first.menuId) .. "#" .. #list
+  local face = faces[key]
+  if face == nil then
+    face = middleFace(list, large, small, maxW)
+    faces[key] = face
+  end
+  return face
+end
+
 -- A row is the same row by its id, and NO BATTERY by its mark.
 local function indexOfRow(rows, row)
   if rows == nil or row == nil then return nil end
@@ -893,8 +912,8 @@ function M.build(children, widget, source, colors)
   }
 
   local markW = 2 * nearH
-  local leftFace = middleFace(leftLevel(roll).rows, midFont, nearFont, colW - 2 * markW)
-  local rightFace = middleFace(rightRows(roll), midFont, nearFont, colW - 2 * markW)
+  local leftFace = faceOf(roll, leftLevel(roll).rows, midFont, nearFont, colW - 2 * markW)
+  local rightFace = faceOf(roll, rightRows(roll), midFont, nearFont, colW - 2 * markW)
 
   -- A row that cannot be pressed reads paler wherever it stands. Only a menu that has such rows pays
   -- for the colour being asked on every pass.

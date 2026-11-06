@@ -321,7 +321,15 @@ local function run(mutate)
     check("a press opens it, not a list", opened[1] ~= nil and opened[1].page == "esc_motors_menu")
   end
   do
-    local w = open()
+    local w, r = open()
+    -- Both lists the suite's: their titles are measured once a visit, not at every build.
+    toSetup(w, r)
+    build(w)
+    local measured, sizeText = 0, _G.lcd.sizeText
+    _G.lcd.sizeText = function() measured = measured + 1; return 1, 16 end
+    build(w)
+    _G.lcd.sizeText = sizeText
+    check("a build at depth does not measure the lists again: " .. measured .. " of " .. #r.levels[3].rows, measured < #r.levels[3].rows)
     local list = Views.session(w).tree.list
     check("Helicopter Setup is called, not unfolded", list.menus.wizards_menu[1].menuId == "helicopter_setup_menu"
       and list.menus.wizards_menu[1].kind == "tiles" and list.menus.helicopter_setup_menu == nil)
@@ -743,6 +751,8 @@ if selfTest then
         return (string.gsub(t, "return Views.visit%(widget, entry.menuId, place%)", "return Views.visit(widget, entry.menuId, Roll.place(roll))", 1)) end },
     { "a covered press waits for ever", function(t)
         return (string.gsub(t, "if getTime%(%) %- opening.at >= OPENING_TICKS then", "if false then", 1)) end },
+    { "every build measures the lists", function(t)
+        return (string.gsub(t, "if first == nil or first.tree ~= true then return middleFace", "if true then return middleFace", 1)) end },
     { "a page opens before the words are drawn", function(t)
         return (string.gsub(t, "if not opening.waited then", "if false then", 1)) end },
     { "a row's kind is lost", function(t)

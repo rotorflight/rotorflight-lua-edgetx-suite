@@ -1643,6 +1643,8 @@ local function viewJobStep(self)
   local view = Views.load(self, entry)
   if view == nil then return true end
   local children = {}
+  local timed = Log and type(Log.wanted) == "function" and Log.wanted("trace") and type(getTime) == "function"
+  local startedAt = timed and getTime() or nil
   if entry.load ~= nil then
     -- A theme's build that raises is given up on as a module that does not load is, rather than
     -- raising out of the step: the dispatcher would clear the job and the next pass queue the
@@ -1661,8 +1663,14 @@ local function viewJobStep(self)
   else
     view.build(children, self)
   end
+  local madeAt = timed and getTime() or nil
   lvgl.clear()
+  local clearedAt = timed and getTime() or nil
   lvgl.build(children)
+  if timed then
+    Log.emit("rfsuite.widget", string.format("view %s built: %d ms in Lua, %d ms clearing, %d ms building",
+      tostring(entry.id), (madeAt - startedAt) * 10, (clearedAt - madeAt) * 10, (getTime() - clearedAt) * 10), "trace")
+  end
   self.built = true
   self._lastChildCount = #children
   -- The state pass keyed this build before the module was loaded, so without the module's own
