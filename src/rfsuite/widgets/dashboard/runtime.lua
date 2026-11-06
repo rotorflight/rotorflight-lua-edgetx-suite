@@ -4918,6 +4918,9 @@ function Runtime.new(zone, options)
       if readDue then
         self._lastTelemetryReadAt = now
         readThisPass = true
+        if self._traceOn then
+          Log.emitf("rfsuite.widget", "trace", "telemetry read, phase %s", tostring(self.flightMode))
+        end
         readTelemetry(self.state, self.audioState)
         -- The snapshot the reactive closures read, rebuilt on the same cadence as the
         -- telemetry read that feeds it -- probing is legal here and nowhere in the sweep.
@@ -5081,7 +5084,12 @@ function Runtime.new(zone, options)
     self.lastFblConnected = isFblConnected
 
     local nextMode = computeFlightMode(self.state)
-    if statusLine ~= nil then self.statusLine = statusLine end
+    if statusLine ~= nil then
+      if statusLine ~= self.statusLine and self._shmOn then
+        Log.emitf("rfsuite.widget.splash", "debug", "waiting: %s", statusLine)
+      end
+      self.statusLine = statusLine
+    end
 
     -- The read has been decided by now, so this is exact rather than predicted: a pass that read
     -- while logic ticks come closer together than the read interval leaves the announcements to

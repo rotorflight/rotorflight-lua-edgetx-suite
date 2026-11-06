@@ -283,10 +283,14 @@ function M.new(category)
     if module.isComplete and module.isComplete() then
       task.complete = true
       invalidateView()
+      local took = task.startTime and (now - task.startTime) or 0
       task.startTime = nil
       task.nextEligibleAt = 0
       releaseTaskModule(task, false)
-      if Log and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, "completed task " .. tostring(task.name), "debug") end
+      if Log and type(Log.emitf) == "function" and Log.wanted("debug") then
+        pcall(Log.emitf, "rfsuite.tasks." .. category, "debug", "completed task %s in %.1f s, lua %d kB",
+          tostring(task.name), took, math.floor(collectgarbage("count") + 0.5))
+      end
       return
     end
 

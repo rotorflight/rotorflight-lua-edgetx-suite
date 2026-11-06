@@ -566,6 +566,9 @@ function Events.wakeup(carry)
           if type(collectgarbage) == "function" then
             collectgarbage("collect")
           end
+          if Log and type(Log.recording) == "function" and Log.recording() then
+            pcall(Log.emit, "rfsuite.events", "after the GC: " .. Log.resources(), "info")
+          end
         end
       end
     end
