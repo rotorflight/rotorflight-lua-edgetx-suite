@@ -598,7 +598,6 @@ function Stubs.install(root)
       collectRefs(children, refs)
       return true
     end,
-    onEvent = function() end,
     -- Present as a function, not called: the tuning screen asks the lvgl table whether this
     -- firmware offers a momentary button and emits a different node type either way. Asking here
     -- is what makes the measured tree the one a colour radio builds.

@@ -50,9 +50,7 @@ RUNTIME_MENUS = {
     "settings_dashboard_settings_menu": ["settings/dashboard/overrides", "settings/dashboard/settings"],
 }
 # A page documented under another file name than its folder.
-PAGE_FILES = {
-    "setup_wizard_retired": "setup_wizard",
-}
+PAGE_FILES = {}
 
 
 def _github_url(config, path, anchor):
