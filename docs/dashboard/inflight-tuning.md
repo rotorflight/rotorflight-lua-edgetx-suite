@@ -35,7 +35,7 @@ On the radio:
 - The RFSuite dashboard widget, opened in full screen; **In-flight tuning** is in its quick menu, or
   on a hardware key bound to it under *System* → *Settings* → *Dashboard* → *Keys*.
 - The preview switch: *System* → *Settings* → *General* → *Preview* → *In-flight tuning*.
-- The master switch under *System* → *Settings* → *Dashboard* → *In-Flight Tuning*, with two
+- The switch under *System* → *Settings* → *Dashboard* → *In-Flight Tuning* on for this radio model, with two
   channels and two global variables the model does not use otherwise (by default channel 11 for
   the bank, channel 12 for the value, GV6 and GV5). Both channels have to reach the flight controller.
 - The model wired for them: **Set up radio** on that page writes the two mixer lines, the
@@ -62,13 +62,14 @@ turn them on), and **Drive rows from the trims** (off by default).
 
 The radio wiring stays in
 [*System* → *Settings* → *Dashboard* → *In-Flight Tuning*](../pages/settings/dashboard/inflight.md):
-the master switch, channels, variables and optional trims.
+the switch for this radio model, channels, variables and optional trims.
 **Set up radio** says which channels and variables it uses and how many lines it replaces before
-writing, and **Restore previous setup** puts them back.
+writing, and **Restore previous setup** puts them back. Both refuse while a receiver or flight controller is connected,
+and **Set up radio** leaves the switch to you: turn it on and save once the model reads **Setup OK**.
 A model set up by an earlier version needs this once more if its value line has no logical
 switch and the check reports **Mixer line missing or wrong**.
 
-A model whose board carries tuning slots is tunable while the radio's master switch is on and
+A model whose board carries tuning slots is tunable while that switch is on for it and
 the tuning fullscreen is open. Open the dashboard in fullscreen, then choose **In-flight tuning**
 from its quick menu. Stored interlock-switch and set-layout values are ignored.
 On the first opening after the widget starts, the previous view stays visible for a few widget

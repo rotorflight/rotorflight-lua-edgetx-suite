@@ -124,6 +124,7 @@ local function channelAlreadySet(radio, channel, mix)
   if (tonumber(have.offset) or 0) ~= 0 then return false end
   if (tonumber(have.curveType) or 0) ~= 0 then return false end
   if (tonumber(have.flightModes) or 0) ~= 0 then return false end
+  if Setup.mixHasTiming(have) then return false end
   return true
 end
 
@@ -421,7 +422,9 @@ function PLAN_STAGES.channels(job, left)
         entry.line0 = entry.line0 + 1
       end
       for line0 = entry.count - 1, 0, -1 do
-        plan.deletions[#plan.deletions + 1] = { channel = entry.channel, line0 = line0 }
+        plan.deletions[#plan.deletions + 1] = {
+          channel = entry.channel, line0 = line0, was = entry.lines[line0 + 1]
+        }
       end
       plan.insertions[#plan.insertions + 1] = {
         channel = entry.channel, line0 = 0, gvar = entry.gvar, role = entry.role, mix = entry.mix
@@ -441,7 +444,9 @@ end
 function PLAN_STAGES.trims(job, left)
   local radio, settings, plan = job.radio, job.settings, job.plan
   if settings.trims == true then
-    local claimed = Setup.claimedTrims(settings, job.trims)
+    -- One trim on two jobs is a fault no write repairs, so nothing is replaced for it.
+    local claimed, twice = Setup.claimedTrims(settings, job.trims)
+    if twice then return refusePlan(job, "trim_claimed_twice") end
     local byMode = Setup.flightModeTrims(radio)
     for fm = 0, MAX_FLIGHT_MODES - 1 do
       if byMode[fm] == nil then break end
@@ -565,6 +570,12 @@ function OP_STEPS.delete(radio, op)
   if radio.mixesCount(entry.channel) ~= entry.line0 + 1 then
     logDrive("setup: CH%d holds another count than expected before line %d", entry.channel, entry.line0 + 1)
     return false, "unexpected count", "delete", entry.channel
+  end
+  -- The same count can hold another line: a line the plan did not read is not in the record, so it is
+  -- not this step's to delete. A restore's own deletions name no line: they clear what stands there.
+  if entry.was ~= nil and not M.sameLine(radio.mix(entry.channel, entry.line0), entry.was) then
+    logDrive("setup: CH%d line %d changed since the plan", entry.channel, entry.line0 + 1)
+    return false, "line changed", "delete", entry.channel
   end
   local text = nil
   if logWanted() then text = describeMix(radio, radio.mix(entry.channel, entry.line0)) end

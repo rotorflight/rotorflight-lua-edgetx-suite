@@ -111,6 +111,21 @@ function M.changeCount()
   return answerChanges
 end
 
+--- Whether anything answers on the link: a flight controller the suite has connected to, or a receiver
+-- whose signal the radio reads. A craft can be powered and spinning with its arming flags unreported, so a
+-- write that must never reach a live model asks this rather than isArmed().
+function M.linkUp()
+  local session = _G.rfsuite and _G.rfsuite.session
+  if type(session) == "table" and session.isConnected == true then return true end
+  ensureSensors()
+  if Sensors and type(Sensors.isSimulator) == "function" and Sensors.isSimulator() then return false end
+  if type(getRSSI) == "function" then
+    local ok, rssi = pcall(getRSSI)
+    if ok and type(rssi) == "number" and rssi > 0 then return true end
+  end
+  return false
+end
+
 --- Whether the armed state cannot be established AT ALL, as opposed to being established as
 -- disarmed.
 function M.isUncertain()

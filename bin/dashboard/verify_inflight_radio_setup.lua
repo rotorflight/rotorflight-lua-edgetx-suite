@@ -360,15 +360,191 @@ do
   check(string.find(Backup.path("a b/c.yml"), "a_b_c.yml", 1, true) ~= nil, "the path is safe")
 end
 
+-- --------------------------------------------------------------------------- on per radio model
+do
+  world = freshWorld()
+  local key = Setup.modelOnKey(world.file)
+  check(key == "on_" .. world.file, "the key is the model file's")
+  check(Setup.modelOnKey(nil) == nil, "no model file, no key")
+  local Preferences = rfsuite.require("lib/preferences.lua")
+  local function settled(section)
+    local prefs = { general = { preview_inflight_tuning = true }, inflight = section }
+    Preferences.settleInflight(prefs)
+    return prefs
+  end
+  check(settled({ [key] = true }).inflight.enabled == true, "on for this radio model")
+  check(settled({ on_other = true }).inflight.enabled == false, "on for another model is off here")
+  check(settled({ enabled = true }).inflight.enabled == false, "the former radio-wide flag does not carry over")
+  local Views = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/views.lua"))()
+  local function widget(section) return { state = {}, preferences = settled(section) } end
+  check(Views.condition("previewInflightTuning", widget({ [key] = true })) == true, "the entry is there")
+  check(Views.condition("previewInflightTuning", widget({})) ~= true, "never switched on: no entry")
+  check(Views.condition("previewInflightTuning", widget({ on_other = true })) ~= true, "on for another model: no entry")
+end
+
+-- --------------------------------------------------------------------------- guards
+do
+  local function plainConfig(extra)
+    local s = { bank_gvar = 4, value_gvar = 5 }
+    for k, v in pairs(extra or {}) do s[k] = v end
+    return settings(s)
+  end
+  local function recordFile() return Backup.path(world.file) end
+  local function readFile(path)
+    local f = io.open(path, "r")
+    local text = f:read("a")
+    f:close()
+    return text
+  end
+  local function writeFile(path, text)
+    local f = io.open(path, "w")
+    f:write(text)
+    f:close()
+  end
+
+  -- Two jobs on one trim: nothing a write repairs, so nothing is replaced.
+  world = freshWorld()
+  for i = 1, 3 do world.mixes[10][i] = fullLine(i) end
+  local twice = plainConfig({ trims = true })
+  twice.trim_mode = Setup.TRIM_MODE_NAVIGATE
+  twice.nav_trim, twice.adj_trim = 1, 1
+  local refused = runPlan(Setup.radio(), twice)
+  check(refused.ok ~= true and refused.refused == "trim_claimed_twice", "two jobs on one trim refuse the plan")
+  check(Plan.newApplyJob(Setup.radio(), refused).done == true, "and nothing can be applied from it")
+
+  -- A delay on a line that is otherwise the set-up's is a line to write, in the plan and in the check.
+  world = freshWorld()
+  local plain = plainConfig()
+  runApply(Setup.radio(), (runPlan(Setup.radio(), plain)))
+  check(runPlan(Setup.radio(), plain).nothing == true, "a line just written leaves nothing to write")
+  world.mixes[plain.value_ch - 1][1].speedUp = 20
+  check(runPlan(Setup.radio(), plain).nothing ~= true, "a slow-up is something to write")
+  check(Setup.mixHasTiming({ delayDown = 1 }) and not Setup.mixHasTiming({ source = 1 }), "timing is read on its terms")
+
+  -- A line replaced after the plan, with the count the same: it stops there and deletes nothing more.
+  world = freshWorld()
+  for i = 1, 3 do world.mixes[10][i] = fullLine(i) end
+  local plan = runPlan(Setup.radio(), plain)
+  saveRecord(plan)
+  local replaced = fullLine(9)
+  world.mixes[10][3] = replaced
+  local job = runApply(Setup.radio(), plan)
+  check(job.stopped == true, "a line changed since the plan stops the write")
+  check(#world.mixes[10] == 3 and world.mixes[10][3].name == replaced.name, "and is not deleted")
+  Backup.remove(world.file)
+
+  -- A record that lost lines between intact first and last lines.
+  world = freshWorld()
+  for i = 1, 3 do world.mixes[10][i] = fullLine(i) end
+  plan = runPlan(Setup.radio(), plain)
+  saveRecord(plan)
+  local function parsed()
+    local parse = Backup.newParse(world.file)
+    Backup.parseStep(parse)
+    return parse.record
+  end
+  check(Backup.isWhole(parsed()), "a record as saved is whole")
+  local text = readFile(recordFile())
+  local function without(prefix, once)
+    local kept, dropped = {}, false
+    for line in string.gmatch(text, "([^\n]*)\n") do
+      if string.sub(line, 1, #prefix) == prefix and not (once and dropped) then dropped = true
+      else kept[#kept + 1] = line end
+    end
+    return table.concat(kept, "\n") .. "\n"
+  end
+  writeFile(recordFile(), without("L\t", true))
+  check(not Backup.isWhole(parsed()), "one saved line missing is seen")
+  writeFile(recordFile(), without("C\t"))
+  check(not Backup.isWhole(parsed()), "a channel missing is seen")
+  writeFile(recordFile(), without("H\t", true))
+  check(not Backup.isWhole(parsed()), "a variable's other half missing is seen")
+  writeFile(recordFile(), (string.gsub(text, "\nL\t([^\n]*)\t[^\t\n]*\n", "\nL\t%1\n", 1)))
+  check(not Backup.isWhole(parsed()), "a line short of a field is seen")
+  writeFile(recordFile(), (string.gsub(text, "\nL\t(%d+)\t(%d+)\t(%d+)\t(%-?%d+)\t", "\nL\t%1\t%2\t%3\t\t", 1)))
+  check(not Backup.isWhole(parsed()), "a saved value emptied is seen by the count")
+  writeFile(recordFile(), (string.gsub(text, "\nL\t(%d+)\t(%d+)\t(%d+)\t(%-?%d)(%d*)\t", "\nL\t%1\t%2\t%3\tx%5\t", 1)))
+  check(not Backup.isWhole(parsed()), "a saved value that is no number is seen")
+  writeFile(recordFile(), (string.gsub(text, "\nG\t(%d)", "\nG\tx", 1)))
+  check(not Backup.isWhole(parsed()), "a variable's index that is no number is seen")
+  writeFile(recordFile(), text)
+  check(Backup.markState(world.file, "complete") and Backup.isWhole(parsed()), "marking a record keeps it whole")
+  text = readFile(recordFile())
+  writeFile(recordFile(), without("S\t", true))
+  check(not Backup.isWhole(parsed()), "any line missing is seen by the count")
+  writeFile(recordFile(), (string.gsub(text, "\nG\t(%d+)\t[^\n]*", "\nG\t%1\tOLD", 1)))
+  check(not Backup.isWhole(parsed()), "a variable cut short is seen")
+  writeFile(recordFile(), without("N\t"))
+  check(Backup.isWhole(parsed()), "a record from before the count still reads")
+  -- Such a record has only its own declarations to go by.
+  local counted = text
+  text = without("N\t")
+  writeFile(recordFile(), without("L\t", true))
+  check(not Backup.isWhole(parsed()), "without the count, one saved line missing is seen")
+  writeFile(recordFile(), without("C\t"))
+  check(not Backup.isWhole(parsed()), "without the count, a channel missing is seen")
+  writeFile(recordFile(), without("H\t", true))
+  check(not Backup.isWhole(parsed()), "without the count, a variable's other half missing is seen")
+  writeFile(recordFile(), (string.gsub(text, "\nL\t([^\n]*)\t[^\t\n]*\n", "\nL\t%1\n", 1)))
+  check(not Backup.isWhole(parsed()), "without the count, a line short of a field is seen")
+  writeFile(recordFile(), (string.gsub(text, "\nG\t(%d+)\t[^\n]*", "\nG\t%1\tOLD", 1)))
+  check(not Backup.isWhole(parsed()), "without the count, a variable cut short is seen")
+  text = counted
+  writeFile(recordFile(), text)
+
+  -- A temporary copy that cannot be deleted is read as the record, so the record is not gone.
+  writeFile(recordFile() .. ".tmp", text)
+  local realDel = del
+  del = function(path)
+    if string.sub(path, -4) == ".tmp" then return 1 end
+    return realDel(path)
+  end
+  check(Backup.remove(world.file) == false, "a temporary copy that stays is said")
+  check(Backup.stateOf(world.file) ~= nil, "and the record is still there")
+  del = realDel
+  check(Backup.remove(world.file) == true and Backup.stateOf(world.file) == nil, "removed once the card lets it")
+
+  -- The set-up does not write popup, so a restore leaves what the pilot has put there since.
+  world = freshWorld()
+  plan = runPlan(Setup.radio(), plain)
+  saveRecord(plan)
+  runApply(Setup.radio(), plan)
+  world.gvars[plain.bank_gvar - 1].popup = true
+  local restore = Backup.restorePlan(Setup.radio(), parsed())
+  runApply(Setup.radio(), restore)
+  check(world.gvars[plain.bank_gvar - 1].popup == true, "a later popup survives the restore")
+  check(world.gvars[plain.bank_gvar - 1].min == -1024, "the variable's range is back")
+  Backup.remove(world.file)
+end
+
+-- --------------------------------------------------------------------------- the link
+do
+  local Armed = assert(loadfile(sourceRoot .. "/rfsuite/lib/armed.lua"))()
+  local realSession, realRssi = rfsuite.session, getRSSI
+  rfsuite.session = { isConnected = false }
+  getRSSI = function() return 0 end
+  check(Armed.linkUp() == false, "nothing on the link")
+  getRSSI = function() return 40 end
+  check(Armed.linkUp() == true, "a receiver answers")
+  getRSSI = function() return 0 end
+  rfsuite.session.isConnected = true
+  check(Armed.linkUp() == true, "a flight controller is connected")
+  rfsuite.session, getRSSI = realSession, realRssi
+end
+
 -- --------------------------------------------------------------------------- the page's job
 do
   SMLSIZE, MIDSIZE, CENTER = 1, 2, 0
   COLOR_THEME_PRIMARY1, COLOR_THEME_SECONDARY1, COLOR_THEME_SECONDARY2 = 1, 2, 3
   lvgl = { UI_ELEMENT_HEIGHT = 32 }
-  local armedNow, armCount, saves = false, 0, 0
+  local armedNow, linkNow, armCount, saves = false, false, 0, 0
   local stubs = {
     ["lib/env.lua"] = { isWidget = function() return true end },
-    ["lib/armed.lua"] = { isArmed = function() return armedNow end, changeCount = function() return armCount end },
+    ["lib/armed.lua"] = {
+      isArmed = function() return armedNow end,
+      linkUp = function() return linkNow end,
+      changeCount = function() return armCount end
+    },
     ["lib/model_name_store.lua"] = { pending = function() return "Own name" end }
   }
   local plain = rfsuite.require
@@ -395,7 +571,7 @@ do
     world = freshWorld()
     for i = 1, 3 do world.mixes[10][i] = fullLine(i) end
     for i = 1, 4 do world.mixes[11][i] = fullLine(i + 3) end
-    prefs, saveFails, armedNow, armCount, saves = { general = {}, inflight = {} }, false, false, 0, 0
+    prefs, saveFails, armedNow, linkNow, armCount, saves = { general = {}, inflight = {} }, false, false, false, 0, 0
     ctx = { preferences = prefs, children = {}, x = 0, y = 62, w = 800, h = 418, i18n = nil,
       requestRebuild = function() end,
       savePreferences = function() saves = saves + 1; return not saveFails end }
@@ -440,6 +616,7 @@ do
     end
     return false
   end
+  local key = Setup.modelOnKey("model7.yml")
 
   -- A set-up: the question, the write, the switch on, the restore on offer, the name the model has.
   fresh()
@@ -454,17 +631,50 @@ do
   check(Backup.stateOf(world.file) == nil or Backup.stateOf(world.file) == "partial", "no complete record yet")
   check(until_button("Close"), "the result comes up")
   check(#world.mixes[10] == 1 and Backup.stateOf(world.file) == "complete", "written, record complete")
+  check(prefs.inflight[key] == nil and prefs.inflight.enabled ~= true, "the set-up turns nothing on")
+  check(saves == 1 and prefs.inflight.bank_ch == 11, "and saves the page's values")
+  check(string.find(labels(), "switch on this page", 1, true) ~= nil, "the result says what is next")
   press("Close")
   pass(40)
   check(find("Restore previous setup") ~= nil, "the restore is on offer")
+
+  -- The switch: greyed until the check passes, on for this model alone, stored by the page's save.
+  local function theSwitch()
+    local seen = false
+    for _, node in ipairs(ctx.children) do
+      if node.type == "label" and node.text == "In-flight tuning on this radio model" then seen = true
+      elseif seen and node.type == "toggle" then return node end
+    end
+  end
+  check(theSwitch() ~= nil, "the switch is drawn")
+  theSwitch().set(true)
+  Page.onSave(ctx)
+  check(prefs.inflight[key] == true, "the switch stores this model's key")
+  check(prefs.inflight.on_other == nil, "and no other model's")
+  theSwitch().set(false)
+  Page.onSave(ctx)
+  check(prefs.inflight[key] == nil, "off removes it")
+  theSwitch().set(true)
+  Page.onSave(ctx)
+
+  -- Nothing left to write: the button says so and still leaves the switch as it is.
+  open()
+  press("Set up radio")
+  check(until_button("Close"), "nothing to write")
+  check(string.find(labels(), "nothing to write", 1, true) ~= nil, "says so")
+  check(prefs.inflight[key] == true, "the switch stays on")
+  press("Close")
 
   -- The restore: marked partial before its first write, cut off, offered again, and it switches off.
   pass(40)
   press("Restore previous setup")
   check(until_button("Restore"), "the restore asks")
   press("Restore")
-  Page.wakeup(ctx); Page.wakeup(ctx)
-  check(Backup.stateOf(world.file) == "partial", "a restore marks the record before it writes")
+  for _ = 1, 10 do
+    if Backup.stateOf(world.file) == "partial" then break end
+    Page.wakeup(ctx)
+  end
+  check(Backup.stateOf(world.file) == "partial" and #world.mixes[10] == 1, "a restore marks the record before it writes")
   Page.onClose()
   Page.getHeaderActions()
   open()
@@ -479,6 +689,7 @@ do
   press("Restore")
   check(until_button("Close"), "restored")
   check(Backup.stateOf(world.file) == nil and #world.mixes[10] == 3 and #world.mixes[11] == 4, "the lines are back")
+  check(prefs.inflight[key] == nil, "the restore turns it off for this model")
   press("Close")
 
   -- Armed: refused at the press, and an arm and disarm during the write stops it.
@@ -493,13 +704,285 @@ do
   press("Set up radio")
   check(until_button("Set up"), "asks")
   press("Set up")
-  Page.wakeup(ctx); Page.wakeup(ctx); build()
+  for _ = 1, 50 do
+    if Backup.stateOf(world.file) ~= nil then break end
+    Page.wakeup(ctx); Page.wakeup(ctx)
+  end
+  build()
+  check(Backup.stateOf(world.file) == "partial", "the record is there before the write")
   armCount = armCount + 2
   check(until_button("Close"), "stops")
   check(string.find(labels(), "Stopped", 1, true) ~= nil, "says it stopped")
   check(Backup.stateOf(world.file) == "partial", "the record stays partial")
+  check(prefs.inflight[key] == nil, "a stopped set-up does not turn it on")
   press("Close")
 
+  -- A switch that cannot be saved is said, not hidden.
+  fresh()
+  saveFails = true
+  open()
+  press("Set up radio")
+  check(until_button("Set up"), "asks")
+  press("Set up")
+  check(until_button("Close"), "done")
+  check(string.find(labels(), "could not be saved", 1, true) ~= nil, "a failed save of the switch is said")
+  Page.onClose()
+  Backup.remove(world.file)
+  Page.getHeaderActions()
+
+  local function readRecordFile()
+    local f = io.open(Backup.path(world.file), "r")
+    local text = f and f:read("a") or nil
+    if f then f:close() end
+    return text
+  end
+  local function setUp()
+    open()
+    press("Set up radio")
+    check(until_button("Set up"), "asks")
+    press("Set up")
+    check(until_button("Close"), "done")
+    press("Close")
+  end
+
+  -- Two jobs on one trim from the page: the button says so, and no line goes.
+  fresh()
+  prefs.inflight = { trims = true, trim_mode = Setup.TRIM_MODE_NAVIGATE, nav_trim = 1, adj_trim = 1 }
+  open()
+  press("Set up radio")
+  check(until_button("Close"), "answers without asking")
+  check(find("Set up") == nil and string.find(labels(), "two different trims", 1, true) ~= nil, "says which fault")
+  check(#world.mixes[10] == 3 and #world.mixes[11] == 4, "no line goes")
+  check(prefs.inflight.enabled ~= true, "and it does not turn tuning on")
+  press("Close")
+  Page.onClose()
+  Page.getHeaderActions()
+
+  -- An arm and disarm after the answer, before the record: the record of the last set-up stands.
+  fresh()
+  setUp()
+  local first = readRecordFile()
+  world.mixes[11][2] = fullLine(8)
+  press("Set up radio")
+  check(until_button("Set up"), "asks again")
+  press("Set up")
+  armCount = armCount + 2
+  check(until_button("Close"), "stops")
+  check(string.find(labels(), "Nothing was changed", 1, true) ~= nil, "says nothing changed")
+  check(readRecordFile() == first, "the last set-up's record is not replaced")
+  check(#world.mixes[11] == 2, "nothing written")
+  press("Close")
+  Page.onClose()
+  Page.getHeaderActions()
+
+  -- A restore whose record cannot be removed: said, and neither offered again nor in the next set-up's way.
+  fresh()
+  setUp()
+  check(until_button("Restore previous setup"), "restore on offer")
+  press("Restore previous setup")
+  check(until_button("Restore"), "asks")
+  press("Restore")
+  -- The record is marked `partial` while the lines are still the set-up's; the card refuses once they are back.
+  local realDel, refused = del, false
+  del = function(path)
+    if not refused and #world.mixes[10] == 3 and #world.mixes[11] == 4 then
+      refused = true
+      return 1
+    end
+    return realDel(path)
+  end
+  check(until_button("Close"), "restored")
+  check(refused, "the card refused the removal")
+  del = realDel
+  check(string.find(labels(), "could not be deleted", 1, true) ~= nil, "a record left on the card is said")
+  check(#world.mixes[10] == 3 and #world.mixes[11] == 4, "the lines are back")
+  check(Backup.stateOf(world.file) ~= "partial", "and it no longer says cut off")
+  press("Close")
+  Page.onClose()
+  Page.getHeaderActions()
+
+  -- A finished set-up's record, the model changed while the page stood open: nothing restored.
+  fresh()
+  setUp()
+  check(until_button("Restore previous setup"), "restore on offer")
+  world.ls[63] = { func = 1, v1 = 1, v2 = 1, v3 = 0, ["and"] = 0, delay = 0, duration = 0, state = false, persistent = false }
+  press("Restore previous setup")
+  check(until_button("Close"), "answers without asking")
+  check(string.find(labels(), "nothing was restored", 1, true) ~= nil, "says the model changed")
+  check(world.ls[63].func == 1, "the changed switch stands")
+  check(Backup.stateOf(world.file) ~= nil, "the record stays")
+  press("Close")
+  Page.onClose()
+  Page.getHeaderActions()
+  Backup.remove(world.file)
+
+  -- A damaged record: nothing changes, it goes, and a set-up is possible again.
+  fresh()
+  setUp()
+  check(until_button("Restore previous setup"), "restore on offer")
+  local text = readRecordFile()
+  local f = io.open(Backup.path(world.file), "w")
+  f:write((string.gsub(text, "\nL\t[^\n]*", "", 1)))
+  f:close()
+  press("Restore previous setup")
+  check(until_button("Close"), "answers without asking")
+  check(string.find(labels(), "damaged", 1, true) ~= nil, "says it is damaged")
+  check(#world.mixes[10] == 1 and #world.mixes[11] == 1, "nothing was changed")
+  check(Backup.stateOf(world.file) == nil, "the record is gone")
+  press("Close")
+  Page.onClose()
+  Page.getHeaderActions()
+
+  -- What a whole page wakeup spends on the model the walk costs most on, the page's own stages included.
+  do
+    worstCaseModel()
+    prefs, saveFails, armedNow, linkNow, armCount, saves = { general = {}, inflight = { trims = true } }, false, false, false, 0, 0
+    ctx.preferences = prefs
+    Backup.remove(world.file)
+    open()
+    local function worstWakeup(done)
+      local worst = 0
+      for _ = 1, 400 do
+        if done() then break end
+        for _ = 1, 2 do
+          local count = 0
+          debug.sethook(function() count = count + 1 end, "", 1)
+          Page.wakeup(ctx)
+          debug.sethook()
+          if count > worst then worst = count end
+        end
+        build()
+      end
+      return worst
+    end
+    press("Set up radio")
+    local planWorst = worstWakeup(function() return find("Set up") ~= nil end)
+    check(find("Set up") ~= nil, "the plan asks on the worst-case model: " .. labels())
+    press("Set up")
+    local writeWorst = worstWakeup(function() return find("Close") ~= nil end)
+    press("Close")
+    check(until_button("Restore previous setup"), "restore on offer")
+    press("Restore previous setup")
+    local readWorst = worstWakeup(function() return find("Restore") ~= nil end)
+    check(find("Restore") ~= nil, "the restore asks")
+    press("Restore")
+    local restoreWorst = worstWakeup(function() return find("Close") ~= nil end)
+    print(string.format("page wakeup, worst-case model: plan %d, write %d, restore read %d, restore write %d instructions",
+      planWorst, writeWorst, readWorst, restoreWorst))
+    local PAGE_LIMIT = 8000
+    check(planWorst <= PAGE_LIMIT and writeWorst <= PAGE_LIMIT, "a set-up's page wakeup stays under the limit")
+    check(readWorst <= PAGE_LIMIT and restoreWorst <= PAGE_LIMIT, "a restore's page wakeup stays under the limit")
+    press("Close")
+    Page.onClose()
+    Page.getHeaderActions()
+    Backup.remove(world.file)
+  end
+
+  -- With anything on the link neither job starts, and one running stops.
+  fresh()
+  open()
+  linkNow = true
+  press("Set up radio")
+  check(string.find(labels(), "flight controller is connected", 1, true) ~= nil, "a set-up is refused on a link")
+  check(#world.mixes[10] == 3 and Backup.stateOf(world.file) == nil, "nothing written, no record")
+  press("Close")
+  linkNow = false
+  press("Set up radio")
+  check(until_button("Set up"), "asks with the link down")
+  press("Set up")
+  for _ = 1, 50 do
+    if Backup.stateOf(world.file) ~= nil then break end
+    Page.wakeup(ctx); Page.wakeup(ctx)
+  end
+  linkNow = true
+  check(until_button("Close"), "stops")
+  check(string.find(labels(), "Stopped", 1, true) ~= nil, "a link coming up stops the write")
+  check(#world.mixes[10] > 0, "with lines left")
+  press("Close")
+  check(find("Restore previous setup") ~= nil or until_button("Restore previous setup"), "restore on offer")
+  press("Restore previous setup")
+  check(string.find(labels(), "flight controller is connected", 1, true) ~= nil, "a restore is refused on a link")
+  press("Close")
+  linkNow = false
+  Page.onClose()
+  Page.getHeaderActions()
+  Backup.remove(world.file)
+
+  -- The model changed while the restore's question stood: nothing restored.
+  fresh()
+  setUp()
+  check(until_button("Restore previous setup"), "restore on offer")
+  press("Restore previous setup")
+  check(until_button("Restore"), "asks")
+  world.ls[63] = { func = 1, v1 = 1, v2 = 1, v3 = 0, ["and"] = 0, delay = 0, duration = 0, state = false, persistent = false }
+  press("Restore")
+  check(until_button("Close"), "answers")
+  check(string.find(labels(), "nothing was restored", 1, true) ~= nil, "says the model changed")
+  check(#world.mixes[10] == 1 and world.ls[63].func == 1, "nothing was touched")
+  press("Close")
+  Page.onClose()
+  Page.getHeaderActions()
+  Backup.remove(world.file)
+
+  -- A damaged record the card will not let go is named, not called discarded.
+  fresh()
+  setUp()
+  check(until_button("Restore previous setup"), "restore on offer")
+  do
+    local damaged = readRecordFile()
+    local f = io.open(Backup.path(world.file), "w")
+    f:write((string.gsub(damaged, "\nL\t[^\n]*", "", 1)))
+    f:close()
+    local realDel = del
+    del = function() return 1 end
+    press("Restore previous setup")
+    check(until_button("Close"), "answers")
+    del = realDel
+    check(string.find(labels(), "could not be deleted", 1, true) ~= nil, "says it could not be deleted")
+    check(#world.mixes[10] == 1, "nothing changed")
+  end
+  press("Close")
+  Page.onClose()
+  Page.getHeaderActions()
+  Backup.remove(world.file)
+
+  -- A slow-up on the value line: the check says so, and the button can answer it.
+  fresh()
+  setUp()
+  open()
+  check(string.find(labels(), "Mixer line missing or wrong", 1, true) == nil, "a line just written passes the check")
+  world.mixes[11][1].speedUp = 20
+  open()
+  check(string.find(labels(), "Mixer line missing or wrong", 1, true) ~= nil, "a line with a slow-up does not")
+  Page.onClose()
+  Page.getHeaderActions()
+  Backup.remove(world.file)
+
+  -- The trims switch changes what the check claims, so the verdict is read again.
+  fresh()
+  setUp()
+  prefs.inflight.trim_mode = Setup.TRIM_MODE_NAVIGATE
+  prefs.inflight.nav_trim, prefs.inflight.adj_trim = 1, 1
+  open()
+  check(string.find(labels(), "two different trims", 1, true) == nil, "with the trims off there is no such fault")
+  local function nodeAfter(labelText, wanted)
+    local seen = false
+    for _, node in ipairs(ctx.children) do
+      if node.type == "label" and node.text == labelText then seen = true
+      elseif seen and wanted(node) then return node end
+    end
+    return nil
+  end
+  local header = nodeAfter("Rows and trims", function(node) return node.type == "button" end)
+  check(header ~= nil, "the trims section has a header")
+  header.press()
+  build()
+  pass(40)
+  local trimsSwitch = nodeAfter("Drive rows from the trims", function(node) return node.type == "toggle" end)
+  check(trimsSwitch ~= nil, "the trims switch is drawn")
+  trimsSwitch.set(true)
+  pass(40)
+  check(string.find(labels(), "two different trims", 1, true) ~= nil, "switched on, the verdict names the fault")
   Page.onClose()
   Backup.remove(world.file)
 end

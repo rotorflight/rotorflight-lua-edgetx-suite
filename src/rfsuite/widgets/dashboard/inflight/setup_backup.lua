@@ -178,6 +178,11 @@ function M.encodeStep(enc, count)
     enc.itemAt = enc.itemAt + 1
   end
   if left <= 0 then return false end
+  -- How many bytes stand between the state line, which changes length as a record is marked, and here: a
+  -- line gone or a value emptied is seen by the count.
+  local bytes = 0
+  for i = 3, #enc.lines do bytes = bytes + #enc.lines[i] + 1 end
+  enc.lines[#enc.lines + 1] = joined("N", bytes)
   enc.lines[#enc.lines + 1] = END_LINE
   enc.text = table.concat(enc.lines, "\n") .. "\n"
   enc.lines, enc.items, enc.plan = nil, nil, nil
@@ -224,7 +229,8 @@ end
 function M.remove(modelFile)
   local path = M.path(modelFile)
   if not path or type(del) ~= "function" then return false end
-  if readAll(path .. ".tmp") ~= nil then del(path .. ".tmp") end
+  -- A temporary copy left behind is read as the record (readRecord), so the record is not gone with it there.
+  if readAll(path .. ".tmp") ~= nil and del(path .. ".tmp") ~= 0 then return false end
   if readAll(path) == nil then return true end
   return del(path) == 0
 end
@@ -280,17 +286,27 @@ function M.parseStep(parse, count)
     left = left - 1
     local f = fieldsOf(line)
     local kind = f[1]
-    if kind == "state" then
+    if kind == "N" then
+      record.declaredBytes = tonumber(f[2])
+      record.bytes = (stop - #line) - parse.afterState
+    elseif kind == "state" then
       record.state = f[2]
+      parse.afterState = stop + 1
     elseif kind == "C" then
-      record.channels[#record.channels + 1] = { channel = tonumber(f[2]), lines = {} }
+      record.channels[#record.channels + 1] = { channel = tonumber(f[2]), declared = tonumber(f[3]), lines = {} }
     elseif kind == "L" then
+      if #f ~= 3 + #Setup.MIX_FIELDS then record.damaged = true end
       local mix = {}
       for i = 1, #Setup.MIX_FIELDS do
         local key, raw = Setup.MIX_FIELDS[i], f[3 + i]
         if key == "name" then mix[key] = raw or ""
         elseif key == "carryTrim" then mix[key] = (raw == "true")
-        else mix[key] = numberOr(raw, 0) end
+        else
+          -- Empty is a field the reader did not answer; anything else has to be a number.
+          local number = tonumber(raw)
+          if number == nil and raw ~= "" and raw ~= nil then record.damaged = true end
+          mix[key] = number or 0
+        end
       end
       for i = 1, #record.channels do
         if record.channels[i].channel == tonumber(f[2]) then
@@ -299,6 +315,7 @@ function M.parseStep(parse, count)
         end
       end
     elseif kind == "W" then
+      if #f ~= 2 + #Setup.MIX_FIELDS then record.damaged = true end
       local mix = {}
       for i = 1, #Setup.MIX_FIELDS do
         local key, raw = Setup.MIX_FIELDS[i], f[2 + i]
@@ -329,6 +346,33 @@ function M.parseStep(parse, count)
     end
   end
   return false
+end
+
+--- Whether a parsed record holds all it says it holds. The first and last lines only say the file was
+-- written to its end; a restore deletes what stands on the channels, so a record missing a line loses it
+-- for good and still reads back as restored.
+function M.isWhole(record)
+  if record.damaged or #record.channels ~= #record.written or #record.gvars ~= #record.details then
+    return false
+  end
+  -- A record from before the count has none to hold against.
+  if record.declaredBytes ~= nil and record.declaredBytes ~= record.bytes then return false end
+  for i = 1, #record.gvars do
+    local entry = record.gvars[i]
+    if entry.index == nil or entry.min == nil or entry.max == nil or entry.prec == nil or entry.unit == nil then
+      return false
+    end
+  end
+  if record.ls ~= nil and (record.ls.slot == nil or record.ls.func == nil) then return false end
+  for i = 1, #record.trims do
+    local entry = record.trims[i]
+    if entry.fm == nil or entry.index == nil or entry.before == nil or entry.after == nil then return false end
+  end
+  for i = 1, #record.channels do
+    local channel = record.channels[i]
+    if channel.channel == nil or channel.declared ~= #channel.lines then return false end
+  end
+  return true
 end
 
 --- Whether the model still carries what the set-up wrote. If anything of it has changed since, the
@@ -377,8 +421,8 @@ function M.restorePlan(radio, record)
       plan.gvars[#plan.gvars + 1] = {
         index = entry.index,
         details = {
-          name = entry.name, min = entry.min, max = entry.max, prec = entry.prec, unit = entry.unit,
-          popup = entry.popup
+          -- No popup: the set-up does not write it, so what it holds now is the pilot's.
+          name = entry.name, min = entry.min, max = entry.max, prec = entry.prec, unit = entry.unit
         }
       }
     end
