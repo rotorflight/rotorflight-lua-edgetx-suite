@@ -6,8 +6,9 @@
 --
 -- The real runtime and the real ui/home.lua on the accounting stubs, with what stands in the LVGL tree
 -- read back: every colour a screen holds is a colour of that scheme, the page is the scheme's page, the
--- logo is the scheme's logo and that file exists, and a saved change of scheme rebuilds a screen that
--- is standing. No pixels, hardware or memory are measured. Exit status: 0 green, 1 failed, 2 bad CLI.
+-- logo is the scheme's logo and that file exists, and a change saved through lib/preferences.lua, as the
+-- settings page saves it, reaches a screen that is standing and rebuilds it. No pixels, hardware or memory
+-- are measured. Exit status: 0 green, 1 failed, 2 bad CLI.
 
 local root = "."
 if #arg == 2 and arg[1] == "--source-root" then
@@ -34,7 +35,7 @@ FC.install(Stubs)
 Stubs.reset()
 FC.reset()
 
-local Schemes = assert(loadfile("src/rfsuite/lib/color_schemes.lua"))()
+local Schemes = assert(loadfile(root .. "/src/rfsuite/lib/color_schemes.lua"))()
 local NAMES = { "light", "dark" }
 local allowed, expectedPage, expectedLogo = {}, {}, {}
 do
@@ -49,7 +50,7 @@ do
     for _, rgb in pairs(raw[name]) do allowed[name][lcd.RGB(rgb)] = true end
     expectedPage[name] = lcd.RGB(raw[name].page)
     expectedLogo[name] = Schemes.LOGOS and Schemes.LOGOS[name] or "?"
-    local file = io.open("src/rfsuite/widgets/dashboard/gfx/" .. expectedLogo[name], "rb")
+    local file = io.open(root .. "/src/rfsuite/widgets/dashboard/gfx/" .. expectedLogo[name], "rb")
     check(file ~= nil, name .. ": its logo file exists", expectedLogo[name])
     if file then file:close() end
   end
@@ -122,15 +123,26 @@ local function cycle(widget, n, event)
   end
 end
 
+local Preferences = assert(_G.rfsuite.require("lib/preferences.lua"))
+local saves = 0
+
+-- What the settings page does: the whole table written, and the widget told by the reload request.
+local function save(name, standby)
+  local prefs = Preferences.load()
+  prefs.general.color_scheme = name
+  prefs.dashboard = prefs.dashboard or {}
+  prefs.dashboard.standby_enabled = standby
+  assert(Preferences.save(prefs))
+  -- The stubs' fstat answers this for every file, so the widget sees the file's status move.
+  saves = saves + 1
+  Stubs.prefsStat = { size = saves, time = { year = 2026, mon = 11, day = 6, hour = 12, min = 0, sec = saves % 60 } }
+end
+
 local function widgetLeg(label, standby, zone, event)
   for _, name in ipairs(NAMES) do
+    save(name, standby)
     local runtime = assert(loadfile(root .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
     local widget = runtime.new(zone, {})
-    widget.preferences = widget.preferences or {}
-    widget.preferences.dashboard = widget.preferences.dashboard or {}
-    widget.preferences.dashboard.standby_enabled = standby
-    widget.preferences.general = widget.preferences.general or {}
-    widget.preferences.general.color_scheme = name
     widget.flightMode = "preflight"
     cycle(widget, 120, event)
     holdsScheme(name, label .. ", " .. name, zone.h >= 100)
@@ -138,8 +150,8 @@ local function widgetLeg(label, standby, zone, event)
     -- The pilot saves the other scheme while the screen stands.
     local other = name == "light" and "dark" or "light"
     clears = 0
-    widget.preferences.general.color_scheme = other
-    cycle(widget, 8, event)
+    save(other, standby)
+    cycle(widget, 120, event)
     check(clears > 0, label .. ", " .. name .. ": a saved scheme rebuilds the screen", clears)
     holdsScheme(other, label .. ", " .. name .. " to " .. other, zone.h >= 100)
   end
@@ -188,7 +200,8 @@ local state = assert(find(Home.run, "state"), "home state missing")
 local M = assert(find(Home.run, "M"), "home module table missing")
 for _, name in ipairs(NAMES) do
   state.initialLoad = true
-  state.preferences.general.color_scheme = name
+  save(name, false)
+  state.preferences = Preferences.load()
   state.startDone, state.startTotal = 3, 8
   Stubs.lvgl.trees = {}
   M.buildUI(true)
