@@ -1,0 +1,321 @@
+-- The radio set-up of in-flight tuning against a stub model: the plan and the write in slices, the
+-- stop on a refused step, and the restore, field by field.
+--
+-- The tool opened from the dashboard runs in the widget's call, which is stopped at 20 000
+-- instructions, so a slice has to fit beside the rest of that pass. The hook counts what one slice
+-- spends the way the firmware bills a widget call.
+debug.getmetatable("").__index = nil
+local sourceRoot = arg[1] or "src"
+local tmpDir = os.tmpname()
+os.remove(tmpDir)
+assert(os.execute("mkdir -p " .. tmpDir))
+
+local checked = 0
+local function check(value, message)
+  checked = checked + 1
+  if not value then
+    print("FAIL " .. message)
+    os.exit(1)
+  end
+end
+
+-- The most a page's slice may spend: the page's own idle pass and the dashboard share the 20 000.
+local SLICE_LIMIT = 6000
+local PLAN_SLICE, WRITE_SLICE, PARSE_SLICE = 32, 4, 8
+
+-- --------------------------------------------------------------------------- the radio
+local MAX_LS, MAX_FM = 64, 9
+local LS_BASE, SOURCE_LS, MIXSRC_MAX_VALUE = 200, 700, 900
+local world
+
+local function freshWorld()
+  local w = { mixes = {}, inputs = {}, ls = {}, cf = {}, fm = {}, gvars = {}, timers = {}, file = "model7.yml", name = "Trainer" }
+  for ch = 0, 31 do w.mixes[ch] = {} end
+  for i = 0, 31 do w.inputs[i] = {} end
+  for k = 0, MAX_LS - 1 do w.ls[k] = { func = 0, v1 = 0, v2 = 0, v3 = 0, ["and"] = 0, delay = 0, duration = 0, state = false, persistent = false } end
+  for k = 0, 63 do w.cf[k] = { switch = 0, value = 0 } end
+  for fm = 0, MAX_FM - 1 do w.fm[fm] = { switch = 0, trimsModes = { 0, 0, 0, 0, 0, 0 } } end
+  for g = 0, 8 do w.gvars[g] = { name = "", min = -1024, max = 1024, prec = 1, unit = 0, popup = false } end
+  for n = 0, 2 do w.timers[n] = { switch = 0 } end
+  return w
+end
+
+local function copyLine(line)
+  local out = {}
+  for k, v in pairs(line) do out[k] = v end
+  return out
+end
+
+local function fullLine(i)
+  return {
+    name = "L" .. i, source = i + 1, weight = 100 - i, offset = i, switch = 0, curveType = 1, curveValue = i,
+    multiplex = 2, flightModes = 3, carryTrim = (i % 2 == 0), mixWarn = 1, delayPrec = 1, delayUp = 2,
+    delayDown = 3, speedPrec = 1, speedUp = 4, speedDown = 5
+  }
+end
+
+local refuseDeleteOn = nil
+
+model = {
+  getInfo = function() return { name = world.name, filename = world.file } end,
+  getMixesCount = function(ch) return #world.mixes[ch] end,
+  getMix = function(ch, line) local l = world.mixes[ch][line + 1]; return l and copyLine(l) or nil end,
+  insertMix = function(ch, line, value) table.insert(world.mixes[ch], line + 1, copyLine(value)) end,
+  deleteMix = function(ch, line)
+    if refuseDeleteOn == ch then return end
+    table.remove(world.mixes[ch], line + 1)
+  end,
+  getInputsCount = function(i) return #world.inputs[i] end,
+  getInput = function(i, line) return world.inputs[i][line + 1] end,
+  getLogicalSwitch = function(k) return copyLine(world.ls[k]) end,
+  setLogicalSwitch = function(k, def)
+    world.ls[k] = { func = 0, v1 = 0, v2 = 0, v3 = 0, ["and"] = 0, delay = 0, duration = 0, state = false, persistent = false }
+    for key, value in pairs(def) do world.ls[k][key] = value end
+  end,
+  getCustomFunction = function(k) return world.cf[k] end,
+  getFlightMode = function(fm)
+    local data = world.fm[fm]
+    if not data then return nil end
+    return { switch = data.switch, trimsModes = copyLine(data.trimsModes) }
+  end,
+  setFlightMode = function(fm, data)
+    for index, value in pairs(data.trimsModes) do world.fm[fm].trimsModes[index] = value end
+    return 0
+  end,
+  getTimer = function(n) return world.timers[n] end,
+  getGlobalVariableDetails = function(g) return copyLine(world.gvars[g]) end,
+  setGlobalVariableDetails = function(g, details)
+    for key, value in pairs(details) do world.gvars[g][key] = value end
+  end,
+  setGlobalVariable = function() end
+}
+getSwitchIndex = function(name) if name == "L01" then return LS_BASE end end
+getSourceIndex = function(name) return 400 + tonumber(string.match(name, "(%d+)")) end
+getSourceName = function(index) return "S" .. tostring(index) end
+getSwitchName = function(index) return "SW" .. tostring(index) end
+getFieldInfo = function(name) if name == "ls1" then return { id = SOURCE_LS } end end
+MIXSRC_MAX = MIXSRC_MAX_VALUE
+LS_FUNC_APOS = 5
+function mkdir(path) return os.execute("mkdir -p " .. path) and 0 or 1 end
+function del(path) return os.remove(path) and 0 or 1 end
+function rename(from, to) return os.rename(from, to) and 0 or 1 end
+
+-- The suite's reads on a radio go through the library form, and io.read takes the file first.
+local realRead = io.read
+io.read = function(file, count) return file:read(count) end
+io.write = function(file, text) return file:write(text) end
+io.close = function(file) return file:close() end
+
+rfsuite = {
+  paths = { core = sourceRoot .. "/rfsuite", user = tmpDir },
+  require = function(path)
+    if path == "lib/log.lua" then return { wanted = function() return false end, emit = function() end } end
+    return assert(loadfile(sourceRoot .. "/rfsuite/" .. path))()
+  end
+}
+loadScript = function(path) return loadfile(path) end
+
+local Setup = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/inflight/setup.lua"))()
+local Backup = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/inflight/setup_backup.lua"))()
+Backup.bind(Setup)
+
+local function settings(extra)
+  local s = Setup.loadRadioSettings({ inflight = extra or {} })
+  return s
+end
+
+--- Run `step` until it answers true, and hand back the largest count one call spent.
+local function worstSlice(step)
+  local worst, passes = 0, 0
+  local finished = false
+  while not finished do
+    local count = 0
+    debug.sethook(function() count = count + 1 end, "", 1)
+    finished = step()
+    debug.sethook()
+    if count > worst then worst = count end
+    passes = passes + 1
+    check(passes < 1000, "a job ends")
+  end
+  return worst, passes
+end
+
+local function snapshot()
+  local out = { mixes = {}, ls = {}, gvars = {}, fm = {} }
+  for ch = 0, 31 do
+    out.mixes[ch] = {}
+    for i, line in ipairs(world.mixes[ch]) do out.mixes[ch][i] = copyLine(line) end
+  end
+  for k = 0, MAX_LS - 1 do out.ls[k] = copyLine(world.ls[k]) end
+  for g = 0, 8 do out.gvars[g] = copyLine(world.gvars[g]) end
+  for fm = 0, MAX_FM - 1 do out.fm[fm] = copyLine(world.fm[fm].trimsModes) end
+  return out
+end
+
+local function sameTable(a, b, where)
+  for k, v in pairs(a) do
+    if type(v) == "table" then
+      sameTable(v, b[k], where .. "." .. tostring(k))
+    else
+      check(b[k] == v, where .. "." .. tostring(k) .. " is " .. tostring(b[k]) .. ", was " .. tostring(v))
+    end
+  end
+  for k in pairs(b) do check(a[k] ~= nil, where .. "." .. tostring(k) .. " is new") end
+end
+
+local function runPlan(radio, config)
+  local job = Setup.newPlanJob(radio, config, nil)
+  local worst, passes = worstSlice(function() return Setup.planStep(job, PLAN_SLICE) end)
+  return job.plan, worst, passes
+end
+
+local function runApply(radio, plan)
+  local job = Setup.newApplyJob(radio, plan)
+  local worst, passes = worstSlice(function() return Setup.applyStep(job, WRITE_SLICE) end)
+  return job, worst, passes
+end
+
+--- The model the walk costs most on: no gate, empty slots, every other table full of references.
+local function worstCaseModel()
+  world = freshWorld()
+  for ch = 0, 31 do
+    for i = 1, 2 do world.mixes[ch][i] = fullLine(i) end
+  end
+  for i = 1, 30 do world.mixes[10][i] = fullLine(i) end
+  for i = 1, 30 do world.mixes[11][i] = fullLine(i) end
+  for i = 0, 31 do world.inputs[i][1] = { switch = 3, source = 4, weight = 1100, offset = 1101, curveValue = 1102 } end
+  for k = 0, MAX_LS - 3 do world.ls[k] = { func = 1, v1 = k, v2 = k + 1, v3 = 0, ["and"] = 2, delay = 0, duration = 0, state = true, persistent = false } end
+  for k = 0, 63 do world.cf[k] = { switch = k + 1, value = k } end
+  for fm = 0, MAX_FM - 1 do world.fm[fm].trimsModes = { fm * 2, fm * 2, fm * 2, fm * 2, fm * 2, fm * 2 } end
+end
+
+-- --------------------------------------------------------------------------- the plan, in slices
+do
+  worstCaseModel()
+  local radio = Setup.radio()
+  local config = settings()
+  local plan, worst, passes = runPlan(radio, config)
+  print(string.format("plan, worst-case model: %d passes, worst slice %d instructions", passes, worst))
+  check(plan.ok == true, "the worst-case model gets a plan")
+  check(worst <= SLICE_LIMIT, "a plan slice stays under the limit, " .. worst)
+  check(passes > 1, "the walk does not take one pass")
+  check(plan.ls ~= nil and plan.ls.slot == MAX_LS - 1, "the gate takes the last empty slot nothing names")
+  check(#plan.channels == 2 and plan.channels[1].removed == 30, "the plan counts the lines per channel")
+  check(#plan.deletions == 60 and plan.deletions[1].line0 == 29, "deletions run highest first")
+
+  -- The whole plan at once gives the same answer: the standalone tool's and the old call's.
+  local whole = Setup.plan(radio, config, nil)
+  check(#whole.deletions == #plan.deletions and whole.ls.slot == plan.ls.slot, "plan() is the same plan")
+
+  -- A slot something names is not taken.
+  world.cf[0] = { switch = LS_BASE + MAX_LS - 1, value = 0 }
+  local named = Setup.plan(radio, config, nil)
+  check(named.ls.slot == MAX_LS - 2, "a named slot is left alone, got " .. tostring(named.ls.slot))
+end
+
+-- --------------------------------------------------------------------------- refusals and comparator
+do
+  world = freshWorld()
+  local radio = Setup.radio()
+  local refused = Setup.plan(radio, settings({ bank_gvar = 3, value_gvar = 3 }), nil)
+  check(refused.ok ~= true and refused.refused == "same_gvar", "the same variable twice is refused")
+  for k = 0, MAX_LS - 1 do world.ls[k] = { func = 1, v1 = 1, v2 = 1, v3 = 0, ["and"] = 0, delay = 0, duration = 0 } end
+  local full = Setup.plan(radio, settings(), nil)
+  check(full.refused == "no_ls", "no free slot is refused")
+
+  world = freshWorld()
+  local config = settings()
+  local plan = runPlan(radio, config)
+  runApply(radio, plan)
+  local again = runPlan(radio, config)
+  check(again.nothing == true, "a model set up has nothing left to write")
+end
+
+-- --------------------------------------------------------------------------- the write stops
+do
+  world = freshWorld()
+  for i = 1, 3 do world.mixes[10][i] = fullLine(i) end
+  for i = 1, 3 do world.mixes[11][i] = fullLine(i) end
+  local radio = Setup.radio()
+  local plan = runPlan(radio, settings())
+  refuseDeleteOn = 10
+  local job = runApply(radio, plan)
+  refuseDeleteOn = nil
+  check(job.stopped == true and job.report.failed == 1, "a refused deletion stops the write")
+  check(#world.mixes[10] == 3, "nothing goes on after it")
+  check(#world.mixes[11] == 3, "the next channel is untouched")
+  for i = 1, 3 do check(world.mixes[10][i].name == "L" .. i, "the lines stand") end
+
+  -- A step of this job that has already acted is not repeated on another line.
+  world = freshWorld()
+  for i = 1, 3 do world.mixes[10][i] = fullLine(i) end
+  local plan2 = runPlan(radio, settings())
+  table.remove(world.mixes[10], 3)
+  local job2 = runApply(radio, plan2)
+  check(job2.stopped == true, "an unexpected line count stops the write")
+  check(#world.mixes[10] == 2, "and deletes nothing")
+end
+
+-- --------------------------------------------------------------------------- the record and the restore
+do
+  worstCaseModel()
+  world.gvars[4] = { name = "OLD", min = -50, max = 60, prec = 1, unit = 1, popup = true }
+  local radio = Setup.radio()
+  local config = settings({ trims = true, trim_mode = "rows" })
+  local before = snapshot()
+  local plan = runPlan(radio, config)
+  check(Backup.stateOf(world.file) == nil, "no record before a set-up")
+
+  local text = Backup.encode(plan, "partial", world.file)
+  check(Backup.saveText(world.file, text), "the record is saved")
+  check(Backup.stateOf(world.file) == "partial", "it says partial until the end")
+  local _, worst = runApply(radio, plan)
+  print(string.format("write, 60 deletions: worst slice %d instructions", worst))
+  check(worst <= SLICE_LIMIT, "a write slice stays under the limit, " .. worst)
+  check(#world.mixes[10] == 1 and #world.mixes[11] == 1, "each channel carries one line")
+  check(Backup.saveText(world.file, Backup.encode(plan, "complete", world.file)), "the record is rewritten")
+  check(Backup.stateOf(world.file) == "complete", "it says complete")
+
+  local parse = Backup.newParse(world.file)
+  local parseWorst = worstSlice(function() return Backup.parseStep(parse, PARSE_SLICE) end)
+  print(string.format("record, 60 lines: worst parse slice %d instructions", parseWorst))
+  check(parseWorst <= SLICE_LIMIT, "a parse slice stays under the limit, " .. parseWorst)
+  check(Backup.stillCarries(radio, parse.record), "the model carries what was written")
+
+  local restore = Backup.restorePlan(radio, parse.record)
+  local job, restoreWorst = runApply(radio, restore)
+  print(string.format("restore: worst slice %d instructions", restoreWorst))
+  check(restoreWorst <= SLICE_LIMIT, "a restore slice stays under the limit, " .. restoreWorst)
+  check(job.stopped ~= true, "the restore completes, " .. tostring(job.report.steps[#job.report.steps].err))
+  sameTable(before, snapshot(), "model")
+  check(Backup.remove(world.file) and Backup.stateOf(world.file) == nil, "the record is gone after a restore")
+end
+
+-- --------------------------------------------------------------------------- when the restore is not offered
+do
+  world = freshWorld()
+  local radio = Setup.radio()
+  local config = settings()
+  local plan = runPlan(radio, config)
+  check(Backup.saveText(world.file, Backup.encode(plan, "complete", world.file)), "saved")
+  runApply(radio, plan)
+  local function record()
+    local parse = Backup.newParse(world.file)
+    Backup.parseStep(parse, math.huge)
+    return parse.record
+  end
+  check(Backup.stillCarries(radio, record()), "unchanged model: offered")
+  world.mixes[10][2] = fullLine(9)
+  check(not Backup.stillCarries(radio, record()), "another line on a channel: not offered")
+  table.remove(world.mixes[10], 2)
+  world.gvars[4].min = -90
+  check(not Backup.stillCarries(radio, record()), "a changed variable: not offered")
+  check(Backup.newParse("other.yml") == nil and Backup.stateOf("other.yml") == nil, "a record belongs to its model file")
+
+  -- A name the suite cannot put in a file name still gives one path.
+  check(string.find(Backup.path("a b/c.yml"), "a_b_c.yml", 1, true) ~= nil, "the path is safe")
+end
+
+os.execute("rm -rf " .. tmpDir)
+io.read = realRead
+print(string.format("radio set-up: %d checks passed", checked))

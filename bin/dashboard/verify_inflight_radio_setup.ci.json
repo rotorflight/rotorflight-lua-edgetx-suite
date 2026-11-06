@@ -1,0 +1,7 @@
+{
+  "id": "inflight-radio-setup",
+  "name": "In-flight radio set-up",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_inflight_radio_setup.lua"
+  ]
+}
