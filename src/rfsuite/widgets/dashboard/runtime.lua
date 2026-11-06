@@ -244,6 +244,32 @@ function utils.log(self, msg, level)
   end
 end
 
+--- A milestone: one info line that ends with what this Lua state and the radio have left. Asked
+--- first, so with nobody recording it builds nothing and pushes no Session Logs entry out. For
+--- rare events only: creation, a phase, a theme, the connection.
+function utils.milestone(tag, fmt, ...)
+  if not (Log and type(Log.recording) == "function" and Log.recording()) then return end
+  local ok, text = pcall(string.format, fmt, ...)
+  Log.emit(tag, (ok and text or tostring(fmt)) .. ", " .. Log.resources(), "info")
+end
+
+--- A line of the base log, which stands at every level: the same words, and the memory figures
+--- only while somebody is recording, so a radio left at off pays one call here.
+function utils.withResources(msg)
+  if Log and type(Log.recording) == "function" and Log.recording() then
+    return msg .. ", " .. Log.resources()
+  end
+  return msg
+end
+
+--- This Lua state's memory in whole kB, and the highest figure seen since load. It is sampled at
+--- the state line and around each build, so the peak is the highest SAMPLE, not a true maximum.
+function utils.luaKb(self)
+  local kb = math.floor(collectgarbage("count") + 0.5)
+  if kb > (self._luaPeak or 0) then self._luaPeak = kb end
+  return kb
+end
+
 local function audioLog(self, msg, level)
   utils.log(self, msg, level)
 end
@@ -351,7 +377,14 @@ local function traceInstructionUsage(self)
 
   -- The cheap path, taken on all but one pass in fifty: two comparisons and a clock read.
   -- Sampling has to happen on every pass, because the peak is the point of the line.
-  if percent > self._usageWindowPeak then self._usageWindowPeak = percent end
+  if percent > self._usageWindowPeak then
+    self._usageWindowPeak = percent
+    self._usageWindowWork = self._passWork
+    if percent >= 50 and self._shmOn then
+      Log.emitf("rfsuite.widget", "debug", "long pass: %d%% of the instruction budget, work %s",
+        percent, tostring(self._passWork))
+    end
+  end
   if percent > self._usagePeak then self._usagePeak = percent end
 
   -- The heartbeat, for a reader outside this Lua state.
@@ -390,6 +423,7 @@ local function traceInstructionUsage(self)
   -- most expensive one this widget has.
   if self._shmOn == nil then
     self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
+    self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
   end
 
   self._shmPass = (self._shmPass or 0) + 1
@@ -439,18 +473,22 @@ local function traceInstructionUsage(self)
   self._usageReportAt = now + USAGE_REPORT_INTERVAL
 
   self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
+  self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
 
   -- The state line: this state's budget and memory and the radio's, every interval, at INFO so a
   -- log taken for a report carries it. Built only while somebody is recording -- with the log off
   -- it would push the Session Logs list's entries out one by one for nobody.
   if Log and type(Log.recording) == "function" and Log.recording() then
     Log.emitf("rfsuite.widget", "info",
-      "state: instruction budget %d%% now, %d%% peak/%ds, %d%% peak since load, %d objects, %s, theme=%s",
+      "state: instruction budget %d%% now, %d%% peak/%ds, %d%% peak since load, %d objects, %s, "
+        .. "peak work %s, lua peak %d kB, theme=%s",
       percent, self._usageWindowPeak, USAGE_REPORT_INTERVAL, self._usagePeak,
-      self._lastChildCount, Log.resources(), tostring(self.themePath))
+      self._lastChildCount, Log.resources(), tostring(self._usageWindowWork),
+      utils.luaKb(self) and self._luaPeak, tostring(self.themePath))
   end
 
   self._usageWindowPeak = -1
+  self._usageWindowWork = nil
 end
 
 local function readValue(name, fallback)
@@ -739,12 +777,15 @@ local function logGv(fmt, ...)
   -- and one of them sits on the unconditional path of every background pass. Log.wanted
   -- asks the same question the emit path asks, so a level added to the ladder later
   -- cannot leave this gate behind.
-  if not (Log and type(Log.wanted) == "function" and Log.wanted("info")) then return end
+  --
+  -- Debug, not info: a build fires on every change of a displayed value, and a log read at info
+  -- is the milestones (utils.milestone), which carry the memory figures as well.
+  if not (Log and type(Log.wanted) == "function" and Log.wanted("debug")) then return end
 
   local msg = tostring(fmt)
   if select("#", ...) > 0 then msg = string.format(msg, ...) end
 
-  Log.emit("rfsuite.reload", msg, "info")
+  Log.emit("rfsuite.reload", msg, "debug")
 end
 
 -- The in-flight tuning overlay, loaded on first use rather than at the top of this file. It is
@@ -2829,7 +2870,7 @@ local function updateConnectionState(self)
     self.built = false
     self.renderKey = nil
     if ready then
-      widgetLog(self, "FBL connected and telemetry initialized", "info")
+      widgetLog(self, utils.withResources("FBL connected and telemetry initialized"), "info")
       if softTimeoutReady then
         widgetLog(self, "Splash soft-timeout reached; continuing without full startup prerequisites", "warn")
       end
@@ -4978,7 +5019,7 @@ function Runtime.new(zone, options)
       if self.audioState and DashboardAudio and type(DashboardAudio.resetConnectionState) == "function" then
         DashboardAudio.resetConnectionState(self.audioState)
       end
-      widgetLog(self, "FBL reconnect edge: reset dashboard session state", "info")
+      widgetLog(self, utils.withResources("FBL reconnect edge: reset dashboard session state"), "info")
     elseif not isFblConnected and wasFblConnected then
       -- The event history's two memos go with the connection: the next one starts its governor
       -- from its own first reading and notes its speed controller's first verdict again.
@@ -5117,6 +5158,11 @@ function Runtime.new(zone, options)
       -- runs this work whatever is queued.
       self._job = nil
     else
+      if nextMode ~= self.flightMode then
+        utils.milestone("rfsuite.widget", "phase %s -> %s: armed=%s, connected=%s, ready=%s",
+          tostring(self.flightMode), tostring(nextMode), tostring(self.state.armed),
+          tostring(isFblConnected), tostring(self.connectionReady))
+      end
       self.flightMode = nextMode
       -- A switch of theme is staged over two logic ticks: the theme's module on this one, its field
       -- choices, readings and first snapshot on the next (finishThemeLoad). A reload that falls
@@ -5167,6 +5213,7 @@ function Runtime.new(zone, options)
     self._usagePeak = -1
     self._usageWindowPeak = -1
     self._usageReportAt = 0
+    self._luaPeak = nil
   end
 
 
@@ -5181,6 +5228,9 @@ function Runtime.new(zone, options)
 
     -- The firmware calls refresh() for the widget the pilot is looking at and background() for
     -- every other one, so this is where "on screen" is known. The overlay drives only from here.
+    if self._foreground ~= true and self._shmOn then
+      Log.emitf("rfsuite.widget", "debug", "on screen, phase %s", tostring(self.flightMode))
+    end
     self._foreground = true
 
     -- A firmware fullscreen exit may arrive while a build or the connection
@@ -5821,6 +5871,9 @@ function Runtime.new(zone, options)
   function widget.background(self)
     -- Off screen. The overlay's own tick refuses to drive from here and cleans up instead, which
     -- is what makes a widget scrolled away stop writing the two variables.
+    if self._foreground == true and self._shmOn then
+      Log.emitf("rfsuite.widget", "debug", "off screen, phase %s", tostring(self.flightMode))
+    end
     self._foreground = false
     cleanupInflight(self)
     releaseStandby(self, "widget_background")
@@ -5931,6 +5984,8 @@ function Runtime.new(zone, options)
     _G.rfsuite = _G.rfsuite or {}
     _G.rfsuite.dashboardHeartbeatOwner = widget._shmToken
   end
+  utils.milestone("rfsuite.widget", "dashboard created: zone %sx%s, phase %s",
+    tostring(zone and zone.w), tostring(zone and zone.h), tostring(widget.flightMode))
   return widget
 end
 
