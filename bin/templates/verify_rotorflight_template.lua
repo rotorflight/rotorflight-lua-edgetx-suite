@@ -1,6 +1,6 @@
 -- Drive the Rotorflight model template's wizard script through its two screens and check what
--- it refuses and what it writes into the model. The radio, lvgl and the setup assistant's radio
--- module are stubs; the template script itself is the real file.
+-- it refuses and what it writes into the model. The radio, lvgl and lib/model_radio.lua are
+-- stubs; the template script itself is the real file.
 local checks, failures = 0, 0
 local function check(ok, label)
   checks = checks + 1
