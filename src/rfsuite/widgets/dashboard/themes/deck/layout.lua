@@ -284,14 +284,6 @@ function L.toolControl(nodes, state, ctx, x, y, h)
   return boxW + 4
 end
 
--- A press over an area that is drawn anyway: a button in the panel's own colour, appended BEFORE
--- what is drawn over it, which then has to be labels and lines -- a rectangle over a press takes
--- the press away from it. EdgeTX draws every button with a frame of its own, which the pilot can
--- have covered (Common.button).
-local function tapArea(nodes, x, y, w, h, press)
-  Common.button(nodes, x, y, w, h, C.bg, press)
-end
-
 -- A press over a bar, whose track and fill are rectangles built into the button: a rectangle hands a
 -- press it takes on to the object it was built into (radio/src/gui/colorlcd/libui/window.cpp,
 -- Window::onClicked), where over the button it would take the press away. Returns the list to build
