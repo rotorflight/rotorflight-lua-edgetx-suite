@@ -1,0 +1,8 @@
+{
+  "id": "theme-bars",
+  "name": "Dashboard theme bars over a press",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_theme_bars.lua"
+  ],
+  "step": "Check the full screen bars of Grid, Urban and Deck"
+}

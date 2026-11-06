@@ -291,6 +291,15 @@ local function tapArea(nodes, x, y, w, h, press)
   Common.button(nodes, x, y, w, h, C.bg, press)
 end
 
+-- A press over a bar, whose track and fill are rectangles built into the button: a rectangle hands a
+-- press it takes on to the object it was built into (radio/src/gui/colorlcd/libui/window.cpp,
+-- Window::onClicked), where over the button it would take the press away. Returns the list to build
+-- them into and the screen position of its origin.
+local function barTapArea(nodes, x, y, w, h, press)
+  local insetX, insetY = L.buttonInset()
+  return Common.buttonInto(nodes, x, y, w, h, C.bg, press, insetX, insetY)
+end
+
 -- ---------------------------------------------------------------------------
 -- the full screen surface: the keys
 -- ---------------------------------------------------------------------------
@@ -604,13 +613,15 @@ function L.header(nodes, state, x, y, w, h, font, fontH, ctx, showLink)
   local good = quietBars and C.neut or C.ok
 
   -- In full screen, on a host with theme views, the cluster -- figure and bars -- is the tap that
-  -- opens the link view: the bars are what that page shows in detail. Everything over the press is
-  -- then a label or a line rather than a rectangle, in the same places and colours; the widget zone
-  -- draws the rectangles it always drew.
+  -- opens the link view: the bars are what that page shows in detail. The track and the fill are then
+  -- built into the press and the rest over it is labels and lines, in the same places and colours
+  -- (L.barLines); the widget zone draws the rectangles it always drew.
   local asLines = hasViews(ctx)
+  local inner, ox, oy
   if asLines then
     local action = ctx.action
-    tapArea(nodes, barX - figW - 2, topY - 1, barW + figW + 4, slotH * n + 1, function() action("openView:deck_link") end)
+    inner, ox, oy = barTapArea(nodes, barX - figW - 2, topY - 1, barW + figW + 4, slotH * n + 1,
+      function() action("openView:deck_link") end)
   end
 
   if showFigure then
@@ -646,7 +657,7 @@ function L.header(nodes, state, x, y, w, h, font, fontH, ctx, showLink)
       return lastColor
     end
     if asLines then
-      L.barLines(nodes, barX, by, barW, barH, outlined, warn, crit, read, color)
+      L.barLines(nodes, inner, ox, oy, barX, by, barW, barH, outlined, warn, crit, read, color)
     elseif outlined then
       local fh, fwMax = barH - 2, barW - 2
       Common.rect(nodes, barX, by, barW, barH, C.frame, false, 2, 1)
@@ -679,23 +690,26 @@ function L.header(nodes, state, x, y, w, h, font, fontH, ctx, showLink)
   end
 end
 
--- One link bar drawn in lines, for the full screen tap cluster above: the same track, fill,
--- notches and outline as the rectangles, at the same coordinates. A line's `y` is its middle
--- and its `h` its thickness; the fill is an `hline` whose reactive `size` is its length.
+-- One link bar for the full screen tap cluster above: the same track, fill, notches and outline as
+-- the zone's rectangles, at the same coordinates. The track and the fill are rectangles built into the
+-- press (`inner`, whose origin is at `ox`, `oy`); the notches and the outline are lines over it, as a
+-- line takes no press. The fill cannot be a line: a line's size setter redraws it however the value
+-- moved (radio/src/lua/lua_lvgl_widget.cpp, LvglWidgetLineBase::setSize, which sets its points and its
+-- width unconditionally), so a reactive `size` on one repaints a box from the parent's origin to the
+-- line's far corner on every pass. A rectangle's ends in lv_obj_set_size, which compares first.
 local function vline(nodes, x, y1, y2, color, thickness)
   nodes[#nodes + 1] = { type = "line", x = 0, y = 0, w = 0, h = 0,
     pts = { { x, y1 }, { x, y2 } }, color = color, thickness = thickness }
 end
 
-function L.barLines(nodes, barX, by, barW, barH, outlined, warn, crit, read, color)
+function L.barLines(nodes, inner, ox, oy, barX, by, barW, barH, outlined, warn, crit, read, color)
   local x0, fw, fh = barX, barW, barH
   if outlined then x0, fw, fh = barX + 1, barW - 2, barH - 2 end
   if not outlined then
-    nodes[#nodes + 1] = { type = "hline", x = barX, y = by + math.floor(barH / 2), w = barW, h = barH,
-      color = C.track }
+    Common.rect(inner, barX - ox, by - oy, barW, barH, C.track, true)
   end
-  nodes[#nodes + 1] = {
-    type = "hline", x = x0, y = (outlined and by + 1 or by) + math.floor(fh / 2), w = 1, h = fh,
+  inner[#inner + 1] = {
+    type = "rectangle", x = x0 - ox, y = (outlined and by + 1 or by) - oy, w = 1, h = fh, filled = true,
     color = color,
     size = barLength(read, fw, fh)
   }
@@ -1805,12 +1819,13 @@ end
 -- charge card.
 local QUARTERS = { 25, 50, 75 }
 
--- The bar in lines, for the press over it in full screen: the same track, fill, ticks and outline
--- as the rectangles, at the same coordinates. A line's `y` is its middle and its `h` its thickness.
-local function stripLines(nodes, x, y, w, h, read, color)
-  local midY = y + math.floor(h / 2)
-  nodes[#nodes + 1] = { type = "hline", x = x, y = midY, w = w, h = h, color = C.track }
-  nodes[#nodes + 1] = { type = "hline", x = x, y = midY, w = 1, h = h, color = color, size = barLength(read, w, h) }
+-- The bar over the press in full screen: the same track, fill, ticks and outline as the rectangles,
+-- at the same coordinates. The track and the fill are built into the press and the ticks and the
+-- outline are lines over it, for the reasons given at L.barLines.
+local function stripLines(nodes, inner, ox, oy, x, y, w, h, read, color)
+  Common.rect(inner, x - ox, y - oy, w, h, C.track, true)
+  inner[#inner + 1] = { type = "rectangle", x = x - ox, y = y - oy, w = 1, h = h, filled = true,
+    color = color, size = barLength(read, w, h) }
   for i = 1, #QUARTERS do
     vline(nodes, x + math.floor(w * QUARTERS[i] / 100), y + 1, y + h - 2, C.tick, 1)
   end
@@ -1827,9 +1842,10 @@ end
 function L.battStrip(nodes, state, g, x, y, w, barH, ctx)
   local level = Common.fuelLevel(state)
   local stripH = g.smlH + 2 + barH + 1 + g.smlH
+  local inner, ox, oy
   if hasViews(ctx) then
     local action = ctx.action
-    tapArea(nodes, x, y, w, stripH, function() action("openView:deck_battery") end)
+    inner, ox, oy = barTapArea(nodes, x, y, w, stripH, function() action("openView:deck_battery") end)
   end
   local pctW = math.max(30, math.floor(w * 0.14))
   local cells = Common.cells(state)
@@ -1870,7 +1886,7 @@ function L.battStrip(nodes, state, g, x, y, w, barH, ctx)
     return c
   end
   if hasViews(ctx) then
-    stripLines(nodes, x, barY, w, barH, fill, color)
+    stripLines(nodes, inner, ox, oy, x, barY, w, barH, fill, color)
   else
     Common.hbar(nodes, x, barY, w, barH, fill, color, QUARTERS)
   end

@@ -614,9 +614,9 @@ function L.topBar(nodes, state, x, y, w, h, font, fontH, ctx, showLink)
   local good = quietBars and C.neut or C.ok
 
   -- In full screen, on a host with theme views, the cluster is the tap that opens the link view:
-  -- the bars are what that page shows in detail. Everything over the press is then a line rather
-  -- than a rectangle, in the same places and colours; the widget zone draws the rectangles it
-  -- always drew.
+  -- the bars are what that page shows in detail. The track and the fill are then built into the
+  -- press and the rest over it is lines, in the same places and colours (L.barLines); the widget
+  -- zone draws the rectangles it always drew.
   local asLines = hasViews(ctx)
   local inner, ox, oy
   if asLines then
