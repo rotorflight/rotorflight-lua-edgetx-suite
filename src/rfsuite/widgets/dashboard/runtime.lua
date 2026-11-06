@@ -3244,7 +3244,7 @@ local function loadThemeModuleForState(themePath, flightMode)
     scriptPath = base .. folder .. "/widget.lua"
   end
 
-  local chunk = loadScript(scriptPath, themeLoadMode(base))
+  local chunk, loadError = loadScript(scriptPath, themeLoadMode(base))
   if chunk then
     local ok, theme = pcall(chunk)
     if ok and type(theme) == "table" and (
@@ -3255,6 +3255,11 @@ local function loadThemeModuleForState(themePath, flightMode)
     ) then
       return theme, stateKey, initTable
     end
+    loadError = ok and "not a theme module" or theme
+  end
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.widget.theme", "warn", "%s did not load, using the default theme: %s",
+      tostring(scriptPath), tostring(loadError))
   end
 
   local fallbackPath = SYSTEM_THEME_BASE .. "default/" .. stateKey .. ".lua"
@@ -3263,7 +3268,13 @@ local function loadThemeModuleForState(themePath, flightMode)
     fallbackChunk = loadScript(SYSTEM_THEME_BASE .. "default/preflight.lua",
                                themeLoadMode(SYSTEM_THEME_BASE))
   end
-  if not fallbackChunk then return nil, stateKey, initTable end
+  if not fallbackChunk then
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.theme", "error", "no theme module for phase %s: the default theme did not load either",
+        tostring(stateKey))
+    end
+    return nil, stateKey, initTable
+  end
   local ok, theme = pcall(fallbackChunk)
   if ok and type(theme) == "table" and (
     type(theme.build) == "function" or
@@ -3647,6 +3658,8 @@ local function resolveThemePathForState(dashboard, modelPrefs, flightMode, lib)
     reason = "default_fallback"
   end
 
+  utils.themeReason = reason
+
   logGv("resolveTheme: mode=%s, modelOverride=%s, modelPreflight=%s, globalPreflight=%s, modelKey=%s, modelValue=%s, globalKey=%s, globalValue=%s => chosen=%s (%s)",
     tostring(flightMode), tostring(modelOverride),
     tostring(modelDashboard and modelDashboard.model_theme_preflight),
@@ -3798,7 +3811,9 @@ local function releaseUnusedThemes(self)
       count = count + 1
     end
   end
-  if count > 0 then logGv("released %d theme module(s) no widget uses", count) end
+  if count > 0 then
+    utils.milestone("rfsuite.widget.theme", "released %d theme module(s) no widget uses", count)
+  end
 end
 
 -- Everything reloadActiveTheme reads out of the per-model preferences sits under `dashboard`:
@@ -4733,6 +4748,9 @@ function Runtime.new(zone, options)
       if type(msp) == "table" and msp.uidReadSettled == false then
         self.theme = nil
         if self._themeFolder == nil then self._themeFolder = false end
+        if self._shmOn then
+          Log.emitf("rfsuite.widget.theme", "debug", "theme not resolved yet: the board's UID read has not settled")
+        end
         return
       end
     end
@@ -4754,6 +4772,7 @@ function Runtime.new(zone, options)
     nextConfig.v_max = tonumber(nextConfig.v_max) or 25.2
     nextConfig._customVoltage = hasCustomVoltage
 
+    local previousTheme = self.themePath
     self.themePath = selectedTheme
     -- Before the new theme loads, so the one being left is not held beside it for longer than
     -- this widget still has it on screen. Only on a change of folder: a phase change within one
@@ -4781,6 +4800,13 @@ function Runtime.new(zone, options)
     local declares
     self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
     self.themeStateKeys = themeStateKeys(declares)
+    if switching then
+      utils.milestone("rfsuite.widget.theme", "theme %s loaded for phase %s (%s, from %s)",
+        tostring(selectedTheme), tostring(self.themeStateKey), tostring(utils.themeReason), tostring(previousTheme))
+    elseif self._shmOn then
+      Log.emitf("rfsuite.widget.theme", "debug", "theme %s, phase module %s, lua %d kB",
+        tostring(selectedTheme), tostring(self.themeStateKey), utils.luaKb(self))
+    end
 
     -- A theme of the pilot's own may read the flight record under the names it carried before it
     -- moved to the session table. The mapping goes on HERE -- with the theme, in the same call,
@@ -5430,7 +5456,19 @@ function Runtime.new(zone, options)
       -- any build step runs, since a step may clear the tree and then raise, and recorded only
       -- once a build has completed. A one-shot job builds nothing and leaves the record alone.
       if counted and jobKind ~= "standby" then self._treeKind, self._treeKey = nil, nil end
-      local stepOk, stepDone = pcall(self._job.step, self)
+      local job = self._job
+      job.passes = (job.passes or 0) + 1
+      if job.passes == 1 and self._shmOn then
+        job.luaAtStart = utils.luaKb(self)
+        if self._traceOn then
+          Log.emitf("rfsuite.widget.job", "trace", "%s started, lua %d kB", tostring(jobKind), job.luaAtStart)
+        end
+      end
+      local stepOk, stepDone = pcall(job.step, self)
+      if stepOk and stepDone and job.luaAtStart then
+        Log.emitf("rfsuite.widget.job", "debug", "%s built: %d pass(es), %d objects, lua %d -> %d kB",
+          tostring(jobKind), job.passes, self._lastChildCount or 0, job.luaAtStart, utils.luaKb(self))
+      end
       if not stepOk then
         self._job   = nil
         self.built  = false
@@ -5775,6 +5813,10 @@ function Runtime.new(zone, options)
     end
 
     if nextRenderKey ~= self.renderKey then
+      if self._traceOn then
+        Log.emitf("rfsuite.widget.job", "trace", "render key %.60s -> %.60s",
+          tostring(self.renderKey), tostring(nextRenderKey))
+      end
       self.renderKey = nextRenderKey
       self.built = false
       -- Fall through: detection and enqueue happen in this same pass, and the build
