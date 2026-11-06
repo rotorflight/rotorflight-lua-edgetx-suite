@@ -560,7 +560,11 @@ local function driveLeftSave()
     SavePipeline = requireModule("tasks/msp/save_pipeline.lua")
   end
   if type(SavePipeline) == "table" and type(SavePipeline.wakeup) == "function" then
-    pcall(SavePipeline.wakeup)
+    local saveOk, saveErr = pcall(SavePipeline.wakeup)
+    if not saveOk and saveErr ~= utils.lastSaveError then
+      utils.lastSaveError = saveErr
+      widgetLog(nil, "save pipeline raised: " .. tostring(saveErr), "warn")
+    end
   end
 end
 
@@ -1936,6 +1940,9 @@ local function batteryPickLoadStep(self)
 
   -- The registry is read whole off the card; GEMINI.md asks for an explicit collect after that.
   collectgarbage("collect")
+  if self._shmOn then
+    Log.emitf("rfsuite.widget.view", "debug", "battery pick loaded, after the collect lua %d kB", utils.luaKb(self))
+  end
   return true
 end
 
@@ -3179,10 +3186,20 @@ end
 local function loadThemeInit(themePath)
   local source, folder = parseThemePath(themePath)
   local base = source == "user" and USER_THEME_BASE or SYSTEM_THEME_BASE
-  local initChunk = loadScript(base .. folder .. "/init.lua", themeLoadMode(base))
-  if not initChunk then return nil, base, folder end
+  local initChunk, initError = loadScript(base .. folder .. "/init.lua", themeLoadMode(base))
+  if not initChunk then
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.theme", "debug", "%s has no init.lua: %s", tostring(folder), tostring(initError))
+    end
+    return nil, base, folder
+  end
   local ok, initTable = pcall(initChunk)
-  if not ok or type(initTable) ~= "table" then return nil, base, folder end
+  if not ok or type(initTable) ~= "table" then
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.theme", "warn", "%s/init.lua did not load: %s", tostring(folder), tostring(initTable))
+    end
+    return nil, base, folder
+  end
   return initTable, base, folder
 end
 
