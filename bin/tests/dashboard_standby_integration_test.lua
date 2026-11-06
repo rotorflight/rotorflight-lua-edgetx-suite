@@ -321,9 +321,28 @@ do
   widget.state.hadInflightFlight = false
   widget.flightMode = "preflight"
 
+  -- string.format here, not behind emitf's pcall, so a format that does not fit its arguments
+  -- fails this test rather than printing the format string on the radio.
+  local LogModule = assert(_G.rfsuite.require("lib/log.lua"))
+  local realEmitf, standbyLines = LogModule.emitf, {}
+  LogModule.emitf = function(tag, level, fmt, ...)
+    if tag == "rfsuite.widget.standby" then
+      standbyLines[#standbyLines + 1] = level .. ": " .. string.format(fmt, ...)
+    end
+    return realEmitf(tag, level, fmt, ...)
+  end
+  local function standbyLogged(wanted)
+    for i = 1, #standbyLines do
+      if string.find(standbyLines[i], wanted, 1, true) then return true end
+    end
+    return false
+  end
+
   local treesBeforeEntry = #Stubs.lvgl.trees
   Stubs.tick()
   widget:refresh(0, nil)
+  check("the info line's change is logged", standbyLogged("debug: info line: nil to controller_missing"))
+  check("a rebuild logs the key it moved to", standbyLogged("debug: rebuild: "))
   check("missing controller selects the general prerequisite summary",
     widget.state.standbyInfoKind == "controller_missing")
   widget:refresh(0, nil)
@@ -335,6 +354,10 @@ do
     #Stubs.lvgl.trees == treesBeforeEntry and widget._job ~= nil and widget._job.children ~= nil)
   widget:refresh(0, nil)
   check("standby entry builds one scene", #Stubs.lvgl.trees == treesBeforeEntry + 1)
+  check("a finished build logs its layout, rows, nodes, surface and zone",
+    standbyLogged("info: built: 1/1 rows, " .. #Stubs.lvgl.trees[#Stubs.lvgl.trees]
+      .. " nodes, full screen 800x480, controller_missing, layout elrs"))
+  LogModule.emitf = realEmitf
   Stubs.tick()
   widget:refresh(0, nil)
   local afterState = calls.request
@@ -390,7 +413,7 @@ do
     gpsWidget:refresh(nil, nil)
     local firstGps = gpsWidget._standbyCache and gpsWidget._standbyCache.snapshotValues
     check(name, gpsReads == before + 1 and firstGps
-      and firstGps._gpsTime == gpsText.gps_time_unavailable
+      and firstGps._gpsTime == nil
       and firstGps._gpsLines[1] == gpsText.gps_latitude .. ": 48.12345°"
       and firstGps._gpsLines[4] == gpsText.gps_hdop .. ": 1.23")
     gpsWidget:background()
@@ -637,7 +660,7 @@ do
     for i = 1, #Stubs.lvgl.refs do retainedRefs[i] = Stubs.lvgl.refs[i] end
     local batteryGetter = false
     for i = 1, #(retainedTree or {}) do
-      if retainedTree[i].type == "hline" and type(retainedTree[i].size) == "function" then batteryGetter = true end
+      if retainedTree[i].type == "rectangle" and type(retainedTree[i].size) == "function" then batteryGetter = true end
     end
     check(name .. " retained-tree fixture builds the battery tile with its getters",
       retainedWidget._treeKind == "standby" and batteryGetter and #retainedRefs > 0)
@@ -740,7 +763,7 @@ do
   widget:refresh(0, nil)
   widget:refresh(0, nil)
   local reloadedTree, localizedReactive = Stubs.lvgl.trees[#Stubs.lvgl.trees] or {}, false
-  local expectedRate = enLocale.widgets.dashboard.standby.elrs_rate_short .. " "
+  local expectedRate = enLocale.widgets.dashboard.standby.elrs_packet_rate .. " "
   for i = 1, #reloadedTree do
     local node = reloadedTree[i]
     if type(node.text) == "function" then
@@ -760,7 +783,7 @@ do
   Stubs.tick()
   widget:refresh(0, nil)
   check("identity is cached below one second", calls.identity == identityBefore)
-  for _ = 1, 30 do Stubs.tick() end
+  for _ = 1, 60 do Stubs.tick() end
   widget._job = nil
   widget:refresh(0, nil)
   check("identity refreshes on its bounded cadence", calls.identity > identityBefore)
@@ -1232,6 +1255,74 @@ do
   other._job = nil
   for _ = 1, 2 do Stubs.tick(); other:refresh(0, nil) end
   check("the last standby exit unloads the idle provider", _G.rfsuite.elrs_config == nil)
+  s.restore()
+end
+
+-- A module still starting misses the first pings. The screen keeps saying no module was found and
+-- asks again every ten seconds, one ping each time, until one answers.
+do
+  local s = standbyElrsScenario()
+  s.passes(90)
+  local cache = s.widget._standbyCache
+  check("no module: the first read gives up", cache.elrs.status == "unavailable" and cache.elrs.reason == "no_answer")
+  local pings, said = s.sent(0x28), cache.elrsCompact[1]
+  check("no module: the first read sent its four pings", pings == 4)
+  local retried = false
+  for _ = 1, 110 do
+    s.passes(1)
+    if s.sent(0x28) > pings then retried = true; break end
+  end
+  check("no module: another ping within ten seconds and a bit", retried and s.sent(0x28) == pings + 1)
+  check("no module: the field keeps saying so during the retry", s.widget._standbyCache.elrsCompact[1] == said)
+  Stubs.pushFrame(0x29, elrsInfo(1))
+  s.passes(2)
+  Stubs.pushFrame(0x2B, elrsRateEntry(1))
+  s.passes(70)
+  check("a module that answers a retry is shown", s.widget._standbyCache.elrs.packetRate ~= nil
+    and s.widget._standbyCache.elrsCompact[1] ~= said)
+  s.restore()
+end
+
+-- A saved row that does not fit is reported, and a release says so once: background passes and
+-- passes with the tool open call it every time.
+do
+  local s = standbyElrsScenario()
+  local LogModule = assert(_G.rfsuite.require("lib/log.lua"))
+  local realEmitf, realWanted, lines = LogModule.emitf, LogModule.wanted, {}
+  LogModule.wanted = function() return true end
+  LogModule.emitf = function(tag, level, fmt, ...)
+    if tag == "rfsuite.widget.standby" then lines[#lines + 1] = level .. ": " .. string.format(fmt, ...) end
+    return realEmitf(tag, level, fmt, ...)
+  end
+  local function logged(wanted)
+    local count = 0
+    for i = 1, #lines do
+      if string.find(lines[i], wanted, 1, true) then count = count + 1 end
+    end
+    return count
+  end
+  s.widget.preferences.dashboard.standby_layout = "clock/date/model"
+  s.widget.zone = { x = 0, y = 0, w = 480, h = 320 }
+  s.passes(6)
+  check("a build that leaves a saved row out warns", logged("warn: 1 saved row(s) do not fit") == 1)
+  check("the build line counts both", logged("info: built: 2/3 rows, ") == 1)
+  check("a build traces its steps", logged("trace: build: first read of the values done") >= 1
+    and logged(" nodes prepared, swapped in on the next pass") >= 1)
+  local readsBefore = logged("trace: read: clock ")
+  for _ = 1, 3 do
+    for _ = 1, 25 do Stubs.tick() end
+    s.passes(1)
+  end
+  check("each new read of the radio is traced", logged("trace: read: clock ") > readsBefore)
+  s.widget.renderKey = nil
+  s.passes(1)
+  check("a cleared key is told apart from a changed surface",
+    logged("debug: rebuild: nothing about it changed, its key was cleared: standby|") == 1)
+  s.passes(4)
+  check("the cleared key rebuilt it once", (function() s.passes(3); return logged("info: built: ") == 2 end)())
+  for _ = 1, 3 do Stubs.tick(); s.widget:background() end
+  check("background passes log the release once", logged("debug: released: widget_background") == 1)
+  LogModule.emitf, LogModule.wanted = realEmitf, realWanted
   s.restore()
 end
 

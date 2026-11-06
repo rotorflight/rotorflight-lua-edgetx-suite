@@ -46,18 +46,15 @@ end
 local function fitLabels(i18n)
   local labels = {}
   for i = 1, #Standby.TYPES do local id = Standby.TYPES[i]; labels[id] = typeLabel(i18n, id) end
-  labels.elrs_last_read = t(i18n, "elrs_last_read", "Last read %d s ago")
-  labels.elrs_rate_short = t(i18n, "elrs_rate_short", "Rate")
-  labels.elrs_ratio_short = t(i18n, "elrs_ratio_short", "TLM")
-  labels.elrs_power_short = t(i18n, "elrs_power_short", "Max")
-  labels.elrs_dynamic_short = t(i18n, "elrs_dynamic_short", "Dyn")
+  labels.elrs_packet_rate = t(i18n, "elrs_packet_rate", "Packet Rate")
+  labels.elrs_telemetry_ratio = t(i18n, "elrs_telemetry_ratio", "Telemetry Ratio")
+  labels.elrs_power = t(i18n, "elrs_power", "Power")
   labels.gps_no_fix = t(i18n, "gps_no_fix", "No fix")
   labels.gps_latitude = t(i18n, "gps_latitude", "Latitude")
   labels.gps_longitude = t(i18n, "gps_longitude", "Longitude")
   labels.gps_course = t(i18n, "gps_course", "Course")
   labels.gps_hdop = t(i18n, "gps_hdop", "HDOP")
   labels.gps_satellites = t(i18n, "gps_satellites", "Sat")
-  labels.gps_time_unavailable = t(i18n, "gps_time_unavailable", "Time status unknown")
   return labels
 end
 
@@ -143,7 +140,8 @@ function M.build(ctx)
     return idsByCount[count], choicesByCount[count]
   end
   y = y + Controls.appendRadioSwitch(children, x, y, w, t(i18n, "enabled", "Standby screen"), ui.enabled,
-    function(value) ui.enabled = value == true; ui.dirty = true; ctx.requestRebuild() end)
+    function(value) ui.enabled = value == true; ui.dirty = true; ctx.requestRebuild() end,
+    { helpText = t(i18n, "help_enabled", "Shows radio information instead of the connecting screen until the flight controller is ready.") })
   if ui.salvaged then
     y = y + appendNote(children, x, y, w,
       t(i18n, "saved_entries_skipped", "Unsupported saved entries were skipped."), Palette.warning)
@@ -156,7 +154,8 @@ function M.build(ctx)
     for field = 1, #row do
       y = y + Controls.appendComboSelect(children, x, y, w,
         string.format(fieldFormat, field), choices, row[field].type,
-        function(value) row[field].type = value; ui.salvaged = false; ui.dirty = true; ctx.requestRebuild() end)
+        function(value) row[field].type = value; ui.salvaged = false; ui.dirty = true; ctx.requestRebuild() end,
+        { helpText = t(i18n, "help_field", "What this field shows. Only fields that fit this row are offered.") })
       if #row > 1 then
         button(children, x, y, w, removeField, function()
           table.remove(row, field); ui.dirty = true; ctx.requestRebuild()

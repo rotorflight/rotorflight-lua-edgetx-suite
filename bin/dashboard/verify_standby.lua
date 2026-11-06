@@ -11,6 +11,7 @@ end, RGB = function(rgb) return rgb end }
 
 local batterySample = { volts = nil, pct = nil, low = false }
 local Schemes
+CENTER = CENTER or 8
 rfsuite = { require = function(path)
   if path == "lib/radio_status.lua" then
     return { txBattery = function() return batterySample.volts, batterySample.pct, batterySample.low end }
@@ -120,9 +121,9 @@ local labels = {
   clock = "Clock", date = "Date", tx_battery = "TX battery", model = "Selected model",
   timer1 = "Timer 1", timer2 = "Timer 2", timer3 = "Timer 3", tx_gps = "TX GPS",
   uptime = "Radio uptime", firmware = "Firmware", elrs = "ELRS TX configuration",
-  elrs_last_read = "Last read %d s ago", elrs_rate_short = "Rate", elrs_ratio_short = "TLM",
-  elrs_power_short = "Max", elrs_dynamic_short = "Dyn", gps_no_fix = "No fix",
-  gps_satellites = "Sat", gps_time_unavailable = "Time status unknown",
+  elrs_power = "Power", elrs_power_fixed = "fixed",
+  elrs_power_dynamic = "dynamic", gps_no_fix = "No fix",
+  gps_satellites = "Sat",
   gps_latitude = "Latitude", gps_longitude = "Longitude", gps_course = "Course", gps_hdop = "HDOP",
 }
 local duplicateLabels = {}
@@ -219,6 +220,8 @@ local oversizedCache = { text = text }
 local oversizedScene = standby.build({ w = 480, h = 320 }, "Waiting", text, oversizedTrailing,
   standby.snapshot(oversizedTrailing, oversizedCache), oversizedCache)
 check("oversized trailing row does not blank a leading valid row", #rectangles(oversizedScene, 5) == 1)
+check("a build counts the saved rows it left out, for the widget's log line",
+  oversizedCache.rowsShown == 1 and oversizedCache.rowsSaved == 2)
 local oversizedValid, oversizedReason = standby.validate(oversizedTrailing, 480, 320, labels)
 check("strict validation still rejects an oversized trailing row",
   not oversizedValid and oversizedReason == "fields")
@@ -236,7 +239,7 @@ standby.setElrsSnapshot(elrsCache, {
   status = "ready", readAt = 1, identity = "one", packetRate = "D250", telemetryRatio = "1:128",
   maxPower = "25/250", dynamic = "AUX12", fields = { maxPower = { unit = "mW" } },
 }, 1)
-tick = 300
+tick = 1800
 local elrsValues = standby.snapshot(elrsItems, elrsCache)
 local elrsScene = standby.build({ w = 800, h = 480 }, "Waiting", text, elrsItems, elrsValues, elrsCache)
 check("ELRS source text preserves exact Dynamic label next to Max Power",
@@ -259,7 +262,7 @@ standby.setElrsSnapshot(elrsCache, {
   telemetryRatio = string.rep("LongRatio", 20), maxPower = string.rep("LongPower", 20),
   dynamic = "AUX12", fields = { maxPower = { unit = "mW" } },
 }, 2)
-tick = 401
+tick = 2406
 local longValues = standby.snapshot(elrsItems, elrsCache)
 local longScene = standby.build({ w = 800, h = 480 }, "Waiting", text, elrsItems, longValues, elrsCache)
 local ellipses = 0
@@ -272,7 +275,7 @@ check("module-supplied ELRS strings are bounded instead of rejecting the scene",
 
 local unavailableCache = { text = text }
 standby.setElrsSnapshot(unavailableCache, { status = "unavailable" }, 1)
-tick = 502
+tick = 3012
 local unavailableItems = standby.decode("elrs")
 local unavailableValues = standby.snapshot(unavailableItems, unavailableCache)
 local unavailableScene = standby.build({ w = 320, h = 480 }, "Waiting", text,
@@ -305,42 +308,68 @@ check("an ELRS module that answered without the fields still reads Unavailable",
   elrsWords("no_fields", text)["Unavailable"] == true and not elrsWords("no_fields", text)["No ELRS module"])
 
 batterySample.volts, batterySample.pct, batterySample.low = 7.8, 50, false
-tick = 603
+tick = 3618
 local batteryItems, batteryCache = standby.decode("tx_battery"), { text = text }
 local batteryValues = standby.snapshot(batteryItems, batteryCache)
 local batteryScene = standby.build({ w = 480, h = 320 }, "Waiting", text,
   batteryItems, batteryValues, batteryCache)
 local fillSize
-for i = 1, #batteryScene do if batteryScene[i].type == "hline" then fillSize = batteryScene[i].size end end
+for i = 1, #batteryScene do
+  check("no line with a reactive size on the screen", not (batteryScene[i].type == "hline" and batteryScene[i].size))
+  if batteryScene[i].type == "rectangle" and type(batteryScene[i].size) == "function" then fillSize = batteryScene[i].size end
+end
 check("battery graphic uses cached percentage", type(fillSize) == "function" and fillSize() > 0)
+do
+  local tile = rectangles(batteryScene, 5)[1]
+  local texts, figures = 0, nil
+  for i = 1, #batteryScene do
+    local node = batteryScene[i]
+    if node.type == "label" and node.x >= tile.x and node.x < tile.x + tile.w
+        and node.y >= tile.y and node.y < tile.y + tile.h then
+      texts = texts + 1
+      if node.align == CENTER and type(node.text) == "function" then figures = node end
+    end
+  end
+  check("the battery tile has a caption and its figures, no third text", texts == 2 and figures ~= nil)
+  local frame
+  for i = 1, #batteryScene do
+    local node = batteryScene[i]
+    if node.type == "rectangle" and node.filled == false then frame = node end
+  end
+  check("the battery symbol is the large part of the tile", frame ~= nil and frame.h >= 24 and frame.w >= 60)
+  check("the symbol stands inside the tile, above the figures", frame.x >= tile.x and frame.x + frame.w <= tile.x + tile.w
+    and frame.y > tile.y and figures ~= nil and frame.y + frame.h <= figures.y)
+  local left, right = frame.x - tile.x, tile.x + tile.w - (frame.x + frame.w)
+  check("the symbol is centred, its terminal counted", right > left and right - left <= 12)
+end
 
 -- Retain the source-selection, formatting, cache, and renderer regressions that predate the
 -- rows-first codec. They guard behavior that the layout rewrite must not change.
 model.getInfo = function() return { name = "Model\195\169LongEnough" } end
-tick = 704
+tick = 4224
 local modelValues = standby.snapshot(standby.decode("model"), { text = text })
 check("UTF-8 model truncates at a codepoint", modelValues.model == "Model\195\169LongEn...")
 local modelOnlyCache = { text = text }
-tick = 805
+tick = 4830
 local modelOnlyValues = standby.snapshot(standby.decode("model"), modelOnlyCache)
 check("unselected battery leaves no sampled value", modelOnlyValues.tx_battery == nil
   and modelOnlyCache.batteryPercent == nil)
 
 batterySample.volts, batterySample.pct, batterySample.low = nil, nil, false
-tick = 906
+tick = 5436
 local unknownBatteryCache = { text = text }
 local unknownBatteryValues = standby.snapshot(batteryItems, unknownBatteryCache)
 local unknownBatteryScene = standby.build({ w = 480, h = 320 }, "Waiting", text,
   batteryItems, unknownBatteryValues, unknownBatteryCache)
 local unknownSize, unknownColor
 for i = 1, #unknownBatteryScene do
-  if unknownBatteryScene[i].type == "hline" then
+  if unknownBatteryScene[i].type == "rectangle" and type(unknownBatteryScene[i].size) == "function" then
     unknownSize, unknownColor = unknownBatteryScene[i].size, unknownBatteryScene[i].color
   end
 end
 check("unknown battery draws an empty outline", unknownSize() == 0)
 batterySample.volts, batterySample.pct, batterySample.low = 6.8, 100, true
-tick = 1007
+tick = 6042
 standby.snapshot(batteryItems, unknownBatteryCache)
 check("battery graphic reaches full and uses warning color", unknownSize() > fillSize()
   and unknownColor() == colors.warning)
@@ -351,7 +380,7 @@ getTxGPS = function()
   return { fix = true, numsat = 7, lat = 52.12345, lon = 13.54321,
     alt = 1234, speed = 56, heading = 2712, hdop = 85 }
 end
-tick = 1108
+tick = 6648
 -- Half the width of a 480x320 screen is too narrow for two detail columns.
 local compactGpsValues = standby.snapshot(standby.decode("tx_gps+clock"), { text = text }, { w = 480, h = 320 })
 check("compact GPS does not format hidden detail fields", compactGpsValues.tx_gps == "Fix | 7"
@@ -399,10 +428,10 @@ for i = 1, #gpsScene do
   if value == "Time status unknown" then gpsTimeFound = true end
 end
 check("wide GPS scene renders four detailed fields", gpsDetails == 4 and gpsCache.valueOverflow == false)
-check("wide GPS states the GPS time API limit", gpsTimeFound)
+check("no GPS field claims a time status", not gpsTimeFound)
 local twoGpsItems = standby.decode("tx_gps+clock")
 local twoGpsCache = { text = text }
-tick = 1120
+tick = 6720
 local twoGpsValues = standby.snapshot(twoGpsItems, twoGpsCache, { w = 800, h = 480 })
 local twoGpsScene = standby.build({ w = 800, h = 480 }, "Waiting", text,
   twoGpsItems, twoGpsValues, twoGpsCache)
@@ -436,30 +465,30 @@ do
     and skippedDetails == 2)
 end
 local callsAfterGps = gpsCalls
-tick = 1150
+tick = 6900
 local cachedGpsValues = standby.snapshot(gpsItems, gpsCache)
 check("selected GPS snapshot respects one-second cache", gpsCalls == callsAfterGps and cachedGpsValues == gpsValues)
-tick = 1209
+tick = 7254
 local refreshedGpsValues = standby.snapshot(gpsItems, gpsCache)
 check("selected GPS refreshes after bounded cadence", gpsCalls == callsAfterGps + 1
   and refreshedGpsValues.tx_gps == "Fix | 7")
 getTxGPS = function() gpsCalls = gpsCalls + 1; return { fix = false, numsat = 3 } end
-tick = 1310
+tick = 7860
 local noFixGpsValues = standby.snapshot(gpsItems, gpsCache)
 check("selected GPS without fix still shows satellites", noFixGpsValues.tx_gps == "No fix | Sat 3"
   and noFixGpsValues._gpsLines == nil)
 getTxGPS = function() gpsCalls = gpsCalls + 1; return { fix = nil } end
-tick = 1411
+tick = 8466
 check("selected GPS with missing fix stays unknown", standby.snapshot(gpsItems, gpsCache).tx_gps == "-")
 getTxGPS = function() gpsCalls = gpsCalls + 1; return nil end
-tick = 1512
+tick = 9072
 check("selected unavailable GPS stays unknown", standby.snapshot(gpsItems, gpsCache).tx_gps == "-")
 getTxGPS = function()
   gpsCalls = gpsCalls + 1
   return { fix = true, numsat = 4, lat = math.huge, lon = 181, alt = 1000000,
     speed = -1, heading = 3600, hdop = 65536 }
 end
-tick = 1613
+tick = 9678
 local malformedGpsValues = standby.snapshot(gpsItems, gpsCache)
 check("detailed GPS rejects non-finite and out-of-range members",
   malformedGpsValues._gpsLines[1] == "Latitude: -"
@@ -694,6 +723,88 @@ do
   end
   check("a status line given as a function stays one on its label", holds(function() return "the line" end))
   check("a status line given as a string is shown", holds("the line"))
+end
+
+-- One read stands five seconds, one second only where a model timer is shown, and a layout that
+-- changes inside that time is read at once.
+do
+  local cache5 = { text = text }
+  local gpsOnly = standby.decode("tx_gps")
+  tick = 5000
+  standby.snapshot(gpsOnly, cache5)
+  local reads = gpsCalls
+  tick = 5400
+  standby.snapshot(gpsOnly, cache5)
+  check("a read stands for four seconds", gpsCalls == reads)
+  tick = 5501
+  standby.snapshot(gpsOnly, cache5)
+  check("a read is due after five seconds", gpsCalls == reads + 1)
+  local changed = standby.snapshot(standby.decode("clock"), cache5)
+  check("a changed layout does not wait for the next read", changed.clock ~= nil)
+  local cache1 = { text = text }
+  local withTimer = standby.decode("tx_gps+timer1")
+  tick = 6000
+  standby.snapshot(withTimer, cache1)
+  reads = gpsCalls
+  tick = 6101
+  standby.snapshot(withTimer, cache1)
+  check("a model timer keeps the read at a second", gpsCalls == reads + 1)
+
+  local elrsItems = standby.decode("elrs")
+  local cacheE = { text = text }
+  standby.setElrsSnapshot(cacheE, { status = "ready", readAt = 1, identity = "x", packetRate = "250Hz",
+    telemetryRatio = "1:128", maxPower = "100", dynamic = "Off" })
+  tick = 7000
+  local first = standby.snapshot(elrsItems, cacheE)
+  local compact = cacheE.elrsCompact
+  check("the ELRS field has its three lines and no age", #compact == 3)
+  tick = 7600
+  local second = standby.snapshot(elrsItems, cacheE)
+  check("a new read with the same answer keeps its text", second ~= first and cacheE.elrsCompact == compact)
+
+  -- Just after power-on the clock is low: a new answer still has to show, not wait for a read.
+  local cacheLow = { text = text }
+  tick = 100
+  standby.setElrsSnapshot(cacheLow, { status = "reading" })
+  standby.snapshot(elrsItems, cacheLow)
+  local before = cacheLow.elrsCompact[1]
+  standby.setElrsSnapshot(cacheLow, { status = "ready", readAt = 1, identity = "x", packetRate = "250Hz",
+    telemetryRatio = "1:128", maxPower = "100", dynamic = "Off" })
+  standby.snapshot(elrsItems, cacheLow)
+  check("an answer right after power-on shows at once", cacheLow.elrsCompact[1] ~= before)
+
+  local function elrsLines(fields)
+    local cacheL = { text = text }
+    standby.setElrsSnapshot(cacheL, fields)
+    tick = tick + 10
+    standby.snapshot(elrsItems, cacheL)
+    return cacheL.elrsCompact
+  end
+  local dual = elrsLines({ status = "ready", readAt = 1, identity = "x", packetRate = "500Hz(-105dBm)",
+    telemetryRatio = "1:8", maxPower = "25/100", dynamic = "Dyn", fields = { maxPower = { unit = "mW" } } })
+  check("the rate loses the bracket and gains a space", string.find(dual[1], " 500 Hz", 1, true) ~= nil
+    and string.find(dual[1], "dBm", 1, true) == nil)
+  check("the telemetry ratio has its own line", string.find(dual[2], " 1:8", 1, true) ~= nil)
+  check("Dyn reads as dynamic", string.find(dual[3], "25/100 mW, dynamic", 1, true) ~= nil
+    and string.find(dual[3], "Dyn", 1, true) == nil)
+  check("Off reads as fixed", string.find(elrsLines({ status = "ready", readAt = 1, identity = "x", packetRate = "D250",
+    telemetryRatio = "1:8", maxPower = "100", dynamic = "Off" })[3], "100, fixed", 1, true) ~= nil)
+  check("an AUX choice names its channel", string.find(elrsLines({ status = "ready", readAt = 1, identity = "x", packetRate = "D250",
+    telemetryRatio = "1:8", maxPower = "100", dynamic = "AUX12" })[3], "dynamic AUX12", 1, true) ~= nil)
+
+  local cacheN = { text = text }
+  local noModule = { status = "unavailable", reason = "no_answer", readAt = 1 }
+  standby.setElrsSnapshot(cacheN, noModule)
+  tick = 8000
+  standby.snapshot(elrsItems, cacheN)
+  local said = cacheN.elrsCompact[1]
+  standby.setElrsSnapshot(cacheN, { status = "reading", previous = noModule })
+  standby.snapshot(elrsItems, cacheN)
+  check("a retry keeps saying no module was found", cacheN.elrsCompact[1] == said)
+  local cacheR = { text = text }
+  standby.setElrsSnapshot(cacheR, { status = "reading" })
+  standby.snapshot(elrsItems, cacheR)
+  check("a first read still says it is reading", cacheR.elrsCompact[1] ~= said)
 end
 
 print(string.format("standby regression: %d checks passed", passed))
