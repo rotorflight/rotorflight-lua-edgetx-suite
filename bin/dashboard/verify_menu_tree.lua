@@ -322,6 +322,23 @@ local function run(mutate)
   end
   do
     local w, r = open()
+    -- A preview on the right takes the smaller face, or it shows the last list's until the wheel rests.
+    do
+      local wf, rf = open()
+      moveTo(rf.levels[1], "tool")
+      local largeOnRight = 0
+      -- Every title fits the large face, so nothing but the rule keeps it off the preview.
+      local sizeText = _G.lcd.sizeText
+      _G.lcd.sizeText = function() return 1, 16 end
+      local scene = build(wf)
+      _G.lcd.sizeText = sizeText
+      for i = 1, #scene do
+        if scene[i].type == "label" and scene[i].font == _G.MIDSIZE and (scene[i].x or 0) > wf.zone.w / 2 then
+          largeOnRight = largeOnRight + 1
+        end
+      end
+      check("the right list's preview is not in the large face", largeOnRight == 0)
+    end
     -- Both lists the suite's: their titles are measured once a visit, not at every build.
     toSetup(w, r)
     build(w)
@@ -751,6 +768,9 @@ if selfTest then
         return (string.gsub(t, "return Views.visit%(widget, entry.menuId, place%)", "return Views.visit(widget, entry.menuId, Roll.place(roll))", 1)) end },
     { "a covered press waits for ever", function(t)
         return (string.gsub(t, "if getTime%(%) %- opening.at >= OPENING_TICKS then", "if false then", 1)) end },
+    { "a preview takes its own face", function(t)
+        return (string.gsub(t, "local rightFace = onRightColumn and faceOf%(roll, rightRows%(roll%), midFont, nearFont, colW %- 2 %* markW%) or nearFont",
+          "local rightFace = faceOf(roll, rightRows(roll), midFont, nearFont, colW - 2 * markW)", 1)) end },
     { "every build measures the lists", function(t)
         return (string.gsub(t, "if first == nil or first.tree ~= true then return middleFace", "if true then return middleFace", 1)) end },
     { "a page opens before the words are drawn", function(t)
