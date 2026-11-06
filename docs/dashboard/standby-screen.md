@@ -7,7 +7,7 @@ sidebar_label: Standby screen
 
 When enabled, the dashboard uses one configurable standby surface while it waits for the flight controller. The header keeps the Rotorflight logo and, in fullscreen mode, the standard Suite tool entry where the zone height allows it; there is no separate Standby title. Radio information appears in rows below the header, while the current connection reason remains available at the bottom.
 
-![The standby screen with no layout saved on an 800x480 radio without an ELRS module: clock, TX battery and the selected model above the ELRS row](../images/dashboard/standby/standby-800x480.png)
+![The standby screen with no layout saved on an 800x480 radio with an ELRS module: clock, TX battery and the selected model above the ELRS row](../images/dashboard/standby/standby-800x480.png)
 
 ![The same on a 480x320 radio: clock and TX battery above the ELRS row](../images/dashboard/standby/standby-480x320.png)
 
