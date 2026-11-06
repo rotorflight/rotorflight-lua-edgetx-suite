@@ -8,8 +8,9 @@ local MANIFEST = "src/rfsuite/app/manifest.lua"
 local LIST = "src/rfsuite/widgets/dashboard/menu_list.lua"
 
 -- Menus that open in the tool with their tiles. ESC & Motors: its entries depend on the ESC protocol, which
--- the widget's connect chain does not read. Nothing below such a menu goes into the list.
-local TILES = { esc_motors_menu = true }
+-- the widget's connect chain does not read. Helicopter Setup: the menu only has to call it, and its steps are
+-- marked done on their tiles. Nothing below such a menu goes into the list.
+local TILES = { esc_motors_menu = true, helicopter_setup_menu = true }
 
 -- An entry's fields as the list writes them, in this order. `kind` and `icon` are left out where the
 -- reader's default says the same.

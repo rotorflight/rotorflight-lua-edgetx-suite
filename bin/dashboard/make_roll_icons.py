@@ -29,8 +29,8 @@ PAGES = os.path.join(CORE, "app", "pages")
 SIZE = 32
 SCHEMES = {"light": (0x13, 0x15, 0x16), "dark": (0x17, 0x98, 0xE8)}
 
-# Not rolled through: widgets/dashboard/menu_tree.lua `TILES`.
-TILES = ("esc_motors_menu", "esc_tools_menu")
+# Not rolled through: bin/dashboard/make_menu_list.lua `TILES`.
+TILES = ("esc_motors_menu", "esc_tools_menu", "helicopter_setup_menu")
 
 # The quick menu's rows, by entry id, and the motif each takes.
 QUICK = {

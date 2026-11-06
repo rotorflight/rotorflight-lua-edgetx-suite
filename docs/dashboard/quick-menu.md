@@ -143,9 +143,10 @@ opens it inside the widget, as [the tool from full screen](#the-tool-from-full-s
 from the page comes back to the same place in the roll. The tool's tile home stays what it was: it is
 what the card style's MAIN MENU opens, and what a key set to *Suite: Main menu* opens in either style.
 
-Two places open in the tool with their tiles instead of rolling on, and RTN walks the tool's levels
-before it comes back to the roll: **ESC & Motors**, whose entries depend on the ESC protocol, and the
-**dashboard theme settings**, a list made while the tool runs.
+Three places open in the tool with their tiles instead of rolling on, and RTN walks the tool's levels
+before it comes back to the roll: **ESC & Motors**, whose entries depend on the ESC protocol, **Helicopter
+Setup**, whose steps show on their tiles which are done, and the **dashboard theme settings**, a list made
+while the tool runs.
 
 **A row that cannot work now stays in the list, grey**, and says why on the right: *Needs the flight
 controller* with no connection, *Not while armed* while the model is armed, where every row is grey.

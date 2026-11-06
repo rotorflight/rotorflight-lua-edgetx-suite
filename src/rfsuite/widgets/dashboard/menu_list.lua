@@ -35,7 +35,7 @@ return {
       { id = "gps", title = "@i18n(app.modules.gps.name)@", menuId = "setup_gps_page", icon = "setup_gps_icon" },
     },
     wizards_menu = {
-      { id = "setup_wizard", title = "@i18n(app.modules.setup_wizard.name)@", menuId = "setup_wizard_retired_page", icon = "setup_icon", enabledWhen = "fblConnected" },
+      { id = "helicopter_setup", title = "@i18n(app.modules.helicopter_setup.name)@", menuId = "helicopter_setup_menu", kind = "tiles", icon = "setup_icon", enabledWhen = "fblConnected", minApiVersion = { 12, 0, 9 } },
     },
     tools_menu = {
       { id = "copy_profiles", title = "@i18n(app.modules.copyprofiles.name)@", menuId = "tools_copy_profiles_page", icon = "tools_copy", enabledWhen = "fblConnected" },
