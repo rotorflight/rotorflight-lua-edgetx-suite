@@ -45,6 +45,7 @@ local function requireModule(path)
 end
 
 local Common = requireModule("widgets/dashboard/themes/grid/common.lua")
+local Log = requireModule("lib/log.lua")
 if not Common then return {} end
 
 local L = {}
@@ -347,6 +348,9 @@ end
 -- them into and the screen position of its origin.
 local function barTapArea(nodes, x, y, w, h, press)
   local insetX, insetY = L.buttonInset()
+  if Log then
+    Log.emitf("rfsuite.grid", "trace", "bar press at %d,%d %dx%d, frames %s", x, y, w, h, Common.tapFrames and "on" or "covered")
+  end
   return Common.buttonInto(nodes, x, y, w, h, C.bg, press, insetX, insetY)
 end
 
