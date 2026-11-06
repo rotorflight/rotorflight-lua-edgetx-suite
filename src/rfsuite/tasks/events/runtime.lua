@@ -300,6 +300,9 @@ local function publishConnected(val)
     if type(collectgarbage) == "function" then
       collectgarbage("collect")
     end
+    if Log and type(Log.recording) == "function" and Log.recording() then
+      pcall(Log.emit, "rfsuite.events", "link down, runners reset, after the GC: " .. Log.resources(), "info")
+    end
   end
 end
 
@@ -613,6 +616,9 @@ function Events.wakeup(carry)
       if armed ~= state.lastArmed then
         state.lastArmed = armed
         local category = armed and "onarm" or "ondisarm"
+        if Log and type(Log.emit) == "function" then
+          pcall(Log.emit, "rfsuite.events", "armed edge: running " .. category .. " tasks", "debug")
+        end
         local runner = ensureEventRunner(category)
         if runner and type(runner.resetAllTasks) == "function" then
           -- Reset on BOTH edges, because neither is a one-off. The runner marks a task complete

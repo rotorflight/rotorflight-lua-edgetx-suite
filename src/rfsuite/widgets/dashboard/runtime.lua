@@ -983,6 +983,10 @@ local function dropInflightModules(viewOnly)
     end
   end
   if first and first < InflightLoadIndex then InflightLoadIndex = first end
+  if first and Log and type(Log.wanted) == "function" and Log.wanted("debug") then
+    Log.emit("rfsuite.widget", "in-flight modules dropped (" .. (viewOnly and "view only" or "all") .. "), "
+      .. Log.resources(), "debug")
+  end
 end
 
 -- Output, a held step, a profile job or a save still to finish: a session is not ended under them.
@@ -2085,6 +2089,7 @@ local function batteryPickApplyStep(self)
     end
     pick.writing = nil
     if ok then
+      widgetLog(self, "battery pick: profile " .. tostring(target) .. " written", "debug")
       self._batteryPickWritten = { id = id, target = target, press = press }
     else
       widgetLog(self, "battery pick not recorded: the profile write was given up", "warn")
@@ -2099,6 +2104,7 @@ local function batteryPickApplyStep(self)
     pick.boardProfile = nil
   else
     pick.writing = nil
+    widgetLog(self, "battery pick: the profile write was refused: " .. tostring(why), "warn")
     pick.applied = "refused:" .. tostring(why)
     if press ~= nil then press.report("failed") end
   end
@@ -2474,7 +2480,10 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- Returning here does NOT lose the change: `self._reloadPending` is kept until the reload
   -- actually executes, so the next pass after disarming sees the pending reload and reloads then.
   if not force and (self.state.armed or (self.state.hadInflightFlight == true and not self.state.fblConnected)) then
-    logGv("reloadPreferencesIfNeeded: deferred due to armed/offline (armed=%s, hadInflightFlight=%s, fblConnected=%s)", tostring(self.state.armed), tostring(self.state.hadInflightFlight), tostring(self.state.fblConnected))
+    if self._shmOn and self._reloadDeferral ~= "armed" then
+      self._reloadDeferral = "armed"
+      logGv("reloadPreferencesIfNeeded: deferred due to armed/offline (armed=%s, hadInflightFlight=%s, fblConnected=%s)", tostring(self.state.armed), tostring(self.state.hadInflightFlight), tostring(self.state.fblConnected))
+    end
     return
   end
 
@@ -2488,7 +2497,10 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
     local msp = MspRuntime.getState()
     if type(msp) == "table" and msp.uidReadSettled == false then
-      logGv("reloadPreferencesIfNeeded: deferred until the UID read settles (pending=%s)", tostring(self._reloadPending))
+      if self._shmOn and self._reloadDeferral ~= "uid" then
+        self._reloadDeferral = "uid"
+        logGv("reloadPreferencesIfNeeded: deferred until the UID read settles (pending=%s)", tostring(self._reloadPending))
+      end
       return
     end
   end
@@ -2496,7 +2508,10 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   if isBackground and not force then
     -- During background passes (when widget is off-screen), defer heavy file I/O and theme
     -- compilation until widget returns to screen (refresh pass) to avoid EdgeTX CPU limit faults.
-    logGv("reloadPreferencesIfNeeded: deferred due to background pass (pending=%s)", tostring(self._reloadPending))
+    if self._shmOn and self._reloadDeferral ~= "background" then
+      self._reloadDeferral = "background"
+      logGv("reloadPreferencesIfNeeded: deferred due to background pass (pending=%s)", tostring(self._reloadPending))
+    end
     return
   end
 
@@ -2528,6 +2543,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     end
   end
 
+  self._reloadDeferral = nil
   logGv("reloadPreferencesIfNeeded executing (force=%s signal=%s pending=%s armed=%s)", tostring(force), tostring(signalReload), tostring(self._reloadPending), tostring(self.state and self.state.armed))
 
   -- Invalidate current theme and memoization state BEFORE heavy disk reads.
@@ -5066,6 +5082,7 @@ function Runtime.new(zone, options)
       end
       widgetLog(self, utils.withResources("FBL reconnect edge: reset dashboard session state"), "info")
     elseif not isFblConnected and wasFblConnected then
+      utils.milestone("rfsuite.widget", "FBL link lost, phase %s", tostring(self.flightMode))
       -- The event history's two memos go with the connection: the next one starts its governor
       -- from its own first reading and notes its speed controller's first verdict again.
       noteEvent(self.state, "disconnected", 2)

@@ -956,6 +956,8 @@ function Sensors.reset()
   -- The level is asked again after a reset, so a level changed on the radio reaches these lines at
   -- the next connect rather than at the next start.
   debugEnabled = nil
+  -- These lines say once per connection which source was taken or missed, not once per start.
+  loggedSources = {}
   if Sensors.active_paths then
     for k in pairs(Sensors.active_paths) do
       Sensors.active_paths[k] = nil

@@ -486,7 +486,10 @@ function M.load(widget, entry)
   if view == nil then
     view = requireModule(entry.module)
     if type(view) ~= "table" or type(view.build) ~= "function" then
-      viewLog("view '" .. tostring(entry.id) .. "' did not load")
+      if not entry.loadFailedLogged then
+        entry.loadFailedLogged = true
+        viewLog("view '" .. tostring(entry.id) .. "' did not load")
+      end
       return nil
     end
   end
