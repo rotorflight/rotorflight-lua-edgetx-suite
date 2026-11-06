@@ -100,7 +100,8 @@ local function driveEdgeRunner(category, context)
   if type(runner.wakeup) == "function" then
     wakeupArgs.context = context
     local ok, err = pcall(runner.wakeup, wakeupArgs)
-    if not ok and Log and type(Log.emit) == "function" then
+    if not ok and err ~= runner.lastWakeupError and Log and type(Log.emit) == "function" then
+      runner.lastWakeupError = err
       pcall(Log.emit, "rfsuite.events", category .. ".wakeup error: " .. tostring(err), "error")
     end
   end

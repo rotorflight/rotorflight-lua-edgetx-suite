@@ -86,6 +86,11 @@ local function requireModule(path, forceReload)
       -- Raw print on purpose, here and below: this is the module loader reporting that a
       -- load failed, and the logger may be the very module that could not load.
       print("[require] Failed to load " .. tostring(fullPath) .. ": " .. err)
+      local Log = _G.rfsuite and _G.rfsuite.Log
+      if type(Log) == "table" and type(Log.emit) == "function" then
+        -- The console opted out: the line above already went there.
+        pcall(Log.emit, "rfsuite.require", "failed to load " .. tostring(fullPath) .. ": " .. err, "error", false)
+      end
     end
     return nil, err
   end
@@ -93,6 +98,10 @@ local function requireModule(path, forceReload)
   local ok, result = pcall(chunk)
   if not ok then
     print("[require] Error executing " .. tostring(fullPath) .. ": " .. tostring(result))
+    local Log = _G.rfsuite and _G.rfsuite.Log
+    if type(Log) == "table" and type(Log.emit) == "function" then
+      pcall(Log.emit, "rfsuite.require", "error executing " .. tostring(fullPath) .. ": " .. tostring(result), "error", false)
+    end
     return nil, result
   end
 

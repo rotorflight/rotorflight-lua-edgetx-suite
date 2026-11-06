@@ -62,6 +62,11 @@ end
 -- widget at boot and a fault is not the common case; lib/log_sink.lua then makes the same check
 -- again itself and writes nothing while the option is off.
 local function logFault(context, err)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emit) == "function" then
+    pcall(Log.emit, "rfsuite.widget", tostring(context) .. " stopped: " .. tostring(err), "error")
+  end
+
   local fn = type(_G) == "table" and _G.rfsuite and _G.rfsuite.logFault
   if type(fn) == "function" then
     pcall(fn, context, err)

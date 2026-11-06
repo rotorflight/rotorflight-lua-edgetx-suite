@@ -678,7 +678,12 @@ local function tickMspRuntime(self, carry)
   driveLeftSave()
 
   if EventsRuntime and type(EventsRuntime.wakeup) == "function" then
-    pcall(EventsRuntime.wakeup, carry)
+    local eventsOk, eventsErr = pcall(EventsRuntime.wakeup, carry)
+    -- Once per message: this runs every pass, and a raise here would repeat at the pass rate.
+    if not eventsOk and eventsErr ~= utils.lastEventsError then
+      utils.lastEventsError = eventsErr
+      widgetLog(nil, "events wakeup raised: " .. tostring(eventsErr), "warn")
+    end
   end
 
   -- The wakeup above is what FILLS the queue while the connect chain runs. Without a second
@@ -715,6 +720,7 @@ local function loadPreferences()
   end
   local loadedOk, prefs = pcall(PreferencesModule.load)
   if not loadedOk or type(prefs) ~= "table" then
+    widgetLog(nil, "preferences did not load, using the defaults: " .. tostring(prefs), "warn")
     return nil
   end
   return prefs
@@ -3104,19 +3110,26 @@ end
 
 local function loadDashboardLib()
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript(_G.rfsuite.paths.core .. "/app/pages/settings/dashboard/lib.lua", mode)
-  if not chunk then return nil end
-  local ok, lib = pcall(chunk)
-  if not ok or type(lib) ~= "table" then return nil end
+  local chunk, err = loadScript(_G.rfsuite.paths.core .. "/app/pages/settings/dashboard/lib.lua", mode)
+  local ok, lib = false, nil
+  if chunk then ok, lib = pcall(chunk) end
+  if not ok or type(lib) ~= "table" then
+    widgetLog(nil, "dashboard settings library did not load: " .. tostring(chunk and lib or err), "error")
+    return nil
+  end
   return lib
 end
 
 local function loadDashboardEngine()
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript(_G.rfsuite.paths.core .. "/widgets/dashboard/engine.lua", mode)
-  if not chunk then return nil end
-  local ok, engine = pcall(chunk)
-  if not ok or type(engine) ~= "table" then return nil end
+  local chunk, err = loadScript(_G.rfsuite.paths.core .. "/widgets/dashboard/engine.lua", mode)
+  local ok, engine = false, nil
+  if chunk then ok, engine = pcall(chunk) end
+  if not ok or type(engine) ~= "table" then
+    widgetLog(nil, "dashboard engine did not load, a declarative theme draws nothing: "
+      .. tostring(chunk and engine or err), "error")
+    return nil
+  end
   return engine
 end
 
@@ -4801,7 +4814,9 @@ function Runtime.new(zone, options)
     local declares
     self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
     self.themeStateKeys = themeStateKeys(declares)
-    if switching then
+    if self.theme == nil then
+      widgetLog(self, "theme " .. tostring(selectedTheme) .. " left nothing to draw", "warn")
+    elseif switching then
       utils.milestone("rfsuite.widget.theme", "theme %s loaded for phase %s (%s, from %s)",
         tostring(selectedTheme), tostring(self.themeStateKey), tostring(utils.themeReason), tostring(previousTheme))
     elseif self._shmOn then
