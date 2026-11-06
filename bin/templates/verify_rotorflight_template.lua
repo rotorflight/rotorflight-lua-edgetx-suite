@@ -1,6 +1,6 @@
 -- Drive the Rotorflight model template's wizard script through its two screens and check what
--- it refuses and what it writes into the model. The radio, lvgl and the setup assistant's radio
--- module are stubs; the template script itself is the real file.
+-- it refuses and what it writes into the model. The radio, lvgl and lib/model_radio.lua are
+-- stubs; the template script itself is the real file.
 local checks, failures = 0, 0
 local function check(ok, label)
   checks = checks + 1
@@ -85,11 +85,23 @@ local function newRadio()
     end,
     getModule = function(index) return radio.modules[index] end
   }
+  -- The stub above stands for lib/model_radio.lua, so what the template reads from it is checked
+  -- against the real module once.
+  do
+    local template = assert(io.open("src/templates/5.Rotorflight/Rotorflight.lua", "rb")):read("a")
+    local real = assert(loadfile("src/rfsuite/lib/model_radio.lua"))()
+    local seen = 0
+    for field in string.gmatch(template, "%f[%w_]R%.([%a_][%w_]*)") do
+      seen = seen + 1
+      assert(real[field] ~= nil, "lib/model_radio.lua has no " .. field)
+    end
+    assert(seen > 0, "the template reads nothing from its radio module")
+  end
   _G.loadScript = function(path)
     if string.find(path, "ui/palette.lua", 1, true) then
       return function() return { text = 1, muted = 2, border = 3, warning = 4, error = 5, ok = 6 } end
     end
-    assert(string.find(path, "setup_wizard/radio.lua", 1, true), "unexpected module: " .. path)
+    assert(string.find(path, "lib/model_radio.lua", 1, true), "unexpected module: " .. path)
     return function() return R end
   end
   _G.LCD_W, _G.LCD_H = 480, 272

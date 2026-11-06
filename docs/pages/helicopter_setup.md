@@ -7,7 +7,7 @@ title: Helicopter Setup
 A guided helicopter setup based on the Configurator wizard, with ESC telemetry
 before the spin test in the 19-step sequence.
 See the [generated wizard flow](../reference/helicopter-wizard-flow.md) for cards, pilot actions, gates and MSP traffic.
-It is the only entry in the Wizards menu; the old Setup Assistant code and templates remain. Remove the main
+It is the only entry in the Wizards menu. Remove the main
 and tail blades before bench work. Keep servos unplugged until the connection gate.
 
 ## Where to find it

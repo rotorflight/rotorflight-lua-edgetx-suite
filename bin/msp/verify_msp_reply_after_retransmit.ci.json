@@ -1,0 +1,7 @@
+{
+  "id": "msp-reply-after-retransmit",
+  "name": "MSP late reply after a resend",
+  "commands": [
+    "lua5.3 bin/msp/verify_msp_reply_after_retransmit.lua"
+  ]
+}
