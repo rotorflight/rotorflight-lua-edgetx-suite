@@ -285,11 +285,11 @@ end
 -- (`init({ hosted = true, landing = ... })` in ui/home.lua); the back key there closes the tool.
 function M.request(widget, landing)
   if widget._toolHost ~= nil then return false end
+  hostStep("tool asked for, landing " .. tostring(landing))
   if modelArmed() then
     hostLog("tool not opened: the model is armed", "warn")
     return false
   end
-  hostStep("tool asked for, landing " .. tostring(landing))
   widget._toolHost = { phase = "load", cpuHits = 0, landing = landing }
   widget.built = false
   widget.renderKey = nil

@@ -4824,7 +4824,7 @@ function Runtime.new(zone, options)
     nextConfig.v_max = tonumber(nextConfig.v_max) or 25.2
     nextConfig._customVoltage = hasCustomVoltage
 
-    local previousTheme = self._themeFolderPath
+    local previousTheme = self._themeShown
     self.themePath = selectedTheme
     -- Before the new theme loads, so the one being left is not held beside it for longer than
     -- this widget still has it on screen. Only on a change of folder: a phase change within one
@@ -4853,6 +4853,7 @@ function Runtime.new(zone, options)
     utils.themeFellBack = nil
     self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
     self.themeStateKeys = themeStateKeys(declares)
+    self._themeShown = utils.themeFellBack and "system/default" or selectedTheme
     if self.theme == nil then
       widgetLog(self, "theme " .. tostring(selectedTheme) .. " left nothing to draw", "warn")
     elseif switching then

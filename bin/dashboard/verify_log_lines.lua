@@ -9,7 +9,7 @@
 -- Checked: the one-time "no telemetry source found" line and its re-arming by Sensors.reset();
 -- the view opened / closed lines and the single warning for a view whose module does not load; the
 -- tool host's instruction-limit warning, its step lines and the dropped-modules count; the single
--- warning for an object type that does not load; the event runner's raised-task error (once per
+-- warning for an object type that does not load; the event runner's raised-task warning (once per
 -- attempt) and its completion line with the memory figure; and, on the real dashboard runtime
 -- driven through a connect and a flight, what the milestones, the base-log lines and the build
 -- lines do at each level. A direct Log.emit is read back in every case, so a silent result cannot
@@ -409,6 +409,40 @@ do
   runnerCase("off", false)
   runnerCase("debug", false)
   runnerCase("debug", true)
+end
+
+-- ---------------------------------------------------------------------------
+-- 5b. lib/require.lua and the connect's UID task
+-- ---------------------------------------------------------------------------
+
+do
+  world()
+  begin("off", true)
+  control("require off", "error")
+  local missing = "lib/no_such_module_for_this_check.lua"
+  local stubLoadScript = _G.loadScript
+  _G.loadScript = function(path, mode)
+    local chunk, err = stubLoadScript(path, mode)
+    if chunk == nil and err == nil then err = "cannot open " .. tostring(path) end
+    return chunk, err
+  end
+  for _ = 1, 3 do _G.rfsuite.require(missing) end
+  _G.loadScript = stubLoadScript
+  local said = find("rfsuite.require", missing)
+  check(#said == 1, "require: a load that keeps failing is said once", #said)
+  check(said[1] ~= nil and said[1].level == "error", "require: and it is an error line", said[1] and said[1].level)
+
+  world()
+  begin("info", true)
+  control("uid info", "info")
+  local chunk = assert(loadfile(root .. "/src/rfsuite/tasks/events/onconnect/tasks/uid.lua"))
+  local task = chunk()
+  _G.rfsuite.session = { mcu_id = "ABC", modelPreferences = {}, modelPreferencesFile = "held.ini" }
+  task.wakeup()
+  local resolved = find("rfsuite.tasks.onconnect", "model preferences: held.ini")
+  check(#resolved == 1, "uid: the file the model's preferences came from is said", #resolved)
+  task.wakeup()
+  check(#find("rfsuite.tasks.onconnect", "model preferences:") == 1, "uid: and only once", nil)
 end
 
 -- ---------------------------------------------------------------------------
