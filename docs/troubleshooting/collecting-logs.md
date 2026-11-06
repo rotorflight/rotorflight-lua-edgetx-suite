@@ -138,9 +138,9 @@ Every line starts with the part of the suite that wrote it, its tag, then its le
 | `rfsuite.widget.object` | An object type that loaded, or did not, for the boxes of a theme. |
 | `rfsuite.reload` | The dashboard reloading its settings, and why it waited. |
 | `rfsuite.events`, `rfsuite.tasks.…` | The connect sequence and the arm and disarm tasks, each with its time and memory. |
-| `rfsuite.sensors` | Which telemetry source was taken, or that none was found; once per connection. |
+| `rfsuite.sensors` | Which telemetry source was taken, or, while connected, that none was found; once per connection. |
 | `rfsuite.audio`, `rfsuite.inflight` | Announcements, and the in-flight tuning surface. |
-| `rfsuite.require` | A module that did not load and, at *DEBUG*, once the dashboard has made its first pass, each module loaded with the Lua memory before and after it, and each released. A module that loads others carries their memory in its figure. |
+| `rfsuite.require` | A module that did not load and, at *DEBUG*, a few seconds after the dashboard starts, each module loaded with the Lua memory before and after it, and each released. A module that loads others carries their memory in its figure. |
 
 **What is using the resources.** At *INFO*, the state line every five seconds says how much of the
 budget the dashboard used and on what, and the milestones carry the memory figures. Compare a figure

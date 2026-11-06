@@ -120,7 +120,13 @@ do
   control("sensors debug", "debug")
   local Sensors = assert(_G.rfsuite.require("lib/sensors.lua"))
   Sensors.reset()
+  -- Without a link every source misses, and that says nothing.
+  _G.rfsuite.session = { isConnected = false }
   check(read(Sensors) == nil, "sensors: an unknown source reads nil")
+  check(count("rfsuite.sensors", MISS) == 0, "sensors: no miss line while not connected", count("rfsuite.sensors", MISS))
+  _G.rfsuite.session.isConnected = true
+  Sensors.reset()
+  read(Sensors)
   check(count("rfsuite.sensors", MISS) == 1, "sensors: the miss is said once", count("rfsuite.sensors", MISS))
   local line = find("rfsuite.sensors", MISS)[1]
   check(line ~= nil and line.level == "debug", "sensors: the miss line is a debug line", line and line.level)
@@ -144,6 +150,7 @@ do
 
   -- The level is asked again after a reset: raised on the radio, it reaches the next connect.
   setLevel("debug")
+  _G.rfsuite.session = { isConnected = true }
   Sensors.reset()
   read(Sensors)
   check(count("rfsuite.sensors", MISS) == 1, "sensors: a level raised before a reset is seen after it",
@@ -440,7 +447,7 @@ do
     local path = "widgets/dashboard/keys.lua"
     _G.rfsuite.clearModule(path)
     begin(level, true)
-    -- The dashboard's first pass raises this; its create runs without it.
+    -- The dashboard raises this a few seconds after it starts; its create and first pass run without it.
     _G.rfsuite.logModuleLoads = level == "debug"
     _G.rfsuite.require(path)
     local loaded = find("rfsuite.require", "loaded ")

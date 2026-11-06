@@ -81,9 +81,9 @@ local function requireModule(path, forceReload)
   end
 
   -- What each module costs, for a log read at debug. A module that loads others carries theirs in
-  -- its figure. The dashboard raises this flag from its first pass on (traceInstructionUsage), and
-  -- not in its create, which loads some twenty modules in one call close to the instruction limit:
-  -- a line per load there stopped the widget while it was being created, at debug and trace only.
+  -- its figure. The dashboard raises this flag some seconds after it starts (traceInstructionUsage),
+  -- and not in its create or first pass, which load some twenty modules each in one call close to the
+  -- instruction limit: a line per load there stopped the widget, at debug and trace only.
   local Logger = _G.rfsuite and _G.rfsuite.logModuleLoads and _G.rfsuite.Log
   local luaBefore = Logger and math.floor(collectgarbage("count") + 0.5) or nil
 

@@ -424,7 +424,6 @@ local function traceInstructionUsage(self)
   if self._shmOn == nil then
     self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
     self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
-    _G.rfsuite.logModuleLoads = self._shmOn
   end
 
   self._shmPass = (self._shmPass or 0) + 1
@@ -475,7 +474,11 @@ local function traceInstructionUsage(self)
 
   self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
   self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
-  _G.rfsuite.logModuleLoads = self._shmOn
+  -- The module load lines (lib/require.lua). Not on the first report, which falls on the first
+  -- pass: that pass loads modules and searches every source once, close to the instruction limit
+  -- by itself, and a line per load took it over at debug.
+  _G.rfsuite.logModuleLoads = self._usageReported and self._shmOn or false
+  self._usageReported = true
 
   -- The state line: this state's budget and memory and the radio's, every interval, at INFO so a
   -- log taken for a report carries it. Built only while somebody is recording -- with the log off

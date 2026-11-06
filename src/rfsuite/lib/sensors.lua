@@ -924,7 +924,9 @@ readValue = function(source)
     if wait > SEARCH_MISS_MAX_SECONDS then wait = SEARCH_MISS_MAX_SECONDS end
     searchWaits[source] = wait
   end
-  if debugWanted() then debugLog("miss:" .. source, "no telemetry source found for " .. source) end
+  if debugWanted() and _G.rfsuite and _G.rfsuite.session and _G.rfsuite.session.isConnected then
+    debugLog("miss:" .. source, "no telemetry source found for " .. source)
+  end
   return nil
 end
 
