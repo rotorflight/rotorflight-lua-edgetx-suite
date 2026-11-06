@@ -220,7 +220,7 @@ local function appendGvarPicker(children, x, y, w, labelText, help)
   children[#children + 1] = {
     type = "source",
     x = pickerX, y = Controls.controlY(y, rowH), w = pickerW, h = Controls.CTRL_H,
-    -- NO `title`: the source picker does not take one (see app/pages/setup_wizard/proc_radio.lua).
+    -- NO `title`: the source picker does not take one.
     filter = SRC_GVAR_FILTER,
     -- None picked yet, or a variable this radio lacks, is 0, which EdgeTX draws as its empty
     -- source: past the last variable come the radio's own sources (TX voltage, time, GPS), and

@@ -18,7 +18,7 @@
 -- Strings carry i18n markers like every suite source: the packager resolves them per locale
 -- at build time, so the standalone script needs none of the suite's i18n helpers at runtime.
 
-local RADIO_MODULE = "/SCRIPTS/RFSUITE/core/app/pages/setup_wizard/radio.lua"
+local RADIO_MODULE = "/SCRIPTS/RFSUITE/core/lib/model_radio.lua"
 
 local R = nil          -- the assistant's radio-side module, loaded below
 local loadError = nil

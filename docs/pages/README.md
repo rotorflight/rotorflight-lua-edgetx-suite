@@ -116,7 +116,6 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 
 | Page | File | In-app help | Conditions | Status |
 | --- | --- | --- | --- | --- |
-| Setup Assistant (replaced by Helicopter Setup; code retained, no menu entry) | [setup_wizard.md](setup_wizard.md) | no | not reachable | written |
 | Helicopter Setup (complete, 19 steps, history) | [helicopter_setup.md](helicopter_setup.md) | yes | preview switch *Setup Assistant*, connected/disarmed, needs MSP API 12.10 (offered from 12.09, then shows *Firmware too old*) | written |
 
 ## System → Tools

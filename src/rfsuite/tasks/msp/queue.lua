@@ -216,6 +216,28 @@ local function drainAfterSuccess(self, cmd)
   end
 end
 
+-- A reply carries a command number and nothing that says which request it answers, so a reply
+-- still on its way answers the next request with the same command. telemetry/crsf.c buffers a
+-- request that arrives while a reply is going out and answers it afterwards, so a resend that
+-- crosses a slow reply is answered twice. Whenever a sent request may still be answered, its
+-- command stays quiet for one reply window: the transport drops what arrives while nothing with
+-- that command is out (common.lua, mspRxReq ~= mspLastReq), and other commands are not affected.
+-- The window is capped: everything behind a waiting message waits with it, and a long timeout is
+-- a board that takes long to answer once, not a reply that stays on the way that long.
+local MAX_QUIET_SECONDS = DEFAULT_TIMEOUT_SECONDS
+
+local function keepCommandQuiet(self, msg, now)
+  now = now or nowSeconds()
+  local quiet = self.quietUntil or {}
+  for command, untilAt in pairs(quiet) do
+    if now >= untilAt then quiet[command] = nil end
+  end
+  quiet[msg.command] = now + math.min(tonumber(msg.timeout) or self.timeout, MAX_QUIET_SECONDS)
+  self.quietUntil = quiet
+  self.logf("debug", "cmd=%s kept quiet for its reply window, attempts=%d",
+    tostring(msg.command), self.retryCount)
+end
+
 function Queue.new(common, opts)
   local self = setmetatable({}, Queue)
   opts = opts or {}
@@ -337,6 +359,7 @@ function Queue:clear(clientId, opts)
     if self.currentMessage and type(self.currentMessage.errorHandler) == "function" then
       handlers[#handlers + 1] = { fn = self.currentMessage.errorHandler, msg = self.currentMessage }
     end
+    if self.currentMessage and self.retryCount > 0 then keepCommandQuiet(self, self.currentMessage) end
 
     while qcount(self.queue) > 0 do
       local msg = qpop(self.queue)
@@ -365,6 +388,7 @@ function Queue:clear(clientId, opts)
       if type(self.currentMessage.errorHandler) == "function" then
         handlers[#handlers + 1] = { fn = self.currentMessage.errorHandler, msg = self.currentMessage }
       end
+      if self.retryCount > 0 then keepCommandQuiet(self, self.currentMessage) end
       self.currentMessage = nil
       self.currentMessageStartTime = nil
       self.lastTimeCommandSent = nil
@@ -439,6 +463,7 @@ function Queue:cancel(clientId, requestId)
     if type(current.errorHandler) == "function" then
       handler = current.errorHandler
     end
+    if self.retryCount > 0 then keepCommandQuiet(self, current) end
     self.currentMessage = nil
     self.currentMessageStartTime = nil
     self.lastTimeCommandSent = nil
@@ -491,6 +516,19 @@ function Queue:processQueue(now)
   end
 
   if self:isProcessed() then
+    -- Nothing is being asked, but what is still on its way has to be read and dropped now, or it
+    -- is waiting in the transport when the next request with that command goes out.
+    if self.quietUntil and not simulatorMode then
+      local quiet = false
+      for command, untilAt in pairs(self.quietUntil) do
+        if now >= untilAt then self.quietUntil[command] = nil else quiet = true end
+      end
+      if quiet and self.common and type(self.common.pollReply) == "function" then
+        pcall(self.common.pollReply)
+      else
+        self.quietUntil = quiet and self.quietUntil or nil
+      end
+    end
     return
   end
 
@@ -647,6 +685,14 @@ function Queue:processQueue(now)
     end
   end
 
+  -- Nothing of this message is out yet, so whatever arrived answers something earlier.
+  if cmd and self.retryCount == 0 then
+    if self.wanted("trace") then
+      self.logf("trace", "rx cmd=%s dropped, client=%s has not sent yet", tostring(cmd), tostring(msg.client))
+    end
+    cmd, buf, err = nil, nil, nil
+  end
+
   if cmd then
     self.lastTimeCommandSent = nil
   end
@@ -707,6 +753,8 @@ function Queue:processQueue(now)
     if not simulatorMode then
       drainAfterSuccess(self, msg.command)
     end
+    -- Sent more than once: the other answer may still come.
+    if self.retryCount > 1 then keepCommandQuiet(self, msg, now) end
     self.currentMessage = nil
     self.currentMessageStartTime = nil
     self.lastTimeCommandSent = nil
@@ -729,7 +777,22 @@ function Queue:processQueue(now)
   local canSendByInterval = resendNow or not self.lastTimeCommandSent or (self.lastTimeCommandSent + commandInterval < now)
   local canSendByTimeout = resendNow or (self.currentMessageStartTime == nil) or ((now - self.currentMessageStartTime) >= timeoutSeconds)
 
-  if canSendByInterval and canSendByTimeout and self.retryCount <= maxRetries and not self.writeHeld then
+  -- Only the first send waits: a resend asks for the same answer as the send before it.
+  local quietUntil = self.quietUntil and self.quietUntil[msg.command]
+  local keptQuiet = false
+  if quietUntil then
+    if now >= quietUntil then
+      self.quietUntil[msg.command] = nil
+    elseif self.retryCount == 0 then
+      keptQuiet = true
+      if self.wanted("trace") then
+        self.logf("trace", "wait cmd=%s client=%s %.2f s for a reply still possible",
+          tostring(msg.command), tostring(msg.client), quietUntil - now)
+      end
+    end
+  end
+
+  if canSendByInterval and canSendByTimeout and self.retryCount <= maxRetries and not self.writeHeld and not keptQuiet then
     local payload = msg.payload or EMPTY_PAYLOAD
     local okSend = self.common and type(self.common.sendRequest) == "function"
       and self.common.sendRequest(msg.command, payload, { write = isWriteMessage(msg) })
@@ -792,6 +855,8 @@ function Queue:processQueue(now)
     -- (writeHeld, above) is given up here as well once its reply window has passed, with the
     -- same two reasons.
     local reason = self.errorReplySeen and "refused" or "max_retries"
+    -- No answer in the window does not mean no answer.
+    if self.retryCount > 0 then keepCommandQuiet(self, msg, now) end
     if type(msg.errorHandler) == "function" then
       local ok, herr = pcall(msg.errorHandler, msg, reason)
       if not ok then
