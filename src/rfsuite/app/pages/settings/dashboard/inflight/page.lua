@@ -509,8 +509,10 @@ local function saveToStore(ctx)
   -- Written only while off, so a model never switched off carries nothing.
   if ui.modelOffKey ~= nil then prefs.inflight[ui.modelOffKey] = ui.modelOff == true and true or nil end
 
-  if type(ctx.savePreferences) ~= "function" then return false, "preferences" end
-  return ctx.savePreferences()
+  -- A set-up's result arrives with the build's context, which carries the table and not the writer.
+  local save = ctx.savePreferences or (_G.rfsuite and _G.rfsuite.savePreferences)
+  if type(save) ~= "function" then return false, "preferences" end
+  return save()
 end
 
 function M.getHeaderActions()
