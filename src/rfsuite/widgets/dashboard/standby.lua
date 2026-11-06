@@ -759,7 +759,7 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
       local barY = footerY + statusY + math.floor((statusH - barH) / 2)
       local fillW = barW - 4
       children[#children + 1] = { type = "rectangle", x = barX, y = barY, w = barW, h = barH,
-        color = colors.raised, filled = true,
+        color = colors.rule, filled = true,
         visible = function() return progress() ~= nil end }
       children[#children + 1] = { type = "rectangle", x = barX + 2, y = barY + 2, w = 1, h = barH - 4,
         color = accentColor, filled = true,

@@ -2654,8 +2654,8 @@ local function buildScene()
     local screenW = LCD_W or 320
     local screenH = LCD_H or 240
 
-    -- The pilot's colour scheme, as the widget's own loading screen has it. The file is dropped again
-    -- with this screen (see the run loop), since nothing else in the tool reads it yet.
+    -- The pilot's colour scheme, as the widget's own loading screen has it. On the tool's own state the
+    -- file is dropped again with this screen (see the run loop), since nothing else there reads it yet.
     local Schemes = loadModule("lib/color_schemes.lua")
     local scheme = state.preferences and state.preferences.general and state.preferences.general.color_scheme
     local colors = Schemes.colors(scheme)
@@ -2721,7 +2721,7 @@ local function buildScene()
       children[#children + 1] = {
         type = "rectangle",
         x = barX, y = barY, w = barW, h = barH,
-        color = colors.raised,
+        color = colors.rule,
         filled = true
       }
       if fillW > 0 then
@@ -4099,7 +4099,9 @@ function M.run(event, touchState)
       -- here rather than on the first page that happens to need a file.
       if mspSettled and compileFinished then
         state.initialLoad = false
-        if type(_G.rfsuite.clearModule) == "function" then _G.rfsuite.clearModule("lib/color_schemes.lua") end
+        if not state.hosted and type(_G.rfsuite.clearModule) == "function" then
+          _G.rfsuite.clearModule("lib/color_schemes.lua")
+        end
         -- A pass that rebuilt the whole tree leaves the dashboard -- and, hosted, this tool --
         -- running the previous build's modules until the radio is restarted, so the pilot is
         -- asked for that once, on the screen that follows.

@@ -651,7 +651,6 @@ local function buildConnectionSplash(zone, statusLine, title, progress, scheme)
 
   local w = (zone and zone.w) or LCD_W or 320
   local h = (zone and zone.h) or LCD_H or 172
-  local Schemes = requireModule("lib/color_schemes.lua")
   return {
     {
       type = "rectangle",
@@ -659,7 +658,7 @@ local function buildConnectionSplash(zone, statusLine, title, progress, scheme)
       y = 0,
       w = w,
       h = h,
-      color = Schemes and Schemes.colors(scheme).page or COLOR_THEME_PRIMARY2,
+      color = COLOR_THEME_PRIMARY2,
       filled = true
     }
   }
@@ -2100,16 +2099,12 @@ local function failedLabelJobStep(self)
   local title = (t and t("widgets.dashboard.build_failed")) or "Dashboard error"
   local w = (self.zone and self.zone.w) or LCD_W or 320
   local h = (self.zone and self.zone.h) or LCD_H or 172
-  -- The connect splash's two colours, on a filled rectangle of its own: after lvgl.clear() the
+  -- The radio's colours, which need no file, on a filled rectangle of its own: after lvgl.clear() the
   -- zone is transparent, and a bare label would sit on whatever the radio's layout draws there.
-  -- This surface must draw when everything else has failed, so a scheme file that does not load
-  -- leaves it in the radio's colours rather than without a surface.
-  local Schemes = requireModule("lib/color_schemes.lua")
-  local colors = Schemes and Schemes.colors(utils.colorScheme(self))
   local nodes = {
-    { type = "rectangle", x = 0, y = 0, w = w, h = h, color = colors and colors.page or COLOR_THEME_PRIMARY3, filled = true },
+    { type = "rectangle", x = 0, y = 0, w = w, h = h, color = COLOR_THEME_PRIMARY3, filled = true },
     { type = "label", x = 0, y = math.floor(h * 0.4), w = w, text = title, align = CENTER,
-      color = colors and colors.text or COLOR_THEME_PRIMARY2, font = MIDSIZE },
+      color = COLOR_THEME_PRIMARY2, font = MIDSIZE },
   }
   releaseInflightHold(self)
   lvgl.clear()

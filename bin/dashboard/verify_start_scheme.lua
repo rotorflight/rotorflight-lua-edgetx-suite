@@ -145,12 +145,20 @@ local function widgetLeg(label, standby, zone, event)
   end
 end
 
-widgetLeg("splash, 800x458 zone", false, { x = 0, y = 0, w = 800, h = 458 }, 0)
-widgetLeg("splash, 480x272 zone", false, { x = 0, y = 0, w = 480, h = 272 }, 0)
-widgetLeg("standby, 800x458 zone", true, { x = 0, y = 0, w = 800, h = 458 }, 0)
-widgetLeg("standby, 480x320 zone", true, { x = 0, y = 0, w = 480, h = 320 }, 0)
-widgetLeg("standby, 480x272 zone", true, { x = 0, y = 0, w = 480, h = 272 }, 0)
-widgetLeg("standby, low zone", true, { x = 0, y = 0, w = 240, h = 68 }, 0)
+-- An event is what makes a refresh full screen, and only full screen carries the tool control.
+widgetLeg("splash, full screen 800x480", false, { x = 0, y = 0, w = 800, h = 480 }, 0)
+widgetLeg("splash, 480x272 zone", false, { x = 0, y = 0, w = 480, h = 272 }, nil)
+widgetLeg("standby, full screen 480x272", true, { x = 0, y = 0, w = 480, h = 272 }, 0)
+widgetLeg("standby, 800x458 zone", true, { x = 0, y = 0, w = 800, h = 458 }, nil)
+widgetLeg("standby, 480x320 zone", true, { x = 0, y = 0, w = 480, h = 320 }, nil)
+widgetLeg("standby, low zone", true, { x = 0, y = 0, w = 240, h = 68 }, nil)
+
+-- The two roles only the start screen read are gone with it, and the tool's other panel roles stay.
+do
+  local Palette = assert(loadfile(root .. "/src/rfsuite/ui/palette.lua"))()
+  check(Palette.panelProgressTrack == nil and Palette.panelProgressFill == nil, "the start screen's old roles are gone")
+  check(Palette.panel ~= nil and Palette.panelText ~= nil, "the notices' panel roles remain")
+end
 
 -- The tool's start screen, on its own Lua state's preferences.
 local function find(fn, wanted, seen)

@@ -71,7 +71,7 @@ function Splash.build(zone, statusLine, title, progress, scheme)
     children[#children + 1] = {
       type = "rectangle",
       x = barX, y = barY, w = barW, h = barH,
-      color = colors.raised,
+      color = colors.rule,
       filled = true,
       visible = function() return progress() ~= nil end
     }
