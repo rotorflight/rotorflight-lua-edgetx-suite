@@ -1,0 +1,1 @@
+- Give every setting on *Settings > Dashboard > In-Flight Tuning* its own `?` with one line about it (`app/pages/settings/dashboard/inflight/page.lua`, `app/pages/settings/dashboard/inflight/help.lua`, `i18n/en.lua`, `i18n/de.lua`, `docs/pages/settings/dashboard/inflight.md`)

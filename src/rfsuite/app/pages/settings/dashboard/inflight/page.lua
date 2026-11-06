@@ -58,6 +58,13 @@ local ui = {
 
 ui.runtime = nil
 local t = nil
+local HELP_BTN_W, HELP_BTN_H, HELP_BTN_GAP = 30, 30, 6
+
+--- A row's `?` opens the page's help sheet with the row's label as its title.
+local function onRowHelp(helpText, helpTitle)
+  local openHelp = ui.runtime and ui.runtime.openHelp
+  if type(openHelp) == "function" then openHelp(helpText, helpTitle) end
+end
 
 local function ensureDeps()
   if not Common then
@@ -284,17 +291,28 @@ end
 -- It offers both positions of every trim and the store keeps the INCREMENT: the drive derives the
 -- decrement from the same block entry, and a setting that could hold either would be two
 -- spellings of one choice. A picked decrement is normalised to its own increment on the way in.
-local function appendTrimPicker(children, x, y, w, label, get, set)
+--
+-- Controls has no wrapper for this picker, so the row places its `?` where the wrapped rows have
+-- theirs, and the picker moves left to make room.
+local function appendTrimPicker(children, x, y, w, label, helpText, get, set)
   local pickerW = 172
   if pickerW > w then pickerW = w end
   local rowH = Controls.ROW_H
+  local pickerX = x + w - pickerW - 10 - HELP_BTN_W - HELP_BTN_GAP
   children[#children + 1] = {
-    type = "label", x = x, y = Controls.labelY(y, rowH), w = w - pickerW - 18,
+    type = "label", x = x, y = Controls.labelY(y, rowH), w = pickerX - x - 8,
     text = label, color = Palette.text, font = SMLSIZE
   }
   children[#children + 1] = {
+    type = "button",
+    x = x + w - 10 - HELP_BTN_W, y = y + math.floor((rowH - HELP_BTN_H) / 2),
+    w = HELP_BTN_W, h = HELP_BTN_H,
+    text = "?",
+    press = function() onRowHelp(helpText, label) end
+  }
+  children[#children + 1] = {
     type = "switch",
-    x = x + w - pickerW - 10, y = Controls.controlY(y, rowH), w = pickerW, h = rowH - 6,
+    x = pickerX, y = Controls.controlY(y, rowH), w = pickerW, h = rowH - 6,
     filter = SW_TRIM | SW_NONE,
     get = get,
     set = function(value)
@@ -727,10 +745,17 @@ local function buildGeneral(children, x, y, w, i18n)
   local cursorY = y
   cursorY = cursorY + appendNote(children, x, cursorY, w,
     t(i18n, "pointer_tuning", "Set up suggested functions from the tuning screen on the ground."))
+  local enabledLabel = t(i18n, "enabled", "In-flight tuning on this radio")
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
-    t(i18n, "enabled", "In-flight tuning on this radio"),
+    enabledLabel,
     ui.runtime.getBoolGetter("enabled"),
-    ui.runtime.getBoolSetter("enabled"))
+    ui.runtime.getBoolSetter("enabled"),
+    nil,
+    {
+      helpText = t(i18n, "help_enabled", "With it off, in-flight tuning drives nothing on any model. Off by default."),
+      helpTitle = enabledLabel,
+      onHelp = onRowHelp
+    })
   cursorY = cursorY + appendNote(children, x, cursorY, w,
     t(i18n, "enabled_note",
       "The master switch for every model."))
@@ -756,14 +781,17 @@ local function buildGeneral(children, x, y, w, i18n)
   return cursorY
 end
 
-local function appendNumber(children, x, y, w, label, key, minValue, maxValue, step, edited)
+local function appendNumber(children, x, y, w, label, key, minValue, maxValue, helpText, step, edited)
   return Controls.appendNumberField(children, x, y, w, label, {
     min = minValue,
     max = maxValue,
     step = step or 1,
     get = function() return ui.config[key] end,
     set = function(value) markValue(key, value) end,
-    edited = edited
+    edited = edited,
+    helpText = helpText,
+    helpTitle = label,
+    onHelp = onRowHelp
   })
 end
 
@@ -829,14 +857,27 @@ local function buildWiring(children, x, y, w, i18n)
   local wiringNote, readingNote, widestNote = wiringNotes(i18n)
   local cursorY = y
   cursorY = cursorY + appendNote(children, x, cursorY, w, wiringNote)
+  -- The link carries the two channels, and an ExpressLRS switch mode quantises both of them to a
+  -- fixed number of positions. The windows the flight controller decodes are 50 microseconds wide,
+  -- so a quantised code can land in the gap beside its own window or inside the neighbouring row's.
   cursorY = cursorY + appendNumber(children, x, cursorY, w,
-    t(i18n, "bank_ch", "Enable channel"), "bank_ch", Setup.CHANNEL_MIN, Setup.CHANNEL_MAX)
+    t(i18n, "bank_ch", "Enable channel"), "bank_ch", Setup.CHANNEL_MIN, Setup.CHANNEL_MAX,
+    t(i18n, "help_bank_ch",
+      "Bank the flight controller listens on, 5 to 16. On ExpressLRS use Wide or full resolution; Hybrid can pick the wrong parameter."))
   cursorY = cursorY + appendNumber(children, x, cursorY, w,
-    t(i18n, "value_ch", "Value channel"), "value_ch", Setup.CHANNEL_MIN, Setup.CHANNEL_MAX)
+    t(i18n, "value_ch", "Value channel"), "value_ch", Setup.CHANNEL_MIN, Setup.CHANNEL_MAX,
+    t(i18n, "help_value_ch",
+      "Steps the parameter, 5 to 16. On ExpressLRS use Wide or full resolution; Hybrid can pick the wrong parameter."))
   cursorY = cursorY + appendNumber(children, x, cursorY, w,
-    t(i18n, "bank_gvar", "Enable variable"), "bank_gvar", 0, Setup.GVAR_MAX_INDEX, nil, gvarEdited)
+    t(i18n, "bank_gvar", "Enable variable"), "bank_gvar", 0, Setup.GVAR_MAX_INDEX,
+    t(i18n, "help_bank_gvar",
+      "The global variable on the enable channel, 0 to 9, where 0 is none. A line under the fields warns when another mixer line uses it."),
+    nil, gvarEdited)
   cursorY = cursorY + appendNumber(children, x, cursorY, w,
-    t(i18n, "value_gvar", "Value variable"), "value_gvar", 0, Setup.GVAR_MAX_INDEX, nil, gvarEdited)
+    t(i18n, "value_gvar", "Value variable"), "value_gvar", 0, Setup.GVAR_MAX_INDEX,
+    t(i18n, "help_value_gvar",
+      "The global variable on the value channel, 0 to 9, where 0 is none. A line under the fields warns when another mixer line uses it."),
+    nil, gvarEdited)
 
   -- The variables are fixed defaults now, so the model is walked to say when one of them is
   -- already spoken for rather than to choose a free pair. It is a warning and not a refusal: a
@@ -883,10 +924,18 @@ end
 local function buildTrims(children, x, y, w, i18n)
   local navigateNote, bankTrimNote, unreadableNote = trimsNotes(i18n)
   local cursorY = y
+  local trimsLabel = t(i18n, "trims", "Drive rows from the trims")
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
-    t(i18n, "trims", "Drive rows from the trims"),
+    trimsLabel,
     ui.runtime.getBoolGetter("trims"),
-    ui.runtime.getBoolSetter("trims"))
+    ui.runtime.getBoolSetter("trims"),
+    nil,
+    {
+      helpText = t(i18n, "help_trims",
+        "Whether the physical trims move the surface at all. Off by default; touch, PAGE and the encoder work without them."),
+      helpTitle = trimsLabel,
+      onHelp = onRowHelp
+    })
 
   -- No picker until the walk is through: normaliseTrim needs the block, and a trim picked before it
   -- would be stored as off.
@@ -903,25 +952,38 @@ local function buildTrims(children, x, y, w, i18n)
     { value = Setup.TRIM_MODE_ROWS, label = t(i18n, "trim_mode_rows", "One trim per row") },
     { value = Setup.TRIM_MODE_NAVIGATE, label = t(i18n, "trim_mode_navigate", "Walk and adjust") }
   }
+  local modeLabel = t(i18n, "trim_mode", "Trim layout")
   cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
-    t(i18n, "trim_mode", "Trim layout"), modeOptions, ui.config.trim_mode,
+    modeLabel, modeOptions, ui.config.trim_mode,
     function(value)
       if ui.config.trim_mode == value then return end
       ui.config.trim_mode = value
       ui.checkDone = false
       ui.planNotice = nil
       ui.runtime.markDirty()
-    end)
+    end,
+    {
+      helpText = t(i18n, "help_trim_mode",
+        "Walk and adjust claims up to three trims. One trim per row gives each of the six rows its own trim, so it needs six to spare."),
+      helpTitle = modeLabel,
+      onHelp = onRowHelp
+    })
 
   if ui.config.trim_mode == Setup.TRIM_MODE_NAVIGATE then
     cursorY = cursorY + appendNote(children, x, cursorY, w, navigateNote)
     cursorY = cursorY + appendTrimPicker(children, x, cursorY, w,
-      t(i18n, "bank_trim", "Group trim"), trimField("bank_trim"))
+      t(i18n, "bank_trim", "Group trim"),
+      t(i18n, "help_bank_trim", "Changes the group. With none assigned, touch or PAGE changes the group."),
+      trimField("bank_trim"))
     cursorY = cursorY + appendNote(children, x, cursorY, w, bankTrimNote)
     cursorY = cursorY + appendTrimPicker(children, x, cursorY, w,
-      t(i18n, "nav_trim", "Walk trim"), trimField("nav_trim"))
+      t(i18n, "nav_trim", "Walk trim"),
+      t(i18n, "help_nav_trim", "Highlights a parameter inside the current group."),
+      trimField("nav_trim"))
     cursorY = cursorY + appendTrimPicker(children, x, cursorY, w,
-      t(i18n, "adj_trim", "Adjust trim"), trimField("adj_trim"))
+      t(i18n, "adj_trim", "Adjust trim"),
+      t(i18n, "help_adj_trim", "Moves the value of the highlighted parameter."),
+      trimField("adj_trim"))
     return cursorY
   end
 
@@ -933,9 +995,10 @@ local function buildTrims(children, x, y, w, i18n)
     t(i18n, "row_5", "Row 5"),
     t(i18n, "row_6", "Row 6")
   }
+  local rowHelp = t(i18n, "help_row_trim", "The trim that moves this row of the surface.")
   for row = 1, Setup.TRIM_COUNT do
     local index = row
-    cursorY = cursorY + appendTrimPicker(children, x, cursorY, w, labels[row],
+    cursorY = cursorY + appendTrimPicker(children, x, cursorY, w, labels[row], rowHelp,
       function() return ui.config.rowTrim[index] or 0 end,
       function(value) ui.config.rowTrim[index] = value end)
   end
@@ -989,6 +1052,7 @@ function M.build(ctx)
   ensureDeps()
   ensureLoaded(ctx.preferences)
   ui.runtime.setRequestRebuild(ctx.requestRebuild)
+  ui.runtime.openHelp = ctx.openHelp
   -- ui/home.lua builds before it calls the page's wakeup in the same pass; see M.wakeup.
   ui.builtThisPass = true
   ui.hosted = inWidgetCall()

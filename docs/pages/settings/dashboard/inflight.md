@@ -27,6 +27,9 @@ Hidden until *System* → *Settings* → *General* → *Preview* → *In-flight 
 
 ## Settings
 
+Every setting has a `?` on its row with one line about that setting. The `?` in the page's header
+says what the page is for.
+
 ### In-flight tuning
 
 | Setting | What it does |
