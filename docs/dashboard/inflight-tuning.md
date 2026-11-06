@@ -38,7 +38,7 @@ On the radio:
 - The master switch under *System* → *Settings* → *Dashboard* → *In-Flight Tuning*, with two
   channels and two global variables the model does not use otherwise (by default channel 11 for
   the bank, channel 12 for the value, GV6 and GV5). Both channels have to reach the flight controller.
-- The model wired for them: **Set up the model** on that page writes the two mixer lines, the
+- The model wired for them: **Set up radio** on that page writes the two mixer lines, the
   logical switch, the variables' range and precision and, with trims in use, the trim settings. The
   **Model** line on the ground screen has to read **Setup OK** before tuning drives anything.
 
@@ -63,7 +63,8 @@ turn them on), and **Drive rows from the trims** (off by default).
 The radio wiring stays in
 [*System* → *Settings* → *Dashboard* → *In-Flight Tuning*](../pages/settings/dashboard/inflight.md):
 the master switch, channels, variables and optional trims.
-**Set up the model** shows its proposed mixer, pulse-timer, variable and trim changes before writing.
+**Set up radio** says which channels and variables it uses and how many lines it replaces before
+writing, and **Restore previous setup** puts them back.
 A model set up by an earlier version needs this once more if its value line has no logical
 switch and the check reports **Mixer line missing or wrong**.
 

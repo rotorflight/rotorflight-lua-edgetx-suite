@@ -75,6 +75,50 @@ check(ui.flightPicker == nil and ui.flightWanted == nil, "radio page contains no
 for key in pairs(cache) do check(not string.find(key, "flightlist", 1, true), "no old editor loaded") end
 Page.onClose()
 
+-- Every setting of the page carries its own `?`, in either trim layout, and it opens the help
+-- sheet under the row's label. Answers each layout's lines as the page shows them.
+local function rowHelps(i18n)
+  local found = {}
+  for _, layout in ipairs({ { mode = Setup.TRIM_MODE_NAVIGATE, rows = 11 }, { mode = Setup.TRIM_MODE_ROWS, rows = 14 } }) do
+    local opened = {}
+    local page = { preferences = {}, children = {}, x = 0, y = 0, w = 456, i18n = i18n,
+      requestRebuild = function() end, savePreferences = function() return true end,
+      openHelp = function(text, title) opened[#opened + 1] = { text = text, title = title } end }
+    Page.onReload(page)
+    ui.sections.general, ui.sections.wiring, ui.sections.trims = true, true, true
+    ui.config.trim_mode = layout.mode
+    -- Inside the widget's call the sections wait for their notes and the trims for their walk, a
+    -- slice per pass, so the page is passed through to the build that draws every row.
+    for _ = 1, 400 do
+      page.children = {}
+      Page.build(page)
+      Page.wakeup(page)
+      Page.wakeup(page)
+      if not ui.notesWanted and ui.trimNames ~= nil then break end
+    end
+    page.children = {}
+    Page.build(page)
+    local buttons = 0
+    for _, node in ipairs(page.children) do
+      if node.type == "button" and node.text == "?" then
+        buttons = buttons + 1
+        node.press()
+      end
+    end
+    check(buttons == layout.rows, "layout " .. tostring(layout.mode) .. ": every setting has a ?, found " .. buttons)
+    check(#opened == buttons, "every ? opens the help sheet")
+    for _, line in ipairs(opened) do
+      check(type(line.title) == "string" and line.title ~= "", "a row's ? opens under its label")
+      found[#found + 1] = line
+    end
+    Page.onClose()
+  end
+  return found
+end
+for _, line in ipairs(rowHelps()) do
+  check(type(line.text) == "string" and line.text ~= "", "a row's ? has a text")
+end
+
 -- The radio page takes the overlay's instance of the setup module when the dashboard holds one
 -- (the tool hosted in the widget shares its Lua state), and a private one released with the page
 -- otherwise, so the standalone tool keeps nothing of it after closing.
@@ -136,6 +180,9 @@ for _, lang in ipairs({ "en", "de" }) do
       check(node.w == 464 and node.x == nil, "help label/marker stays within 480px body")
     end
     print(lang .. " " .. path .. " help: " .. length .. " characters")
+  end
+  for _, line in ipairs(rowHelps({ t = translate })) do
+    check(utf8.len(line.text) <= 200 and not string.find(line.text, "\n", 1, true), lang .. " row help is one short line")
   end
 end
 print(checked .. " flight-list/page/help checks passed; model save and refusal controls included")
