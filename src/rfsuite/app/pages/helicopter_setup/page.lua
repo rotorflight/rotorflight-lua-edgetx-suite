@@ -6,7 +6,7 @@ local modules, stage, w, context, viewJob, scene, sceneInputs, pendingInputs = {
 local deps = { "tasks/msp/runtime.lua", PATH .. "transport.lua", PATH .. "math.lua", PATH .. "labels.lua",
   PATH .. "controller.lua", PATH .. "forms.lua", PATH .. "workflow.lua", PATH .. "view.lua", "lib/armed.lua", PATH .. "diagrams.lua", PATH .. "navigation.lua",
   "lib/system_state.lua", "lib/sensors.lua", PATH .. "feedback.lua", PATH .. "history_store.lua", PATH .. "history.lua", PATH .. "attitude_view.lua",
-  PATH .. "servo_grid.lua", "lib/port_labels.lua", PATH .. "palette.lua",
+  PATH .. "servo_grid.lua", "lib/port_labels.lua", "lib/color_schemes.lua",
   "lib/esc_params.lua", "lib/esc_status.lua", PATH .. "esc_link.lua",
   "lib/power_fields.lua", "lib/api_version.lua" }
 -- The dashboard and the tool already hold the sensor library through the shared module loader.
@@ -54,7 +54,7 @@ local function needed(index)
   end
   return not (historyEntry and HISTORY_SKIPS[index])
 end
-local palette
+local palette, schemeName
 -- The tool's text colour role, read once here so the first build stays minimal.
 local toolText = _G.rfsuite and _G.rfsuite.palette and _G.rfsuite.palette.text or COLOR_THEME_PRIMARY1
 local loadingPoints = {{24,0},{24,0}}
@@ -82,7 +82,7 @@ local function buildLoading(ctx)
   local y=math.floor(ctx.h*0.38)
   loadingPoints[1][2],loadingPoints[2][2]=y+68,y+68
   local children={}
-  children[#children+1]={type="rectangle",x=0,y=0,w=ctx.w,h=ctx.h,filled=true,color=palette.background}
+  children[#children+1]={type="rectangle",x=0,y=0,w=ctx.w,h=ctx.h,filled=true,color=palette.page}
   children[#children+1]={type="label",x=24,y=y-34,w=ctx.w-48,h=28,text="@i18n(app.modules.helicopter_setup.name)@",font=ctx.w>=700 and MIDSIZE or SMLSIZE,color=palette.text}
   children[#children+1]={type="label",x=24,y=y,w=ctx.w-48,h=28,
       text=function()
@@ -90,7 +90,7 @@ local function buildLoading(ctx)
         return w and w.ready and "@i18n(app.modules.helicopter_setup.preparingView)@" or w and w.loadingText or "@i18n(app.modules.helicopter_setup.loading)@"
       end,font=SMLSIZE,color=palette.text}
   children[#children+1]={type="label",x=24,y=y+30,w=ctx.w-48,h=30,text="@i18n(app.modules.helicopter_setup.loadingHint)@",font=SMLSIZE,color=palette.muted}
-  children[#children+1]={type="line",pts={{24,y+68},{ctx.w-24,y+68}},thickness=3,color=palette.border}
+  children[#children+1]={type="line",pts={{24,y+68},{ctx.w-24,y+68}},thickness=3,color=palette.rule}
   children[#children+1]={type="line",pts=function() return loadingPoints end,thickness=7,color=palette.accent}
   children[#children+1]={type="button",x=12,y=ctx.h-38,w=math.floor(ctx.w*0.25),h=30,text="@i18n(app.modules.helicopter_setup.back)@",color=palette.card,textColor=palette.text,press=function() M.onBack() end}
   return children
@@ -116,7 +116,7 @@ function M.build(ctx)
   elseif loadingScene then
     table.move(loadingScene,1,#loadingScene,#ctx.children+1,ctx.children)
   else
-    -- The first build stays minimal; the palette is loaded by the first wakeup.
+    -- The first build stays minimal; the colour scheme is loaded by the first wakeup.
     ctx.children[#ctx.children+1] = { type="label",x=12,y=30,w=ctx.w-24,
       text="@i18n(app.modules.helicopter_setup.loading)@",color=toolText,font=SMLSIZE }
   end
@@ -136,8 +136,14 @@ function M.wakeup(ctx)
   if ctx and ctx.requestRebuild then context.requestRebuild = ctx.requestRebuild end
   loadingFraction = w and (w.ready and 1 or w.suspended and 0 or 0.2+0.8*(w.progress or 0)/math.max(1,w.loadTotal or 1)) or 0.2*(stage-1)/#deps
   loadingPoints[2][1]=24+math.floor((context.w-48)*math.min(1,loadingFraction))
-  if not palette then palette = assert(loadScript(BASE .. deps[20], "t"))() end
-  modules[20] = modules[20] or palette
+  if not palette then
+    -- The pilot's scheme is read at each opening, so a changed setting shows the next time this
+    -- page opens. A scene built before that keeps its colours, as every scene keeps its inputs.
+    local Schemes = assert(loadScript(BASE .. deps[20], "t"))()
+    local prefs = context.preferences
+    schemeName = Schemes.name(prefs and prefs.general and prefs.general.color_scheme)
+    palette, modules[20] = Schemes.colors(schemeName), Schemes
+  end
   if not loadingScene then
     loadingScene=buildLoading(context);context.requestRebuild();return
   end
@@ -147,7 +153,8 @@ function M.wakeup(ctx)
   end
   if not w then
     w = modules[5].new(modules[1], modules[2], modules[3], modules[4])
-    w.palette = palette
+    w.palette, w.scheme = palette, schemeName
+    if w.logDebug then w:log("debug", "colour scheme %s", schemeName) end
     w.i18n = context.i18n
     w.powerFields, w.powerApiVersion = modules[24], modules[25]
     w.newAttitudeView = function(...) return helper(17).new(...) end
@@ -214,7 +221,7 @@ function M.onClose()
   end
   modules, stage, w, context, viewJob, scene, sceneInputs, pendingInputs = {}, 1, nil, nil, nil, nil, nil, nil
   loadingScene,loadingFraction,loadingPoints[2][1],historyEntry=nil,0,24,nil
-  collectAfterBuild=nil
+  collectAfterBuild,palette,schemeName=nil,nil,nil
 end
 function M.getHeaderActions() return { save = false, reload = false, help = true } end
 return M

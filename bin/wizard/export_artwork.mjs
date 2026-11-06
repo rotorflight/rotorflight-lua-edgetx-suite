@@ -19,7 +19,7 @@ const readJson = async name => JSON.parse(await fs.readFile(path.join(ART, name)
 const provenance = await readJson("provenance.json");
 const catalog = await readJson("catalog.json");
 const [W,H] = catalog.frame;
-// The small set is the same drawing at a reduced size of the same aspect, dark theme only.
+// The small sets are the same drawings at a reduced size of the same aspect, one per theme.
 const [SW,SH] = catalog.smallFrame;
 assert.equal(SW*H,SH*W,"The small frame keeps the aspect");
 // Both themes keep their SVG; only the themes listed here are written as radio images.
@@ -131,10 +131,10 @@ function svgDocument(markup, css, colors, padding = 0) {
     +'<g transform="translate('+tx+' '+ty+') scale('+scale+')"><g class="'+rootClass+'">'+body+'</g></g>\n</svg>\n';
 }
 const records=[];
-async function emitSmall(svg,name,options) {
+async function emitSmall(svg,name,options,folder="small") {
   const raster=new Resvg(svg,{...options,fitTo:{mode:"width",value:SW}}).render();
   assert.equal(raster.width,SW);assert.equal(raster.height,SH);
-  return emit(path.join(GFX,"small",name+".png"),raster.asPng());
+  return emit(path.join(GFX,folder,name+".png"),raster.asPng());
 }
 for (const item of catalog.exports) {
   assert(/^[a-z0-9-]+$/.test(item.name));
@@ -163,7 +163,7 @@ for (const item of catalog.exports) {
     assert.equal(raster.width,W);assert.equal(raster.height,H);
     rasterHashes.set(theme+"/"+item.name,hash(raster.asPng()));
     const pngInfo=RADIO_THEMES.includes(theme) ? await emit(path.join(GFX,theme,item.name+".png"),raster.asPng()) : undefined;
-    const small=theme==="dark" ? await emitSmall(svg,item.name,{font:{loadSystemFonts:true,defaultFontFamily:"Arial"}}) : undefined;
+    const small=await emitSmall(svg,item.name,{font:{loadSystemFonts:true,defaultFontFamily:"Arial"}},theme==="dark"?"small":"small_light");
     records.push({name:item.name,theme,component:item.component,props:item.props,index:item.index,leverAngle:item.leverAngle,viewPadding:item.viewPadding,svg:svgInfo,png:pngInfo,small});
   }
 }
@@ -204,7 +204,7 @@ for (const item of catalog.composites || []) {
     const raster=new Resvg(svg,{font:{loadSystemFonts:true,defaultFontFamily:"Arial"}}).render();
     assert.equal(raster.width,W);assert.equal(raster.height,H);
     const pngInfo=RADIO_THEMES.includes(theme) ? await emit(path.join(GFX,theme,item.name+".png"),raster.asPng()) : undefined;
-    const small=theme==="dark" ? await emitSmall(svg,item.name,{font:{loadSystemFonts:true,defaultFontFamily:"Arial"}}) : undefined;
+    const small=await emitSmall(svg,item.name,{font:{loadSystemFonts:true,defaultFontFamily:"Arial"}},theme==="dark"?"small":"small_light");
     records.push({name:item.name,theme,parts:item.parts,svg:svgInfo,png:pngInfo,small});
   }
 }

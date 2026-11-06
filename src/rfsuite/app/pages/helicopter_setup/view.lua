@@ -53,7 +53,7 @@ function M.new(w, ctx, diagrams)
   if attitudeCard and not (w.historyMode or w.overview or w.confirmExit or w.modelPreparationCard or w.recoveryCard) then
     title=string.format("%d/19  %s",w.step,card.title)
   end
-  all[#all + 1] = { type = "rectangle", x = 0, y = 0, w = width, h = height, filled = true, color = palette.background }
+  all[#all + 1] = { type = "rectangle", x = 0, y = 0, w = width, h = height, filled = true, color = palette.page }
   if card then
     local cardY = large and 50 or 27
     all[#all + 1] = { type = "rectangle", x = 6, y = cardY, w = width-12,
@@ -75,10 +75,10 @@ function M.new(w, ctx, diagrams)
     button(8, 2, width-controlH-exitW-26, title, function() w:requestSteps() end,
       function() return w.canEdit == true end)
     all[#all].h, all[#all].font = large and 44 or 24, large and MIDSIZE or SMLSIZE
-    all[#all].textColor = palette.accent
+    all[#all].textColor = palette.accentInk
     button(width-controlH-exitW-12, 2, exitW, w.L.exit, function() w:requestSteps() end,
       function() return w.canEdit == true end)
-    all[#all].h, all[#all].textColor = large and 44 or 24, palette.accent
+    all[#all].h, all[#all].textColor = large and 44 or 24, palette.accentInk
   end
   button(width-controlH-6, 2, controlH, "?", function()
     local current = w.cards and w.cards[w.card]
@@ -177,7 +177,7 @@ function M.new(w, ctx, diagrams)
       all[#all+1] = { type = "rectangle", x = width-bw-12, y = large and 54 or 28, w = bw, h = bh,
         filled = true, color = palette.warning }
       all[#all+1] = label(width-bw-12+(large and 10 or 6), large and 56 or 28, bw-(large and 12 or 8), card.badge)
-      all[#all].h, all[#all].color = bh-2, palette.accentText
+      all[#all].h, all[#all].color = bh-2, palette.onAccent
       all[#all-2].w = width-bw-34
     end
     if not card.servo and not (card.instructions and width<400) then
@@ -215,7 +215,7 @@ function M.new(w, ctx, diagrams)
       local bh = math.min(cardBottom-4-overviewY, (#card.blocks[1].lines+1)*lineH+12)
       for i, block in ipairs(card.blocks) do
         local x = 10+(i-1)*(bw+gap)
-        all[#all+1] = { type = "rectangle", x = x, y = overviewY, w = bw, h = bh, color = palette.border, thickness = 2 }
+        all[#all+1] = { type = "rectangle", x = x, y = overviewY, w = bw, h = bh, color = palette.rule, thickness = 2 }
         all[#all+1] = label(x+6, overviewY+4, bw-12, block.title, large and MIDSIZE or SMLSIZE)
         all[#all].h = lineH
         for j, line in ipairs(block.lines) do
@@ -242,7 +242,7 @@ function M.new(w, ctx, diagrams)
       end
       for _, row in ipairs(t.rows) do
         y = y+lineH
-        all[#all+1] = { type = "rectangle", x = 10, y = y-3, w = width-20, h = 1, filled = true, color = palette.border }
+        all[#all+1] = { type = "rectangle", x = 10, y = y-3, w = width-20, h = 1, filled = true, color = palette.rule }
         all[#all+1] = label(10, y, firstW-6, row.label)
         all[#all].h = lineH-4
         for c, cell in ipairs(row.cells) do
@@ -272,7 +272,7 @@ function M.new(w, ctx, diagrams)
         all[#all].h = lineH-2
         all[#all+1] = label(10+nameW, y, wordW-4, bar.left)
         all[#all].h, all[#all].color = lineH-2, palette.muted
-        all[#all+1] = { type = "line", pts = {{barX,mid},{barX+barW-1,mid}}, color = palette.border, thickness = 2 }
+        all[#all+1] = { type = "line", pts = {{barX,mid},{barX+barW-1,mid}}, color = palette.rule, thickness = 2 }
         local centre = barX+math.floor(barW/2)
         all[#all+1] = { type = "line", pts = {{centre,mid-4},{centre,mid+4}}, color = palette.muted, thickness = 2 }
         -- The marker's points are rewritten in place and only when the reading moves.
@@ -290,7 +290,7 @@ function M.new(w, ctx, diagrams)
         all[#all].h, all[#all].color = lineH-2, palette.muted
         all[#all+1] = label(width-10-pctW, y, pctW, bar.percent)
         all[#all].h = lineH-2
-        all[#all].color = function() return bar.done() and palette.accent or palette.text end
+        all[#all].color = function() return bar.done() and palette.accentInk or palette.text end
       end
     end
     if card.instructions then
@@ -321,7 +321,7 @@ function M.new(w, ctx, diagrams)
         for _, chosen in ipairs({ false, true }) do
           button(tileX, y, tileW, r.label, press, enabled)
           all[#all].h = rowControlH
-          if chosen then all[#all].color, all[#all].textColor = palette.accent, palette.accentText end
+          if chosen then all[#all].color, all[#all].textColor = palette.accent, palette.onAccent end
           all[#all].visible = function() return (r.selected() == true) == chosen end
         end
       elseif r.kind == "button" or r.kind == "hold" then
@@ -414,10 +414,10 @@ function M.new(w, ctx, diagrams)
     if not w.historyMode then
     button(width-math.floor(width*0.42)-8, height-controlH-6, math.floor(width*0.42), nextText,
       function() if current() then w:next() end end, function() return w.canNext == true and current() end)
-    all[#all].color, all[#all].textColor = palette.accent, palette.accentText
+    all[#all].color, all[#all].textColor = palette.accent, palette.onAccent
     all[#all + 1] = label(math.floor(width*0.27)+8, height-controlH, math.floor(width*0.28)-20,
       string.format("%d/%d", w.card, #w.cards))
-    all[#all].color = palette.accent
+    all[#all].color = palette.accentInk
     end
   end
   all[#all + 1] = label(10, height-controlH-(large and 40 or 27), width-20,

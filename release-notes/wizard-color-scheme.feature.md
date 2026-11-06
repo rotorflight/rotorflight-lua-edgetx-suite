@@ -1,0 +1,3 @@
+- **Helicopter setup wizard in the suite's color scheme (`src/rfsuite/app/pages/helicopter_setup/`)**:
+  - The wizard draws in *Color scheme* from Settings > General > Appearance, with a set of pictures for each scheme. Light as it comes, so it opens light after the update until the scheme is set to dark.
+  - A changed scheme shows the next time the wizard opens. Choice lists, number fields and text fields keep the colors of the radio's theme.

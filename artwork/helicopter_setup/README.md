@@ -38,11 +38,11 @@ its PNG (resvg, Arial). The two switch images freeze the Configurator's animatio
 positions. The degree sign in the rate-curve unit is corrected in the exported SVGs; the source
 carries a malformed character. The three `gfx/heli-*.png` are the accepted images under
 `heli/accepted/`, scaled to 220 by 110 and placed 25 pixels from the top of the frame.
-Only the themes in `radioThemes` of `catalog.json` are written as radio PNGs (`gfx/<theme>/`);
-the page draws the dark theme, so the light theme is kept as SVG only. Adding `"light"` to
-`radioThemes` and running the export writes `gfx/light/` again.
-Every dark illustration and the three side views are also written at the `smallFrame` of
-`catalog.json` (154 by 112) to `gfx/small/`, rendered from the same SVG.
+The themes in `radioThemes` of `catalog.json` are written as radio PNGs (`gfx/<theme>/`), and the
+page draws the set of the suite's colour scheme.
+Every illustration is also written at the `smallFrame` of `catalog.json` (154 by 112), rendered
+from the same SVG: the dark ones and the three side views to `gfx/small/`, the light ones to
+`gfx/small_light/`.
 `--check` also fails when a file under `upstream/` no longer matches `provenance.json`.
 
 Node.js is needed only to export; the package build never runs it.
