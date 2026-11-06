@@ -355,8 +355,8 @@ do
   widget:refresh(0, nil)
   check("standby entry builds one scene", #Stubs.lvgl.trees == treesBeforeEntry + 1)
   check("a finished build logs its layout, rows, nodes, surface and zone",
-    standbyLogged("info: built: layout elrs, 1 of 1 rows, " .. #Stubs.lvgl.trees[#Stubs.lvgl.trees]
-      .. " nodes, full screen, zone 800x480, info controller_missing"))
+    standbyLogged("info: built: 1/1 rows, " .. #Stubs.lvgl.trees[#Stubs.lvgl.trees]
+      .. " nodes, full screen 800x480, controller_missing, layout elrs"))
   LogModule.emitf = realEmitf
   Stubs.tick()
   widget:refresh(0, nil)
@@ -1255,6 +1255,35 @@ do
   other._job = nil
   for _ = 1, 2 do Stubs.tick(); other:refresh(0, nil) end
   check("the last standby exit unloads the idle provider", _G.rfsuite.elrs_config == nil)
+  s.restore()
+end
+
+-- A saved row that does not fit is reported, and a release says so once: background passes and
+-- passes with the tool open call it every time.
+do
+  local s = standbyElrsScenario()
+  local LogModule = assert(_G.rfsuite.require("lib/log.lua"))
+  local realEmitf, lines = LogModule.emitf, {}
+  LogModule.emitf = function(tag, level, fmt, ...)
+    if tag == "rfsuite.widget.standby" then lines[#lines + 1] = level .. ": " .. string.format(fmt, ...) end
+    return realEmitf(tag, level, fmt, ...)
+  end
+  local function logged(wanted)
+    local count = 0
+    for i = 1, #lines do
+      if string.find(lines[i], wanted, 1, true) then count = count + 1 end
+    end
+    return count
+  end
+  s.widget.preferences.dashboard.standby_layout = "clock/date/model"
+  s.widget.zone = { x = 0, y = 0, w = 480, h = 320 }
+  s.passes(6)
+  check("a build that leaves a saved row out warns", logged("warn: 1 saved row(s) do not fit") == 1)
+  check("the build line counts both", logged("info: built: 2/3 rows, ") == 1)
+  check("an unchanged standby builds and warns once", (function() s.passes(3); return logged("info: built: ") == 1 end)())
+  for _ = 1, 3 do Stubs.tick(); s.widget:background() end
+  check("background passes log the release once", logged("debug: released: widget_background") == 1)
+  LogModule.emitf = realEmitf
   s.restore()
 end
 

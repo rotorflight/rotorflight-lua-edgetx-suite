@@ -28,7 +28,7 @@ local powerDecoder = nil
 local idsByModule = {}
 
 local function logRead(level, fmt, ...)
-  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.require and _G.rfsuite.require("lib/log.lua") or nil
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
   if Log and type(Log.emitf) == "function" then Log.emitf("rfsuite.elrs", level, fmt, ...) end
 end
 

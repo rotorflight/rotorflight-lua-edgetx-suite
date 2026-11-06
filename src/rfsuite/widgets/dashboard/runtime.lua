@@ -76,7 +76,7 @@ local function cancelStandbyElrs(self, reason)
   local config = self._standbyElrsConfig
   if self._standbyElrsActive and config and type(config.cancel) == "function" then
     if Log and type(Log.emitf) == "function" then
-      Log.emitf("rfsuite.widget.standby", "debug", "ELRS read stopped: %s", tostring(reason))
+      Log.emitf("rfsuite.widget.standby", "debug", "no longer using the ELRS read: %s", tostring(reason))
     end
     config.cancel(self._standbyElrsOwner, reason)
     if self._standbyCache and self._standbyElrsIdentity and type(config.snapshot) == "function" then
@@ -128,7 +128,9 @@ do
   end
 end
 local function releaseStandby(self, reason)
-  if Log and type(Log.emitf) == "function" then
+  -- Called on every background pass and every pass with the tool open, so only a release that
+  -- has something to let go of says so.
+  if self._standbyModule ~= nil and Log and type(Log.emitf) == "function" then
     Log.emitf("rfsuite.widget.standby", "debug", "released: %s", tostring(reason))
   end
   cancelStandbyElrs(self, reason)
@@ -1417,10 +1419,10 @@ local function standbyJobStep(self)
     self._lastChildCount = #children
     if Log and type(Log.emitf) == "function" then
       local shown, saved = self._standbyCache.rowsShown or 0, self._standbyCache.rowsSaved or 0
-      Log.emitf("rfsuite.widget.standby", "info", "built: layout %s, %d of %d rows, %d nodes, %s, zone %sx%s, info %s",
-        tostring(self._standbyLayout), shown, saved, #children,
-        self._standbyFullscreen == true and "full screen" or "widget zone",
-        tostring(self.zone.w), tostring(self.zone.h), tostring(job.infoKind))
+      -- The Session Logs ring keeps 100 characters of a line, so the layout, the longest part, is last.
+      Log.emitf("rfsuite.widget.standby", "info", "built: %d/%d rows, %d nodes, %s %sx%s, %s, layout %s",
+        shown, saved, #children, self._standbyFullscreen == true and "full screen" or "zone",
+        tostring(self.zone.w), tostring(self.zone.h), tostring(job.infoKind), tostring(self._standbyLayout))
       if shown < saved then
         Log.emitf("rfsuite.widget.standby", "warn", "%d saved row(s) do not fit this zone and are left out", saved - shown)
       end

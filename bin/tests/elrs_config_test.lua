@@ -4,12 +4,9 @@ _G.rfsuite = {}
 _G.rfsuite.paths = dofile(root .. "/src/rfsuite/lib/paths.lua")
 -- The provider's log lines, formatted here so a format that does not fit its arguments fails.
 local readLines = {}
-_G.rfsuite.require = function(path)
-  if path == "lib/log.lua" then
-    return { emitf = function(_, level, fmt, ...) readLines[#readLines + 1] = level .. ": " .. string.format(fmt, ...) end }
-  end
-  return assert(loadfile(root .. "/src/rfsuite/" .. path))()
-end
+_G.rfsuite.Log = { emitf = function(_, level, fmt, ...)
+  readLines[#readLines + 1] = level .. ": " .. string.format(fmt, ...)
+end }
 local currentFilename = "model01.yml"
 model = {
   getInfo = function() return { filename = currentFilename, name = "Model", bitmap = "m.png" } end,

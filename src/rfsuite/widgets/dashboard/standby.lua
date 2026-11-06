@@ -696,10 +696,11 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
     return fitted
   end
   cache.zoneW, cache.zoneH, cache.labels = w, h, labels
-  local rows = layout(items, w, h, labels, true) or {}
+  local rows, fitNote = layout(items, w, h, labels, true)
+  rows = rows or {}
   -- What the widget's log line reports once this tree stands: a saved row can be left out here
-  -- without anything on the screen saying so.
-  cache.rowsShown, cache.rowsSaved = #rows, #M.toRows(items)
+  -- without anything on the screen saying so. Counted again only where the layout says one was.
+  cache.rowsShown, cache.rowsSaved = #rows, fitNote and #M.toRows(items) or #rows
   -- The answer M.snapshot would compute for these inputs, so its next pass need not fit them again.
   local detailedGps = false
   for r = 1, #rows do
