@@ -31,7 +31,7 @@ local Env = nil
 local M = {}
 
 -- The switch picker's filters, as the firmware numbers them. Named here rather than reached for
--- as globals, following app/pages/setup_wizard/proc_radio.lua: SW_SWITCH is the physical switch
+-- as globals: SW_SWITCH is the physical switch
 -- block, SW_NONE the empty entry that lets a pilot clear the choice. Trims are a filter of their
 -- own and are deliberately not offered -- a trim drives a row rather than releasing the surface.
 local SW_SWITCH = 1

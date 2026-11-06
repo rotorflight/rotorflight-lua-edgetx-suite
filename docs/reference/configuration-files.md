@@ -11,7 +11,7 @@ Everything you change in the suite is kept in two files on the radio's SD card, 
 | File | What is in it |
 | --- | --- |
 | `preferences.lua` | The settings that belong to the transmitter: the announcements, the units and language, the preview switches, the logging level, which dashboard theme is shown and whether a model may override it. |
-| `<mcu id>.lua` | The settings that belong to one flight controller, named after the board's own id — the battery, the per-model theme override and its configuration, the in-flight tuning setup, what the setup assistant has been told about the machine, and the name the board calls itself by. One file per board. |
+| `<mcu id>.lua` | The settings that belong to one flight controller, named after the board's own id — the battery, the per-model theme override and its configuration, the in-flight tuning setup, and the name the board calls itself by. One file per board. |
 
 You do not have to touch either of them. They are written when you press *Save*, and reading
 them is all the suite needs at startup.
