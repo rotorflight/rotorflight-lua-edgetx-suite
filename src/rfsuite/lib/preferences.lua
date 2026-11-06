@@ -195,9 +195,9 @@ local SCHEMA = {
   -- how far one press moves them, which PID profile is the undo -- is in the per-model store.
   -- Off by default, like every preview surface: see app/pages/settings/dashboard/inflight.
   inflight = {
-    keys = {
-      enabled = false,
-    },
+    -- On or off is one key per radio model (`on_<model file>`, see M.settleInflight), written only while
+    -- on. `enabled` is what the widget reads, worked out from that key at every load and never stored.
+    retired = { "enabled" },
     -- Everything else the transmitter's half holds -- the channel and
     -- global-variable pair and the trim assignment -- is declared and
     -- defaulted by widgets/dashboard/inflight/setup.lua, which states that the radio half is
@@ -322,6 +322,16 @@ end
 --- Every section the schema declares is present in the answer whatever happened, because the
 --- callers read `preferences.general.<key>` without asking first and a missing section raises
 --- where a wrong value would only misbehave.
+--- Whether in-flight tuning is on for the selected radio model, as the one flag its readers look at. A
+-- radio model change starts the widget again, so this is settled at each load.
+function M.settleInflight(prefs)
+  local section = type(prefs) == "table" and prefs.inflight or nil
+  if type(section) ~= "table" then return end
+  local ok, info = pcall(function() return model.getInfo() end)
+  local file = ok and type(info) == "table" and info.filename or nil
+  section.enabled = type(file) == "string" and section["on_" .. file] == true
+end
+
 function M.load()
   if not store then
     reportNoStore(PREF_PATH)
@@ -343,6 +353,7 @@ function M.load()
   -- widget; there the load below reads the former file into memory instead and writes nothing.
   store:migrate(path, ConfigStore.legacyPath(path), opts)
   local prefs, info = store:load(path, opts)
+  M.settleInflight(prefs)
 
   publishIfUnclaimed(prefs)
   emitDeferred(opts.messages)
