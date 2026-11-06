@@ -157,7 +157,7 @@ end
 local Look = requireModule("widgets/dashboard/menu_look.lua")
 local ICON_ROOT = _G.rfsuite.paths.core .. "/widgets/dashboard/roll_icons/"
 
-local KEY_ROLE = { nolink = "warning", handshake = "warning", error = "error", ready = "muted" }
+local KEY_ROLE = { nolink = "warning", handshake = "warning", error = "error", ready = "ok" }
 
 --- The quick menu: the entries offered now, BATTERY PROFILE last where it is, and MAIN MENU rolling on
 --- through the suite's menu.

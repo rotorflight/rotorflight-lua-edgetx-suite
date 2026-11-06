@@ -322,6 +322,24 @@ local function run(mutate)
   end
   do
     local w, r = open()
+    -- The header's Connected has the scheme's colour for it.
+    do
+      local Status = req("lib/connection_status.lua")
+      local stateKey = Status.stateKey
+      Status.stateKey = function() return "ready" end
+      local ws, rs = open()
+      local look = req("widgets/dashboard/menu_look.lua").colors(ws)
+      local statusColor
+      local scene = build(ws)
+      for i = 1, #scene do
+        if type(scene[i].color) == "function" and scene[i].align == _G.RIGHT and scene[i].font == _G.SMLSIZE and type(scene[i].text) == "function"
+          and rs.source.status ~= nil and scene[i].text() == (rs.source.status(rs)) then
+          statusColor = scene[i].color()
+        end
+      end
+      Status.stateKey = stateKey
+      check("Connected is in the scheme's ok colour", look.ok ~= nil and statusColor == look.ok)
+    end
     -- A preview on the right takes the smaller face, or it shows the last list's until the wheel rests.
     do
       local wf, rf = open()
@@ -777,6 +795,8 @@ if selfTest then
         return (string.gsub(t, "local rightFace = nearFont", "local rightFace = faceOf(roll, rightRows(roll), midFont, nearFont, colW - 2 * markW)", 1)) end },
     { "the right column grows at a press", function(t)
         return (string.gsub(t, "local rightFace = nearFont", "local rightFace = roll.focus == 2 and faceOf(roll, rightRows(roll), midFont, nearFont, colW - 2 * markW) or nearFont", 1)) end },
+    { "Connected has no colour", function(t)
+        return (string.gsub(t, 'ready = "ok"', 'ready = "muted"', 1)) end },
     { "every build measures the lists", function(t)
         return (string.gsub(t, "if first == nil or first.tree ~= true then return middleFace", "if true then return middleFace", 1)) end },
     { "a page opens before the words are drawn", function(t)

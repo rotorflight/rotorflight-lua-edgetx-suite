@@ -46,6 +46,7 @@ M.ROLES = {
   { "rule", "rule" },
   { "warning", "warning" },
   { "error", "error" },
+  { "ok", "ok" },
 }
 
 --- The menu style a widget's preferences name, `general.menu_style`: "rotary", else "card".

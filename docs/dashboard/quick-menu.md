@@ -160,7 +160,7 @@ is grey rather than gone.
 
 **The header's line says how things stand**, one message by rank: *SENDING...* or *NOT SAVED*, or *Could
 not open* for a page the tool could not open, until the next detent or press; then *Connection error*,
-*Not connected* or *Connecting*; then *Connected*. A tap on it shows the details the tool's connection
+*Not connected* or *Connecting*, in the warning colour; then *Connected*, in green. A tap on it shows the details the tool's connection
 button shows; the wheel does not reach it. Back from a page the roll is where it was with these rules
 applied: a row that has gone in the meantime leaves the wheel on the level above it, and no other row
 takes its place under the press. A lost link on a page returns to the roll, greyed, and an open question
