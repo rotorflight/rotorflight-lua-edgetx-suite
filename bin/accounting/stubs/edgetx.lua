@@ -577,6 +577,8 @@ function Stubs.install(root)
 
   _G.lcd = {
     RGB = function(r, g, b)
+      -- One packed 0xRRGGBB, as lib/color_schemes.lua passes it, is taken as it stands.
+      if g == nil then return r end
       return ((r // 8) << 11) | ((g // 4) << 5) | (b // 8)
     end,
     sizeText = function(text, font)

@@ -1646,7 +1646,7 @@ return {
         color_scheme = "Color scheme",
         color_scheme_light = "Light",
         color_scheme_dark = "Dark",
-        help_color_scheme = "Light or dark colors for the dashboard's quick menu and the pages it opens, on every theme. The rest of the suite does not follow it yet.",
+        help_color_scheme = "Light or dark colors for the dashboard's quick menu and the pages it opens, the loading and standby screens and the tool's start, on every theme. The rest does not follow yet.",
         help_save_confirm = "Asks before a Save writes to the flight controller.",
         help_save_armed_warning = "Warns before a Save or Reload while the model is armed.",
         help_reload_confirm = "Asks before a Reload replaces edits that are not saved.",

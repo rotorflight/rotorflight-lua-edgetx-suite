@@ -20,6 +20,10 @@ local M = {}
 
 M.DEFAULT = "light"
 
+-- The logo each scheme draws, under widgets/dashboard/gfx/. FLIGHT is white in logo.png, which cannot
+-- be read on the light page.
+M.LOGOS = { light = "logo_on_light.png", dark = "logo.png" }
+
 -- 0xRRGGBB per role: one number per role keeps less resident than a table of three, and lcd.RGB
 -- takes it as it is from EdgeTX 2.11, the oldest version the suite runs on. colors() converts a
 -- scheme in place the first time it is asked for, so read a scheme through colors() only.
@@ -70,6 +74,11 @@ M.SCHEMES = {
 function M.name(value)
   if type(value) == "string" and M.SCHEMES[value] ~= nil then return value end
   return M.DEFAULT
+end
+
+--- The logo's file for a stored value.
+function M.logo(value)
+  return _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/" .. M.LOGOS[M.name(value)]
 end
 
 -- Which schemes colors() has converted. In place, so no state holds a role twice.

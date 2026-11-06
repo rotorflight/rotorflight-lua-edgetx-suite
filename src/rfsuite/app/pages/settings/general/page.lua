@@ -158,7 +158,8 @@ local function buildSafety(cursorY, children, x, w, i18n)
   return cursorY
 end
 
--- The colours of the dashboard's quick menu and the pages it opens (widgets/dashboard/menu_look.lua).
+-- The colours of the dashboard's quick menu and the pages it opens (widgets/dashboard/menu_look.lua),
+-- of its loading and standby screens, and of the tool's start screen.
 -- The widget reads the value with its reload of the preferences file.
 local function buildAppearance(cursorY, children, x, w, i18n)
   cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
@@ -169,7 +170,7 @@ local function buildAppearance(cursorY, children, x, w, i18n)
     },
     ui.config.color_scheme,
     ui.runtime.getValueSetter("color_scheme"),
-    { helpText = t(i18n, "help_color_scheme", "Light or dark colors for the dashboard's quick menu and the pages it opens, on every theme. The rest of the suite does not follow it yet.") }
+    { helpText = t(i18n, "help_color_scheme", "Light or dark colors for the dashboard's quick menu and the pages it opens, the loading and standby screens and the tool's start, on every theme. The rest does not follow yet.") }
   )
   cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
     t(i18n, "menu_style", "Menu style"),

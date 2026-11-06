@@ -342,17 +342,18 @@ do
   check("standby entry does not enqueue a nil-to-false overflow rebuild",
     #Stubs.lvgl.trees == treesBeforeEntry + 1 and widget._job == nil)
   local standbyTree = Stubs.lvgl.trees[#Stubs.lvgl.trees] or {}
+  local schemeColors = _G.rfsuite.require("lib/color_schemes.lua").colors(nil)
   local suiteButton, suiteGlyphLines = nil, 0
   for i = 1, #standbyTree do
     local node = standbyTree[i]
     if node.type == "button" and node.x == 748 and node.y == 8 and node.w == 44 and node.h == 44 then
       suiteButton = node
-    elseif node.type == "line" and node.color == WHITE then
+    elseif node.type == "line" and node.color == schemeColors.text then
       suiteGlyphLines = suiteGlyphLines + 1
     end
   end
   check("standby uses the existing fullscreen Suite launch control",
-    suiteButton and suiteButton.color == COLOR_THEME_PRIMARY1
+    suiteButton and suiteButton.color == schemeColors.raised
       and type(suiteButton.press) == "function" and suiteGlyphLines == 6)
 
   -- A visible zone receives the same waiting surface at its own dimensions, without the

@@ -224,6 +224,13 @@ local function shouldLogAudio(self)
   return isTruthy(general and general.developer_tools)
 end
 
+--- The stored colour scheme, for the surfaces drawn before a theme.
+function utils.colorScheme(self)
+  local prefs = self.preferences
+  local general = prefs and prefs.general
+  return general and general.color_scheme
+end
+
 function utils.log(self, msg, level)
   if Log and type(Log.emit) == "function" then
     Log.emit("rfsuite.audio", msg, level, shouldLogAudio(self))
@@ -637,9 +644,9 @@ local function tickMspRuntime(self, carry)
   end
 end
 
-local function buildConnectionSplash(zone, statusLine, title, progress)
+local function buildConnectionSplash(zone, statusLine, title, progress, scheme)
   if DashboardSplash and type(DashboardSplash.build) == "function" then
-    return DashboardSplash.build(zone, statusLine, title, progress)
+    return DashboardSplash.build(zone, statusLine, title, progress, scheme)
   end
 
   local w = (zone and zone.w) or LCD_W or 320
@@ -1197,13 +1204,15 @@ local function splashJobStep(self)
   self._compileBar = self._compileBar or function()
     return self._compileHolding and self._compileFill or nil
   end
-  local splash = buildConnectionSplash(self.zone, self._splashLine, self._splashTitle, self._compileBar)
+  local scheme = utils.colorScheme(self)
+  local splash = buildConnectionSplash(self.zone, self._splashLine, self._splashTitle, self._compileBar, scheme)
   -- At full screen the splash carries the tool control, so the tool can be opened while the
   -- dashboard is still waiting for the link. A zone takes no press, so it is not drawn there.
   if self._job and self._job.fullscreenSplash then
     local Controls = requireModule("widgets/dashboard/fullscreen_controls.lua")
     if type(Controls) == "table" and type(Controls.appendTool) == "function" then
-      Controls.appendTool(splash, self)
+      local colors = requireModule("lib/color_schemes.lua").colors(scheme)
+      Controls.appendTool(splash, self, colors.raised, colors.text)
     end
   end
   lvgl.clear()
@@ -1378,7 +1387,8 @@ local function standbyJobStep(self)
     if self._standbyFullscreen == true then
       local Controls = requireModule("widgets/dashboard/fullscreen_controls.lua")
       if type(Controls) == "table" and type(Controls.appendTool) == "function" then
-        Controls.appendTool(children, self)
+        local colors = requireModule("lib/color_schemes.lua").colors(utils.colorScheme(self))
+        Controls.appendTool(children, self, colors.raised, colors.text)
       end
     end
     self._treeKind, self._treeKey = nil, nil
@@ -1433,7 +1443,8 @@ local function standbyJobStep(self)
   self._standbyCache.elrsBuildWidths = job.elrsWidths
   -- A label reading the line, as on the splash: see splashJobStep.
   self._statusLineText = self._statusLineText or function() return self.statusLine or "Please wait..." end
-  job.children = DashboardStandby.build(self.zone, self._statusLineText, text, items, values, self._standbyCache, info)
+  job.children = DashboardStandby.build(self.zone, self._statusLineText, text, items, values, self._standbyCache, info,
+    utils.colorScheme(self))
   self._standbyCache.elrsBuildWidths = nil
   job.zoneW, job.zoneH, job.layout = self.zone.w, self.zone.h, dashboard.standby_layout
   job.i18n, job.infoKind = self.i18n, infoKind
@@ -2060,11 +2071,13 @@ local function failedJobStep(self)
   local t = (self.i18n and type(self.i18n.t) == "function") and self.i18n.t or nil
   local title = (t and t("widgets.dashboard.build_failed")) or "Dashboard error"
   local line = (t and t("widgets.dashboard.build_failed_hint")) or "This screen could not be drawn"
-  local splash = buildConnectionSplash(self.zone, line, title)
+  local scheme = utils.colorScheme(self)
+  local splash = buildConnectionSplash(self.zone, line, title, nil, scheme)
   if self._job and self._job.fullscreenSplash then
     local Controls = requireModule("widgets/dashboard/fullscreen_controls.lua")
     if type(Controls) == "table" and type(Controls.appendTool) == "function" then
-      Controls.appendTool(splash, self)
+      local colors = requireModule("lib/color_schemes.lua").colors(scheme)
+      Controls.appendTool(splash, self, colors.raised, colors.text)
     end
   end
   releaseInflightHold(self)
@@ -2086,7 +2099,7 @@ local function failedLabelJobStep(self)
   local title = (t and t("widgets.dashboard.build_failed")) or "Dashboard error"
   local w = (self.zone and self.zone.w) or LCD_W or 320
   local h = (self.zone and self.zone.h) or LCD_H or 172
-  -- The connect splash's two colours, on a filled rectangle of its own: after lvgl.clear() the
+  -- The radio's colours, which need no file, on a filled rectangle of its own: after lvgl.clear() the
   -- zone is transparent, and a bare label would sit on whatever the radio's layout draws there.
   local nodes = {
     { type = "rectangle", x = 0, y = 0, w = w, h = h, color = COLOR_THEME_PRIMARY3, filled = true },
@@ -5481,7 +5494,7 @@ function Runtime.new(zone, options)
       end
       local splashKey = (useStandby and "standby|" or "splash|") .. "info="
         .. tostring(self.state.standbyInfoKind) .. "|" .. tostring(self.state.zoneW) .. "x" .. tostring(self.state.zoneH)
-        .. (fullscreenSplash and "|fs" or "") .. (useStandby
+        .. (fullscreenSplash and "|fs" or "") .. "|" .. tostring(utils.colorScheme(self)) .. (useStandby
           and ("|" .. tostring(dashboardPrefs.standby_layout)
             .. "|overflow=" .. tostring(self._standbyCache and self._standbyCache.valueOverflow == true))
           or "")
