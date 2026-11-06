@@ -304,13 +304,6 @@ local function appendTrimPicker(children, x, y, w, label, helpText, get, set)
     text = label, color = Palette.text, font = SMLSIZE
   }
   children[#children + 1] = {
-    type = "button",
-    x = x + w - 10 - HELP_BTN_W, y = y + math.floor((rowH - HELP_BTN_H) / 2),
-    w = HELP_BTN_W, h = HELP_BTN_H,
-    text = "?",
-    press = function() onRowHelp(helpText, label) end
-  }
-  children[#children + 1] = {
     type = "switch",
     x = pickerX, y = Controls.controlY(y, rowH), w = pickerW, h = rowH - 6,
     filter = SW_TRIM | SW_NONE,
@@ -326,6 +319,14 @@ local function appendTrimPicker(children, x, y, w, label, helpText, get, set)
       ui.planNotice = nil
       ui.runtime.markValueChanged()
     end
+  }
+  -- After the picker, as the wrapped rows have it: the encoder walks the children in this order.
+  children[#children + 1] = {
+    type = "button",
+    x = x + w - 10 - HELP_BTN_W, y = y + math.floor((rowH - HELP_BTN_H) / 2),
+    w = HELP_BTN_W, h = HELP_BTN_H,
+    text = "?",
+    press = function() onRowHelp(helpText, label) end
   }
   return rowH
 end
