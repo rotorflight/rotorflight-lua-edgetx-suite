@@ -136,13 +136,12 @@ end
 local function ensureLoaded(prefs)
   if ui.loaded then return end
   ui.config = Setup.loadRadioSettings(preferences(prefs))
-  ui.modelOff = false
   do
     local info = Setup.radio().modelInfo()
-    local key = Setup.modelOffKey(info and info.filename)
+    local key = Setup.modelOnKey(info and info.filename)
     local section = preferences(prefs).inflight
-    ui.modelOffKey = key
-    if key ~= nil and type(section) == "table" and section[key] == true then ui.modelOff = true end
+    ui.modelOnKey = key
+    ui.config.enabled = key ~= nil and type(section) == "table" and section[key] == true
   end
   ui.radio = nil
   ui.checkDone = false
@@ -506,8 +505,8 @@ local function saveToStore(ctx)
   if type(prefs) ~= "table" then return false, "preferences" end
   if type(prefs.inflight) ~= "table" then prefs.inflight = {} end
   Setup.storeRadioSettings(prefs.inflight, ui.config)
-  -- Written only while off, so a model never switched off carries nothing.
-  if ui.modelOffKey ~= nil then prefs.inflight[ui.modelOffKey] = ui.modelOff == true and true or nil end
+  -- Written only while on, so a model never switched on carries nothing.
+  if ui.modelOnKey ~= nil then prefs.inflight[ui.modelOnKey] = ui.config.enabled == true and true or nil end
 
   -- A set-up's result arrives with the build's context, which carries the table and not the writer.
   local save = ctx.savePreferences or (_G.rfsuite and _G.rfsuite.savePreferences)
@@ -576,7 +575,7 @@ local function planQuestion(i18n, plan)
 
   -- The plan is built from the fields as they stand, which is not the same as the file on the card:
   -- a channel or a variable edited and not yet saved is what gets written.
-  lines[#lines + 1] = t(i18n, "plan_from_page", "It writes the values as they are set on this page, saved or not.")
+  lines[#lines + 1] = t(i18n, "plan_from_page", "It writes and saves the values as they are set on this page.")
   return table.concat(lines, "\n")
 end
 
@@ -679,22 +678,36 @@ local function mayGoOn(job)
   return modelFile() == job.modelFile
 end
 
---- A set-up turns tuning on for this radio model and a restore turns it off, saved at once: the pilot
--- pressed nothing that says Save, and the model has already changed. Answers the text to add when the
--- save failed, so the result does not claim what the card does not hold.
-local function storeActivation(on, file)
-  ui.modelOffKey = Setup.modelOffKey(file) or ui.modelOffKey
-  if on then
-    ui.config.enabled = true
-    ui.modelOff = false
-  else
-    ui.modelOff = true
-  end
+--- A set-up saves the page's values at once: they have just gone to the radio, and with others on the
+-- card the check would fail on the next visit. It turns nothing on; that is the switch's. Answers the
+-- text to add when the save failed, so the result does not claim what the card does not hold.
+local function storeSetup()
   local ok, err = saveToStore(ui.saveCtx)
-  logJob(ok and "info" or "warn", "setup job: tuning %s for this radio model, saved %s %s",
-    on and "on" or "off", tostring(ok), tostring(err or ""))
+  logJob(ok and "info" or "warn", "setup job: page values saved %s %s", tostring(ok), tostring(err or ""))
+  if ok then
+    ui.dirty = false
+    return ""
+  end
+  return " " .. t(ui.i18n, "plan_not_saved", "The settings could not be saved; save the page.")
+end
+
+--- A restore leaves the model not set up, so tuning goes off for it. Only that key is stored: edits on
+-- the page that were not saved stay unsaved. Answers the text to add when the save failed.
+local function storeRestored(file)
+  ui.config.enabled = false
+  local ctx = ui.saveCtx
+  local prefs = ctx and ctx.preferences
+  local save = ctx and ctx.savePreferences or (_G.rfsuite and _G.rfsuite.savePreferences)
+  local key = Setup.modelOnKey(file)
+  local ok, err = false, "preferences"
+  if type(prefs) == "table" and type(prefs.inflight) == "table" and type(save) == "function" and key ~= nil then
+    prefs.inflight[key] = nil
+    prefs.inflight.enabled = false
+    ok, err = save()
+  end
+  logJob(ok and "info" or "warn", "setup job: tuning off for this radio model, saved %s %s", tostring(ok), tostring(err or ""))
   if ok then return "" end
-  return " " .. t(ui.i18n, "plan_not_saved", "The switch could not be saved; save the page.")
+  return " " .. t(ui.i18n, "plan_not_saved", "The settings could not be saved; save the page.")
 end
 
 local JOB_STAGES = {}
@@ -733,11 +746,10 @@ function JOB_STAGES.plan(job)
   if plan.ok ~= true then
     finishJob(t(i18n, "plan_title", "Set up radio"), refusalText(i18n, plan.refused))
   elseif plan.nothing == true then
-    -- Nothing to write, so there is nothing to confirm. It is set up, so tuning goes on all the same: the
-    -- pilot pressed the button that turns it on.
+    -- Nothing to write, so there is nothing to confirm; the page's values are what it carries.
     finishJob(t(i18n, "plan_title", "Set up radio"),
       t(i18n, "plan_nothing", "This radio model already carries this setup; nothing to write.")
-      .. storeActivation(true, job.modelFile))
+      .. " " .. t(i18n, "plan_switch_next", "Turn tuning on with the switch on this page.") .. storeSetup())
   else
     logJob("info", "setup job: asks, %d step(s) planned", #plan.gvars + #plan.deletions + #plan.insertions + #plan.trims)
     job.stage = "ask"
@@ -797,7 +809,7 @@ function JOB_STAGES.write(job)
       if not ensureBackup().remove(job.modelFile) then
         logJob("warn", "setup job: the record could not be removed after the restore")
       end
-      finishJob(title, t(i18n, "restore_done", "Previous setup restored") .. storeActivation(false, job.modelFile))
+      finishJob(title, t(i18n, "restore_done", "Previous setup restored") .. storeRestored(job.modelFile))
     end
   elseif job.apply.stopped then
     finishJob(title, string.format("%s (%d/%d)",
@@ -809,7 +821,7 @@ function JOB_STAGES.write(job)
       logJob("warn", "setup job: the record could not be marked complete")
     end
     finishJob(title, string.format("%s (%d)", t(i18n, "plan_done", "Radio set up"), report.written)
-      .. storeActivation(true, job.modelFile))
+      .. " " .. t(i18n, "plan_switch_next", "Turn tuning on with the switch on this page.") .. storeSetup())
   end
 end
 
@@ -1045,21 +1057,16 @@ local function buildGeneral(children, x, y, w, i18n)
     t(i18n, "pointer_tuning", "Set up suggested functions from the tuning screen on the ground."))
   -- On only while this radio model is set up: with a fault the overlay refuses to drive anyway, and a
   -- switch that says on then says something untrue. It shows off without rewriting the preference, so
-  -- a model set up by hand or on another radio is on again as soon as the check passes.
+  -- a model switched on before is on again as soon as the check passes.
   local enabledLabel = t(i18n, "enabled", "In-flight tuning on this radio model")
   local result = checkResult()
   local ready = result == "ok"
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     enabledLabel,
-    function() return ready and ui.config.enabled == true and ui.modelOff ~= true end,
+    function() return ready and ui.config.enabled == true end,
     function(value)
-      if value then
-        ui.config.enabled = true
-        ui.modelOff = false
-      else
-        -- This model alone; the others keep what they have.
-        ui.modelOff = true
-      end
+      -- This model alone; the others keep what they have.
+      ui.config.enabled = value == true
       ui.runtime.markValueChanged()
     end,
     function() return ready end,
@@ -1097,7 +1104,7 @@ local function buildGeneral(children, x, y, w, i18n)
     text = "?",
     press = function()
       onRowHelp(t(i18n, "help_setup",
-        "Writes this radio model's channels, variables and trims as set here; check them first. Restore previous setup puts back what it replaced."),
+        "Writes and saves this radio model's channels, variables and trims as set here; check them first. Tuning stays off until the switch is on. Restore previous setup puts back what it replaced."),
         setupLabel)
     end
   }

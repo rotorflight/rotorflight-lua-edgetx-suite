@@ -113,14 +113,7 @@ function CONDITIONS.previewInflightTuning(widget)
   local prefs = widget.preferences
   local previewOn = prefs and prefs.general and prefs.general.preview_inflight_tuning == true
   local radioOn = prefs and type(prefs.inflight) == "table" and prefs.inflight.enabled == true
-  if not (previewOn == true and radioOn == true) then return false end
-  -- Off for this radio model alone; a model not set up keeps the entry, and the surface says what is
-  -- missing. The key is Setup.modelOffKey's.
-  if widget._modelFile == nil then
-    local ok, info = pcall(function() return model.getInfo() end)
-    widget._modelFile = (ok and type(info) == "table" and info.filename) or false
-  end
-  return not (widget._modelFile and prefs.inflight["off_" .. widget._modelFile] == true)
+  return previewOn == true and radioOn == true
 end
 
 -- The battery prompt, re-opened: only where the registry has a pack for this model, so a pilot

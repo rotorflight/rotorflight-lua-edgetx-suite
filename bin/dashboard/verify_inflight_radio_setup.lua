@@ -360,22 +360,26 @@ do
   check(string.find(Backup.path("a b/c.yml"), "a_b_c.yml", 1, true) ~= nil, "the path is safe")
 end
 
--- --------------------------------------------------------------------------- off per radio model
+-- --------------------------------------------------------------------------- on per radio model
 do
   world = freshWorld()
-  local key = Setup.modelOffKey(world.file)
-  check(key == "off_" .. world.file, "the key is the model file's")
-  check(Setup.modelOffKey(nil) == nil, "no model file, no key")
-  local Views = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/views.lua"))()
-  local function widget(section)
-    return { state = {}, preferences = { general = { preview_inflight_tuning = true }, inflight = section } }
+  local key = Setup.modelOnKey(world.file)
+  check(key == "on_" .. world.file, "the key is the model file's")
+  check(Setup.modelOnKey(nil) == nil, "no model file, no key")
+  local Preferences = rfsuite.require("lib/preferences.lua")
+  local function settled(section)
+    local prefs = { general = { preview_inflight_tuning = true }, inflight = section }
+    Preferences.settleInflight(prefs)
+    return prefs
   end
-  check(Views.condition("previewInflightTuning", widget({ enabled = true })) == true, "the entry is there")
-  check(Views.condition("previewInflightTuning", widget({ enabled = true, [key] = true })) ~= true,
-    "off for this radio model: the entry is gone")
-  local other = widget({ enabled = true, off_other = true })
-  check(Views.condition("previewInflightTuning", other) == true, "off for another model: the entry stays")
-  check(Views.condition("previewInflightTuning", widget({ enabled = false })) ~= true, "the master off: gone")
+  check(settled({ [key] = true }).inflight.enabled == true, "on for this radio model")
+  check(settled({ on_other = true }).inflight.enabled == false, "on for another model is off here")
+  check(settled({ enabled = true }).inflight.enabled == false, "the former radio-wide flag does not carry over")
+  local Views = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/views.lua"))()
+  local function widget(section) return { state = {}, preferences = settled(section) } end
+  check(Views.condition("previewInflightTuning", widget({ [key] = true })) == true, "the entry is there")
+  check(Views.condition("previewInflightTuning", widget({})) ~= true, "never switched on: no entry")
+  check(Views.condition("previewInflightTuning", widget({ on_other = true })) ~= true, "on for another model: no entry")
 end
 
 -- --------------------------------------------------------------------------- the page's job
@@ -458,7 +462,7 @@ do
     end
     return false
   end
-  local key = Setup.modelOffKey("model7.yml")
+  local key = Setup.modelOnKey("model7.yml")
 
   -- A set-up: the question, the write, the switch on, the restore on offer, the name the model has.
   fresh()
@@ -473,17 +477,38 @@ do
   check(Backup.stateOf(world.file) == nil or Backup.stateOf(world.file) == "partial", "no complete record yet")
   check(until_button("Close"), "the result comes up")
   check(#world.mixes[10] == 1 and Backup.stateOf(world.file) == "complete", "written, record complete")
-  check(prefs.inflight.enabled == true and prefs.inflight[key] == nil and saves == 1, "the set-up turns it on")
+  check(prefs.inflight[key] == nil and prefs.inflight.enabled ~= true, "the set-up turns nothing on")
+  check(saves == 1 and prefs.inflight.bank_ch == 11, "and saves the page's values")
+  check(string.find(labels(), "switch on this page", 1, true) ~= nil, "the result says what is next")
   press("Close")
   pass(40)
   check(find("Restore previous setup") ~= nil, "the restore is on offer")
 
-  -- Switched off by hand, and the button turns it on again though nothing is left to write.
-  prefs.inflight[key] = true
+  -- The switch: greyed until the check passes, on for this model alone, stored by the page's save.
+  local function theSwitch()
+    local seen = false
+    for _, node in ipairs(ctx.children) do
+      if node.type == "label" and node.text == "In-flight tuning on this radio model" then seen = true
+      elseif seen and node.type == "toggle" then return node end
+    end
+  end
+  check(theSwitch() ~= nil, "the switch is drawn")
+  theSwitch().set(true)
+  Page.onSave(ctx)
+  check(prefs.inflight[key] == true, "the switch stores this model's key")
+  check(prefs.inflight.on_other == nil, "and no other model's")
+  theSwitch().set(false)
+  Page.onSave(ctx)
+  check(prefs.inflight[key] == nil, "off removes it")
+  theSwitch().set(true)
+  Page.onSave(ctx)
+
+  -- Nothing left to write: the button says so and still leaves the switch as it is.
   open()
   press("Set up radio")
   check(until_button("Close"), "nothing to write")
-  check(prefs.inflight[key] == nil and prefs.inflight.enabled == true, "pressing the button turns it on")
+  check(string.find(labels(), "nothing to write", 1, true) ~= nil, "says so")
+  check(prefs.inflight[key] == true, "the switch stays on")
   press("Close")
 
   -- The restore: marked partial before its first write, cut off, offered again, and it switches off.
@@ -507,7 +532,7 @@ do
   press("Restore")
   check(until_button("Close"), "restored")
   check(Backup.stateOf(world.file) == nil and #world.mixes[10] == 3 and #world.mixes[11] == 4, "the lines are back")
-  check(prefs.inflight[key] == true, "the restore turns it off for this model")
+  check(prefs.inflight[key] == nil, "the restore turns it off for this model")
   press("Close")
 
   -- Armed: refused at the press, and an arm and disarm during the write stops it.
@@ -527,7 +552,7 @@ do
   check(until_button("Close"), "stops")
   check(string.find(labels(), "Stopped", 1, true) ~= nil, "says it stopped")
   check(Backup.stateOf(world.file) == "partial", "the record stays partial")
-  check(prefs.inflight.enabled ~= true, "a stopped set-up does not turn it on")
+  check(prefs.inflight[key] == nil, "a stopped set-up does not turn it on")
   press("Close")
 
   -- A switch that cannot be saved is said, not hidden.
