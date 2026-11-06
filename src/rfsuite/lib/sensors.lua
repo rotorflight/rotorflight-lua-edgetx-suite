@@ -924,6 +924,7 @@ readValue = function(source)
     if wait > SEARCH_MISS_MAX_SECONDS then wait = SEARCH_MISS_MAX_SECONDS end
     searchWaits[source] = wait
   end
+  if debugWanted() then debugLog("miss:" .. source, "no telemetry source found for " .. source) end
   return nil
 end
 
@@ -952,6 +953,9 @@ end
 
 -- Flush cached sensor paths and miss / probe timers (e.g. on model disconnect/reconnect).
 function Sensors.reset()
+  -- The level is asked again after a reset, so a level changed on the radio reaches these lines at
+  -- the next connect rather than at the next start.
+  debugEnabled = nil
   if Sensors.active_paths then
     for k in pairs(Sensors.active_paths) do
       Sensors.active_paths[k] = nil
