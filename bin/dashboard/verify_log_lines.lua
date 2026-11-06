@@ -157,6 +157,31 @@ do
     count("rfsuite.sensors", MISS))
 end
 
+do
+  -- A burst after a reset is spread: at most three lines in one fifth of a second, the rest later.
+  world()
+  begin("debug", true)
+  control("sensors burst", "debug")
+  _G.rfsuite.session = { isConnected = true }
+  local Sensors = assert(_G.rfsuite.require("lib/sensors.lua"))
+  Sensors.reset()
+  local clock = 1000
+  _G.getTime = function() return clock end
+  local function readAll()
+    for i = 1, 6 do Sensors.getValue("NoSuchSource" .. i) end
+  end
+  local miss = "no telemetry source found for NoSuchSource"
+  readAll()
+  -- At most: the module's first line, which says whether this is a simulator, shares the slot.
+  check(count("rfsuite.sensors", miss) <= 3, "sensors: at most three lines in one slot", count("rfsuite.sensors", miss))
+  -- One search per clock reading after the first ones, so each read has its own.
+  for i = 1, 6 do
+    clock = clock + 1000000
+    Sensors.getValue("NoSuchSource" .. i)
+  end
+  check(count("rfsuite.sensors", miss) == 6, "sensors: the rest on later reads, each once", count("rfsuite.sensors", miss))
+end
+
 -- ---------------------------------------------------------------------------
 -- 2. widgets/dashboard/views.lua
 -- ---------------------------------------------------------------------------
