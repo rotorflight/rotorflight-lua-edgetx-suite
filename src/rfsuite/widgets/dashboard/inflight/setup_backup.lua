@@ -114,37 +114,37 @@ function M.newEncode(plan, modelFile)
   return enc
 end
 
-local function encodeTail(enc)
-  local plan, lines = enc.plan, enc.lines
-  -- What the set-up leaves on those channels, for the state check.
-  for i = 1, #plan.insertions do
-    local entry = plan.insertions[i]
-    lines[#lines + 1] = joined("W", entry.channel) .. SEP .. encodeWritten(entry.mix)
+--- The rest of a record after the replaced lines, each a line of its own: what the set-up leaves on
+-- those channels, for the state check, and the variables, logical switch and trims it changes.
+local function tailItems(plan)
+  local items = {}
+  for i = 1, #plan.insertions do items[#items + 1] = { "W", plan.insertions[i] } end
+  for i = 1, #plan.gvars do items[#items + 1] = { "G", plan.gvars[i] } end
+  if plan.ls ~= nil then items[#items + 1] = { "S", plan.ls } end
+  for i = 1, #plan.trims do
+    local entry = plan.trims[i]
+    for j = 1, #entry.indexes do items[#items + 1] = { "T", entry, entry.indexes[j] } end
   end
-  for i = 1, #plan.gvars do
-    local entry = plan.gvars[i]
+  return items
+end
+
+local function encodeItem(lines, item)
+  local kind, entry = item[1], item[2]
+  if kind == "W" then
+    lines[#lines + 1] = joined("W", entry.channel) .. SEP .. encodeWritten(entry.mix)
+  elseif kind == "G" then
     local before = entry.before or {}
     lines[#lines + 1] = joined("G", entry.index, before.name, before.min, before.max, before.prec,
       before.unit, before.popup)
     local after = entry.details
     lines[#lines + 1] = joined("H", entry.index, after.name, after.min, after.max, after.prec, after.unit)
+  elseif kind == "S" then
+    local def = entry.def
+    lines[#lines + 1] = joined("S", entry.slot, def.func, def.v1, def.v2, def["and"], def.delay, def.duration)
+  else
+    local index = item[3]
+    lines[#lines + 1] = joined("T", entry.fm, index, entry.before[index], entry.modes[index])
   end
-  if plan.ls ~= nil then
-    local def = plan.ls.def
-    lines[#lines + 1] = joined("S", plan.ls.slot, def.func, def.v1, def.v2, def["and"], def.delay, def.duration)
-  end
-  for i = 1, #plan.trims do
-    local entry = plan.trims[i]
-    for j = 1, #entry.indexes do
-      local index = entry.indexes[j]
-      lines[#lines + 1] = joined("T", entry.fm, index, entry.before[index], entry.modes[index])
-    end
-  end
-  lines[#lines + 1] = END_LINE
-  enc.text = table.concat(lines, "\n") .. "\n"
-  enc.lines = nil
-  enc.plan = nil
-  enc.done = true
 end
 
 --- At most `count` replaced lines of a record. Answers true once `enc.text` is there.
@@ -167,8 +167,21 @@ function M.encodeStep(enc, count)
     end
     enc.channel, enc.line = enc.channel + 1, 0
   end
+  if enc.items == nil then
+    enc.items = tailItems(enc.plan)
+    enc.itemAt = 1
+  end
+  while enc.itemAt <= #enc.items do
+    if left <= 0 then return false end
+    left = left - 1
+    encodeItem(enc.lines, enc.items[enc.itemAt])
+    enc.itemAt = enc.itemAt + 1
+  end
   if left <= 0 then return false end
-  encodeTail(enc)
+  enc.lines[#enc.lines + 1] = END_LINE
+  enc.text = table.concat(enc.lines, "\n") .. "\n"
+  enc.lines, enc.items, enc.plan = nil, nil, nil
+  enc.done = true
   return true
 end
 

@@ -60,7 +60,17 @@ model = {
   getInfo = function() return { name = world.name, filename = world.file } end,
   getMixesCount = function(ch) return #world.mixes[ch] end,
   getMix = function(ch, line) local l = world.mixes[ch][line + 1]; return l and copyLine(l) or nil end,
-  insertMix = function(ch, line, value) table.insert(world.mixes[ch], line + 1, copyLine(value)) end,
+  -- The firmware's getMix answers every field, whatever the insert left out.
+  insertMix = function(ch, line, value)
+    local stored = copyLine(value)
+    for _, key in ipairs({ "offset", "curveType", "curveValue", "multiplex", "flightModes", "mixWarn", "delayPrec",
+      "delayUp", "delayDown", "speedPrec", "speedUp", "speedDown" }) do
+      if stored[key] == nil then stored[key] = 0 end
+    end
+    if stored.carryTrim == nil then stored.carryTrim = false end
+    if stored.name == nil then stored.name = "" end
+    table.insert(world.mixes[ch], line + 1, stored)
+  end,
   deleteMix = function(ch, line)
     if refuseDeleteOn == ch then return end
     table.remove(world.mixes[ch], line + 1)
