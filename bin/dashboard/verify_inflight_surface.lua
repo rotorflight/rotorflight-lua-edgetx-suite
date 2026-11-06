@@ -101,17 +101,43 @@ scenario("foreground open takes effect before a pending job", function()
   job(widget); widget:refresh(0, nil)
   check(d.live and (d.bankWritten or 0) ~= 0 and d.phase == "live", "open is effective on this foreground pass")
 end)
-scenario("quick-menu opening takes effect on its native event pass", function()
+-- A button's press runs from the firmware's event dispatch, between two refresh calls and never
+-- inside one, so it is driven here between two passes.
+scenario("quick-menu opening takes effect on the first refresh after its press", function()
   local widget, d = fixture(true)
   d.live, d.open, d.phase, widget.inflightFullscreen = false, false, "ground", nil
   local Menu = rfsuite.require("widgets/dashboard/fullscreen_menu.lua")
   local entry = Menu.entry(widget, "inflight_tuning")
   check(entry and type(entry.press) == "function", "positive control: the quick menu exposes tuning")
-  local saved = lvgl.onEvent
-  lvgl.onEvent = function() entry.press() end
-  job(widget); widget:refresh(0, nil)
-  lvgl.onEvent = saved
-  check(d.live and (d.bankWritten or 0) ~= 0, "menu opening releases before this event pass returns")
+  Menu.run(widget, entry)
+  check(widget.inflightFullscreen ~= true, "armed, the menu's button refuses the press")
+  widget.state.armed = false
+  Menu.run(widget, entry)
+  check(widget.inflightFullscreen == true, "positive control: disarmed, the button raises the flag")
+  widget.state.armed = true
+  job(widget)
+  local released
+  widget._job.step = function() released = d.live and (d.bankWritten or 0) ~= 0; return true end
+  widget:refresh(0, nil)
+  check(released == true, "the first refresh after the press releases, ahead of its job")
+end)
+-- A key bound to tuning is the opening that does arrive inside refresh: it raises the flag after
+-- that pass's first release check, and is refused while armed.
+scenario("bound-key opening takes effect on its own pass", function()
+  -- All modules stay loaded only while a second open dashboard holds them; closed and alone, the
+  -- view would leave on this pass's first release check and the opening would wait to load instead.
+  local other = fixture(false)
+  for _ = 1, 10 do other:refresh(0, nil) end
+  local widget, d = fixture(false)
+  d.live, d.open, widget.inflightFullscreen = false, false, nil
+  widget.preferences.dashboard = {key_tele = "inflight_tuning"}
+  local realTele = _G.EVT_TELEM_BREAK
+  _G.EVT_TELEM_BREAK = 9001
+  job(widget); widget:refresh(EVT_TELEM_BREAK, nil)
+  _G.EVT_TELEM_BREAK = realTele
+  check(widget.inflightFullscreen == true, "positive control: the bound key opened tuning")
+  check(d.open == true and d.live == true and d.phase == "ground", "the key's own pass releases the surface")
+  check(other.inflightFullscreen == true, "positive control: the second dashboard stayed open")
 end)
 scenario("setup fault and pending trims refuse output", function()
   local widget, d, writes = fixture(false)
@@ -1103,7 +1129,7 @@ for _, opening in ipairs({"quick_menu", "bound_key", "firmware", "background", "
     -- Opened on the ground, flown armed: the surface is offered only while disarmed.
     widget.state.armed, widget.state.armedSeen, widget.state.fblConnected = false, true, true
     local builds, writes, loadPasses = 0, 0, 0
-    local realBuild, realWrite, realEvent = lvgl.build, model.setGlobalVariable, lvgl.onEvent
+    local realBuild, realWrite = lvgl.build, model.setGlobalVariable
     local realTele, realExit = _G.EVT_TELEM_BREAK, _G.EVT_VIRTUAL_EXIT
     lvgl.build = function(...)
       if pass then pass.work = pass.work + 1 end
@@ -1153,9 +1179,15 @@ for _, opening in ipairs({"quick_menu", "bound_key", "firmware", "background", "
         check(Menu.visible(widget, entry) ~= true, "armed, the menu does not offer the entry")
         widget.state.armed = false
         check(Menu.visible(widget, entry) == true, "disarmed, the menu offers the entry")
-        lvgl.onEvent = function() entry.press() end
-        job(widget); refresh(0)
-        lvgl.onEvent = realEvent
+        Menu.run(widget, entry)
+        check(next(loaded) == nil and widget._inflight == nil, "the press itself loads nothing and creates no drive")
+        job(widget)
+        local pending, ran = widget._job, 0
+        pending.step = function() ran = ran + 1; return true end
+        local first = refresh(0)
+        check(#first.loads == 1 and widget._inflight == nil and writes == 0,
+          "the first refresh after the press loads one module, with no drive")
+        check(ran == 0 and widget._job == pending, "the queued job waits behind the first load")
       else
         _G.EVT_TELEM_BREAK = 9001
         widget.state.armed = true
@@ -1166,9 +1198,11 @@ for _, opening in ipairs({"quick_menu", "bound_key", "firmware", "background", "
       end
       check(widget.inflightFullscreen == true, "positive control: the event opened tuning")
       widget.state.armed = true
-      check(next(loaded) == nil and widget._inflight == nil, "the opening event defers all first loads and drive work")
+      if opening == "bound_key" then
+        check(next(loaded) == nil and widget._inflight == nil, "the opening key's pass defers all first loads and drive work")
+      end
       if opening ~= "quick_menu" and opening ~= "bound_key" then
-        refresh(0); refresh(0)
+        refresh(0)
         check(loadPasses == 2, "positive control: preloading has started")
         if opening == "firmware" then refresh(nil)
         elseif opening == "background" then widget:background()
@@ -1203,7 +1237,7 @@ for _, opening in ipairs({"quick_menu", "bound_key", "firmware", "background", "
         "the separate suggested-functions dialog is not loaded by opening tuning")
       print("  cold opening: " .. loadPasses .. " isolated module-load passes; " .. builds .. " later build")
     end)
-    _G.loadScript, lvgl.build, model.setGlobalVariable, lvgl.onEvent = realLoad, realBuild, realWrite, realEvent
+    _G.loadScript, lvgl.build, model.setGlobalVariable = realLoad, realBuild, realWrite
     _G.EVT_TELEM_BREAK, _G.EVT_VIRTUAL_EXIT = realTele, realExit
     check(ok, tostring(err))
   end)
