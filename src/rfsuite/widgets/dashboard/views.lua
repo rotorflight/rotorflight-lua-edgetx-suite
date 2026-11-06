@@ -783,12 +783,12 @@ function M.navigate(widget, after)
     end
     M.invalidate(widget)
   elseif verb == "done" then
-    -- A view over a rolling menu, such as the battery prompt, hands back to the place under it.
-    local top = M.top(widget)
-    if top ~= nil and top ~= M.DEFAULT_VIEW and M.roll(widget, M.DEFAULT_VIEW) ~= nil then
-      M.dropRoll(widget, top)
-      local at = indexOf(widget._viewStack, top)
-      if at ~= nil then table.remove(widget._viewStack, at) end
+    -- A view that rose by itself over a rolling menu, the battery prompt, hands back to the place under it.
+    local stack = widget._viewStack
+    local entry = stack ~= nil and stack[#stack] or nil
+    if entry ~= nil and entry.auto == true and entry.id ~= M.DEFAULT_VIEW and M.roll(widget, M.DEFAULT_VIEW) ~= nil then
+      M.dropRoll(widget, entry.id)
+      stack[#stack] = nil
       M.invalidate(widget)
       return
     end

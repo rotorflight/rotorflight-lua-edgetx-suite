@@ -405,7 +405,7 @@ and with `needsFc` where it needs a connection, its ancestors' condition include
 menu says with `existsWhen` what is left of its `visibleWhen` once the passing states are taken out.
 `Views.visit(widget, menuId, place)` opens the tool on a page from a roll and keeps the place on the widget;
 `Views.toolClosed` takes the host's outcome: `back` and `failed` return to the place, anything else forgets
-it, and a `done` from a view over a rolling menu hands back to the place under it. `lib/connection_status.lua` holds the connection's words for the tool's header and this one, and
+it, and a `done` from a view that rose by itself over a rolling menu hands back to the place under it. `lib/connection_status.lua` holds the connection's words for the tool's header and this one, and
 `bin/dashboard/make_roll_icons.py` makes the pictures under `widgets/dashboard/roll_icons/` from the manifest's
 icons (`--check` says where one is stale). `widgets/dashboard/menu_look.lua`
 holds what these pages share in the card style as well: the colors, the two layout profiles and

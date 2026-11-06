@@ -414,12 +414,18 @@ local function run(mutate)
     check("the picker's roll is on top", Views.topRoll(w) ~= r and Views.topRoll(w).view == "battery_pick")
     Views.navigate(w, "closeView")
     check("the menu's place is under it", Views.topRoll(w) == r and r.base == 2 and rowId(r.levels[2]) == "setup")
+    -- The prompt rises by itself; the same view opened on purpose leaves as it always has.
     Views.navigate(w, "openView:battery_pick")
+    w._viewStack[#w._viewStack].auto = true
     req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
     Views.navigate(w, "done")
     check("and a prompt that is answered or closed hands back to it too", Views.topRoll(w) == r and Views.top(w) == "menu" and r.base == 2)
+    Views.navigate(w, "openView:battery_pick")
     Views.navigate(w, "done")
-    check("while the menu's own close ends the visit", Views.topRoll(w) == nil)
+    check("a picker opened on purpose ends the visit", Views.topRoll(w) == nil and Views.top(w) == nil)
+    w, r = open()
+    Views.navigate(w, "done")
+    check("and so does the menu's own close", Views.topRoll(w) == nil)
   end
 
   -- on the first row selectable now, and with all grey on the first.
@@ -577,7 +583,7 @@ local function run(mutate)
     opened = {}
     check("a press in that stretch is taken", Views.key(w, EVT_VIRTUAL_ENTER) == true)
     check("and opens nothing", #opened == 0 and Views.topRoll(w) == r)
-    check("a finger too", Views.key(w, EVT_TOUCH_FIRST, { x = 1, y = 100 }) == true and r.touchX == nil)
+    check("a finger too", Views.key(w, _G.EVT_TOUCH_FIRST, { x = 1, y = 100 }) == true and r.touchX == nil)
     local base = r.base
     Views.key(w, EVT_VIRTUAL_EXIT)
     check("RTN still answers: it is the way out", r.focus == 1 and r.base == base)
