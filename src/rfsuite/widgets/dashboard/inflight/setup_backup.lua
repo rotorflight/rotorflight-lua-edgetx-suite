@@ -195,6 +195,9 @@ function M.saveText(modelFile, text)
   local made = mkdir(directory())
   if made ~= 0 and made ~= 8 then return false end
   local temporary = path .. ".tmp"
+  -- A power cut between delete and rename leaves the record only under the temporary name. It goes back
+  -- under its own first: the write below truncates that name, and this may be the only copy.
+  if readAll(path) == nil and isRecord(readAll(temporary)) and rename(temporary, path) ~= 0 then return false end
   local file = io.open(temporary, "w")
   if not file then return false end
   local wrote = io.write(file, text)
