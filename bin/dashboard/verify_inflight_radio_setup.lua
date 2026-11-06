@@ -378,6 +378,171 @@ do
   check(Views.condition("previewInflightTuning", widget({ enabled = false })) ~= true, "the master off: gone")
 end
 
+-- --------------------------------------------------------------------------- the page's job
+do
+  SMLSIZE, MIDSIZE, CENTER = 1, 2, 0
+  COLOR_THEME_PRIMARY1, COLOR_THEME_SECONDARY1, COLOR_THEME_SECONDARY2 = 1, 2, 3
+  lvgl = { UI_ELEMENT_HEIGHT = 32 }
+  local armedNow, armCount, saves = false, 0, 0
+  local stubs = {
+    ["lib/env.lua"] = { isWidget = function() return true end },
+    ["lib/armed.lua"] = { isArmed = function() return armedNow end, changeCount = function() return armCount end },
+    ["lib/model_name_store.lua"] = { pending = function() return "Own name" end }
+  }
+  local plain = rfsuite.require
+  local cached = {}
+  rfsuite.require = function(path)
+    if stubs[path] then return stubs[path] end
+    if not cached[path] then cached[path] = plain(path) end
+    return cached[path]
+  end
+  loadScript = function(path)
+    local relative = string.sub(path, #rfsuite.paths.core + 2)
+    if stubs[relative] then return function() return stubs[relative] end end
+    return loadfile(path)
+  end
+  switches = function() return function() return nil end, nil, 0 end
+  getSwitchValue = function() return 0 end
+
+  local Page = assert(loadfile(sourceRoot .. "/rfsuite/app/pages/settings/dashboard/inflight/page.lua"))()
+  Page.getHeaderActions()
+
+  local prefs, saveFails
+  local ctx
+  local function fresh()
+    world = freshWorld()
+    for i = 1, 3 do world.mixes[10][i] = fullLine(i) end
+    for i = 1, 4 do world.mixes[11][i] = fullLine(i + 3) end
+    prefs, saveFails, armedNow, armCount, saves = { general = {}, inflight = {} }, false, false, 0, 0
+    ctx = { preferences = prefs, children = {}, x = 0, y = 62, w = 800, h = 418, i18n = nil,
+      requestRebuild = function() end,
+      savePreferences = function() saves = saves + 1; return not saveFails end }
+    Backup.remove(world.file)
+  end
+  local function build()
+    ctx.children = {}
+    Page.build(ctx)
+  end
+  local function pass(n)
+    for _ = 1, n or 1 do Page.wakeup(ctx); Page.wakeup(ctx) end
+    build()
+  end
+  local function find(text)
+    for _, node in ipairs(ctx.children) do
+      if node.type == "button" and node.text == text then return node end
+    end
+    return nil
+  end
+  local function press(text)
+    local node = find(text)
+    check(node ~= nil, "the button " .. text .. " is there")
+    node.press()
+    build()
+  end
+  local function labels()
+    local out = {}
+    for _, node in ipairs(ctx.children) do
+      if node.type == "label" and type(node.text) == "string" then out[#out + 1] = node.text end
+    end
+    return table.concat(out, " | ")
+  end
+  local function open()
+    Page.onReload(ctx)
+    build()
+    pass(40)
+  end
+  local function until_button(text)
+    for _ = 1, 200 do
+      if find(text) then return true end
+      pass(1)
+    end
+    return false
+  end
+  local key = Setup.modelOffKey("model7.yml")
+
+  -- A set-up: the question, the write, the switch on, the restore on offer, the name the model has.
+  fresh()
+  open()
+  check(string.find(labels(), "Own name", 1, true) ~= nil, "the line names the model's own name")
+  check(find("Restore previous setup") == nil, "no restore without a record")
+  press("Set up radio")
+  check(until_button("Set up"), "the question comes up")
+  check(string.find(labels(), "CH11 3 lines", 1, true) ~= nil, "the question counts the lines")
+  check(#world.mixes[10] == 3, "nothing is written before the answer")
+  press("Set up")
+  check(Backup.stateOf(world.file) == nil or Backup.stateOf(world.file) == "partial", "no complete record yet")
+  check(until_button("Close"), "the result comes up")
+  check(#world.mixes[10] == 1 and Backup.stateOf(world.file) == "complete", "written, record complete")
+  check(prefs.inflight.enabled == true and prefs.inflight[key] == nil and saves == 1, "the set-up turns it on")
+  press("Close")
+  pass(40)
+  check(find("Restore previous setup") ~= nil, "the restore is on offer")
+
+  -- Switched off by hand, and the button turns it on again though nothing is left to write.
+  prefs.inflight[key] = true
+  open()
+  press("Set up radio")
+  check(until_button("Close"), "nothing to write")
+  check(prefs.inflight[key] == nil and prefs.inflight.enabled == true, "pressing the button turns it on")
+  press("Close")
+
+  -- The restore: marked partial before its first write, cut off, offered again, and it switches off.
+  pass(40)
+  press("Restore previous setup")
+  check(until_button("Restore"), "the restore asks")
+  press("Restore")
+  Page.wakeup(ctx); Page.wakeup(ctx)
+  check(Backup.stateOf(world.file) == "partial", "a restore marks the record before it writes")
+  Page.onClose()
+  Page.getHeaderActions()
+  open()
+  check(find("Restore previous setup") ~= nil, "a restore cut off is offered again")
+  press("Set up radio")
+  check(until_button("Close"), "a set-up over it is refused")
+  check(string.find(labels(), "cut off", 1, true) ~= nil, "and says why")
+  press("Close")
+  pass(40)
+  press("Restore previous setup")
+  check(until_button("Restore"), "asks again")
+  press("Restore")
+  check(until_button("Close"), "restored")
+  check(Backup.stateOf(world.file) == nil and #world.mixes[10] == 3 and #world.mixes[11] == 4, "the lines are back")
+  check(prefs.inflight[key] == true, "the restore turns it off for this model")
+  press("Close")
+
+  -- Armed: refused at the press, and an arm and disarm during the write stops it.
+  fresh()
+  open()
+  armedNow = true
+  press("Set up radio")
+  check(string.find(labels(), "armed", 1, true) ~= nil, "refused while armed")
+  check(Backup.stateOf(world.file) == nil, "no record")
+  press("Close")
+  armedNow = false
+  press("Set up radio")
+  check(until_button("Set up"), "asks")
+  press("Set up")
+  Page.wakeup(ctx); Page.wakeup(ctx); build()
+  armCount = armCount + 2
+  check(until_button("Close"), "stops")
+  check(string.find(labels(), "Stopped", 1, true) ~= nil, "says it stopped")
+  check(Backup.stateOf(world.file) == "partial", "the record stays partial")
+  check(prefs.inflight.enabled ~= true, "a stopped set-up does not turn it on")
+  press("Close")
+
+  -- A switch that cannot be saved is said, not hidden.
+  fresh()
+  saveFails = true
+  open()
+  press("Set up radio")
+  check(until_button("Set up"), "asks")
+  press("Set up")
+  check(until_button("Close"), "done")
+  check(string.find(labels(), "could not be saved", 1, true) ~= nil, "a failed save of the switch is said")
+  Page.onClose()
+  Backup.remove(world.file)
+end
+
 os.execute("rm -rf " .. tmpDir)
 io.read = realRead
 print(string.format("radio set-up: %d checks passed", checked))

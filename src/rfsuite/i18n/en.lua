@@ -3912,6 +3912,7 @@ return {
         plan_armed = "Not while the model is armed.",
         plan_stopped = "Stopped: the model was armed or another radio model was selected. Restore previous setup puts it back.",
         plan_restore_first = "A set-up was cut off: use Restore previous setup first.",
+        plan_not_saved = "The switch could not be saved; save the page.",
         plan_no_backup = "The restore data could not be saved; nothing was changed.",
         enabled_needs_setup = "Set up this radio model first.",
         saved_title = "Saved",

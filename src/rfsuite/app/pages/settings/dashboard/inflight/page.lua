@@ -680,8 +680,10 @@ local function mayGoOn(job)
 end
 
 --- A set-up turns tuning on for this radio model and a restore turns it off, saved at once: the pilot
--- pressed nothing that says Save, and the model has already changed.
-local function storeActivation(on)
+-- pressed nothing that says Save, and the model has already changed. Answers the text to add when the
+-- save failed, so the result does not claim what the card does not hold.
+local function storeActivation(on, file)
+  ui.modelOffKey = Setup.modelOffKey(file) or ui.modelOffKey
   if on then
     ui.config.enabled = true
     ui.modelOff = false
@@ -691,6 +693,8 @@ local function storeActivation(on)
   local ok, err = saveToStore(ui.saveCtx)
   logJob(ok and "info" or "warn", "setup job: tuning %s for this radio model, saved %s %s",
     on and "on" or "off", tostring(ok), tostring(err or ""))
+  if ok then return "" end
+  return " " .. t(ui.i18n, "plan_not_saved", "The switch could not be saved; save the page.")
 end
 
 local JOB_STAGES = {}
@@ -729,9 +733,11 @@ function JOB_STAGES.plan(job)
   if plan.ok ~= true then
     finishJob(t(i18n, "plan_title", "Set up radio"), refusalText(i18n, plan.refused))
   elseif plan.nothing == true then
-    -- Nothing to write, so there is nothing to confirm.
+    -- Nothing to write, so there is nothing to confirm. It is set up, so tuning goes on all the same: the
+    -- pilot pressed the button that turns it on.
     finishJob(t(i18n, "plan_title", "Set up radio"),
-      t(i18n, "plan_nothing", "This radio model already carries this setup; nothing to write."))
+      t(i18n, "plan_nothing", "This radio model already carries this setup; nothing to write.")
+      .. storeActivation(true, job.modelFile))
   else
     logJob("info", "setup job: asks, %d step(s) planned", #plan.gvars + #plan.deletions + #plan.insertions + #plan.trims)
     job.stage = "ask"
@@ -791,8 +797,7 @@ function JOB_STAGES.write(job)
       if not ensureBackup().remove(job.modelFile) then
         logJob("warn", "setup job: the record could not be removed after the restore")
       end
-      storeActivation(false)
-      finishJob(title, t(i18n, "restore_done", "Previous setup restored"))
+      finishJob(title, t(i18n, "restore_done", "Previous setup restored") .. storeActivation(false, job.modelFile))
     end
   elseif job.apply.stopped then
     finishJob(title, string.format("%s (%d/%d)",
@@ -803,8 +808,8 @@ function JOB_STAGES.write(job)
       -- The set-up stands; the record still says partial, so the restore stays on offer.
       logJob("warn", "setup job: the record could not be marked complete")
     end
-    storeActivation(true)
-    finishJob(title, string.format("%s (%d)", t(i18n, "plan_done", "Radio set up"), report.written))
+    finishJob(title, string.format("%s (%d)", t(i18n, "plan_done", "Radio set up"), report.written)
+      .. storeActivation(true, job.modelFile))
   end
 end
 

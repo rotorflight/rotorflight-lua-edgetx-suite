@@ -3940,6 +3940,7 @@ return {
         plan_armed = "Nicht, solange das Modell scharf ist.",
         plan_stopped = "Angehalten: Das Modell wurde scharf geschaltet oder ein anderes Sendermodell gewählt. Vorherige Belegung wiederherstellen stellt zurück.",
         plan_restore_first = "Eine Einrichtung wurde abgebrochen: erst Vorherige Belegung wiederherstellen.",
+        plan_not_saved = "Der Schalter ließ sich nicht speichern; die Seite speichern.",
         plan_no_backup = "Die Sicherung ließ sich nicht speichern; es wurde nichts geändert.",
         enabled_needs_setup = "Erst dieses Sendermodell einrichten.",
         saved_title = "Gespeichert",
