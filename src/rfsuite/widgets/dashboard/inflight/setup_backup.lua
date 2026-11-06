@@ -6,16 +6,18 @@
 -- hold it: its literal() writes scalars, and a table in an open section is dropped while the save
 -- still succeeds.
 --
--- A record is saved `partial` before the first write and rewritten `complete` after the last, so a
--- set-up stopped or cut off in the middle leaves a record that says so. Its restore is offered
--- whatever the model looks like, and a further set-up does not replace it: the model it would read
--- is the damaged one.
+-- A record is saved `partial` before the first write and marked `complete` after the last, and a
+-- restore marks it `partial` again before its own first write, so anything stopped or cut off in the
+-- middle leaves a record that says so. Its restore is offered whatever the model looks like, and the
+-- page refuses a further set-up until it has run: the model that set-up would read is the damaged one.
 --
 -- Loaded for the job that needs it and released with the page; nothing of it stays resident.
 
 local M = {}
 
 local VERSION_LINE = "inflight-setup 1"
+-- The last line, so a file cut off while being written is not taken for a record.
+local END_LINE = "end"
 local SEP = "\t"
 -- A bound on what is read back: a model has at most 64 mixer lines, each well under 256 bytes.
 local MAX_BYTES = 32768
@@ -52,6 +54,22 @@ local function readAll(path)
   return table.concat(parts)
 end
 
+local function isRecord(text)
+  return type(text) == "string"
+    and string.sub(text, 1, #VERSION_LINE) == VERSION_LINE
+    and string.sub(text, -(#END_LINE + 2)) == "\n" .. END_LINE .. "\n"
+end
+
+--- The record of a model file. FAT's rename does not replace a file, so a save deletes the old one
+-- first; a power cut between the two leaves the new one under its temporary name, read back and whole.
+local function readRecord(path)
+  local text = readAll(path)
+  if isRecord(text) then return text end
+  text = readAll(path .. ".tmp")
+  if isRecord(text) then return text end
+  return nil
+end
+
 --- A name cannot carry the separator or a line break: the radio's own name fields do not offer them.
 local function clean(value)
   if value == nil then return "" end
@@ -65,24 +83,43 @@ local function joined(...)
   return table.concat(parts, SEP)
 end
 
---- The text of a record for a plan about to be carried out.
-function M.encode(plan, state, modelFile)
-  local lines = { VERSION_LINE, "state" .. SEP .. state, "model" .. SEP .. clean(modelFile) }
+local function encodeMix(line)
+  local values = {}
+  for f = 1, #Setup.MIX_FIELDS do values[f] = clean(line[Setup.MIX_FIELDS[f]]) end
+  return table.concat(values, SEP)
+end
 
-  for i = 1, #plan.channels do
-    local channel = plan.channels[i]
-    lines[#lines + 1] = joined("C", channel.channel, channel.removed)
-    for line0 = 1, #channel.lines do
-      local values = {}
-      local line = channel.lines[line0]
-      for f = 1, #Setup.MIX_FIELDS do values[f] = clean(line[Setup.MIX_FIELDS[f]]) end
-      lines[#lines + 1] = joined("L", channel.channel, line0 - 1) .. SEP .. table.concat(values, SEP)
+--- The same line with every field the mixer API carries spelled out, as the radio reads it back: the
+-- plan's line leaves out what it does not set.
+local function encodeWritten(line)
+  local values = {}
+  for f = 1, #Setup.MIX_FIELDS do
+    local key = Setup.MIX_FIELDS[f]
+    local value = line[key]
+    if value == nil then
+      if key == "name" then value = "" elseif key == "carryTrim" then value = false else value = 0 end
     end
+    values[f] = clean(value)
   end
+  return table.concat(values, SEP)
+end
+
+--- The text of a record for a plan about to be carried out, in slices: every field of every line it
+-- replaces does not fit beside a widget pass in one call.
+function M.newEncode(plan, modelFile)
+  local enc = {
+    plan = plan, done = false, channel = 1, line = 0, tail = false,
+    lines = { VERSION_LINE, "state" .. SEP .. "partial", "model" .. SEP .. clean(modelFile) }
+  }
+  return enc
+end
+
+local function encodeTail(enc)
+  local plan, lines = enc.plan, enc.lines
   -- What the set-up leaves on those channels, for the state check.
   for i = 1, #plan.insertions do
     local entry = plan.insertions[i]
-    lines[#lines + 1] = joined("W", entry.channel, entry.mix.source, entry.mix.weight, entry.mix.switch)
+    lines[#lines + 1] = joined("W", entry.channel) .. SEP .. encodeWritten(entry.mix)
   end
   for i = 1, #plan.gvars do
     local entry = plan.gvars[i]
@@ -94,7 +131,7 @@ function M.encode(plan, state, modelFile)
   end
   if plan.ls ~= nil then
     local def = plan.ls.def
-    lines[#lines + 1] = joined("S", plan.ls.slot, def.func, def.v1, def.v2, def.delay, def.duration)
+    lines[#lines + 1] = joined("S", plan.ls.slot, def.func, def.v1, def.v2, def["and"], def.delay, def.duration)
   end
   for i = 1, #plan.trims do
     local entry = plan.trims[i]
@@ -103,7 +140,36 @@ function M.encode(plan, state, modelFile)
       lines[#lines + 1] = joined("T", entry.fm, index, entry.before[index], entry.modes[index])
     end
   end
-  return table.concat(lines, "\n") .. "\n"
+  lines[#lines + 1] = END_LINE
+  enc.text = table.concat(lines, "\n") .. "\n"
+  enc.lines = nil
+  enc.plan = nil
+  enc.done = true
+end
+
+--- At most `count` replaced lines of a record. Answers true once `enc.text` is there.
+function M.encodeStep(enc, count)
+  if enc.done then return true end
+  local channels = enc.plan.channels
+  local left = count or math.huge
+  while enc.channel <= #channels do
+    local channel = channels[enc.channel]
+    if enc.line == 0 then
+      if left <= 0 then return false end
+      enc.lines[#enc.lines + 1] = joined("C", channel.channel, channel.removed)
+      enc.line = 1
+    end
+    while enc.line <= #channel.lines do
+      if left <= 0 then return false end
+      left = left - 1
+      enc.lines[#enc.lines + 1] = joined("L", channel.channel, enc.line - 1) .. SEP .. encodeMix(channel.lines[enc.line])
+      enc.line = enc.line + 1
+    end
+    enc.channel, enc.line = enc.channel + 1, 0
+  end
+  if left <= 0 then return false end
+  encodeTail(enc)
+  return true
 end
 
 --- Write a record so that a power cut leaves the old one or the new one, never half of either.
@@ -125,25 +191,34 @@ function M.saveText(modelFile, text)
   return rename(temporary, path) == 0 and readAll(path) == text
 end
 
+--- Change a record's state, leaving the rest as it is. Answers false where there is no record or it
+-- could not be written; the old one stands then, or its whole copy under the temporary name.
+function M.markState(modelFile, state)
+  local path = M.path(modelFile)
+  local text = path and readRecord(path) or nil
+  if text == nil then return false end
+  local head = VERSION_LINE .. "\nstate" .. SEP
+  if string.sub(text, 1, #head) ~= head then return false end
+  local stop = string.find(text, "\n", #head + 1, true)
+  if stop == nil then return false end
+  return M.saveText(modelFile, head .. state .. string.sub(text, stop))
+end
+
 --- Forget the record. The set-up it belongs to has been put back.
 function M.remove(modelFile)
   local path = M.path(modelFile)
   if not path or type(del) ~= "function" then return false end
+  if readAll(path .. ".tmp") ~= nil then del(path .. ".tmp") end
   if readAll(path) == nil then return true end
   return del(path) == 0
 end
 
---- The record's state only, `partial` or `complete`, or nil where there is none. One small read.
+--- The record's state only, `partial` or `complete`, or nil where there is none.
 function M.stateOf(modelFile)
   local path = M.path(modelFile)
-  if not path then return nil end
-  local file = io.open(path, "r")
-  if not file then return nil end
-  local head = io.read(file, 64)
-  io.close(file)
-  if type(head) ~= "string" then return nil end
-  if string.sub(head, 1, #VERSION_LINE) ~= VERSION_LINE then return nil end
-  return string.match(head, "\nstate\t(%a+)")
+  local text = path and readRecord(path) or nil
+  if text == nil then return nil end
+  return string.match(text, "\nstate\t(%a+)")
 end
 
 local function fieldsOf(line)
@@ -164,8 +239,8 @@ end
 --- The read of a record, line by line: parsing all of a full model's lines does not fit in a pass.
 function M.newParse(modelFile)
   local path = M.path(modelFile)
-  local text = path and readAll(path) or nil
-  if type(text) ~= "string" or string.sub(text, 1, #VERSION_LINE) ~= VERSION_LINE then return nil end
+  local text = path and readRecord(path) or nil
+  if text == nil then return nil end
   return {
     text = text, at = #VERSION_LINE + 2, done = false,
     record = { channels = {}, written = {}, gvars = {}, details = {}, trims = {} }
@@ -208,9 +283,14 @@ function M.parseStep(parse, count)
         end
       end
     elseif kind == "W" then
-      record.written[#record.written + 1] = {
-        channel = tonumber(f[2]), source = tonumber(f[3]), weight = tonumber(f[4]), switch = tonumber(f[5])
-      }
+      local mix = {}
+      for i = 1, #Setup.MIX_FIELDS do
+        local key, raw = Setup.MIX_FIELDS[i], f[2 + i]
+        if key == "name" then mix[key] = raw or ""
+        elseif key == "carryTrim" then mix[key] = (raw == "true")
+        else mix[key] = numberOr(raw, 0) end
+      end
+      record.written[#record.written + 1] = { channel = tonumber(f[2]), mix = mix }
     elseif kind == "G" then
       record.gvars[#record.gvars + 1] = {
         index = tonumber(f[2]), name = f[3] or "", min = tonumber(f[4]), max = tonumber(f[5]),
@@ -224,7 +304,7 @@ function M.parseStep(parse, count)
     elseif kind == "S" then
       record.ls = {
         slot = tonumber(f[2]), func = tonumber(f[3]), v1 = tonumber(f[4]), v2 = tonumber(f[5]),
-        delay = tonumber(f[6]), duration = tonumber(f[7])
+        ["and"] = tonumber(f[6]), delay = tonumber(f[7]), duration = tonumber(f[8])
       }
     elseif kind == "T" then
       record.trims[#record.trims + 1] = {
@@ -242,11 +322,7 @@ function M.stillCarries(radio, record)
   for i = 1, #record.written do
     local entry = record.written[i]
     if radio.mixesCount(entry.channel) ~= 1 then return false end
-    local line = radio.mix(entry.channel, 0)
-    if type(line) ~= "table" or tonumber(line.source) ~= entry.source
-        or tonumber(line.weight) ~= entry.weight or tonumber(line.switch) ~= entry.switch then
-      return false
-    end
+    if not Setup.sameLine(radio.mix(entry.channel, 0), entry.mix) then return false end
   end
   for i = 1, #record.details do
     local entry = record.details[i]
@@ -261,6 +337,7 @@ function M.stillCarries(radio, record)
   if ls ~= nil then
     local have = radio.logicalSwitch(ls.slot)
     if type(have) ~= "table" or tonumber(have.func) ~= ls.func or tonumber(have.v1) ~= ls.v1
+        or tonumber(have.v2) ~= ls.v2 or (tonumber(have["and"]) or 0) ~= (ls["and"] or 0)
         or tonumber(have.delay) ~= ls.delay or tonumber(have.duration) ~= ls.duration then
       return false
     end

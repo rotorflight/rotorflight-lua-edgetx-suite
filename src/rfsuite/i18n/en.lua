@@ -3912,6 +3912,7 @@ return {
         plan_lines = "lines",
         plan_armed = "Not while the model is armed.",
         plan_stopped = "Stopped: the model was armed or another radio model was selected. Restore previous setup puts it back.",
+        plan_restore_first = "A set-up was cut off: use Restore previous setup first.",
         plan_no_backup = "The restore data could not be saved; nothing was changed.",
         saved_title = "Saved",
         saved_message = "In-flight tuning settings saved",

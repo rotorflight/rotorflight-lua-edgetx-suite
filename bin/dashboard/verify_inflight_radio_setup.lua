@@ -21,7 +21,7 @@ end
 
 -- The most a page's slice may spend: the page's own idle pass and the dashboard share the 20 000.
 local SLICE_LIMIT = 6000
-local PLAN_SLICE, WRITE_SLICE, PARSE_SLICE = 32, 4, 8
+local PLAN_SLICE, WRITE_SLICE, PARSE_SLICE, ENCODE_SLICE = 32, 4, 8, 3
 
 -- --------------------------------------------------------------------------- the radio
 local MAX_LS, MAX_FM = 64, 9
@@ -165,6 +165,12 @@ local function sameTable(a, b, where)
   for k in pairs(b) do check(a[k] ~= nil, where .. "." .. tostring(k) .. " is new") end
 end
 
+local function saveRecord(plan)
+  local enc = Backup.newEncode(plan, world.file)
+  local worst = worstSlice(function() return Backup.encodeStep(enc, ENCODE_SLICE) end)
+  return Backup.saveText(world.file, enc.text), worst
+end
+
 local function runPlan(radio, config)
   local job = Plan.newPlanJob(radio, config, nil)
   local worst, passes = worstSlice(function() return Plan.planStep(job, PLAN_SLICE) end)
@@ -268,14 +274,16 @@ do
   local plan = runPlan(radio, config)
   check(Backup.stateOf(world.file) == nil, "no record before a set-up")
 
-  local text = Backup.encode(plan, "partial", world.file)
-  check(Backup.saveText(world.file, text), "the record is saved")
+  local saved, encodeWorst = saveRecord(plan)
+  print(string.format("record, 60 lines: worst encode slice %d instructions", encodeWorst))
+  check(saved, "the record is saved")
+  check(encodeWorst <= SLICE_LIMIT, "an encode slice stays under the limit, " .. encodeWorst)
   check(Backup.stateOf(world.file) == "partial", "it says partial until the end")
   local _, worst = runApply(radio, plan)
   print(string.format("write, 60 deletions: worst slice %d instructions", worst))
   check(worst <= SLICE_LIMIT, "a write slice stays under the limit, " .. worst)
   check(#world.mixes[10] == 1 and #world.mixes[11] == 1, "each channel carries one line")
-  check(Backup.saveText(world.file, Backup.encode(plan, "complete", world.file)), "the record is rewritten")
+  check(Backup.markState(world.file, "complete"), "the record is marked")
   check(Backup.stateOf(world.file) == "complete", "it says complete")
 
   local parse = Backup.newParse(world.file)
@@ -299,8 +307,9 @@ do
   local radio = Setup.radio()
   local config = settings()
   local plan = runPlan(radio, config)
-  check(Backup.saveText(world.file, Backup.encode(plan, "complete", world.file)), "saved")
+  check(saveRecord(plan), "saved")
   runApply(radio, plan)
+  check(Backup.markState(world.file, "complete"), "marked")
   local function record()
     local parse = Backup.newParse(world.file)
     Backup.parseStep(parse, math.huge)
@@ -310,9 +319,32 @@ do
   world.mixes[10][2] = fullLine(9)
   check(not Backup.stillCarries(radio, record()), "another line on a channel: not offered")
   table.remove(world.mixes[10], 2)
+  check(Backup.stillCarries(radio, record()), "put back: offered again")
+  local offset = world.mixes[10][1].offset
+  world.mixes[10][1].offset = 7
+  check(not Backup.stillCarries(radio, record()), "any field of the line changed: not offered")
+  world.mixes[10][1].offset = offset
   world.gvars[4].min = -90
   check(not Backup.stillCarries(radio, record()), "a changed variable: not offered")
   check(Backup.newParse("other.yml") == nil and Backup.stateOf("other.yml") == nil, "a record belongs to its model file")
+
+  -- Marking a record leaves the rest of it, and a restore that starts marks it partial again.
+  check(Backup.markState(world.file, "partial") and Backup.stateOf(world.file) == "partial", "the mark moves")
+  check(Backup.markState("other.yml", "partial") == false, "no record, no mark")
+
+  -- A power cut between deleting the old file and the rename leaves the new one under its temporary
+  -- name, and that is the record. One cut off while being written is not.
+  local path = Backup.path(world.file)
+  check(os.rename(path, path .. ".tmp"), "stage the temporary name")
+  check(Backup.stateOf(world.file) == "partial", "the whole temporary copy is the record")
+  local cut = assert(io.open(path .. ".tmp", "r"))
+  local whole = cut:read("a")
+  cut:close()
+  local short = assert(io.open(path .. ".tmp", "w"))
+  short:write(string.sub(whole, 1, #whole - 8))
+  short:close()
+  check(Backup.stateOf(world.file) == nil, "a temporary copy cut off is not a record")
+  check(Backup.remove(world.file), "and is removed with it")
 
   -- A name the suite cannot put in a file name still gives one path.
   check(string.find(Backup.path("a b/c.yml"), "a_b_c.yml", 1, true) ~= nil, "the path is safe")

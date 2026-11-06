@@ -46,10 +46,11 @@ local SW_NONE = 1 << 20
 -- What a set-up or a restore takes per pass. The walk over a model and the writes do not fit beside a
 -- widget pass in one call, so both are slices, the same size in the standalone tool: one path to test.
 -- PLAN_SLICE is in reads off the model, as Setup.GVAR_WALK_SLICE is; WRITE_SLICE in writes, each read
--- back; PARSE_SLICE in lines of the record on the card.
+-- back; PARSE_SLICE and ENCODE_SLICE in lines of the record on the card.
 local PLAN_SLICE = 32
 local WRITE_SLICE = 4
 local PARSE_SLICE = 8
+local ENCODE_SLICE = 3
 
 local ui = {
   loaded = false,
@@ -668,6 +669,16 @@ function JOB_STAGES.plan(job)
     job.planJob = ensurePlan().newPlanJob(radio(), ui.config, trimNames())
     job.modelFile = modelFile()
   end
+  if job.checkedRecord ~= true then
+    -- What was cut off comes first: this plan would read the model it left, and its lines would have no
+    -- record at all once the channels differ from the ones in the record.
+    job.checkedRecord = true
+    if ensureBackup().stateOf(job.modelFile) == "partial" then
+      finishJob(t(i18n, "plan_title", "Set up radio"),
+        t(i18n, "plan_restore_first", "A set-up was cut off: use Restore previous setup first."))
+      return
+    end
+  end
   if not Plan.planStep(job.planJob, PLAN_SLICE) then
     logJob("trace", "setup job: plan stage %s", tostring(job.planJob.stage))
     return
@@ -692,19 +703,27 @@ function JOB_STAGES.ask()
   -- The box's two buttons answer; see appendJobBox.
 end
 
---- The record goes on the card BEFORE the first write, and is read back: no record, no write. One that
--- says `partial` is kept: it holds the model as it was before the set-up that was cut off, and the
--- model now is what that left.
+--- The record goes on the card BEFORE the first write, and is read back: no record, no write. A restore
+-- marks its record `partial` first, so one cut off in the middle is still offered.
 function JOB_STAGES.backup(job)
   local i18n = ui.i18n
   local store = ensureBackup()
-  job.keptRecord = store.stateOf(job.modelFile) == "partial"
-  if not job.keptRecord and not store.saveText(job.modelFile, store.encode(job.plan, "partial", job.modelFile)) then
-    finishJob(t(i18n, "plan_title", "Set up radio"),
+  local restoring = job.kind == "restore"
+  if not restoring and job.encode == nil then job.encode = store.newEncode(job.plan, job.modelFile) end
+  if not restoring and not store.encodeStep(job.encode, ENCODE_SLICE) then return end
+  local saved
+  if restoring then
+    saved = store.markState(job.modelFile, "partial")
+  else
+    saved = store.saveText(job.modelFile, job.encode.text)
+    job.encode = nil
+  end
+  if not saved then
+    finishJob(restoring and t(i18n, "restore_setup", "Restore previous setup") or t(i18n, "plan_title", "Set up radio"),
       t(i18n, "plan_no_backup", "The restore data could not be saved; nothing was changed."))
     return
   end
-  logJob("info", "setup job: record on the card, kept from before %s", tostring(job.keptRecord))
+  logJob("info", "setup job: record on the card")
   job.apply = ensurePlan().newApplyJob(radio(), job.plan)
   job.stage = "write"
   requestRebuild()
@@ -739,12 +758,9 @@ function JOB_STAGES.write(job)
       t(i18n, "plan_failed", "The radio refused part of the setup; Restore previous setup puts it back"),
       report.written, #job.apply.ops))
   else
-    if not job.keptRecord then
-      local store = ensureBackup()
-      if not store.saveText(job.modelFile, store.encode(job.plan, "complete", job.modelFile)) then
-        -- The set-up stands; the record still says partial, so the restore stays on offer.
-        logJob("warn", "setup job: the record could not be marked complete")
-      end
+    if not ensureBackup().markState(job.modelFile, "complete") then
+      -- The set-up stands; the record still says partial, so the restore stays on offer.
+      logJob("warn", "setup job: the record could not be marked complete")
     end
     finishJob(title, string.format("%s (%d)", t(i18n, "plan_done", "Radio set up"), report.written))
   end
@@ -871,8 +887,7 @@ local function appendJobBox(children, x, y, w, h, i18n)
             -- arm and disarm from now on stops it.
             local armed = ensureArmed()
             job.armCount = armed and armed.changeCount() or 0
-            job.stage = restoring and "write" or "backup"
-            if restoring then job.apply = ensurePlan().newApplyJob(radio(), job.plan) end
+            job.stage = "backup"
             requestRebuild()
           end
         }

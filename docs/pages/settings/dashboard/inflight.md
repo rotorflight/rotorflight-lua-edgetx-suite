@@ -52,7 +52,7 @@ reports *This radio model already carries this setup; nothing to write.*
 in the suite's `inflight-setup` folder, and read back; if that fails, nothing is written. A set-up
 stops at the first write the radio refuses, or when the model is armed or another model is selected
 while it runs, and tells the pilot; its restore is then offered whatever the model looks like, and a
-further set-up keeps that saved state rather than replacing it with the half-written model. After a
+further set-up is refused until it has run, since that set-up would read the half-written model. After a
 restore every mixer field is compared with what was saved, and the file is removed. A later complete
 set-up replaces the file, so one restore step is kept per radio model.
 

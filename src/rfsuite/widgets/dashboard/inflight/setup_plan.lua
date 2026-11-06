@@ -530,7 +530,7 @@ M.MIX_FIELDS = {
   "carryTrim", "mixWarn", "delayPrec", "delayUp", "delayDown", "speedPrec", "speedUp", "speedDown", "name"
 }
 
-local function sameLine(have, wanted)
+function M.sameLine(have, wanted)
   if type(have) ~= "table" then return false end
   for i = 1, #M.MIX_FIELDS do
     local key = M.MIX_FIELDS[i]
@@ -594,7 +594,7 @@ end
 -- After a restore: the line as it stands against the line the record holds, field by field. The
 -- writers' own read-backs compare three fields; this is what makes "restored" mean all of them.
 function OP_STEPS.verify(radio, op)
-  local ok = sameLine(radio.mix(op.entry.channel, op.entry.line0), op.entry.mix)
+  local ok = M.sameLine(radio.mix(op.entry.channel, op.entry.line0), op.entry.mix)
   if not ok then
     logDrive("setup: CH%d line %d differs after the restore", op.entry.channel, op.entry.line0 + 1)
   end

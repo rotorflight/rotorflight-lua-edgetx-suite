@@ -3940,6 +3940,7 @@ return {
         plan_lines = "Zeilen",
         plan_armed = "Nicht, solange das Modell scharf ist.",
         plan_stopped = "Angehalten: Das Modell wurde scharf geschaltet oder ein anderes Sendermodell gewählt. Vorherige Belegung wiederherstellen stellt zurück.",
+        plan_restore_first = "Eine Einrichtung wurde abgebrochen: erst Vorherige Belegung wiederherstellen.",
         plan_no_backup = "Die Sicherung ließ sich nicht speichern; es wurde nichts geändert.",
         saved_title = "Gespeichert",
         saved_message = "In-Flight-Tuning-Einstellungen gespeichert",
