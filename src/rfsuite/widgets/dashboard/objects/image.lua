@@ -32,6 +32,10 @@ local function getRender(subtype)
     return mod
   end
   missingRenders[key] = true
+  local Log = _G.rfsuite and _G.rfsuite.Log
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.widget.object", "warn", "image type %s did not load", tostring(key))
+  end
   return nil
 end
 
