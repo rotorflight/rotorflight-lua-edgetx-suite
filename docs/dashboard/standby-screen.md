@@ -23,6 +23,8 @@ The full-width ELRS field uses the same content on every supported radio: `Rate 
 
 A fixed information strip summarizes the highest-priority prerequisite from the connection state already held by the dashboard. The exact connection reason and progress remain visible below it. The strip adds no radio or telemetry polling. The standby surface does not replace flight state: active-flight link loss, postflight view, and offline summary keep the existing dashboard behavior. Turning the option off restores the normal connection splash.
 
+Its colors and the logo follow the [color scheme](../pages/settings/general.md), light or dark, like the loading screen it stands in for.
+
 Configure it under *System* → *Settings* → *Dashboard* → *Standby screen*.
 
 TX GPS reports the transmitter's built-in receiver. EdgeTX exposes neither GPS-time status nor a reception timestamp, so an unavailable value makes no hardware or freshness claim. Missing readings remain unavailable rather than becoming zero.
