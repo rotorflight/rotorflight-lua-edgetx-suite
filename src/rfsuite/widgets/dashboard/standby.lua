@@ -156,9 +156,12 @@ local ELRS_WORST = {
   { "elrs_max_power", "Max Power", "25/250 mW" },
   { "elrs_dynamic", "Dynamic", "AUX12" },
 }
+-- What an ELRS field has to fit: the three lines, the last without its mode, which a narrow field
+-- shortens rather than giving up the field for.
 local ELRS_COMPACT_WORST = {
-  { "elrs_rate_short", "Rate", "1000Hz Full", "elrs_ratio_short", "TLM", "1:128" },
-  { "elrs_power_short", "Max", "25/250 mW", "elrs_dynamic_short", "Dyn", "AUX12" },
+  { "elrs_packet_rate", "Packet Rate", "1000 Hz Full" },
+  { "elrs_telemetry_ratio", "Telemetry Ratio", "1:128" },
+  { "elrs_power", "Power", "25/250 mW" },
 }
 -- No altitude and no speed: EdgeTX fills them in 0.1 m and 0.1 m/s from a UBX receiver but in
 -- m and cm/s from an NMEA one (radio/src/gps_ubx.cpp, gps_nmea.cpp), and getTxGPS() passes them
@@ -247,8 +250,8 @@ local function gpsDetailed(width, height, labels, measureCache, knownGeometry)
   local geometry = knownGeometry or M.geometry(width, height)
   local _, lineHeight = measure("Ag", SMLSIZE, measureCache)
   local columns = width >= 600 and 3 or 2
-  -- As build draws it: the caption, 12 px, the detail lines, then the time line at the bottom.
-  local lines = 2 + math.ceil(#GPS_WORST / columns)
+  -- As build draws it: the caption, 12 px, then the detail lines.
+  local lines = 1 + math.ceil(#GPS_WORST / columns)
   if lineHeight * lines + 12 > geometry.rowHeight then return false end
   local inner = width - 16
   local detailWidth = math.floor((inner - geometry.gap * (columns - 1)) / columns)
@@ -294,8 +297,7 @@ local function moduleFits(kind, boxW, height, labels, knownGeometry, measureCach
   if kind == "elrs" then
     for n = 1, #ELRS_COMPACT_WORST do
       local spec = ELRS_COMPACT_WORST[n]
-      local line = (labels and labels[spec[1]] or spec[2]) .. " " .. spec[3] .. "  |  "
-        .. (labels and labels[spec[4]] or spec[5]) .. " " .. spec[6]
+      local line = (labels and labels[spec[1]] or spec[2]) .. " " .. spec[3]
       if measure(line, SMLSIZE, measureCache) > inner then return false end
     end
     return SMLSIZE
@@ -303,10 +305,6 @@ local function moduleFits(kind, boxW, height, labels, knownGeometry, measureCach
   local font = fittingFont(kind, worstValue, boxW, headerWidth, geometry, measureCache)
   if font == nil then return false end
   if kind == "clock" and measure(WORST.date, SMLSIZE, measureCache) > inner then return false end
-  if kind == "tx_gps" then
-    local timeLine = labels and labels.gps_time_unavailable or "Time status unknown"
-    if measure(timeLine, SMLSIZE, measureCache) > inner then return false end
-  end
   return font
 end
 
@@ -515,10 +513,6 @@ local function readValues(cache, items, wantsGpsDetails)
     firmware = selected.firmware and bounded(version, 20) or nil,
     elrs = selected.elrs and M.elrsText(cache) or nil,
   }
-  if wantsGps then
-    values._gpsTime = cache.text and cache.text("gps_time_unavailable", "Time status unknown")
-      or "Time status unknown"
-  end
   if wantsGps and type(gps) == "table" then
     if gps.fix == true or gps.fix == 1 then
       local fix = cache.text and cache.text("gps_fix", "Fix") or "Fix"
@@ -585,13 +579,13 @@ function M.elrsText(cache)
     else
       unavailable = text and text("elrs_unavailable", "Unavailable") or "Unavailable"
     end
-    cache.elrsCompact = { unavailable, "" }
+    cache.elrsCompact = { unavailable, "", "" }
     cache.elrsShownValue = unavailable
     return unavailable
   end
   if snap.status == "reading" then
     local reading = text and text("elrs_reading", "Reading") or "Reading"
-    cache.elrsCompact = { reading, "" }
+    cache.elrsCompact = { reading, "", "" }
     cache.elrsShownValue = reading
     return reading
   end
@@ -609,17 +603,23 @@ function M.elrsText(cache)
         and snap.fields.maxPower.unit ~= "" then value = value .. " " .. tostring(snap.fields.maxPower.unit) end
     lines[#lines + 1] = (text and text(row[1], row[2]) or row[2]) .. ": " .. value
   end
-  local rate = tostring(snap.packetRate or "-")
+  -- The rate without the sensitivity a module adds in brackets, and with a space before the unit.
+  local rate = string.gsub(string.gsub(tostring(snap.packetRate or "-"), "%s*%b()", ""), "(%d)Hz", "%1 Hz")
   local ratio = tostring(snap.telemetryRatio or "-")
   local power = tostring(snap.maxPower or "-")
   if snap.fields and snap.fields.maxPower and snap.fields.maxPower.unit
       and snap.fields.maxPower.unit ~= "" then power = power .. " " .. tostring(snap.fields.maxPower.unit) end
-  local dynamic = tostring(snap.dynamic or "-")
+  -- The module's Dynamic option in words: Off, Dyn, or an AUX channel that boosts to the maximum.
+  local fixedWord = text and text("elrs_power_fixed", "fixed") or "fixed"
+  local dynamicWord = text and text("elrs_power_dynamic", "dynamic") or "dynamic"
+  local mode = nil
+  if snap.dynamic == "Off" then mode = fixedWord
+  elseif snap.dynamic == "Dyn" then mode = dynamicWord
+  elseif snap.dynamic ~= nil then mode = dynamicWord .. " " .. tostring(snap.dynamic) end
   cache.elrsCompact = {
-    (text and text("elrs_rate_short", "Rate") or "Rate") .. " " .. rate .. "  |  "
-      .. (text and text("elrs_ratio_short", "TLM") or "TLM") .. " " .. ratio,
-    (text and text("elrs_power_short", "Max") or "Max") .. " " .. power .. "  |  "
-      .. (text and text("elrs_dynamic_short", "Dyn") or "Dyn") .. " " .. dynamic,
+    (text and text("elrs_packet_rate", "Packet Rate") or "Packet Rate") .. " " .. rate,
+    (text and text("elrs_telemetry_ratio", "Telemetry Ratio") or "Telemetry Ratio") .. " " .. ratio,
+    (text and text("elrs_power", "Power") or "Power") .. " " .. power .. (mode and (", " .. mode) or ""),
   }
   cache.elrsShownValue = table.concat(lines, "\n")
   return cache.elrsShownValue
@@ -655,14 +655,12 @@ local function screenLabels(i18n, items)
     for i = 1, #ELRS_WORST do labels[ELRS_WORST[i][1]] = i18n(ELRS_WORST[i][1], ELRS_WORST[i][2]) end
     for i = 1, #ELRS_COMPACT_WORST do
       labels[ELRS_COMPACT_WORST[i][1]] = i18n(ELRS_COMPACT_WORST[i][1], ELRS_COMPACT_WORST[i][2])
-      labels[ELRS_COMPACT_WORST[i][4]] = i18n(ELRS_COMPACT_WORST[i][4], ELRS_COMPACT_WORST[i][5])
     end
   end
   if hasGps then
     for i = 1, #GPS_WORST do labels[GPS_WORST[i][1]] = i18n(GPS_WORST[i][1], GPS_WORST[i][2]) end
     labels.gps_no_fix = i18n("gps_no_fix", "No fix")
     labels.gps_satellites = i18n("gps_satellites", "Sat")
-    labels.gps_time_unavailable = i18n("gps_time_unavailable", "Time status unknown")
   end
   return labels
 end
@@ -831,7 +829,7 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
       local currentValues = cache.snapshotValues or values
       prepareElrsDisplay(cache, currentValues, lineWidth)
       local dataY = y + box.detailHeight + 6
-      for field = 1, 2 do
+      for field = 1, 3 do
         children[#children + 1] = { type = "label", x = x + 8,
           y = dataY + (field - 1) * box.detailHeight, w = lineWidth, h = box.detailHeight,
           text = function()
@@ -874,11 +872,6 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
             end,
             color = textColor, font = SMLSIZE }
         end
-        children[#children + 1] = { type = "label", x = x + 8,
-          y = y + row.h - box.detailHeight,
-          w = boxW - 16, h = box.detailHeight,
-          text = fittedDetail(values._gpsTime or labels.gps_time_unavailable, boxW - 16),
-          color = colors.muted, font = SMLSIZE }
       elseif item.type == "tx_battery" then
         -- The symbol is the reading; it fills what the caption and the figures leave, centred.
         local top, bottom = y + box.detailHeight + 5, y + row.h - 23
@@ -911,13 +904,11 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
       elseif item.type == "model" then detail = i18n("model_detail", "EdgeTX model")
       elseif item.type == "timer1" or item.type == "timer2" or item.type == "timer3" then
         detail = i18n(item.type .. "_detail", "EdgeTX model timer")
-      elseif item.type == "tx_gps" then
-        detail = i18n("gps_time_unavailable", "Time status unknown")
       elseif item.type == "uptime" then detail = i18n("uptime_detail", "Since radio power-on")
       elseif item.type == "firmware" then detail = i18n("firmware_detail", "Radio firmware")
       elseif item.type == "date" then detail = i18n("date_detail", "Radio date") end
       local detailW = boxW - 16
-      if not (item.type == "tx_gps" and box.detailedGps) and item.type ~= "tx_battery" then
+      if item.type ~= "tx_gps" and item.type ~= "tx_battery" then
         children[#children + 1] = { type = "label", x = x + 8, y = y + row.h - 21,
           w = detailW, h = box.detailHeight,
           text = item.type == "clock"

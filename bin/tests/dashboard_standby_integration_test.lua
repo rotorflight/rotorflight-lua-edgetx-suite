@@ -413,7 +413,7 @@ do
     gpsWidget:refresh(nil, nil)
     local firstGps = gpsWidget._standbyCache and gpsWidget._standbyCache.snapshotValues
     check(name, gpsReads == before + 1 and firstGps
-      and firstGps._gpsTime == gpsText.gps_time_unavailable
+      and firstGps._gpsTime == nil
       and firstGps._gpsLines[1] == gpsText.gps_latitude .. ": 48.12345°"
       and firstGps._gpsLines[4] == gpsText.gps_hdop .. ": 1.23")
     gpsWidget:background()
@@ -763,7 +763,7 @@ do
   widget:refresh(0, nil)
   widget:refresh(0, nil)
   local reloadedTree, localizedReactive = Stubs.lvgl.trees[#Stubs.lvgl.trees] or {}, false
-  local expectedRate = enLocale.widgets.dashboard.standby.elrs_rate_short .. " "
+  local expectedRate = enLocale.widgets.dashboard.standby.elrs_packet_rate .. " "
   for i = 1, #reloadedTree do
     local node = reloadedTree[i]
     if type(node.text) == "function" then

@@ -1256,10 +1256,9 @@ local function standbyTexts(self, items, infoKind)
     elrs_telemetry_ratio = t("widgets.dashboard.standby.elrs_telemetry_ratio", "Telemetry Ratio"),
     elrs_max_power = t("widgets.dashboard.standby.elrs_max_power", "Max Power"),
     elrs_dynamic = t("widgets.dashboard.standby.elrs_dynamic", "Dynamic"),
-    elrs_rate_short = t("widgets.dashboard.standby.elrs_rate_short", "Rate"),
-    elrs_ratio_short = t("widgets.dashboard.standby.elrs_ratio_short", "TLM"),
-    elrs_power_short = t("widgets.dashboard.standby.elrs_power_short", "Max"),
-    elrs_dynamic_short = t("widgets.dashboard.standby.elrs_dynamic_short", "Dyn"),
+    elrs_power = t("widgets.dashboard.standby.elrs_power", "Power"),
+    elrs_power_fixed = t("widgets.dashboard.standby.elrs_power_fixed", "fixed"),
+    elrs_power_dynamic = t("widgets.dashboard.standby.elrs_power_dynamic", "dynamic"),
     model_detail = t("widgets.dashboard.standby.model_detail", "EdgeTX model"),
     timer1_detail = timerDetail,
     timer2_detail = timerDetail,
@@ -1271,7 +1270,6 @@ local function standbyTexts(self, items, infoKind)
     self._standbyTexts.gps_fix = t("widgets.dashboard.standby.gps_fix", "Fix")
     self._standbyTexts.gps_no_fix = t("widgets.dashboard.standby.gps_no_fix", "No fix")
     self._standbyTexts.gps_satellites = t("widgets.dashboard.standby.gps_satellites", "Sat")
-    self._standbyTexts.gps_time_unavailable = t("widgets.dashboard.standby.gps_time_unavailable", "Time status unknown")
     self._standbyTexts.gps_latitude = t("widgets.dashboard.standby.gps_latitude", "Latitude")
     self._standbyTexts.gps_longitude = t("widgets.dashboard.standby.gps_longitude", "Longitude")
     self._standbyTexts.gps_course = t("widgets.dashboard.standby.gps_course", "Course")
@@ -1331,7 +1329,6 @@ local function prepareStandbyTextCache(self, items)
       texts.gps_fix = t("widgets.dashboard.standby.gps_fix", "Fix")
       texts.gps_no_fix = t("widgets.dashboard.standby.gps_no_fix", "No fix")
       texts.gps_satellites = t("widgets.dashboard.standby.gps_satellites", "Sat")
-      texts.gps_time_unavailable = t("widgets.dashboard.standby.gps_time_unavailable", "Time status unknown")
       texts.gps_latitude = t("widgets.dashboard.standby.gps_latitude", "Latitude")
       texts.gps_longitude = t("widgets.dashboard.standby.gps_longitude", "Longitude")
       texts.gps_course = t("widgets.dashboard.standby.gps_course", "Course")
@@ -1345,10 +1342,9 @@ local function prepareStandbyTextCache(self, items)
       texts.elrs_telemetry_ratio = t("widgets.dashboard.standby.elrs_telemetry_ratio", "Telemetry Ratio")
       texts.elrs_max_power = t("widgets.dashboard.standby.elrs_max_power", "Max Power")
       texts.elrs_dynamic = t("widgets.dashboard.standby.elrs_dynamic", "Dynamic")
-      texts.elrs_rate_short = t("widgets.dashboard.standby.elrs_rate_short", "Rate")
-      texts.elrs_ratio_short = t("widgets.dashboard.standby.elrs_ratio_short", "TLM")
-      texts.elrs_power_short = t("widgets.dashboard.standby.elrs_power_short", "Max")
-      texts.elrs_dynamic_short = t("widgets.dashboard.standby.elrs_dynamic_short", "Dyn")
+      texts.elrs_power = t("widgets.dashboard.standby.elrs_power", "Power")
+      texts.elrs_power_fixed = t("widgets.dashboard.standby.elrs_power_fixed", "fixed")
+      texts.elrs_power_dynamic = t("widgets.dashboard.standby.elrs_power_dynamic", "dynamic")
     end
     self._standbySnapshotTexts = texts
   end

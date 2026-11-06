@@ -46,17 +46,15 @@ end
 local function fitLabels(i18n)
   local labels = {}
   for i = 1, #Standby.TYPES do local id = Standby.TYPES[i]; labels[id] = typeLabel(i18n, id) end
-  labels.elrs_rate_short = t(i18n, "elrs_rate_short", "Rate")
-  labels.elrs_ratio_short = t(i18n, "elrs_ratio_short", "TLM")
-  labels.elrs_power_short = t(i18n, "elrs_power_short", "Max")
-  labels.elrs_dynamic_short = t(i18n, "elrs_dynamic_short", "Dyn")
+  labels.elrs_packet_rate = t(i18n, "elrs_packet_rate", "Packet Rate")
+  labels.elrs_telemetry_ratio = t(i18n, "elrs_telemetry_ratio", "Telemetry Ratio")
+  labels.elrs_power = t(i18n, "elrs_power", "Power")
   labels.gps_no_fix = t(i18n, "gps_no_fix", "No fix")
   labels.gps_latitude = t(i18n, "gps_latitude", "Latitude")
   labels.gps_longitude = t(i18n, "gps_longitude", "Longitude")
   labels.gps_course = t(i18n, "gps_course", "Course")
   labels.gps_hdop = t(i18n, "gps_hdop", "HDOP")
   labels.gps_satellites = t(i18n, "gps_satellites", "Sat")
-  labels.gps_time_unavailable = t(i18n, "gps_time_unavailable", "Time status unknown")
   return labels
 end
 

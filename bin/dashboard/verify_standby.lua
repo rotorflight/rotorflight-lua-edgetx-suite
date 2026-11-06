@@ -121,9 +121,9 @@ local labels = {
   clock = "Clock", date = "Date", tx_battery = "TX battery", model = "Selected model",
   timer1 = "Timer 1", timer2 = "Timer 2", timer3 = "Timer 3", tx_gps = "TX GPS",
   uptime = "Radio uptime", firmware = "Firmware", elrs = "ELRS TX configuration",
-  elrs_rate_short = "Rate", elrs_ratio_short = "TLM",
-  elrs_power_short = "Max", elrs_dynamic_short = "Dyn", gps_no_fix = "No fix",
-  gps_satellites = "Sat", gps_time_unavailable = "Time status unknown",
+  elrs_power = "Power", elrs_power_fixed = "fixed",
+  elrs_power_dynamic = "dynamic", gps_no_fix = "No fix",
+  gps_satellites = "Sat",
   gps_latitude = "Latitude", gps_longitude = "Longitude", gps_course = "Course", gps_hdop = "HDOP",
 }
 local duplicateLabels = {}
@@ -182,7 +182,7 @@ check("portrait default renders all fields", #rectangles(portraitScene, 7) == 3)
 local elrsTile = rectangles(portraitScene, 7)[3]
 local elrsLabels = labelsInside(portraitScene, elrsTile)
 table.sort(elrsLabels, function(a, b) return a.y < b.y end)
-local noOverlap = #elrsLabels == 3
+local noOverlap = #elrsLabels == 4
 for i = 2, #elrsLabels do
   noOverlap = noOverlap and elrsLabels[i - 1].y + elrsLabels[i - 1].h <= elrsLabels[i].y
 end
@@ -428,7 +428,7 @@ for i = 1, #gpsScene do
   if value == "Time status unknown" then gpsTimeFound = true end
 end
 check("wide GPS scene renders four detailed fields", gpsDetails == 4 and gpsCache.valueOverflow == false)
-check("wide GPS states the GPS time API limit", gpsTimeFound)
+check("no GPS field claims a time status", not gpsTimeFound)
 local twoGpsItems = standby.decode("tx_gps+clock")
 local twoGpsCache = { text = text }
 tick = 6720
@@ -757,7 +757,7 @@ do
   tick = 7000
   local first = standby.snapshot(elrsItems, cacheE)
   local compact = cacheE.elrsCompact
-  check("the ELRS field has its two lines and no age", #compact == 2)
+  check("the ELRS field has its three lines and no age", #compact == 3)
   tick = 7600
   local second = standby.snapshot(elrsItems, cacheE)
   check("a new read with the same answer keeps its text", second ~= first and cacheE.elrsCompact == compact)
@@ -772,6 +772,25 @@ do
     telemetryRatio = "1:128", maxPower = "100", dynamic = "Off" })
   standby.snapshot(elrsItems, cacheLow)
   check("an answer right after power-on shows at once", cacheLow.elrsCompact[1] ~= before)
+
+  local function elrsLines(fields)
+    local cacheL = { text = text }
+    standby.setElrsSnapshot(cacheL, fields)
+    tick = tick + 10
+    standby.snapshot(elrsItems, cacheL)
+    return cacheL.elrsCompact
+  end
+  local dual = elrsLines({ status = "ready", readAt = 1, identity = "x", packetRate = "500Hz(-105dBm)",
+    telemetryRatio = "1:8", maxPower = "25/100", dynamic = "Dyn", fields = { maxPower = { unit = "mW" } } })
+  check("the rate loses the bracket and gains a space", string.find(dual[1], " 500 Hz", 1, true) ~= nil
+    and string.find(dual[1], "dBm", 1, true) == nil)
+  check("the telemetry ratio has its own line", string.find(dual[2], " 1:8", 1, true) ~= nil)
+  check("Dyn reads as dynamic", string.find(dual[3], "25/100 mW, dynamic", 1, true) ~= nil
+    and string.find(dual[3], "Dyn", 1, true) == nil)
+  check("Off reads as fixed", string.find(elrsLines({ status = "ready", readAt = 1, identity = "x", packetRate = "D250",
+    telemetryRatio = "1:8", maxPower = "100", dynamic = "Off" })[3], "100, fixed", 1, true) ~= nil)
+  check("an AUX choice names its channel", string.find(elrsLines({ status = "ready", readAt = 1, identity = "x", packetRate = "D250",
+    telemetryRatio = "1:8", maxPower = "100", dynamic = "AUX12" })[3], "dynamic AUX12", 1, true) ~= nil)
 
   local cacheN = { text = text }
   local noModule = { status = "unavailable", reason = "no_answer", readAt = 1 }
