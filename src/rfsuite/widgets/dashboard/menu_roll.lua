@@ -226,16 +226,22 @@ end
 -- position, so a detent that went unreported on the widget is counted by the next one.
 local function stepped(widget, roll, delta)
   if delta == 0 then return end
+  if roll.opening ~= nil then return end
   moveBy(roll, delta)
   roll.couldNotOpen = nil
   roll.steppedAt = getTime()
+  roll.detentAt = roll.steppedAt
   if math.abs(roll.position) >= LADDER - LADDER_MARGIN then rebuild(widget, roll) end
 end
 
 --- A press of the wheel, or a tap on the middle row: what the current row does.
 function M.press(widget)
   local roll = current(widget)
-  if roll == nil or roll.source == nil then return end
+  if roll == nil or roll.source == nil or roll.opening ~= nil then return end
+  if Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+    local after = roll.detentAt ~= nil and ((getTime() - roll.detentAt) * 10) or -1
+    trace("press on the " .. sideOf(roll) .. ", " .. tostring(after) .. " ms after the last detent")
+  end
   if roll.notice ~= nil then
     roll.notice = nil
     rebuild(widget, roll)
@@ -248,7 +254,10 @@ function M.press(widget)
   if roll.focus == 2 then
     local right = roll.levels[roll.base + 1]
     local choice = right and right.rows and right.rows[right.index] or nil
-    if row == nil or choice == nil or isOff(roll, choice) then return end
+    if row == nil or choice == nil or isOff(roll, choice) then
+      trace("press on a row that cannot be pressed now")
+      return
+    end
     if right.question == nil and source.enter ~= nil then
       local rows, question = source.enter(choice)
       if rows ~= nil then
@@ -263,7 +272,10 @@ function M.press(widget)
     if source.act(pathTo(roll, roll.base + 1), roll) == "back" then moveLeft(widget, roll) end
     return
   end
-  if row == nil or isOff(roll, row) then return end
+  if row == nil or isOff(roll, row) then
+    trace("press on a row that cannot be pressed now")
+    return
+  end
   local rows, question
   if source.enter ~= nil then rows, question = source.enter(row) end
   if rows ~= nil then
@@ -492,9 +504,20 @@ end
 function M.renderKey(widget)
   local roll = current(widget)
   if roll == nil then return "" end
+  local opening = roll.opening
+  if opening ~= nil then
+    -- The pass that built the box lets it be drawn; the next one starts what holds the screen.
+    if opening.drawn then
+      roll.opening, roll.slots = nil, nil
+      trace("opening now")
+      opening.run()
+    end
+    return tostring(roll.epoch)
+  end
   if roll.steppedAt ~= nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS then
     roll.epoch = roll.epoch + 1
     roll.steppedAt = nil
+    trace("the wheel rested, the scene is built again")
   end
   return tostring(roll.epoch)
 end
@@ -588,6 +611,14 @@ end
 local function rowText(roll, side, offset)
   local key = slotKey(side, offset)
   return function() return slotOf(roll, side, offset, key).text end
+end
+
+--- Show the suite's loading box for the current row, and run `open` once it is drawn: loading the tool
+--- holds the screen for a while, and the pilot has to see that the press was taken before it starts.
+function M.openNext(widget, roll, text, open)
+  local slot = slotOf(roll, sideOf(roll), 0, slotKey(sideOf(roll), 0))
+  roll.opening = { run = open, title = slot.text, message = text, drawn = false }
+  rebuild(widget, roll)
 end
 
 -- What a current row says under its name.
@@ -737,6 +768,26 @@ function M.build(children, widget, source, colors)
   refreshLists(roll, source)
 
   local W, H = widget.zone.w, widget.zone.h
+
+  -- The suite's loading box between a press and the page; the tool's own takes over from it. The bar
+  -- follows the tool's phases for as long as this scene stands.
+  local opening = roll.opening
+  if opening ~= nil then
+    local Overlay = requireModule("ui/loading_overlay.lua")
+    children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = H, color = colors.bg, filled = true }
+    if type(Overlay) == "table" and type(Overlay.append) == "function" then
+      Overlay.append(children, {
+        x = 0, y = 0, w = W, h = H, title = opening.title, message = opening.message,
+        progress = function()
+          local host = widget._toolHost
+          local phase = host ~= nil and host.phase or nil
+          return (phase == "run" and 0.8) or (phase == "init" and 0.55) or (phase == "load" and 0.3) or 0.1
+        end,
+      })
+    end
+    opening.drawn = true
+    return
+  end
 
   -- The details behind the header's status, over a plain page: nothing under them takes the wheel.
   if roll.notice ~= nil then

@@ -4393,6 +4393,7 @@ return {
       roll_not_armed = "Nicht im scharfen Zustand",
       roll_needs_fc = "Braucht den Flight Controller",
       roll_could_not_open = "Nicht zu öffnen",
+      roll_opening = "Wird geöffnet...",
       roll_close = "Schließen",
       battery_profile_ok = "GESETZT UND GESPEICHERT",
       battery_profile_failed = "NICHT GESPEICHERT",

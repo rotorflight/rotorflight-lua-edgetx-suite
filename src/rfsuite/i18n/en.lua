@@ -4399,6 +4399,7 @@ return {
       roll_not_armed = "Not while armed",
       roll_needs_fc = "Needs the flight controller",
       roll_could_not_open = "Could not open",
+      roll_opening = "Opening...",
       roll_close = "Close",
       battery_profile_ok = "SET AND SAVED",
       battery_profile_failed = "NOT SAVED",

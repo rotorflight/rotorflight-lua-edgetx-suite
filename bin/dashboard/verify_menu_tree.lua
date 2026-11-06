@@ -134,6 +134,21 @@ local function run(mutate)
     end
     return false
   end
+  -- A press that opens a page starts it two passes later, once the words are drawn; every case below but one
+  -- is about what comes after that.
+  local pressAtOnce = Roll.press
+  local function passes(w)
+    Roll.renderKey(w)
+    if Views.topRoll(w) ~= nil and Views.topRoll(w).opening ~= nil then
+      local children = {}
+      Menu.build(children, w)
+      Roll.renderKey(w)
+    end
+  end
+  Roll.press = function(w)
+    pressAtOnce(w)
+    if w._toolOpeningCheck ~= true then passes(w) end
+  end
   local function find(rows, id)
     for i = 1, #rows do if rows[i].id == id then return rows[i], i end end
     return nil
@@ -173,7 +188,24 @@ local function run(mutate)
     local w, r = open()
     toSetup(w, r)
     check("the model page is on this level", moveTo(r.levels[3], "model"))
-    Roll.press(w)
+    do
+      local place = Roll.place(r)
+      w._toolOpeningCheck = true
+      Roll.press(w)
+      check("a press says so before anything starts", #opened == 0 and r.opening ~= nil)
+      Roll.press(w)
+      check("and a second press in that moment does nothing more", r.opening ~= nil and #opened == 0)
+      Roll.renderKey(w)
+      check("nothing starts before the box is built", #opened == 0 and r.opening ~= nil)
+      local drawn = build(w)
+      local says = false
+      for i = 1, #drawn do says = says or drawn[i].text == "Opening..." end
+      check("the build is the suite's loading box and names it", says and #drawn < 20)
+      Roll.renderKey(w)
+      w._toolOpeningCheck = nil
+      check("the next one opens it, once, from the place", #opened == 1 and r.opening == nil and w._rollPlace ~= nil
+        and w._rollPlace.base == place.base)
+    end
     check("a press opens that page", #opened == 1 and opened[1].page == "setup_model_page" and opened[1].visit == true)
     check("the place is kept on the widget", type(w._rollPlace) == "table" and w._rollPlace.ids[3] == "model")
     check("the session went with the visit", Views.topRoll(w) == nil)
@@ -665,6 +697,10 @@ if selfTest then
         return (string.gsub(t, "tree.list.menus%[row.menuId%] or {}, row.below%)", "tree.list.menus[row.menuId] or {}, false)", 1)) end },
     { "an unknown version counts as enough", function(t)
         return (string.gsub(t, "reaches%(entry.minApiVersion%) ~= true", "reaches(entry.minApiVersion) == false", 1)) end },
+    { "a press that opens a page shows no box", function(t)
+        return (string.gsub(t, "local opening = roll.opening\n  if opening ~= nil then\n    local Overlay", "local opening = nil\n  if opening ~= nil then\n    local Overlay", 1)) end },
+    { "a page opens before the box is drawn", function(t)
+        return (string.gsub(t, "if opening.drawn then", "if true then", 1)) end },
     { "a row's kind is lost", function(t)
         return (string.gsub(t, 'kind = entry.kind or "page"', 'kind = "page"', 1)) end },
     { "a reconnect loses the place", function(t)
