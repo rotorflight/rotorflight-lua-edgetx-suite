@@ -3938,6 +3938,8 @@ return {
         save_error_message = "Save failed"
       },
       settings_dashboard_standby = {
+        help_enabled = "Shows radio information instead of the connecting screen until the flight controller is ready.",
+        help_field = "What this field shows. Only fields that fit this row are offered.",
         enabled = "Standby screen",
         row = "Row %d",
         field = "Field %d",
@@ -3978,7 +3980,7 @@ return {
         saved_message = "Standby screen saved",
         save_error_title = "Error",
         save_error_message = "Save failed",
-        help_message = "Standby screen: show radio information while the dashboard waits for the flight controller.\nRow 1: filled fields share the row equally; a smaller zone skips rows that do not fit.\nField 1: choose a module; the list includes only modules that fit. TX GPS shows its details in a full-width field on an 800x480 screen.\n+ Field: add another equal field when current modules and all offered choices fit.\nRemove field: delete this field.\n+ Row: add a row while the screen has room.\nRemove row: delete this row."
+        help_message = "Choose what the standby screen shows, in up to three rows, while the dashboard waits for the flight controller."
       },
       settings_dashboard_theme = {
         section_dashboard_theme = "Dashboard Theme",

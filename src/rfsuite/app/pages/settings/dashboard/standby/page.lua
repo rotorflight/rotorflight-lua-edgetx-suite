@@ -140,7 +140,8 @@ function M.build(ctx)
     return idsByCount[count], choicesByCount[count]
   end
   y = y + Controls.appendRadioSwitch(children, x, y, w, t(i18n, "enabled", "Standby screen"), ui.enabled,
-    function(value) ui.enabled = value == true; ui.dirty = true; ctx.requestRebuild() end)
+    function(value) ui.enabled = value == true; ui.dirty = true; ctx.requestRebuild() end,
+    { helpText = t(i18n, "help_enabled", "Shows radio information instead of the connecting screen until the flight controller is ready.") })
   if ui.salvaged then
     y = y + appendNote(children, x, y, w,
       t(i18n, "saved_entries_skipped", "Unsupported saved entries were skipped."), Palette.warning)
@@ -153,7 +154,8 @@ function M.build(ctx)
     for field = 1, #row do
       y = y + Controls.appendComboSelect(children, x, y, w,
         string.format(fieldFormat, field), choices, row[field].type,
-        function(value) row[field].type = value; ui.salvaged = false; ui.dirty = true; ctx.requestRebuild() end)
+        function(value) row[field].type = value; ui.salvaged = false; ui.dirty = true; ctx.requestRebuild() end,
+        { helpText = t(i18n, "help_field", "What this field shows. Only fields that fit this row are offered.") })
       if #row > 1 then
         button(children, x, y, w, removeField, function()
           table.remove(row, field); ui.dirty = true; ctx.requestRebuild()
