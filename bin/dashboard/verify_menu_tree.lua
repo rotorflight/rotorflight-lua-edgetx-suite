@@ -330,14 +330,19 @@ local function run(mutate)
       -- Every title fits the large face, so nothing but the rule keeps it off the preview.
       local sizeText = _G.lcd.sizeText
       _G.lcd.sizeText = function() return 1, 16 end
-      local scene = build(wf)
-      _G.lcd.sizeText = sizeText
-      for i = 1, #scene do
-        if scene[i].type == "label" and scene[i].font == _G.MIDSIZE and (scene[i].x or 0) > wf.zone.w / 2 then
-          largeOnRight = largeOnRight + 1
+      local function largeRight()
+        local scene = build(wf)
+        local n = 0
+        for i = 1, #scene do
+          if scene[i].type == "label" and scene[i].font == _G.MIDSIZE and (scene[i].x or 0) > wf.zone.w / 2 then n = n + 1 end
         end
+        return n
       end
-      check("the right list's preview is not in the large face", largeOnRight == 0)
+      largeOnRight = largeRight()
+      Roll.press(wf)
+      local afterPress = largeRight()
+      _G.lcd.sizeText = sizeText
+      check("the right column is not in the large face, a preview or after a press", largeOnRight == 0 and afterPress == 0 and rf.focus == 2)
     end
     -- Both lists the suite's: their titles are measured once a visit, not at every build.
     toSetup(w, r)
@@ -346,7 +351,7 @@ local function run(mutate)
     _G.lcd.sizeText = function() measured = measured + 1; return 1, 16 end
     build(w)
     _G.lcd.sizeText = sizeText
-    check("a build at depth does not measure the lists again: " .. measured .. " of " .. #r.levels[3].rows, measured < #r.levels[3].rows)
+    check("a build at depth does not measure the list again: " .. measured .. " of " .. #r.levels[r.base].rows, measured < #r.levels[r.base].rows)
     local list = Views.session(w).tree.list
     check("Helicopter Setup is called, not unfolded", list.menus.wizards_menu[1].menuId == "helicopter_setup_menu"
       and list.menus.wizards_menu[1].kind == "tiles" and list.menus.helicopter_setup_menu == nil)
@@ -769,8 +774,9 @@ if selfTest then
     { "a covered press waits for ever", function(t)
         return (string.gsub(t, "if getTime%(%) %- opening.at >= OPENING_TICKS then", "if false then", 1)) end },
     { "a preview takes its own face", function(t)
-        return (string.gsub(t, "local rightFace = onRightColumn and faceOf%(roll, rightRows%(roll%), midFont, nearFont, colW %- 2 %* markW%) or nearFont",
-          "local rightFace = faceOf(roll, rightRows(roll), midFont, nearFont, colW - 2 * markW)", 1)) end },
+        return (string.gsub(t, "local rightFace = nearFont", "local rightFace = faceOf(roll, rightRows(roll), midFont, nearFont, colW - 2 * markW)", 1)) end },
+    { "the right column grows at a press", function(t)
+        return (string.gsub(t, "local rightFace = nearFont", "local rightFace = roll.focus == 2 and faceOf(roll, rightRows(roll), midFont, nearFont, colW - 2 * markW) or nearFont", 1)) end },
     { "every build measures the lists", function(t)
         return (string.gsub(t, "if first == nil or first.tree ~= true then return middleFace", "if true then return middleFace", 1)) end },
     { "a page opens before the words are drawn", function(t)

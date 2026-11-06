@@ -912,11 +912,11 @@ function M.build(children, widget, source, colors)
   }
 
   local markW = 2 * nearH
-  local onRightColumn = roll.focus == 2
   local leftFace = faceOf(roll, leftLevel(roll).rows, midFont, nearFont, colW - 2 * markW)
   -- While the wheel is on the left the right list changes with every detent and a face is only chosen at a
-  -- build, so a list's own face would show on the next list until the wheel rests. The smaller face fits them all.
-  local rightFace = onRightColumn and faceOf(roll, rightRows(roll), midFont, nearFont, colW - 2 * markW) or nearFont
+  -- build, so a list's own face would show on the next list until the wheel rests. The right column keeps the
+  -- smaller face throughout, which also leaves nothing to jump at a press or RTN.
+  local rightFace = nearFont
 
   -- A row that cannot be pressed reads paler wherever it stands. Only a menu that has such rows pays
   -- for the colour being asked on every pass.
