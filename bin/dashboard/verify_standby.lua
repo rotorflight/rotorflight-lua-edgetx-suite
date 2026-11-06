@@ -11,6 +11,7 @@ end, RGB = function(rgb) return rgb end }
 
 local batterySample = { volts = nil, pct = nil, low = false }
 local Schemes
+CENTER = CENTER or 8
 rfsuite = { require = function(path)
   if path == "lib/radio_status.lua" then
     return { txBattery = function() return batterySample.volts, batterySample.pct, batterySample.low end }
@@ -318,6 +319,29 @@ for i = 1, #batteryScene do
   if batteryScene[i].type == "rectangle" and type(batteryScene[i].size) == "function" then fillSize = batteryScene[i].size end
 end
 check("battery graphic uses cached percentage", type(fillSize) == "function" and fillSize() > 0)
+do
+  local tile = rectangles(batteryScene, 5)[1]
+  local texts, figures = 0, nil
+  for i = 1, #batteryScene do
+    local node = batteryScene[i]
+    if node.type == "label" and node.x >= tile.x and node.x < tile.x + tile.w
+        and node.y >= tile.y and node.y < tile.y + tile.h then
+      texts = texts + 1
+      if node.align == CENTER and type(node.text) == "function" then figures = node end
+    end
+  end
+  check("the battery tile has a caption and its figures, no third text", texts == 2 and figures ~= nil)
+  local frame
+  for i = 1, #batteryScene do
+    local node = batteryScene[i]
+    if node.type == "rectangle" and node.filled == false then frame = node end
+  end
+  check("the battery symbol is the large part of the tile", frame ~= nil and frame.h >= 24 and frame.w >= 60)
+  check("the symbol stands inside the tile, above the figures", frame.x >= tile.x and frame.x + frame.w <= tile.x + tile.w
+    and frame.y > tile.y and figures ~= nil and frame.y + frame.h <= figures.y)
+  local left, right = frame.x - tile.x, tile.x + tile.w - (frame.x + frame.w)
+  check("the symbol is centred, its terminal counted", right > left and right - left <= 12)
+end
 
 -- Retain the source-selection, formatting, cache, and renderer regressions that predate the
 -- rows-first codec. They guard behavior that the layout rewrite must not change.

@@ -261,7 +261,8 @@ local function gpsDetailed(width, height, labels, measureCache, knownGeometry)
 end
 
 local function valueFont(kind, boxW, geometry)
-  if kind == "elrs" then return SMLSIZE end
+  -- The battery's figures sit small under its symbol, which takes the value's place.
+  if kind == "elrs" or kind == "tx_battery" then return SMLSIZE end
   if kind == "clock" then
     return boxW >= 360 and (geometry.compact and MIDSIZE or DBLSIZE) or MIDSIZE
   end
@@ -448,6 +449,9 @@ local function bounded(value, limit)
   return string.sub(value, 1, positions[limit - 2] - 1) .. "..."
 end
 
+-- The gap between the battery symbol's outline and its fill, on each side.
+local BATTERY_INSET = 3
+
 local function battery(cache)
   local volts, pct, low = nil, nil, false
   if RadioStatus then volts, pct, low = RadioStatus.txBattery() end
@@ -456,7 +460,7 @@ local function battery(cache)
   if cache.batteryWidths then
     cache.batteryFills = cache.batteryFills or {}
     for width in pairs(cache.batteryWidths) do
-      cache.batteryFills[width] = math.max(0, math.floor((width - 4) * (pct or 0) / 100))
+      cache.batteryFills[width] = math.max(0, math.floor((width - BATTERY_INSET * 2) * (pct or 0) / 100))
     end
   end
   if not volts or not pct then return "-" end
@@ -839,7 +843,7 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
       end
     else
       local valueX = box.detailedGps and x + math.floor(boxW / 2) or x + 8
-      local valueY = box.detailedGps and y + 5 or y + box.valueY
+      local valueY = box.detailedGps and y + 5 or item.type == "tx_battery" and y + row.h - 21 or y + box.valueY
       local valueW = box.detailedGps and math.floor(boxW / 2) - 8 or boxW - 16
       local shownFont, shown = box.font, SHORTENED[item.type] and { raw = false, text = "-" } or nil
       children[#children + 1] = { type = "label", x = valueX, y = valueY, w = valueW,
@@ -848,7 +852,7 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
           if raw ~= shown.raw then shown.raw, shown.text = raw, fitLine(tostring(raw or "-"), valueW, shownFont) end
           return shown.text
         end or function() local snap = cache.snapshotValues or values; return tostring(snap[item.type] or "-") end,
-        align = box.detailedGps and RIGHT or nil,
+        align = box.detailedGps and RIGHT or item.type == "tx_battery" and CENTER or nil,
         color = item.type == "tx_battery"
           and function() return cache.batteryLow and warningColor or textColor end
           or textColor,
@@ -876,33 +880,34 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
           text = fittedDetail(values._gpsTime or labels.gps_time_unavailable, boxW - 16),
           color = colors.muted, font = SMLSIZE }
       elseif item.type == "tx_battery" then
-        detail = i18n("tx_battery_detail", "Radio battery")
-        local batteryW = compact and 30 or 36
-        local batteryH = compact and 12 or 14
-        local terminalW = 3
-        local batteryX = x + boxW - 8 - batteryW - terminalW
-        local batteryY = y + row.h - 20
+        -- The symbol is the reading; it fills what the caption and the figures leave, centred.
+        local top, bottom = y + box.detailHeight + 5, y + row.h - 23
+        local batteryH = math.max(12, math.min(compact and 28 or 34, bottom - top))
+        local terminalW = math.max(3, math.floor(batteryH / 7))
+        local batteryW = math.min(batteryH * 3, boxW - 16 - terminalW)
+        local batteryX = x + math.floor((boxW - batteryW - terminalW) / 2)
+        local batteryY = top + math.floor((bottom - top - batteryH) / 2)
         cache.batteryWidths = cache.batteryWidths or {}
         cache.batteryFills = cache.batteryFills or {}
         cache.batteryWidths[batteryW] = true
         cache.batteryFills[batteryW] = math.max(0,
-          math.floor((batteryW - 4) * (cache.batteryPercent or 0) / 100))
+          math.floor((batteryW - BATTERY_INSET * 2) * (cache.batteryPercent or 0) / 100))
         children[#children + 1] = { type = "rectangle", x = batteryX + batteryW,
-          y = batteryY + 3, w = terminalW, h = batteryH - 6,
+          y = batteryY + math.floor(batteryH / 4), w = terminalW, h = batteryH - math.floor(batteryH / 4) * 2,
           color = textColor, filled = true }
         -- A rectangle, not an hline: a reactive size on a line repaints from the zone's origin to the
         -- line's end on every pass (lua_lvgl_widget.cpp, LvglWidgetLineBase::setSize compares nothing),
         -- where a rectangle's lv_obj_set_width returns when the value is the same.
-        children[#children + 1] = { type = "rectangle", x = batteryX + 2,
-          y = batteryY + 2, w = 1, h = batteryH - 4, filled = true,
+        children[#children + 1] = { type = "rectangle", x = batteryX + BATTERY_INSET,
+          y = batteryY + BATTERY_INSET, w = 1, h = batteryH - BATTERY_INSET * 2, filled = true,
           size = function()
             local fills = cache.batteryFills
-            return fills and fills[batteryW] or 0, batteryH - 4
+            return fills and fills[batteryW] or 0, batteryH - BATTERY_INSET * 2
           end,
           color = function() return cache.batteryLow and warningColor or accentColor end }
         children[#children + 1] = { type = "rectangle", x = batteryX, y = batteryY,
           w = batteryW, h = batteryH, color = textColor, filled = false,
-          rounded = 2, thickness = 1 }
+          rounded = 3, thickness = 2 }
       elseif item.type == "model" then detail = i18n("model_detail", "EdgeTX model")
       elseif item.type == "timer1" or item.type == "timer2" or item.type == "timer3" then
         detail = i18n(item.type .. "_detail", "EdgeTX model timer")
@@ -911,8 +916,8 @@ function M.build(zone, statusLine, i18n, items, values, cache, info, scheme)
       elseif item.type == "uptime" then detail = i18n("uptime_detail", "Since radio power-on")
       elseif item.type == "firmware" then detail = i18n("firmware_detail", "Radio firmware")
       elseif item.type == "date" then detail = i18n("date_detail", "Radio date") end
-      local detailW = item.type == "tx_battery" and boxW - 57 or boxW - 16
-      if not (item.type == "tx_gps" and box.detailedGps) then
+      local detailW = boxW - 16
+      if not (item.type == "tx_gps" and box.detailedGps) and item.type ~= "tx_battery" then
         children[#children + 1] = { type = "label", x = x + 8, y = y + row.h - 21,
           w = detailW, h = box.detailHeight,
           text = item.type == "clock"

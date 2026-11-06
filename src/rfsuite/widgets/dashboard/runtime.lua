@@ -1260,7 +1260,6 @@ local function standbyTexts(self, items, infoKind)
     elrs_ratio_short = t("widgets.dashboard.standby.elrs_ratio_short", "TLM"),
     elrs_power_short = t("widgets.dashboard.standby.elrs_power_short", "Max"),
     elrs_dynamic_short = t("widgets.dashboard.standby.elrs_dynamic_short", "Dyn"),
-    tx_battery_detail = t("widgets.dashboard.standby.tx_battery_detail", "Radio battery"),
     model_detail = t("widgets.dashboard.standby.model_detail", "EdgeTX model"),
     timer1_detail = timerDetail,
     timer2_detail = timerDetail,

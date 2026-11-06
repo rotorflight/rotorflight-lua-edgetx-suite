@@ -2,3 +2,4 @@
   - The TX battery fill repainted a large part of the screen on every pass; it now repaints only when it changes.
   - While no ELRS module has answered, the screen tries again every ten seconds instead of staying on "No ELRS module".
   - The ELRS field no longer shows how long ago it was read, and the readings are taken every five seconds, every second only where a model timer is shown.
+  - The TX battery field shows a large battery symbol with the voltage and percentage small below it, and no longer names the battery twice.

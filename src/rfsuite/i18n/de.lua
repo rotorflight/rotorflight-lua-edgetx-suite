@@ -4544,7 +4544,6 @@ return {
         elrs_ratio_short = "TLM",
         elrs_power_short = "Max",
         elrs_dynamic_short = "Dyn",
-        tx_battery_detail = "Senderakku",
         model_detail = "EdgeTX-Modell",
         timer_detail = "EdgeTX-Modelltimer",
         tx_gps_detail = "Internes Sender-GPS",
