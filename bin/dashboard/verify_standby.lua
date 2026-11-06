@@ -219,6 +219,8 @@ local oversizedCache = { text = text }
 local oversizedScene = standby.build({ w = 480, h = 320 }, "Waiting", text, oversizedTrailing,
   standby.snapshot(oversizedTrailing, oversizedCache), oversizedCache)
 check("oversized trailing row does not blank a leading valid row", #rectangles(oversizedScene, 5) == 1)
+check("a build counts the saved rows it left out, for the widget's log line",
+  oversizedCache.rowsShown == 1 and oversizedCache.rowsSaved == 2)
 local oversizedValid, oversizedReason = standby.validate(oversizedTrailing, 480, 320, labels)
 check("strict validation still rejects an oversized trailing row",
   not oversizedValid and oversizedReason == "fields")

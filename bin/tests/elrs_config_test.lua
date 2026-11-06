@@ -2,6 +2,14 @@ local source = string.sub(debug.getinfo(1, "S").source, 2)
 local root = string.match(source, "^(.*)[/\\]bin[/\\]tests[/\\]") or "."
 _G.rfsuite = {}
 _G.rfsuite.paths = dofile(root .. "/src/rfsuite/lib/paths.lua")
+-- The provider's log lines, formatted here so a format that does not fit its arguments fails.
+local readLines = {}
+_G.rfsuite.require = function(path)
+  if path == "lib/log.lua" then
+    return { emitf = function(_, level, fmt, ...) readLines[#readLines + 1] = level .. ": " .. string.format(fmt, ...) end }
+  end
+  return assert(loadfile(root .. "/src/rfsuite/" .. path))()
+end
 local currentFilename = "model01.yml"
 model = {
   getInfo = function() return { filename = currentFilename, name = "Model", bitmap = "m.png" } end,
@@ -418,5 +426,13 @@ do
   for i = 1, Config.limits.fieldBytes + 1 do huge[#huge + 1] = 65 end
   put(0x2B, huge); Config.step({ owner = "test", identity = "oversize", crsf = crsf, push = push, now = 0.3 })
   assert(Config.snapshot("oversize").status == "unavailable", "oversized field was retained")
+end
+do
+  local started, finished = false, false
+  for i = 1, #readLines do
+    started = started or string.find(readLines[i], "trace: read started for ", 1, true) ~= nil
+    finished = finished or string.find(readLines[i], "debug: read finished: ", 1, true) ~= nil
+  end
+  assert(started and finished, "a read did not log its start and its finish")
 end
 print("elrs_config_test: ok")

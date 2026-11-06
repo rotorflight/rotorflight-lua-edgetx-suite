@@ -75,6 +75,9 @@ end
 local function cancelStandbyElrs(self, reason)
   local config = self._standbyElrsConfig
   if self._standbyElrsActive and config and type(config.cancel) == "function" then
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.standby", "debug", "ELRS read stopped: %s", tostring(reason))
+    end
     config.cancel(self._standbyElrsOwner, reason)
     if self._standbyCache and self._standbyElrsIdentity and type(config.snapshot) == "function" then
       local Standby = standbyModule(self)
@@ -125,6 +128,9 @@ do
   end
 end
 local function releaseStandby(self, reason)
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.widget.standby", "debug", "released: %s", tostring(reason))
+  end
   cancelStandbyElrs(self, reason)
   if self._job and self._job.kind == "standby" then self._job = nil end
   if self._treeKind == "standby" then
@@ -1361,6 +1367,9 @@ local function standbyJobStep(self)
   if dashboard.standby_enabled ~= true or self._toolHost ~= nil or self.connectionReady == true
       or self.flightMode == "postflight" or self.flightMode == "offline"
       or (self.state and (self.state.armed == true or self.state.hadInflightFlight == true)) then
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.standby", "debug", "build given up: no longer the surface to show")
+    end
     if self._standbyCache and job.previousElrsWidths then
       self._standbyCache.elrsWidths = job.previousElrsWidths
     end
@@ -1379,6 +1388,14 @@ local function standbyJobStep(self)
         or job.armed ~= (self.state and self.state.armed == true)
         or job.hadInflight ~= (self.state and self.state.hadInflightFlight == true)
         or job.fblConnected ~= (self.state and self.state.fblConnected == true) then
+      if Log and type(Log.emitf) == "function" then
+        Log.emitf("rfsuite.widget.standby", "debug",
+          "build dropped, an input moved: zone %sx%s to %sx%s, layout %s to %s, info %s to %s, flight mode %s to %s",
+          tostring(job.zoneW), tostring(job.zoneH), tostring(self.zone.w), tostring(self.zone.h),
+          tostring(job.layout), tostring(dashboard.standby_layout),
+          tostring(job.infoKind), tostring(self.state and self.state.standbyInfoKind),
+          tostring(job.flightMode), tostring(self.flightMode))
+      end
       self._standbyCache.elrsWidths = job.previousElrsWidths or {}
       self.built, self.renderKey = false, nil
       return true
@@ -1398,6 +1415,16 @@ local function standbyJobStep(self)
     self._standbyCache.elrsActiveWidths = job.elrsWidths
     self.built = true
     self._lastChildCount = #children
+    if Log and type(Log.emitf) == "function" then
+      local shown, saved = self._standbyCache.rowsShown or 0, self._standbyCache.rowsSaved or 0
+      Log.emitf("rfsuite.widget.standby", "info", "built: layout %s, %d of %d rows, %d nodes, %s, zone %sx%s, info %s",
+        tostring(self._standbyLayout), shown, saved, #children,
+        self._standbyFullscreen == true and "full screen" or "widget zone",
+        tostring(self.zone.w), tostring(self.zone.h), tostring(job.infoKind))
+      if shown < saved then
+        Log.emitf("rfsuite.widget.standby", "warn", "%d saved row(s) do not fit this zone and are left out", saved - shown)
+      end
+    end
     return true
   end
   -- With nothing saved, the default is the one for this zone's width: a widget zone on a wide
@@ -2780,6 +2807,10 @@ local function updateConnectionState(self)
   end
 
   if self.state.standbyInfoKind ~= standbyInfoKind then
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.standby", "debug", "info line: %s to %s",
+        tostring(self.state.standbyInfoKind), tostring(standbyInfoKind))
+    end
     self.state.standbyInfoKind = standbyInfoKind
     -- The prerequisite caption belongs only to a loaded standby surface. Connection-state
     -- transitions continue to invalidate their own surfaces below; changing this standby-only
@@ -5507,6 +5538,10 @@ function Runtime.new(zone, options)
             .. "|overflow=" .. tostring(self._standbyCache and self._standbyCache.valueOverflow == true))
           or "")
       if self.renderKey ~= splashKey then
+        -- The key names everything this surface is rebuilt for, so the pair is the reason.
+        if Log and type(Log.emitf) == "function" then
+          Log.emitf("rfsuite.widget.standby", "debug", "rebuild: %s to %s", tostring(self.renderKey), splashKey)
+        end
         self.renderKey = splashKey
         self.built = false
       end

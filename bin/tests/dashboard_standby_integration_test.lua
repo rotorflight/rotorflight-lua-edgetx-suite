@@ -321,9 +321,28 @@ do
   widget.state.hadInflightFlight = false
   widget.flightMode = "preflight"
 
+  -- string.format here, not behind emitf's pcall, so a format that does not fit its arguments
+  -- fails this test rather than printing the format string on the radio.
+  local LogModule = assert(_G.rfsuite.require("lib/log.lua"))
+  local realEmitf, standbyLines = LogModule.emitf, {}
+  LogModule.emitf = function(tag, level, fmt, ...)
+    if tag == "rfsuite.widget.standby" then
+      standbyLines[#standbyLines + 1] = level .. ": " .. string.format(fmt, ...)
+    end
+    return realEmitf(tag, level, fmt, ...)
+  end
+  local function standbyLogged(wanted)
+    for i = 1, #standbyLines do
+      if string.find(standbyLines[i], wanted, 1, true) then return true end
+    end
+    return false
+  end
+
   local treesBeforeEntry = #Stubs.lvgl.trees
   Stubs.tick()
   widget:refresh(0, nil)
+  check("the info line's change is logged", standbyLogged("debug: info line: nil to controller_missing"))
+  check("a rebuild logs the key it moved to", standbyLogged("debug: rebuild: "))
   check("missing controller selects the general prerequisite summary",
     widget.state.standbyInfoKind == "controller_missing")
   widget:refresh(0, nil)
@@ -335,6 +354,10 @@ do
     #Stubs.lvgl.trees == treesBeforeEntry and widget._job ~= nil and widget._job.children ~= nil)
   widget:refresh(0, nil)
   check("standby entry builds one scene", #Stubs.lvgl.trees == treesBeforeEntry + 1)
+  check("a finished build logs its layout, rows, nodes, surface and zone",
+    standbyLogged("info: built: layout elrs, 1 of 1 rows, " .. #Stubs.lvgl.trees[#Stubs.lvgl.trees]
+      .. " nodes, full screen, zone 800x480, info controller_missing"))
+  LogModule.emitf = realEmitf
   Stubs.tick()
   widget:refresh(0, nil)
   local afterState = calls.request

@@ -27,6 +27,11 @@ local powerDecoder = nil
 -- versions and field count off its device information: the same key is the same numbering.
 local idsByModule = {}
 
+local function logRead(level, fmt, ...)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.require and _G.rfsuite.require("lib/log.lua") or nil
+  if Log and type(Log.emitf) == "function" then Log.emitf("rfsuite.elrs", level, fmt, ...) end
+end
+
 local function getPowerDecoder()
   if powerDecoder then return powerDecoder end
   if type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.require) == "function" then
@@ -135,6 +140,8 @@ end
 
 local function finish(st, status, reason, now)
   st.status, st.reason, st.readAt, st.done = status, reason, now, true
+  logRead("debug", "read finished: %s, reason %s, %d pings, %d sends", tostring(status), tostring(reason),
+    st.pings or 0, st.sent or 0)
   if status == "ready" or status == "unavailable" then
     last = {
       status = status, reason = reason, readAt = now, identity = st.identity,
@@ -285,6 +292,7 @@ function M.request(identityKey, context)
     lease = owner
   elseif not M.acquire(owner) then return false, "busy" end
   generation = generation + 1
+  logRead("trace", "read started for %s, %s", tostring(owner), quarantine and "draining first" or "discovery ping")
   active = {
     owner = owner, identity = identityKey, generation = generation, status = "reading",
     sent = 0, pings = 0, phase = quarantine and "drain" or "ping", pingAt = nil,
@@ -295,6 +303,7 @@ end
 
 function M.cancel(owner, reason)
   if active and (owner == nil or active.owner == owner) then
+    logRead("trace", "read cancelled: %s", tostring(reason))
     if active.pingAt ~= nil or active.requestAt ~= nil then quarantine, quarantineUntil = true, nil end
     generation = generation + 1
     active = nil
