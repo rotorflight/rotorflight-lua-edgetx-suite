@@ -88,8 +88,10 @@ local function barWidth(node, seen)
   seen = seen or {}
   if type(node) ~= "table" or seen[node] then return nil end
   seen[node] = true
+  -- The bar is the rectangle that can hide. The standby's battery fill also has a reactive size,
+  -- and stands for as long as the field does.
   if node.type == "rectangle" and type(node.size) == "function"
-    and (node.visible == nil or node.visible()) then
+    and type(node.visible) == "function" and node.visible() then
     return (node.size())
   end
   for _, v in pairs(node) do
