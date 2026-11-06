@@ -251,6 +251,9 @@ local function run(mutate)
     moveTo(r.levels[3], "esc_motors")
     Roll.press(w)
     check("a press opens it, not a list", opened[1] ~= nil and opened[1].page == "esc_motors_menu")
+  end
+  do
+    local w = open()
     local list = Views.session(w).tree.list
     check("Helicopter Setup is called, not unfolded", list.menus.wizards_menu[1].menuId == "helicopter_setup_menu"
       and list.menus.wizards_menu[1].kind == "tiles" and list.menus.helicopter_setup_menu == nil)
