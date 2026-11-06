@@ -21,6 +21,6 @@ return function(ctx)
   -- how the overlay itself is flown is the docs page's.
   return {
     message = t(i18n, "help_message",
-      "Radio wiring applies to all models; Set up the model shows what it changes before writing. Shown once Settings > General > Preview is on.")
+      "Radio wiring applies to all models; Set up radio shows what it changes before writing. Shown once Settings > General > Preview is on.")
   }
 end

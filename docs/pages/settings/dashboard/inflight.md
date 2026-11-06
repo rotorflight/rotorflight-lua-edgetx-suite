@@ -36,31 +36,40 @@ says what the page is for.
 | --- | --- |
 | In-flight tuning on this radio | The master switch. With it off nothing drives on any model. Off by default. |
 | *(model status)* | What the setup check found when it last walked the model: *Setup OK*, *Setup not checked*, or the faults it names — or *Reading the radio...* while the page opened from the dashboard is still reading (see Notes). A fault refuses output and is shown on the tuning fullscreen ground surface. |
-| Set up the model | Writes the two mixer lines, the logical switch that times each press, the global variable details and the trim modes this model needs — and only the ones that differ from what the model already carries. It shows what it would remove and what it would add first, and writes nothing until that is confirmed. Where the model already carries all of it, it says so instead of asking. It writes the values as they stand on the page, saved or not. |
+| Active radio model | The model in the radio that the button writes. It is the model's own name, also while a connected flight controller's craft name stands in for it. |
+| Set up radio | Writes the two mixer lines, the logical switch that times each press, the global variable details and the trim modes this radio model needs, and only the ones that differ from what it already carries. Nothing is written to the flight controller. It first says which channels and variables it uses and how many lines it replaces, and writes nothing until that is confirmed. Where the model already carries all of it, it says so instead of asking. It writes the values as they stand on the page, saved or not. It works in the tool opened from the dashboard and in the tool started from the radio, and refuses while the model is armed. |
+| Restore previous setup | Puts back what the last set-up replaced: the mixer lines of its channels, the variables, the logical switch and the trim modes. Shown only while the model still carries what that set-up wrote, or after a set-up that was cut off, and kept for the radio model across leaving the page, a flight and a restart. |
 
-*Set up the model* is a comparator, not a rewrite. A channel that already carries nothing but
+*Set up radio* is a comparator, not a rewrite. A channel that already carries nothing but
 the line the overlay needs is left alone; a variable whose name, range, precision and unit are
 already right is not written; a flight mode whose claimed trims are already off is not touched.
 A flight mode that uses another mode's trim counts as off when that mode's trim is off, so it
 keeps its link.
 So the button is only ever offered work that is left, and on a model that is fully set up it
-reports *The model already carries this setup; nothing to write.*
+reports *This radio model already carries this setup; nothing to write.*
+
+**Before the first write the replaced state is saved on the card**, one file per radio model file
+in the suite's `inflight-setup` folder, and read back; if that fails, nothing is written. A set-up
+stops at the first write the radio refuses, or when the model is armed or another model is selected
+while it runs, and tells the pilot; its restore is then offered whatever the model looks like, and a
+further set-up is refused until it has run, since that set-up would read the half-written model. After a
+restore every mixer field is compared with what was saved, and the file is removed. A later complete
+set-up replaces the file, so one restore step is kept per radio model.
 
 **The value line is switched by a logical switch**, `|GVx| > 0` on the value variable with a
 delay of 0.1 s and a duration of 0.2 s. It is what ends each pulse: the radio's mixer lets 200 ms
 of a press through, timed by the radio itself, so a slow pass of the widget cannot stretch a
 press into a second step. Each press holds the value variable for a fixed 310 ms, long enough for
 that window to run out in full. The button takes a slot that already holds exactly that switch, or
-else the last empty logical switch nothing on the model refers to, and names it in the
-confirmation (*Pulse timer L64: |GV5| > 0*). It never writes over a logical switch that holds
+else the last empty logical switch nothing on the model refers to. It never writes over a logical switch that holds
 anything else; a model with no slot left is refused with *No logical switch is free to time the
 pulses; empty one first.* **A model set up by an earlier version** carries a value line with no
-switch, which the check reports as *Mixer line missing or wrong* — press *Set up the model* once
+switch, which the check reports as *Mixer line missing or wrong* — press *Set up radio* once
 more.
 
 Every write is read back before it is counted. The radio's Lua writers answer nothing and do
 nothing when a mixer table is full or an index is out of range, so a line is counted as written
-only once it has been read off the model again — the number in *Model set up (n)* is the number
+only once it has been read off the model again — the number in *Radio set up (n)* is the number
 of changes that are demonstrably on the model.
 
 ### Channels and variables
@@ -102,7 +111,7 @@ the pilot's business.
 - A trim that drives a row has to be switched off as a trim in every flight mode, or the same
   press also moves that stick's neutral in the mode where it is still on. A flight mode that
   uses another mode's trim (EdgeTX's default for FM1 to FM8, which follow FM0) counts as that
-  mode; one with a trim or an offset of its own counts on its own. *Set up the model* does
+  mode; one with a trim or an offset of its own counts on its own. *Set up radio* does
   this, and the setup check reports *Trim still active in a flight mode* when it has not been
   done.
 - On an ExpressLRS link use the *Wide* switch mode or a full-resolution packet rate. In
@@ -116,20 +125,20 @@ the pilot's business.
   every call the radio stops at an instruction limit. There it reads the radio's switch list
   (to find the trims) and the model's mixer and input lines (for the variable warnings) a
   slice per frame instead of all at once. While it reads, the model-status line,
-  the trim pickers and the variable warnings show *Reading the radio...*, and *Set up the model*
-  answers with the same line; on a model with many logical switches and mixer lines this takes
+  the trim pickers and the variable warnings show *Reading the radio...*; on a model with many logical switches and mixer lines this takes
   a second or two. *Channels and variables* and *Rows and trims*, when open, draw their header
   at once and the rows under it a frame or two later, once their notes have been laid out. A
-  variable changed there is not read again (until *Set up the model* has written the model; see
+  variable changed there is not read again (until *Set up radio* has written the model; see
   below): the page keeps what it found for every variable, and shows the warning for the new
   one when its field is closed with Enter, Return or the on-screen keypad (on EdgeTX 2.11.5,
   2.12.0 and later). Changed while the page is still reading, the warning takes the place of
   *Reading the radio...* as soon as the reading is through. A field left by touching another
   control, or an older firmware, has the warnings (the variable's use and the variable names)
-  brought up to date the next time the page is laid out. After *Set up the model* the next
+  brought up to date the next time the page is laid out. After *Set up radio* the next
   change of a variable reads the model again, and a reading of the mixer and input lines still
   running when the model is written starts over. The tool started from the radio's tool menu
-  reads everything when the page opens, as before.
+  reads everything when the page opens, as before. *Set up radio* and *Restore previous setup* read
+  and write a slice per frame on both, behind a box that shows their progress and result.
 
 ## Grouped overlay inputs
 
