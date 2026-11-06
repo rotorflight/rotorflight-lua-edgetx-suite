@@ -41,9 +41,9 @@ adds its own row. The examples are the message part of a line; long ones are cut
 | *OFF* | **The base log, written at every level.** Errors, warnings, and the info lines that mark milestones: the connect sequence, the configuration tool being opened and closed, a save to the flight controller, a flight being logged. With *Log Session To Card* on, also the state line every five seconds and any fault the suite caught. All of it goes to *Session Logs* and, with *Log Session To Card* on, to the card. Nothing goes to the radio's debug output or to the serial port. | `MSP runtime initialized via …`, `MSP link connected`, `FBL connected and telemetry initialized`, `tool opened, lua … kB, free … kB`, `start page=… steps=… reboot=… client=…`, `flight logged: …s, battery=…`, `max retries cmd=… rw=R client=… attempts=…`, `low heap: free_kb=…` |
 | *ERROR* | Nothing on the card or in *Session Logs*. Error lines start to appear on the radio's debug output and, with *Enable Serial Debug* on, on the serial port. | `tool not opened: …`, `MSP queue module unavailable`, `playNumber error: …` |
 | *WARN* | Nothing on the card or in *Session Logs*. Warnings join the errors on the debug output and the serial port. | `refused reason=armed page=…`, `queue cleared client=… keepWrites=… …`, `UID read failed (cmd=160); backoff …s` |
-| *INFO* | Info lines on the debug output and the serial port. And the info lines of the parts that ask for *INFO* before they write, which are not in the base log: the in-flight tuning surface (its phase changes with the memory figures, the interlock, every global variable it writes, reading the board), the dashboard reloading its theme and its settings, the configuration tool's closing sequence, and the raw telemetry configuration read from the flight controller. The state lines also reach *Session Logs* with *Log Session To Card* off. | `phase … -> …, lua … kB, free … kB`, `interlock on: bank ch… value ch…`, `prime done: … value(s) cached, … id(s) unanswered`, `LVGL BUILD SUCCESS: themePath=…, #children=…`, `Closing sequence started (Tick 0).`, `parsed slots: …` |
-| *DEBUG* | The steps in between, from every part of the suite. A request to the flight controller that has to be sent again. Every page change in the configuration tool, with the memory figures. The background decoder's own files, and the signal from the dashboard that the decoder watches for the *dashboard widget silent* line. | `page … -> …, lua … kB, free … kB`, `tx cmd=… rw=R client=… attempt=2/… len=…`, `phase … -> … after …s page=…`, `load begin steps=… overlay=…`, `dashboard widget silent 3.0 s, last pass 56 %` |
-| *TRACE* | Every request to and reply from the flight controller, with its bytes, and whether a reply came from the link or from the cache. The service widget's instruction budget every five seconds. | `queued cmd=… rw=R client=… from=… depth=…`, `tx cmd=… rw=R client=… attempt=1/… len=… <bytes>`, `rx cmd=… src=wire len=… client=… attempt=1 dt=… err=… <bytes>`, `rx cmd=… src=cache …` |
+| *INFO* | Info lines on the debug output and the serial port. And the info lines of the parts that ask for *INFO* before they write, which are not in the base log: the in-flight tuning surface (its phase changes with the memory figures, the interlock, every global variable it writes, reading the board), the dashboard's milestones (created, a phase change, a theme loaded or released, the link lost) with the memory figures, the configuration tool's closing sequence, and the raw telemetry configuration read from the flight controller. The state lines also reach *Session Logs* with *Log Session To Card* off. | `phase … -> …, lua … kB, free … kB`, `interlock on: bank ch… value ch…`, `prime done: … value(s) cached, … id(s) unanswered`, `theme … loaded for phase … (…, from …), lua … kB, free … kB`, `Closing sequence started (Tick 0).`, `parsed slots: …` |
+| *DEBUG* | The steps in between, from every part of the suite. The dashboard reloading its settings and building a screen, with what the build cost, a long pass and the work it was, a view opening or closing, what the connect screen waits for, each connect task's time. A request to the flight controller that has to be sent again. Every page change in the configuration tool, with the memory figures. The background decoder's own files, and the signal from the dashboard that the decoder watches for the *dashboard widget silent* line. | `page … -> …, lua … kB, free … kB`, `scene built: … pass(es), … objects, lua … -> … kB`, `long pass: …% of the instruction budget, work …`, `LVGL BUILD SUCCESS: themePath=…, #children=…`, `completed task … in … s, lua … kB`, `tx cmd=… rw=R client=… attempt=2/… len=…`, `phase … -> … after …s page=…`, `load begin steps=… overlay=…`, `dashboard widget silent 3.0 s, last pass 56 %` |
+| *TRACE* | Every request to and reply from the flight controller, with its bytes, and whether a reply came from the link or from the cache. The service widget's instruction budget every five seconds. On the dashboard, each telemetry read, the screen key that moved and each build starting. | `queued cmd=… rw=R client=… from=… depth=…`, `tx cmd=… rw=R client=… attempt=1/… len=… <bytes>`, `rx cmd=… src=wire len=… client=… attempt=1 dt=… err=… <bytes>`, `rx cmd=… src=cache …`, `telemetry read, phase …`, `render key … -> …`, `scene started, lua … kB` |
 
 ***OFF* adds nothing extra; it is not silence.** It is the shipped setting, and a radio left at it
 still keeps errors, warnings and the milestone lines in *Session Logs*, and on the card once
@@ -106,7 +106,7 @@ installed files, so two installations of the same version can be told apart by i
 **Every five seconds each part of the suite writes a state line** at *INFO*:
 
 ```
-state: instruction budget 12% now, 41% peak/5s, 97% peak since load, 58 objects, lua 1293 kB, free 1933 kB, cpu 38%, ui 30 fps / 21%, theme=system/grid
+state: instruction budget 12% now, 41% peak/5s, 97% peak since load, 58 objects, lua 1293 kB, free 1933 kB, cpu 38%, ui 30 fps / 21%, peak work scene, lua peak 1410 kB, theme=system/grid
 ```
 
 | Field | Meaning |
@@ -116,10 +116,44 @@ state: instruction budget 12% now, 41% peak/5s, 97% peak since load, 58 objects,
 | `free` | What the radio has left for every script and most of its own work. `-` where the radio does not report it. |
 | `cpu` | How busy the radio's processor was. EdgeTX 2.12.5 and later only. |
 | `ui` | The screen's frame rate and the share of time spent drawing it. EdgeTX 2.12.5 and later, colour radios only. |
+| `peak work` | The dashboard only: what it was doing in the pass that cost the most in these five seconds, the word from the dashboard's `.step`, or `state` for an ordinary pass. |
+| `lua peak` | The dashboard only: the highest `lua` figure sampled since it loaded. It is sampled at this line and around each screen build, so a shorter peak between them is not seen. |
 
 The same memory figures are added to the lines that mark the configuration tool being opened and
 closed, the in-flight tuning surface changing phase or closing — from *INFO* up — and, at *DEBUG*,
 every page change in the tool. Two such lines around a visit say what that visit kept.
+
+## Reading a dashboard log
+
+Every line starts with the part of the suite that wrote it, its tag, then its level:
+
+| Tag | What it says |
+| --- | --- |
+| `rfsuite.widget` | The dashboard itself: created, each phase, connected, link lost, on or off screen, the state line, long passes, a stop at the instruction limit. |
+| `rfsuite.widget.theme` | Which theme was loaded for which phase, why and from which one; a theme that did not load; themes released. |
+| `rfsuite.widget.job` | Each screen build: how many passes, how many objects, Lua memory before and after. |
+| `rfsuite.widget.standby`, `.splash` | The standby screen, and what the connect screen is waiting for. |
+| `rfsuite.widget.view`, `.menu`, `.roll` | Full-screen views opening and closing, each press, a write the menu queued, the rolling menu. |
+| `rfsuite.widget.tool` | The steps of opening and closing the tool inside the dashboard. |
+| `rfsuite.widget.object` | An object type that loaded, or did not, for the boxes of a theme. |
+| `rfsuite.reload` | The dashboard reloading its settings, and why it waited. |
+| `rfsuite.events`, `rfsuite.tasks.…` | The connect sequence and the arm and disarm tasks, each with its time and memory. |
+| `rfsuite.sensors` | Which telemetry source was taken, or that none was found; once per connection. |
+| `rfsuite.audio`, `rfsuite.inflight` | Announcements, and the in-flight tuning surface. |
+| `rfsuite.require` | A module that did not load. |
+
+**What is using the resources.** At *INFO*, the state line every five seconds says how much of the
+budget the dashboard used and on what, and the milestones carry the memory figures. Compare a figure
+before and after a theme, a tool visit or a connect. At *DEBUG*, `long pass` names each expensive pass
+and each `… built:` line says what one screen cost.
+
+**Where a problem began.** Look for the first `error` or `warn` line, then read the lines before it
+at the level you recorded. A phase line, a theme line or `waiting:` says what the dashboard was doing.
+At *TRACE* over the serial port the same stretch shows each read and each build starting.
+
+**What a level costs.** With the log off, the dashboard builds none of these lines but its errors,
+warnings and base milestones. *TRACE* writes lines every second and adds to what it measures, so
+compare budget figures only between logs taken at the same level.
 
 ## The two lines worth reading first
 
