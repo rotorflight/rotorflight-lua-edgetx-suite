@@ -577,6 +577,8 @@ function Stubs.install(root)
 
   _G.lcd = {
     RGB = function(r, g, b)
+      -- One packed 0xRRGGBB, as lib/color_schemes.lua passes it, is taken as it stands.
+      if g == nil then return r end
       return ((r // 8) << 11) | ((g // 4) << 5) | (b // 8)
     end,
     sizeText = function(text, font)
@@ -596,7 +598,6 @@ function Stubs.install(root)
       collectRefs(children, refs)
       return true
     end,
-    onEvent = function() end,
     -- Present as a function, not called: the tuning screen asks the lvgl table whether this
     -- firmware offers a momentary button and emits a different node type either way. Asking here
     -- is what makes the measured tree the one a colour radio builds.

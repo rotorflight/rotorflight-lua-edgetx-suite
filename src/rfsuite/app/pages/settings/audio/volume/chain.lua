@@ -16,7 +16,7 @@
 --   * an input's `source` and a logical switch's `v1` are mix source numbers; GV n is
 --     getFieldInfo("gvar1").id + n - 1, which the page already resolves for its picker.
 --   * input k (0-based) as a mix source is MIXSRC_FIRST_INPUT + k (dataconstants.h: the inputs
---     are the first block after "none"; the same rule app/pages/setup_wizard/radio.lua uses).
+--     are the first block after "none"; the same rule lib/model_radio.lua uses).
 --   * for a logical switch on a global variable, `v2` is the raw value compared with
 --     (switches.cpp, getLogicalSwitch: `y = ls->v2` once v1 is a global variable), so -1024 reads
 --     back as -1024.

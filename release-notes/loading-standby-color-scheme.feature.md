@@ -1,0 +1,1 @@
+- The dashboard's loading screen, its standby screen and the tool's start screen follow the color scheme set under Settings > General, light or dark, with a logo for each (widgets/dashboard/splash.lua, standby.lua, ui/home.lua). As the scheme comes light, these screens are light after the update until it is set to dark.

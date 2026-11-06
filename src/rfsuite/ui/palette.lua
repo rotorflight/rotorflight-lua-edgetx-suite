@@ -24,8 +24,6 @@ local palette = {
   cursor = COLOR_THEME_FOCUS,
   progressTrack = COLOR_THEME_SECONDARY2,
   testProgressTrack = COLOR_THEME_SECONDARY1,
-  panelProgressTrack = COLOR_THEME_DISABLED,
-  panelProgressFill = COLOR_THEME_SECONDARY2,
   tile = COLOR_THEME_DISABLED,
   tileMuted = BLACK,
 }

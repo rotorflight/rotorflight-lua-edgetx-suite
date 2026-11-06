@@ -9,8 +9,14 @@ sidebar_label: Colour schemes
 It is the one place a scheme colour is defined. Change a value there and everything that reads the
 role follows.
 
-**The widget's menu pages read it, through `widgets/dashboard/menu_look.lua`.** The tool's `ui/palette.lua` and the widget's own colours stay as they are
+**The widget's menu pages read it, through `widgets/dashboard/menu_look.lua`, and so do its loading and standby screens and the tool's start screen, directly, which also take their logo from `logo()`.** The tool's `ui/palette.lua` and the widget's own colours stay as they are
 until they are moved onto it, each in a pull request of its own.
+
+**The helicopter setup wizard reads it directly:** `helicopter_setup/page.lua` loads the file when
+the page opens, takes `general.color_scheme` through `name()` and hands the colours to its views as
+`w.palette`, and the scheme's name as `w.scheme`, which also picks the picture set
+(`docs/developer/helicopter-wizard-artwork.md`). It lets go of both when the page closes, so a changed setting
+shows the next time the page opens.
 
 ## Using it
 
@@ -45,7 +51,7 @@ it, since every caller in the Lua state shares it.
 | `warning` | Something the pilot should look at before going on |
 | `error`, `onError` | A failure or a close button, and the text on it |
 | `ok`, `onOk` | A check that passed, and a mark on an `ok` fill |
-| `rule` | A quiet divider |
+| `rule` | A quiet divider, and the track of a progress bar, where `raised` hardly shows on the page |
 
 ## Rules
 

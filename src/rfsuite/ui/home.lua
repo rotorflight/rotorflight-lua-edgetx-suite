@@ -73,7 +73,6 @@ local MEM_LOW_CLEAR_KB = 96
 local MEM_FREE_MIN_KB = 4
 
 local APP_ICON  = _G.rfsuite.paths.core .. "/assets/icon.png"
-local LOGO_FILE = _G.rfsuite.paths.core .. "/widgets/dashboard/gfx/logo.png"
 
 local M = {}
 
@@ -2655,6 +2654,12 @@ local function buildScene()
     local screenW = LCD_W or 320
     local screenH = LCD_H or 240
 
+    -- The pilot's colour scheme, as the widget's own loading screen has it. On the tool's own state the
+    -- file is dropped again with this screen (see the run loop), since nothing else there reads it yet.
+    local Schemes = loadModule("lib/color_schemes.lua")
+    local scheme = state.preferences and state.preferences.general and state.preferences.general.color_scheme
+    local colors = Schemes.colors(scheme)
+
     -- The logo, in the same box the widget's own connection splash gives it
     -- (widgets/dashboard/splash.lua): the arithmetic below is that file's, applied to the
     -- full screen instead of a widget zone. Reusing it rather than choosing new numbers
@@ -2669,19 +2674,19 @@ local function buildScene()
       {
         type = "rectangle",
         x = 0, y = 0, w = screenW, h = screenH,
-        color = Palette.panel,
+        color = colors.page,
         filled = true
       },
       {
         type = "image",
         x = logoX, y = logoY, w = logoW, h = logoH,
-        file = LOGO_FILE
+        file = Schemes.logo(scheme)
       },
       {
         type = "label",
         x = 0, y = screenH / 2 - 44, w = screenW,
         text = title,
-        color = Palette.panelText,
+        color = colors.text,
         align = CENTER,
         font = MIDSIZE
       },
@@ -2689,7 +2694,7 @@ local function buildScene()
         type = "label",
         x = 20, y = screenH / 2 - 4, w = screenW - 40,
         text = message,
-        color = Palette.panelText,
+        color = colors.muted,
         align = CENTER,
         font = SMLSIZE
       }
@@ -2716,14 +2721,14 @@ local function buildScene()
       children[#children + 1] = {
         type = "rectangle",
         x = barX, y = barY, w = barW, h = barH,
-        color = Palette.panelProgressTrack,
+        color = colors.rule,
         filled = true
       }
       if fillW > 0 then
         children[#children + 1] = {
           type = "rectangle",
           x = barX + 2, y = barY + 2, w = fillW, h = barH - 4,
-          color = Palette.panelProgressFill,
+          color = colors.accent,
           filled = true
         }
       end
@@ -4094,6 +4099,9 @@ function M.run(event, touchState)
       -- here rather than on the first page that happens to need a file.
       if mspSettled and compileFinished then
         state.initialLoad = false
+        if not state.hosted and type(_G.rfsuite.clearModule) == "function" then
+          _G.rfsuite.clearModule("lib/color_schemes.lua")
+        end
         -- A pass that rebuilt the whole tree leaves the dashboard -- and, hosted, this tool --
         -- running the previous build's modules until the radio is restarted, so the pilot is
         -- asked for that once, on the screen that follows.

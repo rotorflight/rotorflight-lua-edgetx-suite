@@ -2,6 +2,11 @@ local source = string.sub(debug.getinfo(1, "S").source, 2)
 local root = string.match(source, "^(.*)[/\\]bin[/\\]tests[/\\]") or "."
 _G.rfsuite = {}
 _G.rfsuite.paths = dofile(root .. "/src/rfsuite/lib/paths.lua")
+-- The provider's log lines, formatted here so a format that does not fit its arguments fails.
+local readLines = {}
+_G.rfsuite.Log = { emitf = function(_, level, fmt, ...)
+  readLines[#readLines + 1] = level .. ": " .. string.format(fmt, ...)
+end }
 local currentFilename = "model01.yml"
 model = {
   getInfo = function() return { filename = currentFilename, name = "Model", bitmap = "m.png" } end,
@@ -418,5 +423,28 @@ do
   for i = 1, Config.limits.fieldBytes + 1 do huge[#huge + 1] = 65 end
   put(0x2B, huge); Config.step({ owner = "test", identity = "oversize", crsf = crsf, push = push, now = 0.3 })
   assert(Config.snapshot("oversize").status == "unavailable", "oversized field was retained")
+end
+do
+  Config.invalidate(nil)
+  local crsf, push, _, sent = transport()
+  drain(crsf)
+  local identity = Config.currentIdentity()
+  assert(Config.request(identity, { owner = "retry", maxPings = 1 }))
+  Config.step({ owner = "retry", identity = identity, crsf = crsf, push = push, now = 10 })
+  Config.step({ owner = "retry", identity = identity, crsf = crsf, push = push, now = 11.1 })
+  local answer = Config.snapshot(identity)
+  assert(#sent == 1 and answer.status == "unavailable" and answer.reason == "no_answer",
+    "a retry is one ping, then no answer")
+end
+do
+  local started, finished, pinged, asked = false, false, false, false
+  for i = 1, #readLines do
+    started = started or string.find(readLines[i], "trace: read started for ", 1, true) ~= nil
+    finished = finished or string.find(readLines[i], "debug: read finished: ", 1, true) ~= nil
+    pinged = pinged or string.find(readLines[i], "trace: discovery ping ", 1, true) ~= nil
+    asked = asked or string.find(readLines[i], "trace: asked for field ", 1, true) ~= nil
+  end
+  assert(started and finished, "a read did not log its start and its finish")
+  assert(pinged and asked, "a read did not log what it sent")
 end
 print("elrs_config_test: ok")

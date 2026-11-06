@@ -2,6 +2,9 @@
 -- select cached filenames or prepared geometry without rebuilding the scene.
 local M = {}
 local GFX = _G.rfsuite.paths.core .. "/app/pages/helicopter_setup/gfx/"
+-- The drawings have a set per colour scheme. The two rescue pictures have no source to draw a light
+-- set from; like the side views they read on both surfaces, so both schemes draw the one set.
+local ONE_SET = { ["rescue-flip"] = true, ["rescue-up"] = true }
 function M.append(children, w, card, x, y, width, height)
   local ink, accent = w.palette.text, w.palette.accent
   local kind,L=card.art,w.L
@@ -65,7 +68,9 @@ function M.append(children, w, card, x, y, width, height)
       h = py(160)-py(0), file = function()
         local name = picture()
         if name ~= current then
-          current, file = name, GFX .. (small and "small/" or "dark/") .. name .. ".png"
+          local dark = w.scheme == "dark" or ONE_SET[name]
+          current, file = name, GFX .. (dark and (small and "small/" or "dark/")
+            or small and "small_light/" or "light/") .. name .. ".png"
           if w.logDebug then w:log("debug", "picture %s", string.sub(file, #GFX + 1)) end
         end
         return file

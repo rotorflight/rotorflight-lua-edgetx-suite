@@ -758,7 +758,7 @@ return function(h)
     check(picture~=nil,"VISUAL switch feedback has a reactive picture")
     if not picture then return end
     -- A 480 pixel wide screen draws the small picture set.
-    local prefix=_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/small/"
+    local prefix=_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/"..(w.scheme=="dark" and "small/" or "small_light/")
     local count=#scene.children
     eq(picture.file(),prefix.."switch-left.png","VISUAL OFF shows the left switch")
     w.data.rc.channels[6]=1900
@@ -780,20 +780,20 @@ return function(h)
     w.data.status.flight_mode_flags=0;eq(rescue.switchState(),false,"VISUAL Rescue reads the FC mode flag")
     eq(rescue.rows[1].color(),"text","VISUAL an OFF switch reads in the text colour")
     w.data.status.flight_mode_flags=2;eq(rescue.switchState(),true,"VISUAL Rescue follows an active FC flag")
-    eq(rescue.rows[1].color(),"accent","VISUAL an ON switch is accented")
+    eq(rescue.rows[1].color(),"accentInk","VISUAL an ON switch is accented")
     w.data.mode_ranges.mode_ranges[2].range["end"]=1800
     eq(rescue.switchState(),nil,"VISUAL unassigned mode stays neutral")
   end)
   case("VISUAL.native-background",function()
     local w=world();settle(w)
     local scene=h.view.new(w,{w=480,h=272},h.diagrams)
-    eq(scene.all[1].color,lcd.RGB(20,25,30),"VISUAL page uses the dark palette background")
+    eq(scene.all[1].color,w.palette.page,"VISUAL page uses the scheme's page colour")
     check(scene.all[1].filled==true,"VISUAL page background is filled")
     for _,item in ipairs(scene.all) do
       if item.type=="button" or item.type=="momentaryButton" then
         local primary=item.y==234 and item.x>240
         eq(item.color,primary and w.palette.accent or w.palette.card,"VISUAL button background follows its role")
-        eq(item.textColor,primary and w.palette.accentText or item.y==2 and item.text~="?" and w.palette.accent or w.palette.text,
+        eq(item.textColor,primary and w.palette.onAccent or item.y==2 and item.text~="?" and w.palette.accentInk or w.palette.text,
           "VISUAL button text contrasts with its background")
       end
     end
@@ -928,7 +928,7 @@ return function(h)
       eq(percents[1].color(),w.palette.text,"VISUAL one end stop alone is not the whole travel")
       sample(1025)
       eq(cards[3].summary(),L.sticksDone,"VISUAL completed message stays unabridged in summary")
-      eq(percents[1].color(),w.palette.accent,"VISUAL both end stops reached accent the reading")
+      eq(percents[1].color(),w.palette.accentInk,"VISUAL both end stops reached accent the reading")
       cards[3].rows[1].press()
       eq(percents[1].color(),w.palette.text,"VISUAL Measure again clears the accent without rebuilding")
       eq(#scene.children,count,"VISUAL stick readings retain the scene")
@@ -3263,7 +3263,7 @@ return function(h)
           end
           eq(#nudges,4,"S13 each servo card has four nudges")
           check(offset and warning and picture and live and status,"S13 servo card label and picture positive controls")
-          eq(picture.file(),_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/"..(size[1]>=700 and "dark/" or "small/").."servo-arm.png",
+          eq(picture.file(),_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/"..(w.scheme=="dark" and (size[1]>=700 and "dark/" or "small/") or (size[1]>=700 and "light/" or "small_light/")).."servo-arm.png",
             "S13 servo card exact servo-arm picture")
           for _,item in ipairs(scene.children) do
             if item~=picture and item.y and item.h and item.w and item.y>2 and item.y<feedback.y and
@@ -3986,7 +3986,7 @@ return function(h)
   case("VISUAL.configurator-pictures",function()
     local w=world();settle(w)
     -- A 480 pixel wide screen draws the small picture set.
-    local prefix=_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/small/"
+    local prefix=_G.rfsuite.paths.core.."/app/pages/helicopter_setup/gfx/"..(w.scheme=="dark" and "small/" or "small_light/")
     local function scene(name,index)
       w.cards=step(w,name);w.card=index or 1
       local job=h.view.new(w,{w=480,h=272},h.diagrams)
@@ -4129,7 +4129,11 @@ return function(h)
       local function expect(picture,file,label)
         local actual=picture and (type(picture.file)=="function" and picture.file() or picture.file)
         -- Screens narrower than the large layout draw the small set, which holds both kinds.
-        if size[1]<700 then file="small/"..(string.gsub(file,"^dark/","")) end
+        -- "dark/" names a drawing, whose set follows the scheme; the side views have one set.
+        local drawing=string.find(file,"^dark/")~=nil
+        file=string.gsub(file,"^dark/","")
+        if size[1]<700 then file=(drawing and w.scheme~="dark" and "small_light/" or "small/")..file
+        elseif drawing then file=(w.scheme=="dark" and "dark/" or "light/")..file end
         eq(actual,prefix..file..".png","INTRO exact "..label.." at "..size[1].."x"..size[2])
       end
       local job,picture=scene("receiver")
@@ -5911,6 +5915,79 @@ return function(h)
     local page=load("app/pages/helicopter_setup/page.lua");local ctx={w=480,h=272,children={}}
     page.build(ctx);eq(ctx.children[1].color,COLOR_THEME_PRIMARY1,id.." absent palette keeps the theme fallback")
     suite.palette=kept
+  end)
+  case("SCHEME.follows-the-setting",function()
+    local id="SCHEME.follows-the-setting";local realLoad=loadScript
+    local path="app/pages/helicopter_setup/page.lua"
+    local function opened(page,value)
+      local ctx={w=480,h=272,children={},requestRebuild=function() end,
+        preferences=value and {general={color_scheme=value}} or nil}
+      page.build(ctx);page.wakeup(ctx)
+      local after={w=480,h=272,children={}};page.build(after)
+      return after.children[1]
+    end
+    local schemes=load("lib/color_schemes.lua")
+    local page=load(path)
+    local bg=opened(page,"dark")
+    eq(bg.type,"rectangle",id.." the loading scene opens on the page surface")
+    eq(bg.color,schemes.colors("dark").page,id.." dark setting: dark page")
+    page.onClose()
+    bg=opened(page,"light")
+    eq(bg.color,schemes.colors("light").page,id.." a changed setting shows at the next opening")
+    page.onClose()
+    bg=opened(page,nil)
+    eq(bg.color,schemes.colors(schemes.DEFAULT).page,id.." no setting: the suite's default")
+    page.onClose()
+    bg=opened(page,"neon")
+    eq(bg.color,schemes.colors(schemes.DEFAULT).page,id.." an unknown value: the suite's default")
+    page.onClose()
+    -- A value changed in the central file reaches the wizard; there is no second table.
+    loadScript=function(file,...)
+      if string.find(file,"lib/color_schemes.lua",1,true) then
+        local module=assert(loadfile("src/rfsuite/lib/color_schemes.lua"))()
+        module.SCHEMES.light.page=0x123456
+        return function() return module end
+      end
+      return realLoad(file,...)
+    end
+    bg=opened(page,"light")
+    loadScript=realLoad
+    eq(bg.color,0x123456,id.." a central value change reaches the page")
+    page.onClose()
+  end)
+  case("SCHEME.pictures-and-literals",function()
+    local id="SCHEME.pictures-and-literals"
+    local function pictured(scheme,small,kind)
+      local w={scheme=scheme,L=L,palette={text=1,accent=2}}
+      local children={}
+      local size=small and 154 or 220
+      h.diagrams.append(children,w,{art=kind,rescueFlip=function() return false end},0,0,size,size*160//220)
+      for _,item in ipairs(children) do
+        if item.type=="image" then
+          local file=item.file
+          if type(file)=="function" then file=file() end
+          return string.match(file,"/gfx/(.+)$")
+        end
+      end
+    end
+    eq(pictured("light",false,"receiver"),"light/receiver.png",id.." light, large: the light drawing")
+    eq(pictured("light",true,"receiver"),"small_light/receiver.png",id.." light, small: the small light drawing")
+    eq(pictured("dark",false,"receiver"),"dark/receiver.png",id.." dark, large: the dark drawing")
+    eq(pictured("dark",true,"receiver"),"small/receiver.png",id.." dark, small: the small dark drawing")
+    eq(pictured("light",false,"rescue"),"dark/rescue-up.png",id.." light: the rescue picture's one set")
+    eq(pictured("light",true,"rescue"),"small/rescue-up.png",id.." light, small: the rescue picture's one set")
+    -- Every colour comes from the scheme: the only radio-theme value left is the first build's
+    -- fallback, drawn before the scheme is loaded, and no RGB literal stands anywhere.
+    local files={"page","view","diagrams","attitude_view","servo_grid","power_cards","forms","navigation","feedback"}
+    local literals,radio=0,0
+    for _,name in ipairs(files) do
+      local handle=assert(io.open("src/rfsuite/app/pages/helicopter_setup/"..name..".lua","r"))
+      local source=handle:read("a");handle:close()
+      for _ in string.gmatch(source,"lcd%.RGB") do literals=literals+1 end
+      for _ in string.gmatch(source,"COLOR_THEME_") do radio=radio+1 end
+    end
+    eq(literals,0,id.." no RGB literal in the wizard")
+    eq(radio,1,id.." one radio-theme fallback, on the first build")
   end)
   local function liveRangeRoundTrip(kind,save)
     local id="RANGE."..kind..(save and ".save" or ".discard")

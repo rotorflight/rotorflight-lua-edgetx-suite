@@ -100,7 +100,7 @@ return function(w)
         if v == nil then return assigned(id) and L.unavailable or L.notAssigned end
         return v and onText or offText
       end
-      local function role() return state() == true and "accent" or "text" end
+      local function role() return state() == true and "accentInk" or "text" end
       local card = w:cardDef(label, L.modeHint, {
         { kind = "value", fullWidth = true, get = now, color = role },
         w:value(L.assigned, slotText(id, function(c, lo, hi) return string.format("CH%d  %d-%d", c, lo, hi) end, L.no)),

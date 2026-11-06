@@ -7,7 +7,7 @@ title: Helicopter Setup
 A guided helicopter setup based on the Configurator wizard, with ESC telemetry
 before the spin test in the 19-step sequence.
 See the [generated wizard flow](../reference/helicopter-wizard-flow.md) for cards, pilot actions, gates and MSP traffic.
-It is the only entry in the Wizards menu; the old Setup Assistant code and templates remain. Remove the main
+It is the only entry in the Wizards menu. Remove the main
 and tail blades before bench work. Keep servos unplugged until the connection gate.
 
 ## Where to find it
@@ -22,6 +22,13 @@ and offered from MSP API 12.09 (`minApiVersion = {12, 0, 9}`), the Suite's packa
 steps themselves need MSP API 12.10 (Rotorflight 4.7): on an older flight controller the page shows
 **Firmware too old** with the reported version and reads no configuration. It works from
 the TOOLS menu and when the tool is hosted by the dashboard widget.
+
+## Colors
+
+The wizard follows *Color scheme* on [*Settings* → *General* → *Appearance*](settings/general.md),
+light as it comes, with a set of pictures for each scheme. A changed scheme shows the next time the
+wizard opens. Its choice lists and its number and text fields are the radio's own controls and
+keep the colors of the radio's theme, in both schemes.
 
 The menu's **?** explains the tiles: a tick marks a step this flight controller completed
 before, and the last tile, **Setup history**, resets the ticks.
@@ -311,7 +318,8 @@ successful read in the current visit and an explicit button press.
 ## The steps on the radio
 
 Taken on the EdgeTX simulator (TX16S MK3, 800x480) against a Rotorflight SITL flight controller,
-each step opened from its own menu entry.
+each step opened from its own menu entry. The pictures predate the color scheme: they show the
+layout, in earlier dark colors.
 Smaller screens use the compact layouts described above.
 
 **1. Board orientation** (the detection card, after the tail was lifted)

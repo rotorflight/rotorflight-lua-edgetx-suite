@@ -27,6 +27,11 @@ local powerDecoder = nil
 -- versions and field count off its device information: the same key is the same numbering.
 local idsByModule = {}
 
+local function logRead(level, fmt, ...)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if Log and type(Log.emitf) == "function" then Log.emitf("rfsuite.elrs", level, fmt, ...) end
+end
+
 local function getPowerDecoder()
   if powerDecoder then return powerDecoder end
   if type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.require) == "function" then
@@ -135,6 +140,8 @@ end
 
 local function finish(st, status, reason, now)
   st.status, st.reason, st.readAt, st.done = status, reason, now, true
+  logRead("debug", "read finished: %s, reason %s, %d pings, %d sends", tostring(status), tostring(reason),
+    st.pings or 0, st.sent or 0)
   if status == "ready" or status == "unavailable" then
     last = {
       status = status, reason = reason, readAt = now, identity = st.identity,
@@ -206,6 +213,7 @@ local function takeField(st)
       field.id = st.field
       st.fields[kind] = field
       st.values[kind] = field.selectedLabel
+      logRead("trace", "field %s: %s = %s", tostring(st.field), tostring(kind), tostring(field.selectedLabel))
       if kind == "maxPower" then
         local decoder = getPowerDecoder()
         field.milliwatts = decoder and decoder.maxPowerMilliwatts({
@@ -285,9 +293,10 @@ function M.request(identityKey, context)
     lease = owner
   elseif not M.acquire(owner) then return false, "busy" end
   generation = generation + 1
+  logRead("trace", "read started for %s, %s", tostring(owner), quarantine and "draining first" or "discovery ping")
   active = {
     owner = owner, identity = identityKey, generation = generation, status = "reading",
-    sent = 0, pings = 0, phase = quarantine and "drain" or "ping", pingAt = nil,
+    sent = 0, pings = 0, maxPings = context.maxPings or MAX_PINGS, phase = quarantine and "drain" or "ping", pingAt = nil,
     values = {}, fields = {}, buf = {},
   }
   return true, "reading"
@@ -295,6 +304,7 @@ end
 
 function M.cancel(owner, reason)
   if active and (owner == nil or active.owner == owner) then
+    logRead("trace", "read cancelled: %s", tostring(reason))
     if active.pingAt ~= nil or active.requestAt ~= nil then quarantine, quarantineUntil = true, nil end
     generation = generation + 1
     active = nil
@@ -385,6 +395,8 @@ function M.step(context)
         st.plan, st.planAt = planFor(key), 1
         st.field, st.chunk, st.buf, st.phase = st.plan and st.plan[1] or 1, 0, {}, "read"
         st.requestAt, st.expectedRemain = nil, nil
+        logRead("trace", "module %s answered, %s fields, %s", tostring(name), tostring(st.fieldCount),
+          st.plan and "field ids known" or "walking the list")
         if st.fieldCount <= 0 then finish(st, "unavailable", "no_fields", now) end
         break
       end
@@ -392,7 +404,7 @@ function M.step(context)
     if st.phase == "ping" and (st.pingAt == nil or now - st.pingAt >= PING_RETRY) then
       -- No device information after every discovery ping: no ELRS module answers on this radio.
       -- A send budget spent on a full output buffer says nothing about the module.
-      if st.pings >= MAX_PINGS then finish(st, "unavailable", "no_answer", now); return last end
+      if st.pings >= st.maxPings then finish(st, "unavailable", "no_answer", now); return last end
       if st.sent >= MAX_SENDS then finish(st, "unavailable", "timeout", now); return last end
       st.sent = st.sent + 1
       local ok, queued = pcall(push, DEVICE_PING, { MODULE, RADIO })
@@ -400,6 +412,7 @@ function M.step(context)
       if ok and queued then
         st.pings = st.pings + 1
         st.pingAt = now
+        logRead("trace", "discovery ping %s sent", tostring(st.pings))
       end
     end
     return M.snapshot(st.identity)
@@ -421,7 +434,10 @@ function M.step(context)
     st.sent = st.sent + 1
     local ok, queued = pcall(push, PARAMETER_READ, { MODULE, ELRS_LUA, st.field, st.chunk })
     if ok and queued == nil then finish(st, "unavailable", "no_crsf", now)
-    elseif ok and queued then st.requestAt = now end
+    elseif ok and queued then
+      st.requestAt = now
+      logRead("trace", "asked for field %s, chunk %s", tostring(st.field), tostring(st.chunk))
+    end
   end
   return M.snapshot(st.identity)
 end

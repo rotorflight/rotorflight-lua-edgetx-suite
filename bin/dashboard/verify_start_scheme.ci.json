@@ -1,0 +1,8 @@
+{
+  "id": "dashboard-start-scheme",
+  "name": "Loading, standby and tool start in the colour scheme",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_start_scheme.lua"
+  ],
+  "step": "Check the loading, standby and start screens draw in the colour scheme"
+}

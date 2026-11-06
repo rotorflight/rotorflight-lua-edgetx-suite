@@ -63,10 +63,11 @@ end
 -- The tool control: a button with three slider lines on it. Lines for the same reason as the
 -- menu control's bars below -- a line object is not clickable, so a press on the glyph reaches
 -- the button. Not drawn while the model is armed: the tool is not opened then (tool_host.lua).
-local function appendToolControl(children, widget, x, y, size)
+local function appendToolControl(children, widget, x, y, size, fill, glyph)
   if widget.state and widget.state.armed == true then return end
+  glyph = glyph or WHITE
   children[#children+1] = {
-    type = "button", x = x, y = y, w = size, h = size, color = COLOR_THEME_PRIMARY1 or BLACK,
+    type = "button", x = x, y = y, w = size, h = size, color = fill or COLOR_THEME_PRIMARY1 or BLACK,
     press = function() navigate(widget, AFTER_TOOL) end
   }
   local lineW = math.floor(size * 0.56)
@@ -82,23 +83,23 @@ local function appendToolControl(children, widget, x, y, size)
     children[#children+1] = {
       type = "line", x = 0, y = 0, w = 0, h = 0,
       pts = { { lineX, lineY }, { lineX + lineW, lineY } },
-      color = WHITE, thickness = thin
+      color = glyph, thickness = thin
     }
     local knobX = lineX + math.floor(lineW * knobAt[i + 1])
     local half = math.floor(knobH / 2)
     children[#children+1] = {
       type = "line", x = 0, y = 0, w = 0, h = 0,
       pts = { { knobX, lineY - half }, { knobX, lineY + half } },
-      color = WHITE, thickness = knobW
+      color = glyph, thickness = knobW
     }
   end
 end
 
 --- Append the tool control alone, in the place of the close control, for a fullscreen surface
 --- that carries no other control -- the connect splash.
-function M.appendTool(children, widget)
+function M.appendTool(children, widget, fill, glyph)
   local g = geometry(widget)
-  appendToolControl(children, widget, g.cx, g.cy, g.size)
+  appendToolControl(children, widget, g.cx, g.cy, g.size, fill, glyph)
   return children
 end
 

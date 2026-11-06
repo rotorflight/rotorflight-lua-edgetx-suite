@@ -92,11 +92,14 @@ local PAIRS = {
   { "accentInk", "page", 4.5 }, { "accentInk", "card", 4.5 }, { "accentInk", "raised", 4.5 },
   { "accentInk", "selection", 4.5 },
   { "headerText", "header", 4.5 }, { "onAccent", "accent", 4.5 }, { "onError", "error", 4.5 },
-  { "onOk", "ok", 4.5 },
+  { "onOk", "ok", 4.5 }, { "onAccent", "warning", 4.5 },
   { "warning", "page", 4.5 }, { "warning", "card", 4.5 }, { "error", "page", 4.5 }, { "error", "card", 4.5 },
   { "ok", "page", 4.5 }, { "ok", "card", 4.5 },
   { "disabled", "page", 3 }, { "disabled", "card", 3 },
-  { "accent", "page", 3 }, { "accent", "card", 3 }, { "accent", "selection", 3 },
+  { "accent", "page", 3 }, { "accent", "card", 3 }, { "accent", "selection", 3 }, { "accent", "raised", 3 },
+  { "warning", "raised", 3 },
+  -- A progress bar: the fill on its track, and the empty track on the page.
+  { "accent", "rule", 2.4 }, { "rule", "page", 1.4 },
 }
 for _, name in ipairs(names) do
   local scheme = Schemes.SCHEMES[name]
