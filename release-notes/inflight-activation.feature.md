@@ -1,0 +1,1 @@
+- In-flight tuning is switched per radio model and only after set-up: *Set up radio* turns it on, *Restore previous setup* turns it off, and the switch is greyed until the model is set up (`app/pages/settings/dashboard/inflight/page.lua`, `widgets/dashboard/runtime.lua`, `widgets/dashboard/views.lua`).

@@ -779,6 +779,13 @@ local function inflightEnabled(self)
   if not isTruthy(general and general.preview_inflight_tuning) then return false end
   local radio = (type(prefs) == "table") and prefs.inflight or nil
   if type(radio) ~= "table" or radio.enabled ~= true then return false end
+  -- Off for this radio model alone (Settings > Dashboard > In-Flight Tuning). A radio model change
+  -- starts the widget again, so the file is read once. The key is Setup.modelOffKey's.
+  if self._modelFile == nil then
+    local ok, info = pcall(function() return model.getInfo() end)
+    self._modelFile = (ok and type(info) == "table" and info.filename) or false
+  end
+  if self._modelFile and radio["off_" .. self._modelFile] == true then return false end
   return true
 end
 

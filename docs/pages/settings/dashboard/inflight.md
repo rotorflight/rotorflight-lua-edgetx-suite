@@ -7,10 +7,10 @@ sidebar_position: 30
 # In-Flight Tuning
 
 The radio's half of the in-flight tuning overlay: which channels and global variables carry it,
-and which trims move it. These settings belong to the
+and which trims move it. The channels, variables and trims belong to the
 radio and apply to every model on it, so no flight controller has to be connected to change
-them. Suggested FC functions and their step sizes are set up from the tuning screen on the ground.
-A model whose board carries tuning slots is tunable while the radio's master switch is on and
+them; tuning itself is on or off per radio model. Suggested FC functions and their step sizes are set up from the tuning screen on the ground.
+A model whose board carries tuning slots is tunable while the switch below is on for it and
 the tuning fullscreen is open in the foreground. Enter the dashboard's fullscreen quick menu
 on the ground and choose **In-flight tuning**; while the model is armed the entry is not offered. The dashboard zone continues to show its theme.
 
@@ -34,7 +34,7 @@ says what the page is for.
 
 | Setting | What it does |
 | --- | --- |
-| In-flight tuning on this radio | The master switch. With it off nothing drives on any model. Off by default. |
+| In-flight tuning on this radio model | On or off for this radio model. It can only be on once the model is set up: until then it shows off and is greyed, and *Set up radio* turns it on. Switching it off here leaves the mixer alone and the other radio models as they are, and takes the entry out of the quick menu for this model. *Restore previous setup* switches it off too. Off by default. |
 | *(model status)* | What the setup check found when it last walked the model: *Setup OK*, *Setup not checked*, or the faults it names — or *Reading the radio...* while the page opened from the dashboard is still reading (see Notes). A fault refuses output and is shown on the tuning fullscreen ground surface. |
 | Active radio model | The model in the radio that the button writes. It is the model's own name, also while a connected flight controller's craft name stands in for it. |
 | Set up radio | Writes the two mixer lines, the logical switch that times each press, the global variable details and the trim modes this radio model needs, and only the ones that differ from what it already carries. Nothing is written to the flight controller. It first says which channels and variables it uses and how many lines it replaces, and writes nothing until that is confirmed. Where the model already carries all of it, it says so instead of asking. It writes the values as they stand on the page, saved or not. It works in the tool opened from the dashboard and in the tool started from the radio, and refuses while the model is armed. |

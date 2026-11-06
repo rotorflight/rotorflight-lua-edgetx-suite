@@ -1542,6 +1542,14 @@ function M.nameClashesFromNames(names, settings)
   return out
 end
 
+--- The key in the radio's [inflight] section that says tuning is off for one radio model. Keyed by the
+-- model's file, which a connected flight controller's craft name does not change. Written only when
+-- off, so a model that has never been switched off carries nothing, and an update changes nothing.
+function M.modelOffKey(modelFile)
+  if type(modelFile) ~= "string" or modelFile == "" then return nil end
+  return "off_" .. modelFile
+end
+
 -- The plan and the write of the radio set-up live in inflight/setup_plan.lua, loaded by the settings
 -- page while it runs one. The overlay holds this file for as long as it is on and needs neither.
 M.gateDefinition = gateDefinition

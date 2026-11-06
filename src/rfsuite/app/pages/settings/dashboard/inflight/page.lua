@@ -136,6 +136,14 @@ end
 local function ensureLoaded(prefs)
   if ui.loaded then return end
   ui.config = Setup.loadRadioSettings(preferences(prefs))
+  ui.modelOff = false
+  do
+    local info = Setup.radio().modelInfo()
+    local key = Setup.modelOffKey(info and info.filename)
+    local section = preferences(prefs).inflight
+    ui.modelOffKey = key
+    if key ~= nil and type(section) == "table" and section[key] == true then ui.modelOff = true end
+  end
   ui.radio = nil
   ui.checkDone = false
   ui.checkResult = nil
@@ -416,6 +424,20 @@ local function describeCheck(i18n, result)
   return table.concat(parts, " / ")
 end
 
+--- Whether the set-up button can answer this verdict. Two trims claimed twice, a variable pair not
+-- chosen and the like are the fields' to fix; the verdict line says which.
+local function setupCanFix(result)
+  if type(result) ~= "table" then return result == nil end
+  for i = 1, #result do
+    local code = result[i]
+    if string.find(code, "mix", 1, true) or string.find(code, "gvar_", 1, true)
+        or string.find(code, "trim_mode", 1, true) then
+      return true
+    end
+  end
+  return false
+end
+
 --- The conflict warning's text, or nil where there is nothing to warn about.
 local function conflictsText(i18n, conflicts)
   if type(conflicts) ~= "table" or #conflicts == 0 then return nil end
@@ -484,6 +506,8 @@ local function saveToStore(ctx)
   if type(prefs) ~= "table" then return false, "preferences" end
   if type(prefs.inflight) ~= "table" then prefs.inflight = {} end
   Setup.storeRadioSettings(prefs.inflight, ui.config)
+  -- Written only while off, so a model never switched off carries nothing.
+  if ui.modelOffKey ~= nil then prefs.inflight[ui.modelOffKey] = ui.modelOff == true and true or nil end
 
   if type(ctx.savePreferences) ~= "function" then return false, "preferences" end
   return ctx.savePreferences()
@@ -653,6 +677,20 @@ local function mayGoOn(job)
   return modelFile() == job.modelFile
 end
 
+--- A set-up turns tuning on for this radio model and a restore turns it off, saved at once: the pilot
+-- pressed nothing that says Save, and the model has already changed.
+local function storeActivation(on)
+  if on then
+    ui.config.enabled = true
+    ui.modelOff = false
+  else
+    ui.modelOff = true
+  end
+  local ok, err = saveToStore(ui.saveCtx)
+  logJob(ok and "info" or "warn", "setup job: tuning %s for this radio model, saved %s %s",
+    on and "on" or "off", tostring(ok), tostring(err or ""))
+end
+
 local JOB_STAGES = {}
 
 --- Plan first, and read nothing more than the plan needs: the pilot has only pressed the button.
@@ -751,6 +789,7 @@ function JOB_STAGES.write(job)
       if not ensureBackup().remove(job.modelFile) then
         logJob("warn", "setup job: the record could not be removed after the restore")
       end
+      storeActivation(false)
       finishJob(title, t(i18n, "restore_done", "Previous setup restored"))
     end
   elseif job.apply.stopped then
@@ -762,6 +801,7 @@ function JOB_STAGES.write(job)
       -- The set-up stands; the record still says partial, so the restore stays on offer.
       logJob("warn", "setup job: the record could not be marked complete")
     end
+    storeActivation(true)
     finishJob(title, string.format("%s (%d)", t(i18n, "plan_done", "Radio set up"), report.written))
   end
 end
@@ -996,22 +1036,37 @@ local function buildGeneral(children, x, y, w, i18n)
   local cursorY = y
   cursorY = cursorY + appendNote(children, x, cursorY, w,
     t(i18n, "pointer_tuning", "Set up suggested functions from the tuning screen on the ground."))
-  local enabledLabel = t(i18n, "enabled", "In-flight tuning on this radio")
+  -- On only while this radio model is set up: with a fault the overlay refuses to drive anyway, and a
+  -- switch that says on then says something untrue. It shows off without rewriting the preference, so
+  -- a model set up by hand or on another radio is on again as soon as the check passes.
+  local enabledLabel = t(i18n, "enabled", "In-flight tuning on this radio model")
+  local result = checkResult()
+  local ready = result == "ok"
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     enabledLabel,
-    ui.runtime.getBoolGetter("enabled"),
-    ui.runtime.getBoolSetter("enabled"),
-    nil,
+    function() return ready and ui.config.enabled == true and ui.modelOff ~= true end,
+    function(value)
+      if value then
+        ui.config.enabled = true
+        ui.modelOff = false
+      else
+        -- This model alone; the others keep what they have.
+        ui.modelOff = true
+      end
+      ui.runtime.markValueChanged()
+    end,
+    function() return ready end,
     {
-      helpText = t(i18n, "help_enabled", "With it off, in-flight tuning drives nothing on any model. Off by default."),
+      helpText = t(i18n, "help_enabled", "On or off for this radio model, once it is set up. With it off, in-flight tuning drives nothing on it."),
       helpTitle = enabledLabel,
       onHelp = onRowHelp
     })
-  cursorY = cursorY + appendNote(children, x, cursorY, w,
-    t(i18n, "enabled_note",
-      "The master switch for every model."))
+  if result ~= "reading" and not ready and setupCanFix(result) then
+    cursorY = cursorY + appendNote(children, x, cursorY, w,
+      t(i18n, "enabled_needs_setup", "Set up this radio model first."))
+  end
 
-  cursorY = cursorY + appendNote(children, x, cursorY, w, describeCheck(i18n, checkResult()))
+  cursorY = cursorY + appendNote(children, x, cursorY, w, describeCheck(i18n, result))
 
   -- Which model the button writes: the radio's, not the flight controller's.
   cursorY = cursorY + appendNote(children, x, cursorY, w,
@@ -1339,6 +1394,7 @@ function M.build(ctx)
   -- markValue writes the warning from a callback, which is handed no i18n.
   ui.i18n = i18n
   ui.requestRebuild = ctx.requestRebuild
+  ui.saveCtx = ctx
 
   -- While a job runs the page is that job's box and nothing else: no control under it can change
   -- what the pilot has just agreed to.
@@ -1450,6 +1506,7 @@ function M.onClose()
   ui.job = nil
   ui.jobResult = nil
   ui.requestRebuild = nil
+  ui.saveCtx = nil
   ui.recordChecked = false
   ui.recordParse = nil
   ui.recordOffer = false
