@@ -1,6 +1,7 @@
 -- The suite's menu as lists for the rolling menu (menu_roll.lua). app/manifest.lua stays the only
--- source of what is in it; this file reads it for a visit to the quick menu and says, per entry, what
--- the menu needs to know beyond its title:
+-- source of what is in it; menu_list.lua is made from it (bin/dashboard/make_menu_list.lua). This file
+-- reads that list for a visit to the quick menu and says, per entry, what the menu needs to know beyond
+-- its title:
 --
 --   what it is   `level` (a menu of entries), `page`, or `tiles` (a menu that opens in the tool with
 --                its tiles: its entries depend on what only the tool reads, or are made at runtime)
@@ -9,9 +10,8 @@
 --   whether it works now: no flight controller and armed are passing states, so such a row stays and
 --                says why
 --
--- The manifest is read outside the module cache: the tool fills its runtime menus into the table it
--- caches and drops that cache entry when it closes, and neither must reach this one. It is held on
--- the visit's session, so it goes when the quick menu closes or the tool opens.
+-- The list is read outside the module cache and held on the visit's session, so it goes when the quick
+-- menu closes or the tool opens.
 
 local M = {}
 
@@ -34,10 +34,6 @@ local function trace(msg)
     Log.emit(TAG, msg, "trace")
   end
 end
-
--- Menus that open in the tool with their tiles. ESC & Motors: its entries depend on the ESC protocol,
--- which the widget's connect chain does not read.
-local TILES = { esc_motors_menu = true }
 
 -- What the manifest's preference conditions read. Not views.lua's conditions: one of the same name
 -- means something else there, it also asks for the overlay's own switch and for the model disarmed.
@@ -91,7 +87,6 @@ end
 
 -- Whether an entry is on the menu at all, as far as the widget can tell now.
 local function exists(widget, entry)
-  if entry.enabled == false then return false end
   local visibleWhen = entry.visibleWhen
   if visibleWhen ~= nil and not preference(widget, visibleWhen) then return false end
   -- An entry that disappears where its own condition does not hold.
@@ -103,37 +98,28 @@ local function exists(widget, entry)
   return true
 end
 
--- The name a row's icon goes by: the motif of the manifest's own, else the menu it opens.
-local function iconName(entry)
-  local icon = entry.icon
-  if type(icon) == "string" and string.sub(icon, 1, 7) == "@pages/" then
-    return (string.gsub(string.gsub(string.sub(icon, 8), "%.png$", ""), "/", "_"))
-  end
-  return entry.menuId
-end
-
-local function loadManifest()
-  local path = _G.rfsuite.paths.core .. "/app/manifest.lua"
+local function loadList()
+  local path = _G.rfsuite.paths.core .. "/widgets/dashboard/menu_list.lua"
   local chunk = loadScript(path, (_G.rfsuite and _G.rfsuite.loadMode) or "t")
   if chunk == nil then
-    if Log and type(Log.emit) == "function" then Log.emit(TAG, "the manifest did not load", "warn") end
+    if Log and type(Log.emit) == "function" then Log.emit(TAG, "the menu list did not load", "warn") end
     return nil
   end
-  local ok, manifest = pcall(chunk)
-  if not ok or type(manifest) ~= "table" then
-    if Log and type(Log.emit) == "function" then Log.emit(TAG, "the manifest did not run", "warn") end
+  local ok, list = pcall(chunk)
+  if not ok or type(list) ~= "table" then
+    if Log and type(Log.emit) == "function" then Log.emit(TAG, "the menu list did not run", "warn") end
     return nil
   end
-  return manifest
+  return list
 end
 
 --- The tree for this visit, read on the first call.
 function M.of(widget, session)
   local tree = session.tree
   if tree ~= nil then return tree end
-  tree = { manifest = loadManifest(), lists = {} }
+  tree = { list = loadList(), lists = {} }
   session.tree = tree
-  trace("tree loaded " .. tostring(tree.manifest ~= nil))
+  trace("tree loaded " .. tostring(tree.list ~= nil))
   return tree
 end
 
@@ -148,30 +134,23 @@ local function resolveTitle(widget, title)
   return title
 end
 
-local function rowsOf(widget, tree, pages, inherited)
+local function rowsOf(widget, pages, inherited)
   local rows = {}
-  local menus = tree.manifest.menus
   for i = 1, #pages do
     local entry = pages[i]
     if exists(widget, entry) then
-      local menu = menus and menus[entry.menuId] or nil
-      local kind = "page"
-      if TILES[entry.menuId] == true or (menu ~= nil and menu._dynamicThemes == true) then
-        kind = "tiles"
-      elseif menu ~= nil and #(menu.pages or {}) > 0 then
-        kind = "level"
-      end
       local needsFc = inherited == true or entry.enabledWhen == "fblConnected"
         or (entry.minApiVersion ~= nil and reaches(entry.minApiVersion) ~= true)
       rows[#rows + 1] = {
         id = entry.id,
         title = resolveTitle(widget, entry.title or ""),
         menuId = entry.menuId,
-        kind = kind,
+        kind = entry.kind or "page",
         needsFc = needsFc,
         -- What is below inherits only the entry's own condition: a version gate is about this entry.
         below = inherited == true or entry.enabledWhen == "fblConnected",
-        icon = iconName(entry),
+        -- The name a row's picture goes by: the motif of the manifest's own, else the menu it opens.
+        icon = entry.icon or entry.menuId,
         tree = true,
       }
     end
@@ -183,24 +162,17 @@ end
 function M.top(widget, tree)
   local lists = tree.lists
   if lists.top ~= nil then return lists.top end
-  local pages = {}
-  local sections = tree.manifest and tree.manifest.sections or {}
-  for i = 1, #sections do
-    local list = sections[i].pages or {}
-    for k = 1, #list do pages[#pages + 1] = list[k] end
-  end
-  lists.top = rowsOf(widget, tree, pages, false)
+  lists.top = rowsOf(widget, tree.list and tree.list.top or {}, false)
   return lists.top
 end
 
 --- What a row of `kind` level holds; nil for any other row.
 function M.children(widget, tree, row)
-  if row.kind ~= "level" or tree.manifest == nil then return nil end
+  if row.kind ~= "level" or tree.list == nil then return nil end
   local lists = tree.lists
   local rows = lists[row.menuId]
   if rows == nil then
-    local menu = tree.manifest.menus[row.menuId]
-    rows = rowsOf(widget, tree, menu.pages or {}, row.below)
+    rows = rowsOf(widget, tree.list.menus[row.menuId] or {}, row.below)
     lists[row.menuId] = rows
   end
   return rows

@@ -399,8 +399,9 @@ descriptions of the quick menu and the picker are `widgets/dashboard/menu_roll_s
 head lists the fields. Another menu is another description. The place is held as a path of levels,
 two of which are on screen: `base` is the level on the left, and `focus` says which column has the
 wheel. Each view has its own roll on the session (`Views.roll`), so a menu keeps its place under a picker.
-`widgets/dashboard/menu_tree.lua` reads `app/manifest.lua` for MAIN MENU, outside the module cache and for
-the visit to the quick menu: a row of it is a `level`, a `page` or `tiles`, absent where it is not set up,
+`widgets/dashboard/menu_tree.lua` reads `widgets/dashboard/menu_list.lua` for MAIN MENU, outside the module cache and for
+the visit to the quick menu. That list is generated from `app/manifest.lua` and holds only what the roll reads: after a change to the
+manifest, run `lua5.3 bin/dashboard/make_menu_list.lua`, and CI's `--check` says where it was forgotten. A row of it is a `level`, a `page` or `tiles`, absent where it is not set up,
 and with `needsFc` where it needs a connection, its ancestors' condition included. An entry of the quick
 menu says with `existsWhen` what is left of its `visibleWhen` once the passing states are taken out.
 `Views.visit(widget, menuId, place)` opens the tool on a page from a roll and keeps the place on the widget;

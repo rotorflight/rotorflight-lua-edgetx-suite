@@ -5,7 +5,7 @@
 --   lua5.3 bin/dashboard/verify_menu_tree.lua --self-test   proves the checks can go red
 --
 -- What is REAL: widgets/dashboard/menu_roll.lua, menu_roll_sources.lua, menu_tree.lua, fullscreen_menu.lua, views.lua,
--- menu_look.lua and app/manifest.lua, loaded from the tree. What is STUBBED: the firmware and the tool,
+-- menu_look.lua and menu_list.lua, loaded from the tree. What is STUBBED: the firmware and the tool,
 -- which is judged by the page it was asked to open.
 
 local ROOT = "."
@@ -369,7 +369,7 @@ local function run(mutate)
     _G.rfsuite.session.apiVersion = nil
     -- An entry with a version gate and no other condition: unknown is a passing state for it too.
     local tree = Views.session(w).tree
-    local pages = tree.manifest.menus.tools_menu.pages
+    local pages = tree.list.menus.tools_menu
     pages[#pages + 1] = { id = "gated", title = "G", menuId = "gated_page", minApiVersion = { 12, 0, 10 } }
     Tree.refresh(tree)
     row = find(Tree.children(w, tree, { kind = "level", menuId = "tools_menu" }), "gated")
@@ -634,8 +634,8 @@ local function run(mutate)
   -- The tree goes with the visit, and is read outside the module cache.
   do
     local w, r = open()
-    check("the tree is on the session", Views.session(w).tree ~= nil and Views.session(w).tree.manifest ~= nil)
-    check("not in the module cache the tool empties", _G.rfsuite.modules == nil or _G.rfsuite.modules["app/manifest.lua"] == nil)
+    check("the tree is on the session", Views.session(w).tree ~= nil and Views.session(w).tree.list ~= nil)
+    check("not in the module cache the tool empties", _G.rfsuite.modules == nil or _G.rfsuite.modules["widgets/dashboard/menu_list.lua"] == nil)
     Tree.refresh(Views.session(w).tree)
     check("refreshed lists are made afresh", next(Views.session(w).tree.lists) == nil)
     Views.navigate(w, "closeView")
@@ -656,11 +656,11 @@ if selfTest then
     { "a grey row is not grey", function(t)
         return (string.gsub(t, "if row.needsFc == true and not Tree.connected%(%) then return REASON_FC end", "", 1)) end },
     { "an ancestor's condition stays with the ancestor", function(t)
-        return (string.gsub(t, "rows = rowsOf%(widget, tree, menu.pages or {}, row.below%)", "rows = rowsOf(widget, tree, menu.pages or {}, false)", 1)) end },
+        return (string.gsub(t, "tree.list.menus%[row.menuId%] or {}, row.below%)", "tree.list.menus[row.menuId] or {}, false)", 1)) end },
     { "an unknown version counts as enough", function(t)
         return (string.gsub(t, "reaches%(entry.minApiVersion%) ~= true", "reaches(entry.minApiVersion) == false", 1)) end },
-    { "ESC & Motors rolls on", function(t)
-        return (string.gsub(t, "local TILES = { esc_motors_menu = true }", "local TILES = {}", 1)) end },
+    { "a row's kind is lost", function(t)
+        return (string.gsub(t, 'kind = entry.kind or "page"', 'kind = "page"', 1)) end },
     { "a reconnect loses the place", function(t)
         return (string.gsub(t, "local session = { rolls = { %[M.DEFAULT_VIEW%] = roll } }", "local session = {}", 1)) end },
     { "the picker takes the menu's roll", function(t)
