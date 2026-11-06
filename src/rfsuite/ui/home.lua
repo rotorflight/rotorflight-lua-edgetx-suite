@@ -3432,6 +3432,9 @@ function M.init(opts)
       -- A visit (`opts.visit`): the page or menu is the edge of the tool for as long as it stays
       -- open, whichever pages the pilot goes through below it.
       if opts.visit == true then state.visitMenuId = landing end
+      -- The start screen can hold the first build while the page's wakeup already runs: its first read
+      -- has to go under the page's client, the one the close drops.
+      syncActivePageModule()
     elseif opts.visit == true then
       -- The host's menu offered it and the tool does not. Never the tiles in its place: the visit
       -- ends, and the host says so.

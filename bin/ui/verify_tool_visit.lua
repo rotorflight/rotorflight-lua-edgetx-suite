@@ -78,6 +78,18 @@ do
   check(state.isClosing ~= true and Home.landingRefused() == false, "and nothing refused it")
 end
 
+-- The start screen can hold the first build while the page's wakeup already runs, so the page is taken
+-- over with the landing and not with the build: its first read goes under the client the close drops.
+do
+  connected = true
+  local M = hidden("M")
+  local build = M.buildUI
+  M.buildUI = function() end
+  local state = openWith(PAGE, true)
+  M.buildUI = build
+  check(state.activePageMenuId == PAGE, "a landing takes the page over before the first build", state.activePageMenuId)
+end
+
 -- Not connected: the menu refuses it. A visit ends; never the tiles in its place.
 do
   connected = false
