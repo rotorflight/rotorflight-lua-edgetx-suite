@@ -423,7 +423,8 @@ local function traceInstructionUsage(self)
   -- most expensive one this widget has.
   if self._shmOn == nil then
     self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
-    self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
+    self._traceOn = self._shmOn and Log.wanted("trace")
+    _G.rfsuite.logSteps = self._shmOn
   end
 
   self._shmPass = (self._shmPass or 0) + 1
@@ -473,7 +474,8 @@ local function traceInstructionUsage(self)
   self._usageReportAt = now + USAGE_REPORT_INTERVAL
 
   self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
-  self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
+  self._traceOn = self._shmOn and Log.wanted("trace")
+  _G.rfsuite.logSteps = self._shmOn
   -- The module load lines (lib/require.lua). Not on the first report, which falls on the first
   -- pass: that pass loads modules and searches every source once, close to the instruction limit
   -- by itself, and a line per load took it over at debug.
@@ -483,7 +485,9 @@ local function traceInstructionUsage(self)
   -- The state line: this state's budget and memory and the radio's, every interval, at INFO so a
   -- log taken for a report carries it. Built only while somebody is recording -- with the log off
   -- it would push the Session Logs list's entries out one by one for nobody.
-  if Log and type(Log.recording) == "function" and Log.recording() then
+  -- Kept for the phase and link lines, which fall on the armed pass, the closest to its limit.
+  self._recordingOn = Log and type(Log.recording) == "function" and Log.recording() or false
+  if self._recordingOn then
     Log.emitf("rfsuite.widget", "info",
       "state: instruction budget %d%% now, %d%% peak/%ds, %d%% peak since load, %d objects, %s, "
         .. "peak work %s, lua peak %d kB, theme=%s",
@@ -5112,7 +5116,9 @@ function Runtime.new(zone, options)
       end
       widgetLog(self, utils.withResources("FBL reconnect edge: reset dashboard session state"), "info")
     elseif not isFblConnected and wasFblConnected then
-      utils.milestone("rfsuite.widget", "FBL link lost, phase %s", tostring(self.flightMode))
+      if self._recordingOn then
+        utils.milestone("rfsuite.widget", "FBL link lost, phase %s", tostring(self.flightMode))
+      end
       -- The event history's two memos go with the connection: the next one starts its governor
       -- from its own first reading and notes its speed controller's first verdict again.
       noteEvent(self.state, "disconnected", 2)
@@ -5255,7 +5261,7 @@ function Runtime.new(zone, options)
       -- runs this work whatever is queued.
       self._job = nil
     else
-      if nextMode ~= self.flightMode then
+      if nextMode ~= self.flightMode and self._recordingOn then
         utils.milestone("rfsuite.widget", "phase %s -> %s: armed=%s, connected=%s, ready=%s",
           tostring(self.flightMode), tostring(nextMode), tostring(self.state.armed),
           tostring(isFblConnected), tostring(self.connectionReady))
@@ -6004,7 +6010,8 @@ function Runtime.new(zone, options)
     -- on screen had been stopped by the instruction limit, and the stop would never be recorded.
     if self._shmOn == nil then
       self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
-      self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
+      self._traceOn = self._shmOn and Log.wanted("trace")
+      _G.rfsuite.logSteps = self._shmOn
     end
     self._shmPass = (self._shmPass or 0) + 1
     if self._shmPass >= SHM_PASS_WRAP then self._shmPass = 1 end

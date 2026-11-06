@@ -616,7 +616,7 @@ function Events.wakeup(carry)
       if armed ~= state.lastArmed then
         state.lastArmed = armed
         local category = armed and "onarm" or "ondisarm"
-        if Log and type(Log.emit) == "function" then
+        if _G.rfsuite.logSteps and Log and type(Log.emit) == "function" then
           pcall(Log.emit, "rfsuite.events", "armed edge: running " .. category .. " tasks", "debug")
         end
         local runner = ensureEventRunner(category)

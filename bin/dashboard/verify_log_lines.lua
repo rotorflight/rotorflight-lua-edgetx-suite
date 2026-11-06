@@ -49,6 +49,7 @@ end
 local Log
 
 local function setLevel(level)
+  _G.rfsuite.logSteps = level == "debug" or level == "trace"
   local r = _G.rfsuite
   r.preferences = r.preferences or {}
   r.preferences.general = r.preferences.general or {}

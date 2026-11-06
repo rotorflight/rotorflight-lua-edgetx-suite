@@ -90,10 +90,10 @@ local function hostLogTransition(msg)
   hostLog(msg)
 end
 
--- A step of an open or a close. Not on a pass of the running tool; the memory figures are asked
--- for only when the line will be written.
+-- A step of an open or a close. Called behind the dashboard's cached flag, so that with the log off
+-- a press pays one table read and builds no text.
 local function hostStep(msg)
-  if Log and type(Log.wanted) == "function" and Log.wanted("debug") then
+  if Log and type(Log.emit) == "function" then
     pcall(Log.emit, "rfsuite.widget.tool", msg .. ", " .. Log.resources(), "debug")
   end
 end
@@ -267,7 +267,7 @@ local function finish(widget, reason)
   end
 
   local dropped = dropToolModules()
-  hostStep("tool modules dropped: " .. tostring(dropped))
+  if _G.rfsuite.logSteps then hostStep("tool modules dropped: " .. tostring(dropped)) end
 
   widget._job = nil
   widget.built = false
@@ -285,7 +285,7 @@ end
 -- (`init({ hosted = true, landing = ... })` in ui/home.lua); the back key there closes the tool.
 function M.request(widget, landing)
   if widget._toolHost ~= nil then return false end
-  hostStep("tool asked for, landing " .. tostring(landing))
+  if _G.rfsuite.logSteps then hostStep("tool asked for, landing " .. tostring(landing)) end
   if modelArmed() then
     hostLog("tool not opened: the model is armed", "warn")
     return false
@@ -345,7 +345,7 @@ local function loadStep(widget, host)
     finish(widget, "load failed")
     return
   end
-  hostStep("tool loaded")
+  if _G.rfsuite.logSteps then hostStep("tool loaded") end
   host.home = home
   host.phase = "init"
   host.cpuHits = 0
@@ -366,7 +366,7 @@ local function runStep(widget, host, event, touchState)
   -- closing sequence takes it down over the passes that follow, writes included.
   if not host.closing and (event == nil or modelArmed()) then
     host.closing = true
-    hostStep(event == nil and "tool closing: fullscreen was left" or "tool closing: the model armed")
+    if _G.rfsuite.logSteps then hostStep(event == nil and "tool closing: fullscreen was left" or "tool closing: the model armed") end
     leaveSave()
     if type(home.requestClose) == "function" then pcall(home.requestClose) end
   end
