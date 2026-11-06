@@ -309,7 +309,8 @@ end
 local function stopped(widget, host, err, phase)
   if isCpuLimit(err) then
     host.cpuHits = host.cpuHits + 1
-    hostLog("tool " .. phase .. " stopped at the instruction limit (" .. host.cpuHits .. "/" .. CPU_GIVE_UP .. ")", "warn")
+    hostLog("tool " .. phase .. " stopped at the instruction limit (" .. host.cpuHits .. "/" .. CPU_GIVE_UP .. ")",
+      host.cpuHits >= CPU_GIVE_UP and "error" or "warn")
     if host.cpuHits >= CPU_GIVE_UP then
       finish(widget, phase .. " stopped at the instruction limit " .. host.cpuHits .. " times")
     end

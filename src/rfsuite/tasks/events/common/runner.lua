@@ -156,6 +156,7 @@ function M.new(category)
       t.attempts = 0
       t.nextEligibleAt = 0
       t.startTime = nil
+      t.raisedLogged = nil
     end
     tasksDoneLogged = false
     invalidateView()
@@ -281,18 +282,18 @@ function M.new(category)
       -- A task that raises otherwise shows only as a timeout much later. Once per attempt.
       if not woke and task.raisedLogged ~= (task.attempts or 0) and Log and type(Log.emit) == "function" then
         task.raisedLogged = task.attempts or 0
-        pcall(Log.emit, "rfsuite.tasks." .. category, "task " .. tostring(task.name) .. " raised: " .. tostring(wakeErr), "error")
+        pcall(Log.emit, "rfsuite.tasks." .. category, "task " .. tostring(task.name) .. " raised: " .. tostring(wakeErr), "warn")
       end
     end
 
     if module.isComplete and module.isComplete() then
       task.complete = true
       invalidateView()
-      local took = task.startTime and (now - task.startTime) or 0
+      local took = task.startTime and (nowSeconds() - task.startTime) or 0
       task.startTime = nil
       task.nextEligibleAt = 0
       releaseTaskModule(task, false)
-      if Log and type(Log.emitf) == "function" and Log.wanted("debug") then
+      if Log and type(Log.emitf) == "function" and type(Log.wanted) == "function" and Log.wanted("debug") then
         pcall(Log.emitf, "rfsuite.tasks." .. category, "debug", "completed task %s in %.1f s, lua %d kB",
           tostring(task.name), took, math.floor(collectgarbage("count") + 0.5))
       end

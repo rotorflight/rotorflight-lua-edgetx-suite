@@ -724,7 +724,7 @@ local function loadPreferences()
   end
   local loadedOk, prefs = pcall(PreferencesModule.load)
   if not loadedOk or type(prefs) ~= "table" then
-    widgetLog(nil, "preferences did not load, using the defaults: " .. tostring(prefs), "warn")
+    widgetLog(nil, "preferences did not load: " .. tostring(prefs), "warn")
     return nil
   end
   return prefs
@@ -3304,6 +3304,7 @@ local function loadThemeModuleForState(themePath, flightMode)
     end
     loadError = ok and "not a theme module" or theme
   end
+  utils.themeFellBack = true
   if Log and type(Log.emitf) == "function" then
     Log.emitf("rfsuite.widget.theme", "warn", "%s did not load, using the default theme: %s",
       tostring(scriptPath), tostring(loadError))
@@ -3330,6 +3331,10 @@ local function loadThemeModuleForState(themePath, flightMode)
     type(theme.boxes) == "function"
   ) then
     return theme, stateKey, initTable
+  end
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.widget.theme", "error", "the default theme did not load for phase %s: %s",
+      tostring(stateKey), tostring(ok and "not a theme module" or theme))
   end
   return nil, stateKey, initTable
 end
@@ -4819,7 +4824,7 @@ function Runtime.new(zone, options)
     nextConfig.v_max = tonumber(nextConfig.v_max) or 25.2
     nextConfig._customVoltage = hasCustomVoltage
 
-    local previousTheme = self.themePath
+    local previousTheme = self._themeFolderPath
     self.themePath = selectedTheme
     -- Before the new theme loads, so the one being left is not held beside it for longer than
     -- this widget still has it on screen. Only on a change of folder: a phase change within one
@@ -4845,13 +4850,15 @@ function Runtime.new(zone, options)
     -- the pass below can compare MODULES rather than phase names: a phase change that resolves
     -- to the module already on screen is not a reason to tear the scene down.
     local declares
+    utils.themeFellBack = nil
     self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
     self.themeStateKeys = themeStateKeys(declares)
     if self.theme == nil then
       widgetLog(self, "theme " .. tostring(selectedTheme) .. " left nothing to draw", "warn")
     elseif switching then
       utils.milestone("rfsuite.widget.theme", "theme %s loaded for phase %s (%s, from %s)",
-        tostring(selectedTheme), tostring(self.themeStateKey), tostring(utils.themeReason), tostring(previousTheme))
+        utils.themeFellBack and ("system/default in place of " .. tostring(selectedTheme)) or tostring(selectedTheme),
+        tostring(self.themeStateKey), tostring(utils.themeReason), tostring(previousTheme))
     elseif self._shmOn then
       Log.emitf("rfsuite.widget.theme", "debug", "theme %s, phase module %s, lua %d kB",
         tostring(selectedTheme), tostring(self.themeStateKey), utils.luaKb(self))
@@ -5523,7 +5530,7 @@ function Runtime.new(zone, options)
         end
       end
       local stepOk, stepDone = pcall(job.step, self)
-      if stepOk and stepDone and job.luaAtStart then
+      if stepOk and stepDone and job.luaAtStart and counted and self.built then
         Log.emitf("rfsuite.widget.job", "debug", "%s built: %d pass(es), %d objects, lua %d -> %d kB",
           tostring(jobKind), job.passes, self._lastChildCount or 0, job.luaAtStart, utils.luaKb(self))
       end
@@ -5584,6 +5591,7 @@ function Runtime.new(zone, options)
         cancelStandbyElrs(self, "fc_startup")
       end
     end
+    self._passWork = "state"
     local ready = performBackgroundWork(self, false)
     local tuningMode = inflightMode(self, event ~= nil)
 
@@ -5990,6 +5998,7 @@ function Runtime.new(zone, options)
     -- on screen had been stopped by the instruction limit, and the stop would never be recorded.
     if self._shmOn == nil then
       self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
+      self._traceOn = Log and type(Log.wanted) == "function" and Log.wanted("trace") or false
     end
     self._shmPass = (self._shmPass or 0) + 1
     if self._shmPass >= SHM_PASS_WRAP then self._shmPass = 1 end

@@ -365,8 +365,8 @@ do
     local raised = find("rfsuite.tasks.logrun", "task failing raised")
     check(#raised == 1, "runner " .. level .. (nilAttempts and " (attempts nil)" or "") ..
       ": a task that raises is logged once for the first attempt", #raised)
-    check(raised[1] ~= nil and raised[1].level == "error" and contains(raised[1].msg, "task failure"),
-      "runner " .. level .. ": the raise is an error line carrying the message", raised[1] and raised[1].msg)
+    check(raised[1] ~= nil and raised[1].level == "warn" and contains(raised[1].msg, "task failure"),
+      "runner " .. level .. ": the raise is a warn line carrying the message", raised[1] and raised[1].msg)
 
     if not nilAttempts then
       now = 2600          -- past the task timeout: the attempt ends, the module is released

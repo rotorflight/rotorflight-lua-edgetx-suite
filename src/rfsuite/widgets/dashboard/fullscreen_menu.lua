@@ -561,7 +561,11 @@ function BUILD.battery_profile(widget, t)
                        }
                      end
                      if Log and type(Log.emit) == "function" then
-                       Log.emit("rfsuite.widget.menu", "battery profile " .. tostring(i) .. " write queued", "info")
+                       if api and type(api.buildWritePayload) == "function" then
+                         Log.emit("rfsuite.widget.menu", "battery profile " .. tostring(i) .. " write queued", "info")
+                       else
+                         Log.emit("rfsuite.widget.menu", "battery profile " .. tostring(i) .. " not queued: its API did not load", "warn")
+                       end
                      end
                      queueChain(mState.queue, chain, report)
                   end

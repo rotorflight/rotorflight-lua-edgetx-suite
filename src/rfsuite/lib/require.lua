@@ -87,9 +87,15 @@ local function requireModule(path, forceReload)
       -- load failed, and the logger may be the very module that could not load.
       print("[require] Failed to load " .. tostring(fullPath) .. ": " .. err)
       local Log = _G.rfsuite and _G.rfsuite.Log
-      if type(Log) == "table" and type(Log.emit) == "function" then
-        -- The console opted out: the line above already went there.
-        pcall(Log.emit, "rfsuite.require", "failed to load " .. tostring(fullPath) .. ": " .. err, "error", false)
+      local said = _G.rfsuite
+      if type(Log) == "table" and type(Log.emit) == "function" and said then
+        -- Once per file, as a caller may ask again every pass and the ring holds sixty lines. The
+        -- console opted out: the line above already went there.
+        said.requireFailures = said.requireFailures or {}
+        if not said.requireFailures[fullPath] then
+          said.requireFailures[fullPath] = true
+          pcall(Log.emit, "rfsuite.require", "failed to load " .. tostring(fullPath) .. ": " .. err, "error", false)
+        end
       end
     end
     return nil, err

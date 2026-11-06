@@ -548,6 +548,7 @@ function M.resolve(widget)
   local changed = false
   for i = #session, 1, -1 do
     if session[i].auto and not held[session[i].id] then
+      viewStep("%s closed: its condition fell", tostring(session[i].id))
       table.remove(session, i)
       changed = true
     end
@@ -685,8 +686,8 @@ end
 -- registry would otherwise be a job no step can build, re-queued on every pass.
 function M.navigate(widget, after)
   local verb, id = M.parseAction(after)
-  if verb == "none" then return end
   viewStep("press: %s %s", tostring(verb), tostring(id))
+  if verb == "none" then return end
   if verb == "openView" then
     local entry = M.find(widget, id)
     if entry == nil or entry.failed then
