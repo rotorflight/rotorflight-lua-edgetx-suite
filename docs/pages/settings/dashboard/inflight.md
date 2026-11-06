@@ -40,6 +40,8 @@ says what the page is for.
 | Set up radio | Writes the two mixer lines, the logical switch that times each press, the global variable details and the trim modes this radio model needs, and only the ones that differ from what it already carries. Nothing is written to the flight controller. It first says which channels and variables it uses and how many lines it replaces, and writes nothing until that is confirmed. Where the model already carries all of it, it says so instead of asking. It writes the values as they stand on the page, saved or not. It works in the tool opened from the dashboard and in the tool started from the radio, and refuses while the model is armed. |
 | Restore previous setup | Puts back what the last set-up replaced: the mixer lines of its channels, the variables, the logical switch and the trim modes. Shown only while the model still carries what that set-up wrote, or after a set-up that was cut off, and kept for the radio model across leaving the page, a flight and a restart. |
 
+![The question before anything is written, with the channels, the variables and the lines it replaces](../../../images/inflight/settings-radio-question.png)
+
 *Set up radio* is a comparator, not a rewrite. A channel that already carries nothing but
 the line the overlay needs is left alone; a variable whose name, range, precision and unit are
 already right is not written; a flight mode whose claimed trims are already off is not touched.
