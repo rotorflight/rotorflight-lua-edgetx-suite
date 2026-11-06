@@ -506,8 +506,10 @@ function M.renderKey(widget)
   if roll == nil then return "" end
   local opening = roll.opening
   if opening ~= nil then
-    -- The pass that built the box lets it be drawn; the next one starts what holds the screen.
-    if opening.drawn then
+    -- One pass for the words to be drawn; the next one starts what holds the screen.
+    if not opening.waited then
+      opening.waited = true
+    else
       roll.opening, roll.slots = nil, nil
       trace("opening now")
       opening.run()
@@ -613,12 +615,12 @@ local function rowText(roll, side, offset)
   return function() return slotOf(roll, side, offset, key).text end
 end
 
---- Show the suite's loading box for the current row, and run `open` once it is drawn: loading the tool
---- holds the screen for a while, and the pilot has to see that the press was taken before it starts.
-function M.openNext(widget, roll, text, open)
+--- Say `text` under the current row, and run `open` a pass later: loading the tool holds the screen for a
+--- while, and the pilot has to see that the press was taken before it starts.
+function M.openNext(roll, text, open)
   local slot = slotOf(roll, sideOf(roll), 0, slotKey(sideOf(roll), 0))
-  roll.opening = { run = open, title = slot.text, message = text, drawn = false }
-  rebuild(widget, roll)
+  if slot ~= EMPTY then slot.sub = text end
+  roll.opening = { run = open, waited = false }
 end
 
 -- What a current row says under its name.
@@ -768,26 +770,6 @@ function M.build(children, widget, source, colors)
   refreshLists(roll, source)
 
   local W, H = widget.zone.w, widget.zone.h
-
-  -- The suite's loading box between a press and the page; the tool's own takes over from it. The bar
-  -- follows the tool's phases for as long as this scene stands.
-  local opening = roll.opening
-  if opening ~= nil then
-    local Overlay = requireModule("ui/loading_overlay.lua")
-    children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = H, color = colors.bg, filled = true }
-    if type(Overlay) == "table" and type(Overlay.append) == "function" then
-      Overlay.append(children, {
-        x = 0, y = 0, w = W, h = H, title = opening.title, message = opening.message,
-        progress = function()
-          local host = widget._toolHost
-          local phase = host ~= nil and host.phase or nil
-          return (phase == "run" and 0.8) or (phase == "init" and 0.55) or (phase == "load" and 0.3) or 0.1
-        end,
-      })
-    end
-    opening.drawn = true
-    return
-  end
 
   -- The details behind the header's status, over a plain page: nothing under them takes the wheel.
   if roll.notice ~= nil then
@@ -942,7 +924,8 @@ function M.build(children, widget, source, colors)
     if isMid then
       children[#children + 1] = {
         type = "label", x = colX + 4, y = y + fontH + (large and 4 or 1), w = colW - 8, font = farFont, align = CENTER,
-        color = colors.muted, text = subText(roll, side),
+        -- In the accent while it says that a page is opening.
+        color = function() return roll.opening ~= nil and colors.accent or colors.muted end, text = subText(roll, side),
       }
     end
     if source.icon ~= nil and math.abs(offset) <= 1 then iconSlot(side, colX, offset) end

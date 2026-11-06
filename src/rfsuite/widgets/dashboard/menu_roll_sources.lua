@@ -207,7 +207,7 @@ function M.quick(widget, entries, t)
       end
       if entry.tree == true then
         trace("visit " .. tostring(entry.menuId))
-        Roll.openNext(widget, roll, t("widgets.dashboard.roll_opening", "Opening..."), function()
+        Roll.openNext(roll, t("widgets.dashboard.roll_opening", "Opening..."), function()
           Views.visit(widget, entry.menuId, Roll.place(roll))
         end)
         return nil
@@ -216,7 +216,7 @@ function M.quick(widget, entries, t)
         trace("run " .. tostring(entry.id))
         local page = type(entry.after) == "string" and string.match(entry.after, "^openTool:(.+)$") or nil
         if page ~= nil then
-          Roll.openNext(widget, roll, t("widgets.dashboard.roll_opening", "Opening..."), function()
+          Roll.openNext(roll, t("widgets.dashboard.roll_opening", "Opening..."), function()
             Views.visit(widget, page, Roll.place(roll))
           end)
           return nil

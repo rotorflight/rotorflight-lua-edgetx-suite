@@ -137,14 +137,7 @@ local function run(mutate)
   -- A press that opens a page starts it two passes later, once the words are drawn; every case below but one
   -- is about what comes after that.
   local pressAtOnce = Roll.press
-  local function passes(w)
-    Roll.renderKey(w)
-    if Views.topRoll(w) ~= nil and Views.topRoll(w).opening ~= nil then
-      local children = {}
-      Menu.build(children, w)
-      Roll.renderKey(w)
-    end
-  end
+  local function passes(w) Roll.renderKey(w); Roll.renderKey(w) end
   Roll.press = function(w)
     pressAtOnce(w)
     if w._toolOpeningCheck ~= true then passes(w) end
@@ -192,17 +185,14 @@ local function run(mutate)
       local place = Roll.place(r)
       w._toolOpeningCheck = true
       Roll.press(w)
-      check("a press says so before anything starts", #opened == 0 and r.opening ~= nil)
+      local slot = r.slots and r.slots[Roll.place(r).focus == 2 and 10 or 0]
+      check("a press says so under its row before anything starts", #opened == 0 and r.opening ~= nil and slot ~= nil and slot.sub == "Opening...")
       Roll.press(w)
       check("and a second press in that moment does nothing more", r.opening ~= nil and #opened == 0)
       Roll.renderKey(w)
-      check("nothing starts before the box is built", #opened == 0 and r.opening ~= nil)
-      local drawn = build(w)
-      local says = false
-      for i = 1, #drawn do says = says or drawn[i].text == "Opening..." end
-      check("the build is the suite's loading box and names it", says and #drawn < 20)
-      Roll.renderKey(w)
+      check("the first pass only lets it be drawn", #opened == 0 and r.opening ~= nil)
       w._toolOpeningCheck = nil
+      Roll.renderKey(w)
       check("the next one opens it, once, from the place", #opened == 1 and r.opening == nil and w._rollPlace ~= nil
         and w._rollPlace.base == place.base)
     end
@@ -697,10 +687,10 @@ if selfTest then
         return (string.gsub(t, "tree.list.menus%[row.menuId%] or {}, row.below%)", "tree.list.menus[row.menuId] or {}, false)", 1)) end },
     { "an unknown version counts as enough", function(t)
         return (string.gsub(t, "reaches%(entry.minApiVersion%) ~= true", "reaches(entry.minApiVersion) == false", 1)) end },
-    { "a press that opens a page shows no box", function(t)
-        return (string.gsub(t, "local opening = roll.opening\n  if opening ~= nil then\n    local Overlay", "local opening = nil\n  if opening ~= nil then\n    local Overlay", 1)) end },
-    { "a page opens before the box is drawn", function(t)
-        return (string.gsub(t, "if opening.drawn then", "if true then", 1)) end },
+    { "a press that opens a page says nothing", function(t)
+        return (string.gsub(t, "if slot ~= EMPTY then slot.sub = text end", "", 1)) end },
+    { "a page opens before the words are drawn", function(t)
+        return (string.gsub(t, "if not opening.waited then", "if false then", 1)) end },
     { "a row's kind is lost", function(t)
         return (string.gsub(t, 'kind = entry.kind or "page"', 'kind = "page"', 1)) end },
     { "a reconnect loses the place", function(t)

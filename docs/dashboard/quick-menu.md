@@ -143,8 +143,8 @@ opens it inside the widget, as [the tool from full screen](#the-tool-from-full-s
 from the page comes back to the same place in the roll. The tool's tile home stays what it was: it is
 what the card style's MAIN MENU opens, and what a key set to *Suite: Main menu* opens in either style.
 
-A press that opens a page shows the suite's loading box with the page's name at once, because loading the suite holds
-the screen for a moment; the page follows.
+A press that opens a page says *Opening...* under its row at once, in the accent colour, because loading the suite
+holds the screen for a moment; the page follows.
 
 Three places open in the tool with their tiles instead of rolling on, and RTN walks the tool's levels
 before it comes back to the roll: **ESC & Motors**, whose entries depend on the ESC protocol, **Helicopter
