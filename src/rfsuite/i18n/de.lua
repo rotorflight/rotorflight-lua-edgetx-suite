@@ -3902,7 +3902,7 @@ return {
         help_message = "Senderbelegung für alle Modelle; Sender einrichten zeigt vor dem Schreiben, was es ändert. Sichtbar, sobald Einstellungen > Allgemein > Vorschau an ist.",
         setup_model = "Sender einrichten",
         plan_title = "Sender einrichten",
-        plan_from_page = "Geschrieben werden die Werte, wie sie auf dieser Seite stehen, gespeichert oder nicht.",
+        plan_from_page = "Schreibt die Werte dieser Seite, gespeichert oder nicht.",
         plan_no_gvar = "Zuerst beide Variablen wählen.",
         plan_same_gvar = "Die beiden Variablen müssen verschieden sein.",
         plan_same_channel = "Die beiden Kanäle müssen verschieden sein.",
