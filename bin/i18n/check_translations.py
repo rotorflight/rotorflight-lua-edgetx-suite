@@ -84,7 +84,7 @@ ALLOWLIST_PATH = os.path.join("bin", "i18n", "allowed_untranslated.txt")
 #: replaced by another. It is the honest thing to hold all the same, because the
 #: alternative -- a recorded set of every literal in the tree -- is a file nobody would
 #: keep true.
-BASELINE_UNTRANSLATED = 265
+BASELINE_UNTRANSLATED = 263
 BASELINE_ASSEMBLED = 1
 
 #: Measured on 0.1.7 when the class was added: 16 page titles that pass a variable

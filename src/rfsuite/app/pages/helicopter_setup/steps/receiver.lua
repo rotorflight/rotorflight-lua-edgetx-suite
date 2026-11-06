@@ -259,7 +259,7 @@ return function(w)
     return 0,0
   end
   cards[3].summary=function() return r.wrong or prompt() end
-  cards[3].summaryColor, cards[3].summaryBold = "accent", true
+  cards[3].summaryColor, cards[3].summaryBold = "accentInk", true
   -- One live bar per control, as the radio sends it: its channel, both directions, the reading in
   -- percent of the FC's stick range, accented once both end stops are reached.
   local bars = {}

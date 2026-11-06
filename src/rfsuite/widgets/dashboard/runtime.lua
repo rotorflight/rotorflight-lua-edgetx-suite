@@ -5242,7 +5242,7 @@ function Runtime.new(zone, options)
     sampleInflight(self)
 
     -- The overlay owns these keys even while a build is pending. PAGE never reaches theme
-    -- bindings underneath it, and a handled RTN is not forwarded to the focused LVGL control.
+    -- bindings underneath it.
     if event ~= nil and inflightMode(self, true) ~= nil then
       local Input = inflightInput()
       if Input and Input.key(self, event) then
@@ -5273,8 +5273,7 @@ function Runtime.new(zone, options)
       local handled, exited
       if event ~= 0 and Views then handled, exited = Views.key(self, event, touchState) end
       if handled then
-        -- Zero is an idle fullscreen event. Nil would instead leave fullscreen;
-        -- forwarding the handled key would also activate LVGL's focused control.
+        -- Zero is an idle fullscreen event. Nil would instead leave fullscreen.
         event = 0
         if exited or self._toolHost ~= nil then
           self._passEndAt = nowSeconds()
@@ -5283,16 +5282,9 @@ function Runtime.new(zone, options)
       end
     end
 
-    -- Route touch/key events to LVGL engine when active (e.g. fullscreen)
-    if lvgl and type(lvgl.onEvent) == "function" and event ~= nil then
-       -- On some EdgeTX versions, touchState coordinates are global.
-       -- We need to ensure LVGL knows the widget's offset if it doesn't handle it.
-       -- However, in Fullscreen, offset is usually 0,0.
-       lvgl.onEvent(event, touchState)
-    end
-    -- The quick-menu press can open tuning inside onEvent on this very pass.
-    -- Bound keys use the same flag. Leave that event's work on this pass and start loading
-    -- on the next refresh, with neither a drive nor a build alongside the first module.
+    -- A bound key can open tuning on this very pass; the quick-menu press raises the same flag
+    -- between passes, from the firmware's event dispatch. Leave that event's work on this pass and
+    -- start loading on the next refresh, with neither a drive nor a build alongside the first module.
     if self.inflightFullscreen == true and InflightLoadIndex <= #InflightLoads then
       self._passEndAt = nowSeconds()
       return

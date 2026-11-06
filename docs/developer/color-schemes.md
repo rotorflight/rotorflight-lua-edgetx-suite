@@ -12,6 +12,12 @@ role follows.
 **The widget's menu pages read it, through `widgets/dashboard/menu_look.lua`, and so do its loading and standby screens and the tool's start screen, directly, which also take their logo from `logo()`.** The tool's `ui/palette.lua` and the widget's own colours stay as they are
 until they are moved onto it, each in a pull request of its own.
 
+**The helicopter setup wizard reads it directly:** `helicopter_setup/page.lua` loads the file when
+the page opens, takes `general.color_scheme` through `name()` and hands the colours to its views as
+`w.palette`, and the scheme's name as `w.scheme`, which also picks the picture set
+(`docs/developer/helicopter-wizard-artwork.md`). It lets go of both when the page closes, so a changed setting
+shows the next time the page opens.
+
 ## Using it
 
 The tool and the dashboard widget are separate Lua states, and each loads its own copy:

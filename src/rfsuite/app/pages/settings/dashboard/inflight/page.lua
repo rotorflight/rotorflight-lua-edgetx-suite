@@ -25,13 +25,16 @@ end
 local Common = nil
 local Controls = nil
 local Setup = nil
-local ConfirmDialog = nil
+local Plan = nil
+local Backup = nil
+local LoadingOverlay = nil
+local Armed = nil
 local Env = nil
 
 local M = {}
 
 -- The switch picker's filters, as the firmware numbers them. Named here rather than reached for
--- as globals, following app/pages/setup_wizard/proc_radio.lua: SW_SWITCH is the physical switch
+-- as globals: SW_SWITCH is the physical switch
 -- block, SW_NONE the empty entry that lets a pilot clear the choice. Trims are a filter of their
 -- own and are deliberately not offered -- a trim drives a row rather than releasing the surface.
 local SW_SWITCH = 1
@@ -40,9 +43,14 @@ local SW_SWITCH = 1
 local SW_TRIM = 1 << 1
 local SW_NONE = 1 << 20
 
--- How many of the lines the write would remove are named one by one in the question. Past this the
--- rest are counted instead: a confirmation nobody reads to the end is not a confirmation.
-local PLAN_LINES_SHOWN = 6
+-- What a set-up or a restore takes per pass. The walk over a model and the writes do not fit beside a
+-- widget pass in one call, so both are slices, the same size in the standalone tool: one path to test.
+-- PLAN_SLICE is in reads off the model, as Setup.GVAR_WALK_SLICE is; WRITE_SLICE in writes, each read
+-- back; PARSE_SLICE and ENCODE_SLICE in lines of the record on the card.
+local PLAN_SLICE = 32
+local WRITE_SLICE = 4
+local PARSE_SLICE = 8
+local ENCODE_SLICE = 3
 
 local ui = {
   loaded = false,
@@ -58,6 +66,13 @@ local ui = {
 
 ui.runtime = nil
 local t = nil
+local HELP_BTN_W, HELP_BTN_H, HELP_BTN_GAP = 30, 30, 6
+
+--- A row's `?` opens the page's help sheet with the row's label as its title.
+local function onRowHelp(helpText, helpTitle)
+  local openHelp = ui.runtime and ui.runtime.openHelp
+  if type(openHelp) == "function" then openHelp(helpText, helpTitle) end
+end
 
 local function ensureDeps()
   if not Common then
@@ -138,8 +153,13 @@ local function ensureLoaded(prefs)
   ui.gvarEditOpen = false
   ui.gvarNote = nil
   ui.gvarModelChanged = false
-  ui.planNotice = nil
   ui.notesWanted = false
+  ui.job = nil
+  ui.jobResult = nil
+  ui.recordChecked = false
+  ui.recordParse = nil
+  ui.recordOffer = false
+  ui.modelName = nil
   ui.loaded = true
 end
 
@@ -284,17 +304,21 @@ end
 -- It offers both positions of every trim and the store keeps the INCREMENT: the drive derives the
 -- decrement from the same block entry, and a setting that could hold either would be two
 -- spellings of one choice. A picked decrement is normalised to its own increment on the way in.
-local function appendTrimPicker(children, x, y, w, label, get, set)
+--
+-- Controls has no wrapper for this picker, so the row places its `?` where the wrapped rows have
+-- theirs, and the picker moves left to make room.
+local function appendTrimPicker(children, x, y, w, label, helpText, get, set)
   local pickerW = 172
   if pickerW > w then pickerW = w end
   local rowH = Controls.ROW_H
+  local pickerX = x + w - pickerW - 10 - HELP_BTN_W - HELP_BTN_GAP
   children[#children + 1] = {
-    type = "label", x = x, y = Controls.labelY(y, rowH), w = w - pickerW - 18,
+    type = "label", x = x, y = Controls.labelY(y, rowH), w = pickerX - x - 8,
     text = label, color = Palette.text, font = SMLSIZE
   }
   children[#children + 1] = {
     type = "switch",
-    x = x + w - pickerW - 10, y = Controls.controlY(y, rowH), w = pickerW, h = rowH - 6,
+    x = pickerX, y = Controls.controlY(y, rowH), w = pickerW, h = rowH - 6,
     filter = SW_TRIM | SW_NONE,
     get = get,
     set = function(value)
@@ -305,9 +329,16 @@ local function appendTrimPicker(children, x, y, w, label, get, set)
       if get() == wanted then return end
       set(wanted)
       ui.checkDone = false
-      ui.planNotice = nil
       ui.runtime.markValueChanged()
     end
+  }
+  -- After the picker, as the wrapped rows have it: the encoder walks the children in this order.
+  children[#children + 1] = {
+    type = "button",
+    x = x + w - 10 - HELP_BTN_W, y = y + math.floor((rowH - HELP_BTN_H) / 2),
+    w = HELP_BTN_W, h = HELP_BTN_H,
+    text = "?",
+    press = function() onRowHelp(helpText, label) end
   }
   return rowH
 end
@@ -439,7 +470,6 @@ local function markValue(key, value)
       ui.gvarNamesDone = false
     end
   end
-  ui.planNotice = nil
   ui.runtime.markValueChanged()
 end
 
@@ -497,71 +527,43 @@ end
 -- Setting the model up
 -- ---------------------------------------------------------------------------
 
---- The question the pilot answers, built from the plan and not from what the page intended.
---
--- The destructive half comes first and with the count in the sentence, because that is the part
--- that cannot be undone from this page. The lines are then named the way the radio's own mixer
--- page names them, so that they can be recognised before they are gone.
+--- What the set-up will do, in the three lines a box can hold on the smallest screen: which channels
+-- and variables, and how many lines it replaces. The lines themselves are kept for the restore.
 local function planQuestion(i18n, plan)
-  local lines = {}
+  local first = string.format("%s CH%d, CH%d / %s GV%d, GV%d",
+    t(i18n, "plan_channels", "Channels"), ui.config.bank_ch, ui.config.value_ch,
+    t(i18n, "plan_variables", "Variables"), ui.config.bank_gvar, ui.config.value_gvar)
+  if #plan.trims > 0 then first = first .. " / " .. t(i18n, "plan_trims_off", "trims off") end
+  local lines = { first }
 
-  -- The plan is built from the fields as they stand, which is not the same as the file on the card:
-  -- a channel or a variable edited and not yet saved is what gets written. Saying so is cheaper than
-  -- refusing, and it is the truthful half -- a pilot who wants the saved values presses save first.
-  lines[#lines + 1] = t(i18n, "plan_from_page",
-    "It writes the values as they are set on this page, saved or not.")
-  lines[#lines + 1] = ""
-
-  local removals = 0
+  local parts = {}
   for i = 1, #plan.channels do
     local entry = plan.channels[i]
-    removals = removals + entry.removed
     if entry.removed > 0 then
-      lines[#lines + 1] = string.format("%s CH%d: %d",
-        t(i18n, "plan_remove", "Remove from"), entry.channel, entry.removed)
+      parts[#parts + 1] = string.format("CH%d %d %s", entry.channel, entry.removed,
+        t(i18n, "plan_lines", "lines"))
     end
   end
-  if removals == 0 then
-    lines[#lines + 1] = t(i18n, "plan_remove_none", "Nothing has to be removed.")
+  if #parts > 0 then
+    lines[#lines + 1] = t(i18n, "plan_replaces", "Replaces") .. " " .. table.concat(parts, ", ")
   end
 
-  local shown = 0
-  for i = 1, #plan.deletions do
-    if shown >= PLAN_LINES_SHOWN then
-      lines[#lines + 1] = string.format("  ... %d", #plan.deletions - shown)
-      break
-    end
-    shown = shown + 1
-    lines[#lines + 1] = "  - " .. tostring(plan.deletions[i].text)
-  end
+  -- The plan is built from the fields as they stand, which is not the same as the file on the card:
+  -- a channel or a variable edited and not yet saved is what gets written.
+  lines[#lines + 1] = t(i18n, "plan_from_page", "It writes the values as they are set on this page, saved or not.")
+  return table.concat(lines, "\n")
+end
 
-  lines[#lines + 1] = ""
-  for i = 1, #plan.insertions do
-    local entry = plan.insertions[i]
-    lines[#lines + 1] = string.format("%s CH%d: %s",
-      t(i18n, "plan_add", "Add to"), entry.channel, tostring(entry.text))
+--- The same for a restore: what comes back.
+local function restoreQuestion(i18n, plan)
+  local parts = {}
+  for i = 1, #plan.channels do
+    local entry = plan.channels[i]
+    parts[#parts + 1] = string.format("CH%d %d %s", entry.channel, entry.removed,
+      t(i18n, "plan_lines", "lines"))
   end
-
-  -- The logical switch that times each pulse, named the way the radio's own list names it, and
-  -- only where an empty slot is about to be written: a slot that already holds it is left alone.
-  if plan.ls ~= nil then
-    lines[#lines + 1] = string.format("%s L%02d: |GV%d| > 0",
-      t(i18n, "plan_ls", "Pulse timer"), plan.ls.slot + 1, plan.ls.gvar or 0)
-  end
-
-  for i = 1, #plan.gvars do
-    local entry = plan.gvars[i]
-    lines[#lines + 1] = string.format("%s GV%d %s -100..100",
-      t(i18n, "plan_gvar", "Set"), entry.index, entry.name)
-  end
-
-  if #plan.trims > 0 then
-    local modes = {}
-    for i = 1, #plan.trims do modes[#modes + 1] = tostring(plan.trims[i].fm) end
-    lines[#lines + 1] = string.format("%s %s",
-      t(i18n, "plan_trims", "Trims off in flight mode"), table.concat(modes, ", "))
-  end
-
+  local lines = { t(i18n, "restore_ask", "Puts back what the last set-up replaced on this radio model.") }
+  if #parts > 0 then lines[#lines + 1] = table.concat(parts, ", ") end
   return table.concat(lines, "\n")
 end
 
@@ -579,83 +581,350 @@ local function refusalText(i18n, reason)
   return t(i18n, "plan_unsupported", "This radio does not offer the mixer writer.")
 end
 
---- Plan, ask, write, check again -- and write nothing at all if the answer is no.
---
--- The plan is built here rather than carried over from the last build, so that the lines it offers
--- to delete are the ones on the model at the moment the question is asked. The write and the
--- re-check both happen inside the confirmation's own callback, which is where the pilot's answer
--- is; nothing outside this function reaches applyPlan.
-local function offerSetup(i18n)
+local function requestRebuild()
+  if type(ui.requestRebuild) == "function" then ui.requestRebuild() end
+end
+
+--- A step of a job, in the log. Built only when the level passes: a slice runs every pass.
+local function logJob(level, fmt, ...)
+  local log = (_G.rfsuite.require or loadModule)("lib/log.lua")
+  if type(log) == "table" and type(log.wanted) == "function" and log.wanted(level) then
+    log.emit("rfsuite.inflight", string.format(fmt, ...), level)
+  end
+end
+
+local function ensureArmed()
+  if Armed == nil then Armed = (_G.rfsuite.require or loadModule)("lib/armed.lua") end
+  return Armed
+end
+
+local function ensurePlan()
+  if Plan == nil then
+    Plan = loadModule("widgets/dashboard/inflight/setup_plan.lua")
+    Plan.bind(Setup, (_G.rfsuite.require or loadModule)("lib/log.lua"))
+  end
+  return Plan
+end
+
+local function ensureBackup()
+  if Backup == nil then
+    Backup = loadModule("widgets/dashboard/inflight/setup_backup.lua")
+    Backup.bind(ensurePlan())
+  end
+  return Backup
+end
+
+local function modelFile()
+  local info = radio().modelInfo()
+  return info and info.filename or nil
+end
+
+--- A refusal asks only whether armed is REPORTED. The page works with no flight controller connected:
+-- that is how a pilot sets a model up at home, so "cannot tell" does not refuse here.
+local function isArmed()
+  local armed = ensureArmed()
+  return armed ~= nil and armed.isArmed() == true
+end
+
+local function finishJob(title, message)
+  logJob("info", "setup job ended: %s", tostring(message))
+  ui.job = nil
+  ui.jobResult = { title = title, message = message }
+  requestRebuild()
+end
+
+--- The model has been written, so what was read about it for this visit no longer stands: the verdict
+-- on the screen, the variable walk and the names (gvarConflicts), and whether a restore is on offer.
+-- A walk still running has read part of the model as it was, so it starts again from the first channel.
+local function modelWritten()
+  ui.checkDone = false
+  ui.gvarModelChanged = true
+  if hostedVisit() and not ui.gvarWalkDone then ui.gvarWalk = nil end
+  ui.recordChecked = false
+  ui.recordParse = nil
+  ui.recordOffer = false
+end
+
+--- Whether a write may go on. `home.lua` wakes no page while the model is armed, so a whole arm and
+-- disarm can pass between two slices with nothing to see but the count.
+local function mayGoOn(job)
+  local armed = ensureArmed()
+  if armed ~= nil and (armed.isArmed() == true or armed.changeCount() ~= job.armCount) then return false end
+  return modelFile() == job.modelFile
+end
+
+local JOB_STAGES = {}
+
+--- Plan first, and read nothing more than the plan needs: the pilot has only pressed the button.
+function JOB_STAGES.plan(job)
+  local i18n = ui.i18n
   -- The resolved trim block goes with the settings, exactly as it does into the check: a stored trim
   -- is a switch POSITION, and the plan's trim half indexes the firmware's own trim-mode table by the
-  -- semantic number behind it. Without it no trim fault the check raises could be fixed here.
-  -- So while the walk is still running there is no plan to offer yet.
+  -- semantic number behind it. So the walk comes first.
   if trimsPending() then
-    ui.planNotice = t(i18n, "reading_radio", "Reading the radio...")
-    ui.runtime.markDirty()
+    stepTrimWalk()
     return
   end
-  local plan = Setup.plan(radio(), ui.config, trimNames())
-  if type(plan) ~= "table" or plan.ok ~= true then
-    ui.planNotice = refusalText(i18n, type(plan) == "table" and plan.refused or nil)
-    ui.runtime.markDirty()
-    return
+  if job.planJob == nil then
+    job.planJob = ensurePlan().newPlanJob(radio(), ui.config, trimNames())
+    job.modelFile = modelFile()
   end
-
-  -- Nothing to write, so there is nothing to confirm. The dialog used to come up on a model that
-  -- already matched and offer to delete the line it had written itself.
-  if plan.nothing == true then
-    ui.planNotice = t(i18n, "plan_nothing",
-      "The model already carries this setup; nothing to write.")
-    ui.runtime.markDirty()
-    return
-  end
-
-  if ConfirmDialog == nil then
-    ConfirmDialog = loadModule("ui/confirm_dialog.lua")
-  end
-
-  local function apply()
-    local report = Setup.applyPlan(radio(), plan)
-    -- The verdict on the screen was reached about the model as it was; the model has just changed.
-    ui.checkDone = false
-    -- So were the variable walk and the names kept for the visit (gvarConflicts): the next change
-    -- of a variable reads the model again, as the standalone tool does (markValue). A walk still
-    -- running has read part of the model as it was, so it starts again from the first channel.
-    ui.gvarModelChanged = true
-    if hostedVisit() and not ui.gvarWalkDone then ui.gvarWalk = nil end
-    if report.failed > 0 then
-      ui.planNotice = string.format("%s (%d/%d)",
-        t(i18n, "plan_failed", "The radio refused part of the setup"),
-        report.written, report.written + report.failed)
-    else
-      ui.planNotice = string.format("%s (%d)",
-        t(i18n, "plan_done", "Model set up"), report.written)
+  if job.checkedRecord ~= true then
+    -- What was cut off comes first: this plan would read the model it left, and its lines would have no
+    -- record at all once the channels differ from the ones in the record.
+    job.checkedRecord = true
+    if ensureBackup().stateOf(job.modelFile) == "partial" then
+      finishJob(t(i18n, "plan_title", "Set up radio"),
+        t(i18n, "plan_restore_first", "A set-up was cut off: use Restore previous setup first."))
+      return
     end
-    ui.runtime.markDirty()
   end
+  if not Plan.planStep(job.planJob, PLAN_SLICE) then
+    logJob("trace", "setup job: plan stage %s", tostring(job.planJob.stage))
+    return
+  end
+  local plan = job.planJob.plan
+  job.planJob = nil
+  job.plan = plan
+  if plan.ok ~= true then
+    finishJob(t(i18n, "plan_title", "Set up radio"), refusalText(i18n, plan.refused))
+  elseif plan.nothing == true then
+    -- Nothing to write, so there is nothing to confirm.
+    finishJob(t(i18n, "plan_title", "Set up radio"),
+      t(i18n, "plan_nothing", "This radio model already carries this setup; nothing to write."))
+  else
+    logJob("info", "setup job: asks, %d step(s) planned", #plan.gvars + #plan.deletions + #plan.insertions + #plan.trims)
+    job.stage = "ask"
+    requestRebuild()
+  end
+end
 
-  local shown = false
-  if ConfirmDialog and type(ConfirmDialog.show) == "function" then
-    shown = ConfirmDialog.show({
-      title = t(i18n, "plan_title", "Set up the model"),
-      message = planQuestion(i18n, plan),
-      onConfirm = apply,
-      onCancel = function()
-        -- Deliberately empty of writes AND deliberately present: a declined plan changes nothing,
-        -- and saying so here is what keeps that from being an accident of the dialog's defaults.
-        ui.planNotice = t(i18n, "plan_cancelled", "Nothing was changed")
-        ui.runtime.markDirty()
+function JOB_STAGES.ask()
+  -- The box's two buttons answer; see appendJobBox.
+end
+
+--- The record goes on the card BEFORE the first write, and is read back: no record, no write. A restore
+-- marks its record `partial` first, so one cut off in the middle is still offered.
+function JOB_STAGES.backup(job)
+  local i18n = ui.i18n
+  local store = ensureBackup()
+  local restoring = job.kind == "restore"
+  if not restoring and job.encode == nil then job.encode = store.newEncode(job.plan, job.modelFile) end
+  if not restoring and not store.encodeStep(job.encode, ENCODE_SLICE) then return end
+  local saved
+  if restoring then
+    saved = store.markState(job.modelFile, "partial")
+  else
+    saved = store.saveText(job.modelFile, job.encode.text)
+    job.encode = nil
+  end
+  if not saved then
+    finishJob(restoring and t(i18n, "restore_setup", "Restore previous setup") or t(i18n, "plan_title", "Set up radio"),
+      t(i18n, "plan_no_backup", "The restore data could not be saved; nothing was changed."))
+    return
+  end
+  logJob("info", "setup job: record on the card")
+  job.apply = ensurePlan().newApplyJob(radio(), job.plan)
+  job.stage = "write"
+  requestRebuild()
+end
+
+function JOB_STAGES.write(job)
+  local i18n = ui.i18n
+  local restoring = job.kind == "restore"
+  local title = restoring and t(i18n, "restore_setup", "Restore previous setup")
+    or t(i18n, "plan_title", "Set up radio")
+  if not mayGoOn(job) then
+    logJob("warn", "setup job stopped: armed or another model, %d step(s) done", job.apply.at - 1)
+    modelWritten()
+    finishJob(title, t(i18n, "plan_stopped",
+      "Stopped: the model was armed or another radio model was selected. Restore previous setup puts it back."))
+    return
+  end
+  if not Plan.applyStep(job.apply, WRITE_SLICE) then return end
+  local report = job.apply.report
+  modelWritten()
+  if restoring then
+    if job.apply.stopped then
+      finishJob(title, t(i18n, "restore_failed", "The radio refused part of the restore; the saved setup is kept"))
+    else
+      if not ensureBackup().remove(job.modelFile) then
+        logJob("warn", "setup job: the record could not be removed after the restore")
+      end
+      finishJob(title, t(i18n, "restore_done", "Previous setup restored"))
+    end
+  elseif job.apply.stopped then
+    finishJob(title, string.format("%s (%d/%d)",
+      t(i18n, "plan_failed", "The radio refused part of the setup; Restore previous setup puts it back"),
+      report.written, #job.apply.ops))
+  else
+    if not ensureBackup().markState(job.modelFile, "complete") then
+      -- The set-up stands; the record still says partial, so the restore stays on offer.
+      logJob("warn", "setup job: the record could not be marked complete")
+    end
+    finishJob(title, string.format("%s (%d)", t(i18n, "plan_done", "Radio set up"), report.written))
+  end
+end
+
+--- A restore reads its record line by line, then asks.
+function JOB_STAGES.read(job)
+  local i18n = ui.i18n
+  local store = ensureBackup()
+  if job.parse == nil then
+    job.modelFile = modelFile()
+    job.parse = store.newParse(job.modelFile)
+    if job.parse == nil then
+      finishJob(t(i18n, "restore_setup", "Restore previous setup"),
+        t(i18n, "restore_failed", "The radio refused part of the restore; the saved setup is kept"))
+      return
+    end
+  end
+  if not store.parseStep(job.parse, PARSE_SLICE) then return end
+  job.plan = store.restorePlan(radio(), job.parse.record)
+  job.parse = nil
+  job.stage = "ask"
+  requestRebuild()
+end
+
+local function stepJob()
+  JOB_STAGES[ui.job.stage](ui.job)
+end
+
+--- Whether a restore is on offer, once per visit: a record saying `partial` always, one saying `complete`
+-- only while the model still carries what that set-up wrote. Answers true when the page has to show it.
+local function stepRecordCheck()
+  local store = ensureBackup()
+  if ui.recordParse == nil then
+    local file = modelFile()
+    local state = store.stateOf(file)
+    if state == nil or state == "partial" then
+      ui.recordChecked = true
+      ui.recordOffer = state == "partial"
+      if not ui.recordOffer then
+        Backup = nil
+        Plan = nil
+      end
+      return ui.recordOffer
+    end
+    ui.recordParse = store.newParse(file)
+    if ui.recordParse == nil then
+      ui.recordChecked = true
+      return false
+    end
+  end
+  if not store.parseStep(ui.recordParse, PARSE_SLICE) then return false end
+  ui.recordOffer = store.stillCarries(radio(), ui.recordParse.record)
+  logJob("debug", "setup job: restore offered %s", tostring(ui.recordOffer))
+  ui.recordParse = nil
+  ui.recordChecked = true
+  return ui.recordOffer
+end
+
+--- The set-up button: start the job and do nothing else. EdgeTX calls a press from its own event
+-- handling, on what is left of a widget pass, and the walk over a model does not fit there.
+local function offerSetup(i18n)
+  if isArmed() then
+    ui.jobResult = {
+      title = t(i18n, "plan_title", "Set up radio"),
+      message = t(i18n, "plan_armed", "Not while the model is armed.")
+    }
+  else
+    logJob("debug", "setup job: set-up started")
+    ui.job = { kind = "setup", stage = "plan" }
+  end
+  requestRebuild()
+end
+
+local function offerRestore(i18n)
+  if isArmed() then
+    ui.jobResult = {
+      title = t(i18n, "restore_setup", "Restore previous setup"),
+      message = t(i18n, "plan_armed", "Not while the model is armed.")
+    }
+  else
+    logJob("debug", "setup job: restore started")
+    ui.job = { kind = "restore", stage = "read" }
+  end
+  requestRebuild()
+end
+
+--- The box over the page while a job runs, and its result.
+local function appendJobBox(children, x, y, w, h, i18n)
+  if LoadingOverlay == nil then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
+  local result = ui.jobResult
+  if result ~= nil then
+    LoadingOverlay.appendNotice(children, {
+      x = x, y = y, w = w, h = h, title = result.title, message = result.message,
+      buttonText = t(i18n, "plan_close", "Close"),
+      press = function()
+        ui.jobResult = nil
+        requestRebuild()
       end
     })
+    return
   end
 
-  if not shown then
-    -- No confirmation could be put up, so there is no answer to act on. A model write is not
-    -- something to do on the assumption that the pilot would have said yes.
-    ui.planNotice = t(i18n, "plan_no_dialog", "This radio cannot show the confirmation.")
-    ui.runtime.markDirty()
+  local job = ui.job
+  local restoring = job.kind == "restore"
+  local title = restoring and t(i18n, "restore_setup", "Restore previous setup")
+    or (t(i18n, "plan_title", "Set up radio") .. ": " .. ui.modelName)
+  if job.stage == "ask" then
+    LoadingOverlay.append(children, {
+      x = x, y = y, w = w, h = h, title = title, bar = false,
+      message = restoring and restoreQuestion(i18n, job.plan) or planQuestion(i18n, job.plan),
+      actions = {
+        {
+          text = t(i18n, "plan_cancel", "Cancel"),
+          press = function()
+            ui.job = nil
+            requestRebuild()
+          end
+        },
+        {
+          text = restoring and t(i18n, "restore_confirm", "Restore") or t(i18n, "plan_confirm", "Set up"),
+          press = function()
+            -- The answer only: the write runs from the page's wakeup. The count starts here, so an
+            -- arm and disarm from now on stops it.
+            local armed = ensureArmed()
+            job.armCount = armed and armed.changeCount() or 0
+            job.stage = "backup"
+            requestRebuild()
+          end
+        }
+      }
+    })
+  elseif job.stage == "write" then
+    LoadingOverlay.append(children, {
+      x = x, y = y, w = w, h = h, title = title,
+      message = t(i18n, "plan_writing", "Writing to the radio..."),
+      progress = function()
+        local apply = ui.job and ui.job.apply
+        if apply == nil or #apply.ops == 0 then return 1 end
+        return (apply.at - 1) / #apply.ops
+      end
+    })
+  else
+    LoadingOverlay.append(children, {
+      x = x, y = y, w = w, h = h, title = title, bar = false,
+      message = t(i18n, "reading_radio", "Reading the radio...")
+    })
   end
+end
+
+--- The radio model's own name, once per visit. While a flight controller is connected its craft name
+-- can stand in the model's name field (tasks/events/onconnect/tasks/model_name_sync.lua); what the
+-- model is really called is kept in lib/model_name_store.lua until the name is put back.
+local function radioModelName()
+  if ui.modelName == nil then
+    local info = radio().modelInfo()
+    local name = info and info.name or ""
+    local ok, store = pcall(_G.rfsuite.require or loadModule, "lib/model_name_store.lua")
+    if ok and type(store) == "table" and type(store.pending) == "function" then
+      name = store.pending() or name
+    end
+    ui.modelName = name
+  end
+  return ui.modelName
 end
 
 -- ---------------------------------------------------------------------------
@@ -727,43 +996,75 @@ local function buildGeneral(children, x, y, w, i18n)
   local cursorY = y
   cursorY = cursorY + appendNote(children, x, cursorY, w,
     t(i18n, "pointer_tuning", "Set up suggested functions from the tuning screen on the ground."))
+  local enabledLabel = t(i18n, "enabled", "In-flight tuning on this radio")
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
-    t(i18n, "enabled", "In-flight tuning on this radio"),
+    enabledLabel,
     ui.runtime.getBoolGetter("enabled"),
-    ui.runtime.getBoolSetter("enabled"))
+    ui.runtime.getBoolSetter("enabled"),
+    nil,
+    {
+      helpText = t(i18n, "help_enabled", "With it off, in-flight tuning drives nothing on any model. Off by default."),
+      helpTitle = enabledLabel,
+      onHelp = onRowHelp
+    })
   cursorY = cursorY + appendNote(children, x, cursorY, w,
     t(i18n, "enabled_note",
       "The master switch for every model."))
 
   cursorY = cursorY + appendNote(children, x, cursorY, w, describeCheck(i18n, checkResult()))
 
+  -- Which model the button writes: the radio's, not the flight controller's.
+  cursorY = cursorY + appendNote(children, x, cursorY, w,
+    t(i18n, "active_model", "Active radio model") .. ": " .. radioModelName())
+
   -- The button that makes the model match what the verdict just reported. It sits here rather than
   -- in the wiring section because this is where that verdict is read.
-  local btnW = math.min(240, w)
+  local btnW = math.min(240, w - 2 * (HELP_BTN_W + HELP_BTN_GAP + 10))
   local btnH = (lvgl and lvgl.UI_ELEMENT_HEIGHT) or Controls.CTRL_H or 32
+  local btnX = x + math.floor((w - btnW) / 2)
+  local setupLabel = t(i18n, "setup_model", "Set up radio")
+  children[#children + 1] = {
+    type = "button", x = btnX, y = cursorY, w = btnW, h = btnH,
+    text = setupLabel,
+    press = function() offerSetup(i18n) end
+  }
   children[#children + 1] = {
     type = "button",
-    x = x + math.floor((w - btnW) / 2), y = cursorY, w = btnW, h = btnH,
-    text = t(i18n, "setup_model", "Set up the model"),
-    press = function() offerSetup(i18n) end
+    x = x + w - 10 - HELP_BTN_W, y = cursorY + math.floor((btnH - HELP_BTN_H) / 2),
+    w = HELP_BTN_W, h = HELP_BTN_H,
+    text = "?",
+    press = function()
+      onRowHelp(t(i18n, "help_setup",
+        "Writes this radio model's channels, variables and trims as set here; check them first. Restore previous setup puts back what it replaced."),
+        setupLabel)
+    end
   }
   cursorY = cursorY + btnH + 6
 
-  if ui.planNotice then
-    cursorY = cursorY + appendNote(children, x, cursorY, w, ui.planNotice)
+  -- Offered only while it can put the model back; see stepRecordCheck.
+  if ui.recordOffer then
+    children[#children + 1] = {
+      type = "button", x = btnX, y = cursorY, w = btnW, h = btnH,
+      text = t(i18n, "restore_setup", "Restore previous setup"),
+      press = function() offerRestore(i18n) end
+    }
+    cursorY = cursorY + btnH + 6
   end
 
   return cursorY
 end
 
-local function appendNumber(children, x, y, w, label, key, minValue, maxValue, step, edited)
+local function appendNumber(children, x, y, w, label, key, minValue, maxValue, helpText, step, edited)
   return Controls.appendNumberField(children, x, y, w, label, {
     min = minValue,
     max = maxValue,
     step = step or 1,
     get = function() return ui.config[key] end,
     set = function(value) markValue(key, value) end,
-    edited = edited
+    edited = edited,
+    helpText = helpText,
+    helpTitle = label,
+    onHelp = onRowHelp
   })
 end
 
@@ -829,14 +1130,27 @@ local function buildWiring(children, x, y, w, i18n)
   local wiringNote, readingNote, widestNote = wiringNotes(i18n)
   local cursorY = y
   cursorY = cursorY + appendNote(children, x, cursorY, w, wiringNote)
+  -- The link carries the two channels, and an ExpressLRS switch mode quantises both of them to a
+  -- fixed number of positions. The windows the flight controller decodes are 50 microseconds wide,
+  -- so a quantised code can land in the gap beside its own window or inside the neighbouring row's.
   cursorY = cursorY + appendNumber(children, x, cursorY, w,
-    t(i18n, "bank_ch", "Enable channel"), "bank_ch", Setup.CHANNEL_MIN, Setup.CHANNEL_MAX)
+    t(i18n, "bank_ch", "Enable channel"), "bank_ch", Setup.CHANNEL_MIN, Setup.CHANNEL_MAX,
+    t(i18n, "help_bank_ch",
+      "Bank the flight controller listens on, 5 to 16. On ExpressLRS use Wide or full resolution; Hybrid can pick the wrong parameter."))
   cursorY = cursorY + appendNumber(children, x, cursorY, w,
-    t(i18n, "value_ch", "Value channel"), "value_ch", Setup.CHANNEL_MIN, Setup.CHANNEL_MAX)
+    t(i18n, "value_ch", "Value channel"), "value_ch", Setup.CHANNEL_MIN, Setup.CHANNEL_MAX,
+    t(i18n, "help_value_ch",
+      "Steps the parameter, 5 to 16. On ExpressLRS use Wide or full resolution; Hybrid can pick the wrong parameter."))
   cursorY = cursorY + appendNumber(children, x, cursorY, w,
-    t(i18n, "bank_gvar", "Enable variable"), "bank_gvar", 0, Setup.GVAR_MAX_INDEX, nil, gvarEdited)
+    t(i18n, "bank_gvar", "Enable variable"), "bank_gvar", 0, Setup.GVAR_MAX_INDEX,
+    t(i18n, "help_bank_gvar",
+      "The global variable on the enable channel, 0 to 9, where 0 is none. A line under the fields warns when another mixer line uses it."),
+    nil, gvarEdited)
   cursorY = cursorY + appendNumber(children, x, cursorY, w,
-    t(i18n, "value_gvar", "Value variable"), "value_gvar", 0, Setup.GVAR_MAX_INDEX, nil, gvarEdited)
+    t(i18n, "value_gvar", "Value variable"), "value_gvar", 0, Setup.GVAR_MAX_INDEX,
+    t(i18n, "help_value_gvar",
+      "The global variable on the value channel, 0 to 9, where 0 is none. A line under the fields warns when another mixer line uses it."),
+    nil, gvarEdited)
 
   -- The variables are fixed defaults now, so the model is walked to say when one of them is
   -- already spoken for rather than to choose a free pair. It is a warning and not a refusal: a
@@ -883,10 +1197,18 @@ end
 local function buildTrims(children, x, y, w, i18n)
   local navigateNote, bankTrimNote, unreadableNote = trimsNotes(i18n)
   local cursorY = y
+  local trimsLabel = t(i18n, "trims", "Drive rows from the trims")
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
-    t(i18n, "trims", "Drive rows from the trims"),
+    trimsLabel,
     ui.runtime.getBoolGetter("trims"),
-    ui.runtime.getBoolSetter("trims"))
+    ui.runtime.getBoolSetter("trims"),
+    nil,
+    {
+      helpText = t(i18n, "help_trims",
+        "Whether the physical trims move the surface at all. Off by default; touch, PAGE and the encoder work without them."),
+      helpTitle = trimsLabel,
+      onHelp = onRowHelp
+    })
 
   -- No picker until the walk is through: normaliseTrim needs the block, and a trim picked before it
   -- would be stored as off.
@@ -903,25 +1225,37 @@ local function buildTrims(children, x, y, w, i18n)
     { value = Setup.TRIM_MODE_ROWS, label = t(i18n, "trim_mode_rows", "One trim per row") },
     { value = Setup.TRIM_MODE_NAVIGATE, label = t(i18n, "trim_mode_navigate", "Walk and adjust") }
   }
+  local modeLabel = t(i18n, "trim_mode", "Trim layout")
   cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
-    t(i18n, "trim_mode", "Trim layout"), modeOptions, ui.config.trim_mode,
+    modeLabel, modeOptions, ui.config.trim_mode,
     function(value)
       if ui.config.trim_mode == value then return end
       ui.config.trim_mode = value
       ui.checkDone = false
-      ui.planNotice = nil
       ui.runtime.markDirty()
-    end)
+    end,
+    {
+      helpText = t(i18n, "help_trim_mode",
+        "Walk and adjust claims up to three trims. One trim per row gives each of the six rows its own trim, so it needs six to spare."),
+      helpTitle = modeLabel,
+      onHelp = onRowHelp
+    })
 
   if ui.config.trim_mode == Setup.TRIM_MODE_NAVIGATE then
     cursorY = cursorY + appendNote(children, x, cursorY, w, navigateNote)
     cursorY = cursorY + appendTrimPicker(children, x, cursorY, w,
-      t(i18n, "bank_trim", "Group trim"), trimField("bank_trim"))
+      t(i18n, "bank_trim", "Group trim"),
+      t(i18n, "help_bank_trim", "Changes the group. With none assigned, touch or PAGE changes the group."),
+      trimField("bank_trim"))
     cursorY = cursorY + appendNote(children, x, cursorY, w, bankTrimNote)
     cursorY = cursorY + appendTrimPicker(children, x, cursorY, w,
-      t(i18n, "nav_trim", "Walk trim"), trimField("nav_trim"))
+      t(i18n, "nav_trim", "Walk trim"),
+      t(i18n, "help_nav_trim", "Highlights a parameter inside the current group."),
+      trimField("nav_trim"))
     cursorY = cursorY + appendTrimPicker(children, x, cursorY, w,
-      t(i18n, "adj_trim", "Adjust trim"), trimField("adj_trim"))
+      t(i18n, "adj_trim", "Adjust trim"),
+      t(i18n, "help_adj_trim", "Moves the value of the highlighted parameter."),
+      trimField("adj_trim"))
     return cursorY
   end
 
@@ -933,9 +1267,10 @@ local function buildTrims(children, x, y, w, i18n)
     t(i18n, "row_5", "Row 5"),
     t(i18n, "row_6", "Row 6")
   }
+  local rowHelp = t(i18n, "help_row_trim", "The trim that moves this row of the surface.")
   for row = 1, Setup.TRIM_COUNT do
     local index = row
-    cursorY = cursorY + appendTrimPicker(children, x, cursorY, w, labels[row],
+    cursorY = cursorY + appendTrimPicker(children, x, cursorY, w, labels[row], rowHelp,
       function() return ui.config.rowTrim[index] or 0 end,
       function(value) ui.config.rowTrim[index] = value end)
   end
@@ -989,6 +1324,7 @@ function M.build(ctx)
   ensureDeps()
   ensureLoaded(ctx.preferences)
   ui.runtime.setRequestRebuild(ctx.requestRebuild)
+  ui.runtime.openHelp = ctx.openHelp
   -- ui/home.lua builds before it calls the page's wakeup in the same pass; see M.wakeup.
   ui.builtThisPass = true
   ui.hosted = inWidgetCall()
@@ -1002,6 +1338,15 @@ function M.build(ctx)
   ui.buildW = w
   -- markValue writes the warning from a callback, which is handed no i18n.
   ui.i18n = i18n
+  ui.requestRebuild = ctx.requestRebuild
+
+  -- While a job runs the page is that job's box and nothing else: no control under it can change
+  -- what the pilot has just agreed to.
+  if ui.job ~= nil or ui.jobResult ~= nil then
+    radioModelName()
+    appendJobBox(children, x, cursorY, w, ctx.h, i18n)
+    return
+  end
 
   for i = 1, #SECTIONS do
     local section = SECTIONS[i]
@@ -1039,14 +1384,20 @@ function M.wakeup(ctx)
     ui.builtThisPass = false
     return
   end
+  if ui.job ~= nil then
+    stepJob()
+    return
+  end
+  -- The record on the card, once per visit: whether a restore is on offer.
+  if not inWidgetCall() then
+    if not ui.recordChecked and stepRecordCheck() then requestRebuild() end
+    return
+  end
   local finished = false
-  if not inWidgetCall() then return
-  elseif ui.notesWanted then
+  if ui.notesWanted then
     finished = stepNotes(ctx and ctx.i18n)
   elseif ui.trimNames == nil then
     finished = stepTrimWalk()
-    -- The only notice the setup button can have left while the walk ran is the one saying so.
-    if finished then ui.planNotice = nil end
   elseif ui.gvarWalkWanted and not ui.gvarWalkDone then
     finished = stepGvarWalk()
     -- One of the two variables was edited while the walk ran, and its editor may still be open:
@@ -1062,6 +1413,8 @@ function M.wakeup(ctx)
     ui.gvarNamesDone = true
     ui.gvarNamesWanted = false
     finished = not ui.gvarEditOpen
+  elseif not ui.recordChecked then
+    finished = stepRecordCheck()
   end
   if finished and ctx and type(ctx.requestRebuild) == "function" then ctx.requestRebuild() end
 end
@@ -1087,16 +1440,27 @@ function M.onClose()
   ui.gvarModelChanged = false
   ui.widestWarning = nil
   ui.i18n = nil
-  ui.planNotice = nil
   ui.noteLines = nil
   ui.noteW = nil
   ui.buildW = nil
   ui.hosted = nil
   ui.notesWanted = false
+  -- A job cut off here is safe: its record on the card still says `partial`, and the next visit
+  -- offers the restore.
+  ui.job = nil
+  ui.jobResult = nil
+  ui.requestRebuild = nil
+  ui.recordChecked = false
+  ui.recordParse = nil
+  ui.recordOffer = false
+  ui.modelName = nil
   Controls = nil
   Common = nil
   Setup = nil
-  ConfirmDialog = nil
+  Plan = nil
+  Backup = nil
+  LoadingOverlay = nil
+  Armed = nil
   Env = nil
   t = nil
 end
