@@ -62,8 +62,9 @@ flight controller limits Roll, Pitch and Yaw to its own per-type range when it s
 - *Actual*: Center Sens equal to Max Rate gives a linear response, lower softens the centre,
   and higher also raises the rate at full stick -- not recommended, as it causes issues in the
   Blackbox log. *Quick*: the response is linear when the RC Rate times 200 equals the Max
-  Rate (2.00 for 400 °/s), lower softens the centre, higher also raises the rate at full stick. *Rotorflight*: Shape moves the vertex of
-  the curve; up to it the rate follows the stick linearly, beyond it progressively.
+  Rate (2.00 for 400 °/s), lower softens the centre, higher also raises the rate at full
+  stick. *Rotorflight*: Shape moves the vertex of the curve; up to it the rate follows the
+  stick linearly, beyond it progressively.
 - Response time, accelerometer limit, setpoint boost and the cyclic ring belong to the same
   rate profile and are on *Advanced* → *Rates (Advanced)*.
 - Which rate profile is being edited is shown in the page heading. It follows the flight
