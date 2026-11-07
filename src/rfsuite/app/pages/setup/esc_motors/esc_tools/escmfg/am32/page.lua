@@ -19,6 +19,10 @@ local LoadingOverlay = nil
 local ConfirmDialog = nil
 local Am32Init = nil
 local EscCurrentLimit = nil
+-- The firmware enables a current limit only for bytes 1..100 (Src/main.c:730-731), and the API
+-- module doubles the byte, so the highest working limit is 200 A. Byte 0 and every byte above 100
+-- mean the ESC applies none, and reach this page as 0 or as 202 to 510.
+local HIGHEST_LIMIT_AMPS = 200
 local t = nil
 
 local ui = {
@@ -155,8 +159,13 @@ local function queueAm32ReadActual(queue)
         local session = getSession()
         -- Amps as they stand: the block carries the limit in whole amps (the API module doubles
         -- the byte the ESC sends), so nothing is converted here.
-        if session and EscCurrentLimit then
-          EscCurrentLimit.remember(session, ui.config.current_limit, "am32")
+        local amps = tonumber(parsed.current_limit)
+        if session and EscCurrentLimit and amps then
+          if amps <= 0 or amps > HIGHEST_LIMIT_AMPS then
+            EscCurrentLimit.forget(session, "am32")
+          else
+            EscCurrentLimit.remember(session, amps, "am32")
+          end
         end
         if session then
           session.setup_esc_motors_esc_tools_am32 = {
@@ -1184,7 +1193,7 @@ function M.build(ctx)
     label = pageText(i18n, "esc_current_limit", "Current Limit")
     rowH = Controls.appendNumberField(children, x, cursorY, w, label, {
       helpText = pageText(i18n, "help_am32_current_limit",
-        "Current the ESC holds its drive to, in amps. 0 and 202 turn it off. The radio notes it for the dashboard's ESC load."),
+        "Current the ESC holds its drive to, in amps. 0 and 202 turn it off, which also clears the radio's figure for ESC load."),
       helpTitle = label,
       onHelp = onRowHelp,
       min = 0, max = 202, step = 2,
