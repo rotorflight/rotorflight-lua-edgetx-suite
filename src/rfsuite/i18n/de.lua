@@ -2509,7 +2509,7 @@ return {
         help_am32_low_voltage_cutoff = "Stoppt den Motor bei schwachem Akku bis zum nächsten Einschalten: Zelle nutzt den Schwellwert je Zelle, Absolut eine feste Spannung.",
         help_am32_low_voltage_threshold = "Spannung je Zelle, bei der die Zellen-Abschaltung auslöst, 250 bis 350 cV, also 2,50 bis 3,50 V.",
         help_am32_temperature_limit = "ESC-Temperatur, um die er die Leistung zurücknimmt, von 10 darunter bis 10 darüber. 141 schaltet das Limit ab.",
-        help_am32_current_limit = "Strom in Ampere, auf den der ESC seine Leistung begrenzt. 0 und 202 schalten das ab, was auch den Wert des Senders für die ESC-Last löscht.",
+        help_am32_current_limit = "Strom in Ampere, auf den der ESC seine Leistung begrenzt. 0 und 202 schalten das ab und löschen einen vom AM32 übernommenen Wert für die ESC-Last.",
         help_am32_protocol = "Das Eingangssignal, das der ESC annimmt. Auto erkennt es, die anderen legen es fest.",
         help_scorp = "Einstellungen, die der Scorpion-Regler selbst haelt: beim Oeffnen der Seite aus ihm gelesen und mit SPEICHERN in ihn zurueckgeschrieben; der Flugcontroller reicht sie nur durch.",
         help_scorp_esc_mode = "Betriebsart des Reglers: einer seiner Helikopter-Governor-Modi oder ein Modus für Flugzeug, Boot oder Quad.",
