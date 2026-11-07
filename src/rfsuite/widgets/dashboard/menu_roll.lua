@@ -913,15 +913,11 @@ function M.rested(roll)
   return false
 end
 
---- Draw the menu `source` describes (menu_roll_sources.lua) into the view it names. `source` is the description, or
---- a function that makes it: then the roll makes it afresh itself when the wheel rests, which builds nothing, so a
---- menu's own state (a value in a question, which entries are offered) is read again there as a build reads it.
-function M.build(children, widget, source, colors)
-  local make = nil
-  if type(source) == "function" then
-    make = source
-    source = make()
-  end
+--- Draw the menu that `make()` describes (menu_roll_sources.lua) into the view it names. A menu hands in how its
+--- description is made rather than the description: the roll makes it again when the wheel rests, which builds
+--- nothing, so a menu's own state (a value in a question, which entries are offered) is read there as a build reads it.
+function M.build(children, widget, make, colors)
+  local source = type(make) == "function" and make() or nil
   if type(source) ~= "table" then return end
   local roll = rollOf(widget, source.id)
   if roll == nil then return end

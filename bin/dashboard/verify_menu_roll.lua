@@ -344,7 +344,10 @@ local function run(mutate)
     detent(s.forward, s.forward.h, 1)
     check("on the third profile", r.levels[2].index == 3)
     -- ERASE BLACKBOX leaves the list, so the row's number changes under it.
-    Roll.build({}, w, req("widgets/dashboard/menu_roll_sources.lua").quick(w, { Menu.entry(w, "tool") }, function(_, f) return f end), Look.colors(w))
+    local one = { Menu.entry(w, "tool") }
+    Roll.build({}, w, function()
+      return req("widgets/dashboard/menu_roll_sources.lua").quick(w, one, function(_, f) return f end)
+    end, Look.colors(w))
     check("the row keeps its entry", r.levels[1].rows[r.levels[1].index].id == "battery_profile" and r.levels[1].index == 2 and r.focus == 2)
     check("and the option its place", r.levels[2].index == 3)
   end
@@ -516,7 +519,8 @@ local function run(mutate)
     -- A touch on the header is no row.
     local w = open()
     local Sources = req("widgets/dashboard/menu_roll_sources.lua")
-    Roll.build({}, w, Sources.quick(w, { Menu.entry(w, "erase_blackbox"), Menu.entry(w, "flight_log") }, function(_, f) return f end), Look.colors(w))
+    local two = { Menu.entry(w, "erase_blackbox"), Menu.entry(w, "flight_log") }
+    Roll.build({}, w, function() return Sources.quick(w, two, function(_, f) return f end) end, Look.colors(w))
     local r = roll(w)
     r.levels[1].index = 2
     r.slots = nil
