@@ -1050,7 +1050,7 @@ if selfTest then
       return (string.gsub(t, "recentre == nil and roll.touchX == nil and", "recentre == nil and"))
     end },
     { "the rest builds the scene", function(t)
-      return (string.gsub(t, "    if M.rested%(roll%) then\n", "    if M.rested(roll) or true then\n"))
+      return (string.gsub(t, "    if relayout then\n", "    if relayout or true then\n"))
     end },
     { "the ladders never hide", function(t)
       return (string.gsub(t, "return recentre == nil or recentre.state ~= \"hide\"", "return true"))

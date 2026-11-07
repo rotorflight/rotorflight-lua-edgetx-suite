@@ -604,7 +604,13 @@ function M.renderKey(widget)
   elseif roll.steppedAt ~= nil and recentre == nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS then
     roll.steppedAt = nil
     trace("the wheel rested, the focus goes back to the widget")
-    if M.rested(roll) then
+    local started = getTime()
+    local relayout = M.rested(roll)
+    -- What a rest costs now, in the words of the build's own timing line: the lists made afresh, in Lua.
+    if Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+      trace("rest: " .. tostring((getTime() - started) * 10) .. " ms in Lua")
+    end
+    if relayout then
       roll.epoch = roll.epoch + 1
       trace("the rest changed the levels, the scene is built again")
     end
