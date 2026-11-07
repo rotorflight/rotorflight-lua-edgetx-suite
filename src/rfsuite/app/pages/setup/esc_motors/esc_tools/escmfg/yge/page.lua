@@ -179,9 +179,18 @@ local function queueYgeReadActual(queue, retryOnError)
 
         local session = getSession()
         -- Hundredths of an amp in the block, which is the unit the row on this page displays
-        -- and divides by; the store keeps whole amps.
-        if session and EscCurrentLimit then
-          EscCurrentLimit.remember(session, (tonumber(ui.config.current_limit) or 0) / 100, "yge")
+        -- and divides by; the store keeps whole amps. The API module reads a field past the end
+        -- of a short block as 0, so only a field the block really carries says anything. The row
+        -- starts at 1 A, so a 0 was not set from here; whatever it means, the figure on file is
+        -- not what this ESC reports now, and the next real limit it reports is stored again. Only
+        -- a whole block clears: part of one is not an answer.
+        local currentLimit = parsed._present and parsed._present.current_limit and tonumber(parsed.current_limit)
+        if session and EscCurrentLimit and currentLimit then
+          if currentLimit <= 0 then
+            if parsed._complete then EscCurrentLimit.forget(session, "yge") end
+          else
+            EscCurrentLimit.remember(session, currentLimit / 100, "yge")
+          end
         end
         if session then
           session.setup_esc_motors_esc_tools_yge = {

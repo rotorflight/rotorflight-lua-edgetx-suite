@@ -1,0 +1,9 @@
+{
+  "id": "esc-limit-clear",
+  "name": "ESC limit clear",
+  "commands": [
+    "lua5.3 bin/esc/verify_esc_current_limit_clear.lua"
+  ],
+  "step": "Check that an ESC reporting no limit clears only its own family's figure",
+  "rationale": "The real limit module and the AM32, Scorpion and YGE pages run on their APIs' parsers, so a failed or short read, a figure by hand and another family's figure are each told from a real no-limit reply, and a save is counted."
+}
