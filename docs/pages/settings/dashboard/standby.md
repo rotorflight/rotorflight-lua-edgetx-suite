@@ -38,6 +38,8 @@ TX GPS is optional, is read only when its field is selected, and adapts to the a
 
 The screen reserves a fixed information strip for the highest-priority connection prerequisite. It derives this summary from the dashboard's existing connection state, while the exact connection reason and progress remain visible below it. The strip does not add another radio or telemetry probe.
 
+The first time the dashboard stands on a radio, in a zone about the size of the screen, a [first-start tile](../../../dashboard/standby-screen.md) takes the place of these rows until the first change to full screen. There is no setting for it.
+
 ## Notes
 
 The transmitter battery uses the radio's battery minimum, maximum, and warning settings for both its text and filled battery symbol. TX GPS is the GPS built into the transmitter; *No fix* is a waiting state and does not describe the aircraft or prove that GPS hardware is present. EdgeTX does not expose whether GPS time has been received, and its radio clock does not prove GPS synchronization, and the API provides no reception timestamp, so the tile says nothing about time or freshness. A true GPS-time or receive-heartbeat indicator requires a future EdgeTX Lua API extension. Missing readings remain unavailable rather than becoming zero.

@@ -4328,6 +4328,13 @@ return {
       status_disarmed = "DISARMED",
       connecting_fbl = "Verbinde mit FBL...",
       standby = {
+        intro_title = "Erste Schritte",
+        intro_placed = "Das Dashboard ist platziert, mehr ist nicht nötig.",
+        intro_others = "Keine fremden Dashboards oder Service-Widgets in diesem Modell.",
+        intro_foreign_job = "Fremde Background-Jobs (z. B. rf2bg) aus den Spezialfunktionen entfernen.",
+        intro_own_job = "rfsbg legt die Suite selbst an: nicht löschen.",
+        intro_full_screen = "Gelesen? Dashboard lange antippen: Vollbild.",
+        intro_keys = "Im Vollbild: SYS öffnet die Suite, TELE das Schnellmenü.",
         screen_title = "Standby",
         layout_invalid = "Standby-Layout passt nicht",
         module_clock = "Uhr",
