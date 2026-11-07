@@ -109,9 +109,9 @@ by hand, and a save keeps whatever the section holds.
   build's code, and only a restart replaces it. This applies to an install made from the release
   archive, which carries the build identity; a source tree copied by hand is compiled by the tool
   once per version but never holds the dashboard back. Once the installed files are compiled, later starts of the tool, from
-  the dashboard or from the radio's tools menu, go straight to the connection without looking at
-  the files again. A file edited on the card afterwards is compiled the first time a page loads it,
-  which makes that opening slower once. `false` skips this in both places: the start screen and the splash wait for the
+  the dashboard or from the radio's tools menu, open straight on the menu -- or on the page a
+  dashboard shortcut asked for -- without looking at the files again, and connect behind it. A file edited on the card afterwards is compiled the first time a page loads it,
+  which makes that opening slower once. `false` skips this in both places: the tool opens without a start screen and the splash waits for the
   connection only, and each file is compiled the first time a page needs it, which makes that
   first opening slower. It is meant for automated test runs on a card that starts without
   compiled files every time; on a radio there is no reason to set it. `"full"` makes every start
@@ -166,8 +166,8 @@ copies your data over by itself on the first start:
   and `sim`. Not copied: the debug logs in `logs`, `reload.req`, and any file of your own in that folder.
 - Every file is read back and compared. If you switch off during the copy, the next start copies again.
 - If the copy fails, for instance because the card is full, you keep flying on the old folder. The
-  start screen says *Settings not moved: card full?*, and each start tries again without holding up the
-  connection. Once such a try has gone through, the first start after you switch the radio off and on
+  tool says once after it opens *Settings not moved: card full? Please restart the radio.*, and each
+  start tries again without holding up the connection. Once such a try has gone through, the first start after you switch the radio off and on
   copies once more and asks for the restart.
 - **The suite never deletes the old folders.** Once you have checked your settings, you can delete
   `/SCRIPTS/TOOLS/rfsuite-core/` and `/SCRIPTS/TOOLS/rfsuite.user/` yourself. The RFSuite Updater

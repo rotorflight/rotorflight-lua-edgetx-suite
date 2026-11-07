@@ -1,0 +1,9 @@
+{
+  "id": "tool-start-no-wait",
+  "name": "The tool's start does not wait for the flight controller",
+  "commands": [
+    "lua5.3 bin/ui/verify_tool_start_no_wait.lua"
+  ],
+  "step": "Check the tool opens its menu without waiting for the connection",
+  "rationale": "The configuration tool's start (src/rfsuite/ui/home.lua) holds its start screen only while the compile pass runs. This runs the tool's own start on the accounting stubs with nothing to compile, with and without a link, a flight controller that answers behind the menu, a page that reads its identity opened before it answers, a compile pass with the link up, a failed move of the pilot's data and the restart request after a rebuilding pass."
+}

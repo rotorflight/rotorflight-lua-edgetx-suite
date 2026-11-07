@@ -207,7 +207,7 @@ for _, name in ipairs(NAMES) do
   state.initialLoad = true
   save(name, false)
   state.preferences = Preferences.load()
-  state.startDone, state.startTotal = 3, 8
+  state.precompileDone, state.precompileTotal = 3, 8
   Stubs.lvgl.trees = {}
   M.buildUI(true)
   holdsScheme(name, "tool start, " .. name, true)
