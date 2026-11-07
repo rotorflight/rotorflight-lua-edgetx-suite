@@ -211,6 +211,7 @@ local ui = {
   probing = false,
   unsupported = false,      -- this flight controller refused the command: until another is asked
   unsavedSeconds = 0,       -- the board's own seconds in the probe's reply: measured, maybe never saved
+  flightCount = 0,          -- flights read from the card, whichever axes of them read
   captureState = nil,       -- the flight capture's state, when it runs in this Lua state
   seenSaved = nil,
   profileKey = nil,
@@ -776,7 +777,7 @@ local function render()
   elseif captureState() == "reading" then
     -- The advice would change in a few seconds: show none until it does
     view.data = T.readingFlight
-  elseif ui.axes and (ui.axes[ui.selected].used or 0) == 0 then
+  elseif ui.axes and (ui.flightCount or 0) == 0 then
     -- Nothing saved for this flight controller. A zero time and "needs more flying" would read as
     -- a flight that was not counted, so say what saves a flight instead. The probe's own reply
     -- tells a flight the board measured and nobody saved from no flight at all.
@@ -847,7 +848,7 @@ local function queueHistoryRead()
   local capture = session and session.tuneCapture
   ui.seenSaved = capture and capture.saved or nil
   ui.loadStep = ui.mcu and "read" or nil
-  ui.unsavedSeconds = 0
+  ui.unsavedSeconds, ui.flightCount = 0, 0
   ui.probeOwed = true
 end
 
@@ -876,6 +877,8 @@ local function readHistoryStep()
       ui.axesBuilt = axes
       local newest = flights[#flights]
       ui.newestHasPitch = newest ~= nil and newest.axes[AXIS_PITCH] ~= nil
+      -- An axis can count no flight because a line of it does not read; the flights still exist
+      ui.flightCount = #flights
     end
     local axis = #axes + 1
     local a, used, seconds = TuneHistory.aggregate(flights, axis)
@@ -1487,7 +1490,7 @@ function M.onClose()
   ui.applyGeneration = ui.applyGeneration + 1
   ui.mcu, ui.loadStep, ui.readJob, ui.journalJob, ui.flights, ui.axes = nil, nil, nil, nil, nil, nil
   ui.axesBuilt = nil
-  ui.probeOwed, ui.probing, ui.unsupported, ui.unsavedSeconds = false, false, false, 0
+  ui.probeOwed, ui.probing, ui.unsupported, ui.unsavedSeconds, ui.flightCount = false, false, false, 0, 0
   ui.captureState, ui.seenSaved, ui.profileKey = nil, nil, nil
   for axis = AXIS_ROLL, AXIS_YAW do ui.applied[axis] = nil end
   ui.text, ui.i18n = nil, nil

@@ -1078,6 +1078,24 @@ do
   openPage()
   check("(control) with a saved flight the page shows its time, not 'no flight saved'",
     not shown(T().noFlight) and string.find(ui.view.data, "1/5", 1, true) ~= nil, ui.view.data)
+
+  -- A saved flight whose roll line does not read: the other axes still count, so the page must
+  -- not say that no flight was saved
+  local path = TuneHistory.path(MCU)
+  local torn, n = string.gsub(files[path], '"roll"', '"rolx"', 1)
+  assert(n == 1, "the saved flight has no roll line")
+  files[path] = torn
+  ui.selected = 1
+  Page.onReload()
+  pump()
+  check("a saved flight with an unreadable roll line: roll does not say 'no flight saved'",
+    not shown(T().noFlight), ui.view.data)
+  ui.selected = 2
+  Page.onReload()
+  pump()
+  check("(control) the same flight's pitch line still counts", not shown(T().noFlight)
+    and string.find(ui.view.data, "1/5", 1, true) ~= nil, ui.view.data)
+  ui.selected = 1
 end
 
 print()
