@@ -625,6 +625,25 @@ function M.button(nodes, x, y, w, h, fill, press)
   end
 end
 
+-- A button whose drawing is built into it: returns the list of its children and the screen position
+-- of their origin, which lies inside the button by `insetX`, `insetY`. What is appended after a button
+-- lies over everything in it, so the lines M.button covers the frame with would cut the edge off a
+-- drawing that reaches the frame. Here the covering comes first among the children instead, as four
+-- rectangles on the same pixels as those lines, and the drawing lies over it.
+function M.buttonInto(nodes, x, y, w, h, fill, press, insetX, insetY)
+  local inner = {}
+  local node = { type = "button", x = x, y = y, w = w, h = h, color = fill, press = press, children = inner }
+  nodes[#nodes + 1] = node
+  if not M.tapFrames then
+    node.cornerRadius = 0
+    M.rect(inner, -insetX, -insetY, w, 2, fill, true)
+    M.rect(inner, -insetX, h - 2 - insetY, w, 2, fill, true)
+    M.rect(inner, -insetX, -insetY, 2, h, fill, true)
+    M.rect(inner, w - 2 - insetX, -insetY, 2, h, fill, true)
+  end
+  return inner, x + insetX, y + insetY
+end
+
 -- A label above a value, both centred in their column -- the shape the extra tile's profile
 -- numbers are built from.
 -- `labelColor` is optional and defaults to the muted label colour; the extra tile raises the
