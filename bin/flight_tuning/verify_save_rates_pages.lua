@@ -391,7 +391,11 @@ local ROLL_CELLS = {
   { type = 4, byte = 2, field = "rcRates_1", value = 150, limit = 200, shown = "1500" },
   { type = 4, byte = 4, field = "rates_1", value = 150, limit = 200, shown = "1500" },
   { type = 5, byte = 4, field = "rates_1", value = 120, limit = 200, shown = "1200" },
-  { type = 2, byte = 2, field = "rcRates_1", value = 180, limit = 200, shown = "1800" }
+  { type = 2, byte = 2, field = "rcRates_1", value = 180, limit = 200, shown = "1800" },
+  -- Pitch and Yaw rows: the same limits on the other two axes the board trims
+  { type = 4, byte = 10, field = "rates_2", value = 170, limit = 200, shown = "1700" },
+  { type = 4, byte = 14, field = "rcRates_3", value = 190, limit = 200, shown = "1900" },
+  { type = 5, byte = 16, field = "rates_3", value = 110, limit = 200, shown = "1100" }
 }
 
 local function findCell(h, field)
@@ -439,6 +443,17 @@ runScenario({ name = "rates", path = "rates" }, "Actual collective keeps its ran
   h.page.build(h.ctx)
   local edit = assert(findCell(h, "rates_4"), "no cell for rates_4")
   eq(edit.max, 50, "collective max rate keeps the Configurator's 25.00 (raw 100, step 2)")
+end)
+
+runScenario({ name = "rates", path = "rates" }, "Quick collective keeps its range", function(h, eq)
+  h.reply[1] = 5
+  h.page.build(h.ctx)
+  h.page.wakeup(h.ctx)
+  answer(h, assert(h.queue.entries[1], "initial read missing"), h.reply)
+  h.ctx.children = {}
+  h.page.build(h.ctx)
+  local edit = assert(findCell(h, "rates_4"), "no cell for rates_4")
+  eq(edit.max, 208, "collective max rate keeps the Configurator's 1000 deg/s (raw 208)")
 end)
 
 print("Rates page saves: " .. checks .. " checks, " .. failures .. " failures")
