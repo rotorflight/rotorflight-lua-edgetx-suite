@@ -11,8 +11,9 @@ disarm, the radio saves that flight's measurements. This page combines your last
 at a time for each axis. Press *Save* in the header to write the suggested changes for the shown axis to the
 flight controller, or make them yourself on *PIDs*, *Rates* or *PID Controller*. Then fly again and come back.
 
-The flight controller counts only acro flight while spooled up and airborne, with the heli moving on some axis.
-Time in Angle, Horizon, Trainer, Altitude hold, Rescue, GPS rescue or failsafe is left out. A useful set is about
+The flight controller counts only acro flight while spooled up and airborne, with the heli moving: a moment counts
+only when the heli has turned at 40 deg/s or more, summed over the three axes, within the last 2 seconds, so calm
+hovering counts nothing. Time in Angle, Horizon, Trainer, Altitude hold, Rescue, GPS rescue or failsafe is left out. A useful set is about
 ten seconds of rolls, flips and pirouettes with the stick centred after each one, which one flight may or may not
 give.
 
@@ -39,6 +40,9 @@ values read then would belong to the other profile.
   is open (see [Service widget](../../dashboard/service-widget.md)). With neither of them on the model, no flight
   is saved. The configuration tool started from the radio's tool list does not save flights itself, and while it
   is open EdgeTX runs no widget, so nothing is saved until you close it.
+- **The disarm is seen through the model's arming sensor** (`ARM`; `ARMF` or `STAT` also serve). A model without
+  it never shows a disarm, so no flight is saved. It is there once the model's sensors have been discovered with
+  the flight controller connected (the model's *Telemetry* page, *Discover new*).
 - **The measurements live in the flight controller's memory until they are saved.** Unplugging the battery
   within about 10 seconds of the disarm loses that flight.
 - **A link loss is caught up.** If the model is disarmed while the link is down, the flight is read once the radio
@@ -50,6 +54,15 @@ values read then would belong to the other profile.
 - **Arming again before the flight is saved** stops the reading. The flight controller keeps adding to its
   measurements, so the next disarm saves both flights as one.
 - A flight with no acro flight time is not saved.
+
+**Coming from another dashboard:** put the RFSuite dashboard or the RFSuite Service widget on a screen of the model
+(see [Service widget](../../dashboard/service-widget.md)) and check that the model has the `ARM` sensor. Opening the
+configuration tool from the tool list after a flight shows the flights the widget saved; it saves none itself.
+
+With no flight saved for the connected flight controller, *Flight data* reads "No flight saved yet", *Suggested
+changes* says what saves a flight and *Why* names the widgets and the `ARM` sensor. When the flight controller still
+holds measurements nobody saved, *Why* starts with how long they are, for example "The flight controller holds 1m 59s
+of flight that were not saved": a flight was flown and counted, and nothing on the radio saved it.
 
 The flights are kept on the radio's SD card in `/SCRIPTS/RFSUITE/user/tune/<mcu id>.lua`, one line per
 flight and axis, newest last; only the last 5 flights are kept. `<mcu id>` is the flight controller's board ID,
@@ -86,7 +99,7 @@ read. It is read at the next disarm." above it.
 | Line | What it shows |
 | --- | --- |
 | Axis | Roll, Pitch or Yaw. Everything below is for the chosen axis. |
-| Flight data | Minutes and seconds of acro flight in the flights combined, and how many of the last 5 that is, for example "2m 12s, 3/5 flights". |
+| Flight data | Minutes and seconds of acro flight in the flights combined, and how many of the last 5 that is, for example "2m 12s, 3/5 flights". "No flight saved yet" when none is saved for this flight controller (see *How a flight is saved*). |
 | Profiles | The PID profile and rate profile the newest flight was flown on, for example "PID 1, rates 1". |
 | Response | How fast the heli turns compared with the rate the stick asks for, for example "53% faster than asked". "Needs more flying" shows how much data is still needed; "Too uneven to judge" means the response varies too much. |
 | Stops | How much the heli bounces back after you centre the stick, as a share of the turn rate. Needs 10 stops. "Shaking 49 deg/s" instead means the heli oscillates with the stick centred (see the rules below). |

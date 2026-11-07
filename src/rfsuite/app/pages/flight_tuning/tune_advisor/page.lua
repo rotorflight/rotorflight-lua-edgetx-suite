@@ -210,6 +210,7 @@ local ui = {
   probeOwed = false,
   probing = false,
   unsupported = false,      -- this flight controller refused the command: until another is asked
+  unsavedSeconds = 0,       -- the board's own seconds in the probe's reply: measured, maybe never saved
   captureState = nil,       -- the flight capture's state, when it runs in this Lua state
   seenSaved = nil,
   profileKey = nil,
@@ -243,6 +244,14 @@ local function nowSeconds()
     end
   end
   return 0
+end
+
+-- One line to the suite's log; nothing is built when the log does not want this level
+local function pageLog(level, fmt, ...)
+  local Log = _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.tune_advisor", level, fmt, ...)
+  end
 end
 
 local function ensureDeps()
@@ -314,6 +323,15 @@ local function loadTexts(i18n)
     unsupported = pageText(i18n, "unsupported", "Needs newer firmware"),
     readingFlight = pageText(i18n, "reading_flight", "Reading the last flight..."),
     notRead = pageText(i18n, "not_read", "Last flight not read. It is read at the next disarm."),
+    noFlight = pageText(i18n, "no_flight", "No flight saved yet"),
+    actNoFlight = pageText(i18n, "act_no_flight",
+      "Fly in acro mode with the RFSuite dashboard or Service widget on this model, then disarm."),
+    whyNoFlight = pageText(i18n, "why_no_flight",
+      "The dashboard or Service widget saves each flight after the disarm. The tool alone saves none."),
+    whyNoFlightArm = pageText(i18n, "why_no_flight_arm",
+      "It sees the disarm through the model's ARM sensor. Discover the sensors if it is missing."),
+    whyUnsavedFmt = pageText(i18n, "why_unsaved_fmt",
+      "The flight controller holds %dm %02ds of flight that were not saved."),
     clearPrompt = pageText(i18n, "clear_prompt", "Erase the saved flights?"),
     response = pageText(i18n, "response", "Response"),
     stops = pageText(i18n, "stops", "Stops"),
@@ -758,6 +776,19 @@ local function render()
   elseif captureState() == "reading" then
     -- The advice would change in a few seconds: show none until it does
     view.data = T.readingFlight
+  elseif ui.axes and (ui.axes[ui.selected].used or 0) == 0 then
+    -- Nothing saved for this flight controller. A zero time and "needs more flying" would read as
+    -- a flight that was not counted, so say what saves a flight instead. The probe's own reply
+    -- tells a flight the board measured and nobody saved from no flight at all.
+    view.data = T.noFlight
+    view.actions = { T.actNoFlight }
+    view.whys = { T.whyNoFlight, T.whyNoFlightArm }
+    local unsaved = ui.unsavedSeconds or 0
+    if unsaved > 0 then
+      table.insert(view.whys, 1, string.format(T.whyUnsavedFmt, math.floor(unsaved / 60), unsaved % 60))
+    end
+    if captureState() == "failed" then table.insert(view.actions, 1, T.notRead) end
+    pageLog("debug", "no flight saved for %s; the board holds %d s not saved", tostring(ui.mcu), unsaved)
   elseif ui.axes then
     local axis = ui.selected
     local entry = ui.axes[axis]
@@ -816,6 +847,7 @@ local function queueHistoryRead()
   local capture = session and session.tuneCapture
   ui.seenSaved = capture and capture.saved or nil
   ui.loadStep = ui.mcu and "read" or nil
+  ui.unsavedSeconds = 0
   ui.probeOwed = true
 end
 
@@ -911,8 +943,14 @@ local function probe()
     processReply = function(_, buf)
       if generation ~= ui.generation then return end
       ui.probing = false
-      local supported = api.parse(buf) ~= nil
-      if supported == ui.unsupported then
+      local reply = api.parse(buf)
+      local supported = reply ~= nil
+      -- What the board measured since it was last cleared: with no flight saved, a time here is
+      -- a flight that was flown and never saved
+      local unsaved = reply and tonumber(reply.seconds) or 0
+      local changed = unsaved ~= (ui.unsavedSeconds or 0)
+      ui.unsavedSeconds = unsaved
+      if supported == ui.unsupported or changed then
         ui.unsupported = not supported
         render()
       end
@@ -1448,7 +1486,7 @@ function M.onClose()
   ui.applyGeneration = ui.applyGeneration + 1
   ui.mcu, ui.loadStep, ui.readJob, ui.journalJob, ui.flights, ui.axes = nil, nil, nil, nil, nil, nil
   ui.axesBuilt = nil
-  ui.probeOwed, ui.probing, ui.unsupported = false, false, false
+  ui.probeOwed, ui.probing, ui.unsupported, ui.unsavedSeconds = false, false, false, 0
   ui.captureState, ui.seenSaved, ui.profileKey = nil, nil, nil
   for axis = AXIS_ROLL, AXIS_YAW do ui.applied[axis] = nil end
   ui.text, ui.i18n = nil, nil

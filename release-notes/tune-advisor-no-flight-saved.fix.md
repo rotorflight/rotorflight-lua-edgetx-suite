@@ -1,0 +1,3 @@
+- **Tune Advisor says when no flight is saved (`flight_tuning/tune_advisor`)**:
+  - With no flight saved for the connected flight controller, *Flight data* reads "No flight saved yet" and the advice names what saves a flight (the RFSuite dashboard or Service widget, and the model's `ARM` sensor) instead of a zero flight time and "Needs more flying (0%)".
+  - A flight the flight controller measured and nothing on the radio saved is named with its time.
