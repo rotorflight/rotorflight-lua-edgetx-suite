@@ -316,6 +316,46 @@ do
   toolCase("off")
   toolCase("info")
   toolCase("debug")
+
+  -- A resource sample that raises, as one stopped at the instruction limit does, in a step of the
+  -- close: the close still hands the dashboard back, and the step line is written without it.
+  do
+    world()
+    begin("debug", true)
+    control("tool sample raises", "debug")
+    local ToolHost = assert(_G.rfsuite.require("widgets/dashboard/tool_host.lua"))
+    local homePath = _G.rfsuite.paths.core .. "/ui/home.lua"
+    local home = {
+      init = function() end,
+      run = function() return 2 end,
+      releasePages = function() end,
+    }
+    local realLoadScript = _G.loadScript
+    _G.loadScript = function(path, mode)
+      if path == homePath then return function() return home end end
+      return realLoadScript(path, mode)
+    end
+
+    local widget = { state = {}, preferences = {}, _cachedFullscreenKey = "stale" }
+    check(ToolHost.request(widget, nil) == true, "tool sample raises: the tool is asked for")
+    ToolHost.step(widget, 0, nil)   -- load
+    ToolHost.step(widget, 0, nil)   -- init
+    local realResources = Log.resources
+    Log.resources = function() error("CPU limit reached") end
+    local ok, err = pcall(ToolHost.step, widget, 0, nil)   -- run: the pilot closes it
+    Log.resources = realResources
+    _G.loadScript = realLoadScript
+
+    check(ok, "tool sample raises: the close does not raise", err)
+    check(not ToolHost.isOpen(widget), "tool sample raises: the tool is closed")
+    check(widget._cachedFullscreenKey == nil, "tool sample raises: the dashboard is handed back",
+      tostring(widget._cachedFullscreenKey))
+    local dropped = find("rfsuite.widget.tool", "tool modules dropped: ")
+    check(#dropped == 1 and not lua_kb(dropped[1].msg),
+      "tool sample raises: the step line is written without the sample", dropped[1] and dropped[1].msg)
+    check(#find("rfsuite.widget", "tool closed (closed by the pilot)") == 1,
+      "tool sample raises: the closed line is written")
+  end
 end
 
 -- ---------------------------------------------------------------------------

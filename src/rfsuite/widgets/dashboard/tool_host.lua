@@ -91,10 +91,15 @@ local function hostLogTransition(msg)
 end
 
 -- A step of an open or a close. Called behind the dashboard's cached flag, so that with the log off
--- a press pays one table read and builds no text.
+-- a press pays one table read and builds no text. The sample is taken as the transition's is: a
+-- step of the close runs before the dashboard is handed back, and a failed sample must not stop it.
 local function hostStep(msg)
   if Log and type(Log.emit) == "function" then
-    pcall(Log.emit, "rfsuite.widget.tool", msg .. ", " .. Log.resources(), "debug")
+    if type(Log.resources) == "function" then
+      local ok, text = pcall(Log.resources)
+      if ok and type(text) == "string" then msg = msg .. ", " .. text end
+    end
+    pcall(Log.emit, "rfsuite.widget.tool", msg, "debug")
   end
 end
 
