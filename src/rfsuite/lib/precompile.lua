@@ -452,28 +452,27 @@ end
 -- Returns true while such a pass runs, whether this call started it or another caller did.
 -- Without the uncached loader nothing would actually be compiled, yet the pass would finish and
 -- write the stamp, and the tool would then believe the tree compiled; so nothing starts.
+-- Nothing in here logs on the way out: the widgets call it on their first pass, which sits close to
+-- the instruction limit, and even a line the log level drops is paid for there. A widget state
+-- without dir() takes the early return on every start.
 function Precompile.startIfStale(version)
   if state ~= nil and not state.finished and (state.force or state.move) then
-    emit("debug", "pass already running, joined")
     return true
   end
 
   local utils = _G.rfsuite and _G.rfsuite.utils
   if not utils or type(utils.loadScriptUncached) ~= "function" then
-    emit("debug", "no pass: no uncached loader in this state")
     return false
   end
   -- The same for the listing: without dir() the walk finds nothing, and a pass that compiled
   -- nothing would still record the build as compiled and ask for a restart.
   if type(dir) ~= "function" then
-    emit("debug", "no pass: no dir() in this state")
     return false
   end
 
   local identity = readStampFile(IDENTITY_PATH, STAMP_LIMIT) or version
   if identity == nil or readStampFile(STAMP_PATH, STAMP_LIMIT) == identity then
-    -- Nothing is logged here: the widgets come through this on their first pass, which sits close to
-    -- the instruction limit, and even a line the log level drops costs there. The tool says it.
+    -- The tool says that no pass was needed; see the note above the function.
     -- Nothing to compile, but the move of the pilot's data can still be owed: after a start cut
     -- short, or behind the connection after a failed attempt.
     local paths = _G.rfsuite and _G.rfsuite.paths
