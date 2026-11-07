@@ -4866,14 +4866,15 @@ function Runtime.new(zone, options)
     utils.themeFellBack = nil
     -- With nothing to draw the next logic tick asks for this load again, so a theme whose default
     -- fails too would put its lines into the ring ten times a second at every level. They are said
-    -- at their own level once per theme, and at debug on every retry until a theme loads.
-    utils.themeFailRepeat = self._themeFailedFor == selectedTheme
+    -- at their own level once per theme and phase, and at debug on every retry until a theme loads.
+    local failKey = tostring(selectedTheme) .. "|" .. tostring(self.flightMode)
+    utils.themeFailRepeat = self._themeFailedFor == failKey
     self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
     self.themeStateKeys = themeStateKeys(declares)
     self._themeShown = utils.themeFellBack and "system/default" or selectedTheme
     local failedBefore = utils.themeFailRepeat
     utils.themeFailRepeat = nil
-    self._themeFailedFor = (self.theme == nil) and selectedTheme or nil
+    self._themeFailedFor = (self.theme == nil) and failKey or nil
     if self.theme == nil then
       if not failedBefore then
         widgetLog(self, "theme " .. tostring(selectedTheme) .. " left nothing to draw, retried until one loads", "warn")

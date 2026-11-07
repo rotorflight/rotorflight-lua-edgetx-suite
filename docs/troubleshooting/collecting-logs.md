@@ -154,8 +154,9 @@ At *TRACE* over the serial port the same stretch shows each read and each build 
 **Which part of the suite writes what.** The lines that follow the dashboard's own five-second report
 (each module loaded or released, a view, a press, a tool step, the armed edge, a phase, the link lost)
 come from the Lua state the dashboard runs in, and a level changed on the radio reaches them within
-five seconds while the dashboard is on screen; off screen they keep the level they had until it is
-drawn again. The tool started from the *Tools* menu and the background decoder have lines of their own.
+five seconds of the dashboard taking the new settings. It takes them while it is on screen, not
+while the model is armed, and after a flight not before the link is back; until then they keep the
+level they had. The tool started from the *Tools* menu and the background decoder have lines of their own.
 
 **What a level costs.** With the log off, the dashboard builds none of these lines but its errors,
 warnings and base milestones. *TRACE* writes lines every second and adds to what it measures, so
@@ -202,11 +203,12 @@ Take the card out and copy the whole `logs` folder. If that is too much, the use
   level was below *DEBUG* or that the background decoder was not running on that model — see
   [the background decoder](../reference/background-decoder.md). No `dashboard` file after a
   session with the dashboard on screen means the widget never got as far as writing one.
-- **A stop at the instruction limit is written only where the dashboard catches it.** Inside its
-  own drawing and background calls it does: the `.log` gets `widget.refresh stopped: …` (or `.background`, `.update`) and a
-  `rfsuite.fault` line, and the `.step` file the fault. Where the radio stops the widget outside
-  them, the widget cannot write that this happened, so the last thing in its `.log` is the approach
-  to the fault. The background decoder's files are not affected: its script is paused and
+- **A stop at the instruction limit is written only where something catches it.** One that reaches
+  the dashboard's own drawing and background calls gives the `.log` a `widget.refresh stopped: …`
+  line (or `.background`, `.update`) and an `rfsuite.fault` line, and the `.step` file the fault.
+  One caught further in, while a theme loads for example, is that part's own warning or error.
+  Where the radio stops the widget outside them, the widget cannot write that this happened, so
+  the last thing in its `.log` is the approach to the fault. The background decoder's files are not affected: its script is paused and
   resumed rather than cut off.
 - **Opening the configuration tool pauses the background decoder** for as long as the tool is
   open, so a gap in the `function` file over that stretch is expected.
@@ -214,8 +216,8 @@ Take the card out and copy the whole `logs` folder. If that is too much, the use
   middle. At *DEBUG* that takes a long session: the connect sequence writes a few hundred lines,
   and after it a file grows by two lines or more for each request a page sends to the flight
   controller, and by a line or two every five seconds while the dashboard shows a disarmed model.
-  *TRACE* adds a line for each telemetry read the dashboard makes, two a second, so a session at
-  *TRACE* reaches the cap in about forty minutes or less. Nothing is added to it after that, a
+  *TRACE* adds a line for each telemetry read the dashboard makes, two a second while it reads, so
+  a session at *TRACE* with the dashboard connected reaches the cap in about forty minutes. Nothing is added to it after that, a
   fault included: a fault after the cap goes only to the `.step` file, where it stays until the
   next step replaces it. Turning *Log Session To Card* off and on again starts a new session in
   the same file.
