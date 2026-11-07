@@ -72,6 +72,9 @@ local state = {
   -- The link is back after such a loss, and whether the craft is still flying is not known yet:
   -- the time it came back, until settleFlightAfterGap decides.
   flightPendingSince = nil,
+  -- The widget is running telemetry_bg's arming-flags-only pass because the connect tasks hold the
+  -- full one back. Kept only to log the change of pass once rather than on every wakeup.
+  armingFlagsOnly = false,
 }
 
 -- The argument a runner's wakeup is called with. One table for every call rather than a
@@ -590,17 +593,43 @@ function Events.wakeup(carry)
     -- script sets luaState = INTERPRETER_PAUSED ("Pause function and mixer scripts"), and
     -- interface.cpp runs nothing in that state -- so SCRIPTS/FUNCTIONS/rfsbg.lua, which decodes
     -- the same custom telemetry frames for the rest of the radio, is stopped for as long as the
-    -- tool is open. This drain is then the only decoder there is, and while it is deferred the
-    -- tool publishes no sensor from frame 0x88 at all. The one that costs something is ARM:
-    -- tasks/msp/runtime.lua reads the armed state off that sensor and empties the MSP queue on
-    -- it, so with the drain deferred the gate cannot fire for the whole connect sequence and the
-    -- sequence keeps sending -- including MSP_SET_RTC -- to a flight controller that has armed.
+    -- tool is open. This drain is then the only decoder there is, and the tool runs it in full.
+    --
+    -- A widget is in the same position whenever that function script is not running, and what
+    -- the deferral must not hold back there is ARM: tasks/msp/runtime.lua reads the armed state
+    -- off that sensor and empties the MSP queue on it, so with nothing decoding it the gate cannot
+    -- fire for as long as the connect tasks wait -- and a task waiting on an unanswered read waits
+    -- 25 s, three times over. So while the deferral holds, the widget runs a pass that takes the
+    -- frames off the wire and publishes the arming flags alone (telemetry_bg/tasks.lua,
+    -- wakeupConnecting): the decode of every other sensor, SmartFuel and the adjustment teller
+    -- still wait for the connect to finish. When the function script is running, that pass stands
+    -- aside for it like the full one does.
     if state.linkStableUp and (not onconnectActive or armed or context == "tool") then
+      if state.armingFlagsOnly then
+        state.armingFlagsOnly = false
+        if Log and type(Log.emit) == "function" then
+          pcall(Log.emit, "rfsuite.events", "custom telemetry: full decode resumes", "debug")
+        end
+      end
       local telemetry_bg = ensureEventRunner("telemetry_bg")
       if telemetry_bg and type(telemetry_bg.wakeup) == "function" then
         local ok, err = pcall(telemetry_bg.wakeup, carry)
         if not ok and Log and type(Log.emit) == "function" then
           pcall(Log.emit, "rfsuite.events", "telemetry_bg.wakeup error: " .. tostring(err), "error")
+        end
+      end
+    elseif state.linkStableUp then
+      if not state.armingFlagsOnly then
+        state.armingFlagsOnly = true
+        if Log and type(Log.emit) == "function" then
+          pcall(Log.emit, "rfsuite.events", "custom telemetry: arming flags only while the connect tasks run", "debug")
+        end
+      end
+      local telemetry_bg = ensureEventRunner("telemetry_bg")
+      if telemetry_bg and type(telemetry_bg.wakeupConnecting) == "function" then
+        local ok, err = pcall(telemetry_bg.wakeupConnecting)
+        if not ok and Log and type(Log.emit) == "function" then
+          pcall(Log.emit, "rfsuite.events", "telemetry_bg.wakeupConnecting error: " .. tostring(err), "error")
         end
       end
     end

@@ -289,6 +289,58 @@ function M.remoteAlive(now)
     return remoteMovedAt ~= nil and (now - remoteMovedAt) < M.REMOTE_STALE_SECONDS
 end
 
+-- The two modules a drain pass needs, one load per wakeup; false while either is still missing.
+-- The decoder table gets a wakeup of its own, and a wakeup that loads returns without popping:
+-- loading its top-level chunk costs more than a steady drain pass does, and loading it in the same
+-- call as the first decode puts both into one widget pass -- the rule telemetry_bg/tasks.lua
+-- follows for the modules above this one. Nothing is popped then, so the frames stay queued for
+-- the next wakeup, and the caller returns 0, which keeps liveness honest: that pass took nothing
+-- off the wire.
+--
+-- A failed load is asked for again after LOAD_RETRY_SECONDS, not on the next wakeup: the drain is
+-- woken about ten times a second, and each ask can be a card read. M.reset() leaves the wait
+-- alone: a lost link says nothing about what is on the card.
+local function modulesReady(now)
+    if not RFSensors then
+        if now < loadRetryAt then return false end
+        RFSensors = loadModule("lib/rf2tlm_sensors.lua", nil, groupDue)
+        if not RFSensors then loadRetryAt = now + LOAD_RETRY_SECONDS end
+        return false
+    end
+
+    -- The CRSF module, under the same wait, and before the resume bookkeeping in beginPass: a
+    -- pass that cannot pop must not start the window in which frame ids are not yet counted as
+    -- gaps, or the first frame after a late load would count as frames the link lost.
+    if not CrsfManager then
+        if now < loadRetryAt then return false end
+        CrsfManager = loadModule("lib/crsf.lua")
+        if not CrsfManager then
+            loadRetryAt = now + LOAD_RETRY_SECONDS
+            return false
+        end
+    end
+    return true
+end
+
+-- A pass after a stretch in which this state took no frames is a resume (see `resyncPending`
+-- above). The values on the radio are read once per resume, not per pass.
+local function beginPass(now)
+    if lastWakeAt ~= nil and (now - lastWakeAt) > M.REMOTE_STALE_SECONDS then
+        resyncPending = true
+        adoptPublished = true
+    end
+    lastWakeAt = now
+    passNow = now
+    if resyncPending then
+        resyncPending = false
+        resyncUntil = now + M.REMOTE_STALE_SECONDS
+    end
+    if adoptPublished then
+        adoptPublished = false
+        adoptRadioSkip()
+    end
+end
+
 -- The frames one pass keeps for decoding. One table for every pass rather than a new one per
 -- wakeup, because the drain is woken on every pass whether or not a frame is waiting. Reusing it
 -- is safe because the list never leaves M.wakeup: decodeFrame(kept[i], now) is handed one frame,
@@ -309,51 +361,8 @@ local keptFrames = {}
 -- -- the radio's script state, where a permanent script runs -- and there dropping the older
 -- frames of a backlog buys nothing. A call billed against a hard per-call ceiling keeps the cap.
 function M.wakeup(now, decodeAll)
-    -- The decoder table gets a wakeup of its own, and this one returns without popping: loading
-    -- its top-level chunk costs more than a steady drain pass does, and loading it in the same
-    -- call as the first decode puts both into one widget pass -- the rule telemetry_bg/tasks.lua
-    -- follows for the modules above this one. Nothing is popped here, so the frames stay queued
-    -- for the next wakeup, and returning 0 keeps liveness honest: this pass took nothing off the
-    -- wire.
-    --
-    -- A failed load is asked for again after LOAD_RETRY_SECONDS, not on the next wakeup: the
-    -- drain is woken about ten times a second, and each ask can be a card read. M.reset() leaves the
-    -- wait alone: a lost link says nothing about what is on the card.
-    if not RFSensors then
-        if now < loadRetryAt then return 0 end
-        RFSensors = loadModule("lib/rf2tlm_sensors.lua", nil, groupDue)
-        if not RFSensors then loadRetryAt = now + LOAD_RETRY_SECONDS end
-        return 0
-    end
-
-    -- The CRSF module, under the same wait, and before the resume bookkeeping below: a pass that
-    -- cannot pop must not start the window in which frame ids are not yet counted as gaps, or the
-    -- first frame after a late load would count as frames the link lost.
-    if not CrsfManager then
-        if now < loadRetryAt then return 0 end
-        CrsfManager = loadModule("lib/crsf.lua")
-        if not CrsfManager then
-            loadRetryAt = now + LOAD_RETRY_SECONDS
-            return 0
-        end
-    end
-
-    -- A pass after a stretch in which this state took no frames is a resume (see `resyncPending`
-    -- above). The values on the radio are read once per resume, not per pass.
-    if lastWakeAt ~= nil and (now - lastWakeAt) > M.REMOTE_STALE_SECONDS then
-        resyncPending = true
-        adoptPublished = true
-    end
-    lastWakeAt = now
-    passNow = now
-    if resyncPending then
-        resyncPending = false
-        resyncUntil = now + M.REMOTE_STALE_SECONDS
-    end
-    if adoptPublished then
-        adoptPublished = false
-        adoptRadioSkip()
-    end
+    if not modulesReady(now) then return 0 end
+    beginPass(now)
 
     -- Pop up to POP_CAP, keep the newest DECODE_CAP in arrival order, decode only those --
     -- on a same-sensor conflict the newest value lands last. POP_CAP bounds the pass whether
@@ -384,6 +393,62 @@ function M.wakeup(now, decodeAll)
     -- a discovery window nothing here creates them again. Once per wakeup: the publisher
     -- rate-limits itself, and per-frame publication was redundancy, not information.
     publishCounters(telemetryFrameCount, telemetryFrameSkip, now)
+    return popped
+end
+
+-- The arming flags' sensor id in the custom telemetry frame (lib/rf2tlm_sensors.lua, "ARM").
+local SID_ARMING_FLAGS = 0x1202
+
+-- Walk one frame up to the arming flags and publish them; true when the frame carried them.
+-- Entries are of different lengths and the flight controller chooses their order, so the walk
+-- needs the decoders of the entries in front of the flags; nothing else is published.
+local function publishArmingFlags(data, now)
+    local ptr = 4
+    while ptr < #data do
+        local sid
+        sid, ptr = decU16(data, ptr)
+        local sensor = RFSensors[sid]
+        if not sensor or type(sensor.dec) ~= "function" then return false end
+        local val
+        val, ptr = sensor.dec(data, ptr)
+        if sid == SID_ARMING_FLAGS then
+            if val then publishSensorValue(sid, val, sensor, now) end
+            return true
+        end
+    end
+    return false
+end
+
+--- A drain pass that publishes the arming flags and nothing else, for a widget host while its
+-- connect sequence runs.
+--
+-- The full pass is held back there, to keep the connect passes clear of the decode. But
+-- tasks/msp/runtime.lua stops sending while the craft is armed, and learns that from the radio's
+-- ARM sensor; in a widget with the background function script not running, this state is the
+-- only decoder of it. So the frames are taken off the wire and counted as in M.wakeup, and of the
+-- newest DECODE_CAP of them -- newest first -- only as many are walked as it takes to find the
+-- flags.
+--
+-- Returns how many frames the pass took off the wire, as M.wakeup does.
+function M.wakeupArmingFlags(now)
+    if not modulesReady(now) then return 0 end
+    beginPass(now)
+
+    local kept = keptFrames
+    for i = #kept, 1, -1 do kept[i] = nil end
+    local popped = 0
+    while popped < POP_CAP do
+        local data = popAndAccount()
+        if not data then break end
+        popped = popped + 1
+        kept[#kept + 1] = data
+        if #kept > DECODE_CAP then table.remove(kept, 1) end
+    end
+
+    for i = #kept, 1, -1 do
+        if publishArmingFlags(kept[i], now) then break end
+    end
+    for i = #kept, 1, -1 do kept[i] = nil end
     return popped
 end
 

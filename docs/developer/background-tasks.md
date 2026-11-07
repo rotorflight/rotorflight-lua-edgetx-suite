@@ -71,9 +71,12 @@ service widget and a tool hosted by the dashboard all use the same event runtime
    it is disarmed, or no such reading arrives in time, the kept flight is ended.
 3. **`onconnect`.** This runs while the link is held up, the craft is not armed, and the MSP API
    version was not refused. When the chain finishes, a garbage collection runs.
-4. **`telemetry_bg`.** This runs while the link is held up. In the widget context it waits until
-   `onconnect` has finished, unless the craft is armed. The wait exists because of the firmware's
-   per-call instruction limit for widgets. The tool does not wait: a standalone script has no such
+4. **`telemetry_bg`.** This runs while the link is held up. In the widget context the full pass
+   waits until `onconnect` has finished, unless the craft is armed. The wait exists because of the
+   firmware's per-call instruction limit for widgets. While it waits, the widget runs a smaller
+   pass instead (`wakeupConnecting`): it takes the custom telemetry frames off the link and
+   publishes the arming flags (`ARM`) only, so the MSP runtime still sees an arming and stops
+   sending during the connect sequence. The tool does not wait: a standalone script has no such
    limit, and while the tool is open the background function script is paused, so this is the
    only decoder running.
 5. **Arm and disarm edges.** These are detected while the link is held up and no kept flight is
@@ -205,6 +208,13 @@ single pass loads all three. After that, each pass runs them in this order:
 
 `tasks.lua` also sets `session.telemetryFrameAt` whenever frames arrived on this pass or the
 background function script is decoding them.
+
+While a widget's `onconnect` holds this pass back, `tasks.lua`'s `wakeupConnecting` runs in its
+place. It loads `drain.lua` alone and calls its `wakeupArmingFlags`, which takes the frames off the
+link as the full pass does (at most 15) and walks the newest 4, newest first, only until it finds
+the arming flags; it publishes those and nothing else. `smart.lua` and `adjustments.lua` are loaded
+and run by the full pass once the connect sequence is through. It also steps aside while the
+background function script is decoding.
 
 When the background function script (`rfsbg.lua`) is decoding for the whole radio, `drain.lua`
 and `adjustments.lua` step aside together, so sensors are not published twice and adjustments are

@@ -1,0 +1,2 @@
+- **The MSP traffic stops for an arming during the connect sequence in the dashboard (`tasks/events/runtime.lua`, `tasks/events/telemetry_bg/tasks.lua`, `tasks/events/telemetry_bg/drain.lua`, `docs/developer/background-tasks.md`)**:
+  - While the connect tasks run, the dashboard now decodes the arming flags from the flight controller's custom telemetry, so the MSP runtime sees an arming and stops sending even when the background function script is not running; the rest of the telemetry still waits for the connect to finish.

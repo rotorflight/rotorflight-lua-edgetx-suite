@@ -14,7 +14,8 @@
 -- deferred.
 --
 -- What is checked:
---   connect waiting  the onconnect tasks are still active when the craft arms;
+--   connect waiting  the onconnect tasks are still active when the craft arms, and no sensor but
+--                    the arming flags has been published;
 --   armed gate       within ARM_WITHIN_CYCLES of the first frame reporting ARMED, the MSP runtime
 --                    reads the craft as armed and its queue is empty, and it stays empty;
 --   disarm           after the frames report DISARMED again, the runtime reads disarmed;
@@ -78,11 +79,12 @@ end
 local API_FILES = apiFiles()
 
 -- A custom telemetry frame as crossfireTelemetryPop hands it to the script: destination, origin,
--- frame id, then one entry -- the arming flags (0x1202, one byte).
+-- frame id, then the entries -- the battery voltage (0x1011, two bytes, 24.6 V) in front of the
+-- arming flags (0x1202, one byte), so finding the flags means walking past another sensor.
 local frameId = 0
 local function pushArmFrame(armed)
   frameId = (frameId + 1) & 0xFF
-  Stubs.pushFrame(0x88, { 0xEA, 0xC8, frameId, 0x12, 0x02, armed and 1 or 0 })
+  Stubs.pushFrame(0x88, { 0xEA, 0xC8, frameId, 0x10, 0x11, 0x00, 0xF6, 0x12, 0x02, armed and 1 or 0 })
 end
 
 local function newWorld(answerMsp)
@@ -166,6 +168,15 @@ local function scenario(name, answerMsp, expectConnectWaiting)
       "onconnect active = " .. tostring(waiting))
   end
   check(state.lastArmed ~= true, name .. ": disarmed before the arm", tostring(state.lastArmed))
+  -- While the connect tasks wait, only the arming flags are decoded: the full decode stays held
+  -- back for them, so the voltage in front of the flags is not published.
+  if expectConnectWaiting then
+    check(Stubs.sensors["Vbat"] == nil, name .. ": no other sensor is published while the connect tasks wait",
+      "Vbat = " .. tostring(Stubs.sensors["Vbat"]))
+  else
+    check(Stubs.sensors["Vbat"] ~= nil, name .. ": the full decode runs once the connect is through",
+      "Vbat = " .. tostring(Stubs.sensors["Vbat"]))
+  end
 
   local seenAt, publishedAt = nil, nil
   for i = 1, ARM_WITHIN_CYCLES do
