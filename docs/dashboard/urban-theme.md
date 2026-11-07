@@ -103,7 +103,8 @@ allows. Six places on the screen open a page over it, and a seventh opens the su
   or FSK rate, which reports no signal-to-noise ratio, *SNR* reads `-`. *RQ min* is the flight record's: the flight in progress, the last flight
   otherwise, `-` until the model has been armed once. The *Link view switch* on the *Top Bar*
   page opens the same page while the switch is in the chosen position, in full screen and in the
-  widget's zone alike; in the zone it only shows.
+  widget's zone alike; in the zone it only shows. A bar is only redrawn when its
+  reading changes.
 - **The value rows** of the right panel open *Telemetry*: up to twelve readings as tiles, three to
   a row, chosen on the *Telemetry* page. Each tile shows the reading's name and figure and, under
   it, the least and the most the flight reached, `min .. max`. Those come from the flight record:

@@ -106,7 +106,8 @@ These pages, the quick menu, the battery picker and the battery profile page are
 Urban draws, in Deck's colours;
 the [Urban page](urban-theme.md#full-screen) describes each of them, the *Link view switch* that
 opens the *ELRS* page on a switch, and what the keys do. Every place that takes a press has the
-radio's frame around it while *Frames on tap areas* is on.
+radio's frame around it while *Frames on tap areas* is on. A bar is only redrawn when its reading
+changes.
 
 ## Settings
 

@@ -35,7 +35,6 @@ local function loadSchemes()
   return assert(loadScript(_G.rfsuite.paths.core .. "/lib/color_schemes.lua", "t"))()
 end
 
-M.KEY_ENABLED = "standby_enabled"
 M.KEY_LAYOUT = "standby_layout"
 M.MAX_ROWS = 3
 M.MAX_FIELDS = 4
