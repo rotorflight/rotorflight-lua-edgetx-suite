@@ -19,7 +19,7 @@ local function caseArg()
   end
 end
 
-local CASES = { "nolink", "link", "pagefirst", "compile", "movefailed", "restart", "both" }
+local CASES = { "nolink", "link", "pagefirst", "themesave", "linkdrop", "compile", "movefailed", "restart", "both" }
 
 local function quote(text)
   return "'" .. string.gsub(text, "'", "'\\''") .. "'"
@@ -134,10 +134,24 @@ local state = assert(find(Home.run, "state"), "home state missing")
 -- the build made while state.initialLoad holds.
 local builds, startBuilds = 0, 0
 local realBuild = lvgl.build
-lvgl.build = function(...)
+-- The texts of the last scene built, nested children included: what was on screen after it.
+local lastTexts = {}
+local function collectTexts(children, into)
+  if type(children) ~= "table" then return end
+  for i = 1, #children do
+    local child = children[i]
+    if type(child) == "table" then
+      if type(child.text) == "string" then into[child.text] = true end
+      collectTexts(child.children, into)
+    end
+  end
+end
+lvgl.build = function(children, ...)
   builds = builds + 1
   if state.initialLoad then startBuilds = startBuilds + 1 end
-  return realBuild(...)
+  lastTexts = {}
+  collectTexts(children, lastTexts)
+  return realBuild(children, ...)
 end
 
 local function logged(text)
@@ -161,7 +175,7 @@ end
 Home.init({})
 local Precompile = find(Home.run, "Precompile")
 
-if case == "nolink" or case == "link" or case == "pagefirst" then
+if case == "nolink" or case == "link" or case == "pagefirst" or case == "themesave" or case == "linkdrop" then
   expect(state.initialLoad == false, "the start screen still stands after init with nothing to compile")
   expect(builds >= 1, "init built nothing (control)")
   expect(startBuilds == 0, "the start screen was drawn " .. startBuilds .. " times with nothing to compile")
@@ -227,6 +241,101 @@ if case == "pagefirst" then
   end
   expect(crash == nil, "a page hook crashed: " .. tostring(crash))
   expect(state.pageBuildFailed == nil, "the Theme page failed to build: " .. tostring(state.pageBuildFailed))
+end
+
+if case == "themesave" or case == "linkdrop" then
+  -- The model's own theme settings, on the card for this flight controller before the tool opens.
+  -- The Theme page is opened before the flight controller has answered; then it answers, and the
+  -- pilot presses Save. What the page writes for the model has to be what the model's file held,
+  -- not the defaults the page showed while it had no model to read.
+  local MCU = "0123456789abcdef"
+  local MP = assert(_G.rfsuite.require("lib/model_preferences.lua"), "model preferences module missing")
+  local Lib = assert(_G.rfsuite.require("app/pages/settings/dashboard/lib.lua"), "dashboard library missing")
+  local themes = Lib.listThemes() or {}
+  local own = themes[#themes] and themes[#themes].path
+  expect(type(own) == "string" and own ~= "", "no installed theme to pick for the model (instrument)")
+  local seeded = MP.loadByMcuId(MCU, true) or {}
+  seeded.dashboard = { overrides = true, model_override = true, model_theme_preflight = own }
+  local okSeed = MP.saveByMcuId(MCU, seeded)
+  expect(okSeed ~= false, "the model's file could not be written (instrument)")
+
+  -- Save as the header's button does it: the tool hands the page's Save to the header.
+  local Header = assert(_G.rfsuite.require("ui/header.lua"), "header module missing")
+  local pressSave = nil
+  local realAppend = Header.appendToLayout
+  Header.appendToLayout = function(lyt, hctx)
+    if type(hctx) == "table" and type(hctx.onSave) == "function" then pressSave = hctx.onSave end
+    return realAppend(lyt, hctx)
+  end
+
+  -- Wherever a start screen still stands, it is waited out first, as a pilot would: the case is
+  -- about the page, and on a tool that waits for the connection it is reached the same way once
+  -- the flight controller comes later.
+  for _ = 1, 100 do
+    if not state.initialLoad then break end
+    runFor(1)
+  end
+  local PAGE = "settings_dashboard_theme_page"
+  state.pendingPageOpen = PAGE
+  runFor(5)
+  expect(state.activePageMenuId == PAGE, "the Theme page did not open (control)")
+  -- The identity arrives behind the open page. The message runtime is stopped here so that its
+  -- own publish does not overwrite the identity this case hands the session.
+  local MspRuntime = assert(find(Home.run, "MspRuntime"), "message runtime missing")
+  MspRuntime.tick = function() end
+  MspRuntime.isFblConnected = function() return true end
+  local session = _G.rfsuite.session
+  -- The id first, the model's stored settings a few passes later, as the connection delivers them.
+  -- The page writes the session's table for the model, its dashboard section included, so a key
+  -- only the session's table carries shows in the file exactly when the page wrote the model's file.
+  local function deliverModel()
+    session.mcu_id = MCU
+    runFor(3)
+    local loaded = MP.loadByMcuId(MCU, true)
+    if type(loaded.dashboard) ~= "table" then loaded.dashboard = {} end
+    loaded.dashboard.written_by_save = "yes"
+    session.modelPreferences = loaded
+    runFor(5)
+  end
+  deliverModel()
+  expect(session.mcu_id == MCU and type(session.modelPreferences) == "table",
+    "the identity did not stay in the session (instrument)")
+  local edited = nil
+  if case == "linkdrop" then
+    -- The pilot picks another theme for the model and has not saved yet: the page's own state, as
+    -- its combo leaves it (setOptionalThemeFromId).
+    local PageRegistry = find(Home.run, "PageRegistry") or find(Home.init, "PageRegistry")
+    local page = PageRegistry and PageRegistry.byMenuId and PageRegistry.byMenuId[PAGE]
+    local pageUi = page and type(page.build) == "function" and find(page.build, "ui")
+    expect(type(pageUi) == "table" and type(pageUi.config) == "table", "the page's own state was not found (instrument)")
+    edited = themes[1] and themes[1].path
+    expect(edited ~= nil and edited ~= own, "no second theme to pick (instrument)")
+    if type(pageUi) == "table" and type(pageUi.config) == "table" then
+      pageUi.config.model_theme_preflight = edited
+      pageUi.dirty = true
+    end
+    -- The link drops for a moment and comes back to the same flight controller: the connection
+    -- clears the id and the model's settings, then delivers them again.
+    local OWN = "Own settings for this model"
+    expect(lastTexts[OWN] == true, "the model's controls were not on screen before the drop (control)")
+    session.mcu_id = nil
+    session.modelPreferences = nil
+    runFor(5)
+    expect(lastTexts[OWN] ~= true, "the model's controls stayed on screen with no flight controller identified")
+    deliverModel()
+    expect(lastTexts[OWN] == true, "the model's controls did not come back with the same flight controller")
+  end
+  expect(state.fblConnected == true and state.activePageMenuId == PAGE, "the page was left when the flight controller answered")
+  expect(type(pressSave) == "function", "the header's Save was not found (instrument)")
+  if pressSave then pressSave() end
+  runFor(10)
+  local after = MP.loadByMcuId(MCU, true) or {}
+  local dash = after.dashboard or {}
+  expect(dash.written_by_save == "yes", "Save did not write the model's file at all (the model half was skipped)")
+  expect(dash.overrides == true, "Save switched the model's own settings off: overrides=" .. tostring(dash.overrides))
+  local wanted = edited or own
+  expect(dash.model_theme_preflight == wanted, "the model's theme after Save is " .. tostring(dash.model_theme_preflight)
+    .. ", expected " .. tostring(wanted) .. (edited and " (the pilot's unsaved pick)" or " (the model's own)"))
 end
 
 if case == "compile" or case == "restart" or case == "both" then
