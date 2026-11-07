@@ -200,10 +200,18 @@ local function runPass(limit)
 end
 
 if case == "compiled" then
-  runFor(40)
+  for _ = 1, 200 do
+    if not state.initialLoad then break end
+    runFor(1)
+  end
   expect(listed == 0, "a compiled tree is walked again: " .. listed .. " directories listed")
   expect(Precompile ~= nil and not Precompile.isRunning(), "a compile pass runs on a compiled tree")
   expect(state.mspAttached == true, "the tool did not attach to the message runtime (control)")
+  local left = nil
+  for _, entry in ipairs(_G.rfsuite.log_history or {}) do
+    if entry.tag == "rfsuite.ui" and string.find(entry.msg, "start screen left after", 1, true) then left = entry.msg end
+  end
+  expect(left ~= nil and state.initialLoad == false, "the start screen's end is not in the log: " .. tostring(left))
 elseif case == "fresh" or case == "changed" then
   runFor(1)
   expect(Precompile ~= nil and Precompile.isRunning(), "no compile pass after an install")

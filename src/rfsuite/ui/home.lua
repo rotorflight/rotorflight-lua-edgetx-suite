@@ -3457,6 +3457,7 @@ function M.init(opts)
   state.memLowWarned = false
   state.lastInputTick = getTime and getTime() or 0
   state.initialLoadStartTick = getTime and getTime() or 0
+  state.startScreenTick = state.initialLoadStartTick
   state.ignoreNextPageKey = false
   state.suppressPressFrames = 0
   state.suppressBackFrames = 0
@@ -4123,6 +4124,9 @@ function M.run(event, touchState)
       -- here rather than on the first page that happens to need a file.
       if mspSettled and compileFinished then
         state.initialLoad = false
+        -- How long a pilot looked at this screen (10 ms ticks), and what it ended on.
+        logf("info", "start screen left after %d ticks (%s)", math.floor(now - (state.startScreenTick or now)),
+          isConnected and "connected" or (hasMspError and "msp error" or "timeout"))
         if not state.hosted and type(_G.rfsuite.clearModule) == "function" then
           _G.rfsuite.clearModule("lib/color_schemes.lua")
         end
