@@ -3680,7 +3680,7 @@ return {
         plan_done = "Radio set up",
         plan_nothing = "This radio model already carries this setup; nothing to write.",
         plan_failed = "The radio refused part of the setup; Restore previous setup puts it back",
-        help_enabled = "On or off for this radio model, once it is set up. With it off, in-flight tuning drives nothing on it.",
+        help_enabled = "On or off for this radio model, once it is set up. Renaming the model turns it off. With it off, in-flight tuning drives nothing on it.",
         help_bank_ch = "Bank the flight controller listens on, 5 to 16. On ExpressLRS use Wide or full resolution; Hybrid can pick the wrong parameter.",
         help_value_ch = "Steps the parameter, 5 to 16. On ExpressLRS use Wide or full resolution; Hybrid can pick the wrong parameter.",
         help_bank_gvar = "The global variable on the enable channel, 0 to 9, where 0 is none. A line under the fields warns when another mixer line uses it.",

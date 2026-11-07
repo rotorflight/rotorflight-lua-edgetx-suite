@@ -372,14 +372,40 @@ do
     Preferences.settleInflight(prefs)
     return prefs
   end
-  check(settled({ [key] = true }).inflight.enabled == true, "on for this radio model")
-  check(settled({ on_other = true }).inflight.enabled == false, "on for another model is off here")
+  -- The key holds the model's own name, so a model that later gets the same file name is not on.
+  local plainRequire = rfsuite.require
+  local pendingName = nil
+  local storeReads = 0
+  rfsuite.require = function(path)
+    if path == "lib/model_name_store.lua" then
+      storeReads = storeReads + 1
+      return { pending = function() return pendingName end }
+    end
+    return plainRequire(path)
+  end
+  check(settled({ [key] = world.name }).inflight.enabled == true, "on for this radio model")
+  check(storeReads == 0, "a matching name reads no name store")
+  check(settled({ on_other = world.name }).inflight.enabled == false, "on for another model is off here")
   check(settled({ enabled = true }).inflight.enabled == false, "the former radio-wide flag does not carry over")
+  check(settled({ [key] = true }).inflight.enabled == false, "a key from before the name was stored is off")
+  check(settled({ [key] = "Deleted model" }).inflight.enabled == false, "another model with this file name is off")
+  local ownName = world.name
+  world.name = "Trainer 2"
+  check(settled({ [key] = ownName }).inflight.enabled == false, "a renamed model is off")
+  pendingName = ownName
+  check(settled({ [key] = ownName }).inflight.enabled == true, "on while a craft's name stands in the model's place")
+  check(storeReads > 0, "the name store is read when the names differ")
+  pendingName = "Someone else"
+  check(settled({ [key] = ownName }).inflight.enabled == false, "the store's name has to match as well")
+  world.name = ownName
+  pendingName = nil
+  rfsuite.require = plainRequire
   local Views = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/views.lua"))()
   local function widget(section) return { state = {}, preferences = settled(section) } end
-  check(Views.condition("previewInflightTuning", widget({ [key] = true })) == true, "the entry is there")
+  check(Views.condition("previewInflightTuning", widget({ [key] = world.name })) == true, "the entry is there")
   check(Views.condition("previewInflightTuning", widget({})) ~= true, "never switched on: no entry")
-  check(Views.condition("previewInflightTuning", widget({ on_other = true })) ~= true, "on for another model: no entry")
+  check(Views.condition("previewInflightTuning", widget({ on_other = world.name })) ~= true, "on for another model: no entry")
+  check(Views.condition("previewInflightTuning", widget({ [key] = "Deleted model" })) ~= true, "a reused file name: no entry")
 end
 
 -- --------------------------------------------------------------------------- the page's job
@@ -495,7 +521,7 @@ do
   check(theSwitch() ~= nil, "the switch is drawn")
   theSwitch().set(true)
   Page.onSave(ctx)
-  check(prefs.inflight[key] == true, "the switch stores this model's key")
+  check(prefs.inflight[key] == "Own name", "the switch stores this model's key with its own name")
   check(prefs.inflight.on_other == nil, "and no other model's")
   theSwitch().set(false)
   Page.onSave(ctx)
@@ -508,7 +534,7 @@ do
   press("Set up radio")
   check(until_button("Close"), "nothing to write")
   check(string.find(labels(), "nothing to write", 1, true) ~= nil, "says so")
-  check(prefs.inflight[key] == true, "the switch stays on")
+  check(prefs.inflight[key] == "Own name", "the switch stays on")
   press("Close")
 
   -- The restore: marked partial before its first write, cut off, offered again, and it switches off.
