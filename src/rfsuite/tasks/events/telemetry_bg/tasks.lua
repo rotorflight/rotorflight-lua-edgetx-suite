@@ -140,7 +140,7 @@ end
 -- nothing else. SmartFuel and the adjustment
 -- teller are not loaded or woken here; M.wakeup does both once the connect is through, and finds
 -- the drain already loaded. Like M.wakeup, it stands aside while the background function script
--- is draining for the whole radio.
+-- is draining for the whole radio. Returns the source it published on this pass, if any.
 function M.wakeupConnecting()
     if Drain == nil then
         Drain = loadModule("tasks/events/telemetry_bg/drain.lua") or false
@@ -149,12 +149,15 @@ function M.wakeupConnecting()
     if not Drain or type(Drain.wakeupArmingFlags) ~= "function" then return end
     local now = nowSeconds()
     local remote = Drain.remoteAlive(now)
+    local popped, published = 0, nil
+    if not remote then popped, published = Drain.wakeupArmingFlags(now) end
     -- When the flight controller's telemetry was last seen arriving, as M.wakeup keeps it: frames
     -- taken here, or the function script's drain moving (lib/audio.lua reads it).
-    if remote or Drain.wakeupArmingFlags(now) > 0 then
+    if remote or (popped or 0) > 0 then
         local session = _G.rfsuite and _G.rfsuite.session
         if session then session.telemetryFrameAt = now end
     end
+    return published
 end
 
 function M.reset()

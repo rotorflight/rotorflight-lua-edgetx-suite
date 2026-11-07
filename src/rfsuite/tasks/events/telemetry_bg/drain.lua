@@ -451,7 +451,8 @@ end
 -- newest DECODE_CAP of them -- newest first -- only as many are walked as it takes to find the
 -- arming flags; the newest System Status word met on the way is published too.
 --
--- Returns how many frames the pass took off the wire, as M.wakeup does.
+-- Returns how many frames the pass took off the wire, as M.wakeup does, and which source it
+-- published ("ARM" or "STAT"), or nil.
 function M.wakeupArmingFlags(now)
     if not modulesReady(now) then return 0 end
     beginPass(now)
@@ -477,10 +478,11 @@ function M.wakeupArmingFlags(now)
 
     -- Newest first: the newest System Status word, and the newest arming flags.
     local withStatus = true
+    local found = nil
     for i = #kept, 1, -1 do
         local armFound, statusFound = publishArmedSource(kept[i], now, withStatus)
-        if armFound then break end
-        if statusFound then withStatus = false end
+        if armFound then found = "ARM" break end
+        if statusFound then withStatus = false; found = "STAT" end
     end
     for i = #kept, 1, -1 do kept[i] = nil end
 
@@ -490,7 +492,7 @@ function M.wakeupArmingFlags(now)
         end
         root.adjustmentReport = report
     end
-    return popped
+    return popped, found
 end
 
 -- What a lost link invalidates, and nothing else. The liveness state above is deliberately not

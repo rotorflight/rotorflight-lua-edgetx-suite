@@ -75,6 +75,8 @@ local state = {
   -- The widget is running telemetry_bg's armed-state-only pass because the connect tasks hold the
   -- full one back. Kept only to log the change of pass once rather than on every wakeup.
   armingFlagsOnly = false,
+  -- The connect-time pass has published the armed state since it began; logged once per connect.
+  armedSourceSeen = false,
 }
 
 -- The argument a runner's wakeup is called with. One table for every call rather than a
@@ -621,15 +623,22 @@ function Events.wakeup(carry)
     elseif state.linkStableUp then
       if not state.armingFlagsOnly then
         state.armingFlagsOnly = true
+        state.armedSourceSeen = false
         if Log and type(Log.emit) == "function" then
           pcall(Log.emit, "rfsuite.events", "custom telemetry: armed state only while the connect tasks run", "debug")
         end
       end
       local telemetry_bg = ensureEventRunner("telemetry_bg")
       if telemetry_bg and type(telemetry_bg.wakeupConnecting) == "function" then
-        local ok, err = pcall(telemetry_bg.wakeupConnecting)
+        local ok, published = pcall(telemetry_bg.wakeupConnecting)
         if not ok and Log and type(Log.emit) == "function" then
-          pcall(Log.emit, "rfsuite.events", "telemetry_bg.wakeupConnecting error: " .. tostring(err), "error")
+          pcall(Log.emit, "rfsuite.events", "telemetry_bg.wakeupConnecting error: " .. tostring(published), "error")
+        elseif published and not state.armedSourceSeen then
+          -- Once per connect: the moment the armed state first reached the radio from this pass.
+          state.armedSourceSeen = true
+          if Log and type(Log.emit) == "function" then
+            pcall(Log.emit, "rfsuite.events", "custom telemetry: armed state published from " .. tostring(published), "debug")
+          end
         end
       end
     end
