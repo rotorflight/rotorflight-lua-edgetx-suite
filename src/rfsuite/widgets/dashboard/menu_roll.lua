@@ -740,17 +740,18 @@ local function middleFace(list, large, small, maxW)
   return large
 end
 
--- The suite's lists keep their titles for a visit, so what they were measured to is kept with the roll: every
--- shift and RTN builds the scene again, and measuring text is the firmware's work.
+-- A list whose titles stay for the visit is measured once: the description names it with `faceKey`, and what it
+-- was measured to is kept with the roll. Every shift and RTN builds the scene again, and measuring text is the
+-- firmware's work.
 local function faceOf(roll, list, large, small, maxW)
-  local first = type(list) == "table" and list[1] or nil
-  if first == nil or first.tree ~= true then return middleFace(list, large, small, maxW) end
+  local faceKey = roll.source and roll.source.faceKey
+  local key = (type(list) == "table" and faceKey ~= nil) and faceKey(list) or nil
+  if key == nil then return middleFace(list, large, small, maxW) end
   local faces = roll.faces
   if faces == nil then
     faces = {}
     roll.faces = faces
   end
-  local key = tostring(first.menuId) .. "#" .. #list
   local face = faces[key]
   if face == nil then
     face = middleFace(list, large, small, maxW)

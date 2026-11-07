@@ -22,6 +22,8 @@
 --   status(roll)  the header's line: the words, and the name of the colour they take; or nil
 --   notice()      the title and the message a tap on that line shows; or nil
 --   icon(row)     the picture of a row, a file; or nil
+--   faceKey(list) a name for a list whose titles stay for the visit, so the face of its middle row is measured
+--                 once; or nil, and the list is measured at every build
 --   close()       the close box
 --   back()        RTN with the focus in the first list
 
@@ -196,6 +198,12 @@ function M.quick(widget, entries, t)
       return out
     end,
     preview = listOf,
+    -- The suite's own lists keep their titles for the visit; the entries and options do not.
+    faceKey = function(list)
+      local first = list[1]
+      if first == nil or first.tree ~= true then return nil end
+      return tostring(first.menuId) .. "#" .. #list
+    end,
     enter = function(entry)
       if type(entry.confirm) == "table" then return answers(entry.confirm), entry.confirm end
       return listOf(entry), nil
