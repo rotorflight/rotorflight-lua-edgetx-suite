@@ -56,13 +56,16 @@ values read then would belong to the other profile.
 - A flight with no acro flight time is not saved.
 
 **Coming from another dashboard:** put the RFSuite dashboard or the RFSuite Service widget on a screen of the model
-(see [Service widget](../../dashboard/service-widget.md)) and check that the model has the `ARM` sensor. Opening the
-configuration tool from the tool list after a flight shows the flights the widget saved; it saves none itself.
+(see [Service widget](../../dashboard/service-widget.md)) and check that the model has an arming sensor: `ARM`,
+`ARMF` or `STAT`. Opening the configuration tool from the tool list after a flight shows the flights the widget saved;
+it saves none itself.
 
 With no flight saved for the connected flight controller, *Flight data* reads "No flight saved yet", *Suggested
-changes* says what saves a flight and *Why* names the widgets and the `ARM` sensor. When the flight controller still
-holds measurements nobody saved, *Why* starts with how long they are, for example "The flight controller holds 1m 59s
-of flight that were not saved": a flight was flown and counted, and nothing on the radio saved it.
+changes* says what saves a flight and *Why* names the widgets and the `ARM` sensor. The page asks the flight
+controller what it still holds when it opens, on *Reload* and when another flight controller connects; when that
+answer finds measurements nobody saved, *Why* starts with how long they are, for example "The flight controller holds
+1m 59s of flight that were not saved": a flight was flown and counted, and nothing on the radio saved it. After a
+flight whose reading failed while the page stayed open, press *Reload* to ask again.
 
 The flights are kept on the radio's SD card in `/SCRIPTS/RFSUITE/user/tune/<mcu id>.lua`, one line per
 flight and axis, newest last; only the last 5 flights are kept. `<mcu id>` is the flight controller's board ID,
