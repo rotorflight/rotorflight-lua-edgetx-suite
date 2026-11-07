@@ -5497,13 +5497,13 @@ function Runtime.new(zone, options)
     end
     if introOwed then
       self._standbyIntroOwed = nil
-      local prefs = self.preferences
+      local widgetPrefs = self.preferences
       -- A second dashboard on the model may have written it already, and this one reloaded it.
-      if type(prefs) == "table" and not (prefs.dashboard and prefs.dashboard.standby_intro_seen == true) then
-        prefs.dashboard = prefs.dashboard or {}
-        prefs.dashboard.standby_intro_seen = true
+      if type(widgetPrefs) == "table" and not (widgetPrefs.dashboard and widgetPrefs.dashboard.standby_intro_seen == true) then
+        widgetPrefs.dashboard = widgetPrefs.dashboard or {}
+        widgetPrefs.dashboard.standby_intro_seen = true
         local Preferences = requireModule("lib/preferences.lua")
-        local saved = Preferences and type(Preferences.save) == "function" and Preferences.save(prefs)
+        local saved = Preferences and type(Preferences.save) == "function" and Preferences.save(widgetPrefs)
         if Log and type(Log.emitf) == "function" then
           Log.emitf("rfsuite.widget.standby", saved and "info" or "warn", "first-start tile: %s",
             saved and "saved as read" or "could not be saved, it comes back at the next start")
