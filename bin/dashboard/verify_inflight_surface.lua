@@ -159,9 +159,13 @@ end)
 scenario("a surface closed on a setup fault turns tuning off for the model, once and on the ground", function()
   local root, savedInfo = rfsuite, model.getInfo
   local savedSave = root.savePreferences
-  local saves = 0
+  local Preferences = rfsuite.require("lib/preferences.lua")
+  local realSave = Preferences.save
+  local saves, savedTable, toolSaves = 0, nil, 0
   model.getInfo = function() return {name = "Heli", filename = "model3.yml"} end
-  root.savePreferences = function() saves = saves + 1; return true end
+  Preferences.save = function(t) saves = saves + 1; savedTable = t; return realSave(t) end
+  -- A tool's writer left on the global: it must not be the one that stores the dashboard's table.
+  root.savePreferences = function() toolSaves = toolSaves + 1; return true end
   local ok, err = pcall(function()
     -- Closed through the real route: the close request, then the runtime's own pass, which ticks no
     -- closed surface and cleans it up instead.
@@ -183,21 +187,12 @@ scenario("a surface closed on a setup fault turns tuning off for the model, once
     d.live, d._checkResult, d._checkFault = false, {"same_gvar"}, true
     local cost = closeAndPass(widget)
     check(widget.preferences.inflight["on_model3.yml"] == nil and saves == 1, "closed on a fault, the model's key goes")
+    check(savedTable == widget.preferences and toolSaves == 0, "stored from the table it was removed from")
     check(widget.preferences.inflight.enabled == false, "and the entry with it")
     print(string.format("  closing pass with the fault save: %d instructions", cost))
     check(cost < 20000, "the closing pass stays inside a widget call")
     Stubs.tick(); widget:refresh(0, nil)
     check(saves == 1, "once")
-    -- The plain widget has no tool's writer: the suite's own preferences writer, really writing.
-    root.savePreferences = nil
-    widget, d = fixture(false)
-    widget.preferences.inflight["on_model3.yml"] = "Heli"
-    d.live, d._checkResult, d._checkFault = false, {"same_gvar"}, true
-    cost = closeAndPass(widget)
-    check(widget.preferences.inflight["on_model3.yml"] == nil, "the preferences writer stores it too")
-    print(string.format("  closing pass with the preferences writer: %d instructions", cost))
-    check(cost < 20000, "and the closing pass stays inside a widget call")
-    root.savePreferences = function() saves = saves + 1; return true end
     widget, d = fixture(false)
     widget.preferences.inflight["on_model3.yml"] = "Heli"
     d.live, d._checkResult, d._checkFault = false, "ok", false
@@ -205,7 +200,7 @@ scenario("a surface closed on a setup fault turns tuning off for the model, once
     check(widget.preferences.inflight["on_model3.yml"] == "Heli" and saves == 1, "closed without a fault, it stays on")
   end)
   debug.sethook()
-  model.getInfo, root.savePreferences = savedInfo, savedSave
+  model.getInfo, root.savePreferences, Preferences.save = savedInfo, savedSave, realSave
   assert(ok, err)
 end)
 scenario("closed tuning performs no ground MSP work", function()

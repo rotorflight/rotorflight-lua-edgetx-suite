@@ -288,13 +288,11 @@ function M.storeModelOff(widget)
   if key == nil or section[key] == nil then return true end
   section[key] = nil
   section.enabled = false
-  local root = _G.rfsuite
+  -- The suite's own writer, on the table just edited: a tool's writer left on the global after a hosted
+  -- visit is bound to the tool's table, which may be another one.
   local saved, err = false, nil
-  if root and type(root.savePreferences) == "function" then saved, err = root.savePreferences()
-  else
-    local Preferences = requireModule("lib/preferences.lua")
-    if type(Preferences) == "table" and type(Preferences.save) == "function" then saved, err = Preferences.save(prefs) end
-  end
+  local Preferences = requireModule("lib/preferences.lua")
+  if type(Preferences) == "table" and type(Preferences.save) == "function" then saved, err = Preferences.save(prefs) end
   logDrive("setup fault: tuning off for %s, saved %s %s", tostring(key), tostring(saved), tostring(err or ""))
   return saved == true, err
 end
