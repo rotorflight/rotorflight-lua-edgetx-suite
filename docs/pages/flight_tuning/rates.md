@@ -28,16 +28,19 @@ Read-only while the model is armed.
 Each cell is bounded by the limits its rate type actually has. For Roll, Pitch and Yaw
 those are the limits the flight controller itself enforces when the settings are stored; for
 Collective, which the flight controller does not limit, they are the ones the Rotorflight
-Configurator applies to the same field.
+Configurator applies to the same field. Raceflight's RC Rate and Actual's and Quick's
+rates therefore reach 2000 °/s on Roll, Pitch and Yaw, where the Configurator stops at
+1000 °/s: a value above 1000 °/s, set over the CLI or by the Tune Advisor's Apply, is shown
+as the flight controller holds it.
 
 | Rates Type | First column | Second column | Third column |
 | --- | --- | --- | --- |
 | None | read-only | read-only | read-only |
 | Betaflight | RC Rate 0.01 to 2.55 (collective 0.01 to 2.20) | Super Rate 0.00 to 0.90 (collective 0.00 to 0.99) | Expo 0.00 to 1.00 |
-| Raceflight | RC Rate 10 to 1000 °/s (collective 0.00 to 25.00) | Acro+ 0 to 255 | Expo 0 to 100 |
+| Raceflight | RC Rate 10 to 2000 °/s (collective 0.00 to 25.00) | Acro+ 0 to 255 | Expo 0 to 100 |
 | KISS | RC Rate 0.01 to 2.55 | Rate 0.00 to 0.90 (collective 0.00 to 0.99) | RC Curve 0.00 to 1.00 |
-| Actual | Center Sens 10 to 1000 °/s (collective 0.00 to 25.00) | Max Rate 0 to 1000 °/s (collective 0.00 to 25.00) | Expo 0.00 to 1.00 |
-| Quick | RC Rate 0.01 to 2.55 | Max Rate 0 to 1000 °/s | Expo 0.00 to 1.00 |
+| Actual | Center Sens 10 to 2000 °/s (collective 0.00 to 25.00) | Max Rate 0 to 2000 °/s (collective 0.00 to 25.00) | Expo 0.00 to 1.00 |
+| Quick | RC Rate 0.01 to 2.55 | Max Rate 0 to 2000 °/s | Expo 0.00 to 1.00 |
 | Rotorflight | Rate 10 to 1000 °/s (collective 0.00 to 25.00) | Shape 0 to 100 (collective 0 to 127) | Expo 0 to 100 |
 
 The collective row has its own range wherever the table names one. The flight controller
@@ -52,12 +55,10 @@ flight controller limits Roll, Pitch and Yaw to its own per-type range when it s
 
 - Changing the rate type changes what the three columns mean and what they may hold. The
   values are not converted: read the new type's values off the board before flying it.
-- A value the flight controller is already running that lies outside the range above -- one
-  set over the CLI, or left behind by an older release -- is displayed at the limit, and is
-  sent back to the board unchanged unless that cell is edited. Editing it moves it inside
-  the range. For Roll, Pitch and Yaw the flight controller trims such a value to its own
-  limit when it stores the settings, so a save made for any reason brings it into range
-  there; for Collective the value stays as it is.
+- For Roll, Pitch and Yaw the range above is the flight controller's own, so every value it
+  holds after a save is shown as it is. A Collective value outside the range -- one set over
+  the CLI, or left behind by an older release -- is displayed at the limit, and is sent back
+  to the board unchanged unless that cell is edited; editing it moves it inside the range.
 - Response time, accelerometer limit, setpoint boost and the cyclic ring belong to the same
   rate profile and are on *Advanced* → *Rates (Advanced)*.
 - Which rate profile is being edited is shown in the page heading. It follows the flight

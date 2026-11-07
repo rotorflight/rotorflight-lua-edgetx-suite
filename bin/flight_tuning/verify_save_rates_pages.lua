@@ -382,5 +382,64 @@ runScenario(tableSpec, "CANCEL", function(h, eq)
   eq(#h.reports, 0, "cancel opens no reportSave dialog")
 end)
 
+-- Roll, pitch and yaw cells take the limits the flight controller enforces when it stores the
+-- rates (ratesSettingLimits, src/main/fc/rc_rates.c): a value the board holds above the
+-- Configurator's 1000 deg/s is shown as it is, and an edit can reach the board's own ceiling.
+-- The collective keeps the Configurator's range, as the board leaves it unlimited.
+local ROLL_CELLS = {
+  -- rates_type, reply byte of the roll rate, field, board value, firmware limit, shown
+  { type = 4, byte = 2, field = "rcRates_1", value = 150, limit = 200, shown = "1500" },
+  { type = 4, byte = 4, field = "rates_1", value = 150, limit = 200, shown = "1500" },
+  { type = 5, byte = 4, field = "rates_1", value = 120, limit = 200, shown = "1200" },
+  { type = 2, byte = 2, field = "rcRates_1", value = 180, limit = 200, shown = "1800" }
+}
+
+local function findCell(h, field)
+  -- The cell whose get follows a change of the given field, and only that field, is its cell.
+  for _, child in ipairs(h.ctx.children) do
+    if child.type == "numberEdit" then
+      local before = h.ui.config[field]
+      h.ui.config[field] = 8
+      local low = child.get()
+      h.ui.config[field] = 40
+      local high = child.get()
+      h.ui.config[field] = before
+      if low ~= high then return child end
+    end
+  end
+end
+
+for _, cell in ipairs(ROLL_CELLS) do
+  runScenario({ name = "rates", path = "rates" },
+    "type " .. cell.type .. " " .. cell.field .. " above 1000 deg/s", function(h, eq)
+    h.reply[1] = cell.type
+    h.reply[cell.byte] = cell.value
+    h.page.build(h.ctx)
+    h.page.wakeup(h.ctx)
+    answer(h, assert(h.queue.entries[1], "initial read missing"), h.reply)
+    h.ctx.children = {}
+    h.page.build(h.ctx)
+    local edit = assert(findCell(h, cell.field), "no cell for " .. cell.field)
+    eq(edit.max, cell.limit, "cell maximum is the flight controller's limit")
+    eq(edit.get(), cell.value, "cell reads the board's value")
+    eq(edit.display(edit.get()), cell.shown, "cell shows the board's value")
+    edit.set(cell.limit)
+    eq(h.ui.config[cell.field], cell.limit, "an edit reaches the flight controller's limit")
+    edit.set(cell.limit + 1)
+    eq(h.ui.config[cell.field], cell.limit, "an edit stops at the flight controller's limit")
+  end)
+end
+
+runScenario({ name = "rates", path = "rates" }, "Actual collective keeps its range", function(h, eq)
+  h.reply[1] = 4
+  h.page.build(h.ctx)
+  h.page.wakeup(h.ctx)
+  answer(h, assert(h.queue.entries[1], "initial read missing"), h.reply)
+  h.ctx.children = {}
+  h.page.build(h.ctx)
+  local edit = assert(findCell(h, "rates_4"), "no cell for rates_4")
+  eq(edit.max, 50, "collective max rate keeps the Configurator's 25.00 (raw 100, step 2)")
+end)
+
 print("Rates page saves: " .. checks .. " checks, " .. failures .. " failures")
 os.exit(failures == 0 and 0 or 1)
