@@ -23,14 +23,14 @@ return function(ctx)
   local i18n = ctx and ctx.i18n
   local ratesType = ctx and tonumber(ctx.ratesType) or 6
 
+  -- One intro line, then one line per column of the active rate type
   local parts = {
     t(i18n, "help_intro"),
-    getTableHelp(i18n, t, ratesType),
-    t(i18n, "help_dynamics")
+    getTableHelp(i18n, t, ratesType)
   }
 
   return {
     title = t(i18n, "help_title"),
-    message = table.concat(parts, "\n\n")
+    message = table.concat(parts, "\n")
   }
 end
