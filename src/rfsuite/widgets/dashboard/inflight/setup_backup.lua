@@ -355,11 +355,19 @@ function M.isWhole(record)
   if record.damaged or #record.channels ~= #record.written or #record.gvars ~= #record.details then
     return false
   end
+  -- Only the two states this module writes. A restore checks the model against the record only when it
+  -- is `complete`, so any other word would let a restore write without that check.
+  if record.state ~= "partial" and record.state ~= "complete" then return false end
   -- A record from before the count has none to hold against.
   if record.declaredBytes ~= nil and record.declaredBytes ~= record.bytes then return false end
+  -- Each variable's G line (what it held) and H line (what the set-up wrote) are written as a pair with
+  -- the same index, and stillCarries reads the H line's index: both are checked, and against each other.
   for i = 1, #record.gvars do
-    local entry = record.gvars[i]
+    local entry, after = record.gvars[i], record.details[i]
     if entry.index == nil or entry.min == nil or entry.max == nil or entry.prec == nil or entry.unit == nil then
+      return false
+    end
+    if after.index ~= entry.index or after.min == nil or after.max == nil or after.prec == nil or after.unit == nil then
       return false
     end
   end

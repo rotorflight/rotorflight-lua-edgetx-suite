@@ -444,9 +444,14 @@ end
 function PLAN_STAGES.trims(job, left)
   local radio, settings, plan = job.radio, job.settings, job.plan
   if settings.trims == true then
-    -- One trim on two jobs is a fault no write repairs, so nothing is replaced for it.
+    -- One trim on two jobs, or walk-and-adjust with one of its two trims unset, is a fault no write
+    -- repairs (M.check reports it as `no_nav_trim`), so nothing is replaced for it.
     local claimed, twice = Setup.claimedTrims(settings, job.trims)
     if twice then return refusePlan(job, "trim_claimed_twice") end
+    if settings.trim_mode == Setup.TRIM_MODE_NAVIGATE
+        and ((settings.nav_trim or 0) == 0 or (settings.adj_trim or 0) == 0) then
+      return refusePlan(job, "no_nav_trim")
+    end
     local byMode = Setup.flightModeTrims(radio)
     for fm = 0, MAX_FLIGHT_MODES - 1 do
       if byMode[fm] == nil then break end

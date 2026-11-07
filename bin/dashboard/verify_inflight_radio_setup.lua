@@ -438,6 +438,21 @@ do
   check(refused.ok ~= true and refused.refused == "trim_claimed_twice", "two jobs on one trim refuse the plan")
   check(Plan.newApplyJob(Setup.radio(), refused).done == true, "and nothing can be applied from it")
 
+  -- Walk and adjust with one of its two trims unset: the check keeps tuning off for it, so the plan
+  -- writes nothing for it either.
+  -- The bank trim keeps its default, 2.
+  for _, pair in ipairs({ { 0, 4 }, { 1, 0 } }) do
+    world = freshWorld()
+    for i = 1, 3 do world.mixes[10][i] = fullLine(i) end
+    local unset = plainConfig({ trims = true })
+    unset.trim_mode = Setup.TRIM_MODE_NAVIGATE
+    unset.nav_trim, unset.adj_trim = pair[1], pair[2]
+    local missing = runPlan(Setup.radio(), unset)
+    check(missing.ok ~= true and missing.refused == "no_nav_trim", "walk and adjust without both trims refuse the plan")
+    check(Plan.newApplyJob(Setup.radio(), missing).done == true, "and nothing can be applied from it")
+    check(#world.mixes[10] == 3, "and the model is untouched")
+  end
+
   -- A delay on a line that is otherwise the set-up's is a line to write, in the plan and in the check.
   world = freshWorld()
   local plain = plainConfig()
@@ -515,7 +530,18 @@ do
   check(not Backup.isWhole(parsed()), "without the count, a line short of a field is seen")
   writeFile(recordFile(), (string.gsub(text, "\nG\t(%d+)\t[^\n]*", "\nG\t%1\tOLD", 1)))
   check(not Backup.isWhole(parsed()), "without the count, a variable cut short is seen")
+  writeFile(recordFile(), (string.gsub(text, "\nH\t%d+\t", "\nH\t\t", 1)))
+  check(not Backup.isWhole(parsed()), "a variable's written half with no index is seen")
+  writeFile(recordFile(), (string.gsub(text, "\nH\t(%d+)\t", function(n) return "\nH\t" .. (tonumber(n) + 1) .. "\t" end, 1)))
+  check(not Backup.isWhole(parsed()), "a variable's two halves with different indexes are seen")
   text = counted
+  writeFile(recordFile(), text)
+  -- The state line is outside the count, so only the state check sees a word this module never writes.
+  check(string.find(text, "\nstate\tcomplete\n", 1, true) ~= nil, "the record is marked complete here")
+  writeFile(recordFile(), (string.gsub(text, "\nstate\tcomplete\n", "\nstate\tcompleted\n", 1)))
+  check(not Backup.isWhole(parsed()), "a state this module never writes is not whole")
+  writeFile(recordFile(), (string.gsub(text, "\nstate\tcomplete\n", "\nstate\tpartial\n", 1)))
+  check(Backup.isWhole(parsed()), "a partial record is whole")
   writeFile(recordFile(), text)
 
   -- A temporary copy that cannot be deleted is read as the record, so the record is not gone.

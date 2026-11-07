@@ -617,7 +617,8 @@ local function refusalText(i18n, reason)
     return t(i18n, "plan_same_channel", "The two channels have to be different.")
   elseif reason == "no_ls" then
     return t(i18n, "plan_no_ls", "No logical switch is free to time the pulses; empty one first.")
-  elseif reason == "trim_claimed_twice" then
+  elseif reason == "trim_claimed_twice" or reason == "no_nav_trim" then
+    -- The sentence the check shows for both.
     return t(i18n, "check_claim", "Walk and adjust need two different trims")
   end
   return t(i18n, "plan_unsupported", "This radio does not offer the mixer writer.")
