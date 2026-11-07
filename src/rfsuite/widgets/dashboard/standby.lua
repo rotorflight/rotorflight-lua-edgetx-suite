@@ -35,7 +35,6 @@ local function loadSchemes()
   return assert(loadScript(_G.rfsuite.paths.core .. "/lib/color_schemes.lua", "t"))()
 end
 
-M.KEY_ENABLED = "standby_enabled"
 M.KEY_LAYOUT = "standby_layout"
 M.MAX_ROWS = 3
 M.MAX_FIELDS = 4
@@ -240,6 +239,15 @@ function M.geometry(width, height)
   local rows = math.min(M.MAX_ROWS, math.floor((available + gap) / (rowHeight + gap)))
   return { compact = compact, micro = micro, top = top, footer = footer, gap = gap,
     margin = margin, rowHeight = rowHeight, maxRows = rows, maxFields = width >= M.WIDE_WIDTH and 4 or 2 }
+end
+
+--- The room a tile in place of the rows has: x, y, w, h. Where the zone is low it also takes the
+--- logo's place, since the footer has to stay.
+function M.noticeArea(width, height)
+  local geometry = M.geometry(width, height)
+  local top = height < 300 and geometry.gap or geometry.top
+  return geometry.margin, top, width - geometry.margin * 2,
+    math.max(0, height - top - geometry.footer - geometry.gap)
 end
 
 local function fieldWidth(width, geometry, fields)

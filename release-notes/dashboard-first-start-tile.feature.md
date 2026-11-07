@@ -1,0 +1,1 @@
+- The first time the dashboard stands on a radio, a large tile says what to look out for: no other dashboards or service widgets on the model, no other background job, the suite's own one stays, and which keys do what in full screen. The first change to full screen closes it for good (widgets/dashboard/first_start.lua, widgets/dashboard/notice.lua).

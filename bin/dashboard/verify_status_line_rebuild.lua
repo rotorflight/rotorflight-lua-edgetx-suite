@@ -115,7 +115,9 @@ local function leg(name, standby)
   local widget = runtime.new(zone, {})
   widget.preferences = widget.preferences or {}
   widget.preferences.dashboard = widget.preferences.dashboard or {}
-  widget.preferences.dashboard.standby_enabled = standby
+  widget.preferences.dashboard.standby_intro_seen = true
+  -- The splash stands where the standby's build was given up.
+  if not standby then widget._jobFaults.standby = 99 end
   widget.flightMode = "preflight"
 
   -- Settled: the first scene stands, and the pass has moved. The fill's scale is far too wide for
@@ -178,7 +180,9 @@ local function onconnectLeg(name, standby)
   local widget = runtime.new({ x = 0, y = 0, w = 800, h = 458 }, {})
   widget.preferences = widget.preferences or {}
   widget.preferences.dashboard = widget.preferences.dashboard or {}
-  widget.preferences.dashboard.standby_enabled = standby
+  widget.preferences.dashboard.standby_intro_seen = true
+  -- The splash stands where the standby's build was given up.
+  if not standby then widget._jobFaults.standby = 99 end
   widget.flightMode = "preflight"
 
   cycle(widget, 60)

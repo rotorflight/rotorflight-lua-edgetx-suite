@@ -3,7 +3,7 @@ local function load(path) return assert(loadScript(_G.rfsuite.paths.core .. "/" 
 local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or load)("ui/palette.lua")
 local Common, Controls, Standby, t
 local NOTE_LINE_H = 24
-local ui = { loaded = false, dirty = false, enabled = false, rows = {}, runtime = nil, salvaged = false }
+local ui = { loaded = false, dirty = false, rows = {}, runtime = nil, salvaged = false }
 
 local function deps()
   Common = Common or load("app/pages/settings/common.lua")
@@ -15,7 +15,6 @@ end
 
 local function fromPrefs(prefs)
   local dashboard = type(prefs.dashboard) == "table" and prefs.dashboard or {}
-  ui.enabled = dashboard[Standby.KEY_ENABLED] == true
   local items, err = Standby.decode(dashboard[Standby.KEY_LAYOUT])
   ui.rows, ui.salvaged = Standby.toRows(items), err ~= nil
 end
@@ -94,25 +93,21 @@ function M.onSave(ctx)
   deps()
   local items = Standby.fromRows(ui.rows)
   local valid, reason = Standby.validate(items, LCD_W or 480, LCD_H or 320, fitLabels(ctx.i18n))
-  if ui.enabled and not valid then
+  if not valid then
     local message = reason == "empty" and t(ctx.i18n, "fit_empty", "Add at least one row before saving.")
       or t(ctx.i18n, "invalid_message", "Every field must fit readably in its row.")
     ctx.reportSave({ title = t(ctx.i18n, "invalid_title", "Layout not saved"), message = message })
     return
   end
-  local encodedLayout = valid and Standby.encode(items) or nil
   ctx.preferences.dashboard = ctx.preferences.dashboard or {}
-  local previousEnabled = ctx.preferences.dashboard[Standby.KEY_ENABLED]
   local previousLayout = ctx.preferences.dashboard[Standby.KEY_LAYOUT]
-  ctx.preferences.dashboard[Standby.KEY_ENABLED] = ui.enabled
-  if encodedLayout ~= nil then ctx.preferences.dashboard[Standby.KEY_LAYOUT] = encodedLayout end
+  ctx.preferences.dashboard[Standby.KEY_LAYOUT] = Standby.encode(items)
   local ok, err = ctx.savePreferences()
   if ok then
     ui.dirty = false
     ctx.reportSave({ ok = true, title = t(ctx.i18n, "saved_title", "Saved"),
       message = t(ctx.i18n, "saved_message", "Standby screen saved") })
   else
-    ctx.preferences.dashboard[Standby.KEY_ENABLED] = previousEnabled
     ctx.preferences.dashboard[Standby.KEY_LAYOUT] = previousLayout
     ctx.reportSave({ title = t(ctx.i18n, "save_error_title", "Error"),
       message = t(ctx.i18n, "save_error_message", "Save failed") .. ": "
@@ -139,9 +134,6 @@ function M.build(ctx)
     end
     return idsByCount[count], choicesByCount[count]
   end
-  y = y + Controls.appendRadioSwitch(children, x, y, w, t(i18n, "enabled", "Standby screen"), ui.enabled,
-    function(value) ui.enabled = value == true; ui.dirty = true; ctx.requestRebuild() end,
-    { helpText = t(i18n, "help_enabled", "Shows radio information instead of the connecting screen until the flight controller is ready.") })
   if ui.salvaged then
     y = y + appendNote(children, x, y, w,
       t(i18n, "saved_entries_skipped", "Unsupported saved entries were skipped."), Palette.warning)

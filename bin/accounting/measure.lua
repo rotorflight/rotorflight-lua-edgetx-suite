@@ -503,13 +503,16 @@ local function invalidate(widget)
 end
 
 --- Run one scenario: a widget on `themePath`, settled, then `passes` measured passes.
-local function runScenario(themePath, passes)
+--- `splash` gives the standby's build up first, which is the waiting path that still draws the splash.
+local function runScenario(themePath, passes, splash)
   World.reset()
   local sensorIds = World.sensorIds
   local Runtime = World.require("widgets/dashboard/runtime.lua")
   local widget = Runtime.new(ZONE, {})
   widget.preferences = widget.preferences or {}
-  widget.preferences.dashboard = { theme_preflight = themePath }
+  -- Every start but a radio's first has read the first-start tile; it has rows of its own.
+  widget.preferences.dashboard = { theme_preflight = themePath, standby_intro_seen = true }
+  if splash then widget._jobFaults.standby = 99 end
 
   local coldWorst, settlePasses, startupWorst = settle(widget, sensorIds, 4000)
 
@@ -548,7 +551,7 @@ local function elrsField(id, name, options, selected, unit)
   append(out, { selected, 0, #options - 1, 0 }); append(out, bytes(unit or "")); return out
 end
 
-local function runStandbyScenario(layout, gps, elrsReplies, expectedTiles)
+local function runStandbyScenario(layout, gps, elrsReplies, expectedTiles, intro)
   World.reset()
   local savedGps = _G.getTxGPS
   _G.getTxGPS = function() return gps end
@@ -567,12 +570,14 @@ local function runStandbyScenario(layout, gps, elrsReplies, expectedTiles)
   local Runtime = World.require("widgets/dashboard/runtime.lua")
   local widget = Runtime.new(ZONE, {})
   widget.preferences = widget.preferences or {}
-  widget.preferences.dashboard = { theme_preflight = "system/default", standby_enabled = true, standby_layout = layout }
+  widget.preferences.dashboard = { theme_preflight = "system/default", standby_layout = layout,
+    standby_intro_seen = not intro or nil }
   local worst, raised = {}, 0
   for i = 1, 120 do
     local class = passClass(widget)
     local logSeq = _G.rfsuite.log_history_seq or 0
-    local n = count(widget.refresh, widget, 0, nil)
+    -- The tile stands in a zone; everything else here is the full screen.
+    local n = count(widget.refresh, widget, (not intro) and 0 or nil, nil)
     if n > (worst[class] or 0) then worst[class] = n end
     local history = _G.rfsuite.log_history or {}
     local added = (_G.rfsuite.log_history_seq or 0) - logSeq
@@ -598,7 +603,9 @@ local function runStandbyScenario(layout, gps, elrsReplies, expectedTiles)
   end
   local control = sweepControl(1000)
   local sweep, refs = sweepCost(Stubs.lvgl.refs, control)
-  return { worst = worst, sweep = sweep, refs = refs }
+  -- The first full-screen pass after the tile stood is the one that writes its key.
+  local save = intro and count(widget.refresh, widget, 0, nil) or nil
+  return { worst = worst, sweep = sweep, refs = refs, save = save }
 end
 
 --- Run one scenario ARMED, with telemetry that moves between passes.
@@ -618,7 +625,7 @@ local function runArmedScenario(themePath, passes)
   local Runtime = World.require("widgets/dashboard/runtime.lua")
   local widget = Runtime.new(ZONE, {})
   widget.preferences = widget.preferences or {}
-  widget.preferences.dashboard = { theme_preflight = themePath }
+  widget.preferences.dashboard = { theme_preflight = themePath, standby_intro_seen = true }
 
   settle(widget, sensorIds, 400)
 
@@ -676,7 +683,7 @@ local function runPhaseScenario(themePath, armPad, disarmPad)
   local Runtime = World.require("widgets/dashboard/runtime.lua")
   local widget = Runtime.new(ZONE, {})
   widget.preferences = widget.preferences or {}
-  widget.preferences.dashboard = { theme_preflight = themePath }
+  widget.preferences.dashboard = { theme_preflight = themePath, standby_intro_seen = true }
 
   settle(widget, sensorIds, 400)
 
@@ -962,7 +969,7 @@ local function openToolPageActual(theme, menuId, pagePath, pad, counted, fault, 
   local Runtime = World.require("widgets/dashboard/runtime.lua")
   local widget = Runtime.new(ZONE, {})
   widget.preferences = widget.preferences or {}
-  widget.preferences.dashboard = { theme_preflight = theme }
+  widget.preferences.dashboard = { theme_preflight = theme, standby_intro_seen = true }
   settle(widget, World.sensorIds, 4000, true)
   -- The dashboard's settle is what connects the link, and the tool shares that connection rather
   -- than making its own. A world that settled without it would price every page on the screen of
@@ -1397,6 +1404,8 @@ if args["--pages"] then
   return
 end
 
+-- First, because each scenario resets the world and the rows after `base` read what it left there.
+local splashRun = runScenario(reference, 1, true)
 local base = runScenario(reference, 240)
 
 addRow("pass.state", base.worst.state or 0)
@@ -1406,7 +1415,7 @@ addRow("pass.swap", base.worst.swap or 0)
 -- The splash pass only ever happens while the widget is NOT ready, so its only home is
 -- the startup window. A row measured on a window where the class never occurs would be a
 -- zero that reads as free.
-addRow("pass.splash", base.startupWorst.splash or base.worst.splash or 0)
+addRow("pass.splash", splashRun.startupWorst.splash or splashRun.worst.splash or 0)
 addRow("pass.startup.worst", base.coldWorst, base.settlePasses .. " passes to settle")
 
 -- The background half of a STATE pass, as the widget calls it: the onconnect runner, the
@@ -1584,6 +1593,9 @@ do
     "12-field simple and repeated layouts, six ELRS fields, detailed GPS, ELRS ready and no-response states")
   addRow("pass.standby.state", state, "cached no-FC snapshot and provider step")
   addRow("sweep.standby", sweep, refs .. " reactive references")
+  local intro = runStandbyScenario(nil, nil, false, nil, true)
+  addRow("pass.standby.intro", intro.worst.standby or 0, "fitting the first-start tile's text and its build")
+  addRow("pass.standby.intro_save", intro.save or 0, "the full-screen pass that writes its key")
 end
 
 ------------------------------------------------------------------------------
@@ -1845,7 +1857,7 @@ do
   local Runtime = World.require("widgets/dashboard/runtime.lua")
   local widget = Runtime.new(ZONE, {})
   widget.preferences = widget.preferences or {}
-  widget.preferences.dashboard = { theme_preflight = reference }
+  widget.preferences.dashboard = { theme_preflight = reference, standby_intro_seen = true }
   -- The preview gate and radio master switch must both be on to measure the overlay.
   --
   -- The preview switch is the pilot saying he wants an unfinished feature on the radio; the

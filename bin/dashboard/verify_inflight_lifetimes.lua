@@ -69,7 +69,12 @@ end
 local function close(widget)
   widget.inflightFullscreen = nil
   Stubs.tick(); widget:refresh(nil, nil)
-  for _ = 1, 3 do Stubs.tick(); widget:refresh(0, nil) end
+  -- Until the dashboard's own scene has replaced tuning's; the standby that waits for a link takes
+  -- a pass for its first read and one for its build before it swaps in.
+  for i = 1, 10 do
+    Stubs.tick(); widget:refresh(0, nil)
+    if i >= 3 and widget._treeKind ~= "tuning_fs" then break end
+  end
 end
 -- The last dashboard built stays reachable (the battery picker's callbacks, the LVGL stub's tree),
 -- so a scenario that leaves a session behind would keep the shared code loaded for the next one,

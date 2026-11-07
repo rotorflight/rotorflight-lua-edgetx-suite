@@ -1358,7 +1358,7 @@ end
 local function standbyJobStep(self)
   local job = self._job
   local dashboard = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
-  if dashboard.standby_enabled ~= true or self._toolHost ~= nil or self.connectionReady == true
+  if self._toolHost ~= nil or self.connectionReady == true
       or self.flightMode == "postflight" or self.flightMode == "offline"
       or (self.state and (self.state.armed == true or self.state.hadInflightFlight == true)) then
     if Log and type(Log.emitf) == "function" then
@@ -1377,7 +1377,7 @@ local function standbyJobStep(self)
     if job.zoneW ~= self.zone.w or job.zoneH ~= self.zone.h
         or job.layout ~= dashboard.standby_layout or job.i18n ~= self.i18n
         or job.infoKind ~= (self.state and self.state.standbyInfoKind or nil)
-        or dashboard.standby_enabled ~= true or self._toolHost ~= nil
+        or self._toolHost ~= nil
         or job.flightMode ~= self.flightMode or job.connectionReady ~= self.connectionReady
         or job.armed ~= (self.state and self.state.armed == true)
         or job.hadInflight ~= (self.state and self.state.hadInflightFlight == true)
@@ -1407,12 +1407,20 @@ local function standbyJobStep(self)
     lvgl.build(children)
     self._standbyCache.elrsWidths = job.elrsWidths
     self._standbyCache.elrsActiveWidths = job.elrsWidths
+    if job.intro and not self._standbyIntroShown then
+      self._standbyIntroShown = true
+      if Log and type(Log.emitf) == "function" then
+        Log.emitf("rfsuite.widget.standby", "info", "first-start tile shown")
+      end
+    end
     self.built = true
     self._lastChildCount = #children
     if Log and type(Log.emitf) == "function" then
       local shown, saved = self._standbyCache.rowsShown or 0, self._standbyCache.rowsSaved or 0
-      -- The Session Logs ring keeps 100 characters of a line, so the layout, the longest part, is last.
-      Log.emitf("rfsuite.widget.standby", "info", "built: %d/%d rows, %d nodes, %s %sx%s, %s, layout %s",
+      -- Debug: every pilot now passes through here, several times on a connect, and info would reach
+      -- the Session Logs ring at the shipped level. The ring keeps 100 characters of a line, so the
+      -- layout, the longest part, is last.
+      Log.emitf("rfsuite.widget.standby", "debug", "built: %d/%d rows, %d nodes, %s %sx%s, %s, layout %s",
         shown, saved, #children, self._standbyFullscreen == true and "full screen" or "zone",
         tostring(self.zone.w), tostring(self.zone.h), tostring(job.infoKind), tostring(self._standbyLayout))
       if shown < saved then
@@ -1448,6 +1456,35 @@ local function standbyJobStep(self)
     end
     return false
   end
+  -- The first-start tile takes the place of the rows, in a pass of its own: fitting its text is the
+  -- most of its cost, and the files are loaded for this one build.
+  if job.introNodes and (job.introW ~= self.zone.w or job.introH ~= self.zone.h) then job.introNodes = nil end
+  if job.intro and job.introNodes == nil then
+    local core = _G.rfsuite.paths.core .. "/widgets/dashboard/"
+    local Notice = assert(loadScript(core .. "notice.lua", _G.rfsuite.loadMode or "t"))()
+    local firstStart = assert(loadScript(core .. "first_start.lua", _G.rfsuite.loadMode or "t"))()
+    local t = (self.i18n and self.i18n.t) or function(_, fallback) return fallback end
+    local title, lines = firstStart(t)
+    local x, y, w, h = DashboardStandby.noticeArea(self.zone.w, self.zone.h)
+    local nodes = {}
+    local rows = Notice.append(nodes, x, y, w, h, title, lines,
+      requireModule("lib/color_schemes.lua").colors(utils.colorScheme(self)))
+    if rows then
+      job.introNodes, job.introW, job.introH = nodes, self.zone.w, self.zone.h
+      if Log and type(Log.emitf) == "function" then
+        Log.emitf("rfsuite.widget.standby", "trace", "first-start tile fitted: %d rows", rows)
+      end
+    else
+      -- It stays unread, and a zone it fits in shows it; here the rows stand.
+      job.intro = false
+      self._standbyIntroNoFitW, self._standbyIntroNoFitH = self.zone.w, self.zone.h
+      if Log and type(Log.emitf) == "function" then
+        Log.emitf("rfsuite.widget.standby", "warn", "first-start text does not fit %sx%s",
+          tostring(self.zone.w), tostring(self.zone.h))
+      end
+    end
+    return false
+  end
   local values = self._standbyCache.snapshotValues or {}
   local infoKind = self.state and self.state.standbyInfoKind or nil
   local texts = standbyTexts(self, items, infoKind)
@@ -1467,8 +1504,12 @@ local function standbyJobStep(self)
   self._standbyCache.elrsBuildWidths = job.elrsWidths
   -- A label reading the line, as on the splash: see splashJobStep.
   self._statusLineText = self._statusLineText or function() return self.statusLine or "Please wait..." end
-  job.children = DashboardStandby.build(self.zone, self._statusLineText, text, items, values, self._standbyCache, info,
-    utils.colorScheme(self))
+  job.children = DashboardStandby.build(self.zone, self._statusLineText, text, job.intro and {} or items, values,
+    self._standbyCache, info, utils.colorScheme(self))
+  if job.introNodes then
+    for i = 1, #job.introNodes do job.children[#job.children + 1] = job.introNodes[i] end
+    job.introNodes = false
+  end
   self._standbyCache.elrsBuildWidths = nil
   job.zoneW, job.zoneH, job.layout = self.zone.w, self.zone.h, dashboard.standby_layout
   job.i18n, job.infoKind = self.i18n, infoKind
@@ -5427,9 +5468,8 @@ function Runtime.new(zone, options)
     end
 
     -- STATE pass: the background half, then invalidation checks that only enqueue.
-    -- The flight controller's raw link is asked only where a standby reader runs or standby is on,
-    -- so a dashboard with standby off pays nothing for it on its every pass.
-    local standbyFcDetected = false
+    -- The flight controller's raw link is asked only where a standby reader runs or the standby
+    -- screen stands, so a connected dashboard pays nothing for it on its every pass.
     if self._standbyElrsActive and self._standbyElrsConfig
         and MspRuntime and type(MspRuntime.getState) == "function" then
       local runtimeState = MspRuntime.getState()
@@ -5437,22 +5477,62 @@ function Runtime.new(zone, options)
         cancelStandbyElrs(self, "fc_startup")
       end
     end
+    -- The first change to full screen after the first-start tile stood closes it for good. The save
+    -- waits for a state pass with the model disarmed, by the sensor's reading and not only this file's
+    -- copy of it, and has that pass to itself: it writes the whole file, and the background work is one
+    -- pass late. A failed one, or a radio switched off before it, only brings the tile back at the next
+    -- start.
+    if self._standbyIntroShown and event ~= nil then
+      self._standbyIntroShown, self._standbyIntroClosed, self._standbyIntroOwed = nil, true, true
+      if Log and type(Log.emitf) == "function" then
+        Log.emitf("rfsuite.widget.standby", "debug", "first-start tile closed by full screen")
+      end
+    end
+    local introOwed = self._standbyIntroOwed
+    if introOwed and self.state.armed ~= true then
+      local Armed = requireModule("lib/armed.lua")
+      introOwed = not (type(Armed) == "table" and type(Armed.isArmed) == "function" and Armed.isArmed())
+    else
+      introOwed = false
+    end
+    if introOwed then
+      self._standbyIntroOwed = nil
+      local prefs = self.preferences
+      -- A second dashboard on the model may have written it already, and this one reloaded it.
+      if type(prefs) == "table" and not (prefs.dashboard and prefs.dashboard.standby_intro_seen == true) then
+        prefs.dashboard = prefs.dashboard or {}
+        prefs.dashboard.standby_intro_seen = true
+        local Preferences = requireModule("lib/preferences.lua")
+        local saved = Preferences and type(Preferences.save) == "function" and Preferences.save(prefs)
+        if Log and type(Log.emitf) == "function" then
+          Log.emitf("rfsuite.widget.standby", saved and "info" or "warn", "first-start tile: %s",
+            saved and "saved as read" or "could not be saved, it comes back at the next start")
+        end
+      end
+      self._passEndAt = nowSeconds()
+      return
+    end
+
     local ready = performBackgroundWork(self, false)
     local tuningMode = inflightMode(self, event ~= nil)
 
     local dashboardPrefs = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
-    local standbyEnabled = dashboardPrefs.standby_enabled == true
-    if standbyEnabled and MspRuntime and type(MspRuntime.getState) == "function" then
-      local runtimeState = MspRuntime.getState()
-      standbyFcDetected = type(runtimeState) == "table" and runtimeState.lastConnected == true
-    end
+    -- The connection splash stands only where this does not hold: a link lost armed or after a flight
+    -- must not look like a screen at rest, and a standby whose build keeps raising gives way to it.
     local standbyRenderActive = self._toolHost == nil and not ready
       and not tuningMode
       and self.flightMode ~= "postflight" and self.flightMode ~= "offline"
-      and standbyEnabled and self.state.armed ~= true
+      and self.state.armed ~= true
       and self.state.hadInflightFlight ~= true
-    local standbyProbeActive = standbyRenderActive and self.state.fblConnected ~= true and not standbyFcDetected
+      and not jobCapped(self, "standby")
+    local standbyProbeActive = false
     if standbyRenderActive then
+      local standbyFcDetected = false
+      if MspRuntime and type(MspRuntime.getState) == "function" then
+        local runtimeState = MspRuntime.getState()
+        standbyFcDetected = type(runtimeState) == "table" and runtimeState.lastConnected == true
+      end
+      standbyProbeActive = self.state.fblConnected ~= true and not standbyFcDetected
       self._standbyFullscreen = event ~= nil
       if self._standbyModule then
         local Standby = self._standbyModule
@@ -5537,7 +5617,13 @@ function Runtime.new(zone, options)
       if useStandby then
         self._standbyCache = self._standbyCache or {}
       end
-      local splashKey = (useStandby and "standby|" or "splash|") .. "info="
+      -- The first-start tile: not read yet, and placed in a zone about the size of the screen, which
+      -- an App mode layout is and a full-screen layout is with or without the top bar.
+      local intro = useStandby and not fullscreenSplash and dashboardPrefs.standby_intro_seen ~= true
+        and self._standbyIntroClosed ~= true
+        and (self._standbyIntroNoFitW ~= self.zone.w or self._standbyIntroNoFitH ~= self.zone.h)
+        and self.zone.w * 4 >= (LCD_W or 480) * 3 and self.zone.h * 4 >= (LCD_H or 320) * 3
+      local splashKey = (useStandby and (intro and "standby|intro|" or "standby|") or "splash|") .. "info="
         .. tostring(self.state.standbyInfoKind) .. "|" .. tostring(self.state.zoneW) .. "x" .. tostring(self.state.zoneH)
         .. (fullscreenSplash and "|fs" or "") .. "|" .. tostring(utils.colorScheme(self)) .. (useStandby
           and ("|" .. tostring(dashboardPrefs.standby_layout)
@@ -5565,7 +5651,7 @@ function Runtime.new(zone, options)
         -- readings stop with it (fullscreen_controls.lua `refresh`).
         self._fullscreenBarControls = nil
         if useStandby and not jobCapped(self, "standby") then
-          self._job = { kind = "standby", step = standbyJobStep, fullscreen = fullscreenSplash }
+          self._job = { kind = "standby", step = standbyJobStep, fullscreen = fullscreenSplash, intro = intro }
         elseif not useStandby and not jobCapped(self, "splash") then
           self._job = { kind = "splash", step = splashJobStep, fullscreenSplash = fullscreenSplash }
         elseif not jobCapped(self, "failed_label") then
