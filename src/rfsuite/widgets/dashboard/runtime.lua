@@ -4877,7 +4877,8 @@ function Runtime.new(zone, options)
     self._themeFailedFor = (self.theme == nil) and failKey or nil
     if self.theme == nil then
       if not failedBefore then
-        widgetLog(self, "theme " .. tostring(selectedTheme) .. " left nothing to draw, retried until one loads", "warn")
+        -- The Session Logs ring keeps 100 characters of a line, so the path, the longest part, is last.
+        widgetLog(self, "theme left nothing to draw, retried until one loads: " .. tostring(selectedTheme), "warn")
       end
     elseif switching then
       utils.milestone("rfsuite.widget.theme", "theme %s loaded for phase %s (%s, from %s)",

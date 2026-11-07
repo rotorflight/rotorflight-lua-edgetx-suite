@@ -413,7 +413,9 @@ local function push(widget, id, auto)
   stack[#stack + 1] = { id = id, auto = auto and true or nil }
   stack.refused = nil
   widget._viewStack = stack
-  if _G.rfsuite.logSteps then viewStep("%s opened (%s), %d on the stack", tostring(id), auto and "its condition rose" or "asked for", #stack) end
+  if _G.rfsuite.logSteps then
+    viewStep("%s opened (%s), %d on the stack", tostring(id), auto and "its condition rose" or "asked for", #stack)
+  end
   return true
 end
 
@@ -422,7 +424,9 @@ end
 local function pop(widget)
   local stack = widget._viewStack
   if stack == nil then return end
-  if _G.rfsuite.logSteps then viewStep("%s closed, %d left on the stack", tostring(stack[#stack] and stack[#stack].id), math.max(#stack - 1, 0)) end
+  if _G.rfsuite.logSteps then
+    viewStep("%s closed, %d left on the stack", tostring(stack[#stack] and stack[#stack].id), math.max(#stack - 1, 0))
+  end
   stack[#stack] = nil
   stack.refused = nil
 end
