@@ -663,6 +663,49 @@ do
   flightCase("off", false)
   flightCase("info", true)
   flightCase("debug", true)
+
+  -- A theme whose default does not load either leaves nothing to draw, and every logic tick asks
+  -- for the load again. Its lines are said once at their own level, then at debug only, so with the
+  -- log off they cannot fill the Session Logs ring.
+  local function noThemeCase(level, sink)
+    Stubs.clearCard()
+    Stubs.install(root)
+    Stubs.reset()
+    local stubLoad = _G.loadScript
+    _G.loadScript = function(path, mode)
+      if contains(path, "/widgets/dashboard/themes/") then return nil, "no such theme file" end
+      return stubLoad(path, mode)
+    end
+    Log = assert(_G.rfsuite.require("lib/log.lua"))
+    begin(level, sink)
+    local label = "no theme " .. level
+    local widget = assert(loadfile(root .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
+      .new({ x = 0, y = 0, w = 800, h = 480 }, {})
+    for _ = 1, 60 do
+      setLevel(level)
+      Stubs.tick()
+      widget.refresh(widget, 0, nil)
+    end
+    _G.loadScript = stubLoad
+    control(label, level == "off" and "info" or level)
+    check(widget.theme == nil, label .. ": no theme loaded", widget.theme)
+    local nothing = find("rfsuite.widget", "left nothing to draw")
+    check(#nothing == 1 and nothing[1].level == "warn", label .. ": 'left nothing to draw' once, as a warning",
+      #nothing .. " " .. tostring(nothing[1] and nothing[1].level))
+    local either = find("rfsuite.widget.theme", "the default theme did not load either")
+    local loud, quiet = 0, 0
+    for i = 1, #either do
+      if either[i].level == "error" then loud = loud + 1 elseif either[i].level == "debug" then quiet = quiet + 1 end
+    end
+    check(loud == 1, label .. ": the default theme's failure is an error once", loud)
+    if level == "debug" then
+      check(quiet >= 2, label .. ": the retries say it at debug", quiet)
+    else
+      check(quiet == 0, label .. ": the retries say nothing below debug", quiet)
+    end
+  end
+  noThemeCase("off", false)
+  noThemeCase("debug", true)
 end
 
 _G.print = realPrint

@@ -131,7 +131,7 @@ Every line starts with the part of the suite that wrote it, its tag, then its le
 | --- | --- |
 | `rfsuite.widget` | The dashboard itself: created, each phase, connected, link lost, on or off screen, the state line, long passes, a stop at the instruction limit. |
 | `rfsuite.widget.theme` | Which theme was loaded for which phase, why and from which one; a theme that did not load; themes released. |
-| `rfsuite.widget.job` | Each screen build: how many passes, how many objects, Lua memory before and after. |
+| `rfsuite.widget.job` | Each screen build: how many passes, how many objects at the top of the screen (counted as the state line counts them, so an object inside another is not), Lua memory before and after. |
 | `rfsuite.widget.standby`, `.splash` | The standby screen, and what the connect screen is waiting for. |
 | `rfsuite.widget.view`, `.menu`, `.roll` | Full-screen views opening and closing, each press, a write the menu queued, the rolling menu. |
 | `rfsuite.widget.tool` | The steps of opening and closing the tool inside the dashboard. |
@@ -154,7 +154,8 @@ At *TRACE* over the serial port the same stretch shows each read and each build 
 **Which part of the suite writes what.** The lines that follow the dashboard's own five-second report
 (each module loaded or released, a view, a press, a tool step, the armed edge, a phase, the link lost)
 come from the Lua state the dashboard runs in, and a level changed on the radio reaches them within
-five seconds. The tool started from the *Tools* menu and the background decoder have lines of their own.
+five seconds while the dashboard is on screen; off screen they keep the level they had until it is
+drawn again. The tool started from the *Tools* menu and the background decoder have lines of their own.
 
 **What a level costs.** With the log off, the dashboard builds none of these lines but its errors,
 warnings and base milestones. *TRACE* writes lines every second and adds to what it measures, so
@@ -201,16 +202,20 @@ Take the card out and copy the whole `logs` folder. If that is too much, the use
   level was below *DEBUG* or that the background decoder was not running on that model — see
   [the background decoder](../reference/background-decoder.md). No `dashboard` file after a
   session with the dashboard on screen means the widget never got as far as writing one.
-- **A widget that overran its instruction budget cannot report it.** The radio stops calling a
-  widget that does, so the last thing in the dashboard's `.log` is the approach to the fault and
-  never the fault. The background decoder's files are not affected: its script is paused and
+- **A stop at the instruction limit is written only where the dashboard catches it.** Inside its
+  own drawing and background calls it does: the `.log` gets `widget.refresh stopped: …` (or `.background`, `.update`) and a
+  `rfsuite.fault` line, and the `.step` file the fault. Where the radio stops the widget outside
+  them, the widget cannot write that this happened, so the last thing in its `.log` is the approach
+  to the fault. The background decoder's files are not affected: its script is paused and
   resumed rather than cut off.
 - **Opening the configuration tool pauses the background decoder** for as long as the tool is
   open, so a gap in the `function` file over that stretch is expected.
 - **A session stops writing at 5000 lines** and says so on its last line, rather than dropping its
-  middle. Even at *TRACE* that takes a long session: the connect sequence writes a few hundred
-  lines, and after it a file grows by two lines or more for each request a page sends to the
-  flight controller, and by a line or two every five seconds while the dashboard shows a
-  disarmed model. Nothing is added to it after that, a fault included: a fault after the cap
-  goes only to the `.step` file, where it stays until the next step replaces it. Turning
-  *Log Session To Card* off and on again starts a new session in the same file.
+  middle. At *DEBUG* that takes a long session: the connect sequence writes a few hundred lines,
+  and after it a file grows by two lines or more for each request a page sends to the flight
+  controller, and by a line or two every five seconds while the dashboard shows a disarmed model.
+  *TRACE* adds a line for each telemetry read the dashboard makes, two a second, so a session at
+  *TRACE* reaches the cap in about forty minutes or less. Nothing is added to it after that, a
+  fault included: a fault after the cap goes only to the `.step` file, where it stays until the
+  next step replaces it. Turning *Log Session To Card* off and on again starts a new session in
+  the same file.

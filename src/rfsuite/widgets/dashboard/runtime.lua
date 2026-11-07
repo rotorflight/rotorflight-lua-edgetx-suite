@@ -3205,7 +3205,8 @@ local function loadThemeInit(themePath)
   local ok, initTable = pcall(initChunk)
   if not ok or type(initTable) ~= "table" then
     if Log and type(Log.emitf) == "function" then
-      Log.emitf("rfsuite.widget.theme", "warn", "%s/init.lua did not load: %s", tostring(folder), tostring(initTable))
+      Log.emitf("rfsuite.widget.theme", utils.themeFailRepeat and "debug" or "warn", "%s/init.lua did not load: %s",
+        tostring(folder), tostring(initTable))
     end
     return nil, base, folder
   end
@@ -3315,7 +3316,8 @@ local function loadThemeModuleForState(themePath, flightMode)
   end
   utils.themeFellBack = true
   if Log and type(Log.emitf) == "function" then
-    Log.emitf("rfsuite.widget.theme", "warn", "%s did not load, using the default theme: %s",
+    Log.emitf("rfsuite.widget.theme", utils.themeFailRepeat and "debug" or "warn",
+      "%s did not load, using the default theme: %s",
       tostring(scriptPath), tostring(loadError))
   end
 
@@ -3327,7 +3329,8 @@ local function loadThemeModuleForState(themePath, flightMode)
   end
   if not fallbackChunk then
     if Log and type(Log.emitf) == "function" then
-      Log.emitf("rfsuite.widget.theme", "error", "no theme module for phase %s: the default theme did not load either",
+      Log.emitf("rfsuite.widget.theme", utils.themeFailRepeat and "debug" or "error",
+        "no theme module for phase %s: the default theme did not load either",
         tostring(stateKey))
     end
     return nil, stateKey, initTable
@@ -3342,7 +3345,8 @@ local function loadThemeModuleForState(themePath, flightMode)
     return theme, stateKey, initTable
   end
   if Log and type(Log.emitf) == "function" then
-    Log.emitf("rfsuite.widget.theme", "error", "the default theme did not load for phase %s: %s",
+    Log.emitf("rfsuite.widget.theme", utils.themeFailRepeat and "debug" or "error",
+      "the default theme did not load for phase %s: %s",
       tostring(stateKey), tostring(ok and "not a theme module" or theme))
   end
   return nil, stateKey, initTable
@@ -4860,11 +4864,20 @@ function Runtime.new(zone, options)
     -- to the module already on screen is not a reason to tear the scene down.
     local declares
     utils.themeFellBack = nil
+    -- With nothing to draw the next logic tick asks for this load again, so a theme whose default
+    -- fails too would put its lines into the ring ten times a second at every level. They are said
+    -- at their own level once per theme, and at debug on every retry until a theme loads.
+    utils.themeFailRepeat = self._themeFailedFor == selectedTheme
     self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
     self.themeStateKeys = themeStateKeys(declares)
     self._themeShown = utils.themeFellBack and "system/default" or selectedTheme
+    local failedBefore = utils.themeFailRepeat
+    utils.themeFailRepeat = nil
+    self._themeFailedFor = (self.theme == nil) and selectedTheme or nil
     if self.theme == nil then
-      widgetLog(self, "theme " .. tostring(selectedTheme) .. " left nothing to draw", "warn")
+      if not failedBefore then
+        widgetLog(self, "theme " .. tostring(selectedTheme) .. " left nothing to draw, retried until one loads", "warn")
+      end
     elseif switching then
       utils.milestone("rfsuite.widget.theme", "theme %s loaded for phase %s (%s, from %s)",
         utils.themeFellBack and ("system/default in place of " .. tostring(selectedTheme)) or tostring(selectedTheme),
