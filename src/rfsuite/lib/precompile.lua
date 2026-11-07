@@ -472,8 +472,8 @@ function Precompile.startIfStale(version)
 
   local identity = readStampFile(IDENTITY_PATH, STAMP_LIMIT) or version
   if identity == nil or readStampFile(STAMP_PATH, STAMP_LIMIT) == identity then
-    emit("info", identity == nil and "no pass: no build identity to compare"
-      or "no pass: the tree is the one last compiled")
+    -- Nothing is logged here: the widgets come through this on their first pass, which sits close to
+    -- the instruction limit, and even a line the log level drops costs there. The tool says it.
     -- Nothing to compile, but the move of the pilot's data can still be owed: after a start cut
     -- short, or behind the connection after a failed attempt.
     local paths = _G.rfsuite and _G.rfsuite.paths

@@ -212,6 +212,11 @@ if case == "compiled" then
     if entry.tag == "rfsuite.ui" and string.find(entry.msg, "start screen left after", 1, true) then left = entry.msg end
   end
   expect(left ~= nil and state.initialLoad == false, "the start screen's end is not in the log: " .. tostring(left))
+  local said = false
+  for _, entry in ipairs(_G.rfsuite.log_history or {}) do
+    if entry.tag == "rfsuite.ui" and string.find(entry.msg, "compile pass: none", 1, true) then said = true end
+  end
+  expect(said, "the tool does not say that no compile pass was needed")
 elseif case == "fresh" or case == "changed" then
   runFor(1)
   expect(Precompile ~= nil and Precompile.isRunning(), "no compile pass after an install")

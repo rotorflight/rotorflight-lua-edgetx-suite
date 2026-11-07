@@ -3526,8 +3526,8 @@ function M.init(opts)
       if developer and developer.precompile == "full" then
         logf("info", "compile pass: whole tree on request (developer.precompile)")
         Precompile.start(version)
-      else
-        Precompile.startIfStale(version)
+      elseif not Precompile.startIfStale(version) then
+        logf("info", "compile pass: none, the tree is the one last compiled")
       end
     end
   end
