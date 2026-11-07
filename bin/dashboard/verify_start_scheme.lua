@@ -127,11 +127,9 @@ local Preferences = assert(_G.rfsuite.require("lib/preferences.lua"))
 local saves = 0
 
 -- What the settings page does: the whole table written, and the widget told by the reload request.
-local function save(name, standby)
+local function save(name)
   local prefs = Preferences.load()
   prefs.general.color_scheme = name
-  prefs.dashboard = prefs.dashboard or {}
-  prefs.dashboard.standby_enabled = standby
   assert(Preferences.save(prefs))
   -- The stubs' fstat answers this for every file, so the widget sees the file's status move.
   saves = saves + 1
@@ -140,18 +138,25 @@ end
 
 local function widgetLeg(label, standby, zone, event)
   for _, name in ipairs(NAMES) do
-    save(name, standby)
+    save(name)
     local runtime = assert(loadfile(root .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
     local widget = runtime.new(zone, {})
     widget.flightMode = "preflight"
+    -- The splash stands where the standby's build was given up.
+    if not standby then widget._jobFaults.standby = 99 end
     cycle(widget, 120, event)
+    check((widget._standbyModule ~= nil) == standby, label .. ", " .. name .. ": the screen under test stands")
     holdsScheme(name, label .. ", " .. name, zone.h >= 100)
 
     -- The pilot saves the other scheme while the screen stands.
     local other = name == "light" and "dark" or "light"
     clears = 0
-    save(other, standby)
-    cycle(widget, 120, event)
+    save(other)
+    cycle(widget, 60, event)
+    -- The reload gives every job its tries back, so the standby would stand again.
+    if not standby then widget._jobFaults.standby = 99 end
+    cycle(widget, 60, event)
+    check((widget._standbyModule ~= nil) == standby, label .. ", " .. name .. " to " .. other .. ": still the screen under test")
     check(clears > 0, label .. ", " .. name .. ": a saved scheme rebuilds the screen", clears)
     holdsScheme(other, label .. ", " .. name .. " to " .. other, zone.h >= 100)
   end

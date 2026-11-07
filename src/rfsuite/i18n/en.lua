@@ -3772,9 +3772,7 @@ return {
         save_error_message = "Save failed"
       },
       settings_dashboard_standby = {
-        help_enabled = "Shows radio information instead of the connecting screen until the flight controller is ready.",
         help_field = "What this field shows. Only fields that fit this row are offered.",
-        enabled = "Standby screen",
         row = "Row %d",
         field = "Field %d",
         add_field = "+ Field",

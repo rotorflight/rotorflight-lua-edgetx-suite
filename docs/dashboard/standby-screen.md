@@ -5,7 +5,7 @@ sidebar_label: Standby screen
 
 # Standby screen
 
-When enabled, the dashboard uses one configurable standby surface while it waits for the flight controller. The header keeps the Rotorflight logo and, in fullscreen mode, the standard Suite tool entry where the zone height allows it; there is no separate Standby title. Radio information appears in rows below the header, while the current connection reason remains available at the bottom.
+The dashboard uses one configurable standby surface while it waits for the flight controller. The header keeps the Rotorflight logo and, in fullscreen mode, the standard Suite tool entry where the zone height allows it; there is no separate Standby title. Radio information appears in rows below the header, while the current connection reason remains available at the bottom.
 
 ![The standby screen with no layout saved on an 800x480 radio with an ELRS module: clock, TX battery and the selected model above the ELRS row](../images/dashboard/standby/standby-800x480.png)
 
@@ -23,7 +23,7 @@ The transmitter-battery field shows a large filled battery symbol with its volta
 
 The full-width ELRS field uses the same content on every supported radio: three lines for the Packet Rate, the Telemetry Ratio and the power. These are the module's configured settings. The power is the Max Power ceiling and how it is used: *fixed*, *dynamic*, or *dynamic AUX9* through *AUX12*. A dual-band module on a regulated build shows two powers: *25/100 mW* is 25 mW on 868 MHz and 100 mW on 2.4 GHz. The module name is not shown. Re-entering standby starts a bounded read-only refresh, so a change made while the standby stands shows after leaving it and coming back. While no module has answered, for example one still starting after the radio was switched on, the screen tries again every ten seconds. EdgeTX routes CRSF to the internal module when both module bays use CRSF.
 
-A fixed information strip summarizes the highest-priority prerequisite from the connection state already held by the dashboard. The exact connection reason and progress remain visible below it. The strip adds no radio or telemetry polling. The standby surface does not replace flight state: active-flight link loss, postflight view, and offline summary keep the existing dashboard behavior. Turning the option off restores the normal connection splash.
+A fixed information strip summarizes the highest-priority prerequisite from the connection state already held by the dashboard. The exact connection reason and progress remain visible below it. The strip adds no radio or telemetry polling. The standby surface does not replace flight state: active-flight link loss, postflight view, and offline summary keep the existing dashboard behavior. The connection splash stands only where the standby does not: armed before the link is ready, past the soft timeout of a connection whose board has not answered with its id, and when the standby's own build keeps failing.
 
 Its colors and the logo follow the [color scheme](../pages/settings/general.md), light or dark, like the loading screen it stands in for.
 
