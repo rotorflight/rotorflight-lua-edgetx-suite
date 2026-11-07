@@ -6,8 +6,8 @@ sidebar_position: 40
 
 # Standby screen
 
-The standby screen arranges radio information in equal-width fields and rows while the dashboard waits for a flight controller. It is disabled by default.
-Where the zone height allows, its header contains the logo; fullscreen mode also includes the Suite control. Zones below 160 pixels omit the logo and header and use a compact information footer. Below 90 pixels, only the localized fit prerequisite remains. There is no separate Standby title.
+The standby screen arranges radio information in equal-width fields and rows while the dashboard waits for a flight controller. It takes the place of the connection splash, in fullscreen mode and in dashboard widget zones; only fullscreen mode includes the Suite control.
+Where the zone height allows, its header contains the logo; fullscreen mode also includes the Suite control. Zones below 160 pixels omit the logo and header and use a compact information footer. There is no separate Standby title.
 The dashboard loads this surface only while it is shown and releases its scene, cached readings,
 and module reference when the surface closes.
 
@@ -21,7 +21,6 @@ Always available.
 
 | Setting | What it does |
 | --- | --- |
-| Standby screen | Replaces the connection splash before a flight controller is ready, both in fullscreen mode and in dashboard widget zones. Only fullscreen mode includes the Suite control. |
 | Row 1, Row 2, … | Groups the fields that share one horizontal row. The radio's screen determines how many rows fit. |
 | Field 1, Field 2, … | Chooses a module for that field: clock, date, transmitter battery, selected EdgeTX model, a model timer, transmitter GPS, radio uptime, firmware, or the ELRS configuration. The list contains only modules that fit when every filled field shares the row equally. |
 | + Field | Adds an equal-width field to this row. It appears only when the existing choices and every module offered for the new field fit at the resulting width. |
@@ -29,7 +28,7 @@ Always available.
 | + Row | Adds a row while the radio screen has room for another one. |
 | Remove row | Removes the complete row. |
 
-There is no size selector and no move control. Change the row and field structure instead. A value whose longest form does not fit its field at the normal size is drawn in the small font; a module is offered only where it fits at least in the small font. The model name and the firmware string come from the radio and can be longer than a field: they are shortened with "..." to the field, and are offered wherever their first eight characters fit. The Suite filters each list with the selected locale, the radio's own font measurements, bounded display formats, and the screen geometry. A saved token that is no longer supported is skipped while the remaining valid rows are kept, and the page shows a warning. Saving an enabled layout with no row, or with a field that no longer fits, is refused. Switching the standby screen off still saves and retains the last valid saved layout.
+There is no size selector and no move control. Change the row and field structure instead. A value whose longest form does not fit its field at the normal size is drawn in the small font; a module is offered only where it fits at least in the small font. The model name and the firmware string come from the radio and can be longer than a field: they are shortened with "..." to the field, and are offered wherever their first eight characters fit. The Suite filters each list with the selected locale, the radio's own font measurements, bounded display formats, and the screen geometry. A saved token that is no longer supported is skipped while the remaining valid rows are kept, and the page shows a warning. Saving a layout with no row, or with a field that no longer fits, is refused, and the last valid saved layout stays.
 
 Until a layout is saved, a screen narrower than 700 pixels uses Clock plus TX battery in row 1 and ELRS across row 2. A screen at least 700 pixels wide, such as 800x480, uses Clock, TX battery and the selected model in row 1 and ELRS across row 2, leaving row 3 free. On the dashboard the default follows the width of the zone the standby screen is drawn in, so a narrower widget zone on a wide radio keeps the two-field first row. The default ELRS row stays on a radio without an ELRS module and then reads *No ELRS module* (no CRSF module, a CRSF module that is not ELRS, or no answer to the discovery requests); a module that answers but returns none of the four settings reads *Unavailable*. Replace the row with another module to use the space.
 

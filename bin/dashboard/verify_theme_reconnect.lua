@@ -685,11 +685,12 @@ for _, returned in ipairs({ "system/urban", "system/grid" }) do
   passes(world, 30, "held")
   expect(#world.reloads == 0 and b.theme == nil, tag .. ": no theme is resolved before the UID",
     #world.reloads .. " resolve(s)")
+  -- The waiting screen: the standby, or the splash where the standby is left out.
   local splash = false
   for i = treesBefore + 1, #world.trees do
-    if world.trees[i].kind == "splash" then splash = true end
+    if world.trees[i].kind == "splash" or world.trees[i].kind == "standby" then splash = true end
   end
-  expect(splash and b.connectionReady ~= true, tag .. ": the splash is drawn while it waits")
+  expect(splash and b.connectionReady ~= true, tag .. ": the waiting screen is drawn while it waits")
   if returned ~= "system/urban" then
     world.modelPrefs.dashboard.model_theme_preflight = returned
     assert(world.MP.saveByMcuId(world.mcuId, world.modelPrefs), "model store write while held")

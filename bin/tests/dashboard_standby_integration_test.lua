@@ -27,6 +27,73 @@ end
 -- Exercise the actual rows-first settings page. Draft removal, salvage, geometry-derived
 -- controls, and writer rollback all pass through the production control callbacks.
 install()
+-- The standby screen is what stands before a flight controller is ready, whatever an older card
+-- saved: its switch is gone, and the splash is what is left when its build is given up.
+do
+  local Runtime = assert(loadfile(root .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
+  local function surfaceOf(saved)
+    local widget = Runtime.new({ x = 0, y = 0, w = 480, h = 320 }, {})
+    widget.preferences.dashboard = widget.preferences.dashboard or {}
+    widget.preferences.dashboard.standby_enabled = saved
+    widget.state.fblConnected, widget.state.armed = false, false
+    widget.state.hadInflightFlight, widget.flightMode = false, "preflight"
+    Stubs.tick(); widget:refresh(nil, nil)
+    return widget, widget._job and widget._job.kind
+  end
+  local nothing = select(2, surfaceOf(nil))
+  check("no key saved: the standby screen stands", nothing == "standby", nothing)
+  local off = select(2, surfaceOf(false))
+  check("an older card's saved off: the standby screen stands", off == "standby", off)
+
+  -- A build that really keeps raising: three job faults, then the splash, and nothing of the standby
+  -- left running behind it.
+  local widget = surfaceOf(nil)
+  for _ = 1, 8 do Stubs.tick(); widget:refresh(nil, nil) end
+  local standbyModule = widget._standbyModule
+  check("the raising build's module is there to break", standbyModule ~= nil)
+  local realBuild = standbyModule.build
+  standbyModule.build = function() error("control", 0) end
+  widget.built, widget.renderKey = false, nil
+  widget._standbyItems, widget._standbyLayout = nil, nil
+  local sawSplash = false
+  for _ = 1, 40 do
+    Stubs.tick(); widget:refresh(nil, nil)
+    if widget._job and widget._job.kind == "splash" then sawSplash = true end
+    if (widget._jobFaults.standby or 0) >= 3 and widget.built then break end
+  end
+  standbyModule.build = realBuild
+  check("a build that raised three times is given up", (widget._jobFaults.standby or 0) >= 3, widget._jobFaults.standby)
+  check("a standby build given up falls back to the splash", sawSplash)
+  check("a given-up standby holds nothing", widget._standbyModule == nil and widget._standbyCache == nil)
+  widget._job = nil
+
+  local armed = surfaceOf(nil)
+  armed._job = nil
+  armed.state.armed = true
+  armed.built, armed.renderKey = false, nil
+  Stubs.tick(); armed:refresh(nil, nil)
+  check("armed before the link is ready the standby does not stand",
+    armed._standbyModule == nil and (armed._job == nil or armed._job.kind ~= "standby"))
+  armed._job = nil
+end
+
+-- The switch is retired from the file: a saved value is dropped on load and is not written back.
+do
+  local Preferences = assert(_G.rfsuite.require("lib/preferences.lua"))
+  -- An older card's file, as it stands: the switch has to go on load, not only on the next save.
+  local path = Preferences.getPath()
+  local file = assert(io.open(path, "w"))
+  io.write(file, "return {\n  dashboard = {\n    standby_enabled = false,\n    standby_layout = \"clock\",\n  },\n}\n")
+  io.close(file)
+  local older = Preferences.load()
+  check("the retired switch is dropped on load", older.dashboard.standby_enabled == nil)
+  check("what else the card saved stays", older.dashboard.standby_layout == "clock")
+  older.dashboard.standby_enabled = false
+  check("the retired switch can be handed to a save", Preferences.save(older))
+  check("the retired switch does not come back from the file",
+    Preferences.load().dashboard.standby_enabled == nil)
+end
+
 Stubs.installTool()
 do
   local Page = assert(loadfile(root .. "/src/rfsuite/app/pages/settings/dashboard/standby/page.lua"))()
@@ -35,7 +102,6 @@ do
   local writes, reports, rebuilds, saveSucceeds = 0, {}, 0, true
   local ctx = {
     preferences = { dashboard = {
-      standby_enabled = false,
       standby_layout = "clock+tx_battery/elrs",
     } },
     i18n = {}, children = {}, x = 0, y = 0, w = 600,
@@ -93,8 +159,8 @@ do
   build()
   check("field addition creates no empty gap", countControls("choice") == 4)
   Page.onSave(ctx)
-  check("valid rows-first edit saves while feature remains off", writes == 1
-    and ctx.preferences.dashboard.standby_enabled == false
+  check("the page has no on and off switch any more", countControls("toggle") == 0)
+  check("valid rows-first edit saves", writes == 1
     and ctx.preferences.dashboard.standby_layout == "clock+tx_battery/elrs+clock")
 
   Page.onReload(ctx)
@@ -113,33 +179,22 @@ do
   check("last row can be removed", press("Remove row", 1))
   build()
   Page.onSave(ctx)
-  check("disabled empty draft saves the off state", writes == 3
-    and ctx.preferences.dashboard.standby_enabled == false)
-  check("disabled empty draft preserves the prior layout",
-    ctx.preferences.dashboard.standby_layout == "clock+tx_battery/elrs")
-  for i = 1, #ctx.children do
-    local node = ctx.children[i]
-    if node.type == "toggle" then node.set(true); break end
-  end
-  Page.onSave(ctx)
-  check("enabled empty draft refuses the writer", writes == 3)
-  check("enabled empty draft reports the validation error", reports[#reports]
+  check("an empty draft refuses the writer", writes == 2)
+  check("an empty draft reports the validation error", reports[#reports]
     and reports[#reports].title == "Layout not saved")
+  check("an empty draft preserves the prior layout",
+    ctx.preferences.dashboard.standby_layout == "clock+tx_battery/elrs")
 
-  ctx.preferences.dashboard.standby_enabled = false
   ctx.preferences.dashboard.standby_layout = "clock+tx_battery/elrs"
   Page.onReload(ctx)
   build()
+  check("a second field can be added for the failed write", press("+ Field", 1))
+  build()
   saveSucceeds = false
-  for i = 1, #ctx.children do
-    local node = ctx.children[i]
-    if node.type == "toggle" then node.set(true); break end
-  end
   Page.onSave(ctx)
-  check("failed writer is called once", writes == 4)
-  check("failed writer restores enabled and layout preferences",
-    ctx.preferences.dashboard.standby_enabled == false
-      and ctx.preferences.dashboard.standby_layout == "clock+tx_battery/elrs")
+  check("failed writer is called once", writes == 3)
+  check("failed writer restores the layout preference",
+    ctx.preferences.dashboard.standby_layout == "clock+tx_battery/elrs")
 
   saveSucceeds = true
   ctx.preferences.dashboard.standby_layout = "clock+unsupported+tx_battery//elrs"
@@ -148,7 +203,7 @@ do
   check("salvaged saved tokens are visibly reported",
     hasLabel("Unsupported saved entries were skipped."))
   Page.onSave(ctx)
-  check("salvaged valid tokens normalize on the next save", writes == 5
+  check("salvaged valid tokens normalize on the next save", writes == 4
     and ctx.preferences.dashboard.standby_layout == "clock+tx_battery/elrs")
 
   local savedW, savedH, savedSizeText = LCD_W, LCD_H, lcd.sizeText
@@ -187,12 +242,12 @@ do
   check("large geometry offers a third row", press("+ Row"))
   build()
   Page.onSave(ctx)
-  check("third row saves in row order", writes == 6
+  check("third row saves in row order", writes == 5
     and ctx.preferences.dashboard.standby_layout == "clock+tx_battery/elrs/clock")
   build()
   check("third-row callback removes that row rather than an earlier row", press("Remove row", 3))
   Page.onSave(ctx)
-  check("row callback captures its own row number", writes == 7
+  check("row callback captures its own row number", writes == 6
     and ctx.preferences.dashboard.standby_layout == "clock+tx_battery/elrs")
   check("editor callbacks requested rebuilds", rebuilds >= 7)
 
@@ -312,7 +367,7 @@ do
   end
   local widget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   widget.preferences.dashboard = widget.preferences.dashboard or {}
-  widget.preferences.dashboard.standby_enabled = true
+  widget._jobFaults.standby = nil
   widget.preferences.dashboard.standby_layout = "elrs"
   widget.preferences.audio_events = widget.preferences.audio_events or {}
   widget.preferences.audio_events.tpwr_alert = false
@@ -355,7 +410,7 @@ do
   widget:refresh(0, nil)
   check("standby entry builds one scene", #Stubs.lvgl.trees == treesBeforeEntry + 1)
   check("a finished build logs its layout, rows, nodes, surface and zone",
-    standbyLogged("info: built: 1/1 rows, " .. #Stubs.lvgl.trees[#Stubs.lvgl.trees]
+    standbyLogged("debug: built: 1/1 rows, " .. #Stubs.lvgl.trees[#Stubs.lvgl.trees]
       .. " nodes, full screen 800x480, controller_missing, layout elrs"))
   LogModule.emitf = realEmitf
   Stubs.tick()
@@ -380,7 +435,7 @@ do
       and type(suiteButton.press) == "function" and suiteGlyphLines == 6)
 
   -- A visible zone receives the same waiting surface at its own dimensions, without the
-  -- fullscreen-only Suite control. Hidden/background and disabled widgets must not sample GPS.
+  -- fullscreen-only Suite control. Hidden/background widgets must not sample GPS.
   local savedGetTxGPS, gpsReads = getTxGPS, 0
   getTxGPS = function()
     gpsReads = gpsReads + 1
@@ -403,7 +458,7 @@ do
     local gpsWidget = Runtime.new({ x = 0, y = 0, w = 480, h = 320 }, {})
     gpsWidget.i18n = { t = deText }
     gpsWidget.preferences.dashboard = gpsWidget.preferences.dashboard or {}
-    gpsWidget.preferences.dashboard.standby_enabled = true
+    gpsWidget._jobFaults.standby = nil
     gpsWidget.preferences.dashboard.standby_layout = layout
     gpsWidget.preferences.audio_events = gpsWidget.preferences.audio_events or {}
     gpsWidget.preferences.audio_events.tpwr_alert = false
@@ -426,7 +481,7 @@ do
   local changingWidget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   changingWidget.i18n = { t = deText }
   changingWidget.preferences.dashboard = changingWidget.preferences.dashboard or {}
-  changingWidget.preferences.dashboard.standby_enabled = true
+  changingWidget._jobFaults.standby = nil
   changingWidget.preferences.dashboard.standby_layout = "clock"
   changingWidget.preferences.audio_events = changingWidget.preferences.audio_events or {}
   changingWidget.preferences.audio_events.tpwr_alert = false
@@ -449,18 +504,18 @@ do
   changingWidget:background()
   local coldWidget = Runtime.new({ x = 0, y = 0, w = 300, h = 180 }, {})
   coldWidget.preferences.dashboard = coldWidget.preferences.dashboard or {}
-  coldWidget.preferences.dashboard.standby_enabled = true
+  coldWidget._jobFaults.standby = nil
   coldWidget.preferences.dashboard.standby_layout = "tx_gps"
   coldWidget.preferences.audio_events = coldWidget.preferences.audio_events or {}
   coldWidget.preferences.audio_events.tpwr_alert = false
   coldWidget.state.fblConnected, coldWidget.state.armed = false, false
   coldWidget.state.hadInflightFlight, coldWidget.flightMode = false, "preflight"
   Stubs.tick(); coldWidget:refresh(nil, nil)
-  coldWidget.preferences.dashboard.standby_enabled = false
+  coldWidget.state.armed = true
   coldWidget:refresh(nil, nil)
-  check("disabling standby before cold initialization skips module acquisition",
+  check("arming before cold initialization skips module acquisition",
     coldWidget._job == nil and coldWidget._standbyModule == nil)
-  coldWidget.preferences.dashboard.standby_enabled = true
+  coldWidget.state.armed = false
   coldWidget:refresh(nil, nil)
   coldWidget:refresh(nil, nil)
   check("cold standby snapshot remains a separate cooperative phase",
@@ -485,7 +540,7 @@ do
   coldWidget:background()
   local leaseWidget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   leaseWidget.preferences.dashboard = leaseWidget.preferences.dashboard or {}
-  leaseWidget.preferences.dashboard.standby_enabled = true
+  leaseWidget._jobFaults.standby = nil
   leaseWidget.preferences.dashboard.standby_layout = "elrs"
   leaseWidget.preferences.audio_events = leaseWidget.preferences.audio_events or {}
   leaseWidget.preferences.audio_events.tpwr_alert = false
@@ -505,7 +560,7 @@ do
   local gpsReadsBeforeZone = gpsReads
   local zoneWidget = Runtime.new({ x = 4, y = 6, w = 300, h = 180 }, {})
   zoneWidget.preferences.dashboard = zoneWidget.preferences.dashboard or {}
-  zoneWidget.preferences.dashboard.standby_enabled = true
+  zoneWidget._jobFaults.standby = nil
   zoneWidget.preferences.dashboard.standby_layout = "clock"
   zoneWidget.preferences.audio_events = zoneWidget.preferences.audio_events or {}
   zoneWidget.preferences.audio_events.tpwr_alert = false
@@ -583,13 +638,13 @@ do
   check("background releases normal standby display state",
     zoneWidget._standbyModule == nil and zoneWidget._standbyCache == nil
       and zoneWidget._standbyFullscreen == nil)
-  zoneWidget.preferences.dashboard.standby_enabled = false
+  zoneWidget._jobFaults.standby = 99
   Stubs.tick(); zoneWidget:refresh(nil, nil)
-  check("disabled normal widget does not sample GPS", gpsReads == gpsReadsBeforeZone)
+  check("a normal widget whose standby was given up does not sample GPS", gpsReads == gpsReadsBeforeZone)
 
   local staleWidget = Runtime.new({ x = 0, y = 0, w = 300, h = 180 }, {})
   staleWidget.preferences.dashboard = staleWidget.preferences.dashboard or {}
-  staleWidget.preferences.dashboard.standby_enabled = true
+  staleWidget._jobFaults.standby = nil
   staleWidget.preferences.dashboard.standby_layout = "clock"
   staleWidget.preferences.audio_events = staleWidget.preferences.audio_events or {}
   staleWidget.preferences.audio_events.tpwr_alert = false
@@ -611,12 +666,12 @@ do
       and staleWidget.built == false)
   Stubs.tick(); staleWidget:refresh(nil, nil)
   staleWidget:refresh(nil, nil)
-  staleWidget.preferences.dashboard.standby_enabled = false
+  staleWidget.state.armed = true
   staleWidget:refresh(nil, nil)
-  check("disabling standby between prepare and swap keeps the visible tree",
+  check("arming between prepare and swap keeps the visible tree",
     #Stubs.lvgl.trees == treesBeforeStale and staleWidget._job == nil
       and staleWidget.built == false)
-  staleWidget.preferences.dashboard.standby_enabled = true
+  staleWidget.state.armed = false
   for _ = 1, 3 do Stubs.tick(); staleWidget:refresh(nil, nil) end
   local freshTree, freshCaption = Stubs.lvgl.trees[#Stubs.lvgl.trees] or {}, false
   for i = 1, #freshTree do
@@ -648,7 +703,7 @@ do
     local name = case.w .. "x" .. case.h
     local retainedWidget = Runtime.new({ x = 0, y = 0, w = case.w, h = case.h }, {})
     retainedWidget.preferences.dashboard = retainedWidget.preferences.dashboard or {}
-    retainedWidget.preferences.dashboard.standby_enabled = true
+    retainedWidget._jobFaults.standby = nil
     retainedWidget.preferences.dashboard.standby_layout = case.layout
     retainedWidget.preferences.audio_events = retainedWidget.preferences.audio_events or {}
     retainedWidget.preferences.audio_events.tpwr_alert = false
@@ -696,7 +751,7 @@ do
   for _, case in ipairs({ { 480, 320, 3 }, { 800, 480, 4 } }) do
     local defaultWidget = Runtime.new({ x = 0, y = 0, w = case[1], h = case[2] }, {})
     defaultWidget.preferences.dashboard = defaultWidget.preferences.dashboard or {}
-    defaultWidget.preferences.dashboard.standby_enabled = true
+    defaultWidget._jobFaults.standby = nil
     defaultWidget.preferences.dashboard.standby_layout = nil
     defaultWidget.preferences.audio_events = defaultWidget.preferences.audio_events or {}
     defaultWidget.preferences.audio_events.tpwr_alert = false
@@ -714,7 +769,7 @@ do
 
   local widthWidget = Runtime.new({ x = 0, y = 0, w = 320, h = 320 }, {})
   widthWidget.preferences.dashboard = widthWidget.preferences.dashboard or {}
-  widthWidget.preferences.dashboard.standby_enabled = true
+  widthWidget._jobFaults.standby = nil
   widthWidget.preferences.dashboard.standby_layout = "elrs"
   widthWidget.preferences.audio_events = widthWidget.preferences.audio_events or {}
   widthWidget.preferences.audio_events.tpwr_alert = false
@@ -756,7 +811,7 @@ do
       and widget._standbyCache.snapshotValues == nil and widget._standbyCache.snapshotAt == nil
       and widget._standbyCache.elrsCompact == nil and widget._standbyCache.elrs == rawElrsBeforeReload)
   widget.preferences.dashboard = widget.preferences.dashboard or {}
-  widget.preferences.dashboard.standby_enabled = true
+  widget._jobFaults.standby = nil
   widget.preferences.dashboard.standby_layout = "elrs"
   widget._job = nil
   widget:refresh(0, nil)
@@ -870,7 +925,7 @@ do
   local firstOwner = calls.requestOwners[1]
   local second = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   second.preferences.dashboard = second.preferences.dashboard or {}
-  second.preferences.dashboard.standby_enabled = true
+  second._jobFaults.standby = nil
   second.preferences.dashboard.standby_layout = "elrs"
   second.state.fblConnected, second.state.armed = false, false
   second.state.hadInflightFlight, second.flightMode = false, "preflight"
@@ -886,7 +941,7 @@ do
   second:background()
 
   -- Once the normal dashboard is already up, a standby-only prerequisite change must not enqueue
-  -- another scene build. Cover both the default-off case and an enabled feature excluded by flight
+  -- another scene build. Cover both a standby given up and the feature excluded by flight
   -- history; the active-standby transition above separately proves its text cache is invalidated.
   local originalIsFblConnected = MspRuntime.isFblConnected
   local EventsRuntime = assert(_G.rfsuite.require("tasks/events/runtime.lua"))
@@ -907,7 +962,7 @@ do
   local function readyWidget(enabled, flown)
     local readyWidget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
     readyWidget.preferences.dashboard = readyWidget.preferences.dashboard or {}
-    readyWidget.preferences.dashboard.standby_enabled = enabled
+    if not enabled then readyWidget._jobFaults.standby = 99 end
     readyWidget.preferences.audio_events = readyWidget.preferences.audio_events or {}
     readyWidget.preferences.audio_events.tpwr_alert = false
     readyWidget.state.batteryTelemetrySeen = true
@@ -960,7 +1015,7 @@ do
 end
 
 -- Standby is a display-only module. Exercise its lifetime through the actual loader and runtime:
--- disabled widgets must not load it, active widgets share one instance, and the last exit must
+-- widgets not showing it must not load it, active widgets share one instance, and the last exit must
 -- release every widget-held reference. The shared ELRS provider goes with it while the TX power
 -- alert is off and stays while the alert is on.
 install()
@@ -988,7 +1043,7 @@ do
   local function newWidget(enabled)
     local widget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
     widget.preferences.dashboard = widget.preferences.dashboard or {}
-    widget.preferences.dashboard.standby_enabled = enabled
+    if not enabled then widget._jobFaults.standby = 99 end
     widget.preferences.dashboard.standby_layout = "elrs"
     widget.preferences.audio_events = widget.preferences.audio_events or {}
     widget.preferences.audio_events.tpwr_alert = false
@@ -999,10 +1054,10 @@ do
 
   local first = newWidget(false)
   first:refresh(0, nil)
-  check("disabled standby does not load display module", standbyLoads == 0
+  check("a standby given up does not load display module", standbyLoads == 0
     and _G.rfsuite.modules[standbyPath] == nil and first._standbyModule == nil)
 
-  first.preferences.dashboard.standby_enabled = true
+  first._jobFaults.standby = nil
   first._job = nil
   first:refresh(0, nil)
   for _ = 1, 4 do first:refresh(0, nil) end
@@ -1026,10 +1081,10 @@ do
   local slot = assert(audioProviderSlot(), "the audio module's provider reference was not found")
   debug.setupvalue(Audio.releaseElrsConfig, slot, sharedConfig)
   local releasedCache = first._standbyCache
-  first.preferences.dashboard.standby_enabled = false
+  first._jobFaults.standby = 99
   first._job = nil
   first:refresh(0, nil)
-  check("disabled exit evicts last standby display module", first._standbyModule == nil
+  check("the exit of a given-up standby evicts last standby display module", first._standbyModule == nil
     and first._standbyCache == nil and first._standbyElrsConfig == nil and first._standbyCrsf == nil
     and _G.rfsuite.modules[standbyPath] == nil)
   -- Standby's entry read starts with a drain of late replies, and the clock has not moved: the
@@ -1043,7 +1098,7 @@ do
   check("standby exit releases the radio status helper it loaded",
     _G.rfsuite.modules["/SCRIPTS/RFSUITE/core/lib/radio_status.lua"] == nil)
 
-  first.preferences.dashboard.standby_enabled = true
+  first._jobFaults.standby = nil
   first._job = nil
   first:refresh(0, nil)
   first:refresh(0, nil)
@@ -1111,7 +1166,7 @@ local function standbyElrsScenario()
   Stubs.onPush = function(command, data) sent[#sent + 1] = command; return true end
   local widget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   widget.preferences.dashboard = widget.preferences.dashboard or {}
-  widget.preferences.dashboard.standby_enabled = true
+  widget._jobFaults.standby = nil
   widget.preferences.dashboard.standby_layout = "elrs"
   widget.preferences.audio_events = widget.preferences.audio_events or {}
   widget.preferences.audio_events.tpwr_alert = false
@@ -1125,7 +1180,7 @@ local function standbyElrsScenario()
     return count
   end
   function s.leave()
-    widget.preferences.dashboard.standby_enabled = false
+    widget._jobFaults.standby = 99
     widget._job = nil
     s.passes(1)
   end
@@ -1235,7 +1290,7 @@ do
   local Other = assert(loadfile(runtimePath))()
   local other = Other.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   other.preferences.dashboard = other.preferences.dashboard or {}
-  other.preferences.dashboard.standby_enabled = true
+  other._jobFaults.standby = nil
   other.preferences.dashboard.standby_layout = "elrs"
   other.preferences.audio_events = other.preferences.audio_events or {}
   other.preferences.audio_events.tpwr_alert = false
@@ -1251,7 +1306,7 @@ do
   for _ = 1, 3 do Stubs.tick(); s.widget:background() end
   check("first widget's deferred release left the provider the second widget's standby uses: registry "
     .. (_G.rfsuite.elrs_config == provider and "kept" or "dropped"), _G.rfsuite.elrs_config == provider)
-  other.preferences.dashboard.standby_enabled = false
+  other._jobFaults.standby = 99
   other._job = nil
   for _ = 1, 2 do Stubs.tick(); other:refresh(0, nil) end
   check("the last standby exit unloads the idle provider", _G.rfsuite.elrs_config == nil)
@@ -1305,7 +1360,7 @@ do
   s.widget.zone = { x = 0, y = 0, w = 480, h = 320 }
   s.passes(6)
   check("a build that leaves a saved row out warns", logged("warn: 1 saved row(s) do not fit") == 1)
-  check("the build line counts both", logged("info: built: 2/3 rows, ") == 1)
+  check("the build line counts both", logged("debug: built: 2/3 rows, ") == 1)
   check("a build traces its steps", logged("trace: build: first read of the values done") >= 1
     and logged(" nodes prepared, swapped in on the next pass") >= 1)
   local readsBefore = logged("trace: read: clock ")
@@ -1319,7 +1374,7 @@ do
   check("a cleared key is told apart from a changed surface",
     logged("debug: rebuild: nothing about it changed, its key was cleared: standby|") == 1)
   s.passes(4)
-  check("the cleared key rebuilt it once", (function() s.passes(3); return logged("info: built: ") == 2 end)())
+  check("the cleared key rebuilt it once", (function() s.passes(3); return logged("debug: built: ") == 2 end)())
   for _ = 1, 3 do Stubs.tick(); s.widget:background() end
   check("background passes log the release once", logged("debug: released: widget_background") == 1)
   LogModule.emitf, LogModule.wanted = realEmitf, realWanted
