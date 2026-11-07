@@ -981,15 +981,17 @@ function M.build(children, widget, source, colors)
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = headH, color = colors.head, filled = true }
   children[#children + 1] = { type = "rectangle", x = 0, y = headH, w = W, h = 1, color = colors.rule, filled = true }
 
-  -- Over every surface and empty, not scrolling: a touch reaches the widget against this box, with
-  -- its coordinates, the close box's included. Labels and rectangles take no touch.
-  children[#children + 1] = { type = "box", x = 0, y = 0, w = W, h = H, borderPad = 0, scrollDir = 0, scrollBar = false, children = {} }
-
-  -- The close box is drawn, not a button: a button would stand in the wheel's walk between the ladders.
+  -- The close box is drawn, not a button: a button would stand in the wheel's walk between the ladders. It lies
+  -- under the box below: a touch arrives with coordinates relative to the object it lands on.
   children[#children + 1] = { type = "rectangle", x = closeX, y = closeY, w = closeSize, h = closeSize, color = colors.close,
     filled = true, rounded = radius }
   children[#children + 1] = { type = "label", x = closeX, y = closeY + math.floor((closeSize - nearH) / 2), w = closeSize,
     font = nearFont, align = CENTER, color = colors.onClose, text = "X" }
+
+  -- Over every surface and empty, not scrolling: a touch reaches the widget against this box, with
+  -- its coordinates, the close box's included. Labels take no touch, and the rectangle below starts at the
+  -- same corner.
+  children[#children + 1] = { type = "box", x = 0, y = 0, w = W, h = H, borderPad = 0, scrollDir = 0, scrollBar = false, children = {} }
 
   viewport(widget, roll, windows, "reverse", "forward", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0, shown)
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = closeX - pad, h = headH, color = colors.head, filled = true }

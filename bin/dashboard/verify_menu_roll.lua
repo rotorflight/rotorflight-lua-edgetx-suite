@@ -607,6 +607,21 @@ local function run(mutate)
     check("four passes without the sweep build the scene", Menu.renderKey(w) ~= key and r.recentre == nil)
   end
   do
+    -- A touch arrives relative to the object it lands on: over the touch box, only labels, pictures and dots
+    -- (which take none) and a rectangle starting at the same corner may lie.
+    local _, s = open()
+    local after, wrong = false, {}
+    for i = 1, #s.children do
+      local node = s.children[i]
+      if node.type == "box" and node.scrolled == nil and node.x == 0 and node.y == 0 and node.scrollDir == 0 then
+        after = true
+      elseif after and node.type == "rectangle" and (node.x ~= 0 or node.y ~= 0) then
+        wrong[#wrong + 1] = tostring(node.x) .. "," .. tostring(node.y)
+      end
+    end
+    check("no rectangle over the touch box away from its corner: " .. table.concat(wrong, " "), after and #wrong == 0)
+  end
+  do
     -- The close box: drawn, and a tap on it closes the menu.
     local w = open()
     local g = geoOf(w)
