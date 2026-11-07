@@ -70,6 +70,14 @@ it, since every caller in the Lua state shares it.
 foreground against the surfaces it is drawn on, as RGB565 draws them. A pair a new role is used on
 belongs in its list.
 
+## Pictures
+
+The firmware cannot tint a picture, so a picture that follows the scheme exists once per scheme.
+`bin/icons/make_scheme_icons.py` makes them from the suite's own icons, which are dark on an opaque
+ground: the darkness becomes transparency in the scheme's colour. It reads the colour from this file:
+`text` in light, and `accentInk` in dark, since a picture is a glyph. Run it after changing either
+value; `--check` says where a picture is missing, stale or left over.
+
 ## What a scheme cannot reach
 
 `toggle`, `choice` and `numberEdit` parse `color` and ignore it, so they draw in the radio's theme.
