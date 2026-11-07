@@ -290,7 +290,8 @@ do
   check("fresh install: the stamp is written", card.files[USER .. "/precompiled.txt"] ~= nil)
   check("fresh install: second start compiles nothing", #second.loads == 0, #second.loads .. " loads")
   check("fresh install: nothing is reported", #first.warnings == 0 and #second.warnings == 0,
-    table.concat(first.warnings, "; ") .. table.concat(second.warnings, "; "))  check("fresh install: the first pass accounts for itself, forced for want of a stamp",
+    table.concat(first.warnings, "; ") .. table.concat(second.warnings, "; "))
+  check("fresh install: the first pass accounts for itself, forced for want of a stamp",
     hasNote(first, "pass done: 2 checked, 2 compiled, 0 failed, forced: no stamp"),
     table.concat(first.notes, "; "))
   check("fresh install: the second pass accounts for itself, not forced",

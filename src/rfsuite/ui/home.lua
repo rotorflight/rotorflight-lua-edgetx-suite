@@ -4154,7 +4154,9 @@ function M.run(event, touchState)
       state.compileHeldConnect = true
       logf("info", "compile pass running: connection held until it finishes")
     end
-    if (not moveHolds) and (not compileHolds) and (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive) and MspRuntime and type(MspRuntime.tick) == "function" then
+    if (not moveHolds) and (not compileHolds)
+        and (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive)
+        and MspRuntime and type(MspRuntime.tick) == "function" then
       if now == 0 or (now - (state.mspLastTick or 0)) >= 5 then
         state.mspLastTick = now
         MspRuntime.tick()
