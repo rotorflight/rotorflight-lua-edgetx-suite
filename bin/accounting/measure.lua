@@ -503,13 +503,15 @@ local function invalidate(widget)
 end
 
 --- Run one scenario: a widget on `themePath`, settled, then `passes` measured passes.
-local function runScenario(themePath, passes)
+--- `splash` gives the standby's build up first, which is the waiting path that still draws the splash.
+local function runScenario(themePath, passes, splash)
   World.reset()
   local sensorIds = World.sensorIds
   local Runtime = World.require("widgets/dashboard/runtime.lua")
   local widget = Runtime.new(ZONE, {})
   widget.preferences = widget.preferences or {}
   widget.preferences.dashboard = { theme_preflight = themePath }
+  if splash then widget._jobFaults.standby = 99 end
 
   local coldWorst, settlePasses, startupWorst = settle(widget, sensorIds, 4000)
 
@@ -567,7 +569,7 @@ local function runStandbyScenario(layout, gps, elrsReplies, expectedTiles)
   local Runtime = World.require("widgets/dashboard/runtime.lua")
   local widget = Runtime.new(ZONE, {})
   widget.preferences = widget.preferences or {}
-  widget.preferences.dashboard = { theme_preflight = "system/default", standby_enabled = true, standby_layout = layout }
+  widget.preferences.dashboard = { theme_preflight = "system/default", standby_layout = layout }
   local worst, raised = {}, 0
   for i = 1, 120 do
     local class = passClass(widget)
@@ -1397,6 +1399,8 @@ if args["--pages"] then
   return
 end
 
+-- First, because each scenario resets the world and the rows after `base` read what it left there.
+local splashRun = runScenario(reference, 1, true)
 local base = runScenario(reference, 240)
 
 addRow("pass.state", base.worst.state or 0)
@@ -1406,7 +1410,7 @@ addRow("pass.swap", base.worst.swap or 0)
 -- The splash pass only ever happens while the widget is NOT ready, so its only home is
 -- the startup window. A row measured on a window where the class never occurs would be a
 -- zero that reads as free.
-addRow("pass.splash", base.startupWorst.splash or base.worst.splash or 0)
+addRow("pass.splash", splashRun.startupWorst.splash or splashRun.worst.splash or 0)
 addRow("pass.startup.worst", base.coldWorst, base.settlePasses .. " passes to settle")
 
 -- The background half of a STATE pass, as the widget calls it: the onconnect runner, the
