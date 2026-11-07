@@ -828,6 +828,27 @@ do
     press("Close")
   end
 
+  -- A finished record whose variable line lost its index: the page's offer check does not reach the
+  -- model with it, and offers nothing.
+  fresh()
+  setUp()
+  check(Backup.stateOf(world.file) == "complete", "a finished record to spoil")
+  do
+    local text = readRecordFile()
+    local spoiled = string.gsub(text, "\nH\t%d+\t", "\nH\tx\t", 1)
+    check(spoiled ~= text, "the record has a variable line")
+    local f = io.open(Backup.path(world.file), "w")
+    f:write(spoiled)
+    f:close()
+  end
+  Page.onClose()
+  local opened = pcall(open)
+  check(opened, "the page opens over a record whose variable line has no index")
+  check(find("Restore previous setup") == nil, "and offers no restore from it")
+  Page.onClose()
+  Backup.remove(world.file)
+  Page.getHeaderActions()
+
   -- Two jobs on one trim from the page: the button says so, and no line goes.
   fresh()
   prefs.inflight = { trims = true, trim_mode = Setup.TRIM_MODE_NAVIGATE, nav_trim = 1, adj_trim = 1 }

@@ -157,30 +157,54 @@ scenario("setup fault and pending trims refuse output", function()
   check(scans == 1, "closed tuning performs no trim discovery")
 end)
 scenario("a surface closed on a setup fault turns tuning off for the model, once and on the ground", function()
-  local widget, d = fixture(false)
   local root, savedInfo = rfsuite, model.getInfo
   local savedSave = root.savePreferences
   local saves = 0
   model.getInfo = function() return {name = "Heli", filename = "model3.yml"} end
   root.savePreferences = function() saves = saves + 1; return true end
   local ok, err = pcall(function()
+    -- Closed through the real route: the close request, then the runtime's own pass, which ticks no
+    -- closed surface and cleans it up instead.
+    local function closeAndPass(widget)
+      Input.dispatch(widget, "close", nil, "touch")
+      local counted = 0
+      debug.sethook(function() counted = counted + 1 end, "", 1)
+      Stubs.tick(); widget:refresh(0, nil)
+      debug.sethook()
+      return counted
+    end
+    local widget, d = fixture(true)
     widget.preferences.inflight["on_model3.yml"] = "Heli"
-    d.live, d.open, d._checkResult, d._checkFault = false, false, {"same_gvar"}, true
-    widget.state.armed = true
-    Drive.tick(widget, d)
+    d.live, d._checkResult, d._checkFault = false, {"same_gvar"}, true
+    closeAndPass(widget)
     check(widget.preferences.inflight["on_model3.yml"] == "Heli" and saves == 0, "not while armed")
-    widget.state.armed = false
-    Drive.tick(widget, d)
+    widget, d = fixture(false)
+    widget.preferences.inflight["on_model3.yml"] = "Heli"
+    d.live, d._checkResult, d._checkFault = false, {"same_gvar"}, true
+    local cost = closeAndPass(widget)
     check(widget.preferences.inflight["on_model3.yml"] == nil and saves == 1, "closed on a fault, the model's key goes")
     check(widget.preferences.inflight.enabled == false, "and the entry with it")
-    Drive.tick(widget, d)
+    print(string.format("  closing pass with the fault save: %d instructions", cost))
+    check(cost < 20000, "the closing pass stays inside a widget call")
+    Stubs.tick(); widget:refresh(0, nil)
     check(saves == 1, "once")
-    local _, d2 = fixture(false)
+    -- The plain widget has no tool's writer: the suite's own preferences writer, really writing.
+    root.savePreferences = nil
+    widget, d = fixture(false)
     widget.preferences.inflight["on_model3.yml"] = "Heli"
-    d2.live, d2.open, d2._checkResult, d2._checkFault = false, false, "ok", false
-    Drive.tick(widget, d2)
+    d.live, d._checkResult, d._checkFault = false, {"same_gvar"}, true
+    cost = closeAndPass(widget)
+    check(widget.preferences.inflight["on_model3.yml"] == nil, "the preferences writer stores it too")
+    print(string.format("  closing pass with the preferences writer: %d instructions", cost))
+    check(cost < 20000, "and the closing pass stays inside a widget call")
+    root.savePreferences = function() saves = saves + 1; return true end
+    widget, d = fixture(false)
+    widget.preferences.inflight["on_model3.yml"] = "Heli"
+    d.live, d._checkResult, d._checkFault = false, "ok", false
+    closeAndPass(widget)
     check(widget.preferences.inflight["on_model3.yml"] == "Heli" and saves == 1, "closed without a fault, it stays on")
   end)
+  debug.sethook()
   model.getInfo, root.savePreferences = savedInfo, savedSave
   assert(ok, err)
 end)

@@ -278,8 +278,7 @@ end
 --- A setup fault turns in-flight tuning off for this radio model until the pilot switches it on again:
 -- a model repaired or changed since would otherwise run tuning as soon as the check passes, with no
 -- choice made. Only the model's key goes from the radio's settings, and the derived flag with it, so the
--- quick menu loses the entry at once. Ground only; the caller gives it a pass of its own after the surface
--- has closed.
+-- quick menu loses the entry at once. Ground only, from M.cleanup once the surface has closed.
 function M.storeModelOff(widget)
   local prefs = type(widget) == "table" and widget.preferences or nil
   local section = type(prefs) == "table" and prefs.inflight or nil
@@ -1988,13 +1987,6 @@ function M.tick(widget, drive)
   if drive.settings.active ~= true or drive.open ~= true then
     drive:evaluateInterlock(drive.radio.now(), false)
     if widget.state and widget.state.inflight ~= nil then widget.state.inflight = nil end
-    -- A surface that closed on a setup fault: tuning goes off for this model, once, on the ground. Not
-    -- while it is open, so the pilot can read why it refuses.
-    if drive._checkFault == true and drive._offStored ~= true
-        and not (widget.state and widget.state.armed == true) then
-      drive._offStored = true
-      M.storeModelOff(widget)
-    end
     return false
   end
   if drive.fcWorked then
@@ -2136,6 +2128,14 @@ function M.cleanup(widget)
     drive:forgetVerdict()
   end
   if widget.state then widget.state.inflight = nil end
+  -- A surface that closes on a setup fault turns tuning off for this model, once and on the ground; not
+  -- while it is open, so the pilot can read why it refuses. Here because the runtime ticks no closed
+  -- surface: closing calls this and may release the drive in the same pass.
+  if drive._checkFault == true and drive._offStored ~= true
+      and not (widget.state and widget.state.armed == true) then
+    drive._offStored = true
+    M.storeModelOff(widget)
+  end
 end
 
 M.Drive = Drive

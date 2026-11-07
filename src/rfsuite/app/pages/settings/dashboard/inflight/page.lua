@@ -987,7 +987,9 @@ local function stepRecordCheck()
     end
   end
   if not store.parseStep(ui.recordParse, PARSE_SLICE) then return false end
-  ui.recordOffer = store.stillCarries(radio(), ui.recordParse.record)
+  -- A record that is not whole is not compared: stillCarries indexes the model by its entries.
+  local record = ui.recordParse.record
+  ui.recordOffer = store.isWhole(record) and store.stillCarries(radio(), record)
   logJob("debug", "setup job: restore offered %s", tostring(ui.recordOffer))
   ui.recordParse = nil
   ui.recordChecked = true
