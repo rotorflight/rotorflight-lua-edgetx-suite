@@ -27,7 +27,7 @@ CORE = os.path.join(ROOT, "src", "rfsuite")
 OUT = os.path.join(CORE, "widgets", "dashboard", "roll_icons")
 PAGES = os.path.join(CORE, "app", "pages")
 SIZE = 32
-SCHEMES = {"light": (0x13, 0x15, 0x16), "dark": (0x17, 0x98, 0xE8)}
+SCHEMES = {"light": (0x13, 0x15, 0x16), "dark": (0x61, 0xB9, 0xEF)}
 
 # Not rolled through: bin/dashboard/make_menu_list.lua `TILES`.
 TILES = ("esc_motors_menu", "esc_tools_menu", "helicopter_setup_menu")
