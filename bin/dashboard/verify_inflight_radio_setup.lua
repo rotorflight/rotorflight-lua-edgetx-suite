@@ -400,6 +400,29 @@ do
   world.name = ownName
   pendingName = nil
   rfsuite.require = plainRequire
+  -- The mismatch path with the real name store and no record on the card, first in its state: what a
+  -- preferences reload costs while a connected craft's name stands in the model's place.
+  world.name = "Craft name"
+  local counted = 0
+  debug.sethook(function() counted = counted + 1 end, "", 1)
+  local off = settled({ [key] = ownName }).inflight.enabled
+  debug.sethook()
+  world.name = ownName
+  check(off == false, "with no record in the name store a different name stays off")
+  print(string.format("settle with a name mismatch, real name store, first load: %d instructions", counted))
+  -- And with the record there, as model_name_sync leaves it, read from the card in a fresh state.
+  local NameStore = plainRequire("lib/model_name_store.lua")
+  check(NameStore.remember(ownName) ~= false, "the name store takes the record")
+  NameStore.invalidate()
+  world.name = "Craft name"
+  counted = 0
+  debug.sethook(function() counted = counted + 1 end, "", 1)
+  local on = settled({ [key] = ownName }).inflight.enabled
+  debug.sethook()
+  check(on == true, "with the record, the model's own name keeps it on under the craft's name")
+  print(string.format("settle with the craft's name standing in, record read from the card: %d instructions", counted))
+  NameStore.forget()
+  world.name = ownName
   local Views = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/views.lua"))()
   local function widget(section) return { state = {}, preferences = settled(section) } end
   check(Views.condition("previewInflightTuning", widget({ [key] = world.name })) == true, "the entry is there")
