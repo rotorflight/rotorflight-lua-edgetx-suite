@@ -1,0 +1,2 @@
+- **Grid, Urban and Deck stop repainting their bars on every pass in full screen (`widgets/dashboard/themes/grid`, `urban`, `deck`)**:
+  - The link bars and Deck's battery strip drew their fill as a line with a reactive size, which EdgeTX redraws on every pass whether or not the value moved. They are rectangles built into the press now, so nothing is repainted until a reading changes, the picture stays the same and a tap on them still opens their page.
