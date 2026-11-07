@@ -622,6 +622,49 @@ local function run(mutate)
     check("no rectangle over the touch box away from its corner: " .. table.concat(wrong, " "), after and #wrong == 0)
   end
   do
+    -- A rest asks the menu for its rows afresh, as a build did: the question says the fill as it is now.
+    local w, s = open()
+    local r = roll(w)
+    Roll.press(w)
+    s = scene(Menu, w)
+    check("the question has the fill", string.find(r.levels[2].question.detail or "", "50", 1, true) ~= nil)
+    local before = r.source
+    detent(s.forward, s.forward.h, 1)
+    local key = Menu.renderKey(w)
+    now = now + 100
+    check("an unchanged question rests without a build", Menu.renderKey(w) == key)
+    check("and the menu's rows were made afresh", r.source ~= before and type(r.source.renew) == "function")
+    s.reverse.scrollTo()
+    s.reverse.scrollTo()
+    _G.rfsuite.session.dataflash = { used = 80, total = 100 }
+    detent(s.forward, s.forward.h, 1)
+    Menu.renderKey(w)
+    now = now + 100
+    check("a question whose words changed is built again", Menu.renderKey(w) ~= key)
+    check("in what it says now", string.find(r.levels[2].question.detail or "", "80", 1, true) ~= nil)
+    _G.rfsuite.session.dataflash = { used = 50, total = 100 }
+  end
+  do
+    -- The close box during an opening: it calls the opening off and closes, as the button did, until the
+    -- tool is starting.
+    local w = open()
+    local r = roll(w)
+    local g = geoOf(w)
+    local ran = 0
+    Roll.openNext(r, "Opening...", function() ran = ran + 1 end)
+    tap(w, g.leftX + 5, g.slotY(1) + 2)
+    check("a finger elsewhere is ignored while a page opens", r.opening ~= nil and Views.top(w) ~= nil)
+    tap(w, g.closeX + 2, g.closeY + 2)
+    check("the close box calls the opening off and closes", r.opening == nil and Views.top(w) == nil and ran == 0)
+    w = open()
+    r = roll(w)
+    g = geoOf(w)
+    Roll.openNext(r, "Opening...", function() ran = ran + 1 end)
+    r.opening.started = true
+    tap(w, g.closeX + 2, g.closeY + 2)
+    check("once the tool is starting it does nothing", r.opening ~= nil and Views.top(w) ~= nil)
+  end
+  do
     -- The close box: drawn, and a tap on it closes the menu.
     local w = open()
     local g = geoOf(w)
@@ -1021,6 +1064,13 @@ if selfTest then
     end },
     { "hidden ladders are never given up", function(t)
       return (string.gsub(t, "recentre.passes > HIDDEN_PASSES", "false"))
+    end },
+    { "a rest keeps the rows the last build made", function(t)
+      return (string.gsub(t, "  if type%(source.renew%) == \"function\" then\n", "  if false then\n"))
+    end },
+    { "the close box is dead while a page opens", function(t)
+      local tail = "      end\n    end\n    return true\n"
+      return (string.gsub(t, "        roll.source.close%(%)\n" .. tail, tail))
     end },
     { "the close box does nothing", function(t)
       return (string.gsub(t, "    roll.source.close%(%)\n    return\n", "    return\n"))

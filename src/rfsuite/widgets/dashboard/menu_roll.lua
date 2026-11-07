@@ -65,7 +65,7 @@ local function info(msg)
 end
 
 -- Rows in each ladder. The scene is built again before a ladder runs out, so the walk never reaches
--- the close box between the two; what is left past that absorbs a fast turn.
+-- the other ladder; what is left past that absorbs a fast turn.
 local LADDER = 12
 local LADDER_MARGIN = 3
 
@@ -441,7 +441,22 @@ function M.touch(widget, event, touch)
   end
   local roll = current(widget)
   if roll == nil then return false end
-  if roll.opening ~= nil then return true end
+  if roll.opening ~= nil then
+    -- Only the close box answers then, as the button it replaced did, and only before the tool is starting.
+    if event == _G.EVT_TOUCH_FIRST then
+      roll.heldX, roll.heldY = touch.x, touch.y
+    elseif event == _G.EVT_TOUCH_BREAK then
+      local x, y, geo = roll.heldX, roll.heldY, roll.geo
+      roll.heldX, roll.heldY = nil, nil
+      if x ~= nil and geo ~= nil and geo.closeX ~= nil and not roll.opening.started
+        and x >= geo.closeX and x < geo.closeX + geo.closeSize and y >= geo.closeY and y < geo.closeY + geo.closeSize then
+        roll.opening, roll.slots = nil, nil
+        trace("opening called off by the close box")
+        roll.source.close()
+      end
+    end
+    return true
+  end
   if event == _G.EVT_TOUCH_FIRST then
     -- Against the box under the whole screen, and the one rectangle over it starts at the same corner.
     roll.touchX, roll.touchY = touch.x, touch.y
@@ -858,18 +873,29 @@ local function refreshLists(roll, source)
   end
 end
 
+-- What a question says over the right list, as one line; nil where there is none.
+local function questionText(question)
+  if question == nil then return nil end
+  return (question.message or "") .. ((type(question.detail) == "string" and question.detail ~= "") and (" " .. question.detail) or "")
+end
+
 --- The wheel has rested: the lists are made afresh for what they say about the choice in force, and the focus
 --- goes back to the widget by the ladders hiding for a sweep. Answers true where the refresh moved what a build
 --- lays out -- the level on the left, the side with the focus, a question -- so the scene has to be built.
 function M.rested(roll)
   local source = roll.source
   if source == nil then return true end
+  -- The rows a menu hands in say what held when it made them: made afresh here, as a build makes them.
+  if type(source.renew) == "function" then
+    source = source.renew()
+    roll.source = source
+  end
   local base, focus = roll.base, roll.focus
   local right = roll.levels[base + 1]
-  local question = right and right.question or nil
+  local said = questionText(right and right.question or nil)
   refreshLists(roll, source)
   local now = roll.levels[roll.base + 1]
-  if roll.base ~= base or roll.focus ~= focus or (now and now.question or nil) ~= question then return true end
+  if roll.base ~= base or roll.focus ~= focus or questionText(now and now.question or nil) ~= said then return true end
   roll.recentre = { state = "hide", at = getTime(), passes = 0, swallowed = 0 }
   local windows = roll.windows
   if windows ~= nil then
@@ -953,7 +979,8 @@ function M.build(children, widget, source, colors)
     rightRows(roll)
     surface(rightX, colors.off)
     -- Whether it stands follows the row on the left, which the wheel moves without a build.
-    children[#children].visible = function() return slotOf(roll, "left", 0, slotKey("left", 0)).preview == true end
+    local key = slotKey("left", 0)
+    children[#children].visible = function() return slotOf(roll, "left", 0, key).preview == true end
   end
   children[#children + 1] = { type = "rectangle", x = activeX, y = midY, w = colW, h = midH, color = colors.accent,
     thickness = thickness, rounded = radius }
@@ -1121,7 +1148,7 @@ function M.build(children, widget, source, colors)
   if question ~= nil then
     children[#children + 1] = {
       type = "label", x = rightX + pad, y = headH + 2, w = colW - 2 * pad, font = farFont, align = LEFT, color = colors.text,
-      text = (question.message or "") .. ((type(question.detail) == "string" and question.detail ~= "") and (" " .. question.detail) or ""),
+      text = questionText(question),
     }
   end
 

@@ -918,6 +918,7 @@ end
 -- BATTERY PROFILE is drawn on its own row under the raster and never on a place, so a list that
 -- names it does not draw it twice.
 function M.build(children, widget, entries)
+  local given = entries
   entries = entries or M.entries(widget)
   local t = translator(widget)
 
@@ -929,7 +930,13 @@ function M.build(children, widget, entries)
         Log.emit("rfsuite.widget", "rotary menu did not load, drawing the card", "warn")
       end
     else
-      Roll.build(children, widget, Sources.quick(widget, entries, t), Look.colors(widget))
+      -- The roll keeps its scene when the wheel rests and asks for the entries afresh then, as a build would.
+      local function renew(list)
+        local source = Sources.quick(widget, list or given or M.entries(widget), t)
+        source.renew = renew
+        return source
+      end
+      Roll.build(children, widget, renew(entries), Look.colors(widget))
       return
     end
   end
