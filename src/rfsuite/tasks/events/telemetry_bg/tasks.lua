@@ -136,7 +136,8 @@ function M.wakeup(carry)
 end
 
 --- The pass a widget runs while its connect tasks hold M.wakeup back (tasks/events/runtime.lua): the
--- drain module alone, publishing the arming flags and nothing else. SmartFuel and the adjustment
+-- drain module alone, publishing the armed state (the arming flags, or the System Status word) and
+-- nothing else. SmartFuel and the adjustment
 -- teller are not loaded or woken here; M.wakeup does both once the connect is through, and finds
 -- the drain already loaded. Like M.wakeup, it stands aside while the background function script
 -- is draining for the whole radio.
@@ -147,8 +148,10 @@ function M.wakeupConnecting()
     end
     if not Drain or type(Drain.wakeupArmingFlags) ~= "function" then return end
     local now = nowSeconds()
-    if Drain.remoteAlive(now) then return end
-    if Drain.wakeupArmingFlags(now) > 0 then
+    local remote = Drain.remoteAlive(now)
+    -- When the flight controller's telemetry was last seen arriving, as M.wakeup keeps it: frames
+    -- taken here, or the function script's drain moving (lib/audio.lua reads it).
+    if remote or Drain.wakeupArmingFlags(now) > 0 then
         local session = _G.rfsuite and _G.rfsuite.session
         if session then session.telemetryFrameAt = now end
     end

@@ -72,7 +72,7 @@ local state = {
   -- The link is back after such a loss, and whether the craft is still flying is not known yet:
   -- the time it came back, until settleFlightAfterGap decides.
   flightPendingSince = nil,
-  -- The widget is running telemetry_bg's arming-flags-only pass because the connect tasks hold the
+  -- The widget is running telemetry_bg's armed-state-only pass because the connect tasks hold the
   -- full one back. Kept only to log the change of pass once rather than on every wakeup.
   armingFlagsOnly = false,
 }
@@ -600,7 +600,7 @@ function Events.wakeup(carry)
     -- off that sensor and empties the MSP queue on it, so with nothing decoding it the gate cannot
     -- fire for as long as the connect tasks wait -- and a task waiting on an unanswered read waits
     -- 25 s, three times over. So while the deferral holds, the widget runs a pass that takes the
-    -- frames off the wire and publishes the arming flags alone (telemetry_bg/tasks.lua,
+    -- frames off the wire and publishes the armed state alone (telemetry_bg/tasks.lua,
     -- wakeupConnecting): the decode of every other sensor, SmartFuel and the adjustment teller
     -- still wait for the connect to finish. When the function script is running, that pass stands
     -- aside for it like the full one does.
@@ -622,7 +622,7 @@ function Events.wakeup(carry)
       if not state.armingFlagsOnly then
         state.armingFlagsOnly = true
         if Log and type(Log.emit) == "function" then
-          pcall(Log.emit, "rfsuite.events", "custom telemetry: arming flags only while the connect tasks run", "debug")
+          pcall(Log.emit, "rfsuite.events", "custom telemetry: armed state only while the connect tasks run", "debug")
         end
       end
       local telemetry_bg = ensureEventRunner("telemetry_bg")

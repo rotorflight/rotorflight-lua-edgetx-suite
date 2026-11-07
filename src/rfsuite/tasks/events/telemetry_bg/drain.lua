@@ -122,7 +122,14 @@ local lastGroupLength = {}
 -- the decoder module once, at load, so it cannot take the time as an argument.
 local decodeNow = 0
 
+-- True while wakeupArmingFlags walks a frame only to reach the arming flags. The decoders that publish
+-- a group themselves ask groupDue first, so answering false here keeps them from publishing, and from
+-- touching the bookkeeping above, on a walk that is not a decode. decodeFrame clears it, so a walk
+-- that raised part-way cannot leave the full pass silenced.
+local walkOnly = false
+
 local function groupDue(sid, data, first, last)
+    if walkOnly then return false end
     local now = decodeNow
     local frame = lastPublishedValue[sid]
     if frame and lastGroupLength[sid] == last - first
@@ -195,6 +202,7 @@ end
 -- was consumed by popAndAccount, so the walk starts at byte 4.
 local function decodeFrame(data, now)
     local sid, val
+    walkOnly = false
     decodeNow = now
     local ptr = 4
     while ptr < #data do
@@ -396,30 +404,37 @@ function M.wakeup(now, decodeAll)
     return popped
 end
 
--- The arming flags' sensor id in the custom telemetry frame (lib/rf2tlm_sensors.lua, "ARM").
+-- Where the armed state can come from in the custom telemetry frame: the arming flags ("ARM"), or the
+-- packed System Status word ("STAT"), whose bit 0 lib/sensors.lua reads as armed when the model
+-- carries no arming flags sensor (lib/rf2tlm_sensors.lua names both).
 local SID_ARMING_FLAGS = 0x1202
+local SID_SYSTEM_STATUS = 0x1230
 
--- Walk one frame up to the arming flags and publish them; true when the frame carried them.
--- Entries are of different lengths and the flight controller chooses their order, so the walk
--- needs the decoders of the entries in front of the flags; nothing else is published.
-local function publishArmingFlags(data, now)
+-- Walk one frame up to the arming flags or the System Status word and publish what it finds there;
+-- true when the frame carried either. Entries are of different lengths and the flight controller
+-- chooses their order, so the walk needs the decoders of the entries in front; walkOnly keeps the
+-- ones that publish a group of their own from publishing.
+local function publishArmedSource(data, now)
     local ptr = 4
+    walkOnly = true
     while ptr < #data do
         local sid
         sid, ptr = decU16(data, ptr)
         local sensor = RFSensors[sid]
-        if not sensor or type(sensor.dec) ~= "function" then return false end
+        if not sensor or type(sensor.dec) ~= "function" then break end
         local val
         val, ptr = sensor.dec(data, ptr)
-        if sid == SID_ARMING_FLAGS then
+        if sid == SID_ARMING_FLAGS or sid == SID_SYSTEM_STATUS then
+            walkOnly = false
             if val then publishSensorValue(sid, val, sensor, now) end
             return true
         end
     end
+    walkOnly = false
     return false
 end
 
---- A drain pass that publishes the arming flags and nothing else, for a widget host while its
+--- A drain pass that publishes the armed state and nothing else, for a widget host while its
 -- connect sequence runs.
 --
 -- The full pass is held back there, to keep the connect passes clear of the decode. But
@@ -427,7 +442,7 @@ end
 -- ARM sensor; in a widget with the background function script not running, this state is the
 -- only decoder of it. So the frames are taken off the wire and counted as in M.wakeup, and of the
 -- newest DECODE_CAP of them -- newest first -- only as many are walked as it takes to find the
--- flags.
+-- arming flags or the System Status word, whichever the flight controller sends.
 --
 -- Returns how many frames the pass took off the wire, as M.wakeup does.
 function M.wakeupArmingFlags(now)
@@ -446,7 +461,7 @@ function M.wakeupArmingFlags(now)
     end
 
     for i = #kept, 1, -1 do
-        if publishArmingFlags(kept[i], now) then break end
+        if publishArmedSource(kept[i], now) then break end
     end
     for i = #kept, 1, -1 do kept[i] = nil end
     return popped

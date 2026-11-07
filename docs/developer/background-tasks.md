@@ -75,8 +75,9 @@ service widget and a tool hosted by the dashboard all use the same event runtime
    waits until `onconnect` has finished, unless the craft is armed. The wait exists because of the
    firmware's per-call instruction limit for widgets. While it waits, the widget runs a smaller
    pass instead (`wakeupConnecting`): it takes the custom telemetry frames off the link and
-   publishes the arming flags (`ARM`) only, so the MSP runtime still sees an arming and stops
-   sending during the connect sequence. The tool does not wait: a standalone script has no such
+   publishes the armed state only -- the arming flags (`ARM`), or the System Status word (`STAT`)
+   where the flight controller sends that instead -- so the MSP runtime still sees an arming and
+   stops sending during the connect sequence. The tool does not wait: a standalone script has no such
    limit, and while the tool is open the background function script is paused, so this is the
    only decoder running.
 5. **Arm and disarm edges.** These are detected while the link is held up and no kept flight is
@@ -212,9 +213,11 @@ background function script is decoding them.
 While a widget's `onconnect` holds this pass back, `tasks.lua`'s `wakeupConnecting` runs in its
 place. It loads `drain.lua` alone and calls its `wakeupArmingFlags`, which takes the frames off the
 link as the full pass does (at most 15) and walks the newest 4, newest first, only until it finds
-the arming flags; it publishes those and nothing else. `smart.lua` and `adjustments.lua` are loaded
-and run by the full pass once the connect sequence is through. It also steps aside while the
-background function script is decoding.
+the arming flags or the System Status word; it publishes that and nothing else -- the decoders it
+walks past that publish a group of their own (cells, GPS, attitude and the like) are told not to.
+`smart.lua` and `adjustments.lua` are loaded and run by the full pass once the connect sequence is
+through. It also steps aside while the background function script is decoding, and like the full
+pass it sets `session.telemetryFrameAt` when frames arrived or that script is decoding them.
 
 When the background function script (`rfsbg.lua`) is decoding for the whole radio, `drain.lua`
 and `adjustments.lua` step aside together, so sensors are not published twice and adjustments are

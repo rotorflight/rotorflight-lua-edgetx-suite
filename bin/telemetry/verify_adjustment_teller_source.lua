@@ -507,6 +507,29 @@ do
   check(said("inflight/fn/14.wav") and said("#100"), "rfsbg: a teller loaded after a failed load announces")
 end
 
+-- The pass a widget runs while its connect tasks hold the full one back (wakeupConnecting): it loads
+-- the drain and nothing else, publishes no ADJ row and says nothing. The ADJ pair it walks past is
+-- still held for the teller (the decoder holds it before it asks whether to publish), so a teller
+-- that starts with the full pass joins that report without a word and announces the next one.
+do
+  newWorld("widget", { enabled = true })
+  W.step = function() W.tasks.wakeupConnecting() end
+  W.adj = { 14, 100 }
+  seconds(2.0)
+  check(not tellerLoaded() and (W.loads["tasks/events/telemetry_bg/smart.lua"] or 0) == 0,
+    "widget connecting: only the drain is loaded (teller " .. tostring(tellerLoaded()) .. ", smart "
+    .. tostring(W.loads["tasks/events/telemetry_bg/smart.lua"]) .. ")")
+  check((W.loads["tasks/events/telemetry_bg/drain.lua"] or 0) == 1, "widget connecting: the drain is loaded once")
+  check(W.rows.AdjF == nil and W.rows.AdjV == nil and #W.spoken == 0,
+    "widget connecting: no ADJ row is published and nothing is said")
+  W.step = function() W.tasks.wakeup() end
+  seconds(2.0)
+  check(tellerLoaded() and #W.spoken == 0, "widget after connect: the teller joins the standing report without a word")
+  W.adj = { 15, 7 }
+  seconds(2.0)
+  check(said("inflight/fn/15.wav") and said("#7"), "widget after connect: the next adjustment is announced")
+end
+
 -- The decoder itself (lib/rf2tlm_sensors.lua): the suite's own load holds every decoded ADJ pair
 -- for the state's teller, also one the publish throttle declines; EdgeTX's sensor discovery, which
 -- calls every decoder once with zero bytes, holds nothing.
