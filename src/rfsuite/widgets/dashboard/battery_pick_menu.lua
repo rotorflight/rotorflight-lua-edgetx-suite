@@ -121,13 +121,7 @@ function M.build(children, widget)
     local Roll = rollModule()
     local Sources = Roll and requireModule("widgets/dashboard/menu_roll_sources.lua") or nil
     if Roll and type(Sources) == "table" then
-      -- The roll keeps its scene when the wheel rests and asks for the packs afresh then, as a build would.
-      local function renew()
-        local source = Sources.pick(widget, t)
-        source.renew = renew
-        return source
-      end
-      Roll.build(children, widget, renew(), Look.colors(widget))
+      Roll.build(children, widget, function() return Sources.pick(widget, t) end, Look.colors(widget))
       return
     end
   end

@@ -172,6 +172,7 @@ local function run(mutate)
     local w, s = open()
     local r = roll(w)
     check("two ladders", s.forward ~= nil and s.reverse ~= nil)
+    check("the quick menu hands the shared roll how its rows are made, read again at a rest", type(r.make) == "function")
     check("left list holds three rows", #r.levels[1].rows == 3)
     check("BATTERY PROFILE is last", r.levels[1].rows[#r.levels[1].rows].id == "battery_profile")
     check("starts on the first row", r.levels[1].index == 1)
@@ -633,7 +634,7 @@ local function run(mutate)
     local key = Menu.renderKey(w)
     now = now + 100
     check("an unchanged question rests without a build", Menu.renderKey(w) == key)
-    check("and the menu's rows were made afresh", r.source ~= before and type(r.source.renew) == "function")
+    check("and the menu's rows were made afresh", r.source ~= before and type(r.make) == "function")
     s.reverse.scrollTo()
     s.reverse.scrollTo()
     _G.rfsuite.session.dataflash = { used = 80, total = 100 }
@@ -721,6 +722,7 @@ local function run(mutate)
     local w, children, forward = openPicker(false)
     local r = roll(w)
     check("the picker has a roll of its own", r ~= nil and r.view == "battery_pick" and forward ~= nil)
+    check("and hands the shared roll how its packs are made, read again at a rest", type(r.make) == "function")
     check("with no pack in force it starts on NO BATTERY", r.levels[1].rows[r.levels[1].index].none == true)
     check("its title is the picker's", string.find(labelsOf(children), "WHICH BATTERY?", 1, true) ~= nil)
     forward.scrolled(0, -1 * 0)
@@ -1066,7 +1068,14 @@ if selfTest then
       return (string.gsub(t, "recentre.passes > HIDDEN_PASSES", "false"))
     end },
     { "a rest keeps the rows the last build made", function(t)
-      return (string.gsub(t, "  if type%(source.renew%) == \"function\" then\n", "  if false then\n"))
+      return (string.gsub(t, "  if type%(roll.make%) == \"function\" then\n", "  if false then\n"))
+    end },
+    { "the quick menu hands in rows made once", function(t)
+      return (string.gsub(t, "function%(%) return Sources.quick%(widget, entries or M.entries%(widget%), t%) end",
+        "Sources.quick(widget, entries or M.entries(widget), t)"))
+    end },
+    { "the picker hands in packs made once", function(t)
+      return (string.gsub(t, "function%(%) return Sources.pick%(widget, t%) end", "Sources.pick(widget, t)"))
     end },
     { "the close box is dead while a page opens", function(t)
       local tail = "      end\n    end\n    return true\n"

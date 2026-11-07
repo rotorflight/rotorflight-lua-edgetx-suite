@@ -892,8 +892,8 @@ function M.rested(roll)
   local source = roll.source
   if source == nil then return true end
   -- The rows a menu hands in say what held when it made them: made afresh here, as a build makes them.
-  if type(source.renew) == "function" then
-    source = source.renew()
+  if type(roll.make) == "function" then
+    source = roll.make()
     roll.source = source
   end
   local base, focus = roll.base, roll.focus
@@ -913,11 +913,19 @@ function M.rested(roll)
   return false
 end
 
---- Draw the menu `source` describes (menu_roll_sources.lua) into the view it names.
+--- Draw the menu `source` describes (menu_roll_sources.lua) into the view it names. `source` is the description, or
+--- a function that makes it: then the roll makes it afresh itself when the wheel rests, which builds nothing, so a
+--- menu's own state (a value in a question, which entries are offered) is read again there as a build reads it.
 function M.build(children, widget, source, colors)
+  local make = nil
+  if type(source) == "function" then
+    make = source
+    source = make()
+  end
+  if type(source) ~= "table" then return end
   local roll = rollOf(widget, source.id)
   if roll == nil then return end
-  roll.source = source
+  roll.source, roll.make = source, make
   refreshLists(roll, source)
   roll.recentre = nil
 
