@@ -211,6 +211,33 @@ do
   widget:background()
 end
 
+-- A save made elsewhere after this widget read the file, and not yet reloaded: the key goes onto the
+-- newer file, which keeps what the other writer saved.
+clearKey()
+do
+  local function stat(size) return { size = size, time = { year = 2026, mon = 11, day = 7, hour = 22, min = 0, sec = size % 60 } } end
+  Stubs.prefsStat = stat(100)
+  local widget = waiting({ x = 0, y = 0, w = 480, h = 270 })
+  pass(widget)
+  check(treeHasLabel(TITLE), "newer file leg: the tile stands first")
+  local prefs = Preferences.load()
+  prefs.inflight = prefs.inflight or {}
+  prefs.inflight.saved_elsewhere = 7
+  assert(Preferences.save(prefs))
+  Stubs.prefsStat = stat(101)
+  local saves, realSave = 0, Preferences.save
+  Preferences.save = function(...) saves = saves + 1; return realSave(...) end
+  pass(widget, 0, 12)
+  Preferences.save = realSave
+  local after = Preferences.load()
+  check(after.inflight and after.inflight.saved_elsewhere == 7, "the key's save keeps a newer save made elsewhere",
+    after.inflight and after.inflight.saved_elsewhere)
+  check(savedKey() == true, "the key is written onto the newer file", savedKey())
+  check(saves == 1, "the key is written once", saves)
+  widget:background()
+  Stubs.prefsStat = nil
+end
+
 -- Full screen before the tile ever stood writes nothing.
 clearKey()
 do

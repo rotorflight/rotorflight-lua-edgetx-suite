@@ -2274,6 +2274,20 @@ local function preferencesStamp(modelPath, keptStamp)
   return globalStamp .. "|" .. modelStamp
 end
 
+-- The files as they stand now: the stamp above and the reload request's sizes, the same two looks
+-- reloadPreferencesIfNeeded takes. Nil where the stamp cannot be established.
+local function preferencesLook(keptStamp)
+  local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+  local stamp = preferencesStamp(session and session.modelPreferencesFile, keptStamp)
+  if not stamp then return nil end
+  local seqs, paths = {}, reloadRequestPaths()
+  for i = 1, #paths do
+    local ok, info = pcall(fstat, paths[i])
+    seqs[paths[i]] = (ok and type(info) == "table" and (info.size or 0) > 0) and info.size or 0
+  end
+  return stamp, seqs
+end
+
 --- Which of the two files a stamp difference is about.
 --
 -- The stamp is the global half, then `|`, then the per-model half where there is one. The two
@@ -5495,6 +5509,23 @@ function Runtime.new(zone, options)
     else
       introOwed = false
     end
+    -- It writes this widget's copy whole, so where the files moved since that copy was read -- the
+    -- tool saved, and the reload has not run yet -- it waits: the reload below takes the newer file
+    -- and a later pass writes the key onto it.
+    if introOwed then
+      local stale = self._reloadPending and true or false
+      if not stale and type(self._lastPrefsStamp) == "string" then
+        local ok, stamp, seqs = pcall(preferencesLook, self._lastPrefsStamp)
+        stale = ok and stamp ~= nil and stamp ~= self._lastPrefsStamp
+        local lastSeqs = self._lastReloadSeqs or {}
+        for path, seq in pairs((ok and seqs) or {}) do
+          if lastSeqs[path] ~= nil and lastSeqs[path] ~= seq then stale = true end
+        end
+        -- The reload's own look then runs on this pass instead of up to a second later.
+        if stale then self._lastPrefsStatAt = nil end
+      end
+      introOwed = not stale
+    end
     if introOwed then
       self._standbyIntroOwed = nil
       local widgetPrefs = self.preferences
@@ -5859,17 +5890,7 @@ function Runtime.new(zone, options)
         -- a look; one made since the last look leaves the files off it, and nothing is taken.
         -- The look is the same one reloadPreferencesIfNeeded takes, once per pick.
         self._job = { kind = "battery_pick_apply", oneShot = true, step = function(w)
-          local function look()
-            local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-            local stamp = preferencesStamp(session and session.modelPreferencesFile, w._lastPrefsStamp)
-            if not stamp then return nil end
-            local seqs, paths = {}, reloadRequestPaths()
-            for i = 1, #paths do
-              local ok, info = pcall(fstat, paths[i])
-              seqs[paths[i]] = (ok and type(info) == "table" and (info.size or 0) > 0) and info.size or 0
-            end
-            return stamp, seqs
-          end
+          local function look() return preferencesLook(w._lastPrefsStamp) end
           -- Each look is protected: one that raises takes nothing, and never keeps the pick itself
           -- from running (it is what takes the request off).
           local seen = false
