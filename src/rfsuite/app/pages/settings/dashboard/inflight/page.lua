@@ -124,6 +124,17 @@ local function preferences(prefs)
   return prefs
 end
 
+--- The radio model's own name: while a connected craft's name stands in its place, the name store
+-- holds the one it replaced. The switch's key stores it, and the set-up line shows it.
+local function ownModelName(info)
+  local name = info and info.name or ""
+  local ok, store = pcall(_G.rfsuite.require or loadModule, "lib/model_name_store.lua")
+  if ok and type(store) == "table" and type(store.pending) == "function" then
+    name = store.pending() or name
+  end
+  return name
+end
+
 --- One radio surface for the whole visit. It is a table of closures, so building a fresh one per
 -- build would hand the page a new set of them every time the screen was laid out again.
 local function radio()
@@ -139,9 +150,10 @@ local function ensureLoaded(prefs)
   do
     local info = Setup.radio().modelInfo()
     local key = Setup.modelOnKey(info and info.filename)
-    local section = preferences(prefs).inflight
+    local Preferences = (_G.rfsuite.require or loadModule)("lib/preferences.lua")
     ui.modelOnKey = key
-    ui.config.enabled = key ~= nil and type(section) == "table" and section[key] == true
+    ui.modelOnName = ownModelName(info)
+    ui.config.enabled = key ~= nil and Preferences.inflightOn(preferences(prefs).inflight, info)
   end
   ui.radio = nil
   ui.checkDone = false
@@ -505,8 +517,11 @@ local function saveToStore(ctx)
   if type(prefs) ~= "table" then return false, "preferences" end
   if type(prefs.inflight) ~= "table" then prefs.inflight = {} end
   Setup.storeRadioSettings(prefs.inflight, ui.config)
-  -- Written only while on, so a model never switched on carries nothing.
-  if ui.modelOnKey ~= nil then prefs.inflight[ui.modelOnKey] = ui.config.enabled == true and true or nil end
+  -- Written only while on, so a model never switched on carries nothing. The value is the model's own
+  -- name, so a later model with the same file name is not on: see lib/preferences.lua M.inflightOn.
+  if ui.modelOnKey ~= nil then
+    prefs.inflight[ui.modelOnKey] = ui.config.enabled == true and (ui.modelOnName or "") or nil
+  end
 
   -- A set-up's result arrives with the build's context, which carries the table and not the writer.
   local save = ctx.savePreferences or (_G.rfsuite and _G.rfsuite.savePreferences)
@@ -1049,13 +1064,7 @@ end
 -- model is really called is kept in lib/model_name_store.lua until the name is put back.
 local function radioModelName()
   if ui.modelName == nil then
-    local info = radio().modelInfo()
-    local name = info and info.name or ""
-    local ok, store = pcall(_G.rfsuite.require or loadModule, "lib/model_name_store.lua")
-    if ok and type(store) == "table" and type(store.pending) == "function" then
-      name = store.pending() or name
-    end
-    ui.modelName = name
+    ui.modelName = ownModelName(radio().modelInfo())
   end
   return ui.modelName
 end
@@ -1145,7 +1154,7 @@ local function buildGeneral(children, x, y, w, i18n)
     end,
     function() return ready end,
     {
-      helpText = t(i18n, "help_enabled", "On or off for this radio model, once it is set up. With it off, in-flight tuning drives nothing on it."),
+      helpText = t(i18n, "help_enabled", "On or off for this radio model, once it is set up. Renaming the model turns it off. With it off, in-flight tuning drives nothing on it."),
       helpTitle = enabledLabel,
       onHelp = onRowHelp
     })

@@ -1553,9 +1553,10 @@ function M.nameClashesFromNames(names, settings)
   return out
 end
 
---- The key in the radio's [inflight] section that says tuning is off for one radio model. Keyed by the
--- model's file, which a connected flight controller's craft name does not change. Written only when
--- off, so a model that has never been switched off carries nothing, and an update changes nothing.
+--- The key in the radio's [inflight] section that says tuning is ON for one radio model. Keyed by the
+-- model's file, which a connected flight controller's craft name does not change, and written only while
+-- on, so a model never switched on carries nothing. Its value is the model's own name, which tells a model
+-- that later got the same file name apart: see lib/preferences.lua M.inflightOn.
 function M.modelOnKey(modelFile)
   if type(modelFile) ~= "string" or modelFile == "" then return nil end
   return "on_" .. modelFile

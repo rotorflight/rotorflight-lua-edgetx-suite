@@ -3708,7 +3708,7 @@ return {
         plan_done = "Sender eingerichtet",
         plan_nothing = "Dieses Sendermodell hat diese Einrichtung schon; es ist nichts zu schreiben.",
         plan_failed = "Der Sender hat einen Teil der Einrichtung abgelehnt; Vorherige Belegung wiederherstellen stellt sie zurück",
-        help_enabled = "Ein oder aus für dieses Sendermodell, sobald es eingerichtet ist. Aus treibt In-Flight-Tuning daran nichts an.",
+        help_enabled = "Ein oder aus für dieses Sendermodell, sobald es eingerichtet ist. Umbenennen des Modells schaltet es aus. Aus treibt In-Flight-Tuning daran nichts an.",
         help_bank_ch = "Sagt, auf welche Bank der Flugregler hört, 5 bis 16. Bei ExpressLRS Wide oder volle Auflösung nehmen; Hybrid kann den falschen Parameter wählen.",
         help_value_ch = "Verstellt den Parameter schrittweise, 5 bis 16. Bei ExpressLRS Wide oder volle Auflösung nehmen; Hybrid kann den falschen Parameter wählen.",
         help_bank_gvar = "Die globale Variable auf dem Freigabekanal, 0 bis 9, 0 heißt keine. Eine Zeile unter den Feldern warnt, wenn eine andere Mischerzeile sie nutzt.",
