@@ -177,10 +177,15 @@ local function run(mutate)
     check("starts on the first row", r.levels[1].index == 1)
   end
 
-  -- The rows are no buttons: the wheel's walk holds the two ladders and the close box.
+  -- The rows are no buttons, nor is the close box: the wheel's walk holds the two ladders and nothing else.
   do
     local _, s = open()
-    check("only the close box is a button outside the ladders", #s.buttons == 1)
+    check("no button outside the ladders", #s.buttons == 0)
+    local inside = 0
+    for _, box in ipairs({ s.forward, s.reverse }) do
+      for i = 1, #box.children do if box.children[i].type == "button" then inside = inside + 1 end end
+    end
+    check("twelve buttons in each ladder", inside == 24)
   end
 
   -- The wheel: both ways, fixed ends, and the sum across the widget's own focus step.
@@ -549,17 +554,61 @@ local function run(mutate)
     check("a tap on its middle writes that one", adds[1] ~= nil and adds[1].payload.batteryProfile == 2)
   end
 
-  -- At rest the scene is built again, and the selection stays.
+  -- At rest the scene is NOT built: the ladders hide for one sweep, which takes the focus back to the widget,
+  -- and show again in the next; the selection stays and the next detent counts from the widget.
   do
+    local w, s = open()
+    local r = roll(w)
+    local h = s.forward.h
+    local function ladderShown(box)
+      for i = 1, #box.children do
+        local node = box.children[i]
+        if node.type == "button" then return node.visible == nil or node.visible() end
+      end
+    end
+    check("the ladders are shown while the wheel turns", ladderShown(s.forward) and ladderShown(s.reverse))
+    detent(s.forward, h, 1)
+    detent(s.forward, h, 2)
+    r.slots = { stale = true }
+    local key = Menu.renderKey(w)
+    now = now + 100
+    check("the key stays once the wheel has rested", Menu.renderKey(w) == key)
+    check("the selection is kept", r.levels[1].index == 3)
+    check("the lists are read afresh", r.slots == nil)
+    check("the ladders hide for the sweep", not ladderShown(s.forward) and not ladderShown(s.reverse))
+    -- The sweep: the focus passes over the forward ladder's buttons, LVGL scrolls to each; none is a detent.
+    s.forward.scrolled(0, 3 * h)
+    s.forward.scrolled(0, 4 * h)
+    check("no detent while the ladders hide", r.levels[1].index == 3)
+    check("the ladders are asked back to their spare rows", select(2, s.forward.scrollTo()) == 0
+      and select(2, s.reverse.scrollTo()) == 12 * h)
+    check("the hiding sweep is over after the reverse ladder", r.recentre ~= nil and r.recentre.state == "show")
+    check("and the ladders show in the next", ladderShown(s.forward) and ladderShown(s.reverse))
+    s.reverse.scrollTo()
+    check("which ends it", r.recentre == nil)
+    check("the count starts over", r.position == 0)
+    detent(s.reverse, h, 11)
+    check("a detent back from the widget moves one row", r.levels[1].index == 2)
+    check("still no build", Menu.renderKey(w) == key)
+  end
+  do
+    -- A sweep that never comes: the scene is built after all, and the wheel is not left without ladders.
     local w, s = open()
     local r = roll(w)
     detent(s.forward, s.forward.h, 1)
     local key = Menu.renderKey(w)
     now = now + 100
-    check("the key moves once the wheel has rested", Menu.renderKey(w) ~= key)
-    check("the selection is kept", r.levels[1].index == 2)
-    scene(Menu, w)
-    check("and the built ladder starts over", r.position == 0 and r.levels[1].index == 2)
+    Menu.renderKey(w)
+    check("the rest started hiding", r.recentre ~= nil)
+    now = now + 100
+    check("past its time the scene is built", Menu.renderKey(w) ~= key and r.recentre == nil)
+  end
+  do
+    -- The close box: drawn, and a tap on it closes the menu.
+    local w = open()
+    local g = geoOf(w)
+    tap(w, g.closeX + 2, g.closeY + 2)
+    check("a tap on the close box closes the menu", Views.top(w) == nil)
   end
 
   -- Drawn as buttons, the keys are the buttons' again.
@@ -853,7 +902,7 @@ local function run(mutate)
     check("the focus starts on NO BATTERY there too", r.focus == 2 and r.levels[2].rows[r.levels[2].index].none == true)
   end
   do
-    -- A finger down: the scene is not built under it, however long the wheel has rested.
+    -- A finger down: nothing moves the focus under it, however long the wheel has rested.
     local w, s = open()
     local r = roll(w)
     detent(s.forward, s.forward.h, 1)
@@ -862,8 +911,10 @@ local function run(mutate)
     local key = Menu.renderKey(w)
     now = now + 100
     check("no build while a finger is down", Menu.renderKey(w) == key)
+    check("nor does the focus move under it", r.recentre == nil)
     touch(w, EVT_TOUCH_BREAK, { x = g.leftX + 5, y = g.slotY(0) })
-    check("and the rest is honoured after it", Menu.renderKey(w) ~= key or r.steppedAt == nil)
+    Menu.renderKey(w)
+    check("and the rest is honoured after it", r.recentre ~= nil or r.steppedAt == nil)
   end
 
   -- The model arming greys the list under the right side, with the place kept.
@@ -935,7 +986,23 @@ if selfTest then
       return (string.gsub(t, "    close = close,\n    back = close,", "    close = close,\n    back = function() Views.navigate(widget, \"closeView\") end,"))
     end },
     { "a build under the finger", function(t)
-      return (string.gsub(t, "roll.steppedAt ~= nil and roll.touchX == nil and", "roll.steppedAt ~= nil and"))
+      return (string.gsub(t, "recentre == nil and roll.touchX == nil and", "recentre == nil and"))
+    end },
+    { "the rest builds the scene", function(t)
+      return (string.gsub(t, "    if M.rested%(roll%) then\n", "    if M.rested(roll) or true then\n"))
+    end },
+    { "the ladders never hide", function(t)
+      return (string.gsub(t, "return recentre == nil or recentre.state ~= \"hide\"", "return true"))
+    end },
+    { "the hiding sweep's scrolls count as detents", function(t)
+      local kept = "        recentre.swallowed = recentre.swallowed + 1\n"
+      return (string.gsub(t, "        recentre.swallowed = recentre.swallowed %+ 1\n        return\n", kept))
+    end },
+    { "the hiding never ends", function(t)
+      return (string.gsub(t, "          recentre.state = \"show\"\n", ""))
+    end },
+    { "the close box does nothing", function(t)
+      return (string.gsub(t, "    roll.source.close%(%)\n    return\n", "    return\n"))
     end },
   }
   quiet = true

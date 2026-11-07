@@ -24,15 +24,18 @@
 -- mode. The ladders lie under the header, where nothing can touch them.
 --
 -- There are two ladders in the walk, the forward one first and the reverse one last, so that a
--- detent either way from the widget lands in one of them and only the close box lies between. A
+-- detent either way from the widget lands in one of them, and nothing else lies between. A
 -- detent back onto the widget itself reports nothing: the row shown stays one detent behind until
 -- the next detent, which is counted from the ladder position and so loses nothing in the sum. To
--- keep the focus off that step while turning back and forth, the scene is built again once the
--- wheel has rested, which puts the focus back on the widget with the selection kept.
+-- keep the focus off that step while turning back and forth, the focus goes back to the widget once
+-- the wheel has rested: every ladder button is hidden for one sweep, and LVGL moves the focus off a
+-- button that is hidden onto the next one shown, which after the last ladder is the widget. The
+-- scene is not built for it: on EdgeTX up to 2.12.5 every build leaves memory behind.
 --
 -- The finger. A button keeps a touch to itself and takes the firmware's border and a place in the
--- wheel's walk, so the rows are not buttons. One empty box lies over them, which the firmware passes
--- on: its touches arrive at the widget as events with coordinates, handed here by views.lua.
+-- wheel's walk, so the rows are not buttons, and neither is the header's close box. One empty box lies
+-- over them, which the firmware passes on: its touches arrive at the widget as events with
+-- coordinates, handed here by views.lua.
 
 local M = {}
 
@@ -57,6 +60,10 @@ local function trace(msg)
   end
 end
 
+local function info(msg)
+  if Log and type(Log.emit) == "function" then Log.emit(TAG, msg, "info") end
+end
+
 -- Rows in each ladder. The scene is built again before a ladder runs out, so the walk never reaches
 -- the close box between the two; what is left past that absorbs a fast turn.
 local LADDER = 12
@@ -71,8 +78,12 @@ local REACH = 2
 -- The most rows whose names a build measures to choose the middle row's face.
 local MEASURED_ROWS = 40
 
--- Ten milliseconds a tick: how long the wheel has to rest before the scene is built again.
+-- Ten milliseconds a tick: how long the wheel has to rest before the focus goes back to the widget.
 local REST_TICKS = 60
+
+-- How long the ladders may stay hidden. A sweep that never ends its hiding would leave the wheel with
+-- nothing to move to, so past this the scene is built instead.
+local HIDDEN_TICKS = 50
 
 -- How long a press may wait to open its page. Longer means the menu was covered, and the press is over.
 local OPENING_TICKS = 300
@@ -111,6 +122,7 @@ local function rebuild(widget, roll)
   roll.slots = nil
   roll.epoch = roll.epoch + 1
   roll.steppedAt = nil
+  roll.recentre = nil
   if Views and type(Views.invalidate) == "function" then Views.invalidate(widget) end
 end
 
@@ -373,8 +385,15 @@ end
 -- A tap: on the middle row of the list with the focus it is a press; any other row comes to the
 -- middle of its list, and that list takes the focus, and nothing runs.
 local function tapped(widget, roll, x, y)
-  -- On the header's status: its details. The wheel does not reach them.
   local geo = roll.geo
+  -- The close box: drawn, not a button, so that it stays out of the wheel's walk.
+  if geo ~= nil and geo.closeX ~= nil and x >= geo.closeX and x < geo.closeX + geo.closeSize
+    and y >= geo.closeY and y < geo.closeY + geo.closeSize then
+    trace("close box tapped")
+    roll.source.close()
+    return
+  end
+  -- On the header's status: its details. The wheel does not reach them.
   if geo ~= nil and y < geo.top and x >= geo.statusX and x < geo.statusEnd and roll.source.notice ~= nil then
     roll.notice = { roll.source.notice() }
     trace("status notice")
@@ -460,7 +479,7 @@ end
 -- One viewport. The forward ladder starts on the spare row above its first button and scrolls
 -- down, the reverse one on the spare row under its last and scrolls up; the detents are then
 -- simply the distance from there, on either side of the widget.
-local function viewport(widget, roll, windows, name, other, children, x, y, w, h, color, radius)
+local function viewport(widget, roll, windows, name, other, children, x, y, w, h, color, radius, shown)
   local spare = (name == "reverse") and LADDER * h or 0
   local window = { y = spare, spare = spare }
   windows[name] = window
@@ -469,19 +488,39 @@ local function viewport(widget, roll, windows, name, other, children, x, y, w, h
   if name == "forward" then
     rows[1] = { type = "rectangle", x = 0, y = 0, w = 1, h = 1, color = color }
     for i = 1, LADDER do
-      rows[#rows + 1] = { type = "button", x = 0, y = i * h, w = w, h = h, borderPad = 0, text = "", color = color, cornerRadius = radius, press = press }
+      rows[#rows + 1] = { type = "button", x = 0, y = i * h, w = w, h = h, borderPad = 0, text = "", color = color, cornerRadius = radius, press = press, visible = shown }
     end
   else
     for i = LADDER, 1, -1 do
-      rows[#rows + 1] = { type = "button", x = 0, y = (LADDER - i) * h, w = w, h = h, borderPad = 0, text = "", color = color, cornerRadius = radius, press = press }
+      rows[#rows + 1] = { type = "button", x = 0, y = (LADDER - i) * h, w = w, h = h, borderPad = 0, text = "", color = color, cornerRadius = radius, press = press, visible = shown }
     end
     rows[#rows + 1] = { type = "rectangle", x = 0, y = LADDER * h, w = 1, h = 1, color = color }
   end
   children[#children + 1] = {
     type = "box", x = x, y = y, w = w, h = h, borderPad = 0,
     scrollDir = (lvgl and lvgl.SCROLL_VER) or 12, scrollBar = false, children = rows,
-    scrollTo = function() return 0, window.y end,
+    scrollTo = function()
+      -- The firmware asks this after the box's buttons, so on the reverse ladder, the last in the walk, the
+      -- sweep that hid them all is over and the focus is on the widget; the sweep after it shows them again.
+      local recentre = roll.recentre
+      if name == "reverse" and recentre ~= nil then
+        if recentre.state == "hide" then
+          recentre.state = "show"
+          trace("recentre: ladders hidden, " .. tostring(recentre.swallowed) .. " scroll calls passed by")
+        else
+          roll.recentre = nil
+          trace("recentre: ladders shown again")
+        end
+      end
+      return 0, window.y
+    end,
     scrolled = function(sx, sy)
+      -- While the ladders hide, the focus passes over buttons and back onto the widget: no detent.
+      local recentre = roll.recentre
+      if recentre ~= nil then
+        recentre.swallowed = recentre.swallowed + 1
+        return
+      end
       -- Acknowledge the reset below; a programmatic scroll is not a detent.
       if window.pending ~= nil and sy == window.pending then
         window.pending = nil
@@ -537,10 +576,21 @@ function M.renderKey(widget)
     end
     return tostring(roll.epoch)
   end
-  if roll.steppedAt ~= nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS then
+  local recentre = roll.recentre
+  if recentre ~= nil and getTime() - recentre.at >= HIDDEN_TICKS then
+    -- The sweep that hides or shows the ladders has not come: build the scene, which ends both.
+    info("recentre not finished after " .. tostring((getTime() - recentre.at) * 10) .. " ms in state "
+      .. tostring(recentre.state) .. ", the scene is built")
+    roll.recentre = nil
     roll.epoch = roll.epoch + 1
     roll.steppedAt = nil
-    trace("the wheel rested, the scene is built again")
+  elseif roll.steppedAt ~= nil and recentre == nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS then
+    roll.steppedAt = nil
+    trace("the wheel rested, the focus goes back to the widget")
+    if M.rested(roll) then
+      roll.epoch = roll.epoch + 1
+      trace("the rest changed the levels, the scene is built again")
+    end
   end
   return tostring(roll.epoch)
 end
@@ -615,6 +665,8 @@ local function makeSlot(roll, side, offset, key)
       sub = item.detail
     end
     slot.sub = sub or ""
+    -- Whether the other list's middle surface stands beside this row: only a row that leads somewhere shows it.
+    if side == "left" then slot.preview = rightRows(roll) ~= nil end
     -- A slot made again while a page is opening says so as well.
     if roll.opening ~= nil and side == sideOf(roll) then slot.sub = roll.opening.text end
   end
@@ -666,7 +718,7 @@ local function middleFace(list, large, small, maxW)
 end
 
 -- The suite's lists keep their titles for a visit, so what they were measured to is kept with the roll: every
--- rest of the wheel builds the scene again, and measuring text is the firmware's work.
+-- shift and RTN builds the scene again, and measuring text is the firmware's work.
 local function faceOf(roll, list, large, small, maxW)
   local first = type(list) == "table" and list[1] or nil
   if first == nil or first.tree ~= true then return middleFace(list, large, small, maxW) end
@@ -728,8 +780,8 @@ local function restorePlace(roll, source, place)
   roll.focus = (place.focus == 2 and depth > roll.base) and 2 or 1
 end
 
--- The scene is built again whenever the wheel rests, and the lists are made afresh with it, for what
--- they say about the choice in force. The pilot's place in them goes by what the row IS: a row can
+-- The lists are made afresh at every build and whenever the wheel rests, for what they say about the
+-- choice in force. The pilot's place in them goes by what the row IS: a row can
 -- come or go above it, and the same number can then be another row.
 local function refreshLists(roll, source)
   local levels = roll.levels
@@ -804,12 +856,36 @@ local function refreshLists(roll, source)
   end
 end
 
+--- The wheel has rested: the lists are made afresh for what they say about the choice in force, and the focus
+--- goes back to the widget by the ladders hiding for a sweep. Answers true where the refresh moved what a build
+--- lays out -- the level on the left, the side with the focus, a question -- so the scene has to be built.
+function M.rested(roll)
+  local source = roll.source
+  if source == nil then return true end
+  local base, focus = roll.base, roll.focus
+  local right = roll.levels[base + 1]
+  local question = right and right.question or nil
+  refreshLists(roll, source)
+  local now = roll.levels[roll.base + 1]
+  if roll.base ~= base or roll.focus ~= focus or (now and now.question or nil) ~= question then return true end
+  roll.recentre = { state = "hide", at = getTime(), swallowed = 0 }
+  local windows = roll.windows
+  if windows ~= nil then
+    for _, window in pairs(windows) do
+      window.y, window.pending = window.spare, nil
+    end
+  end
+  trace("recentre: the ladders hide for a sweep")
+  return false
+end
+
 --- Draw the menu `source` describes (menu_roll_sources.lua) into the view it names.
 function M.build(children, widget, source, colors)
   local roll = rollOf(widget, source.id)
   if roll == nil then return end
   roll.source = source
   refreshLists(roll, source)
+  roll.recentre = nil
 
   local W, H = widget.zone.w, widget.zone.h
 
@@ -870,8 +946,12 @@ function M.build(children, widget, source, colors)
   surface(activeX, colors.fill)
   if onRight then
     surface(leftX, colors.off)
-  elseif rightRows(roll) ~= nil then
+  elseif source.preview ~= nil then
+    -- What the row shows on the right is made here, as before the wheel moves.
+    rightRows(roll)
     surface(rightX, colors.off)
+    -- Whether it stands follows the row on the left, which the wheel moves without a build.
+    children[#children].visible = function() return slotOf(roll, "left", 0, slotKey("left", 0)).preview == true end
   end
   children[#children + 1] = { type = "rectangle", x = activeX, y = midY, w = colW, h = midH, color = colors.accent,
     thickness = thickness, rounded = radius }
@@ -880,30 +960,36 @@ function M.build(children, widget, source, colors)
     color = colors.rule, filled = true }
 
   local statusX = math.floor(W / 2)
+  local closeX, closeY = W - closeSize - pad, math.floor((headH - closeSize) / 2)
   roll.geo = { leftX = leftX, rightX = rightX, colW = colW, midH = midH, rowH = rowH, slotY = slotY, top = headH,
-    statusX = statusX, statusEnd = W - closeSize - 2 * pad }
+    statusX = statusX, statusEnd = W - closeSize - 2 * pad, closeX = closeX, closeY = closeY, closeSize = closeSize }
 
   local windows = {}
+  roll.windows = windows
+  -- One answer for all 24 ladder buttons: hidden only in the sweep that takes the focus back to the widget.
+  local function shown()
+    local recentre = roll.recentre
+    return recentre == nil or recentre.state ~= "hide"
+  end
 
-  -- In the walk: the forward ladder, the header's close box, the reverse ladder. Both ladders lie in
-  -- the header's corner and under it: the wheel needs them, and nothing should see or touch them.
-  viewport(widget, roll, windows, "forward", "reverse", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0)
+  -- In the walk: the forward ladder and the reverse ladder, nothing between. Both lie in the header's
+  -- corner and under it: the wheel needs them, and nothing should see or touch them.
+  viewport(widget, roll, windows, "forward", "reverse", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0, shown)
 
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = W, h = headH, color = colors.head, filled = true }
   children[#children + 1] = { type = "rectangle", x = 0, y = headH, w = W, h = 1, color = colors.rule, filled = true }
 
   -- Over every surface and empty, not scrolling: a touch reaches the widget against this box, with
-  -- its coordinates. Labels take no touch, and the close box and the rectangle below come after it.
+  -- its coordinates, the close box's included. Labels and rectangles take no touch.
   children[#children + 1] = { type = "box", x = 0, y = 0, w = W, h = H, borderPad = 0, scrollDir = 0, scrollBar = false, children = {} }
 
-  local closeX, closeY = W - closeSize - pad, math.floor((headH - closeSize) / 2)
-  children[#children + 1] = {
-    type = "button", x = closeX, y = closeY, w = closeSize, h = closeSize, color = colors.close, cornerRadius = radius,
-    text = "X", textColor = colors.onClose,
-    press = function() source.close() end,
-  }
+  -- The close box is drawn, not a button: a button would stand in the wheel's walk between the ladders.
+  children[#children + 1] = { type = "rectangle", x = closeX, y = closeY, w = closeSize, h = closeSize, color = colors.close,
+    filled = true, rounded = radius }
+  children[#children + 1] = { type = "label", x = closeX, y = closeY + math.floor((closeSize - nearH) / 2), w = closeSize,
+    font = nearFont, align = CENTER, color = colors.onClose, text = "X" }
 
-  viewport(widget, roll, windows, "reverse", "forward", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0)
+  viewport(widget, roll, windows, "reverse", "forward", children, 0, 0, LADDER_SIZE, LADDER_SIZE, colors.head, 0, shown)
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = closeX - pad, h = headH, color = colors.head, filled = true }
   local headFont = large and MIDSIZE or nearFont
   children[#children + 1] = {
