@@ -24,6 +24,8 @@
 --                    every cycle and no MSP request frame goes out;
 --   disarm           after the frames report DISARMED again, the runtime reads disarmed;
 --   system status    the same with the packed System Status word in place of the arming flags;
+--   both sources     the arming flags already on the radio, then frames carrying the System Status
+--                    word in front of them (lib/sensors.lua reads the arming flags);
 --   after connect    the same gate, with every MSP request answered and the connect finished, as
 --                    the positive control that the scenario can see an arm at all;
 --   function script  while it is draining for the radio, the widget still records that telemetry
@@ -95,6 +97,11 @@ local function pushArmFrame(armed, source)
   local f = { 0xEA, 0xC8, frameId, 0x11, 0x00, 0x00, 0x0A, 0x00, 0x14, 0x00, 0x1E, 0x10, 0x11, 0x00, 0xF6 }
   if source == "stat" then
     for _, b in ipairs({ 0x12, 0x30, 0x00, 0x00, 0x00, armed and 1 or 0 }) do f[#f + 1] = b end
+  elseif source == "both" then
+    -- The System Status word in front of the arming flags: lib/sensors.lua takes the arming flags.
+    for _, b in ipairs({ 0x12, 0x30, 0x00, 0x00, 0x00, armed and 1 or 0, 0x12, 0x02, armed and 1 or 0 }) do
+      f[#f + 1] = b
+    end
   else
     for _, b in ipairs({ 0x12, 0x02, armed and 1 or 0 }) do f[#f + 1] = b end
   end
@@ -167,7 +174,8 @@ local function queueBusy(state)
   return type(q) == "table" and type(q.isProcessed) == "function" and not q:isProcessed()
 end
 
-local function scenario(name, answerMsp, expectConnectWaiting, source)
+local function scenario(name, answerMsp, expectConnectWaiting, source, armSource)
+  armSource = armSource or source
   local widget, Msp = newWorld(answerMsp)
   for _ = 1, SETTLE_CYCLES do cycle(widget, false, source) end
   -- With every request answered, wait for the connect to finish before arming.
@@ -201,10 +209,15 @@ local function scenario(name, answerMsp, expectConnectWaiting, source)
       "Vbat = " .. tostring(Stubs.sensors["Vbat"]) .. ", Ptch = " .. tostring(Stubs.sensors["Ptch"]))
   end
 
-  local seenAt = nil
+  if expectConnectWaiting then
+    check(mspSent > 0, name .. ": MSP requests go out before the arm", "request frames sent: " .. mspSent)
+  end
+
+  local seenAt, sentAtArm = nil, nil
   for i = 1, ARM_WITHIN_CYCLES do
-    cycle(widget, true, source)
-    if Msp.getState().lastArmed == true then seenAt = i break end
+    local sentBefore = mspSent
+    cycle(widget, true, armSource)
+    if Msp.getState().lastArmed == true then seenAt, sentAtArm = i, sentBefore break end
   end
   if verbose then
     print("     " .. name .. ": read as armed by the MSP runtime at cycle " .. tostring(seenAt))
@@ -215,21 +228,21 @@ local function scenario(name, answerMsp, expectConnectWaiting, source)
   -- From the cycle the arm was read in: the queue empty at the end of every cycle, and no request
   -- frame sent after it.
   local busyCycles = queueBusy(Msp.getState()) and 1 or 0
-  local sentAtArm = mspSent
+  sentAtArm = sentAtArm or mspSent
   for _ = 1, 30 do
-    cycle(widget, true, source)
+    cycle(widget, true, armSource)
     if queueBusy(Msp.getState()) then busyCycles = busyCycles + 1 end
   end
   check(Msp.getState().lastArmed == true, name .. ": still armed after 3 s armed")
   check(busyCycles == 0, name .. ": nothing stays on the MSP queue while armed",
     "cycles ending with the queue busy: " .. busyCycles .. " of 31")
   check(mspSent == sentAtArm, name .. ": no MSP request is sent while armed",
-    "request frames sent in the 3 s after the arm was read: " .. (mspSent - sentAtArm))
+    "request frames sent from the cycle the arm was read in, for 3 s: " .. (mspSent - sentAtArm))
 
   if seenAt ~= nil then
     local clearedAt = nil
     for i = 1, ARM_WITHIN_CYCLES do
-      cycle(widget, false, source)
+      cycle(widget, false, armSource)
       if Msp.getState().lastArmed ~= true then clearedAt = i break end
     end
     check(clearedAt ~= nil, name .. ": the MSP runtime reads the disarm within "
@@ -261,6 +274,7 @@ end
 
 scenario("connect waiting", false, true, "arm")
 scenario("system status", false, true, "stat")
+scenario("both sources", false, true, "arm", "both")
 scenario("after connect", true, false, "arm")
 functionScriptScenario()
 

@@ -406,16 +406,20 @@ end
 
 -- Where the armed state can come from in the custom telemetry frame: the arming flags ("ARM"), or the
 -- packed System Status word ("STAT"), whose bit 0 lib/sensors.lua reads as armed when the model
--- carries no arming flags sensor (lib/rf2tlm_sensors.lua names both).
+-- carries no arming flags sensor (lib/rf2tlm_sensors.lua names both). lib/sensors.lua takes the
+-- arming flags whenever the radio has them, so a walk that met the System Status word goes on to the
+-- arming flags rather than stopping there.
 local SID_ARMING_FLAGS = 0x1202
 local SID_SYSTEM_STATUS = 0x1230
 
--- Walk one frame up to the arming flags or the System Status word and publish what it finds there;
--- true when the frame carried either. Entries are of different lengths and the flight controller
--- chooses their order, so the walk needs the decoders of the entries in front; walkOnly keeps the
--- ones that publish a group of their own from publishing.
-local function publishArmedSource(data, now)
+-- Walk one frame up to the arming flags and publish them, and the System Status word on the way
+-- when `withStatus`; returns whether the arming flags were found, and whether the word was. Entries
+-- are of different lengths and the flight controller chooses their order, so the walk needs the
+-- decoders of the entries in front; walkOnly keeps the ones that publish a group of their own from
+-- publishing.
+local function publishArmedSource(data, now, withStatus)
     local ptr = 4
+    local statusFound = false
     walkOnly = true
     while ptr < #data do
         local sid
@@ -424,14 +428,17 @@ local function publishArmedSource(data, now)
         if not sensor or type(sensor.dec) ~= "function" then break end
         local val
         val, ptr = sensor.dec(data, ptr)
-        if sid == SID_ARMING_FLAGS or sid == SID_SYSTEM_STATUS then
+        if sid == SID_ARMING_FLAGS then
             walkOnly = false
             if val then publishSensorValue(sid, val, sensor, now) end
-            return true
+            return true, statusFound
+        elseif sid == SID_SYSTEM_STATUS and withStatus and not statusFound then
+            statusFound = true
+            if val then publishSensorValue(sid, val, sensor, now) end
         end
     end
     walkOnly = false
-    return false
+    return false, statusFound
 end
 
 --- A drain pass that publishes the armed state and nothing else, for a widget host while its
@@ -442,7 +449,7 @@ end
 -- ARM sensor; in a widget with the background function script not running, this state is the
 -- only decoder of it. So the frames are taken off the wire and counted as in M.wakeup, and of the
 -- newest DECODE_CAP of them -- newest first -- only as many are walked as it takes to find the
--- arming flags or the System Status word, whichever the flight controller sends.
+-- arming flags; the newest System Status word met on the way is published too.
 --
 -- Returns how many frames the pass took off the wire, as M.wakeup does.
 function M.wakeupArmingFlags(now)
@@ -460,10 +467,29 @@ function M.wakeupArmingFlags(now)
         if #kept > DECODE_CAP then table.remove(kept, 1) end
     end
 
+    -- The adjustment decoder holds the pair it decodes for the teller before it asks whether to
+    -- publish (lib/rf2tlm_sensors.lua, decAdjFunc), and this walk goes newest first. The pair is put
+    -- back afterwards, so the teller finds what it would have found had this pass not run.
+    local root = _G.rfsuite
+    local report = root and root.adjustmentReport
+    local held1, held2 = nil, nil
+    if type(report) == "table" then held1, held2 = report[1], report[2] end
+
+    -- Newest first: the newest System Status word, and the newest arming flags.
+    local withStatus = true
     for i = #kept, 1, -1 do
-        if publishArmedSource(kept[i], now) then break end
+        local armFound, statusFound = publishArmedSource(kept[i], now, withStatus)
+        if armFound then break end
+        if statusFound then withStatus = false end
     end
     for i = #kept, 1, -1 do kept[i] = nil end
+
+    if root then
+        if type(report) == "table" then
+            report[1], report[2] = held1, held2
+        end
+        root.adjustmentReport = report
+    end
     return popped
 end
 

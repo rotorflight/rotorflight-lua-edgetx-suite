@@ -508,9 +508,9 @@ do
 end
 
 -- The pass a widget runs while its connect tasks hold the full one back (wakeupConnecting): it loads
--- the drain and nothing else, publishes no ADJ row and says nothing. The ADJ pair it walks past is
--- still held for the teller (the decoder holds it before it asks whether to publish), so a teller
--- that starts with the full pass joins that report without a word and announces the next one.
+-- the drain and nothing else, publishes no ADJ row, says nothing, and puts back the pair the decoder
+-- holds for the teller, so the teller starts after the connect exactly as it does without the pass:
+-- it joins the report standing at its first decode without a word and announces the next one.
 do
   newWorld("widget", { enabled = true })
   W.step = function() W.tasks.wakeupConnecting() end
@@ -522,6 +522,8 @@ do
   check((W.loads["tasks/events/telemetry_bg/drain.lua"] or 0) == 1, "widget connecting: the drain is loaded once")
   check(W.rows.AdjF == nil and W.rows.AdjV == nil and #W.spoken == 0,
     "widget connecting: no ADJ row is published and nothing is said")
+  check(_G.rfsuite.adjustmentReport == nil,
+    "widget connecting: the pass leaves the teller's report as it found it")
   W.step = function() W.tasks.wakeup() end
   seconds(2.0)
   check(tellerLoaded() and #W.spoken == 0, "widget after connect: the teller joins the standing report without a word")
