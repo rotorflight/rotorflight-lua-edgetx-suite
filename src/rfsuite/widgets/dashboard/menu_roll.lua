@@ -81,9 +81,10 @@ local MEASURED_ROWS = 40
 -- Ten milliseconds a tick: how long the wheel has to rest before the focus goes back to the widget.
 local REST_TICKS = 60
 
--- How long the ladders may stay hidden. A sweep that never ends its hiding would leave the wheel with
--- nothing to move to, so past this the scene is built instead.
-local HIDDEN_TICKS = 50
+-- For how many passes the ladders may stay hidden or not yet shown: one is the rule. Counted in passes, not
+-- time, since a slow pass is no reason; a sweep that never ends the hiding would leave the wheel nothing to
+-- move to, so past this the scene is built instead.
+local HIDDEN_PASSES = 3
 
 -- How long a press may wait to open its page. Longer means the menu was covered, and the press is over.
 local OPENING_TICKS = 300
@@ -577,10 +578,11 @@ function M.renderKey(widget)
     return tostring(roll.epoch)
   end
   local recentre = roll.recentre
-  if recentre ~= nil and getTime() - recentre.at >= HIDDEN_TICKS then
+  if recentre ~= nil then recentre.passes = recentre.passes + 1 end
+  if recentre ~= nil and recentre.passes > HIDDEN_PASSES then
     -- The sweep that hides or shows the ladders has not come: build the scene, which ends both.
-    info("recentre not finished after " .. tostring((getTime() - recentre.at) * 10) .. " ms in state "
-      .. tostring(recentre.state) .. ", the scene is built")
+    info("recentre not finished after " .. tostring(recentre.passes) .. " passes, "
+      .. tostring((getTime() - recentre.at) * 10) .. " ms, in state " .. tostring(recentre.state) .. ", the scene is built")
     roll.recentre = nil
     roll.epoch = roll.epoch + 1
     roll.steppedAt = nil
@@ -868,7 +870,7 @@ function M.rested(roll)
   refreshLists(roll, source)
   local now = roll.levels[roll.base + 1]
   if roll.base ~= base or roll.focus ~= focus or (now and now.question or nil) ~= question then return true end
-  roll.recentre = { state = "hide", at = getTime(), swallowed = 0 }
+  roll.recentre = { state = "hide", at = getTime(), passes = 0, swallowed = 0 }
   local windows = roll.windows
   if windows ~= nil then
     for _, window in pairs(windows) do

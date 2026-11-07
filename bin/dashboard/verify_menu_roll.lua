@@ -600,8 +600,11 @@ local function run(mutate)
     now = now + 100
     Menu.renderKey(w)
     check("the rest started hiding", r.recentre ~= nil)
-    now = now + 100
-    check("past its time the scene is built", Menu.renderKey(w) ~= key and r.recentre == nil)
+    now = now + 1000
+    Menu.renderKey(w)
+    check("a slow pass is no reason to give up", r.recentre ~= nil and Menu.renderKey(w) == key)
+    Menu.renderKey(w)
+    check("four passes without the sweep build the scene", Menu.renderKey(w) ~= key and r.recentre == nil)
   end
   do
     -- The close box: drawn, and a tap on it closes the menu.
@@ -1000,6 +1003,9 @@ if selfTest then
     end },
     { "the hiding never ends", function(t)
       return (string.gsub(t, "          recentre.state = \"show\"\n", ""))
+    end },
+    { "hidden ladders are never given up", function(t)
+      return (string.gsub(t, "recentre.passes > HIDDEN_PASSES", "false"))
     end },
     { "the close box does nothing", function(t)
       return (string.gsub(t, "    roll.source.close%(%)\n    return\n", "    return\n"))
