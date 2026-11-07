@@ -798,7 +798,7 @@ if selfTest then
     { "Connected has no colour", function(t)
         return (string.gsub(t, 'ready = "ok"', 'ready = "muted"', 1)) end },
     { "every build measures the lists", function(t)
-        return (string.gsub(t, "if first == nil or first.tree ~= true then return middleFace", "if true then return middleFace", 1)) end },
+        return (string.gsub(t, "if key == nil then return middleFace", "if true then return middleFace", 1)) end },
     { "a page opens before the words are drawn", function(t)
         return (string.gsub(t, "if not opening.waited then", "if false then", 1)) end },
     { "a row's kind is lost", function(t)
