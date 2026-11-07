@@ -3500,6 +3500,7 @@ function M.init(opts)
   state.precompileDone = 0
   state.precompileTotal = 0
   state.precompileShownAt = nil
+  state.compileHeldConnect = false
   ensureVersion()
   logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader
@@ -3692,7 +3693,10 @@ function M.run(event, touchState)
       state.lastInputTick = now
     end
 
-    if not state.mspAttached then
+    -- Attaching brings the MSP runtime up, which loads its modules; while a compile pass holds the
+    -- connection (below) that waits for the pass too, as on the dashboard.
+    if not state.mspAttached and not (Precompile and Precompile.isRunning()
+        and not Precompile.runsBehindConnection()) then
       ensureMspRuntime()
       if MspRuntime and type(MspRuntime.attach) == "function" then
         MspRuntime.attach("tool")
@@ -4070,14 +4074,22 @@ function M.run(event, touchState)
         compileDone, compileTotal, compileFinished = Precompile.getProgress()
       end
       -- The compile moves the bar one file per run cycle and every repaint rebuilds this screen, so
-      -- the count shown follows at most once a second, as on the dashboard's splash; its first and
-      -- its last value are shown at once.
+      -- the count shown follows at most once a second, as on the dashboard's splash. A new total
+      -- and the end of the pass are taken at once, so the screen moves on without waiting for it.
       if compileTotal ~= state.precompileTotal or compileDone >= compileTotal
           or now - (state.precompileShownAt or 0) >= 100 then
         state.precompileDone = compileDone
         state.precompileShownAt = now
       end
       state.precompileTotal = compileTotal
+
+      -- The connection is held while the pass runs (below), so the time the start screen gives the
+      -- connect counts from the end of the pass, not from the start of the tool.
+      if state.compileHeldConnect and compileFinished then
+        state.compileHeldConnect = false
+        state.initialLoadStartTick = now
+        logf("info", "compile pass finished: connecting")
+      end
 
       -- Repaint when what is DISPLAYED changes, which is the count, the task name and the
       -- compile count -- not the count alone, or the frame naming a task would go stale
@@ -4130,7 +4142,15 @@ function M.run(event, touchState)
     end
 
     local moveHolds = _G.rfsuite.paths.moveTo and Precompile and Precompile.holdsConnectionForMove()
-    if (not moveHolds) and (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive) and MspRuntime and type(MspRuntime.tick) == "function" then
+    -- Nothing is attached, ticked or queued while a compile pass runs, as on the dashboard: the
+    -- connect chain would load the same files the pass is compiling, and the start screen waits for
+    -- the pass anyway. A move retried behind the connection does not hold it.
+    local compileHolds = Precompile and Precompile.isRunning() and not Precompile.runsBehindConnection()
+    if compileHolds and not state.compileHeldConnect then
+      state.compileHeldConnect = true
+      logf("info", "compile pass running: connection held until it finishes")
+    end
+    if (not moveHolds) and (not compileHolds) and (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive) and MspRuntime and type(MspRuntime.tick) == "function" then
       if now == 0 or (now - (state.mspLastTick or 0)) >= 5 then
         state.mspLastTick = now
         MspRuntime.tick()

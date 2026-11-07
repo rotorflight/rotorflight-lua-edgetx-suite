@@ -1,8 +1,9 @@
 -- The configuration tool's start (ui/home.lua) and the compile pass (src/rfsuite/lib/precompile.lua):
--- a tree that is already compiled is not walked again, a new install still compiles everything, a
--- developer can ask for the whole walk, and the start screen does not rebuild for every file the pass
--- compiles. Runs the tool's own start on the accounting stubs, one start per case, each in a process
--- of its own so that no module state carries over:
+-- a tree that is already compiled is not walked again, a new install still compiles everything and
+-- connects only once that is through, a developer can ask for the whole walk or skip it, and the
+-- start screen does not rebuild for every file the pass compiles. Runs the tool's own start on the
+-- accounting stubs, one start per case, each in a process of its own so that no module state
+-- carries over:
 --   lua5.3 bin/ui/verify_tool_start_compile.lua
 -- Exit status: 0 green, 1 failed expectations.
 
@@ -19,12 +20,16 @@ end
 
 local CASES = { "compiled", "fresh", "changed", "full", "skip", "repaint" }
 
+local function quote(text)
+  return "'" .. string.gsub(text, "'", "'\\''") .. "'"
+end
+
 -- The parent: run every case in its own interpreter and collect what each reported.
 if caseArg() == nil then
   local lua = arg[-1] or "lua5.3"
   local checks, failures = 0, 0
   for i = 1, #CASES do
-    local pipe = assert(io.popen(lua .. " " .. arg[0] .. " --case " .. CASES[i] .. " 2>&1"))
+    local pipe = assert(io.popen(quote(lua) .. " " .. quote(arg[0]) .. " --case " .. CASES[i] .. " 2>&1"))
     local seen = false
     for line in pipe:lines() do
       if string.sub(line, 1, 5) == "FAIL " then
@@ -78,6 +83,19 @@ local function find(fn, wanted, seen)
   end
 end
 
+-- Real sources of the suite, by name: the walk lists the card, and the stubs' loader answers a
+-- core path from the repository, so a card file named like a real source compiles for real.
+local function realSources(count)
+  local names = {}
+  local pipe = assert(io.popen("ls -1 src/rfsuite/lib"))
+  for name in pipe:lines() do
+    if string.sub(name, -4) == ".lua" and #names < count then names[#names + 1] = name end
+  end
+  pipe:close()
+  table.sort(names)
+  return names
+end
+
 local Stubs = assert(loadfile("bin/accounting/stubs/edgetx.lua"))()
 local FC = assert(loadfile("bin/accounting/stubs/fc.lua"))()
 Stubs.clearCard()
@@ -85,13 +103,11 @@ Stubs.install("."); FC.install(Stubs); Stubs.reset(); FC.reset()
 Stubs.installTool()
 
 local function writeCard(path, text)
-  if type(mkdir) == "function" then
-    local parent = string.match(path, "^(.*)/[^/]+$")
-    local parts = {}
-    for part in string.gmatch(parent, "[^/]+") do
-      parts[#parts + 1] = part
-      mkdir("/" .. table.concat(parts, "/"))
-    end
+  local parent = string.match(path, "^(.*)/[^/]+$")
+  local parts = {}
+  for part in string.gmatch(parent, "[^/]+") do
+    parts[#parts + 1] = part
+    mkdir("/" .. table.concat(parts, "/"))
   end
   local f = assert(io.open(path, "w"))
   io.write(f, text)
@@ -102,18 +118,19 @@ local version = assert(loadfile("src/rfsuite/lib/version.lua"))().VERSION
 local IDENTITY = "0123456789abcdef " .. tostring(version)
 
 -- The card: the build identity the packager writes, sources standing beside their bytecode, and
--- for every case but a new install the stamp of the tree last compiled.
+-- for the cases of a compiled tree the stamp of the tree last compiled.
 writeCard(CORE .. "/build.txt", IDENTITY .. "\n")
-local SOURCES = case == "repaint" and 30 or 3
-for i = 1, SOURCES do
-  writeCard(CORE .. "/lib/m" .. i .. ".lua", "return {}\n")
-  writeCard(CORE .. "/lib/m" .. i .. ".luac", "")
+local sources = realSources(case == "repaint" and 30 or 3)
+for i = 1, #sources do
+  writeCard(CORE .. "/lib/" .. sources[i], "-- listed only\n")
+  writeCard(CORE .. "/lib/" .. string.sub(sources[i], 1, -5) .. ".luac", "")
 end
-if case == "compiled" or case == "full" or case == "skip" then
+if case == "compiled" or case == "full" then
   writeCard(USER .. "/precompiled.txt", IDENTITY)
 elseif case == "changed" then
   writeCard(USER .. "/precompiled.txt", "fedcba9876543210 0.0.1")
 end
+-- "skip" has no stamp: without the developer's skip this card would be compiled.
 
 -- The developer section, as a pilot would put it into preferences.lua by hand.
 local developer = nil
@@ -148,6 +165,15 @@ lvgl.clear = function(...)
   return realClear(...)
 end
 
+-- The pass's own account of itself, from the log ring.
+local function passLine()
+  for _, entry in ipairs(_G.rfsuite.log_history or {}) do
+    if entry.tag == "rfsuite.precompile" and string.find(entry.msg, "pass done:", 1, true) then
+      return entry.msg
+    end
+  end
+end
+
 local Home = assert(loadfile("src/rfsuite/ui/home.lua"))()
 Home.init({})
 local state = assert(find(Home.run, "state"), "home state missing")
@@ -161,39 +187,57 @@ end
 
 local Precompile = find(Home.run, "Precompile")
 
+-- Runs until the pass has finished; true when it did within the limit. Records whether the tool
+-- attached to the flight controller's message runtime while the pass was still running.
+local attachedDuringPass = false
+local function runPass(limit)
+  for _ = 1, limit do
+    if not (Precompile and Precompile.isRunning()) then return true end
+    runFor(1)
+    if Precompile.isRunning() and state.mspAttached then attachedDuringPass = true end
+  end
+  return not (Precompile and Precompile.isRunning())
+end
+
 if case == "compiled" then
   runFor(40)
   expect(listed == 0, "a compiled tree is walked again: " .. listed .. " directories listed")
   expect(Precompile ~= nil and not Precompile.isRunning(), "a compile pass runs on a compiled tree")
+  expect(state.mspAttached == true, "the tool did not attach to the message runtime (control)")
 elseif case == "fresh" or case == "changed" then
-  runFor(2)
+  runFor(1)
   expect(Precompile ~= nil and Precompile.isRunning(), "no compile pass after an install")
-  runFor(200)
+  expect(runPass(300), "the install's pass did not finish")
   expect(listed > 0, "the install's pass did not walk the tree")
-  local done, total = Precompile.getProgress()
-  expect(total == SOURCES and done == total, "the install's pass did not compile every source: "
-    .. tostring(done) .. "/" .. tostring(total))
+  local line = passLine() or "(no line)"
+  local n = #sources
+  expect(string.find(line, string.format("%d checked, %d compiled, 0 failed", n, n), 1, true) ~= nil,
+    "the install's pass did not compile every source: " .. line)
   local f = io.open(USER .. "/precompiled.txt", "r")
   local stamp = f and io.read(f, 64)
   if f then io.close(f) end
   -- The module reads both files without their whitespace, and writes the stamp that way.
   expect(stamp == string.gsub(IDENTITY, "%s", ""), "the install's pass did not record the tree as compiled: "
     .. tostring(stamp))
+  expect(not attachedDuringPass, "the tool attached to the message runtime while the pass was running")
+  runFor(3)
+  expect(state.mspAttached == true, "the tool did not attach once the pass was through")
 elseif case == "full" then
-  runFor(200)
+  expect(runPass(300), "the requested walk did not finish")
   expect(listed > 0, "developer.precompile = \"full\" did not walk the tree")
-  expect(Precompile ~= nil and not Precompile.isRunning(), "the requested walk did not finish")
+  local line = passLine() or "(no line)"
+  expect(string.find(line, "0 compiled, 0 failed, not forced", 1, true) ~= nil,
+    "the requested walk on a compiled tree is not an unforced one: " .. line)
 elseif case == "skip" then
   runFor(40)
   expect(listed == 0, "developer.precompile = false still walked the tree")
 elseif case == "repaint" then
-  -- A pass compiling SOURCES files, one per run cycle: the start screen follows its count at most
-  -- once a second (100 ticks, ten passes here), not once per file.
-  -- The connect chain moves its own count on this screen meanwhile, so what is counted is how often
-  -- the compile count the screen shows changes; every such change is a rebuild.
-  runFor(4)
+  -- A pass compiling thirty files, one per run cycle: the start screen follows its count at most
+  -- once a second (100 ticks, ten passes here), not once per file. Every change of the count shown
+  -- is a rebuild; the connection is held meanwhile, so nothing else rebuilds the screen.
   local before = clears
-  local compiling, shownChanges = 0, 0
+  local compiling = 0
+  local shownChanges = 0
   local shown = state.precompileDone
   while Precompile and Precompile.isRunning() and compiling < 400 do
     runFor(1)
@@ -203,11 +247,21 @@ elseif case == "repaint" then
       shownChanges = shownChanges + 1
     end
   end
-  expect(compiling >= SOURCES - 4, "the pass ended before it compiled its files: " .. compiling .. " passes")
+  local rebuilt = clears - before
+  expect(not Precompile.isRunning(), "the pass did not finish")
+  expect(compiling >= #sources, "the pass ended before it compiled its files: " .. compiling .. " passes")
   expect(shownChanges <= math.floor(compiling / 10) + 2,
     "the compile count shown changed " .. shownChanges .. " times over " .. compiling .. " passes of compiling")
-  expect(state.precompileDone == state.precompileTotal, "the bar did not reach its end")
-  print(string.format("INFO repaint: %d rebuilds over %d passes of compiling", clears - before, compiling))
+  expect(rebuilt <= math.floor(compiling / 10) + 4,
+    "the start screen rebuilt " .. rebuilt .. " times over " .. compiling .. " passes of compiling")
+  expect(state.precompileDone == state.precompileTotal, "the count shown did not reach its end")
+  local left = false
+  for _ = 1, 400 do
+    runFor(1)
+    if not state.initialLoad then left = true break end
+  end
+  expect(left, "the start screen did not leave after the pass")
+  print(string.format("INFO repaint: %d rebuilds over %d passes of compiling", rebuilt, compiling))
 end
 
 print("CHECKS " .. checks)

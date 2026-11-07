@@ -291,10 +291,10 @@ do
   check("fresh install: second start compiles nothing", #second.loads == 0, #second.loads .. " loads")
   check("fresh install: nothing is reported", #first.warnings == 0 and #second.warnings == 0,
     table.concat(first.warnings, "; ") .. table.concat(second.warnings, "; "))  check("fresh install: the first pass accounts for itself, forced for want of a stamp",
-    hasNote(first, "compile pass done: 2 sources checked, 2 compiled, 0 failed, forced: no stamp"),
+    hasNote(first, "pass done: 2 checked, 2 compiled, 0 failed, forced: no stamp"),
     table.concat(first.notes, "; "))
   check("fresh install: the second pass accounts for itself, not forced",
-    hasNote(second, "compile pass done: 2 sources checked, 0 compiled, 0 failed, not forced"),
+    hasNote(second, "pass done: 2 checked, 0 compiled, 0 failed, not forced"),
     table.concat(second.notes, "; "))
 end
 

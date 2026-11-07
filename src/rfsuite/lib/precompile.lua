@@ -367,13 +367,14 @@ function Precompile.start(version)
     lastStepAt = nil
   }
 
-  -- Why every source is rebuilt, or that only missing and outdated bytecode is filled in.
+  -- Why every source is rebuilt, or that only missing and outdated bytecode is filled in. Short,
+  -- because the log ring keeps the first 100 characters of a line and the duration comes after it.
   local why = "not forced"
   if force then
-    why = stamp == nil and "forced: no stamp of a compiled tree" or "forced: the tree differs from the one last compiled"
+    why = stamp == nil and "forced: no stamp" or "forced: new tree"
   end
   state.why = why
-  emit("info", "compile pass started, whole tree walked (%s)", why)
+  emit("info", "pass started: whole tree, %s", why)
 
   for i = #ROOTS, 1, -1 do
     state.dirs[#state.dirs + 1] = ROOTS[i]
@@ -420,8 +421,8 @@ function Precompile.step()
     -- looked at, how much of it compiled, why, and how long it held the start (10 ms ticks).
     local now = clockTick()
     local ticks = (now and state.startedAt) and math.floor(now - state.startedAt) or -1
-    emit("info", "compile pass done: %d sources checked, %d compiled, %d failed, %s, %d ticks",
-      state.checked, #state.files, state.failed, state.why or "not forced", ticks)
+    emit("info", "pass done: %d checked, %d compiled, %d failed, %s, %d ticks",
+      state.checked, #state.files - state.failed, state.failed, state.why or "not forced", ticks)
   end
   if state.failed > 0 then
     -- The log ring keeps the first 100 characters of a line, so the file comes first and
@@ -453,26 +454,26 @@ end
 -- write the stamp, and the tool would then believe the tree compiled; so nothing starts.
 function Precompile.startIfStale(version)
   if state ~= nil and not state.finished and (state.force or state.move) then
-    emit("debug", "compile pass already running, joined")
+    emit("debug", "pass already running, joined")
     return true
   end
 
   local utils = _G.rfsuite and _G.rfsuite.utils
   if not utils or type(utils.loadScriptUncached) ~= "function" then
-    emit("debug", "no compile pass: no uncached loader in this state")
+    emit("debug", "no pass: no uncached loader in this state")
     return false
   end
   -- The same for the listing: without dir() the walk finds nothing, and a pass that compiled
   -- nothing would still record the build as compiled and ask for a restart.
   if type(dir) ~= "function" then
-    emit("debug", "no compile pass: no dir() in this state")
+    emit("debug", "no pass: no dir() in this state")
     return false
   end
 
   local identity = readStampFile(IDENTITY_PATH, STAMP_LIMIT) or version
   if identity == nil or readStampFile(STAMP_PATH, STAMP_LIMIT) == identity then
-    emit("info", identity == nil and "no compile pass: no build identity to compare"
-      or "no compile pass: the tree is the one last compiled")
+    emit("info", identity == nil and "no pass: no build identity to compare"
+      or "no pass: the tree is the one last compiled")
     -- Nothing to compile, but the move of the pilot's data can still be owed: after a start cut
     -- short, or behind the connection after a failed attempt.
     local paths = _G.rfsuite and _G.rfsuite.paths
