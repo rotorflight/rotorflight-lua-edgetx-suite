@@ -1,0 +1,4 @@
+- **The configuration tool started from the radio's tools menu no longer looks at every installed file on each start (`ui/home.lua`, `lib/precompile.lua`, `docs/reference/configuration-files.md`)**:
+  - It compiles only after an install or an update, as the dashboard does; on a compiled suite the start screen waits for the connection alone.
+  - A file edited on the card is compiled when a page first loads it; `developer.precompile = "full"` in `preferences.lua` brings back the walk over every file at each start.
+  - While it compiles, the start screen follows the count at most once a second instead of rebuilding for every file, and the pass writes one log line: files checked, compiled and failed, why, and how long it took.

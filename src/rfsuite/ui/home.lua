@@ -3499,6 +3499,7 @@ function M.init(opts)
   state.lastProgressSnapshot = ""
   state.precompileDone = 0
   state.precompileTotal = 0
+  state.precompileShownAt = nil
   ensureVersion()
   logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader
@@ -3507,20 +3508,24 @@ function M.init(opts)
   -- developer section it is written by hand; an absent key keeps the pass. Without Precompile
   -- the start screen counts the compile as finished.
   --
-  -- Hosted, the tool shares the widget state, and with it the pass the widgets run after an
-  -- install (lib/precompile.lua, startIfStale): a pass still running is joined and its progress
-  -- shown here, and a tree the widgets have already compiled is not walked again on every open
-  -- from the dashboard. The whole walk stays with the tool's own start.
+  -- Every start, hosted or from the radio's tools menu, compiles only a tree that is not the one
+  -- last compiled (lib/precompile.lua, startIfStale), as the widgets do: a tree that is already
+  -- compiled costs two small file reads instead of a timestamp read per source, which held the
+  -- start screen for seconds with nothing to compile. Hosted, a pass the widgets still run is
+  -- joined and its progress shown here. A source edited on the card is compiled by the loader when
+  -- a page first needs it; `developer.precompile = "full"` walks the whole tree at every start to
+  -- get ahead of that, compiling whatever is missing or older than its source.
   local developer = prefs and prefs.developer
   local skipPrecompile = developer and developer.precompile == false
   if not skipPrecompile then
     ensurePrecompile()
     if Precompile then
       local version = Version and Version.VERSION or nil
-      if state.hosted then
-        Precompile.startIfStale(version)
-      else
+      if developer and developer.precompile == "full" then
+        logf("info", "compile pass: whole tree on request (developer.precompile)")
         Precompile.start(version)
+      else
+        Precompile.startIfStale(version)
       end
     end
   end
@@ -4064,14 +4069,21 @@ function M.run(event, touchState)
         Precompile.step()
         compileDone, compileTotal, compileFinished = Precompile.getProgress()
       end
-      state.precompileDone = compileDone
+      -- The compile moves the bar one file per run cycle and every repaint rebuilds this screen, so
+      -- the count shown follows at most once a second, as on the dashboard's splash; its first and
+      -- its last value are shown at once.
+      if compileTotal ~= state.precompileTotal or compileDone >= compileTotal
+          or now - (state.precompileShownAt or 0) >= 100 then
+        state.precompileDone = compileDone
+        state.precompileShownAt = now
+      end
       state.precompileTotal = compileTotal
 
       -- Repaint when what is DISPLAYED changes, which is the count, the task name and the
       -- compile count -- not the count alone, or the frame naming a task would go stale
       -- within its own step.
       local snapshot = tostring(pDone) .. "/" .. tostring(pTotal) .. "/" .. tostring(taskName) ..
-                       " " .. tostring(compileDone) .. "/" .. tostring(compileTotal)
+                       " " .. tostring(state.precompileDone) .. "/" .. tostring(compileTotal)
       if snapshot ~= state.lastProgressSnapshot then
         state.lastProgressSnapshot = snapshot
         scheduleBuildUI(false)

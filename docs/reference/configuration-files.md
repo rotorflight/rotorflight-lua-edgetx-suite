@@ -108,10 +108,16 @@ by hand, and a save keeps whatever the section holds.
   request once when its start screen closes: what was loaded before the pass is still the previous
   build's code, and only a restart replaces it. This applies to an install made from the release
   archive, which carries the build identity; a source tree copied by hand is compiled but never
-  holds the dashboard back. `false` skips this in both places: the start screen and the splash wait for the
+  holds the dashboard back. Once the installed files are compiled, later starts of the tool, from
+  the dashboard or from the radio's tools menu, go straight to the connection without looking at
+  the files again. A file edited on the card afterwards is compiled the first time a page loads it,
+  which makes that opening slower once. `false` skips this in both places: the start screen and the splash wait for the
   connection only, and each file is compiled the first time a page needs it, which makes that
   first opening slower. It is meant for automated test runs on a card that starts without
-  compiled files every time; on a radio there is no reason to set it.
+  compiled files every time; on a radio there is no reason to set it. `"full"` makes every start
+  of the tool look at every installed file and compile the ones that are missing their compiled
+  copy or are newer than it, before the start screen leaves. That takes several seconds on each
+  start, and is meant for someone editing the suite's files on the card.
 - **`mspexpbytes`** — how many bytes the developer page *MSP Experiments* edits. Absent means
   16, which is also the most it handles. Like `precompile` it is only read, and set by hand.
 

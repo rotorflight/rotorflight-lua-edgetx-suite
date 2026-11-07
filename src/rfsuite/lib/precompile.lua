@@ -159,11 +159,15 @@ end
 
 -- One line through the suite's logger, reached through the global it publishes so that this
 -- file keeps no dependency of its own.
-local function warn(fmt, ...)
+local function emit(level, fmt, ...)
   local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
   if type(Log) == "table" and type(Log.emitf) == "function" then
-    pcall(Log.emitf, "rfsuite.precompile", "warn", fmt, ...)
+    pcall(Log.emitf, "rfsuite.precompile", level, fmt, ...)
   end
+end
+
+local function warn(fmt, ...)
+  emit("warn", fmt, ...)
 end
 
 -- mkdir() is a bare global of the firmware's filesystem library and creates one level at a
@@ -238,6 +242,7 @@ local function takeEntry(cursor)
 
   local stem = string.sub(name, 1, -5)
   local source = cursor.path .. "/" .. name
+  state.checked = state.checked + 1
 
   if state.force or not cursor.hasBytecode[stem] then
     state.files[#state.files + 1] = source
@@ -264,6 +269,7 @@ local function walk()
       local path = table.remove(state.dirs)
       if not path then
         state.walking = false
+        emit("debug", "walk done: %d of %d sources queued", #state.files, state.checked)
         return
       end
       cursor = beginDirectory(path)
@@ -340,22 +346,34 @@ function Precompile.start(version)
   end
 
   local stamp = readStampFile(STAMP_PATH, STAMP_LIMIT)
+  local force = identity ~= nil and stamp ~= identity
 
   state = {
     identity = identity,
     packaged = built ~= nil,
-    force = identity ~= nil and stamp ~= identity,
+    force = force,
     dirs = {},
     cursor = nil,
     files = {},
     done = 0,
     failed = 0,
+    checked = 0,
     firstFailure = nil,
     firstError = nil,
     walking = true,
+    walked = true,
     finished = false,
+    startedAt = type(getTime) == "function" and getTime() or nil,
     lastStepAt = nil
   }
+
+  -- Why every source is rebuilt, or that only missing and outdated bytecode is filled in.
+  local why = "not forced"
+  if force then
+    why = stamp == nil and "forced: no stamp of a compiled tree" or "forced: the tree differs from the one last compiled"
+  end
+  state.why = why
+  emit("info", "compile pass started, whole tree walked (%s)", why)
 
   for i = #ROOTS, 1, -1 do
     state.dirs[#state.dirs + 1] = ROOTS[i]
@@ -397,6 +415,14 @@ function Precompile.step()
 
   state.finished = true
   collectgarbage("collect")
+  if state.walked then
+    -- One line per pass, at info so that it reaches the log ring at the shipped level: how much was
+    -- looked at, how much of it compiled, why, and how long it held the start (10 ms ticks).
+    local now = clockTick()
+    local ticks = (now and state.startedAt) and math.floor(now - state.startedAt) or -1
+    emit("info", "compile pass done: %d sources checked, %d compiled, %d failed, %s, %d ticks",
+      state.checked, #state.files, state.failed, state.why or "not forced", ticks)
+  end
   if state.failed > 0 then
     -- The log ring keeps the first 100 characters of a line, so the file comes first and
     -- without the core's own prefix: the deepest page path still fits, the reason may not.
@@ -410,11 +436,14 @@ function Precompile.step()
   end
 end
 
--- The widgets' way in. They run the pass only where the tree is not the one last compiled -- an
--- install, an update, the other locale -- and hold their connection back until it has finished,
--- so the compile does not compete with the connect chain and every page is ready when the
--- flight controller is. A tree that is already compiled costs two small file reads here and no
--- walk at all; filling in a single edited source is left to the tool's own start.
+-- The way in for every start: the widgets', and the tool's, from the dashboard or from the radio's
+-- tools menu. The pass runs only where the tree is not the one last compiled -- an install, an
+-- update, the other locale -- and the widgets hold their connection back until it has finished, so
+-- the compile does not compete with the connect chain and every page is ready when the flight
+-- controller is. A tree that is already compiled costs two small file reads here and no walk at
+-- all. A single source edited on the card is still compiled, by the radio's loader when a page
+-- first loads it: it rebuilds the bytecode of a source newer than its .luac. start() walks the
+-- whole tree to get ahead of that, which a developer can ask the tool's start for.
 --
 -- version is the fallback identity, as for start(); the widgets pass none, so a tree without the
 -- packager's build identity starts nothing from them.
@@ -424,21 +453,26 @@ end
 -- write the stamp, and the tool would then believe the tree compiled; so nothing starts.
 function Precompile.startIfStale(version)
   if state ~= nil and not state.finished and (state.force or state.move) then
+    emit("debug", "compile pass already running, joined")
     return true
   end
 
   local utils = _G.rfsuite and _G.rfsuite.utils
   if not utils or type(utils.loadScriptUncached) ~= "function" then
+    emit("debug", "no compile pass: no uncached loader in this state")
     return false
   end
   -- The same for the listing: without dir() the walk finds nothing, and a pass that compiled
   -- nothing would still record the build as compiled and ask for a restart.
   if type(dir) ~= "function" then
+    emit("debug", "no compile pass: no dir() in this state")
     return false
   end
 
   local identity = readStampFile(IDENTITY_PATH, STAMP_LIMIT) or version
   if identity == nil or readStampFile(STAMP_PATH, STAMP_LIMIT) == identity then
+    emit("info", identity == nil and "no compile pass: no build identity to compare"
+      or "no compile pass: the tree is the one last compiled")
     -- Nothing to compile, but the move of the pilot's data can still be owed: after a start cut
     -- short, or behind the connection after a failed attempt.
     local paths = _G.rfsuite and _G.rfsuite.paths
