@@ -669,6 +669,12 @@ do
     return false
   end
   local key = Setup.modelOnKey("model7.yml")
+  -- Every write asks a second time whether the helicopter is off, and writes nothing before that answer.
+  local function confirm(text)
+    press(text)
+    check(until_button("It is off"), "the power question comes up after " .. text)
+    press("It is off")
+  end
 
   -- A set-up: the question, the write, the switch on, the restore on offer, the name the model has.
   fresh()
@@ -680,6 +686,16 @@ do
   check(string.find(labels(), "CH11 3 lines", 1, true) ~= nil, "the question counts the lines")
   check(#world.mixes[10] == 3, "nothing is written before the answer")
   press("Set up")
+  check(until_button("It is off"), "the set-up asks whether the helicopter is off")
+  check(string.find(labels(), "powered off", 1, true) ~= nil, "in so many words")
+  pass(20)
+  check(#world.mixes[10] == 3 and Backup.stateOf(world.file) == nil, "nothing is written or recorded before that answer")
+  press("Cancel")
+  pass(20)
+  check(find("It is off") == nil and #world.mixes[10] == 3 and Backup.stateOf(world.file) == nil, "cancelled there, nothing is written")
+  press("Set up radio")
+  check(until_button("Set up"), "the question comes up again")
+  confirm("Set up")
   check(Backup.stateOf(world.file) == nil or Backup.stateOf(world.file) == "partial", "no complete record yet")
   check(until_button("Close"), "the result comes up")
   check(#world.mixes[10] == 1 and Backup.stateOf(world.file) == "complete", "written, record complete")
@@ -717,11 +733,26 @@ do
   check(prefs.inflight[key] == "Own name", "the switch stays on")
   press("Close")
 
+  -- A fault turns it off for this model, and a repair does not turn it on again: the pilot does.
+  local savesBefore = saves
+  world.mixes[10][2] = fullLine(9)
+  open()
+  pass(40)
+  check(prefs.inflight[key] == nil and saves == savesBefore + 1, "a fault turns it off for this model, stored at once")
+  check(theSwitch() ~= nil and theSwitch().get() ~= true, "and the switch shows off")
+  world.mixes[10][2] = nil
+  open()
+  pass(40)
+  check(prefs.inflight[key] == nil and theSwitch().get() ~= true, "repaired, it stays off")
+  theSwitch().set(true)
+  Page.onSave(ctx)
+  check(prefs.inflight[key] == "Own name", "until the pilot switches it on again")
+
   -- The restore: marked partial before its first write, cut off, offered again, and it switches off.
   pass(40)
   press("Restore previous setup")
   check(until_button("Restore"), "the restore asks")
-  press("Restore")
+  confirm("Restore")
   for _ = 1, 10 do
     if Backup.stateOf(world.file) == "partial" then break end
     Page.wakeup(ctx)
@@ -738,7 +769,7 @@ do
   pass(40)
   press("Restore previous setup")
   check(until_button("Restore"), "asks again")
-  press("Restore")
+  confirm("Restore")
   check(until_button("Close"), "restored")
   check(Backup.stateOf(world.file) == nil and #world.mixes[10] == 3 and #world.mixes[11] == 4, "the lines are back")
   check(prefs.inflight[key] == nil, "the restore turns it off for this model")
@@ -755,7 +786,7 @@ do
   armedNow = false
   press("Set up radio")
   check(until_button("Set up"), "asks")
-  press("Set up")
+  confirm("Set up")
   for _ = 1, 50 do
     if Backup.stateOf(world.file) ~= nil then break end
     Page.wakeup(ctx); Page.wakeup(ctx)
@@ -775,7 +806,7 @@ do
   open()
   press("Set up radio")
   check(until_button("Set up"), "asks")
-  press("Set up")
+  confirm("Set up")
   check(until_button("Close"), "done")
   check(string.find(labels(), "could not be saved", 1, true) ~= nil, "a failed save of the switch is said")
   Page.onClose()
@@ -792,7 +823,7 @@ do
     open()
     press("Set up radio")
     check(until_button("Set up"), "asks")
-    press("Set up")
+    confirm("Set up")
     check(until_button("Close"), "done")
     press("Close")
   end
@@ -817,7 +848,7 @@ do
   world.mixes[11][2] = fullLine(8)
   press("Set up radio")
   check(until_button("Set up"), "asks again")
-  press("Set up")
+  confirm("Set up")
   armCount = armCount + 2
   check(until_button("Close"), "stops")
   check(string.find(labels(), "Nothing was changed", 1, true) ~= nil, "says nothing changed")
@@ -833,7 +864,7 @@ do
   check(until_button("Restore previous setup"), "restore on offer")
   press("Restore previous setup")
   check(until_button("Restore"), "asks")
-  press("Restore")
+  confirm("Restore")
   -- The record is marked `partial` while the lines are still the set-up's; the card refuses once they are back.
   local realDel, refused = del, false
   del = function(path)
@@ -910,14 +941,14 @@ do
     press("Set up radio")
     local planWorst = worstWakeup(function() return find("Set up") ~= nil end)
     check(find("Set up") ~= nil, "the plan asks on the worst-case model: " .. labels())
-    press("Set up")
+    confirm("Set up")
     local writeWorst = worstWakeup(function() return find("Close") ~= nil end)
     press("Close")
     check(until_button("Restore previous setup"), "restore on offer")
     press("Restore previous setup")
     local readWorst = worstWakeup(function() return find("Restore") ~= nil end)
     check(find("Restore") ~= nil, "the restore asks")
-    press("Restore")
+    confirm("Restore")
     local restoreWorst = worstWakeup(function() return find("Close") ~= nil end)
     print(string.format("page wakeup, worst-case model: plan %d, write %d, restore read %d, restore write %d instructions",
       planWorst, writeWorst, readWorst, restoreWorst))
@@ -941,7 +972,7 @@ do
   linkNow = false
   press("Set up radio")
   check(until_button("Set up"), "asks with the link down")
-  press("Set up")
+  confirm("Set up")
   for _ = 1, 50 do
     if Backup.stateOf(world.file) ~= nil then break end
     Page.wakeup(ctx); Page.wakeup(ctx)
@@ -967,7 +998,7 @@ do
   press("Restore previous setup")
   check(until_button("Restore"), "asks")
   world.ls[63] = { func = 1, v1 = 1, v2 = 1, v3 = 0, ["and"] = 0, delay = 0, duration = 0, state = false, persistent = false }
-  press("Restore")
+  confirm("Restore")
   check(until_button("Close"), "answers")
   check(string.find(labels(), "nothing was restored", 1, true) ~= nil, "says the model changed")
   check(#world.mixes[10] == 1 and world.ls[63].func == 1, "nothing was touched")

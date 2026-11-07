@@ -64,8 +64,10 @@ The radio wiring stays in
 [*System* → *Settings* → *Dashboard* → *In-Flight Tuning*](../pages/settings/dashboard/inflight.md):
 the switch for this radio model, channels, variables and optional trims.
 **Set up radio** says which channels and variables it uses and how many lines it replaces before
-writing, and **Restore previous setup** puts them back. Both refuse while a receiver or flight controller is connected,
-and **Set up radio** leaves the switch to you: turn it on and save once the model reads **Setup OK**.
+writing, and **Restore previous setup** puts them back. Both refuse while a receiver or flight controller is connected
+and ask whether the helicopter is powered off before they write, since with telemetry off the radio cannot
+see a receiver that is on. **Set up radio** leaves the switch to you: turn it on and save once the model reads
+**Setup OK**. A setup fault turns it off for that model, and after a repair you switch it on again.
 A model set up by an earlier version needs this once more if its value line has no logical
 switch and the check reports **Mixer line missing or wrong**.
 

@@ -3700,6 +3700,8 @@ return {
         plan_confirm = "Set up",
         restore_confirm = "Restore",
         plan_cancel = "Cancel",
+        plan_power_question = "Is the helicopter powered off? With telemetry off the radio cannot see a receiver that is on.",
+        plan_power_confirm = "It is off",
         plan_close = "Close",
         plan_writing = "Writing to the radio...",
         plan_channels = "Channels",

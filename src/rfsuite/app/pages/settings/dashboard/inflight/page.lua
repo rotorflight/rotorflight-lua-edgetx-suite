@@ -382,6 +382,7 @@ local function checkResult()
     -- The resolved block goes with it: a trim setting is a switch POSITION now, and the trim-mode
     -- half of the check indexes the firmware's own table by the semantic number behind it.
     ui.checkResult = Setup.check({ radio = radio(), settings = ui.config }, ui.config, trimNames())
+    ui.faultSettled = false
   end
   return ui.checkResult
 end
@@ -736,6 +737,33 @@ local function storeRestored(file)
   return " " .. t(ui.i18n, "plan_not_saved", "The settings could not be saved; save the page.")
 end
 
+--- A setup fault turns tuning off for this radio model until the pilot switches it on again: a model
+-- repaired or changed since would otherwise run tuning as soon as the check passes, with no choice made.
+-- The switch goes off at once. With the page's values as saved the fault is the model's, and only its key
+-- is stored, as a restore does; with edits not saved yet the fault may be theirs, and the switch's off
+-- is stored with the page. Once per verdict.
+local function settleFault()
+  if ui.faultSettled or not ui.checkDone or type(ui.checkResult) ~= "table" then return false end
+  ui.faultSettled = true
+  local wasOn = ui.config.enabled == true
+  ui.config.enabled = false
+  local ctx = ui.saveCtx
+  local prefs = ctx and ctx.preferences
+  local key = ui.modelOnKey
+  if ui.dirty or key == nil or type(prefs) ~= "table" or type(prefs.inflight) ~= "table"
+      or prefs.inflight[key] == nil then
+    logJob("debug", "setup fault: switch off on the page, on before %s", tostring(wasOn))
+    return false
+  end
+  local save = ctx.savePreferences or (_G.rfsuite and _G.rfsuite.savePreferences)
+  prefs.inflight[key] = nil
+  prefs.inflight.enabled = false
+  local ok, err = false, "preferences"
+  if type(save) == "function" then ok, err = save() end
+  logJob(ok and "info" or "warn", "setup fault: tuning off for this radio model, saved %s %s", tostring(ok), tostring(err or ""))
+  return true
+end
+
 local JOB_STAGES = {}
 
 --- Plan first, and read nothing more than the plan needs: the pilot has only pressed the button.
@@ -784,6 +812,15 @@ function JOB_STAGES.plan(job)
 end
 
 function JOB_STAGES.ask()
+  -- The box's two buttons answer; see appendJobBox.
+end
+
+--- The pilot's word that the helicopter is powered off, before anything is written. A write is refused
+-- while anything answers on the link, so every write that gets here has nothing on it, and with nothing
+-- on it the radio cannot tell an unpowered helicopter from one whose receiver sends no telemetry: with
+-- telemetry off the radio reads no signal from a receiver that is on and bound. The model's mixer lines
+-- are the ones a powered helicopter flies on, so the question is asked every time.
+function JOB_STAGES.power()
   -- The box's two buttons answer; see appendJobBox.
 end
 
@@ -1032,8 +1069,33 @@ local function appendJobBox(children, x, y, w, h, i18n)
         {
           text = restoring and t(i18n, "restore_confirm", "Restore") or t(i18n, "plan_confirm", "Set up"),
           press = function()
+            logJob("debug", "setup job: answered, asks whether the helicopter is off")
+            job.stage = "power"
+            requestRebuild()
+          end
+        }
+      }
+    })
+  elseif job.stage == "power" then
+    LoadingOverlay.append(children, {
+      x = x, y = y, w = w, h = h, title = title, bar = false,
+      message = t(i18n, "plan_power_question",
+        "Is the helicopter powered off? With telemetry off the radio cannot see a receiver that is on."),
+      actions = {
+        {
+          text = t(i18n, "plan_cancel", "Cancel"),
+          press = function()
+            logJob("info", "setup job: cancelled at the power question")
+            ui.job = nil
+            requestRebuild()
+          end
+        },
+        {
+          text = t(i18n, "plan_power_confirm", "It is off"),
+          press = function()
             -- The answer only: the write runs from the page's wakeup. The count starts here, so an
             -- arm and disarm from now on stops it.
+            logJob("info", "setup job: the pilot confirmed the helicopter is off")
             local armed = ensureArmed()
             job.armCount = armed and armed.changeCount() or 0
             job.stage = "backup"
@@ -1140,8 +1202,8 @@ local function buildGeneral(children, x, y, w, i18n)
   cursorY = cursorY + appendNote(children, x, cursorY, w,
     t(i18n, "pointer_tuning", "Set up suggested functions from the tuning screen on the ground."))
   -- On only while this radio model is set up: with a fault the overlay refuses to drive anyway, and a
-  -- switch that says on then says something untrue. It shows off without rewriting the preference, so
-  -- a model switched on before is on again as soon as the check passes.
+  -- switch that says on then says something untrue. A fault also turns it off for the model (see
+  -- settleFault), so after a repair the pilot switches it on again.
   local enabledLabel = t(i18n, "enabled", "In-flight tuning on this radio model")
   local result = checkResult()
   local ready = result == "ok"
@@ -1546,6 +1608,8 @@ function M.wakeup(ctx)
     stepJob()
     return
   end
+  -- A pass of its own, as a save is.
+  if settleFault() then return end
   -- The record on the card, once per visit: whether a restore is on offer.
   if not inWidgetCall() then
     if not ui.recordChecked and stepRecordCheck() then requestRebuild() end

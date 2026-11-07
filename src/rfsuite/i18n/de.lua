@@ -3728,6 +3728,8 @@ return {
         plan_confirm = "Einrichten",
         restore_confirm = "Wiederherstellen",
         plan_cancel = "Abbrechen",
+        plan_power_question = "Ist der Hubschrauber stromlos? Ohne Telemetrie sieht der Sender einen eingeschalteten Empfänger nicht.",
+        plan_power_confirm = "Ist aus",
         plan_close = "Schließen",
         plan_writing = "Schreibe in den Sender...",
         plan_channels = "Kanäle",

@@ -34,11 +34,11 @@ says what the page is for.
 
 | Setting | What it does |
 | --- | --- |
-| In-flight tuning on this radio model | On or off for this radio model; the others keep what they have. It can only be on once the model is set up: until then it shows off and is greyed. Turn it on here after *Set up radio*, and save the page. Off leaves the mixer alone and takes the entry out of the quick menu for this model. *Restore previous setup* switches it off too. It is kept for the model's file and its name: renaming the model turns it off, and a new model that EdgeTX gives the file name of a deleted one starts off. Off by default. |
+| In-flight tuning on this radio model | On or off for this radio model; the others keep what they have. It can only be on once the model is set up: until then it shows off and is greyed. Turn it on here after *Set up radio*, and save the page. Off leaves the mixer alone and takes the entry out of the quick menu for this model. *Restore previous setup* switches it off too, and so does a setup fault: once the model is repaired it stays off until you switch it on again. It is kept for the model's file and its name: renaming the model turns it off, and a new model that EdgeTX gives the file name of a deleted one starts off. Off by default. |
 | *(model status)* | What the setup check found when it last walked the model: *Setup OK*, *Setup not checked*, or the faults it names — or *Reading the radio...* while the page opened from the dashboard is still reading (see Notes). A fault refuses output and is shown on the tuning fullscreen ground surface. |
 | Active radio model | The model in the radio that the button writes. It is the model's own name, also while a connected flight controller's craft name stands in for it. |
-| Set up radio | Writes the two mixer lines, the logical switch that times each press, the global variable details and the trim modes this radio model needs, and only the ones that differ from what it already carries. It does not turn tuning on; that is the switch above. Nothing is written to the flight controller. It first says which channels and variables it uses and how many lines it replaces, and writes nothing until that is confirmed. Where the model already carries all of it, it says so instead of asking. It writes the values as they stand on the page and saves them, since the card has to match what the radio now carries. It works in the tool opened from the dashboard and in the tool started from the radio, and refuses while a receiver or flight controller is connected, so power it off first. |
-| Restore previous setup | Puts back what the last set-up replaced: the mixer lines of its channels, the variables, the logical switch and the trim modes. Shown only while the model still carries what that set-up wrote, or after a set-up that was cut off, and kept for the radio model across leaving the page, a flight and a restart. Refused while a receiver or flight controller is connected. |
+| Set up radio | Writes the two mixer lines, the logical switch that times each press, the global variable details and the trim modes this radio model needs, and only the ones that differ from what it already carries. It does not turn tuning on; that is the switch above. Nothing is written to the flight controller. It first says which channels and variables it uses and how many lines it replaces, and writes nothing until that is confirmed. It then asks whether the helicopter is powered off, and writes nothing until you answer that too: with telemetry off the radio cannot see a receiver that is on. Where the model already carries all of it, it says so instead of asking. It writes the values as they stand on the page and saves them, since the card has to match what the radio now carries. It works in the tool opened from the dashboard and in the tool started from the radio, and refuses while a receiver or flight controller is connected, so power it off first. |
+| Restore previous setup | Puts back what the last set-up replaced: the mixer lines of its channels, the variables, the logical switch and the trim modes. Shown only while the model still carries what that set-up wrote, or after a set-up that was cut off, and kept for the radio model across leaving the page, a flight and a restart. Refused while a receiver or flight controller is connected, and asks whether the helicopter is powered off before it writes. |
 
 ![The question before anything is written, with the channels, the variables and the lines it replaces](../../../images/inflight/settings-radio-question.png)
 
@@ -50,7 +50,7 @@ keeps its link.
 So the button is only ever offered work that is left, and on a model that is fully set up it
 reports *This radio model already carries this setup; nothing to write.* A delay or a slow-up on one
 of the two lines counts as a line that differs: it would hold back the 200 ms pulse. With two jobs on
-one trim the button writes nothing and says so; the verdict names that fault.
+one trim, or walk-and-adjust with its walk or adjust trim unset, the button writes nothing and says so; the verdict names that fault.
 
 **Before the first write the replaced state is saved on the card**, one file per radio model file
 in the suite's `inflight-setup` folder, and read back; if that fails, nothing is written. A set-up
@@ -60,7 +60,7 @@ further set-up is refused until it has run, since that set-up would read the hal
 restore every mixer field is compared with what was saved, and the file is removed. A later complete
 set-up replaces the file, so one restore step is kept per radio model. A set-up also stops, before
 deleting it, at a mixer line another script has changed since the plan was read. A restore checks the
-file first: a damaged one is discarded with nothing changed, or named if the card will not let it go, and on
+file first: a damaged one (a line missing or changed, a state or a variable index it does not recognise) is discarded with nothing changed, or named if the card will not let it go, and on
 a finished set-up it restores nothing if the model has changed since the page opened or during its question. The restore empties the logical switch the set-up took,
 even if a mixer line has been pointed at that switch since; such a line then stays off.
 

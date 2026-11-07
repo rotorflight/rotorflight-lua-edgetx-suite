@@ -19,8 +19,11 @@
 -- default in front of a WRITE, where "cannot tell" is not "safe to proceed".
 --
 -- isUncertain() is that remaining case, and it is deliberately narrow. A missing sensor module
--- is a broken tool and not this question; a link that is down cannot carry the write either, so
--- the write fails on its own terms. What is left is the case worth asking about: the link is up,
+-- is a broken tool and not this question; a link that is down cannot carry a write to the flight
+-- controller either, so that write fails on its own terms. (A write to the radio's own model file is
+-- another matter: it succeeds with the link down, and a receiver with telemetry off reads as no signal,
+-- so linkUp() false does not say the craft is off -- the set-up that writes the model asks the pilot.)
+-- What is left is the case worth asking about: the link is up,
 -- the module is there, and the flight controller does not report the arming flags -- no bridge,
 -- or no slot for them among its forty telemetry sensors.
 
@@ -113,7 +116,8 @@ end
 
 --- Whether anything answers on the link: a flight controller the suite has connected to, or a receiver
 -- whose signal the radio reads. A craft can be powered and spinning with its arming flags unreported, so a
--- write that must never reach a live model asks this rather than isArmed().
+-- write that must never reach a live model asks this rather than isArmed(). False is not proof that the
+-- craft is off: with telemetry off the radio reads no signal from a receiver that is on and bound.
 function M.linkUp()
   local session = _G.rfsuite and _G.rfsuite.session
   if type(session) == "table" and session.isConnected == true then return true end
