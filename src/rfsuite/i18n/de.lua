@@ -3786,9 +3786,7 @@ return {
         save_error_message = "Speichern fehlgeschlagen"
       },
       settings_dashboard_standby = {
-        help_enabled = "Zeigt Senderinformationen statt des Verbindungsbildschirms, bis der Flugcontroller bereit ist.",
         help_field = "Was dieses Feld zeigt. Angeboten werden nur Felder, die in diese Zeile passen.",
-        enabled = "Standby-Bildschirm",
         row = "Zeile %d",
         field = "Feld %d",
         add_field = "+ Feld",

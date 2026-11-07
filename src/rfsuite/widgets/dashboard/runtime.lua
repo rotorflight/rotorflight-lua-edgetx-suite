@@ -1358,7 +1358,7 @@ end
 local function standbyJobStep(self)
   local job = self._job
   local dashboard = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
-  if dashboard.standby_enabled ~= true or self._toolHost ~= nil or self.connectionReady == true
+  if self._toolHost ~= nil or self.connectionReady == true
       or self.flightMode == "postflight" or self.flightMode == "offline"
       or (self.state and (self.state.armed == true or self.state.hadInflightFlight == true)) then
     if Log and type(Log.emitf) == "function" then
@@ -1377,7 +1377,7 @@ local function standbyJobStep(self)
     if job.zoneW ~= self.zone.w or job.zoneH ~= self.zone.h
         or job.layout ~= dashboard.standby_layout or job.i18n ~= self.i18n
         or job.infoKind ~= (self.state and self.state.standbyInfoKind or nil)
-        or dashboard.standby_enabled ~= true or self._toolHost ~= nil
+        or self._toolHost ~= nil
         or job.flightMode ~= self.flightMode or job.connectionReady ~= self.connectionReady
         or job.armed ~= (self.state and self.state.armed == true)
         or job.hadInflight ~= (self.state and self.state.hadInflightFlight == true)
@@ -1411,8 +1411,10 @@ local function standbyJobStep(self)
     self._lastChildCount = #children
     if Log and type(Log.emitf) == "function" then
       local shown, saved = self._standbyCache.rowsShown or 0, self._standbyCache.rowsSaved or 0
-      -- The Session Logs ring keeps 100 characters of a line, so the layout, the longest part, is last.
-      Log.emitf("rfsuite.widget.standby", "info", "built: %d/%d rows, %d nodes, %s %sx%s, %s, layout %s",
+      -- Debug: every pilot now passes through here, several times on a connect, and info would reach
+      -- the Session Logs ring at the shipped level. The ring keeps 100 characters of a line, so the
+      -- layout, the longest part, is last.
+      Log.emitf("rfsuite.widget.standby", "debug", "built: %d/%d rows, %d nodes, %s %sx%s, %s, layout %s",
         shown, saved, #children, self._standbyFullscreen == true and "full screen" or "zone",
         tostring(self.zone.w), tostring(self.zone.h), tostring(job.infoKind), tostring(self._standbyLayout))
       if shown < saved then
@@ -5427,9 +5429,8 @@ function Runtime.new(zone, options)
     end
 
     -- STATE pass: the background half, then invalidation checks that only enqueue.
-    -- The flight controller's raw link is asked only where a standby reader runs or standby is on,
-    -- so a dashboard with standby off pays nothing for it on its every pass.
-    local standbyFcDetected = false
+    -- The flight controller's raw link is asked only where a standby reader runs or the standby
+    -- screen stands, so a connected dashboard pays nothing for it on its every pass.
     if self._standbyElrsActive and self._standbyElrsConfig
         and MspRuntime and type(MspRuntime.getState) == "function" then
       local runtimeState = MspRuntime.getState()
@@ -5441,18 +5442,22 @@ function Runtime.new(zone, options)
     local tuningMode = inflightMode(self, event ~= nil)
 
     local dashboardPrefs = (self.preferences and self.preferences.dashboard) or EMPTY_DASHBOARD
-    local standbyEnabled = dashboardPrefs.standby_enabled == true
-    if standbyEnabled and MspRuntime and type(MspRuntime.getState) == "function" then
-      local runtimeState = MspRuntime.getState()
-      standbyFcDetected = type(runtimeState) == "table" and runtimeState.lastConnected == true
-    end
+    -- The connection splash stands only where this does not hold: a link lost armed or after a flight
+    -- must not look like a screen at rest, and a standby whose build keeps raising gives way to it.
     local standbyRenderActive = self._toolHost == nil and not ready
       and not tuningMode
       and self.flightMode ~= "postflight" and self.flightMode ~= "offline"
-      and standbyEnabled and self.state.armed ~= true
+      and self.state.armed ~= true
       and self.state.hadInflightFlight ~= true
-    local standbyProbeActive = standbyRenderActive and self.state.fblConnected ~= true and not standbyFcDetected
+      and not jobCapped(self, "standby")
+    local standbyProbeActive = false
     if standbyRenderActive then
+      local standbyFcDetected = false
+      if MspRuntime and type(MspRuntime.getState) == "function" then
+        local runtimeState = MspRuntime.getState()
+        standbyFcDetected = type(runtimeState) == "table" and runtimeState.lastConnected == true
+      end
+      standbyProbeActive = self.state.fblConnected ~= true and not standbyFcDetected
       self._standbyFullscreen = event ~= nil
       if self._standbyModule then
         local Standby = self._standbyModule

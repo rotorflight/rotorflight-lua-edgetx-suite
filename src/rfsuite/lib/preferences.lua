@@ -220,14 +220,14 @@ local SCHEMA = {
     -- a menu the pilot has emptied (widgets/dashboard/quick_menu_order.lua).
     -- `key_*`: the fullscreen keys, as the pilot set them on Settings > Dashboard > Keys. Absent
     -- means the key's default (widgets/dashboard/keys.lua).
-    optional = { "model_overrides", "quick_menu", "key_page_down", "key_page_up", "key_mdl", "key_sys", "key_tele", "standby_enabled", "standby_layout" },
+    optional = { "model_overrides", "quick_menu", "key_page_down", "key_page_up", "key_mdl", "key_sys", "key_tele", "standby_layout" },
     -- A theme's own configuration is stored here under keys built from the theme's path
     -- (app/pages/settings/dashboard/lib.lua), so the set of key names is not knowable from
     -- a schema and the section keeps whatever it is handed.
     open = true,
-    -- Two keys nothing in the suite has ever read. An open section would carry them for the
-    -- life of the card otherwise, since no schema names them to begin with.
-    retired = { "theme_config_target", "connection_guard" },
+    -- Keys nothing reads any more. An open section would carry them for the life of the card
+    -- otherwise: two the suite never read, and the switch the standby screen used to have.
+    retired = { "theme_config_target", "connection_guard", "standby_enabled" },
   },
   -- Written by nothing: the developer pages and the tool's start (`precompile`, ui/home.lua) read
   -- it so that a value can be put there by hand.
