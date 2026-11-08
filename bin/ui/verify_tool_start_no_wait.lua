@@ -292,6 +292,20 @@ if case == "link" then
   expect(state.fblConnected == true, "the tool did not see the flight controller answer after the stop (control)")
   expect(active(setup) == true and not covered(setup),
     "a change stopped at the instruction limit left the Setup tile greyed out")
+  -- Stopped earlier, as the condition itself is set: the next pass has to set it.
+  local realSet = state.menu.setCondition
+  state.menu.setCondition = function(key, value)
+    state.menu.setCondition = realSet
+    if key == "fblConnected" then error("instruction limit (simulated)") end
+    return realSet(key, value)
+  end
+  MspRuntime.isFblConnected = function() return false end
+  stopped = not pcall(runFor, 1)
+  expect(stopped, "the second simulated stop did not happen (instrument)")
+  state.menu.setCondition = realSet
+  runFor(2)
+  expect(state.menu.isRootEntryEnabled("configuration", "setup") == false and active(setup) == false,
+    "a change stopped as the condition was set left the Setup tile enabled with the flight controller gone")
   -- A build of anything else drops the record of the tiles, so a later change draws the menu.
   state.helpContent = "help"
   state.helpPageTitle = "Help"

@@ -1569,8 +1569,9 @@ local function updateRuntimeMenuConditions()
   local nextFblConnected = readFblConnected()
   if state.fblConnected ~= nextFblConnected then
     state.rootRefreshOwed = true
-    state.fblConnected = nextFblConnected
+    -- The condition before the record of it: a pass stopped in between then sees the change again.
     state.menu.setCondition("fblConnected", nextFblConnected)
+    state.fblConnected = nextFblConnected
     -- Once per change: the tiles that need the flight controller enable or grey out with it.
     logf("debug", "flight controller %s: tiles %s", nextFblConnected and "answered" or "lost",
       nextFblConnected and "enabled" or "greyed out")
