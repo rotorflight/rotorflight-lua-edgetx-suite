@@ -1658,8 +1658,8 @@ local function updateRuntimeMenuConditions()
   -- An AM32 ESC reports as BLHELI32 (1), or from API 12.10 as GOOSKY (16), the firmware's alias
   -- for the same telemetry. BLHeli_S and Bluejay stay on 1 alone: 16 names an AM32 ESC.
   state.menu.setCondition("escProtoAm32", proto == 1 or proto == 16)
-  if state.menu._conditionsVersion ~= initialVersion and not refreshRootTilesInPlace() then
-    scheduleBuildUI(false)
+  if state.menu._conditionsVersion ~= initialVersion then
+    if not refreshRootTilesInPlace() then scheduleBuildUI(false) end
   end
   logf("trace", "escProto conditions set for protocol %s", tostring(proto))
   state.menu._escProtoApplied = applied
