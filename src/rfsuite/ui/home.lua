@@ -8,6 +8,10 @@ local function loadModule(path)
 end
 
 local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+-- The radio's theme slots, written from the colour scheme while the tool is open (lib/theme_slots.lua).
+-- Held here for the whole run: the module keeps the finaliser that puts the radio's colours back when
+-- this Lua state is closed, and the closing sequence below lets go of everything else first.
+local ThemeSlots = nil
 
 local state
 
@@ -3488,6 +3492,13 @@ function M.init(opts)
   -- after this point leaves the step file naming the stage it stopped in.
   logStep("init: preferences read", true)
 
+  -- Before the first build, so the first frame and every native control on it are in the scheme.
+  ThemeSlots = ThemeSlots or loadModule("lib/theme_slots.lua")
+  local schemeOk, schemeErr = pcall(ThemeSlots.apply, prefs and prefs.general and prefs.general.color_scheme)
+  if not schemeOk then
+    logf("error", "theme slots not written: %s", tostring(schemeErr))
+  end
+
   local locale = resolveLocaleFromSystem()
   state.i18n       = I18n.new(locale)
   logStep("init: locale " .. tostring(locale), true)
@@ -3907,6 +3918,10 @@ function M.run(event, touchState)
       elseif not state.shouldExit then
         -- Tick 16: Finalize library cleanup and detach MSP
         logToFile("Closing sequence finalizing. Detaching MSP.")
+        -- The radio's colours first, while the paths and the log the restore reads are still there.
+        if ThemeSlots then
+          pcall(ThemeSlots.restore, "tool closed")
+        end
         logStep("closing: detaching MSP", true)
         if state.mspAttached then
           if MspRuntime and type(MspRuntime.detach) == "function" then

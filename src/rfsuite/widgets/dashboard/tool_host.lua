@@ -245,6 +245,13 @@ local function finish(widget, reason, outcome)
 
   leaveSave()
 
+  -- The radio's colours, which the tool wrote over with the colour scheme when it opened: the
+  -- dashboard and the radio's own screens are drawn in them again from here (lib/theme_slots.lua).
+  local ThemeSlots = requireModule("lib/theme_slots.lua")
+  if type(ThemeSlots) == "table" and type(ThemeSlots.restore) == "function" then
+    pcall(ThemeSlots.restore, "hosted tool closed (" .. tostring(reason) .. ")")
+  end
+
   removeLoader(host)
 
   local MspRuntime = requireModule("tasks/msp/runtime.lua")

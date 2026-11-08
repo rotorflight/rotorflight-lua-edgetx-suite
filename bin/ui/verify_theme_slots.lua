@@ -1,0 +1,189 @@
+-- Run from the repository root: lua5.3 bin/ui/verify_theme_slots.lua
+-- Drive the real lib/theme_slots.lua against a stub of the radio's colour table: the slots carry the
+-- scheme while the tool is open and the radio's colours afterwards, on every way out -- restore(), the
+-- finaliser that runs when the Lua state is collected, and the marker file the next start reads.
+local checks, failures = 0, 0
+local function check(ok, label)
+  checks = checks + 1
+  if not ok then
+    failures = failures + 1
+    print("FAIL " .. label)
+  end
+end
+
+local RGB_FLAG = 0x1000000
+local SLOT_NAMES = {
+  "COLOR_THEME_PRIMARY1", "COLOR_THEME_PRIMARY2", "COLOR_THEME_PRIMARY3", "COLOR_THEME_SECONDARY1",
+  "COLOR_THEME_SECONDARY2", "COLOR_THEME_SECONDARY3", "COLOR_THEME_FOCUS", "COLOR_THEME_EDIT",
+  "COLOR_THEME_ACTIVE", "COLOR_THEME_WARNING", "COLOR_THEME_DISABLED",
+}
+-- The radio's colour table: index flag -> RGB flag, as lcd.getColor answers it.
+local table_ = {}
+local RADIO = {}
+for i, name in ipairs(SLOT_NAMES) do
+  _G[name] = i << 16
+  RADIO[i << 16] = RGB_FLAG + i * 0x010101
+end
+local function resetRadio()
+  for flag, value in pairs(RADIO) do table_[flag] = value end
+end
+resetRadio()
+
+local writes = 0
+_G.lcd = {
+  RGB = function(rgb) return RGB_FLAG + rgb end,
+  getColor = function(flag)
+    if flag & RGB_FLAG ~= 0 then return flag end
+    return table_[flag]
+  end,
+  setColor = function(flag, color)
+    writes = writes + 1
+    table_[flag] = color
+  end,
+}
+
+local TMP = os.tmpname()
+os.remove(TMP)
+local USER = TMP .. "_user"
+os.execute("mkdir -p '" .. USER .. "'")
+local MARKER = USER .. "/theme_slots.txt"
+
+_G.fstat = function(path)
+  local f = io.open(path, "r")
+  if f then f:close(); return {} end
+  return nil
+end
+_G.del = function(path) return os.remove(path) and 0 or 4 end
+-- EdgeTX's io takes the file as the first argument.
+local stdio = io
+_G.io = {
+  open = stdio.open,
+  close = function(f) return f:close() end,
+  read = function(f, n) return f:read(n) end,
+  write = function(f, s) return f:write(s) end,
+}
+
+local modules = {}
+_G.rfsuite = {
+  paths = { user = USER, core = "src/rfsuite" },
+  require = function(path)
+    if path == "lib/log.lua" then return nil end
+    if modules[path] == nil then modules[path] = assert(loadfile("src/rfsuite/" .. path))() end
+    return modules[path]
+  end,
+}
+
+local function load()
+  return assert(loadfile("src/rfsuite/lib/theme_slots.lua"))()
+end
+local function exists(path) return _G.fstat(path) ~= nil end
+local function radioColours()
+  for flag, value in pairs(RADIO) do
+    if table_[flag] ~= value then return false end
+  end
+  return true
+end
+local Schemes = rfsuite.require("lib/color_schemes.lua")
+
+-- Controls: the stub answers as the radio does, and a written slot shows.
+check(radioColours(), "control: the stub starts in the radio's colours")
+lcd.setColor(COLOR_THEME_FOCUS, lcd.RGB(0x123456))
+check(not radioColours(), "control: a written slot is seen")
+resetRadio()
+
+-- 1. apply writes every mapped slot from the scheme, leaves the rest, and leaves a marker.
+local T = load()
+check(T.apply("dark") == true, "apply answers true")
+local dark = Schemes.colors("dark")
+for _, row in ipairs(T.SLOTS) do
+  check(table_[_G[row[1]]] == dark[row[2]], "dark: " .. row[1] .. " carries " .. row[2])
+end
+check(table_[COLOR_THEME_EDIT] == RADIO[COLOR_THEME_EDIT], "a slot not mapped keeps the radio's colour")
+check(exists(MARKER), "apply leaves a marker")
+check(T.current() == "dark", "current names the scheme")
+
+-- 2. A second scheme rewrites the slots and keeps the radio's colours to put back.
+T.apply("light")
+local light = Schemes.colors("light")
+check(table_[COLOR_THEME_PRIMARY2] == light.card, "light rewrites PRIMARY2 to card")
+check(T.restore("test") == true, "restore answers true")
+check(radioColours(), "restore after two schemes puts the radio's colours back")
+check(not exists(MARKER), "restore drops the marker")
+check(T.restore("again") == false, "a second restore does nothing")
+check(T.current() == nil, "current is nil after restore")
+
+-- 3. The finaliser: a state that ends without restore() puts the radio's colours back.
+T.apply("dark")
+check(not radioColours(), "the slots carry the scheme before the state ends")
+T = nil
+collectgarbage("collect")
+collectgarbage("collect")
+check(radioColours(), "the finaliser puts the radio's colours back when the module is collected")
+check(not exists(MARKER), "the finaliser drops the marker")
+
+-- 4. restore() disarms the finaliser: collecting afterwards writes nothing.
+T = load()
+T.apply("dark")
+T.restore("test")
+lcd.setColor(COLOR_THEME_FOCUS, lcd.RGB(0x00FF00))   -- the radio's colours changed afterwards
+local before = writes
+T = nil
+collectgarbage("collect")
+collectgarbage("collect")
+check(writes == before, "a restored module's finaliser writes nothing")
+resetRadio()
+
+-- 5. A marker left by a run that never put the colours back, slots unchanged since: recover() puts
+--    them back. Simulated by writing the slots and the marker as apply would, without a finaliser.
+local function leaveMarker(scheme)
+  local colors = Schemes.colors(scheme)
+  local f = stdio.open(MARKER, "w")
+  for _, row in ipairs(load().SLOTS) do
+    local flag = _G[row[1]]
+    local written = colors[row[2]]
+    f:write(string.format("%d %d %d\n", flag, RADIO[flag], written))
+    table_[flag] = written
+  end
+  f:close()
+end
+leaveMarker("dark")
+T = load()
+check(T.recover() == true, "recover answers true on a marker whose slots are unchanged")
+check(radioColours(), "recover puts the radio's colours back")
+check(not exists(MARKER), "recover drops the marker")
+check(T.recover() == false, "recover with no marker does nothing")
+
+-- 6. The same marker after the pilot applied a radio theme: left alone, marker dropped.
+leaveMarker("dark")
+lcd.setColor(COLOR_THEME_PRIMARY1, lcd.RGB(0xABCDEF))
+local themed = table_[COLOR_THEME_PRIMARY1]
+T = load()
+check(T.recover() == false, "recover answers false when the slots changed since")
+check(table_[COLOR_THEME_PRIMARY1] == themed, "recover leaves a theme applied since alone")
+check(not exists(MARKER), "recover drops a marker it cannot use")
+resetRadio()
+
+-- 7. apply over such a marker takes the radio's colours from it, not from the slots it wrote.
+leaveMarker("light")
+T = load()
+T.apply("dark")
+T.restore("test")
+check(radioColours(), "apply over a marker restores the radio's colours, not the suite's")
+
+-- 8. recover() leaves alone a marker this state owns.
+T.apply("dark")
+check(T.recover() == false, "recover does nothing while this state has written the slots")
+check(exists(MARKER), "this state's own marker stays")
+T.restore("test")
+
+-- 9. Without lcd.setColor (a desktop runner, an old radio) nothing is attempted.
+local saved = lcd.setColor
+lcd.setColor = nil
+T = load()
+check(T.apply("dark") == false, "apply refuses without lcd.setColor")
+check(not exists(MARKER), "and leaves no marker")
+lcd.setColor = saved
+
+os.execute("rm -rf '" .. USER .. "'")
+print(string.format("%d checks, %d failures", checks, failures))
+if failures > 0 then os.exit(1) end
