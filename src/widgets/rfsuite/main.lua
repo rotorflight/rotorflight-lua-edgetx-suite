@@ -131,28 +131,42 @@ end
 -- after the pause is seen, and never during the pause: the tool's own background work may still run
 -- (lib/theme_slots.lua, recover).
 local REFRESH_PAUSE_S = 2
--- Only a marker on the card loads the module, and it is let go again unless this state has written the
--- slots itself (the tool hosted in the dashboard), so a pause costs one fstat and keeps nothing.
-local function recoverThemeSlots()
+-- Only a marker on the card loads the module, and it is let go again unless this state holds colours
+-- of its own, so a pause costs one fstat and keeps nothing. Never while the tool is open in this widget:
+-- that tool owns the marker and the module instance (widgets/dashboard/tool_host.lua).
+local function recoverThemeSlots(widget)
   local root = _G.rfsuite
   local user = root and root.paths and root.paths.user
+  if widget._toolHost ~= nil then return end
   if not (type(user) == "string" and type(fstat) == "function" and type(root.require) == "function") then return end
   if fstat(user .. "/theme_slots.txt") == nil then return end
   local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
   if ok and type(ThemeSlots) == "table" and type(ThemeSlots.recover) == "function" then
     pcall(ThemeSlots.recover)
-    if ThemeSlots.current() == nil and type(root.clearModule) == "function" then
+    if not ThemeSlots.holding() and type(root.clearModule) == "function" then
       root.clearModule("lib/theme_slots.lua")
     end
   end
 end
 
+-- A restore the hosted tool's close could not finish (the instruction limit): called again, pass by
+-- pass, until it goes through.
+local function finishThemeRestore(widget)
+  local root = _G.rfsuite
+  local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
+  if not (ok and type(ThemeSlots) == "table") then widget._themeRestoreOwed = nil; return end
+  if pcall(ThemeSlots.restore, "owed by the hosted tool's close") then widget._themeRestoreOwed = nil end
+end
+
 local function refresh(widget, event, touchState)
   if widget and widget.refresh then
     local now = nowSeconds()
+    if widget._themeRestoreOwed and widget._toolHost == nil then
+      finishThemeRestore(widget)
+    end
     if widget._themeRecoverOwed then
       widget._themeRecoverOwed = nil
-      recoverThemeSlots()
+      recoverThemeSlots(widget)
     end
     local last = widget._lastRefreshAt
     widget._lastRefreshAt = now

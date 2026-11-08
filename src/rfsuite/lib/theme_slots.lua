@@ -111,13 +111,32 @@ local function dropMarker(path)
   end
 end
 
--- True when every slot still holds either what the marker says was written or the radio's own colour
--- (a restore that stopped half way): nothing else has touched them since. A theme the pilot applied in
--- between puts other colours there.
+-- flag -> { [colour] = true } for every colour a scheme writes into that slot, as lcd.getColor answers it.
+local function schemeColours()
+  local Schemes = _G.rfsuite.require("lib/color_schemes.lua")
+  local byFlag = {}
+  for name in pairs(Schemes.SCHEMES) do
+    local colors = Schemes.colors(name)
+    for i = 1, #M.SLOTS do
+      local flag = _G[M.SLOTS[i][1]]
+      if flag ~= nil then
+        byFlag[flag] = byFlag[flag] or {}
+        byFlag[flag][lcd.getColor(colors[M.SLOTS[i][2]])] = true
+      end
+    end
+  end
+  return byFlag
+end
+
+-- True when every slot still holds the radio's own colour (a restore that stopped half way) or a colour
+-- one of the schemes writes there (what the marker says, or a scheme change that stopped half way):
+-- nothing else has touched them since. A theme the pilot applied in between puts other colours there.
 local function stillOurs(rows)
+  local ours = schemeColours()
   for i = 1, #rows do
     local now = lcd.getColor(rows[i][1])
-    if now ~= rows[i][3] and now ~= rows[i][2] then return false end
+    local scheme = ours[rows[i][1]]
+    if now ~= rows[i][3] and now ~= rows[i][2] and not (scheme and scheme[now]) then return false end
   end
   return true
 end
@@ -209,14 +228,16 @@ function M.apply(name)
     rows[i][3] = lcd.getColor(byFlag[rows[i][1]])
   end
 
-  -- The net first, then the colours: whatever stops the tool after the first write finds both.
-  writeMarker(path, rows)
+  -- The nets first, then the colours: whatever stops the tool after the first write finds this state
+  -- holding the rows, the finaliser armed and the marker on the card. The scheme is named only once
+  -- every slot carries it, so a change that stopped half way is made again by the next one.
   if applied == nil then arm(rows, path) end
   applied = rows
-  appliedScheme = scheme
+  writeMarker(path, rows)
   for i = 1, #rows do
     lcd.setColor(rows[i][1], rows[i][3])
   end
+  appliedScheme = scheme
   log("info", "theme slots written: scheme %s, %d slots", scheme, #rows)
   return true
 end
@@ -240,6 +261,12 @@ end
 --- The scheme the slots carry in this Lua state, or nil while the radio's own colours stand.
 function M.current()
   return appliedScheme
+end
+
+--- True while this Lua state holds radio colours it has to put back -- also after an apply or a restore
+--- that stopped half way, when current() may already be nil.
+function M.holding()
+  return applied ~= nil
 end
 
 return M
