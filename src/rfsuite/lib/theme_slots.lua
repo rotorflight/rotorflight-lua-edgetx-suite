@@ -29,12 +29,17 @@ local M = {}
 --   SECONDARY1  control text, toggle knob, page header    SECONDARY2 control border
 --   FOCUS       focused control                          ACTIVE     a checked control, an ON toggle track
 --   WARNING     warning text                             DISABLED   disabled text
+--   SECONDARY3  a window's own background (etx_solid_bg), the keyboard, a full-screen dialog's buttons
+--   EDIT        a number or text field while it is edited, its text in PRIMARY2
+-- PRIMARY3 is painted by nothing in EdgeTX's own interface and is left alone.
 M.SLOTS = {
   { "COLOR_THEME_PRIMARY1",   "text" },
   { "COLOR_THEME_PRIMARY2",   "card" },
   { "COLOR_THEME_SECONDARY1", "accentInk" },
   { "COLOR_THEME_SECONDARY2", "rule" },
+  { "COLOR_THEME_SECONDARY3", "page" },
   { "COLOR_THEME_FOCUS",      "accent" },
+  { "COLOR_THEME_EDIT",       "accent" },
   { "COLOR_THEME_ACTIVE",     "accent" },
   { "COLOR_THEME_WARNING",    "warning" },
   { "COLOR_THEME_DISABLED",   "disabled" },

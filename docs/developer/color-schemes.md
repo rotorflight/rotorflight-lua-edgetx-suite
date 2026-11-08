@@ -101,12 +101,14 @@ slots from the scheme with `lcd.setColor`, through one mapping:
 | `PRIMARY2` | `card` | A control's background, the page header's title |
 | `SECONDARY1` | `accentInk` | A control's text, the toggle's knob, the page header |
 | `SECONDARY2` | `rule` | A control's border |
+| `SECONDARY3` | `page` | A window's own background, the keyboard, a full-screen dialog's buttons |
 | `FOCUS` | `accent` | The focus border and outline |
+| `EDIT` | `accent` | A number or text field while it is edited (its text is `PRIMARY2`) |
 | `ACTIVE` | `accent` | A checked control, a switched-on toggle's track |
 | `WARNING` | `warning` | Warning text |
 | `DISABLED` | `disabled` | Disabled text |
 
-`PRIMARY3`, `SECONDARY3` and `EDIT` keep the radio's colours. The header and the controls are
+`PRIMARY3` keeps the radio's colour: nothing in EdgeTX's own interface paints with it. The header and the controls are
 coupled by the firmware: the header's colour is the controls' text colour and its title colour their
 background.
 
