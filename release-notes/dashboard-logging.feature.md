@@ -1,0 +1,5 @@
+- **The log says what the dashboard is doing, what it costs and where a problem began**:
+  - Info lines mark the dashboard being created, each phase, each theme loaded or released and the link lost, with the memory figures. The steps of a settings reload and each screen build move from info to debug.
+  - Debug lines say what each screen build cost, which pass was long and on what work, each view, each connect task's time, and what the connect screen waits for. Trace adds each telemetry read and the screen key that moved.
+  - A stop at the instruction limit, a task that raises and a module or theme that does not load now reach the log; a task given up is an error and a retry a warning.
+  - The state line names the work of the most expensive pass and the highest Lua memory seen.

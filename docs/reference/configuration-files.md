@@ -101,17 +101,24 @@ by hand, and a save keeps whatever the section holds.
   `true` is the normal behaviour: after an install or an update the configuration tool's start
   screen, or the dashboard's connection splash if the dashboard starts first, reads *Preparing
   suite* until every file has its compiled copy beside it, so no page pays for that later. The
-  dashboard connects to the flight controller only once that has finished; when the tool is
-  opened from the dashboard meanwhile, its start screen shows the same pass rather than starting
-  another. After an install or an update the dashboard then reads *Suite updated. Please restart
+  dashboard and the tool connect to the flight controller only once that has finished; when the
+  tool is opened from the dashboard meanwhile, its start screen shows the same pass rather than
+  starting another. After an install or an update the dashboard then reads *Suite updated. Please restart
   the radio.* and does not connect until the radio has been restarted, and the tool shows the same
   request once when its start screen closes: what was loaded before the pass is still the previous
   build's code, and only a restart replaces it. This applies to an install made from the release
-  archive, which carries the build identity; a source tree copied by hand is compiled but never
-  holds the dashboard back. `false` skips this in both places: the start screen and the splash wait for the
+  archive, which carries the build identity; a source tree copied by hand is compiled by the tool
+  once per version but never holds the dashboard back. Once the installed files are compiled, later starts of the tool, from
+  the dashboard or from the radio's tools menu, go straight to the connection without looking at
+  the files again. A file edited on the card afterwards is compiled the first time a page loads it,
+  which makes that opening slower once. `false` skips this in both places: the start screen and the splash wait for the
   connection only, and each file is compiled the first time a page needs it, which makes that
   first opening slower. It is meant for automated test runs on a card that starts without
-  compiled files every time; on a radio there is no reason to set it.
+  compiled files every time; on a radio there is no reason to set it. `"full"` makes every start
+  of the tool look at every installed file and compile the ones that are missing their compiled
+  copy or are newer than it, before it connects and before the start screen leaves. That holds
+  every start for as long as the look takes, and is meant for someone editing the suite's files on
+  the card.
 - **`mspexpbytes`** — how many bytes the developer page *MSP Experiments* edits. Absent means
   16, which is also the most it handles. Like `precompile` it is only read, and set by hand.
 
