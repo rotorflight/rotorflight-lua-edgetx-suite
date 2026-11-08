@@ -186,7 +186,18 @@ if case == "movefailed" or case == "both" then
   _G.rfsuite.paths.moveFailed = true
 end
 
+-- The radio's clock moves while init runs; the stubs' clock stands still between ticks. For one case
+-- it moves by one tick per reading during init, so the start screen's line can show a duration.
+local realGetTime = _G.getTime
+if case == "nolink" and type(realGetTime) == "function" then
+  local moved = 0
+  _G.getTime = function()
+    moved = moved + 1
+    return realGetTime() + moved
+  end
+end
 Home.init({})
+_G.getTime = realGetTime
 local Precompile = find(Home.run, "Precompile")
 
 local PAGE_CASES = { themesave = true, linkdrop = true, offlinesave = true, savebeforeread = true, otherfc = true,
@@ -196,6 +207,13 @@ if case == "nolink" or case == "link" or case == "pagefirst" or PAGE_CASES[case]
   expect(builds >= 1, "init built nothing (control)")
   expect(startBuilds == 0, "the start screen was drawn " .. startBuilds .. " times with nothing to compile")
   expect(logged("not drawn") ~= nil, "the log does not say that the start screen was not drawn")
+  if case == "nolink" then
+    -- The line measures from the start of init to the moment the start screen is left, not from the
+    -- start to itself.
+    local line = logged("not drawn") or ""
+    local ticks = tonumber(string.match(line, "after (%d+) ticks"))
+    expect(ticks ~= nil and ticks > 0, "the start screen's line reports " .. tostring(ticks) .. " ticks with the clock moving: " .. line)
+  end
   runFor(5)
   expect(startBuilds == 0, "the start screen was drawn after init")
   expect(state.menu and state.menu.isRoot(), "the tool is not on its menu")

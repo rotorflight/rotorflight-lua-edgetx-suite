@@ -3631,7 +3631,7 @@ function M.init(opts)
     nothingToWaitFor = select(3, Precompile.getProgress())
   end
   if nothingToWaitFor then
-    leaveStartScreen(state.startScreenTick, "nothing to compile, not drawn")
+    leaveStartScreen(getTime and getTime() or 0, "nothing to compile, not drawn")
   else
     logf("debug", "start screen shown: compile pass running")
   end
