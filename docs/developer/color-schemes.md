@@ -75,11 +75,24 @@ it, since every caller in the Lua state shares it.
 foreground against the surfaces it is drawn on, as RGB565 draws them. A pair a new role is used on
 belongs in its list.
 
-## The radio's own controls: the theme slots
+## Pictures
 
-`toggle`, `choice` and `numberEdit` parse `color` and ignore it, and the header of an LVGL `page`
-node is the firmware's: all of them take their colours from the radio theme's slots
-(`libui/etx_lv_theme.cpp` in EdgeTX). So while the tool is open, `lib/theme_slots.lua` writes those
+The firmware cannot tint a picture, so a picture that follows the scheme exists once per scheme.
+`bin/icons/make_scheme_icons.py` makes them from the suite's own icons, which are dark on an opaque
+ground: the darkness becomes transparency in the scheme's colour. It reads the colour from this file:
+`text` in light, as dark as the pictures are today; `accentInk` in dark, the role for a glyph. Run it after changing either
+value; `--check` says where a picture is missing, stale or left over.
+
+The tool's tile icons and the shipped dashboard themes' pictures are in `app/icons/<scheme>/` and
+`widgets/dashboard/theme_icons/<scheme>/`, named by their path below `app/pages/` or
+`widgets/dashboard/themes/` with the slashes joined (`setup/mixer/icon.png` is `setup_mixer_icon.png`).
+`palette.iconPath` picks the scheme's file; a pilot's own theme keeps its pictures.
+
+## What a scheme cannot reach
+
+Directly, nothing: `toggle`, `choice` and `numberEdit` parse `color` and ignore it, and the header of
+an LVGL `page` node is the firmware's. All of them take their colours from the radio theme's slots
+(`libui/etx_lv_theme.cpp` in EdgeTX), so while the tool is open, `lib/theme_slots.lua` writes those
 slots from the scheme with `lcd.setColor`, through one mapping:
 
 | Slot | Role | What EdgeTX paints with it |
@@ -114,12 +127,3 @@ so the radio's colours are put back on every way the tool can end:
 
 `bin/ui/verify_theme_slots.lua` drives the module against a stub of the colour table, every way out
 included.
-
-## Pictures
-
-A picture cannot be tinted, so the tool's tile icons and the shipped dashboard themes' pictures
-exist once per scheme: `app/icons/<scheme>/` and `widgets/dashboard/theme_icons/<scheme>/`, named by
-their path below `app/pages/` or `widgets/dashboard/themes/` with the slashes joined
-(`setup/mixer/icon.png` is `setup_mixer_icon.png`). Each is the source picture, its darkness made
-transparency, in `text` (light) or `accentInk` (dark). `palette.iconPath` picks the scheme's file;
-a pilot's own theme keeps its pictures.
