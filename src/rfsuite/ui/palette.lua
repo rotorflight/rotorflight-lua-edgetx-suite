@@ -7,32 +7,32 @@
 -- lcd is absent on the desktop runners that load this file; there every role is nil, which is what an
 -- unset colour property already means to the code reading it.
 
--- Tool role -> scheme role. Two tool roles may share a scheme role and stay two roles.
+-- { tool role, scheme role }. Two tool roles may share a scheme role and stay two roles.
 local ROLES = {
-  background        = "page",      -- behind a page's body
-  card              = "card",      -- a value box on a settings row
-  border            = "rule",      -- dividers, frames
-  text              = "text",
-  muted             = "muted",
-  accent            = "accent",
-  accentText        = "onAccent",  -- text on an accent fill
-  warning           = "warning",
-  error             = "error",
-  ok                = "ok",
-  caution           = "warning",   -- a check that passed with a remark
-  panel             = "page",      -- a full-screen notice, the closing screen, a log surface
-  panelText         = "text",
-  headingText       = "text",      -- a group title on a page
-  settingsText      = "text",
-  logWarning        = "warning",
-  strongBorder      = "text",      -- a frame that has to stand out
-  wizardBorder      = "accent",
-  grid              = "rule",      -- the log graph's grid lines
-  cursor            = "accent",    -- the log graph's cursor
-  progressTrack     = "rule",
-  testProgressTrack = "raised",
-  tile              = "raised",    -- a disabled tile's face
-  tileMuted         = "muted",     -- a disabled tile's text
+  { "background", "page" },      -- behind a page's body
+  { "card", "card" },      -- a value box on a settings row
+  { "border", "rule" },      -- dividers, frames
+  { "text", "text" },
+  { "muted", "muted" },
+  { "accent", "accent" },
+  { "accentText", "onAccent" },  -- text on an accent fill
+  { "warning", "warning" },
+  { "error", "error" },
+  { "ok", "ok" },
+  { "caution", "warning" },   -- a check that passed with a remark
+  { "panel", "page" },      -- a full-screen notice, the closing screen, a log surface
+  { "panelText", "text" },
+  { "headingText", "text" },      -- a group title on a page
+  { "settingsText", "text" },
+  { "logWarning", "warning" },
+  { "strongBorder", "text" },      -- a frame that has to stand out
+  { "wizardBorder", "accent" },
+  { "grid", "rule" },      -- the log graph's grid lines
+  { "cursor", "accent" },    -- the log graph's cursor
+  { "progressTrack", "rule" },
+  { "testProgressTrack", "raised" },
+  { "tile", "raised" },    -- a disabled tile's face
+  { "tileMuted", "muted" },     -- a disabled tile's text
 }
 
 local palette = {}
@@ -55,8 +55,8 @@ function palette.apply(name)
   if not Schemes then return nil end
   local scheme = Schemes.name(name)
   local colors = Schemes.colors(scheme)
-  for role, schemeRole in pairs(ROLES) do
-    palette[role] = colors[schemeRole]
+  for i = 1, #ROLES do
+    palette[ROLES[i][1]] = colors[ROLES[i][2]]
   end
   palette.scheme = scheme
   return scheme
