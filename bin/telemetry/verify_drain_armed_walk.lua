@@ -66,8 +66,8 @@ local function newDrain()
     [BOOM] = { name = "BOOM", dec = function() error("decoder raised") end },
   }
   env.loadScript = function(path)
-    if path:find("rf2tlm_sensors.lua", 1, true) then return function() return decoder end end
-    if path:find("crsf.lua", 1, true) then return function() return crsf end end
+    if string.find(path, "rf2tlm_sensors.lua", 1, true) then return function() return decoder end end
+    if string.find(path, "crsf.lua", 1, true) then return function() return crsf end end
     error("unexpected module: " .. path)
   end
   h.env = env
@@ -177,7 +177,7 @@ scenario("decoder_raises", function()
   h.env.rfsuite.adjustmentReport = report
   h:push({ { ADJ, 7 }, { BOOM, 0 } })
   local ok, err = pcall(h.drain.wakeupArmingFlags, t + 0.1)
-  check(not ok and tostring(err):find("decoder raised", 1, true) ~= nil,
+  check(not ok and string.find(tostring(err), "decoder raised", 1, true) ~= nil,
     "decoder_raises: the error goes on to the caller", tostring(err))
   check(h.env.rfsuite.adjustmentReport == report and report[1] == 14 and report[2] == 100,
     "decoder_raises: the adjustment pair is put back", tostring(report[1]) .. "," .. tostring(report[2]))
