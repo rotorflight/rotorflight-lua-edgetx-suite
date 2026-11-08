@@ -207,10 +207,11 @@ stored, which can be the new values.
 
 Restart FC is offered only while the connection to the flight controller is up and the model is
 neither armed nor of unknown arming state. The button comes and goes with these while the notice
-stands, and a press is checked again: if the model was armed since, it restarts nothing. The same
-check is made again every time the restart command is about to go out, because the flight
-controller accepts that command over telemetry whatever its arming state; a restart held back that
-way ends with *could not be confirmed*. If the tool opened from the dashboard closes during the
+stands, and a press is checked again: if the model was armed since, it restarts nothing. Because
+the flight controller accepts the restart command over telemetry whatever its arming state, the
+tool then asks the flight controller itself whether it is armed and sends the command only on its
+answer that it is not, and only while that answer is at most two seconds old and the radio's own
+check still holds. A restart held back that way ends with *could not be confirmed*. If the tool opened from the dashboard closes during the
 restart, the restart finishes on its own and its outcome is shown the next time the tool opens.
 Pages that save through their own chain rather than through the shared save are not covered, and
 Flight Tuning > Tune Advisor reports a failed apply in its own notice.

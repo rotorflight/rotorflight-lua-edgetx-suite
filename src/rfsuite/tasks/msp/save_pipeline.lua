@@ -129,6 +129,11 @@ local RebootApi = nil
 local TxInfoApi = nil
 local Log = nil
 local Armed = nil
+local StatusApi = nil
+
+-- How old the flight controller's own "disarmed" may be when the restart's reboot is sent. The
+-- reboot is queued from the reply that carries it, so this only has to cover one queue pass.
+local DISARMED_EVIDENCE_SECONDS = 2
 
 local function ensureDeps()
   if not MspRuntime then MspRuntime = loadModule("tasks/msp/runtime.lua") end
@@ -445,6 +450,47 @@ local function restartAllowed()
   return true
 end
 
+--- Ask the flight controller itself whether it is armed: MSP_STATUS, flight-mode bit 0, which the
+-- firmware packs from BOXARM = ARMING_FLAG(ARMED) (msp_box.c getBoxIdState). The arming sensor
+-- on the radio can hold a stale 0; this answer is current. onResult(true) only for a reply that
+-- proves disarmed, in the layout app/pages/setup/accelerometer/calibration.lua reads too: at least
+-- 21 bytes, and no extra flight-mode flag bytes before the flags it parses.
+local function readFcDisarmed(onResult)
+  local queue = getQueue()
+  if not StatusApi then StatusApi = loadModule("tasks/msp/api/status.lua") end
+  if not queue or type(StatusApi) ~= "table" or type(StatusApi.parse) ~= "function" then
+    onResult(false, "no_status_api")
+    return
+  end
+  local run = S.run
+  queue:add({
+    command = StatusApi.command,
+    payload = {},
+    client = run.client,
+    processReply = function(_, buf)
+      if not isCurrent(run) then return end
+      if type(buf) ~= "table" or #buf < 21 or buf[16] ~= 0 then
+        onResult(false, "status_layout")
+        return
+      end
+      local ok, status = pcall(StatusApi.parse, buf)
+      if not ok or type(status) ~= "table" or type(status.flight_mode_flags) ~= "number" then
+        onResult(false, "status_parse")
+        return
+      end
+      if (status.flight_mode_flags & 1) ~= 0 then
+        onResult(false, "fc_armed")
+        return
+      end
+      onResult(true)
+    end,
+    errorHandler = function()
+      if not isCurrent(run) then return end
+      onResult(false, "status_unanswered")
+    end,
+  })
+end
+
 local function queueReboot()
   local queue = getQueue()
   if not queue or not RebootApi then
@@ -467,6 +513,9 @@ local function queueReboot()
     -- A withheld reboot ends the run through the errorHandler below.
     sendIf = run.restart == true and function()
       local allowed, why = restartAllowed()
+      if allowed and not (run.fcDisarmedAt and (nowSeconds() - run.fcDisarmedAt) <= DISARMED_EVIDENCE_SECONDS) then
+        allowed, why = false, "fc_evidence_old"
+      end
       if not allowed then logf("warn", "restart withheld at the send reason=%s", tostring(why)) end
       return allowed
     end or nil,
@@ -503,6 +552,18 @@ local function startReboot()
         fail("reboot")
         return
       end
+      -- The flight controller's own answer, last: the radio's arming sensor can be stale.
+      readFcDisarmed(function(disarmed, reason)
+        if not S.run then return end
+        if not disarmed then
+          logf("warn", "restart abandoned before the reboot reason=%s", tostring(reason))
+          fail("reboot")
+          return
+        end
+        S.run.fcDisarmedAt = nowSeconds()
+        queueReboot()
+      end)
+      return
     end
     queueReboot()
   end)

@@ -245,5 +245,26 @@ do
   equal(#m.errors, 0, "silent after: not withheld")
 end
 
+-- A message with sendIf completes on its sends while a later attempt is still buffered: the buffered
+-- bytes are dropped, so the next message's flush cannot send them without the predicate.
+do
+  local w = world()
+  local allow = true
+  local m = w.ask(C, function() return allow end, { completeAfterAttempt = 2, isWrite = true })
+  w.tick()
+  equal(sends(C), 1, "completed with bytes left: the first send went out")
+  h.refuse = 5                                   -- the transport takes nothing for a while
+  w.tick(1.1)
+  w.tick(1.1)
+  equal(m.done, true, "completed with bytes left: completes on its sends")
+  allow = false
+  h.refuse = 0
+  w.ask(OTHER, nil)
+  w.tick(0.2)
+  w.tick(0.2)
+  equal(sends(C), 1, "completed with bytes left: the buffered resend never goes out")
+  equal(sends(OTHER), 1, "completed with bytes left: the next message goes out")
+end
+
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end

@@ -773,6 +773,13 @@ function Queue:processQueue(now)
     or (msg.completeAfterAttempt and self.retryCount >= msg.completeAfterAttempt)
 
   if success then
+    -- A message carrying sendIf can complete with bytes of a later attempt still buffered (the
+    -- reboot completes on its sends, not on what the transport took). They are dropped here, or
+    -- the next message's flush would send them without asking the predicate.
+    if msg.sendIf ~= nil and self.common and type(self.common.txPending) == "function"
+      and self.common.txPending() and self.common.clearTxBuf then
+      self.common.clearTxBuf()
+    end
     msg.buf = buf
     -- `src=wire` is the counterpart of the `src=cache` line above, and the pair is the point:
     -- read on its own, neither says whether the bytes came off the transport or out of a table.

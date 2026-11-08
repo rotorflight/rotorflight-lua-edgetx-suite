@@ -10,7 +10,7 @@ local function equal(actual, expected, label)
   end
 end
 
-local CMD = { write1 = 201, write2 = 202, eeprom = 250, reboot = 68, txinfo = 186 }
+local CMD = { write1 = 201, write2 = 202, eeprom = 250, reboot = 68, txinfo = 186, status = 101 }
 
 local clock = 0
 function getTime() return clock end
@@ -47,6 +47,7 @@ local modules = {
     parse = function(buf) return { rtc_datetime_set = buf and buf[1] } end,
   },
   ["lib/log.lua"] = false,
+  ["tasks/msp/api/status.lua"] = assert(loadfile("src/rfsuite/tasks/msp/api/status.lua"))(),
   ["lib/armed.lua"] = {
     isArmed = function() return armedNow end,
     isUncertain = function() return armedUnknown end,
@@ -68,6 +69,20 @@ local function last() return queue.entries[#queue.entries] end
 local function ack(entry, bytes) entry.done = true; entry.processReply(entry, bytes or {}) end
 -- The real queue has sent a message at least once before it reports "refused".
 local function refuse(entry) entry.done = true; entry.__sentAt = clock / 100; entry.errorHandler(entry, "refused") end
+-- MSP_STATUS replies: 22 bytes, byte 16 (extra flight-mode flag count) 0, flight-mode bit 0 = armed.
+local function statusReply(armed)
+  local b = {}
+  for i = 1, 22 do b[i] = 0 end
+  b[7] = armed and 1 or 0
+  b[17] = 24
+  return b
+end
+-- The restart's pre-flight: the clock flag read, then the flight controller's own disarmed answer.
+local function preflight(statusArmed)
+  ack(queue.entries[#queue.entries], { 1 })
+  local e = queue.entries[#queue.entries]
+  if e.command == CMD.status then ack(e, statusReply(statusArmed)) end
+end
 -- The queue's give-up after its retries with no answer at all: the message was sent.
 local function silent(entry) entry.done = true; entry.__sentAt = clock / 100; entry.errorHandler(entry, "max_retries") end
 
@@ -197,7 +212,7 @@ equal(prog and prog.saved, false, "restart: progress not saved")
 ok, why = Pipeline.restartAfterFailure()
 equal(why, "busy", "restart: second press refused")
 equal(last().command, CMD.txinfo, "restart: preflight probe first")
-ack(last(), { 1 })
+preflight()
 equal(last().command, CMD.reboot, "restart: MSP_REBOOT queued")
 ack(last())
 clock = clock + 100
@@ -205,7 +220,7 @@ Pipeline.wakeup()
 equal(last().command, CMD.txinfo, "restart: probing for the board")
 ack(last(), { 0 })                              -- the clock flag cleared: the board did restart
 Pipeline.wakeup()                               -- onconnect ends -> verify probe
-ack(last(), { 1 })
+preflight()
 local writes, commits = 0, 0
 for i = before + 1, #queue.entries do
   local c = queue.entries[i].command
@@ -231,7 +246,7 @@ begin()
 ack(last())
 refuse(last())
 Pipeline.restartAfterFailure()
-ack(last(), { 1 })
+preflight()
 ack(last())
 clock = clock + 2200
 Pipeline.wakeup()
@@ -319,7 +334,7 @@ equal(Pipeline.blocksNavigation(), false, "link drop: the page is free again")
 begin()
 ack(last()); refuse(last())
 Pipeline.restartAfterFailure()
-ack(last(), { 1 })
+preflight()
 local reboot15 = last()
 equal(reboot15.command, CMD.reboot, "reboot stuck: reboot queued")
 equal(reboot15.completeAfterAttempt, 2, "reboot stuck: the reboot completes on silence after two sends")
@@ -345,7 +360,7 @@ equal(Pipeline.offersRestart(select(2, outcome())), true, "commit timeout: offer
 begin()
 ack(last()); refuse(last())
 Pipeline.restartAfterFailure()
-ack(last(), { 1 }); ack(last())
+preflight(); ack(last())
 clock = clock + 100
 Pipeline.wakeup()
 onconnectActive = true
@@ -389,7 +404,7 @@ begin()
 ack(last()); refuse(last())
 Pipeline.restartAfterFailure()
 equal(Pipeline.dismissWhenStored(), false, "tool closes: the restart is not parked")
-ack(last(), { 1 }); ack(last())
+preflight(); ack(last())
 clock = clock + 2200
 Pipeline.wakeup()
 p, r = outcome()
@@ -428,7 +443,7 @@ equal(last().sendIf, nil, "normal reboot save: no sendIf")
 begin()
 ack(last()); refuse(last())
 Pipeline.restartAfterFailure()
-ack(last(), { 1 })
+preflight()
 local reboot24 = last()
 equal(type(reboot24.sendIf), "function", "restart: the reboot carries sendIf")
 equal(reboot24.sendIf(reboot24), true, "restart: sendIf true with a link, disarmed and known")
@@ -455,6 +470,41 @@ equal(Fresh.restartAfterFailure(), true, "no arming module: restart started")
 ack(last(), { 1 })
 equal(countCommand(CMD.reboot), 0, "no arming module: no reboot queued")
 equal(select(2, outcome()).restart, true, "no arming module: the restart reports")
+
+-- 26. The radio's arming sensor says disarmed (it can be stale); the flight controller says armed: no reboot.
+begin()
+ack(last()); refuse(last())
+Pipeline.restartAfterFailure()
+ack(last(), { 1 })
+equal(last().command, CMD.status, "fc check: MSP_STATUS asked after the pre-flight")
+ack(last(), statusReply(true))
+equal(countCommand(CMD.reboot), 0, "fc armed: no reboot queued")
+equal(select(2, outcome()).restart, true, "fc armed: the restart reports")
+
+-- 27. MSP_STATUS unanswered, or in a layout that cannot prove disarmed: no reboot.
+begin()
+ack(last()); refuse(last())
+Pipeline.restartAfterFailure()
+ack(last(), { 1 })
+refuse(last())
+equal(countCommand(CMD.reboot), 0, "fc status unanswered: no reboot queued")
+begin()
+ack(last()); refuse(last())
+Pipeline.restartAfterFailure()
+ack(last(), { 1 })
+ack(last(), { 0, 0, 0 })
+equal(countCommand(CMD.reboot), 0, "fc status short: no reboot queued")
+
+-- 28. The flight controller's disarmed answer is old by the time the reboot would go out: withheld.
+begin()
+ack(last()); refuse(last())
+Pipeline.restartAfterFailure()
+preflight()
+local reboot28 = last()
+equal(reboot28.command, CMD.reboot, "fc evidence: reboot queued on a fresh disarmed answer")
+equal(reboot28.sendIf(reboot28), true, "fc evidence: fresh, the send is allowed")
+clock = clock + 300
+equal(reboot28.sendIf(reboot28), false, "fc evidence: 3 s old, the send is withheld")
 
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end
