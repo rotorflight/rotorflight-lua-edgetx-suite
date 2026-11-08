@@ -507,25 +507,23 @@ local function sendAllowed(msg)
 end
 
 -- Give a withheld message up as an abandoned one is given up: nothing of it may go out after
--- this, so its buffered bytes go with it, and the next message waits its usual delay.
+-- this, so its buffered bytes go with it, and the next message waits its usual delay. The handler
+-- runs before the message is released, as at the give-up after the retries: an instruction-limit
+-- stop raised in it leaves the message current, and the next pass comes back here (the mark below)
+-- and calls it again, without asking sendIf and without sending.
 local function withhold(self, msg, now, err)
-  self.logf("warn", "withheld cmd=%s rw=%s client=%s attempt=%d%s",
-    tostring(msg.command), isWriteMessage(msg) and "W" or "R", tostring(msg.client),
-    self.retryCount + 1, err and (" err=" .. tostring(err)) or "")
+  if not msg.__withheld then
+    self.logf("warn", "withheld cmd=%s rw=%s client=%s attempt=%d%s",
+      tostring(msg.command), isWriteMessage(msg) and "W" or "R", tostring(msg.client),
+      self.retryCount + 1, err and (" err=" .. tostring(err)) or "")
+  end
+  msg.__withheld = true
   msg.__retryCount = self.retryCount
-  if self.retryCount > 0 then keepCommandQuiet(self, msg, now) end
-  self.currentMessage = nil
-  self.currentMessageStartTime = nil
-  self.lastTimeCommandSent = nil
-  self.retryCount = 0
   if self.common and self.common.clearTxBuf then
     self.common.clearTxBuf()
   end
   if self.common and self.common.clearRxBuf then
     self.common.clearRxBuf()
-  end
-  if self.interMessageDelay > 0 then
-    self._nextMessageAt = now + self.interMessageDelay
   end
   if type(msg.errorHandler) == "function" then
     local ok, herr = pcall(msg.errorHandler, msg, "withheld")
@@ -534,6 +532,16 @@ local function withhold(self, msg, now, err)
       self.logf("warn", "error handler raised cmd=%s client=%s reason=withheld err=%s",
         tostring(msg.command), tostring(msg.client), tostring(herr))
     end
+  end
+  if self.retryCount > 0 then keepCommandQuiet(self, msg, now) end
+  self.currentMessage = nil
+  self.currentMessageStartTime = nil
+  self.lastTimeCommandSent = nil
+  self.retryCount = 0
+  -- Released: a caller that adds the same table again starts it afresh.
+  msg.__withheld = nil
+  if self.interMessageDelay > 0 then
+    self._nextMessageAt = now + self.interMessageDelay
   end
 end
 
@@ -586,6 +594,13 @@ function Queue:processQueue(now)
 
   local msg = self.currentMessage
   if not msg then return end
+
+  -- A withheld message whose handler was stopped by the instruction limit: only the give-up is
+  -- finished. Nothing of it is sent and no reply is taken for it.
+  if msg.__withheld then
+    withhold(self, msg, now)
+    return
+  end
 
   -- A read that add() found in the cache is completed here and never sent. Same shape as the
   -- success path below: processReply gets the buffer, the slot is released, the inter-message

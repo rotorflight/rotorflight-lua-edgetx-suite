@@ -289,5 +289,54 @@ do
   equal(sends(C), 1, "default timeout: no second send")
 end
 
+-- The withheld message's handler is stopped by the instruction limit: the message stays current, the
+-- next pass calls the handler again, and nothing of it is sent in between or after.
+do
+  local w = world()
+  local calls = 0
+  local m = w.ask(C, function() return false end)
+  m.errorHandler = function(_, reason)
+    calls = calls + 1
+    m.errors[#m.errors + 1] = reason
+    if calls == 1 then error("CPU limit", 0) end
+  end
+  local ok, err = pcall(w.tick)
+  equal(ok, false, "cpu limit in withheld handler: raised on")
+  equal(type(err) == "string" and string.find(err, "CPU limit", 1, true) ~= nil, true,
+    "cpu limit in withheld handler: the limit error itself")
+  equal(w.queue.currentMessage, m, "cpu limit in withheld handler: the message stays current")
+  w.tick(0.1)
+  equal(calls, 2, "cpu limit in withheld handler: the handler is called again on the next pass")
+  equal(w.queue.currentMessage, nil, "cpu limit in withheld handler: then released")
+  w.tick(1.1)
+  w.tick(1.1)
+  equal(sends(C), 0, "cpu limit in withheld handler: nothing sent")
+  equal(calls, 2, "cpu limit in withheld handler: no third call")
+end
+
+-- A single-attempt message whose frame the transport refuses on the send and on the next pass's
+-- flush completes on its attempt and drops the frame: nothing of it goes out later. For the restart
+-- this is a reboot lost on the way, which the pipeline's clock-flag probe reports as a restart that
+-- could not be confirmed; holding the frame longer would send it further from the answer it rests on.
+do
+  h.sent, h.inbox, h.clock = {}, {}, 1000
+  local queue = Queue.new(assert(Common.new("stub")), { isSimulator = false })
+  local now = 0
+  local m = { command = C, client = "test", isWrite = true, completeAfterAttempt = 1, errors = {},
+    sendIf = function() return true end }
+  m.processReply = function() m.done = true end
+  m.errorHandler = function(_, reason) m.errors[#m.errors + 1] = reason end
+  queue:add(m)
+  local function tick(s) now = now + s; h.clock = math.floor(now * 100 + 0.5); queue:processQueue(now) end
+  h.refuse = 2
+  tick(0.01)
+  tick(0.01)
+  equal(sends(C), 0, "refused twice: nothing went out")
+  equal(m.done, true, "refused twice: completes on its attempt")
+  tick(2.5)
+  tick(2.5)
+  equal(sends(C), 0, "refused twice: the frame is not sent later")
+end
+
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end
