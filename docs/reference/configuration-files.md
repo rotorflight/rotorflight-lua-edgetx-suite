@@ -209,9 +209,10 @@ eload.req — a few bytes the tool writes when you save, so the dashboard widget
 - `precompiled.txt` — which installed build was last compiled, written when *Preparing suite*
   finishes, whether the tool or the dashboard ran it. A later start compiles everything again only
   when the installed build differs from it, so deleting it costs one slower start and nothing else.
-  The dashboard reads only this file and the build identity beside the core: on a build already
-  compiled it does no further work and connects at once, and a single source edited on the card
-  is compiled by the tool's next start. On a fresh card
+  The dashboard and the tool read only this file and the build identity beside the core: on a
+  build already compiled they do no further work and connect at once. A single source edited on
+  the card is compiled the first time a page loads it, unless `precompile = "full"` makes the
+  tool's start look at every file. On a fresh card
   where nothing has been saved yet, the tool creates this folder to write it.
   The pass leaves out the `._` files macOS writes beside every file it copies onto a card,
   and a file that does not compile is named in the log, once per start.
