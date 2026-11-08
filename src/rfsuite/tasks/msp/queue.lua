@@ -499,6 +499,44 @@ function Queue:cancel(clientId, requestId)
   return found
 end
 
+-- A message's `sendIf` (see the send below): true lets it go on, anything else withholds it.
+local function sendAllowed(msg)
+  local okIf, allowed = pcall(msg.sendIf, msg)
+  if not okIf and isCpuLimitError(allowed) then error(allowed, 0) end
+  return okIf and allowed == true, (not okIf) and allowed or nil
+end
+
+-- Give a withheld message up as an abandoned one is given up: nothing of it may go out after
+-- this, so its buffered bytes go with it, and the next message waits its usual delay.
+local function withhold(self, msg, now, err)
+  self.logf("warn", "withheld cmd=%s rw=%s client=%s attempt=%d%s",
+    tostring(msg.command), isWriteMessage(msg) and "W" or "R", tostring(msg.client),
+    self.retryCount + 1, err and (" err=" .. tostring(err)) or "")
+  msg.__retryCount = self.retryCount
+  if self.retryCount > 0 then keepCommandQuiet(self, msg, now) end
+  self.currentMessage = nil
+  self.currentMessageStartTime = nil
+  self.lastTimeCommandSent = nil
+  self.retryCount = 0
+  if self.common and self.common.clearTxBuf then
+    self.common.clearTxBuf()
+  end
+  if self.common and self.common.clearRxBuf then
+    self.common.clearRxBuf()
+  end
+  if self.interMessageDelay > 0 then
+    self._nextMessageAt = now + self.interMessageDelay
+  end
+  if type(msg.errorHandler) == "function" then
+    local ok, herr = pcall(msg.errorHandler, msg, "withheld")
+    if not ok then
+      if isCpuLimitError(herr) then error(herr, 0) end
+      self.logf("warn", "error handler raised cmd=%s client=%s reason=withheld err=%s",
+        tostring(msg.command), tostring(msg.client), tostring(herr))
+    end
+  end
+end
+
 function Queue:processQueue(now)
   now = tonumber(now) or nowSeconds()
   local simulatorMode = self.isSimulator == true
@@ -654,6 +692,17 @@ function Queue:processQueue(now)
     return
   end
 
+  -- A message with `sendIf` that already went out may still have bytes in the transmit buffer (a
+  -- frame the transport did not take yet, or the chunks after the first): they are its sends too,
+  -- so the same question is asked before they are flushed.
+  if msg.sendIf ~= nil and self.retryCount > 0 then
+    local allowed, err = sendAllowed(msg)
+    if not allowed then
+      withhold(self, msg, now, err)
+      return
+    end
+  end
+
   -- Flush any pending TX fragments before checking for replies.
   if self.common and type(self.common.processTxQ) == "function" then
     self.common.processTxQ()
@@ -799,26 +848,9 @@ function Queue:processQueue(now)
     -- the queue -- a reboot that must not reach a craft that armed after it was queued -- and is
     -- absent on every other message, which this test then leaves alone.
     if msg.sendIf ~= nil then
-      local okIf, allowed = pcall(msg.sendIf, msg)
-      if not okIf and isCpuLimitError(allowed) then error(allowed, 0) end
-      if not okIf or allowed ~= true then
-        self.logf("warn", "withheld cmd=%s rw=%s client=%s attempt=%d%s",
-          tostring(msg.command), isWriteMessage(msg) and "W" or "R", tostring(msg.client),
-          self.retryCount + 1, okIf and "" or (" err=" .. tostring(allowed)))
-        msg.__retryCount = self.retryCount
-        if self.retryCount > 0 then keepCommandQuiet(self, msg, now) end
-        self.currentMessage = nil
-        self.currentMessageStartTime = nil
-        self.lastTimeCommandSent = nil
-        self.retryCount = 0
-        if type(msg.errorHandler) == "function" then
-          local ok, herr = pcall(msg.errorHandler, msg, "withheld")
-          if not ok then
-            if isCpuLimitError(herr) then error(herr, 0) end
-            self.logf("warn", "error handler raised cmd=%s client=%s reason=withheld err=%s",
-              tostring(msg.command), tostring(msg.client), tostring(herr))
-          end
-        end
+      local allowed, err = sendAllowed(msg)
+      if not allowed then
+        withhold(self, msg, now, err)
         return
       end
     end

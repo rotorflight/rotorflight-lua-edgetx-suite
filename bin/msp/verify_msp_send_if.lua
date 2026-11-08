@@ -22,12 +22,14 @@ bit32 = {
 
 local core = "src/rfsuite/"
 local radio = "/SCRIPTS/RFSUITE/core/"
-local h = { clock = 1000, rssi = 100, sent = {}, inbox = {} }
+local h = { clock = 1000, rssi = 100, sent = {}, inbox = {}, refuse = 0 }
 
 local transport = {
   maxTxBufferSize = 8,
   maxRxBufferSize = 58,
   mspSend = function(payload)
+    -- `refuse` > 0: the transport does not take the next that many frames (its slot is busy).
+    if h.refuse > 0 then h.refuse = h.refuse - 1; return false end
     local copy = {}
     for i = 1, #payload do copy[i] = payload[i] end
     h.sent[#h.sent + 1] = copy
@@ -177,6 +179,42 @@ do
   equal(sends(C), 1, "silent completion: only the allowed send went out")
   equal(m.done, nil, "silent completion: not completed by the withheld resend")
   equal(m.errors[1], "withheld", "silent completion: given up as withheld")
+end
+
+-- A frame the transport did not take stays in the transmit buffer; it is a send of the message too,
+-- so it is not flushed once sendIf says no.
+do
+  local w = world()
+  local allow = true
+  local m = w.ask(C, function() return allow end)
+  h.refuse = 1
+  w.tick()
+  equal(sends(C), 0, "buffered: the transport did not take the frame yet")
+  allow = false
+  w.tick()
+  w.tick()
+  equal(sends(C), 0, "buffered: the buffered frame is not flushed once withheld")
+  equal(m.errors[1], "withheld", "buffered: given up as withheld")
+  -- The next message sends its own bytes, nothing of the withheld one.
+  local other = w.ask(OTHER, nil)
+  w.tick(0.2)
+  w.tick(0.2)
+  equal(sends(OTHER), 1, "after a withheld message: the next one goes out")
+  equal(sends(C), 0, "after a withheld message: nothing of the withheld one follows")
+  w.answer(OTHER, 5)
+  w.tick()
+  equal(other.value, 5, "after a withheld message: the next one takes its answer")
+end
+
+-- Control for the case above: without sendIf the buffered frame is flushed on the next pass.
+do
+  local w = world()
+  w.ask(C, nil)
+  h.refuse = 1
+  w.tick()
+  equal(sends(C), 0, "buffered control: not taken at first")
+  w.tick()
+  equal(sends(C), 1, "buffered control: flushed on the next pass")
 end
 
 print(string.format("%d checks, %d failures", checks, failures))

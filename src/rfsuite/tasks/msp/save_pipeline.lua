@@ -430,14 +430,18 @@ local function restartAllowed()
   local _, mspState = getQueue()
   if not mspState or mspState.lastConnected ~= true then return false, "no_link" end
   if mspState.lastArmed == true then return false, "armed" end
-  if Armed == nil then
+  -- Fail closed: without the module that answers the arming question there is no restart. A
+  -- failed load is not remembered, so the next ask tries again.
+  if not Armed then
     local req = _G.rfsuite and _G.rfsuite.require
-    Armed = (type(req) == "function" and req("lib/armed.lua")) or loadModule("lib/armed.lua") or false
+    Armed = (type(req) == "function" and req("lib/armed.lua")) or loadModule("lib/armed.lua")
   end
-  if Armed and type(Armed.isArmed) == "function" and Armed.isArmed() == true then return false, "armed" end
-  if Armed and type(Armed.isUncertain) == "function" and Armed.isUncertain() == true then
-    return false, "uncertain"
+  if type(Armed) ~= "table" or type(Armed.isArmed) ~= "function" or type(Armed.isUncertain) ~= "function" then
+    Armed = nil
+    return false, "no_armed_module"
   end
+  if Armed.isArmed() == true then return false, "armed" end
+  if Armed.isUncertain() == true then return false, "uncertain" end
   return true
 end
 

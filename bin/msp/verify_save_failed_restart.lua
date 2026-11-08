@@ -446,5 +446,15 @@ p, r = outcome()
 equal(r and r.restart, true, "restart withheld: it reports as a restart")
 equal(Pipeline.blocksNavigation(), false, "restart withheld: the page is free again")
 
+-- 25. Fail closed: a pipeline copy that cannot load lib/armed.lua sends no restart.
+modules["lib/armed.lua"] = false
+local Fresh = assert(loadfile("src/rfsuite/tasks/msp/save_pipeline.lua"))()
+begin()
+ack(last()); refuse(last())
+equal(Fresh.restartAfterFailure(), true, "no arming module: restart started")
+ack(last(), { 1 })
+equal(countCommand(CMD.reboot), 0, "no arming module: no reboot queued")
+equal(select(2, outcome()).restart, true, "no arming module: the restart reports")
+
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end
