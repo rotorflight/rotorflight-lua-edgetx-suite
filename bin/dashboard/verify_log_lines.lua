@@ -187,6 +187,65 @@ do
   check(string.find(source, 'string.sub(key, 1, 4) ~= "dup:"', 1, true) ~= nil, "sensors: a duplicate line is outside the limit")
 end
 
+do
+  -- The steady read path: a source found once is read from its adopted name from then on, and each
+  -- of its two "hit" lines -- the search that found it, the first read from the adopted name -- is
+  -- said once, however often the source is read. The line is checked against what was already said
+  -- before its text is built, so the reads that have nothing to say build nothing either.
+  world()
+  begin("debug", true)
+  control("sensors cached hit", "debug")
+  _G.rfsuite.session = { isConnected = true }
+  local Sensors = assert(_G.rfsuite.require("lib/sensors.lua"))
+  Sensors.reset()
+  local clock = 1000
+  _G.getTime = function() return clock end
+  Stubs.sensors["Hspd"] = 1500
+  local values = 0
+  for i = 1, 20 do
+    clock = clock + 100
+    if Sensors.getValue("rpm") == 1500 then values = values + 1 end
+  end
+  check(values == 20, "sensors: every read of an adopted source answers", values)
+  check(Sensors.active_paths and Sensors.active_paths.rpm == "Hspd", "sensors: the source is read from its adopted name",
+    Sensors.active_paths and Sensors.active_paths.rpm)
+  local HIT = "hit Hspd = 1500"
+  check(count("rfsuite.sensors", HIT) == 2, "sensors: the found and the first adopted read are said once each",
+    count("rfsuite.sensors", HIT))
+  for i = 1, 20 do
+    clock = clock + 100
+    Sensors.getValue("rpm")
+  end
+  check(count("rfsuite.sensors", HIT) == 2, "sensors: twenty more reads say nothing more", count("rfsuite.sensors", HIT))
+end
+
+do
+  -- What a raised level adds to a steady read once there is nothing left to say: the same twenty
+  -- reads of an adopted source, counted with the instruction hook in a world at debug and in one at
+  -- off (the sensor reader takes the level when it loads). Building the text first and letting the
+  -- dedupe drop it cost about twenty instructions per read; checking first costs a few.
+  local function steadyReads(level)
+    world()
+    begin(level, false)
+    _G.rfsuite.session = { isConnected = true }
+    local Sensors = assert(_G.rfsuite.require("lib/sensors.lua"))
+    Sensors.reset()
+    local clock = 1000
+    _G.getTime = function() return clock end
+    Stubs.sensors["Hspd"] = 1500
+    for i = 1, 5 do clock = clock + 100; Sensors.getValue("rpm") end
+    local n = 0
+    debug.sethook(function() n = n + 1 end, "", 1)
+    for i = 1, 20 do clock = clock + 100; Sensors.getValue("rpm") end
+    debug.sethook()
+    return n
+  end
+  local atDebug, atOff = steadyReads("debug"), steadyReads("off")
+  local perRead = (atDebug - atOff) / 20
+  check(atOff > 0, "sensors: the steady reads were counted", atOff)
+  check(perRead <= 8, "sensors: a raised level adds at most 8 instructions to a steady read", perRead)
+end
+
 -- ---------------------------------------------------------------------------
 -- 2. widgets/dashboard/views.lua
 -- ---------------------------------------------------------------------------
