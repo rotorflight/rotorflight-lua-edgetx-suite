@@ -118,13 +118,39 @@ check(onConsole("m7") == 0 and inRing("m7") == 0, "a message without a level is 
 setLevel("debug")
 Log.emit("t", "m8", nil)
 check(onConsole("m8") == 1, "a message without a level is written at debug")
+-- At warn, so "Warning" read wrongly as info is held back.
+begin("warn", false)
+Log.emit("t", "m9", "Warning")
+check(onConsole("m9") == 1, "a message level in capitals is warn, not info (passes at warn)")
 
 -- emitf: formatted past the gate, and at off still into the ring for the important levels.
 begin("off", true)
-Log.emitf("t", "debug", "f%d", 1)
+local formatted = 0
+local arg = setmetatable({}, { __tostring = function() formatted = formatted + 1; return "x" end })
+Log.emitf("t", "debug", "f1 %s", arg)
+check(formatted == 0, "emitf below the level does not format its arguments", formatted)
 Log.emitf("t", "warn", "f%d", 2)
-check(inRing("f1") == 0 and inRing("f2") == 1 and inSink("f2") == 1 and onConsole("f2") == 0,
-  "emitf at off: a debug line nowhere, a warning in ring and sink only")
+check(inRing("f1") == 0 and inSink("f1") == 0 and onConsole("f1") == 0 and inRing("f2") == 1 and inSink("f2") == 1
+  and onConsole("f2") == 0, "emitf at off: a debug line nowhere, a warning in ring and sink only")
+
+-- Serial: a written line goes out with Enable Serial Debug on, and nothing below the level does.
+local serial = {}
+_G.serialWrite = function(text) serial[#serial + 1] = text end
+begin("info", false)
+_G.rfsuite.preferences.general.enable_serial_debug = true
+Log.emit("t", "s1", "info")
+Log.emit("t", "s2", "debug")
+_G.rfsuite.preferences.general.enable_serial_debug = false
+Log.emit("t", "s3", "info")
+local s1, s2, s3 = 0, 0, 0
+for _, text in ipairs(serial) do
+  if string.find(text, "s1", 1, true) then s1 = s1 + 1 end
+  if string.find(text, "s2", 1, true) then s2 = s2 + 1 end
+  if string.find(text, "s3", 1, true) then s3 = s3 + 1 end
+end
+check(s1 == 1 and s2 == 0 and s3 == 0, "serial: a written line with the option on, nothing below the level or with it off")
+check(serial[1] and string.sub(serial[1], -1) == "\n", "serial: the line ends in a newline")
+_G.serialWrite = nil
 setLevel("debug")
 Log.emitf("t", "debug", "f%d", 3)
 check(onConsole("f3") == 1, "emitf at debug: the line is written")
@@ -166,8 +192,9 @@ check(_G.rfsuite.log_history[#_G.rfsuite.log_history].msg == "" and string.sub(c
   "a nil message is empty in the ring and 'nil' on the console, as before")
 local long = string.rep("x", 150)
 Log.emit("t", long, "info")
-check(#_G.rfsuite.log_history[#_G.rfsuite.log_history].msg == 100 and _G.rfsuite.log_sink[#_G.rfsuite.log_sink].msg == long,
-  "a long line: truncated in the ring, whole in the sink")
+check(_G.rfsuite.log_history[#_G.rfsuite.log_history].msg == string.rep("x", 97) .. "..."
+  and _G.rfsuite.log_sink[#_G.rfsuite.log_sink].msg == long,
+  "a long line: cut to 97 characters and '...' in the ring, whole in the sink")
 local reads = 0
 local clock = _G.getTime
 _G.getTime = function() reads = reads + 1; return clock() end
