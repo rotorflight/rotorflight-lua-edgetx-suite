@@ -223,6 +223,14 @@ walks past that publish a group of their own (cells, GPS, attitude and the like)
 through. It also steps aside while the background function script is decoding, and like the full
 pass it sets `session.telemetryFrameAt` when frames arrived or that script is decoding them.
 
+Both passes take a *disarmed* arming flags or System Status value only from frames popped after an
+earlier pass emptied the queue; an armed value is taken at once. The radio keeps only a few custom
+frames for a script and drops the new one when that queue is full, so after a stretch in which
+nothing popped -- a link that came back, the compile pass holding the event runtime -- the frames
+waiting are the oldest, and an old "disarmed" would end the MSP runtime's wait for the armed state.
+That trust is cleared when the drain starts and on every link loss (`M.reset()`), not on a slow
+pass.
+
 When the background function script (`rfsbg.lua`) is decoding for the whole radio, `drain.lua`
 and `adjustments.lua` step aside together, so sensors are not published twice and adjustments are
 not announced twice. The script signals that through a counter it advances when it takes frames;
