@@ -100,6 +100,10 @@ local function ensureValidSelections()
     local value = ui.config[key]
     if value ~= "nil" and not DashboardLib.getThemeByPath(ui.themes, value) then
       ui.config[key] = "nil"
+      -- A theme no longer installed is dropped here, not by the pilot: it is no edit of the model
+      -- half, so Save does not count it as one (modelHalfEdited).
+      local held = ui.modelHeld
+      if held and held[key] == value then held[key] = "nil" end
     end
   end
 end

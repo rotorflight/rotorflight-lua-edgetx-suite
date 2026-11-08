@@ -20,7 +20,7 @@ local function caseArg()
 end
 
 local CASES = { "nolink", "link", "pagefirst", "themesave", "linkdrop", "offlinesave", "savebeforeread", "otherfc",
-  "compile", "movefailed", "restart", "both" }
+  "removedtheme", "compile", "movefailed", "restart", "both" }
 
 local function quote(text)
   return "'" .. string.gsub(text, "'", "'\\''") .. "'"
@@ -189,7 +189,8 @@ end
 Home.init({})
 local Precompile = find(Home.run, "Precompile")
 
-local PAGE_CASES = { themesave = true, linkdrop = true, offlinesave = true, savebeforeread = true, otherfc = true }
+local PAGE_CASES = { themesave = true, linkdrop = true, offlinesave = true, savebeforeread = true, otherfc = true,
+  removedtheme = true }
 if case == "nolink" or case == "link" or case == "pagefirst" or PAGE_CASES[case] then
   expect(state.initialLoad == false, "the start screen still stands after init with nothing to compile")
   expect(builds >= 1, "init built nothing (control)")
@@ -258,6 +259,21 @@ if case == "link" then
   expect(state.fblConnected == false, "the tool did not see the flight controller go (control)")
   expect(builds == before and active(setup) == false and covered(setup),
     "the Setup tile did not grey out in place when the flight controller went")
+  -- Opened from the dashboard a pass can be stopped at the instruction limit in the middle of the
+  -- change: the next pass has to finish it, although the change itself is not seen again.
+  local realGroups = state.menu.getRootGroups
+  state.menu.getRootGroups = function()
+    state.menu.getRootGroups = realGroups
+    error("instruction limit (simulated)")
+  end
+  MspRuntime.isFblConnected = function() return true end
+  local stopped = not pcall(runFor, 1)
+  expect(stopped, "the simulated stop did not happen (instrument)")
+  state.menu.getRootGroups = realGroups
+  runFor(2)
+  expect(state.fblConnected == true, "the tool did not see the flight controller answer after the stop (control)")
+  expect(active(setup) == true and not covered(setup),
+    "a change stopped at the instruction limit left the Setup tile greyed out")
   -- A build of anything else drops the record of the tiles, so a later change draws the menu.
   state.helpContent = "help"
   state.helpPageTitle = "Help"
@@ -407,6 +423,36 @@ if PAGE_CASES[case] then
     local dashA = fileOf(MCU)
     expect(dashA.written_by_save == nil and dashA.model_theme_preflight == own,
       "the first model's file changed although its flight controller was gone")
+  end
+
+  if case == "removedtheme" then
+    -- The model's file names a theme that is no longer installed; the page drops it to "nil" when it
+    -- draws. That is not the pilot's edit: a Save with the link gone must not report the model's
+    -- settings as not saved.
+    local pageUi = pageState()
+    local MCU_C = "00112233aabbccdd"
+    local seededC = MP.loadByMcuId(MCU_C, true) or {}
+    seededC.dashboard = { overrides = true, model_override = true, model_theme_preflight = "system/no_such_theme" }
+    expect(MP.saveByMcuId(MCU_C, seededC) ~= false, "the model's file could not be written (instrument)")
+    -- Another flight controller is identified, so the page reads its model half and draws it.
+    session.mcu_id = nil
+    session.modelPreferences = nil
+    runFor(3)
+    session.mcu_id = MCU_C
+    session.modelPreferences = MP.loadByMcuId(MCU_C, true)
+    runFor(5)
+    expect(pageUi ~= nil and pageUi.config.model_theme_preflight == "nil",
+      "the page did not drop the missing theme (control): " .. tostring(pageUi and pageUi.config.model_theme_preflight))
+    session.mcu_id = nil
+    session.modelPreferences = nil
+    runFor(5)
+    state.saveOutcome = nil
+    if pressSave then pressSave() end
+    runFor(10)
+    local message = state.saveOutcome and tostring(state.saveOutcome.message) or ""
+    expect(string.find(message, "Connect the flight controller", 1, true) == nil,
+      "a theme the page dropped by itself was reported as an unsaved model edit: " .. message)
+    expect(pageUi ~= nil and pageUi.dirty == false, "the page stayed unsaved after a Save with nothing edited")
   end
 
   if case == "offlinesave" then

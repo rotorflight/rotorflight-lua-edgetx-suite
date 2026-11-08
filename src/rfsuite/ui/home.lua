@@ -1542,14 +1542,33 @@ local function refreshRootTilesInPlace()
   return true
 end
 
+-- Applies a change of the menu conditions to the root menu: in place where it can, otherwise by a
+-- build. Marked as owed before the conditions are touched (by the caller) and cleared only once it
+-- is through, because opened from the dashboard a pass can be stopped at the widget's instruction
+-- limit anywhere in between, and the change that started it is not seen again on the next pass.
+local function applyRootConditionChange()
+  if refreshRootTilesInPlace() then
+    logf("debug", "root menu: tiles changed in place, no build")
+  else
+    scheduleBuildUI(false)
+  end
+  state.rootRefreshOwed = false
+end
+
 local function updateRuntimeMenuConditions()
   if not state.menu then return end
 
   local root = _G and _G.rfsuite
   local session = root and root.session
 
+  if state.rootRefreshOwed then
+    logf("debug", "root menu: a stopped condition change is applied again")
+    applyRootConditionChange()
+  end
+
   local nextFblConnected = readFblConnected()
   if state.fblConnected ~= nextFblConnected then
+    state.rootRefreshOwed = true
     state.fblConnected = nextFblConnected
     state.menu.setCondition("fblConnected", nextFblConnected)
     -- Once per change: the tiles that need the flight controller enable or grey out with it.
@@ -1560,11 +1579,7 @@ local function updateRuntimeMenuConditions()
         session.esc4WayDetectedProto = nil
       end
     end
-    if refreshRootTilesInPlace() then
-      logf("debug", "root menu: tiles changed in place, no build")
-    else
-      scheduleBuildUI(false)
-    end
+    applyRootConditionChange()
   end
 
   local wasRfConnected = state.rfConnected == true
@@ -1648,6 +1663,7 @@ local function updateRuntimeMenuConditions()
   local applied = proto or false
   if state.menu._escProtoApplied == applied then return end
   local initialVersion = state.menu._conditionsVersion
+  state.rootRefreshOwed = true
   for _, p in ipairs(ESC_PROTOCOLS) do
     local isEnabled = false
     if proto ~= nil then
@@ -1659,8 +1675,9 @@ local function updateRuntimeMenuConditions()
   -- for the same telemetry. BLHeli_S and Bluejay stay on 1 alone: 16 names an AM32 ESC.
   state.menu.setCondition("escProtoAm32", proto == 1 or proto == 16)
   if state.menu._conditionsVersion ~= initialVersion then
-    if not refreshRootTilesInPlace() then scheduleBuildUI(false) end
+    applyRootConditionChange()
   end
+  state.rootRefreshOwed = false
   logf("trace", "escProto conditions set for protocol %s", tostring(proto))
   state.menu._escProtoApplied = applied
 end
@@ -3575,6 +3592,8 @@ function M.init(opts)
   state.precompileTotal = 0
   state.precompileShownAt = nil
   state.compileHeldConnect = false
+  state.rootDrawn = nil
+  state.rootRefreshOwed = false
   ensureVersion()
   logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader

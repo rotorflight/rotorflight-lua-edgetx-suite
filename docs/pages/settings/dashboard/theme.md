@@ -66,7 +66,8 @@ The model's own theme settings are edited under
   moment keeps the values on the page; with no flight controller identified at the moment of the
   save, only the radio's file is written. If the model's values were changed on the page, such a
   save reports *Save failed* with *Connect the flight controller to save this model's settings*,
-  and the page counts as unsaved until they are written. The page reports *Saved* when every file it wrote was
+  and the page counts as unsaved until they are written. That holds while the page stays open: a
+  link lost for longer takes the tool back to its menu, and the change goes with the page. The page reports *Saved* when every file it wrote was
   written, and otherwise *Save failed* with the reason: *the settings file could not be written to
   the SD card* where the card refused a file.
 - **The post-flight screen keeps the model's theme after the battery is unplugged.** A model with
