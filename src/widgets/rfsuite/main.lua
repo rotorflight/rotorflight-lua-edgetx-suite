@@ -125,9 +125,33 @@ local function letGoWhileBackedOff(widget)
   if type(release) == "function" then pcall(release) end
 end
 
+-- EdgeTX stops every widget's refresh while a tool window is open, so a refresh after a pause is the
+-- first moment after the suite's tool may have ended without putting the radio's theme colours back
+-- (an exhausted memory, an error in its finaliser). The marker it leaves is read then, on the pass
+-- after the pause is seen, and never during the pause: the tool's own background work may still run
+-- (lib/theme_slots.lua, recover).
+local REFRESH_PAUSE_S = 2
+local function recoverThemeSlots()
+  local root = _G.rfsuite
+  if not (root and type(root.require) == "function") then return end
+  local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
+  if ok and type(ThemeSlots) == "table" and type(ThemeSlots.recover) == "function" then
+    pcall(ThemeSlots.recover)
+  end
+end
+
 local function refresh(widget, event, touchState)
   if widget and widget.refresh then
     local now = nowSeconds()
+    if widget._themeRecoverOwed then
+      widget._themeRecoverOwed = nil
+      recoverThemeSlots()
+    end
+    local last = widget._lastRefreshAt
+    widget._lastRefreshAt = now
+    if last == nil or now - last > REFRESH_PAUSE_S then
+      widget._themeRecoverOwed = true
+    end
     local backoffUntil = tonumber(widget._cpuBackoffUntil) or 0
     if backoffUntil > 0 and now < backoffUntil then
       letGoWhileBackedOff(widget)
