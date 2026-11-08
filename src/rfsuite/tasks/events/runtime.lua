@@ -72,6 +72,11 @@ local state = {
   -- The link is back after such a loss, and whether the craft is still flying is not known yet:
   -- the time it came back, until settleFlightAfterGap decides.
   flightPendingSince = nil,
+  -- The widget is running telemetry_bg's armed-state-only pass because the connect tasks hold the
+  -- full one back. Kept only to log the change of pass once rather than on every wakeup.
+  armingFlagsOnly = false,
+  -- The connect-time pass has published the armed state since it began; logged once per connect.
+  armedSourceSeen = false,
 }
 
 -- The argument a runner's wakeup is called with. One table for every call rather than a
@@ -545,8 +550,12 @@ function Events.wakeup(carry)
     -- refusal is reported by the tool's notice and the dashboard's status line instead.
     local refused = mspState.unsupportedApi == true
 
+    -- The connect tasks wait until the MSP runtime knows this link's armed state (see armedKnown in
+    -- tasks/msp/runtime.lua): a craft armed before the link came up must get no connect read either.
+    local armedKnown = not mspState or mspState.armedKnown ~= false
+
     local onconnectActive = false
-    if state.linkStableUp and not armed and not refused then
+    if state.linkStableUp and not armed and not refused and armedKnown then
       local onconnect = ensureEventRunner("onconnect")
       if onconnect then
         local wasActive = false
@@ -590,17 +599,52 @@ function Events.wakeup(carry)
     -- script sets luaState = INTERPRETER_PAUSED ("Pause function and mixer scripts"), and
     -- interface.cpp runs nothing in that state -- so SCRIPTS/FUNCTIONS/rfsbg.lua, which decodes
     -- the same custom telemetry frames for the rest of the radio, is stopped for as long as the
-    -- tool is open. This drain is then the only decoder there is, and while it is deferred the
-    -- tool publishes no sensor from frame 0x88 at all. The one that costs something is ARM:
-    -- tasks/msp/runtime.lua reads the armed state off that sensor and empties the MSP queue on
-    -- it, so with the drain deferred the gate cannot fire for the whole connect sequence and the
-    -- sequence keeps sending -- including MSP_SET_RTC -- to a flight controller that has armed.
-    if state.linkStableUp and (not onconnectActive or armed or context == "tool") then
+    -- tool is open. This drain is then the only decoder there is, and the tool runs it in full.
+    --
+    -- A widget is in the same position whenever that function script is not running, and what
+    -- the deferral must not hold back there is ARM: tasks/msp/runtime.lua reads the armed state
+    -- off that sensor and empties the MSP queue on it, so with nothing decoding it the gate cannot
+    -- fire for as long as the connect tasks wait -- and a task waiting on an unanswered read waits
+    -- 25 s, three times over. So while the deferral holds, the widget runs a pass that takes the
+    -- frames off the wire and publishes the armed state alone (telemetry_bg/tasks.lua,
+    -- wakeupConnecting): the decode of every other sensor, SmartFuel and the adjustment teller
+    -- still wait for the connect to finish. When the function script is running, that pass stands
+    -- aside for it like the full one does. The same pass runs while the link waits for its armed
+    -- state before the connect starts (`armedKnown`): it publishes that state in fewer load steps
+    -- than the full pass would.
+    if state.linkStableUp and ((not onconnectActive and armedKnown) or armed or context == "tool") then
+      if state.armingFlagsOnly then
+        state.armingFlagsOnly = false
+        if Log and type(Log.emit) == "function" then
+          pcall(Log.emit, "rfsuite.events", "custom telemetry: full decode resumes", "debug")
+        end
+      end
       local telemetry_bg = ensureEventRunner("telemetry_bg")
       if telemetry_bg and type(telemetry_bg.wakeup) == "function" then
         local ok, err = pcall(telemetry_bg.wakeup, carry)
         if not ok and Log and type(Log.emit) == "function" then
           pcall(Log.emit, "rfsuite.events", "telemetry_bg.wakeup error: " .. tostring(err), "error")
+        end
+      end
+    elseif state.linkStableUp then
+      if not state.armingFlagsOnly then
+        state.armingFlagsOnly = true
+        state.armedSourceSeen = false
+        if Log and type(Log.emit) == "function" then
+          pcall(Log.emit, "rfsuite.events", "custom telemetry: armed state only while the connect tasks run", "debug")
+        end
+      end
+      local telemetry_bg = ensureEventRunner("telemetry_bg")
+      if telemetry_bg and type(telemetry_bg.wakeupConnecting) == "function" then
+        local ok, published = pcall(telemetry_bg.wakeupConnecting)
+        if not ok and Log and type(Log.emit) == "function" then
+          pcall(Log.emit, "rfsuite.events", "telemetry_bg.wakeupConnecting error: " .. tostring(published), "error")
+        elseif published and not state.armedSourceSeen then
+          -- Once per connect: the moment the armed state first reached the radio from this pass.
+          state.armedSourceSeen = true
+          if Log and type(Log.emit) == "function" then
+            pcall(Log.emit, "rfsuite.events", "custom telemetry: armed state published from " .. tostring(published), "debug")
+          end
         end
       end
     end
