@@ -49,7 +49,7 @@ local applied = nil
 local appliedScheme = nil
 -- The finaliser's table, anchored here so that only the end of the Lua state collects it; `armed`
 -- is what it reads, so a restore() already done leaves it nothing to do.
-local guard = nil
+local guard = nil -- luacheck: ignore (held, never read: it only has to stay reachable)
 local guardState = nil
 
 local function log(level, fmt, ...)

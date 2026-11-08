@@ -112,6 +112,7 @@ check(not exists(MARKER), "restore drops the marker")
 check(T.restore("again") == false, "a second restore does nothing")
 check(T.current() == nil, "current is nil after restore")
 
+-- luacheck: ignore T (dropped on purpose, so the collector can reach the finaliser)
 -- 3. The finaliser: a state that ends without restore() puts the radio's colours back.
 T.apply("dark")
 check(not radioColours(), "the slots carry the scheme before the state ends")

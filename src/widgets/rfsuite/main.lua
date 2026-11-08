@@ -131,12 +131,19 @@ end
 -- after the pause is seen, and never during the pause: the tool's own background work may still run
 -- (lib/theme_slots.lua, recover).
 local REFRESH_PAUSE_S = 2
+-- Only a marker on the card loads the module, and it is let go again unless this state has written the
+-- slots itself (the tool hosted in the dashboard), so a pause costs one fstat and keeps nothing.
 local function recoverThemeSlots()
   local root = _G.rfsuite
-  if not (root and type(root.require) == "function") then return end
+  local user = root and root.paths and root.paths.user
+  if not (type(user) == "string" and type(fstat) == "function" and type(root.require) == "function") then return end
+  if fstat(user .. "/theme_slots.txt") == nil then return end
   local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
   if ok and type(ThemeSlots) == "table" and type(ThemeSlots.recover) == "function" then
     pcall(ThemeSlots.recover)
+    if ThemeSlots.current() == nil and type(root.clearModule) == "function" then
+      root.clearModule("lib/theme_slots.lua")
+    end
   end
 end
 
