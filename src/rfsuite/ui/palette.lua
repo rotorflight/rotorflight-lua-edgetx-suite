@@ -37,6 +37,10 @@ local ROLES = {
 
 local palette = {}
 
+-- file -> the file drawn for it in the current scheme. A menu asks for the same pictures on every build,
+-- so each is worked out once per scheme; apply() empties it.
+local iconCache = {}
+
 -- The scheme name the roles carry.
 palette.scheme = nil
 
@@ -59,6 +63,7 @@ function palette.apply(name)
     palette[ROLES[i][1]] = colors[ROLES[i][2]]
   end
   palette.scheme = scheme
+  iconCache = {}
   return scheme
 end
 
@@ -75,17 +80,22 @@ local ICON_SETS = {
 --- The tile icon to draw for `file` in the current scheme. A picture from anywhere else -- a pilot's
 --- own dashboard theme -- is drawn as it is.
 function palette.iconPath(file)
+  local hit = iconCache[file]
+  if hit then return hit end
   local root = _G.rfsuite
   local core = root and root.paths and root.paths.core
   if type(file) ~= "string" or type(core) ~= "string" or palette.scheme == nil then return file end
+  local result = file
   for i = 1, #ICON_SETS do
     local from = core .. ICON_SETS[i][1]
     if string.sub(file, 1, #from) == from then
       local joined = string.gsub(string.sub(file, #from + 1), "/", "_")
-      return core .. ICON_SETS[i][2] .. palette.scheme .. "/" .. joined
+      result = core .. ICON_SETS[i][2] .. palette.scheme .. "/" .. joined
+      break
     end
   end
-  return file
+  iconCache[file] = result
+  return result
 end
 
 -- `floating` keeps an object in place while its parent scrolls, and out of a flex layout. EdgeTX
