@@ -49,6 +49,10 @@ function M.wakeup()
     end
     session.modelPreferencesResolved = true
     done = true
+    local Log = _G.rfsuite and _G.rfsuite.Log
+    if type(Log) == "table" and type(Log.emit) == "function" then
+      pcall(Log.emit, "rfsuite.tasks.onconnect", "model preferences: " .. tostring(session.modelPreferencesFile or "none"), "info")
+    end
     return
   end
 

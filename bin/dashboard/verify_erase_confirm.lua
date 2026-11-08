@@ -80,7 +80,14 @@ _G.lcd = {
 -- checked; stubbed where the radio or the card would answer.
 local cache = {}
 local STUBS = {
-  ["lib/log.lua"] = function() return nil end,
+  ["lib/log.lua"] = function()
+    return {
+      emit = function(_, msg)
+        _G.rfsuite.logged = _G.rfsuite.logged or {}
+        _G.rfsuite.logged[msg] = true
+      end,
+    }
+  end,
   ["tasks/msp/runtime.lua"] = function()
     return { getState = function() return { queue = QUEUE } end }
   end,
@@ -491,6 +498,11 @@ local failures, passes = runChecks(Menu, false)
 if #failures > 0 then
   for _, f in ipairs(failures) do print("FAIL: " .. f.case .. ": " .. f.detail) end
   print(string.format("%d case(s) failed, %d passed", #failures, passes))
+  os.exit(1)
+end
+-- An erase that was queued says so in the log: the row writes to the flight controller.
+if not (_G.rfsuite.logged and _G.rfsuite.logged["blackbox erase queued"]) then
+  print("FAIL: an erase that was queued is not in the log")
   os.exit(1)
 end
 print(string.format("%d cases, 0 failures", passes))
