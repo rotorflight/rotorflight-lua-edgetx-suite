@@ -1665,9 +1665,13 @@ local function updateRuntimeMenuConditions()
   -- set again only when the protocol differs from the one this menu was last given (`false`
   -- stands for none). This runs on every pass of every page. The mark is written last, so a pass
   -- stopped part-way (the CPU limit) leaves it unwritten and the next pass sets them all again.
+  -- The old mark is dropped before the first condition is touched: a pass stopped part-way and a
+  -- protocol that goes back to the one last applied would otherwise match the old mark and leave
+  -- the conditions half set.
   local proto = session and session.esc4WayDetectedProto
   local applied = proto or false
   if state.menu._escProtoApplied == applied then return end
+  state.menu._escProtoApplied = nil
   local initialVersion = state.menu._conditionsVersion
   state.rootRefreshOwed = true
   for _, p in ipairs(ESC_PROTOCOLS) do

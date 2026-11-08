@@ -347,6 +347,28 @@ if case == "link" then
   expect(registry.isRootEntryEnabled("configuration", "setup") == true and active(setup) == true
     and state.fblConnected == true,
     "a change stopped inside the registry's setter left the Setup tile greyed out")
+  -- The ESC protocol conditions: a pass stopped part-way through them, and a protocol that goes
+  -- back to the one applied before, must still end with the conditions set for it.
+  local session = _G.rfsuite.session
+  session.esc4WayDetectedProto = 1
+  runFor(2)
+  expect(state.menu.conditions.escProto1 == true, "protocol 1 did not set its condition (control)")
+  session.esc4WayDetectedProto = nil
+  local escSet = state.menu.setCondition
+  state.menu.setCondition = function(key, value)
+    escSet(key, value)
+    if key == "escProto3" then
+      state.menu.setCondition = escSet
+      error("instruction limit (simulated)")
+    end
+  end
+  stopped = not pcall(runFor, 1)
+  state.menu.setCondition = escSet
+  expect(stopped and state.menu.conditions.escProto1 == false, "the simulated stop in the ESC conditions did not happen (instrument)")
+  session.esc4WayDetectedProto = 1
+  runFor(2)
+  expect(state.menu.conditions.escProto1 == true,
+    "a stopped pass and a protocol back to the one applied before left its condition off")
   -- A build of anything else drops the record of the tiles, so a later change draws the menu.
   state.helpContent = "help"
   state.helpPageTitle = "Help"
