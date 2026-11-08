@@ -252,6 +252,8 @@ These run on the same hosts but are not part of `tasks/events/`:
   [Audio announcements](audio-announcements.md).
 - **The card log** (`lib/log_sink.lua`) is flushed from the widgets, the tool and the background
   function script.
+- **What these tasks log**, at which level and under which tag, is in
+  [Collecting logs](../troubleshooting/collecting-logs.md#reading-a-dashboard-log).
 
 ## Related
 
