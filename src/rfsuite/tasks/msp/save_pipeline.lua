@@ -131,8 +131,9 @@ local Log = nil
 local Armed = nil
 local StatusApi = nil
 
--- How old the flight controller's own "disarmed" may be when the restart's reboot is sent. The
--- reboot is queued from the reply that carries it, so this only has to cover one queue pass.
+-- How old the flight controller's own "disarmed" may be when the restart's reboot is sent, counted
+-- from the MSP_STATUS request's send. The reboot is queued from the reply that carries it, so this
+-- has to cover one round trip and one queue pass.
 local DISARMED_EVIDENCE_SECONDS = 2
 
 local function ensureDeps()
@@ -274,6 +275,8 @@ local function finish(status, extra)
     -- This run was the restart offered after such a failure, not a save.
     restart = S.run.restart == true,
     pageId = S.run.desc and S.run.desc.pageId or nil,
+    -- The board the run wrote to (MSP_UID's MCU id at the start), nil if none had identified itself.
+    mcuId = S.run.mcuId,
     -- Whoever asked for the save is not necessarily looking any more. A caller that reports its
     -- outcome in a dialog uses this to stay quiet and let takeResult() report on re-entry
     -- instead, so a message about one page cannot appear on top of another.
@@ -328,6 +331,21 @@ local function fail(step)
   finish("failed", { step = step })
 end
 
+--- Drop the queued messages of a run that ended on a backstop (timedOut). Kept owed in the shared
+-- state until the queue has done it: an instruction-limit stop is raised on, as everywhere in this
+-- file, and the drop is done again on the next call instead of being lost.
+local function dropOwedMessages()
+  local client = S.owedClear
+  if not client then return end
+  local queue = getQueue()
+  if queue and type(queue.clear) == "function" then
+    logf("debug", "timeout: dropping the ended run's queued messages client=%s", tostring(client))
+    local ok, err = pcall(queue.clear, queue, client)
+    if not ok and isCpuLimitError(err) then error(err, 0) end
+  end
+  S.owedClear = nil
+end
+
 local function timedOut(phase)
   -- The backstop can end a write step before the queue has given its message up. A write that was
   -- already sent then counts as reached here, because its own give-up will find no current run.
@@ -338,14 +356,12 @@ local function timedOut(phase)
   -- A run that ends on a backstop leaves its own messages on the queue. Sent later, they would
   -- still act on the board: a queued EEPROM write would store what the notice calls not saved,
   -- a queued reboot would restart a board long after the pilot moved on. They are dropped once
-  -- the run has ended, so their handlers find no current run and change nothing.
-  local client = S.run and S.run.client
+  -- the run has ended, so their handlers find no current run and change nothing. The drop is
+  -- owed from before the run ends: an instruction-limit stop in either leaves it owed, and the next
+  -- wakeup -- or the next run, before it queues anything -- does it (dropOwedMessages).
+  if S.run and S.run.client then S.owedClear = S.run.client end
   finish("timeout", { phase = phase })
-  local queue = getQueue()
-  if client and queue and type(queue.clear) == "function" then
-    logf("debug", "timeout: dropping the ended run's queued messages client=%s", tostring(client))
-    pcall(queue.clear, queue, client)
-  end
+  dropOwedMessages()
 end
 
 --- Enter a phase and restart its backstop.
@@ -427,13 +443,30 @@ probeOnce = function(onValue)
   })
 end
 
---- May the restart offered after a failed save reach the board now? A link that answers, and a
--- craft read neither as armed nor of unknown arming state. lib/armed.lua is asked as the screens
--- ask it, through the shared instance when there is one: it keeps "last read armed", which a fresh
--- copy would not have. Returns the answer and a short reason for the log.
-local function restartAllowed()
+--- The board on the link now, by the MCU id it answered MSP_UID with (tasks/msp/runtime.lua keeps it
+-- in its values and drops it when the link goes). nil while no board has identified itself.
+local function boardId()
+  local _, mspState = getQueue()
+  local values = mspState and mspState.values
+  local id = type(values) == "table" and values.mcuId or nil
+  if id == nil or id == "" then return nil end
+  return tostring(id)
+end
+
+--- Is the board on the link the one a save wrote to? Both ids known and equal; anything else is no.
+local function sameBoard(id)
+  local now = boardId()
+  return id ~= nil and now ~= nil and now == id
+end
+
+--- May the restart offered after a failed save reach the board now? A link that answers, the board
+-- the save wrote to, and a craft read neither as armed nor of unknown arming state. lib/armed.lua is
+-- asked as the screens ask it, through the shared instance when there is one: it keeps "last read
+-- armed", which a fresh copy would not have. Returns the answer and a short reason for the log.
+local function restartAllowed(run)
   local _, mspState = getQueue()
   if not mspState or mspState.lastConnected ~= true then return false, "no_link" end
+  if not sameBoard(run and run.mcuId) then return false, "other_board" end
   if mspState.lastArmed == true then return false, "armed" end
   -- Fail closed: without the module that answers the arming question there is no restart. A
   -- failed load is not remembered, so the next ask tries again.
@@ -455,6 +488,10 @@ end
 -- on the radio can hold a stale 0; this answer is current. onResult(true) only for a reply that
 -- proves disarmed, in the layout app/pages/setup/accelerometer/calibration.lua reads too: at least
 -- 21 bytes, and no extra flight-mode flag bytes before the flags it parses.
+-- The answer is dated by the request's send, not by the reply's arrival: the board cannot have
+-- sampled its state before it was asked, and a reply read late -- a pass stopped by the instruction
+-- limit, a slow link -- is as old as the request. Sent once, so the reply answers that one send;
+-- a request the queue never sent (no `__sentAt`) proves nothing.
 local function readFcDisarmed(onResult)
   local queue = getQueue()
   if not StatusApi then StatusApi = loadModule("tasks/msp/api/status.lua") end
@@ -467,8 +504,14 @@ local function readFcDisarmed(onResult)
     command = StatusApi.command,
     payload = {},
     client = run.client,
-    processReply = function(_, buf)
+    maxRetries = 0,
+    processReply = function(given, buf)
       if not isCurrent(run) then return end
+      local askedAt = type(given) == "table" and tonumber(given.__sentAt) or nil
+      if not askedAt then
+        onResult(false, "status_unsent")
+        return
+      end
       if type(buf) ~= "table" or #buf < 21 or buf[16] ~= 0 then
         onResult(false, "status_layout")
         return
@@ -482,7 +525,7 @@ local function readFcDisarmed(onResult)
         onResult(false, "fc_armed")
         return
       end
-      onResult(true)
+      onResult(true, nil, askedAt)
     end,
     errorHandler = function()
       if not isCurrent(run) then return end
@@ -515,7 +558,7 @@ local function queueReboot()
     -- queued: the firmware takes MSP_REBOOT over telemetry without looking at the arming state.
     -- A withheld reboot ends the run through the errorHandler below.
     sendIf = run.restart == true and function()
-      local allowed, why = restartAllowed()
+      local allowed, why = restartAllowed(run)
       if allowed and not (run.fcDisarmedAt and (nowSeconds() - run.fcDisarmedAt) <= DISARMED_EVIDENCE_SECONDS) then
         allowed, why = false, "fc_evidence_old"
       end
@@ -549,21 +592,22 @@ local function startReboot()
     -- The restart offered after a failed save is checked again here, a round trip after the
     -- press: no reboot is queued into a link that went down, or for a craft that armed since.
     if S.run.restart then
-      local allowed, why = restartAllowed()
+      local allowed, why = restartAllowed(S.run)
       if not allowed then
         logf("warn", "restart abandoned before the reboot reason=%s", tostring(why))
         fail("reboot")
         return
       end
       -- The flight controller's own answer, last: the radio's arming sensor can be stale.
-      readFcDisarmed(function(disarmed, reason)
+      readFcDisarmed(function(disarmed, reason, askedAt)
         if not S.run then return end
         if not disarmed then
           logf("warn", "restart abandoned before the reboot reason=%s", tostring(reason))
           fail("reboot")
           return
         end
-        S.run.fcDisarmedAt = nowSeconds()
+        -- Dated by the request (readFcDisarmed); the reboot's sendIf measures the 2 s from here.
+        S.run.fcDisarmedAt = askedAt
         queueReboot()
       end)
       return
@@ -704,6 +748,8 @@ function M.start(desc)
     logf("warn", "refused reason=msp_queue_unavailable page=%s", tostring(desc.pageId))
     return false, "msp_queue_unavailable"
   end
+  -- An ended run's drop still owed goes first: the client name may be this save's own.
+  dropOwedMessages()
 
   -- While the model is armed the firmware only marks the configuration dirty and answers the
   -- EEPROM write with an error, so a save started here would report a failure the pilot cannot
@@ -740,6 +786,8 @@ function M.start(desc)
     saved = false,
     dismissed = false,
     stepIndex = 0,
+    -- The board the writes go to; a restart offered after this save fails reaches only that one.
+    mcuId = boardId(),
   }
   S.pending[desc.pageId or ""] = nil
   S.outcome = nil
@@ -761,13 +809,16 @@ function M.offersRestart(result)
     and result.saved ~= true and result.sentAny == true
 end
 
---- Can a restart be sent right now? A link that answers and a craft not read as armed -- the
--- pipeline's own half of the check; the screen adds the arming sensor's uncertain state.
+--- Can a restart be sent right now? A link that answers, the board the failed save wrote to, and a
+-- craft not read as armed -- the pipeline's own half of the check; the screen adds the arming
+-- sensor's uncertain state.
 function M.restartPossible()
   if not ensureDeps() then return false end
   local queue, mspState = getQueue()
+  local result = S.outcome and S.outcome.result or nil
   return queue ~= nil and mspState ~= nil and mspState.lastConnected == true
     and mspState.lastArmed ~= true
+    and sameBoard(type(result) == "table" and result.mcuId or nil)
 end
 
 --- The restart offered after such a failure: MSP_REBOOT, then the same wait for the board that a
@@ -792,6 +843,7 @@ function M.restartAfterFailure()
     logf("warn", "restart refused reason=msp_queue_unavailable")
     return false, "msp_queue_unavailable"
   end
+  dropOwedMessages()
   -- The same refusal start() makes: a board that is armed is not restarted from here.
   if mspState and mspState.lastArmed == true then
     logf("warn", "restart refused reason=armed")
@@ -801,6 +853,12 @@ function M.restartAfterFailure()
   if not mspState or mspState.lastConnected ~= true then
     logf("warn", "restart refused reason=no_link")
     return false, "no_link"
+  end
+  -- Only the board the failed save wrote to: another one connected since runs nothing unsaved of
+  -- this save. An id that is not known on either side refuses as well.
+  if not sameBoard(result.mcuId) then
+    logf("warn", "restart refused reason=other_board")
+    return false, "other_board"
   end
 
   local pageId = result.pageId
@@ -812,6 +870,7 @@ function M.restartAfterFailure()
     saved = false,
     dismissed = false,
     stepIndex = 0,
+    mcuId = result.mcuId,
   }
   S.outcome = nil
   changed()
@@ -827,6 +886,10 @@ function M.wakeup()
   if S.outcome and S.outcome.clearAt and nowSeconds() >= S.outcome.clearAt then
     S.outcome = nil
     changed()
+  end
+  if S.owedClear then
+    ensureDeps()
+    dropOwedMessages()
   end
   if not S.run then return end
   -- The run state is shared and the module handles above are NOT: they are upvalues of THIS
@@ -1052,6 +1115,7 @@ end
 
 function M.reset()
   S.run = nil
+  S.owedClear = nil
   S.pending = {}
   S.outcome = nil
   changed()

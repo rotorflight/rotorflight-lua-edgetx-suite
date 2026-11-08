@@ -562,7 +562,10 @@ local function driveLeftSave()
   if type(shared) ~= "table" then return end
   -- A successful outcome that clears itself is driven too: left standing, it would be drawn by the
   -- tool's first build at its next open, before the tool's own wakeup could clear it.
-  if shared.run == nil and not (type(shared.outcome) == "table" and shared.outcome.clearAt) then
+  -- So is an ended run whose queued messages are still owed a drop (a backstop's cleanup that the
+  -- instruction limit stopped): this widget's MSP tick would otherwise send them.
+  if shared.run == nil and shared.owedClear == nil
+    and not (type(shared.outcome) == "table" and shared.outcome.clearAt) then
     return
   end
   if not SavePipeline then

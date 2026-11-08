@@ -27,7 +27,7 @@ function queue:clear(client)
     end
   end
 end
-local mspState = { queue = queue, lastArmed = false, lastConnected = true }
+local mspState = { queue = queue, lastArmed = false, lastConnected = true, values = { mcuId = "board-a" } }
 local onconnectActive = false
 local armedNow, armedUnknown = false, false
 
@@ -81,7 +81,7 @@ end
 local function preflight(statusArmed)
   ack(queue.entries[#queue.entries], { 1 })
   local e = queue.entries[#queue.entries]
-  if e.command == CMD.status then ack(e, statusReply(statusArmed)) end
+  if e.command == CMD.status then e.__sentAt = clock / 100; ack(e, statusReply(statusArmed)) end
 end
 -- The queue's give-up after its retries with no answer at all: the message was sent.
 local function silent(entry) entry.done = true; entry.__sentAt = clock / 100; entry.errorHandler(entry, "max_retries") end
@@ -92,6 +92,7 @@ local function begin(reboot)
   queue.entries = {}
   mspState.lastArmed = false
   mspState.lastConnected = true
+  mspState.values = { mcuId = "board-a" }
   armedNow, armedUnknown = false, false
   onconnectActive = false
   clock = 0
@@ -506,6 +507,120 @@ equal(reboot28.command, CMD.reboot, "fc evidence: reboot queued on a fresh disar
 equal(reboot28.sendIf(reboot28), true, "fc evidence: fresh, the send is allowed")
 clock = clock + 300
 equal(reboot28.sendIf(reboot28), false, "fc evidence: 3 s old, the send is withheld")
+
+-- 29. The disarmed answer is dated by the request's send, not by the reply's arrival: a reply read
+-- 3 s after its request was sent (a pass stopped by the instruction limit, a slow link) is old.
+begin()
+ack(last()); refuse(last())
+Pipeline.restartAfterFailure()
+ack(last(), { 1 })                              -- the clock-flag pre-flight
+local status29 = last()
+equal(status29.command, CMD.status, "late status reply: MSP_STATUS asked")
+equal(status29.maxRetries, 0, "late status reply: asked once, so the reply answers that one send")
+status29.__sentAt = clock / 100
+clock = clock + 300
+ack(status29, statusReply(false))
+local reboot29 = last()
+local allowed29 = reboot29.command == CMD.reboot and reboot29.sendIf(reboot29) or false
+equal(allowed29, false, "late status reply: the reboot is not sent on a 3 s old answer")
+-- A status request the queue never sent proves nothing.
+begin()
+ack(last()); refuse(last())
+Pipeline.restartAfterFailure()
+ack(last(), { 1 })
+ack(last(), statusReply(false))                 -- no __sentAt
+equal(countCommand(CMD.reboot), 0, "status reply without a send: no reboot queued")
+
+-- 30. The restart reaches only the board the failed save wrote to.
+begin()
+ack(last()); refuse(last())
+equal(select(2, outcome()).mcuId, "board-a", "board: the outcome names the board written to")
+mspState.values = { mcuId = "board-b" }
+equal(Pipeline.restartPossible(), false, "board: another board on the link, restartPossible false")
+ok, why = Pipeline.restartAfterFailure()
+equal(ok, false, "board: another board, restart refused")
+equal(why, "other_board", "board: refusal reason")
+mspState.values = { mcuId = nil }
+equal(Pipeline.restartPossible(), false, "board: no board identified yet, restartPossible false")
+equal(select(2, Pipeline.restartAfterFailure()), "other_board", "board: not identified, refused")
+mspState.values = { mcuId = "board-a" }
+equal(Pipeline.restartPossible(), true, "board: the same board again, restartPossible (control)")
+-- The board changes between the press and the reboot's send: withheld.
+equal(Pipeline.restartAfterFailure(), true, "board: restart started on the same board")
+preflight()
+local reboot30 = last()
+equal(reboot30.command, CMD.reboot, "board: reboot queued")
+mspState.values = { mcuId = "board-b" }
+equal(reboot30.sendIf(reboot30), false, "board: another board at the send, withheld")
+-- A save started before any board identified itself offers no restart that could reach one.
+Pipeline.reset()
+queue.entries = {}
+mspState.values = { mcuId = nil }
+Pipeline.start({ pageId = "test_page", steps = {
+  { label = "W1", command = CMD.write1, payload = { 1 } },
+  { label = "W2", command = CMD.write2, payload = { 2 } } } })
+ack(last()); refuse(last())
+mspState.values = { mcuId = "board-a" }
+equal(Pipeline.restartPossible(), false, "board: save without a known board, restartPossible false")
+equal(select(2, Pipeline.restartAfterFailure()), "other_board", "board: save without a known board, refused")
+
+-- 31. The backstop's drop of the ended run's messages is stopped by the instruction limit: it stays
+-- owed, and the next wakeup (or the next run, before it queues anything) does it.
+begin()
+ack(last())
+local write31 = last()                          -- the second write, never answered
+local realClear = queue.clear
+local clearCalls = 0
+queue.clear = function(self, client)
+  clearCalls = clearCalls + 1
+  if clearCalls == 1 then error("CPU limit", 0) end
+  return realClear(self, client)
+end
+clock = 3200
+local ok31, err31 = pcall(Pipeline.wakeup)
+equal(ok31, false, "owed drop: the instruction limit is raised on")
+equal(type(err31) == "string" and string.find(err31, "CPU limit", 1, true) ~= nil, true,
+  "owed drop: the limit error itself")
+equal(select(2, outcome()).status, "timeout", "owed drop: the save ended on its backstop")
+equal(write31.cleared, nil, "owed drop: the message is not dropped yet")
+Pipeline.wakeup()
+equal(clearCalls, 2, "owed drop: the next wakeup drops again")
+equal(write31.cleared, true, "owed drop: the ended run's message is dropped")
+Pipeline.wakeup()
+equal(clearCalls, 2, "owed drop: once done, not again")
+-- Owed when the next save starts: done before that save queues its first write.
+begin()
+ack(last())
+clearCalls = 0
+clock = 3200
+pcall(Pipeline.wakeup)
+local owed31 = last()
+local started31 = Pipeline.start({ pageId = "other_page", steps = { { label = "W", command = CMD.write1, payload = { 1 } } } })
+equal(started31, true, "owed drop: the next save starts")
+equal(owed31.cleared, true, "owed drop: done before the next save queued anything")
+queue.clear = realClear
+
+-- 32. Late reboot and probe replies of an ended restart do not drive the save that runs next.
+begin()
+ack(last()); refuse(last())
+Pipeline.restartAfterFailure()
+preflight()
+local reboot32 = last()
+local probes32 = {}
+for _, e in ipairs(queue.entries) do if e.command == CMD.txinfo then probes32[#probes32 + 1] = e end end
+clock = clock + 3200
+Pipeline.wakeup()                               -- the restart ends on its backstop
+equal(select(2, outcome()).restart, true, "late restart replies: the restart ended")
+Pipeline.start({ pageId = "next_page", steps = { { label = "W", command = CMD.write1, payload = { 1 } } } })
+local phase32 = Pipeline.getProgress().phase
+local entries32 = #queue.entries
+reboot32.processReply(reboot32, {})
+reboot32.errorHandler(reboot32, "max_retries")
+for _, e in ipairs(probes32) do e.processReply(e, { 0 }); e.errorHandler(e, "max_retries") end
+local p32 = Pipeline.getProgress()
+equal(p32 and p32.phase, phase32, "late restart replies: the next save's phase unchanged")
+equal(p32 and p32.terminal, nil, "late restart replies: the next save has not ended")
+equal(#queue.entries, entries32, "late restart replies: nothing queued for the next save")
 
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end
