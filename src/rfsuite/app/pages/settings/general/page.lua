@@ -170,7 +170,7 @@ local function buildAppearance(cursorY, children, x, w, i18n)
     },
     ui.config.color_scheme,
     ui.runtime.getValueSetter("color_scheme"),
-    { helpText = t(i18n, "help_color_scheme", "Light or dark colors for the dashboard's quick menu and its pages, the loading and standby screens, the tool's start and the helicopter setup wizard, on every theme. The rest does not follow yet.") }
+    { helpText = t(i18n, "help_color_scheme", "Light or dark colors for the whole tool and the radio's own controls while it is open, the dashboard's quick menu and its pages, the loading and standby screens and the helicopter setup wizard.") }
   )
   cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
     t(i18n, "menu_style", "Menu style"),
