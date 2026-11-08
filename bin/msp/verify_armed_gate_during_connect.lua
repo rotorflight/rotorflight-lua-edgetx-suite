@@ -35,7 +35,9 @@
 --                    dropped when the arm is read) -- and after it the connect sequence runs and
 --                    finishes;
 --   old frames       the same with forty pre-arm "disarmed" frames still waiting at the start: they
---                    must not open the link;
+--                    must not open the link; and with only four old frames and then nothing, the pass
+--                    that empties the queue must not take them either;
+--   slow passes      passes 1.5 s apart: a disarm from current frames is still published;
 --   no armed source  frames that carry neither the arming flags nor the System Status word: the
 --                    first request goes out ARMED_WAIT_CYCLES (5 s) after the link came up.
 --
@@ -350,6 +352,36 @@ local function staleBacklogScenario()
   check(finished, "old frames: the connect sequence finishes after the disarm")
 end
 
+-- Only old frames waiting when the link comes up, then nothing for a while: the pass that empties
+-- the queue pops nothing but pre-arm "disarmed" frames, and must not take them.
+local function oldFramesOnlyScenario()
+  local widget, Msp = newWorld(true)
+  for _ = 1, 4 do pushArmFrame(false, "arm") end
+  for _ = 1, 10 do cycle(widget, nil) end
+  check(Msp.getState().armedKnown == false, "old frames only: the link still waits after popping only old frames",
+    "armedKnown = " .. tostring(Msp.getState().armedKnown))
+  check(mspSent == 0, "old frames only: nothing is sent while only old frames have arrived",
+    "request frames sent: " .. mspSent)
+  for _ = 1, 40 do cycle(widget, true, "arm") end
+  check(Msp.getState().lastArmed == true and mspSent == 0,
+    "old frames only: the arm that follows is read, and nothing has been sent",
+    "lastArmed = " .. tostring(Msp.getState().lastArmed) .. ", request frames sent: " .. mspSent)
+end
+
+-- A slow radio: passes 1.5 s apart, a disarmed craft. The disarm must be taken from current frames
+-- (the armed state known from a reading), not left to the 5 s timeout.
+local function slowPassesScenario()
+  local widget, Msp = newWorld(true)
+  local knownAtPass = nil
+  for pass = 1, 12 do
+    for _ = 1, 14 do Stubs.tick() end
+    cycle(widget, false, "arm")
+    if knownAtPass == nil and Msp.getState().armedKnown == true then knownAtPass = pass end
+  end
+  check(Stubs.sensors["ARM"] == 0, "slow passes: the disarm is published on a slow radio",
+    "ARM = " .. tostring(Stubs.sensors["ARM"]) .. ", armed state known at pass " .. tostring(knownAtPass))
+end
+
 -- Neither the arming flags nor the System Status word in the frames: the link waits ARMED_WAIT_CYCLES
 -- for them and then connects.
 local function noArmedSourceScenario()
@@ -370,6 +402,8 @@ scenario("after connect", true, false, "arm")
 functionScriptScenario()
 armedFirstScenario()
 staleBacklogScenario()
+oldFramesOnlyScenario()
+slowPassesScenario()
 noArmedSourceScenario()
 
 Stubs.releaseCard()

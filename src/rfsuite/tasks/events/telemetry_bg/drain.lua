@@ -205,7 +205,10 @@ end
 -- oldest, from before whatever happened meanwhile. A disarmed arming state from them is not taken:
 -- tasks/msp/runtime.lua sends nothing to a new link until it knows the armed state, and an old
 -- "disarmed" would open that to a craft armed since. An armed state is taken at once (a refusal
--- to send can only be early). Set once a pass ends with nothing left to pop; cleared on a resume.
+-- to send can only be early). Set once a pass ends with nothing left to pop; false when the module
+-- starts and cleared again by M.reset(), which tasks/events/runtime.lua reaches on every link loss.
+-- Not on a slow pass: the queue holds only a few frames, so a gap between passes ages them by that
+-- gap and no more, and clearing it there would never let a disarm through on a slow radio.
 local freshFrames = false
 -- The current pass's verdict, taken at its start: frames popped in it are fresh only if an
 -- earlier pass emptied the queue.
@@ -375,7 +378,6 @@ local function beginPass(now)
     if resyncPending then
         resyncPending = false
         resyncUntil = now + M.REMOTE_STALE_SECONDS
-        freshFrames = false
     end
     if adoptPublished then
         adoptPublished = false
