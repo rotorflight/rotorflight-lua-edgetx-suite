@@ -275,6 +275,28 @@ function M.saveFlightList(stored, steps)
   return true
 end
 
+--- A setup fault turns in-flight tuning off for this radio model until the pilot switches it on again:
+-- a model repaired or changed since would otherwise run tuning as soon as the check passes, with no
+-- choice made. Only the model's key goes from the radio's settings, and the derived flag with it, so the
+-- quick menu loses the entry at once. Ground only, from M.cleanup once the surface has closed.
+function M.storeModelOff(widget)
+  local prefs = type(widget) == "table" and widget.preferences or nil
+  local section = type(prefs) == "table" and prefs.inflight or nil
+  if type(section) ~= "table" then return false, "preferences" end
+  local ok, info = pcall(function() return model.getInfo() end)
+  local key = ok and type(info) == "table" and Setup.modelOnKey(info.filename) or nil
+  if key == nil or section[key] == nil then return true end
+  section[key] = nil
+  section.enabled = false
+  -- The suite's own writer, on the table just edited: a tool's writer left on the global after a hosted
+  -- visit is bound to the tool's table, which may be another one.
+  local saved, err = false, nil
+  local Preferences = requireModule("lib/preferences.lua")
+  if type(Preferences) == "table" and type(Preferences.save) == "function" then saved, err = Preferences.save(prefs) end
+  logDrive("setup fault: tuning off for %s, saved %s %s", tostring(key), tostring(saved), tostring(err or ""))
+  return saved == true, err
+end
+
 function Drive:finishGroups()
   while self.groupWork ~= nil do self:stepGroups() end
 end
@@ -1727,6 +1749,7 @@ function M.get(widget)
     -- The refusal shown goes too: with the trims to walk again the next verdict can be a while
     -- coming, and the old one describes settings that are gone.
     drive._checkFault = nil
+    drive._offStored = nil
     drive.trimsResolved = false
     -- and with it whatever a walk in progress had collected: a half-read list belongs to the
     -- settings it was started under.
@@ -2103,6 +2126,14 @@ function M.cleanup(widget)
     drive:forgetVerdict()
   end
   if widget.state then widget.state.inflight = nil end
+  -- A surface that closes on a setup fault turns tuning off for this model, once and on the ground; not
+  -- while it is open, so the pilot can read why it refuses. Here because the runtime ticks no closed
+  -- surface: closing calls this and may release the drive in the same pass.
+  if drive._checkFault == true and drive._offStored ~= true
+      and not (widget.state and widget.state.armed == true) then
+    drive._offStored = true
+    M.storeModelOff(widget)
+  end
 end
 
 M.Drive = Drive
