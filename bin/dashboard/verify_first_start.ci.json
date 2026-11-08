@@ -1,0 +1,9 @@
+{
+  "id": "first-start-tile",
+  "name": "Dashboard first-start tile",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_first_start.lua"
+  ],
+  "step": "Check where the first-start tile shows, what closes it and that its text fits",
+  "rationale": "It shows once on a radio and only its save remembers that, so a wrong condition or a text that does not fit is seen by every new pilot and by nobody afterwards. This runs the real runtime, and the text against EdgeTX's font widths in both languages."
+}

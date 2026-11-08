@@ -208,7 +208,8 @@ end
 -- to send can only be early). Set once a pass ends with nothing left to pop; false when the module
 -- starts and cleared again by M.reset(), which tasks/events/runtime.lua reaches on every link loss.
 -- Not on a slow pass: the queue holds only a few frames, so a gap between passes ages them by that
--- gap and no more, and clearing it there would never let a disarm through on a slow radio.
+-- gap and no more, and clearing it there would never let a disarm through on a slow radio. The
+-- function script's drain is the exception, cleared after a gap (beginPass): there a gap is a pause.
 local freshFrames = false
 -- The current pass's verdict, taken at its start: frames popped in it are fresh only if an
 -- earlier pass emptied the queue.
@@ -220,10 +221,13 @@ local SID_SYSTEM_STATUS = 0x1230
 
 -- Whether a decoded arming flags or System Status value may be published now: an armed one always,
 -- a disarmed one only from fresh frames (see freshFrames).
+local function armedBit(val)
+    return type(val) == "number" and bit32.btest(val, 1)
+end
+
 local function armedStateTrusted(val)
     if passFresh then return true end
-    if type(val) ~= "number" then return false end
-    return bit32.btest(val, 1)
+    return armedBit(val)
 end
 
 -- The expensive half: the byte walk through the per-sensor decoders. The frame id at byte 3
@@ -368,10 +372,18 @@ end
 
 -- A pass after a stretch in which this state took no frames is a resume (see `resyncPending`
 -- above). The values on the radio are read once per resume, not per pass.
-local function beginPass(now)
+--
+-- `permanent` is the background function script's drain (M.wakeup's `decodeAll`). That script
+-- runs on every cycle of the radio's script loop, so a gap of more than a second there is not a
+-- slow radio: it is the script being paused, which the firmware does for as long as a standalone
+-- tool is open (standalone_lua.cpp, "Pause function and mixer scripts"). A tool that does not
+-- drain leaves the queue full of frames from when it opened, so the frames waiting at the resume
+-- are not fresh. A widget keeps freshFrames across a gap (see freshFrames).
+local function beginPass(now, permanent)
     if lastWakeAt ~= nil and (now - lastWakeAt) > M.REMOTE_STALE_SECONDS then
         resyncPending = true
         adoptPublished = true
+        if permanent then freshFrames = false end
     end
     lastWakeAt = now
     passNow = now
@@ -407,7 +419,7 @@ local keptFrames = {}
 -- frames of a backlog buys nothing. A call billed against a hard per-call ceiling keeps the cap.
 function M.wakeup(now, decodeAll)
     if not modulesReady(now) then return 0 end
-    beginPass(now)
+    beginPass(now, decodeAll)
 
     -- Pop up to POP_CAP, keep the newest DECODE_CAP in arrival order, decode only those --
     -- on a same-sensor conflict the newest value lands last. POP_CAP bounds the pass whether
@@ -447,13 +459,18 @@ end
 -- arming flags whenever the radio has them, so a walk that met the System Status word goes on to the
 -- arming flags rather than stopping there.
 -- Walk one frame up to the arming flags and publish them, and the System Status word on the way
--- when `withStatus`; returns whether the arming flags were found, and whether the word was. Entries
--- are of different lengths and the flight controller chooses their order, so the walk needs the
--- decoders of the entries in front; walkOnly keeps the ones that publish a group of their own from
--- publishing.
-local function publishArmedSource(data, now, withStatus)
+-- when `withStatus`; returns whether the arming flags were found, whether the word was and whether
+-- it read armed, and whether the arming flags were published. Entries are of different lengths and
+-- the flight controller chooses their order, so the walk needs the decoders of the entries in
+-- front; walkOnly keeps the ones that publish a group of their own from publishing.
+--
+-- `newerArmed`: a newer frame of this pass carried an armed System Status word. A disarmed arming
+-- flags reading from this older frame then ends the search unpublished: tasks/msp/runtime.lua takes
+-- the arming flags over the word, so publishing it would read a craft that has just armed as
+-- disarmed until the next frame carrying the flags.
+local function publishArmedSource(data, now, withStatus, newerArmed)
     local ptr = 4
-    local statusFound = false
+    local statusFound, statusArmed = false, false
     walkOnly = true
     while ptr < #data do
         local sid
@@ -465,16 +482,34 @@ local function publishArmedSource(data, now, withStatus)
         if sid == SID_ARMING_FLAGS then
             walkOnly = false
             -- An untrusted disarmed reading is neither published nor the end of the search.
-            if not armedStateTrusted(val) then return false, statusFound end
+            if not armedStateTrusted(val) then return false, statusFound, statusArmed, false end
+            if newerArmed and not armedBit(val) then return true, statusFound, statusArmed, false end
             if val then publishSensorValue(sid, val, sensor, now) end
-            return true, statusFound
+            return true, statusFound, statusArmed, true
         elseif sid == SID_SYSTEM_STATUS and withStatus and not statusFound and armedStateTrusted(val) then
-            statusFound = true
+            statusFound, statusArmed = true, armedBit(val)
             if val then publishSensorValue(sid, val, sensor, now) end
         end
     end
     walkOnly = false
-    return false, statusFound
+    return false, statusFound, statusArmed, false
+end
+
+-- The pass's frames newest first: the newest System Status word, and the newest arming flags.
+-- Returns the source published last ("ARM" or "STAT"), or nil. A function of its own so that
+-- M.wakeupArmingFlags can call it protected without building a closure on every pass.
+local function walkNewestFirst(kept, now)
+    local withStatus, newerArmed, found = true, false, nil
+    for i = #kept, 1, -1 do
+        local armFound, statusFound, statusArmed, armPublished =
+            publishArmedSource(kept[i], now, withStatus, newerArmed)
+        if statusFound then withStatus = false; newerArmed = statusArmed; found = "STAT" end
+        if armFound then
+            if armPublished then found = "ARM" end
+            break
+        end
+    end
+    return found
 end
 
 --- A drain pass that publishes the armed state and nothing else, for a widget host while its
@@ -506,21 +541,16 @@ function M.wakeupArmingFlags(now)
 
     -- The adjustment decoder holds the pair it decodes for the teller before it asks whether to
     -- publish (lib/rf2tlm_sensors.lua, decAdjFunc), and this walk goes newest first. The pair is put
-    -- back afterwards, so the teller finds what it would have found had this pass not run.
+    -- back afterwards, so the teller finds what it would have found had this pass not run -- also
+    -- when a decoder raises part-way through the walk: the pair is put back and the error goes on.
     local root = _G.rfsuite
     local report = root and root.adjustmentReport
     local held1, held2 = nil, nil
     if type(report) == "table" then held1, held2 = report[1], report[2] end
 
-    -- Newest first: the newest System Status word, and the newest arming flags.
-    local withStatus = true
-    local found = nil
-    for i = #kept, 1, -1 do
-        local armFound, statusFound = publishArmedSource(kept[i], now, withStatus)
-        if armFound then found = "ARM" break end
-        if statusFound then withStatus = false; found = "STAT" end
-    end
+    local ok, found = pcall(walkNewestFirst, kept, now)
     for i = #kept, 1, -1 do kept[i] = nil end
+    walkOnly = false
 
     if root then
         if type(report) == "table" then
@@ -528,6 +558,7 @@ function M.wakeupArmingFlags(now)
         end
         root.adjustmentReport = report
     end
+    if not ok then error(found, 0) end
     return popped, found
 end
 
