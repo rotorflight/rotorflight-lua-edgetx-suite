@@ -88,7 +88,7 @@ local modules = {}
 _G.rfsuite = {
   paths = { user = USER, core = "src/rfsuite" },
   require = function(path)
-    if path == "lib/log.lua" then return nil end
+    if path ~= "lib/theme_slots.lua" and path ~= "lib/color_schemes.lua" then return nil end
     if modules[path] == nil then modules[path] = assert(loadfile("src/rfsuite/" .. path))() end
     return modules[path]
   end,
@@ -250,6 +250,27 @@ check(not pcall(T.apply, "dark"), "control: the stopped apply raised")
 check(T.holding() and T.current() == nil, "a stopped apply holds the colours and names no scheme")
 check(T.recover() == false and exists(MARKER), "recover leaves the marker of a state that holds colours")
 check(T.restore("test") == true and radioColours() and not exists(MARKER), "restore finishes it")
+
+-- 14. The tool hosted in the dashboard: closing it (widgets/dashboard/tool_host.lua, finish) puts the radio's
+--     colours back through the module instance the tool wrote them with, and a close whose restore stops is
+--     marked as owed to the widget's next pass.
+do
+  local Host = assert(loadfile("src/rfsuite/widgets/dashboard/tool_host.lua"))()
+  local Shared = rfsuite.require("lib/theme_slots.lua")
+  Shared.apply("dark")
+  local widget = { _toolHost = {} }
+  Host.abandon(widget, "test")
+  check(radioColours() and not Shared.holding(), "the hosted close puts the radio's colours back")
+  check(widget._themeRestoreOwed == nil, "and owes nothing")
+  Shared.apply("dark")
+  widget = { _toolHost = {} }
+  failAfter = 2
+  Host.abandon(widget, "stopped")
+  failAfter = nil
+  check(widget._themeRestoreOwed == true, "a hosted close whose restore stopped is owed to the next pass")
+  check(Shared.holding(), "and the state still holds the colours")
+  check(Shared.restore("next pass") == true and radioColours(), "the owed restore finishes it")
+end
 
 -- 9. Without lcd.setColor (a desktop runner, an old radio) nothing is attempted.
 local saved = lcd.setColor
