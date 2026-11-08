@@ -1561,8 +1561,13 @@ local function updateRuntimeMenuConditions()
   local root = _G and _G.rfsuite
   local session = root and root.session
 
+  -- A change a stopped pass left owed is derived again from the link as it is now, not finished as
+  -- it was begun: the link may have gone back in between, and the condition may be half set.
   if state.rootRefreshOwed then
     logf("debug", "root menu: a stopped condition change is applied again")
+    local live = readFblConnected()
+    state.menu.setCondition("fblConnected", live)
+    state.fblConnected = live
     applyRootConditionChange()
   end
 

@@ -306,6 +306,47 @@ if case == "link" then
   runFor(2)
   expect(state.menu.isRootEntryEnabled("configuration", "setup") == false and active(setup) == false,
     "a change stopped as the condition was set left the Setup tile enabled with the flight controller gone")
+  -- Stopped right after the condition was set, and the link goes back before the next pass: the
+  -- next pass has to follow the link as it is then, not the change as it was begun.
+  realSet = state.menu.setCondition
+  state.menu.setCondition = function(key, value)
+    state.menu.setCondition = realSet
+    realSet(key, value)
+    if key == "fblConnected" then error("instruction limit (simulated)") end
+  end
+  MspRuntime.isFblConnected = function() return true end
+  stopped = not pcall(runFor, 1)
+  expect(stopped, "the third simulated stop did not happen (instrument)")
+  state.menu.setCondition = realSet
+  MspRuntime.isFblConnected = function() return false end
+  runFor(2)
+  expect(state.menu.isRootEntryEnabled("configuration", "setup") == false and active(setup) == false
+    and state.fblConnected == false,
+    "a change stopped after the condition was set, with the link gone again, left the Setup tile enabled")
+  -- Stopped inside the registry's own setter, right after it writes the value: whatever the setter
+  -- has not done by then has to be done by the next pass. The conditions table is put behind a
+  -- proxy that writes the value and then stops, once.
+  local registry = state.menu
+  local backing = registry.conditions
+  local proxy = setmetatable({}, {
+    __index = backing,
+    __newindex = function(_, key, value)
+      backing[key] = value
+      if key == "fblConnected" then
+        registry.conditions = backing
+        error("instruction limit (simulated)")
+      end
+    end
+  })
+  registry.conditions = proxy
+  MspRuntime.isFblConnected = function() return true end
+  stopped = not pcall(runFor, 1)
+  expect(stopped, "the fourth simulated stop did not happen (instrument)")
+  registry.conditions = backing
+  runFor(2)
+  expect(registry.isRootEntryEnabled("configuration", "setup") == true and active(setup) == true
+    and state.fblConnected == true,
+    "a change stopped inside the registry's setter left the Setup tile greyed out")
   -- A build of anything else drops the record of the tiles, so a later change draws the menu.
   state.helpContent = "help"
   state.helpPageTitle = "Help"
