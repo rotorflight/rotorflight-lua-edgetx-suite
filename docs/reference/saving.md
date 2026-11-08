@@ -207,11 +207,13 @@ stored, which can be the new values.
 
 Restart FC is offered only while the connection to the flight controller is up and the model is
 neither armed nor of unknown arming state. The button comes and goes with these while the notice
-stands, and a press is checked again: if the model was armed since, it restarts nothing. The check
-is repeated just before the restart command is sent. If the tool opened from the dashboard closes
-during the restart, the restart finishes on its own and its outcome is shown the next time the
-tool opens. Pages that save through their own chain rather than through the shared save are not
-covered.
+stands, and a press is checked again: if the model was armed since, it restarts nothing. The same
+check is made again every time the restart command is about to go out, because the flight
+controller accepts that command over telemetry whatever its arming state; a restart held back that
+way ends with *could not be confirmed*. If the tool opened from the dashboard closes during the
+restart, the restart finishes on its own and its outcome is shown the next time the tool opens.
+Pages that save through their own chain rather than through the shared save are not covered, and
+Flight Tuning > Tune Advisor reports a failed apply in its own notice.
 
 A save step that gets no answer for 30 seconds ends the save. The requests it still had waiting
 are then dropped, so a late EEPROM write cannot store what the notice reported as not saved, and the

@@ -66,7 +66,8 @@ local Pipeline = assert(loadfile("src/rfsuite/tasks/msp/save_pipeline.lua"))()
 
 local function last() return queue.entries[#queue.entries] end
 local function ack(entry, bytes) entry.done = true; entry.processReply(entry, bytes or {}) end
-local function refuse(entry) entry.done = true; entry.errorHandler(entry, "refused") end
+-- The real queue has sent a message at least once before it reports "refused".
+local function refuse(entry) entry.done = true; entry.__sentAt = clock / 100; entry.errorHandler(entry, "refused") end
 -- The queue's give-up after its retries with no answer at all: the message was sent.
 local function silent(entry) entry.done = true; entry.__sentAt = clock / 100; entry.errorHandler(entry, "max_retries") end
 
@@ -417,6 +418,33 @@ begin()
 clock = 3200
 Pipeline.wakeup()
 equal(select(2, outcome()).sentAny, false, "backstop on a write never sent: not reached")
+
+-- 24. The restart's reboot asks again at every send (sendIf); a normal save's reboot carries none.
+begin(true)
+ack(last()); ack(last()); ack(last())
+ack(last(), { 1 })
+equal(last().command, CMD.reboot, "normal reboot save: reboot queued")
+equal(last().sendIf, nil, "normal reboot save: no sendIf")
+begin()
+ack(last()); refuse(last())
+Pipeline.restartAfterFailure()
+ack(last(), { 1 })
+local reboot24 = last()
+equal(type(reboot24.sendIf), "function", "restart: the reboot carries sendIf")
+equal(reboot24.sendIf(reboot24), true, "restart: sendIf true with a link, disarmed and known")
+armedUnknown = true
+equal(reboot24.sendIf(reboot24), false, "restart: sendIf false once the arming state is unknown")
+armedUnknown, armedNow = false, true
+equal(reboot24.sendIf(reboot24), false, "restart: sendIf false once armed")
+armedNow = false
+mspState.lastConnected = false
+equal(reboot24.sendIf(reboot24), false, "restart: sendIf false without a link")
+mspState.lastConnected = true
+reboot24.done = true
+reboot24.errorHandler(reboot24, "withheld")     -- the real queue's answer to a false sendIf
+p, r = outcome()
+equal(r and r.restart, true, "restart withheld: it reports as a restart")
+equal(Pipeline.blocksNavigation(), false, "restart withheld: the page is free again")
 
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end

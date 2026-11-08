@@ -793,6 +793,35 @@ function Queue:processQueue(now)
   end
 
   if canSendByInterval and canSendByTimeout and self.retryCount <= maxRetries and not self.writeHeld and not keptQuiet then
+    -- A message may carry `sendIf`, asked in the same call as every send of it, the first and each
+    -- retry. Anything but true withholds it: the message is given up with the reason "withheld"
+    -- and nothing goes out. It exists for a request whose precondition can lapse while it waits in
+    -- the queue -- a reboot that must not reach a craft that armed after it was queued -- and is
+    -- absent on every other message, which this test then leaves alone.
+    if msg.sendIf ~= nil then
+      local okIf, allowed = pcall(msg.sendIf, msg)
+      if not okIf and isCpuLimitError(allowed) then error(allowed, 0) end
+      if not okIf or allowed ~= true then
+        self.logf("warn", "withheld cmd=%s rw=%s client=%s attempt=%d%s",
+          tostring(msg.command), isWriteMessage(msg) and "W" or "R", tostring(msg.client),
+          self.retryCount + 1, okIf and "" or (" err=" .. tostring(allowed)))
+        msg.__retryCount = self.retryCount
+        if self.retryCount > 0 then keepCommandQuiet(self, msg, now) end
+        self.currentMessage = nil
+        self.currentMessageStartTime = nil
+        self.lastTimeCommandSent = nil
+        self.retryCount = 0
+        if type(msg.errorHandler) == "function" then
+          local ok, herr = pcall(msg.errorHandler, msg, "withheld")
+          if not ok then
+            if isCpuLimitError(herr) then error(herr, 0) end
+            self.logf("warn", "error handler raised cmd=%s client=%s reason=withheld err=%s",
+              tostring(msg.command), tostring(msg.client), tostring(herr))
+          end
+        end
+        return
+      end
+    end
     local payload = msg.payload or EMPTY_PAYLOAD
     local okSend = self.common and type(self.common.sendRequest) == "function"
       and self.common.sendRequest(msg.command, payload, { write = isWriteMessage(msg) })

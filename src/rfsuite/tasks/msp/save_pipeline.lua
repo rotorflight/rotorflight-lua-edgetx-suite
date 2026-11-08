@@ -422,6 +422,25 @@ probeOnce = function(onValue)
   })
 end
 
+--- May the restart offered after a failed save reach the board now? A link that answers, and a
+-- craft read neither as armed nor of unknown arming state. lib/armed.lua is asked as the screens
+-- ask it, through the shared instance when there is one: it keeps "last read armed", which a fresh
+-- copy would not have. Returns the answer and a short reason for the log.
+local function restartAllowed()
+  local _, mspState = getQueue()
+  if not mspState or mspState.lastConnected ~= true then return false, "no_link" end
+  if mspState.lastArmed == true then return false, "armed" end
+  if Armed == nil then
+    local req = _G.rfsuite and _G.rfsuite.require
+    Armed = (type(req) == "function" and req("lib/armed.lua")) or loadModule("lib/armed.lua") or false
+  end
+  if Armed and type(Armed.isArmed) == "function" and Armed.isArmed() == true then return false, "armed" end
+  if Armed and type(Armed.isUncertain) == "function" and Armed.isUncertain() == true then
+    return false, "uncertain"
+  end
+  return true
+end
+
 local function queueReboot()
   local queue = getQueue()
   if not queue or not RebootApi then
@@ -439,6 +458,14 @@ local function queueReboot()
     -- message completes on silence rather than on a reply. Declaring that here is what lets the
     -- queue stop carrying MSP command 68 as a special case in its generic success test.
     completeAfterAttempt = 2,
+    -- The restart offered after a failed save is checked again at every send, not only when it is
+    -- queued: the firmware takes MSP_REBOOT over telemetry without looking at the arming state.
+    -- A withheld reboot ends the run through the errorHandler below.
+    sendIf = run.restart == true and function()
+      local allowed, why = restartAllowed()
+      if not allowed then logf("warn", "restart withheld at the send reason=%s", tostring(why)) end
+      return allowed
+    end or nil,
     processReply = function()
       if not isCurrent(run) then return end
       enter(PHASE.PROBE)
@@ -466,17 +493,9 @@ local function startReboot()
     -- The restart offered after a failed save is checked again here, a round trip after the
     -- press: no reboot is queued into a link that went down, or for a craft that armed since.
     if S.run.restart then
-      local _, mspState = getQueue()
-      -- lib/armed.lua is the screens' question, uncertain state included; the MSP state alone
-      -- does not see a reading that went away while the craft was last read disarmed.
-      if Armed == nil then Armed = loadModule("lib/armed.lua") or false end
-      local armedNow = Armed and type(Armed.isArmed) == "function" and Armed.isArmed() == true
-      local unknown = Armed and type(Armed.isUncertain) == "function" and Armed.isUncertain() == true
-      if not mspState or mspState.lastConnected ~= true or mspState.lastArmed == true
-        or armedNow or unknown then
-        logf("warn", "restart abandoned before the reboot: connected=%s armed=%s/%s uncertain=%s",
-          tostring(mspState and mspState.lastConnected), tostring(mspState and mspState.lastArmed),
-          tostring(armedNow), tostring(unknown))
+      local allowed, why = restartAllowed()
+      if not allowed then
+        logf("warn", "restart abandoned before the reboot reason=%s", tostring(why))
         fail("reboot")
         return
       end
@@ -575,6 +594,11 @@ queueStep = function(index, payload)
     end,
     errorHandler = function(given, reason)
       if not isCurrent(run) then return end
+      -- "refused" means the board answered this write with an error on some attempt. The
+      -- firmware's refusals of a write are a function of its payload, apart from the armed-gated
+      -- ones, and an armed craft clears the queue first; so a write refused once was refused on
+      -- every attempt and was not taken. A write given up unanswered, or cleared after it was
+      -- sent, may have been taken.
       if reason ~= "refused" and type(given) == "table" and given.__sentAt ~= nil then
         logf("debug", "write unanswered after it was sent page=%s step=%d reason=%s",
           tostring(S.run.desc.pageId), index, tostring(reason))
