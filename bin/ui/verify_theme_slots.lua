@@ -11,18 +11,34 @@ local function check(ok, label)
   end
 end
 
-local RGB_FLAG = 0x1000000
+-- The radio's colour encoding (EdgeTX gui/colorlcd/colors.h, Lua 5.3 built with LUA_32BITS): an index flag
+-- is the index shifted 16 up, an RGB flag the RGB565 value shifted 16 up with RGB_FLAG 0x8000, and every
+-- integer is a signed 32-bit one -- so a light colour is negative (white is -32768).
+local RGB_FLAG = 0x8000
+local function int32(v)
+  v = v & 0xFFFFFFFF
+  if v >= 0x80000000 then return v - 0x100000000 end
+  return v
+end
+local function rgbFlag(rgb)
+  local r, g, b = (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF
+  local c565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+  return int32((c565 << 16) | RGB_FLAG)
+end
 local SLOT_NAMES = {
   "COLOR_THEME_PRIMARY1", "COLOR_THEME_PRIMARY2", "COLOR_THEME_PRIMARY3", "COLOR_THEME_SECONDARY1",
   "COLOR_THEME_SECONDARY2", "COLOR_THEME_SECONDARY3", "COLOR_THEME_FOCUS", "COLOR_THEME_EDIT",
   "COLOR_THEME_ACTIVE", "COLOR_THEME_WARNING", "COLOR_THEME_DISABLED",
 }
+-- EdgeTX's default theme, so light (negative) and dark (positive) values are both in the table.
+local DEFAULT = { 0x000000, 0xFFFFFF, 0x0C3F66, 0x125E99, 0xB6E0F2, 0xE6F0FA, 0x14A1E5, 0xFFDE00,
+  0xFFDE00, 0xE00000, 0x8C8C8C }
 -- The radio's colour table: index flag -> RGB flag, as lcd.getColor answers it.
 local table_ = {}
 local RADIO = {}
 for i, name in ipairs(SLOT_NAMES) do
-  _G[name] = i << 16
-  RADIO[i << 16] = RGB_FLAG + i * 0x010101
+  _G[name] = (i - 1) << 16
+  RADIO[(i - 1) << 16] = rgbFlag(DEFAULT[i])
 end
 local function resetRadio()
   for flag, value in pairs(RADIO) do table_[flag] = value end
@@ -30,13 +46,18 @@ end
 resetRadio()
 
 local writes = 0
+local failAfter = nil   -- setColor raises once this many more calls have gone through
 _G.lcd = {
-  RGB = function(rgb) return RGB_FLAG + rgb end,
+  RGB = rgbFlag,
   getColor = function(flag)
     if flag & RGB_FLAG ~= 0 then return flag end
     return table_[flag]
   end,
   setColor = function(flag, color)
+    if failAfter then
+      if failAfter == 0 then failAfter = nil; error("instruction limit") end
+      failAfter = failAfter - 1
+    end
     writes = writes + 1
     table_[flag] = color
   end,
@@ -89,6 +110,7 @@ local Schemes = rfsuite.require("lib/color_schemes.lua")
 check(radioColours(), "control: the stub starts in the radio's colours")
 lcd.setColor(COLOR_THEME_FOCUS, lcd.RGB(0x123456))
 check(not radioColours(), "control: a written slot is seen")
+check(RADIO[COLOR_THEME_PRIMARY2] < 0, "control: white is a negative flag, as on the radio")
 resetRadio()
 
 -- 1. apply writes every mapped slot from the scheme, leaves the rest, and leaves a marker.
@@ -176,6 +198,33 @@ T.apply("dark")
 check(T.recover() == false, "recover does nothing while this state has written the slots")
 check(exists(MARKER), "this state's own marker stays")
 T.restore("test")
+
+-- 10. A restore stopped half way (the instruction limit, hosted) keeps everything for a second try.
+T = load()
+T.apply("dark")
+failAfter = 3
+check(not pcall(T.restore, "stopped"), "control: the stopped restore raised")
+check(not radioColours(), "a stopped restore leaves some slots in the scheme")
+check(T.current() == "dark", "a stopped restore keeps the state")
+check(exists(MARKER), "a stopped restore keeps the marker")
+check(T.restore("again") == true and radioColours(), "a second restore puts every colour back")
+check(not exists(MARKER), "and drops the marker")
+
+-- 11. The finaliser keeps the marker when a colour could not be written back, and recover() then
+--     finishes from the half-restored slots.
+T = load()
+T.apply("dark")
+failAfter = 2
+T = nil
+collectgarbage("collect")
+collectgarbage("collect")
+failAfter = nil
+check(not radioColours(), "control: the finaliser's writes stopped part way")
+check(exists(MARKER), "the finaliser keeps the marker when a write failed")
+T = load()
+check(T.recover() == true, "recover takes a half-restored table as its own")
+check(radioColours(), "recover puts the rest back")
+check(not exists(MARKER), "and drops the marker")
 
 -- 9. Without lcd.setColor (a desktop runner, an old radio) nothing is attempted.
 local saved = lcd.setColor
