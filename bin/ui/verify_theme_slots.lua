@@ -120,7 +120,7 @@ local dark = Schemes.colors("dark")
 for _, row in ipairs(T.SLOTS) do
   check(table_[_G[row[1]]] == dark[row[2]], "dark: " .. row[1] .. " carries " .. row[2])
 end
-check(table_[COLOR_THEME_EDIT] == RADIO[COLOR_THEME_EDIT], "a slot not mapped keeps the radio's colour")
+check(table_[COLOR_THEME_PRIMARY3] == RADIO[COLOR_THEME_PRIMARY3], "a slot not mapped keeps the radio's colour")
 check(exists(MARKER), "apply leaves a marker")
 check(T.current() == "dark", "current names the scheme")
 
