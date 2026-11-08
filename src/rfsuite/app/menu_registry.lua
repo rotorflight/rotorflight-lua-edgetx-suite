@@ -765,12 +765,16 @@ function MenuRegistry.new(manifest, i18n, options)
     return false
   end
 
+  -- The version and the caches go first and the value last: a caller stopped part-way (the widget's
+  -- instruction limit, when the tool runs inside the dashboard) then finds either nothing changed or
+  -- the caches already dropped, and setting the value again completes it. Set last-but-one, the
+  -- value would match on the next call and the caches would stay as they were.
   function self.setCondition(key, value)
     local nextValue = value == true
     if self.conditions[key] == nextValue then return end
-    self.conditions[key] = nextValue
     self._conditionsVersion = self._conditionsVersion + 1
     invalidateCaches()
+    self.conditions[key] = nextValue
   end
 
   return self
