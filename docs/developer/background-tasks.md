@@ -216,8 +216,9 @@ background function script is decoding them.
 
 While a widget's `onconnect` holds this pass back, or the link is still waiting for its armed
 state, `tasks.lua`'s `wakeupConnecting` runs in its place. It loads `drain.lua` alone and calls its `wakeupArmingFlags`, which takes the frames off the
-link as the full pass does (at most 15) and walks the newest 4, newest first, only until it finds
-the arming flags or the System Status word; it publishes that and nothing else -- the decoders it
+link as the full pass does (at most 15) and walks the newest 4, newest first, until it finds the
+arming flags, publishing the newest System Status word it meets on the way; it publishes those and
+nothing else -- the decoders it
 walks past that publish a group of their own (cells, GPS, attitude and the like) are told not to.
 `smart.lua` and `adjustments.lua` are loaded and run by the full pass once the connect sequence is
 through. It also steps aside while the background function script is decoding, and like the full
