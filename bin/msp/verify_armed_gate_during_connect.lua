@@ -31,8 +31,9 @@
 --   function script  while it is draining for the radio, the widget still records that telemetry
 --                    is arriving (session.telemetryFrameAt) during the connect;
 --   armed first      the craft armed from the first frame: no MSP request frame goes out until the
---                    disarm -- not even one another client queued meanwhile -- and after it the
---                    connect sequence runs and finishes;
+--                    disarm -- not even one another client queued while the link waited (it is
+--                    dropped when the arm is read) -- and after it the connect sequence runs and
+--                    finishes;
 --   no armed source  frames that carry neither the arming flags nor the System Status word: the
 --                    first request goes out ARMED_WAIT_CYCLES (5 s) after the link came up.
 --
@@ -310,8 +311,15 @@ local function armedFirstScenario()
   local widget, Msp = newWorld(true)
   for i = 1, 80 do
     cycle(widget, true, "arm")
-    -- Another client puts a read on the queue while the link waits: it must wait too.
-    if i == 3 then Msp.enqueue({ command = 101, processReply = function() end }) end
+    -- Another client puts a read on the queue while the link waits: it must not go out. (Once the
+    -- arm is read the runtime clears the queue, so it is dropped rather than kept for later.)
+    if i == 3 then
+      local state = Msp.getState()
+      check(state.armedKnown == false, "armed first: the link is still waiting when the other client queues",
+        "armedKnown = " .. tostring(state.armedKnown))
+      local queued = Msp.enqueue({ command = 101, processReply = function() end })
+      check(queued == true and queueBusy(Msp.getState()), "armed first: the other client's read is on the queue")
+    end
   end
   check(Msp.getState().lastArmed == true, "armed first: the MSP runtime reads the craft as armed")
   check(mspSent == 0, "armed first: no MSP request is sent while armed", "request frames sent: " .. mspSent)
