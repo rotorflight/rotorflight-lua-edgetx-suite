@@ -100,7 +100,8 @@ local function driveEdgeRunner(category, context)
   if type(runner.wakeup) == "function" then
     wakeupArgs.context = context
     local ok, err = pcall(runner.wakeup, wakeupArgs)
-    if not ok and Log and type(Log.emit) == "function" then
+    if not ok and err ~= runner.lastWakeupError and Log and type(Log.emit) == "function" then
+      runner.lastWakeupError = err
       pcall(Log.emit, "rfsuite.events", category .. ".wakeup error: " .. tostring(err), "error")
     end
   end
@@ -298,6 +299,9 @@ local function publishConnected(val)
     end
     if type(collectgarbage) == "function" then
       collectgarbage("collect")
+    end
+    if Log and type(Log.recording) == "function" and Log.recording() then
+      pcall(Log.emit, "rfsuite.events", "link down, runners reset, after the GC: " .. Log.resources(), "info")
     end
   end
 end
@@ -566,6 +570,9 @@ function Events.wakeup(carry)
           if type(collectgarbage) == "function" then
             collectgarbage("collect")
           end
+          if Log and type(Log.recording) == "function" and Log.recording() then
+            pcall(Log.emit, "rfsuite.events", "after the GC: " .. Log.resources(), "info")
+          end
         end
       end
     end
@@ -609,6 +616,9 @@ function Events.wakeup(carry)
       if armed ~= state.lastArmed then
         state.lastArmed = armed
         local category = armed and "onarm" or "ondisarm"
+        if _G.rfsuite.logSteps and Log and type(Log.emit) == "function" then
+          pcall(Log.emit, "rfsuite.events", "armed edge: running " .. category .. " tasks", "debug")
+        end
         local runner = ensureEventRunner(category)
         if runner and type(runner.resetAllTasks) == "function" then
           -- Reset on BOTH edges, because neither is a one-off. The runner marks a task complete
