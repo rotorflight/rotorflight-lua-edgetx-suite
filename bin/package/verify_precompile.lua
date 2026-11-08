@@ -423,6 +423,42 @@ local function driveShared(Precompile, advance)
   end
 end
 
+-- Folders of pictures: the rolling quick menu ships each icon once per colour, a hundred pictures to a
+-- folder. A picture costs no timestamp, so the entry loop used to take a whole folder in one call. Every
+-- widget call of the pass is counted in the module's own instructions (the card's dir() here is a test
+-- stand-in and is left out), and the most expensive one has to stay well under the widget's limit.
+do
+  local card = installedCard()
+  local folders = { { "widgets/dashboard/roll_icons/light", 100 }, { "widgets/dashboard/roll_icons/dark", 100 } }
+  for _, folder in ipairs(folders) do
+    for n = 1, folder[2] do
+      card.put(string.format("%s/%s/roll_icon_%03d.png", CORE, folder[1], n), "png", 100)
+    end
+  end
+  local Precompile, record, advance, close = widgetState(card, true)
+  local source = "=" .. modulePath
+  local worst, steps = 0, 0
+  if hasWidgetApi(Precompile) and Precompile.startIfStale("0.2.0") then
+    while Precompile.isRunning() and steps < 10000 do
+      local n = 0
+      debug.sethook(function()
+        local info = debug.getinfo(2, "S")
+        if info and info.source == source then n = n + 1 end
+      end, "", 1)
+      Precompile.stepShared()
+      debug.sethook()
+      if n > worst then worst = n end
+      advance()
+      steps = steps + 1
+    end
+  end
+  close()
+  check("picture folders: the pass finishes and compiles both sources", #record.loads == 2,
+    #record.loads .. " loads, " .. steps .. " steps")
+  check("picture folders: no call takes more than 6000 of the module's instructions", worst > 0 and worst <= 6000,
+    "worst call " .. worst)
+end
+
 -- After an install the widgets run the whole pass, and it leaves the stamp the tool reads.
 do
   local card = installedCard()
