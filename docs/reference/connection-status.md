@@ -18,7 +18,7 @@ never answered at all.
 
 The button reports; it changes nothing. It does not decide when a tile becomes usable -- a tile
 that needs the flight controller stays greyed out until it has answered, and then becomes usable
-where it stands.
+where it stands. The menu is not drawn again for it, so the tile the wheel is on keeps the focus.
 
 ## Where to find it
 

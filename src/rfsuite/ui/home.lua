@@ -1511,6 +1511,37 @@ local ESC_PROTOCOLS = {1, 3, 4, 6, 7, 9, 10, 12, 14}
 -- getTime() ticks (10 ms) before either menu asks again for a protocol it failed to read.
 local ESC_PROTO_RETRY_TICKS = 500
 
+-- What the root menu's tiles are, apart from whether each is enabled: a change of the conditions
+-- that leaves this as it is can be applied without drawing the menu again.
+local function rootTileLayout(flatCards)
+  local parts = {}
+  for i = 1, #flatCards do
+    local card = flatCards[i]
+    local data = card.data or {}
+    parts[i] = tostring(card.sectionId) .. "/" .. tostring(card.id) .. "|" .. tostring(data.text)
+      .. "|" .. tostring(data.icon) .. "|" .. tostring(data.lockedByArm == true) .. "|" .. tostring(data.done == true)
+  end
+  return table.concat(parts, ";")
+end
+
+-- A change of the conditions on the root menu that only enables or greys out tiles: the tiles ask
+-- for their state on the firmware's refresh pass (ui/tiles.lua), so the new state is written where
+-- they read it and nothing is drawn again. A build would clear the scene, and the firmware's wheel
+-- focus with it -- a pilot who turned to a tile before the flight controller answered would find
+-- the focus back on the first one. Answers false where the menu has to be drawn: not on the root
+-- menu, or a tile comes, goes or changes its face (a hidden entry, the armed badge).
+local function refreshRootTilesInPlace()
+  local drawn = state.rootDrawn
+  if not drawn or not Tiles or state.initialLoad or not state.menu.isRoot() then return false end
+  local flatCards = Tiles.flattenRootCards(state.menu.getRootGroups())
+  if rootTileLayout(flatCards) ~= drawn.layout then return false end
+  for i = 1, #flatCards do
+    local card = flatCards[i]
+    drawn.enabled[tostring(card.sectionId) .. "/" .. tostring(card.id)] = card.data.enabled ~= false
+  end
+  return true
+end
+
 local function updateRuntimeMenuConditions()
   if not state.menu then return end
 
@@ -1529,7 +1560,11 @@ local function updateRuntimeMenuConditions()
         session.esc4WayDetectedProto = nil
       end
     end
-    scheduleBuildUI(false)
+    if refreshRootTilesInPlace() then
+      logf("debug", "root menu: tiles changed in place, no build")
+    else
+      scheduleBuildUI(false)
+    end
   end
 
   local wasRfConnected = state.rfConnected == true
@@ -1623,7 +1658,7 @@ local function updateRuntimeMenuConditions()
   -- An AM32 ESC reports as BLHELI32 (1), or from API 12.10 as GOOSKY (16), the firmware's alias
   -- for the same telemetry. BLHeli_S and Bluejay stay on 1 alone: 16 names an AM32 ESC.
   state.menu.setCondition("escProtoAm32", proto == 1 or proto == 16)
-  if state.menu._conditionsVersion ~= initialVersion then
+  if state.menu._conditionsVersion ~= initialVersion and not refreshRootTilesInPlace() then
     scheduleBuildUI(false)
   end
   logf("trace", "escProto conditions set for protocol %s", tostring(proto))
@@ -2618,6 +2653,9 @@ local function buildScene()
   -- and it is the one naming the screen that could not be built.
   local buildingMenuId = state.menu and state.menu.getCurrentMenuId and state.menu.getCurrentMenuId() or nil
   logStep("build menu=" .. tostring(buildingMenuId))
+  -- Whatever this build draws, the root menu's tiles drawn before it are gone; the root branch
+  -- below records the new ones.
+  state.rootDrawn = nil
 
   local isArmed = isModelArmed()
 
@@ -3089,6 +3127,10 @@ local function buildScene()
     -- layout reuses state.cards as mutable output and would overwrite root data.
     wipeTable(state.cards)
     state.focusIndex = math.max(0, math.min(state.focusIndex, #flatCards))
+    -- What each tile asks on the firmware's refresh pass, so that a change of the conditions that
+    -- only enables or greys out tiles is applied where they stand (refreshRootTilesInPlace).
+    local drawn = { layout = rootTileLayout(flatCards), enabled = {} }
+    state.rootDrawn = drawn
 
     local cursorY   = contentY
     local flatIndex = 0
@@ -3133,12 +3175,14 @@ local function buildScene()
         local tileX    = card.x + math.floor((card.w - tileSize) / 2)
         local tileY    = card.y + math.floor((card.h - tileSize) / 2)
 
+        local tileIndex = group.id .. "/" .. tostring(card.id)
+        drawn.enabled[tileIndex] = card.data.enabled ~= false
         Tiles.append(
           children, tileX, tileY, tileSize,
           card.data.icon, card.data.text,
           flatIndex == state.focusIndex,
           getRootCardPressHandler(group.id, card.id),
-          card.data.enabled,
+          function() return drawn.enabled[tileIndex] end,
           card.data.lockedByArm and ARMED_BADGE_TEXT or nil,
           card.data.done == true
         )
@@ -3778,6 +3822,7 @@ function M.run(event, touchState)
         -- This ensures the Lua VM yields immediately and EdgeTX can draw the screen.
         if lvgl and lvgl.clear then
           lvgl.clear()
+          state.rootDrawn = nil
           local tr = state.i18n and state.i18n.t and state.i18n.t("app.closing_rfsuite") or "Closing RFSuite..."
           lvgl.build({
             {

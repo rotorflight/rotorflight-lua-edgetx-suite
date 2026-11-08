@@ -137,6 +137,26 @@ local function modelStoreKey()
   return nil
 end
 
+-- The model half as it was read or last written, so that Save can tell an edit of it from values
+-- that merely stand there: an edit that could not be written is not reported as saved.
+local MODEL_KEYS = { "overrides", "model_theme_preflight", "model_theme_inflight", "model_theme_postflight" }
+
+local function snapshotModelHalf()
+  local held = ui.modelHeld or {}
+  for i = 1, #MODEL_KEYS do
+    held[MODEL_KEYS[i]] = ui.config[MODEL_KEYS[i]]
+  end
+  ui.modelHeld = held
+end
+
+local function modelHalfEdited()
+  local held = ui.modelHeld or {}
+  for i = 1, #MODEL_KEYS do
+    if ui.config[MODEL_KEYS[i]] ~= held[MODEL_KEYS[i]] then return true end
+  end
+  return false
+end
+
 -- The model half of the page, read for the flight controller identified now (modelStoreKey), and
 -- recorded as read for it: only values read for a flight controller are drawn and saved for it.
 -- Read with the page, and again whenever the flight controller identified changes while the page
@@ -174,6 +194,7 @@ local function readModelHalf(src)
   ui.config.model_theme_inflight = (modelSrc and modelSrc.model_theme_inflight) or "nil"
   ui.config.model_theme_postflight = (modelSrc and modelSrc.model_theme_postflight) or "nil"
   ui.modelReadFor = key
+  snapshotModelHalf()
 end
 
 -- Whether the model half has to be read again: a flight controller is identified now and it is not
@@ -327,6 +348,12 @@ local function saveToPreferences(prefs)
           modelOk, modelErr = MP.saveByMcuId(session.mcu_id, session.modelPreferences)
         end
       end
+      if modelOk ~= false then snapshotModelHalf() end
+    elseif modelHalfEdited() then
+      -- An edit of the model half with no flight controller to write it for -- the link dropped
+      -- after the edit -- is a failed model save: the page stays unsaved and the pilot is told.
+      debugLog("model half edited but not saved: no flight controller it was read for")
+      modelOk, modelErr = false, "missing_mcu_id"
     end
   end
 

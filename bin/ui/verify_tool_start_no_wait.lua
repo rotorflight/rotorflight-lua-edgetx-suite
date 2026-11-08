@@ -19,7 +19,8 @@ local function caseArg()
   end
 end
 
-local CASES = { "nolink", "link", "pagefirst", "themesave", "linkdrop", "compile", "movefailed", "restart", "both" }
+local CASES = { "nolink", "link", "pagefirst", "themesave", "linkdrop", "offlinesave", "savebeforeread", "otherfc",
+  "compile", "movefailed", "restart", "both" }
 
 local function quote(text)
   return "'" .. string.gsub(text, "'", "'\\''") .. "'"
@@ -136,12 +137,24 @@ local builds, startBuilds = 0, 0
 local realBuild = lvgl.build
 -- The texts of the last scene built, nested children included: what was on screen after it.
 local lastTexts = {}
+-- The tiles of the last scene built, by the text under them: the button (its `active` and `press`)
+-- and the grey cover drawn over a disabled one. A tile is a button followed by its own children.
+local lastTiles = {}
 local function collectTexts(children, into)
   if type(children) ~= "table" then return end
+  local button, cover = nil, nil
   for i = 1, #children do
     local child = children[i]
     if type(child) == "table" then
-      if type(child.text) == "string" then into[child.text] = true end
+      if child.type == "button" then button, cover = child, nil end
+      if child.type == "rectangle" and button and type(child.visible) == "function" then cover = child end
+      if type(child.text) == "string" then
+        into[child.text] = true
+        if child.type == "label" and button then
+          lastTiles[child.text] = { button = button, cover = cover, label = child }
+          button, cover = nil, nil
+        end
+      end
       collectTexts(child.children, into)
     end
   end
@@ -150,6 +163,7 @@ lvgl.build = function(children, ...)
   builds = builds + 1
   if state.initialLoad then startBuilds = startBuilds + 1 end
   lastTexts = {}
+  lastTiles = {}
   collectTexts(children, lastTexts)
   return realBuild(children, ...)
 end
@@ -175,7 +189,8 @@ end
 Home.init({})
 local Precompile = find(Home.run, "Precompile")
 
-if case == "nolink" or case == "link" or case == "pagefirst" or case == "themesave" or case == "linkdrop" then
+local PAGE_CASES = { themesave = true, linkdrop = true, offlinesave = true, savebeforeread = true, otherfc = true }
+if case == "nolink" or case == "link" or case == "pagefirst" or PAGE_CASES[case] then
   expect(state.initialLoad == false, "the start screen still stands after init with nothing to compile")
   expect(builds >= 1, "init built nothing (control)")
   expect(startBuilds == 0, "the start screen was drawn " .. startBuilds .. " times with nothing to compile")
@@ -200,11 +215,28 @@ end
 
 if case == "link" then
   -- The handshake does not complete in this world, so the tiles that need the flight controller
-  -- are greyed out; then it answers, and they enable where they stand. The tool's own focus index
-  -- is kept; the focus LVGL draws is not modelled by these stubs and is not checked here.
+  -- are greyed out; then it answers, and they enable where they stand: the tile objects drawn
+  -- before are the ones that answer the firmware afterwards, with no build in between. A build
+  -- clears the scene, and the firmware's wheel focus with it; that focus is not modelled by these
+  -- stubs, so what is checked is that no build happens and that the same tiles report the change.
   expect(state.fblConnected == false, "the flight controller counts as connected before it answered (control)")
   expect(state.menu.isRootEntryEnabled("configuration", "setup") == false,
     "Setup is enabled before the flight controller answered")
+  local setup = lastTiles["Setup"]
+  local tools = lastTiles["Tools"]
+  expect(setup ~= nil and tools ~= nil, "the Setup and Tools tiles were not found on the menu (instrument)")
+  local function active(tile) return tile ~= nil and type(tile.button.active) == "function" and tile.button.active() end
+  local function covered(tile) return tile ~= nil and tile.cover ~= nil and tile.cover.visible() == true end
+  expect(active(setup) == false, "the Setup tile can take the focus before the flight controller answered")
+  expect(covered(setup), "the Setup tile is not greyed out before the flight controller answered")
+  expect(active(tools) == true and not covered(tools), "the Tools tile is not enabled without a flight controller (control)")
+  local opened = false
+  if setup and type(setup.button.press) == "function" then
+    setup.button.press()
+    opened = not state.menu.isRoot()
+    if opened then state.menu.goBack() end
+  end
+  expect(not opened, "a press on the greyed-out Setup tile opened its menu")
   state.focusIndex = 3
   local MspRuntime = assert(find(Home.run, "MspRuntime"), "message runtime missing")
   MspRuntime.isFblConnected = function() return true end
@@ -213,9 +245,25 @@ if case == "link" then
   expect(state.fblConnected == true, "the tool did not see the flight controller answer")
   expect(state.menu.isRootEntryEnabled("configuration", "setup") == true,
     "Setup stayed greyed out after the flight controller answered")
-  expect(builds > before, "the menu was not drawn again when the flight controller answered")
+  expect(builds == before, "the menu was drawn again when the flight controller answered ("
+    .. (builds - before) .. " builds), which clears the wheel focus")
+  expect(active(setup) == true, "the Setup tile drawn before the answer does not take the focus after it")
+  expect(not covered(setup), "the Setup tile drawn before the answer is still greyed out after it")
   expect(state.focusIndex == 3, "the tool's focus index changed when the tiles enabled: " .. tostring(state.focusIndex))
   expect(state.initialLoad == false and startBuilds == 0, "the start screen came back")
+  -- And back: the link is lost, and the tiles grey out where they stand.
+  MspRuntime.isFblConnected = function() return false end
+  before = builds
+  runFor(3)
+  expect(state.fblConnected == false, "the tool did not see the flight controller go (control)")
+  expect(builds == before and active(setup) == false and covered(setup),
+    "the Setup tile did not grey out in place when the flight controller went")
+  -- A build of anything else drops the record of the tiles, so a later change draws the menu.
+  state.helpContent = "help"
+  state.helpPageTitle = "Help"
+  Home.requestRebuild(false)
+  runFor(2)
+  expect(state.rootDrawn == nil, "the root tiles stay recorded under another scene")
 end
 
 if case == "pagefirst" then
@@ -243,7 +291,7 @@ if case == "pagefirst" then
   expect(state.pageBuildFailed == nil, "the Theme page failed to build: " .. tostring(state.pageBuildFailed))
 end
 
-if case == "themesave" or case == "linkdrop" then
+if PAGE_CASES[case] then
   -- The model's own theme settings, on the card for this flight controller before the tool opens.
   -- The Theme page is opened before the flight controller has answered; then it answers, and the
   -- pilot presses Save. What the page writes for the model has to be what the model's file held,
@@ -297,9 +345,107 @@ if case == "themesave" or case == "linkdrop" then
     session.modelPreferences = loaded
     runFor(5)
   end
-  deliverModel()
-  expect(session.mcu_id == MCU and type(session.modelPreferences) == "table",
-    "the identity did not stay in the session (instrument)")
+  -- The page's own state, as its combos leave it (setOptionalThemeFromId).
+  local function pageState()
+    local PageRegistry = find(Home.run, "PageRegistry") or find(Home.init, "PageRegistry")
+    local page = PageRegistry and PageRegistry.byMenuId and PageRegistry.byMenuId[PAGE]
+    local pageUi = page and type(page.build) == "function" and find(page.build, "ui")
+    expect(type(pageUi) == "table" and type(pageUi.config) == "table", "the page's own state was not found (instrument)")
+    return type(pageUi) == "table" and type(pageUi.config) == "table" and pageUi or nil
+  end
+  local function fileOf(mcu)
+    local loaded = MP.loadByMcuId(mcu, true) or {}
+    return loaded.dashboard or {}
+  end
+
+  if case == "savebeforeread" then
+    -- The identity and the model's settings arrive, and Save is pressed in that same pass, before
+    -- the page has read them: what the page holds are the defaults it showed without a model, and
+    -- they must not reach the model's file.
+    expect(type(pressSave) == "function", "the header's Save was not found (instrument)")
+    session.mcu_id = MCU
+    local loaded = MP.loadByMcuId(MCU, true)
+    if type(loaded.dashboard) ~= "table" then loaded.dashboard = {} end
+    loaded.dashboard.written_by_save = "yes"
+    session.modelPreferences = loaded
+    if pressSave then pressSave() end
+    runFor(10)
+    local dash = fileOf(MCU)
+    expect(dash.written_by_save == nil, "Save wrote the model's file before the page had read it")
+    expect(dash.overrides == true and dash.model_theme_preflight == own,
+      "the model's file changed under a Save made before the page read it: overrides="
+      .. tostring(dash.overrides) .. ", theme=" .. tostring(dash.model_theme_preflight))
+  end
+
+  if case ~= "savebeforeread" then
+    deliverModel()
+    expect(session.mcu_id == MCU and type(session.modelPreferences) == "table",
+      "the identity did not stay in the session (instrument)")
+  end
+
+  if case == "otherfc" then
+    -- Another flight controller, with settings of its own, is identified while the page still holds
+    -- the first one's, and Save is pressed before the page has read the second: nothing of the first
+    -- one's may reach the second one's file.
+    local MCU_B = "fedcba9876543210"
+    local seededB = MP.loadByMcuId(MCU_B, true) or {}
+    local otherTheme = themes[1] and themes[1].path
+    expect(otherTheme ~= nil and otherTheme ~= own, "no second theme for the second model (instrument)")
+    seededB.dashboard = { overrides = false, model_override = false, model_theme_preflight = otherTheme }
+    expect(MP.saveByMcuId(MCU_B, seededB) ~= false, "the second model's file could not be written (instrument)")
+    session.mcu_id = MCU_B
+    local loadedB = MP.loadByMcuId(MCU_B, true)
+    loadedB.dashboard.written_by_save = "yes"
+    session.modelPreferences = loadedB
+    if pressSave then pressSave() end
+    runFor(10)
+    local dashB = fileOf(MCU_B)
+    expect(dashB.written_by_save == nil, "Save wrote the second model's file with the first one's settings")
+    expect(dashB.overrides == false and dashB.model_theme_preflight == otherTheme,
+      "the second model's file changed: overrides=" .. tostring(dashB.overrides)
+      .. ", theme=" .. tostring(dashB.model_theme_preflight))
+    local dashA = fileOf(MCU)
+    expect(dashA.written_by_save == nil and dashA.model_theme_preflight == own,
+      "the first model's file changed although its flight controller was gone")
+  end
+
+  if case == "offlinesave" then
+    -- The pilot picks another theme for the model, the link drops, and Save is pressed with no
+    -- flight controller identified: the model's half cannot be written, so the page must not report
+    -- the save as done and must stay unsaved.
+    local pageUi = pageState()
+    local edited = themes[1] and themes[1].path
+    expect(edited ~= nil and edited ~= own, "no second theme to pick (instrument)")
+    if pageUi then
+      pageUi.config.model_theme_preflight = edited
+      pageUi.dirty = true
+    end
+    session.mcu_id = nil
+    session.modelPreferences = nil
+    runFor(5)
+    expect(type(pressSave) == "function", "the header's Save was not found (instrument)")
+    state.saveOutcome = nil
+    if pressSave then pressSave() end
+    runFor(10)
+    local dash = fileOf(MCU)
+    expect(dash.written_by_save == nil and dash.model_theme_preflight == own,
+      "the model's file changed with no flight controller identified (control)")
+    expect(pageUi ~= nil and pageUi.dirty == true, "the model's unsaved pick no longer counts as unsaved after Save")
+    local outcome = state.saveOutcome
+    local message = outcome and tostring(outcome.message) or ""
+    expect(string.find(message, "Connect the flight controller", 1, true) ~= nil,
+      "Save did not say that the model's settings were not saved: " .. message)
+    -- The same flight controller comes back, and Save now writes the pick.
+    deliverModel()
+    state.saveOutcome = nil
+    if pressSave then pressSave() end
+    runFor(10)
+    dash = fileOf(MCU)
+    expect(dash.model_theme_preflight == edited, "the pick was not written once the flight controller was back: "
+      .. tostring(dash.model_theme_preflight))
+    expect(pageUi ~= nil and pageUi.dirty == false, "the page stayed unsaved after the pick was written")
+  end
+
   local edited = nil
   if case == "linkdrop" then
     -- The pilot picks another theme for the model and has not saved yet: the page's own state, as
@@ -325,17 +471,19 @@ if case == "themesave" or case == "linkdrop" then
     deliverModel()
     expect(lastTexts[OWN] == true, "the model's controls did not come back with the same flight controller")
   end
-  expect(state.fblConnected == true and state.activePageMenuId == PAGE, "the page was left when the flight controller answered")
-  expect(type(pressSave) == "function", "the header's Save was not found (instrument)")
-  if pressSave then pressSave() end
-  runFor(10)
-  local after = MP.loadByMcuId(MCU, true) or {}
-  local dash = after.dashboard or {}
-  expect(dash.written_by_save == "yes", "Save did not write the model's file at all (the model half was skipped)")
-  expect(dash.overrides == true, "Save switched the model's own settings off: overrides=" .. tostring(dash.overrides))
-  local wanted = edited or own
-  expect(dash.model_theme_preflight == wanted, "the model's theme after Save is " .. tostring(dash.model_theme_preflight)
-    .. ", expected " .. tostring(wanted) .. (edited and " (the pilot's unsaved pick)" or " (the model's own)"))
+  if case == "themesave" or case == "linkdrop" then
+    expect(state.fblConnected == true and state.activePageMenuId == PAGE, "the page was left when the flight controller answered")
+    expect(type(pressSave) == "function", "the header's Save was not found (instrument)")
+    if pressSave then pressSave() end
+    runFor(10)
+    local after = MP.loadByMcuId(MCU, true) or {}
+    local dash = after.dashboard or {}
+    expect(dash.written_by_save == "yes", "Save did not write the model's file at all (the model half was skipped)")
+    expect(dash.overrides == true, "Save switched the model's own settings off: overrides=" .. tostring(dash.overrides))
+    local wanted = edited or own
+    expect(dash.model_theme_preflight == wanted, "the model's theme after Save is " .. tostring(dash.model_theme_preflight)
+      .. ", expected " .. tostring(wanted) .. (edited and " (the pilot's unsaved pick)" or " (the model's own)"))
+  end
 end
 
 if case == "compile" or case == "restart" or case == "both" then
