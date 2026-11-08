@@ -131,7 +131,7 @@ check(ring.tag == "tag.x" and sink.tag == "tag.x" and ring.level == "info" and s
 check(console[#console] == "[tag.x][info][" .. string.format("%0.1f", ring.time / 100) .. "] same text",
   "the console line carries the same clock reading", console[#console])
 Log.emit("t", nil, "info")
-check(_G.rfsuite.log_history[#_G.rfsuite.log_history].msg == "" and console[#console]:sub(-4) == " nil",
+check(_G.rfsuite.log_history[#_G.rfsuite.log_history].msg == "" and string.sub(console[#console], -4) == " nil",
   "a nil message is empty in the ring and 'nil' on the console, as before")
 
 _G.print = realPrint
