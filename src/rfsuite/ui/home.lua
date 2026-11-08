@@ -1534,7 +1534,9 @@ local function refreshRootTilesInPlace()
   local drawn = state.rootDrawn
   if not drawn or not Tiles or state.initialLoad or not state.menu.isRoot() then return false end
   local flatCards = Tiles.flattenRootCards(state.menu.getRootGroups())
-  if rootTileLayout(flatCards) ~= drawn.layout then return false end
+  -- The layout drawn is worked out here, from the cards it was built from, rather than at every build:
+  -- a build of the root menu is far more frequent than a change of the conditions under it.
+  if rootTileLayout(flatCards) ~= rootTileLayout(drawn.cards) then return false end
   for i = 1, #flatCards do
     local card = flatCards[i]
     drawn.enabled[tostring(card.sectionId) .. "/" .. tostring(card.id)] = card.data.enabled ~= false
@@ -3156,7 +3158,7 @@ local function buildScene()
     state.focusIndex = math.max(0, math.min(state.focusIndex, #flatCards))
     -- What each tile asks on the firmware's refresh pass, so that a change of the conditions that
     -- only enables or greys out tiles is applied where they stand (refreshRootTilesInPlace).
-    local drawn = { layout = rootTileLayout(flatCards), enabled = {} }
+    local drawn = { cards = flatCards, enabled = {} }
     state.rootDrawn = drawn
 
     local cursorY   = contentY
