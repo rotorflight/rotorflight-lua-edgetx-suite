@@ -128,6 +128,7 @@ local EepromApi = nil
 local RebootApi = nil
 local TxInfoApi = nil
 local Log = nil
+local Armed = nil
 
 local function ensureDeps()
   if not MspRuntime then MspRuntime = loadModule("tasks/msp/runtime.lua") end
@@ -323,6 +324,12 @@ local function fail(step)
 end
 
 local function timedOut(phase)
+  -- The backstop can end a write step before the queue has given its message up. A write that was
+  -- already sent then counts as reached here, because its own give-up will find no current run.
+  if S.run and S.run.phase == PHASE.WRITE and type(S.run.stepMsg) == "table"
+    and S.run.stepMsg.__sentAt ~= nil then
+    S.run.sentAny = true
+  end
   -- A run that ends on a backstop leaves its own messages on the queue. Sent later, they would
   -- still act on the board: a queued EEPROM write would store what the notice calls not saved,
   -- a queued reboot would restart a board long after the pilot moved on. They are dropped once
@@ -460,9 +467,16 @@ local function startReboot()
     -- press: no reboot is queued into a link that went down, or for a craft that armed since.
     if S.run.restart then
       local _, mspState = getQueue()
-      if not mspState or mspState.lastConnected ~= true or mspState.lastArmed == true then
-        logf("warn", "restart abandoned before the reboot: connected=%s armed=%s",
-          tostring(mspState and mspState.lastConnected), tostring(mspState and mspState.lastArmed))
+      -- lib/armed.lua is the screens' question, uncertain state included; the MSP state alone
+      -- does not see a reading that went away while the craft was last read disarmed.
+      if Armed == nil then Armed = loadModule("lib/armed.lua") or false end
+      local armedNow = Armed and type(Armed.isArmed) == "function" and Armed.isArmed() == true
+      local unknown = Armed and type(Armed.isUncertain) == "function" and Armed.isUncertain() == true
+      if not mspState or mspState.lastConnected ~= true or mspState.lastArmed == true
+        or armedNow or unknown then
+        logf("warn", "restart abandoned before the reboot: connected=%s armed=%s/%s uncertain=%s",
+          tostring(mspState and mspState.lastConnected), tostring(mspState and mspState.lastArmed),
+          tostring(armedNow), tostring(unknown))
         fail("reboot")
         return
       end
@@ -545,7 +559,8 @@ queueStep = function(index, payload)
   S.run.stepIndex = index
   enter(PHASE.WRITE)
   local run = S.run
-  queue:add({
+  local msg
+  msg = {
     command = step.command,
     payload = payload,
     isWrite = true,
@@ -558,16 +573,18 @@ queueStep = function(index, payload)
       S.run.sentAny = true
       queueStep(index + 1)
     end,
-    errorHandler = function(msg, reason)
+    errorHandler = function(given, reason)
       if not isCurrent(run) then return end
-      if reason ~= "refused" and type(msg) == "table" and msg.__sentAt ~= nil then
+      if reason ~= "refused" and type(given) == "table" and given.__sentAt ~= nil then
         logf("debug", "write unanswered after it was sent page=%s step=%d reason=%s",
           tostring(S.run.desc.pageId), index, tostring(reason))
         S.run.sentAny = true
       end
       fail(step.label or tostring(step.command))
     end,
-  })
+  }
+  run.stepMsg = msg
+  queue:add(msg)
 end
 
 --- Begin a save. Returns false and a reason when the pipeline refuses to start one.

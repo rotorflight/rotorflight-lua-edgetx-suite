@@ -2779,9 +2779,10 @@ local function buildScene()
       if saveProgress.saved then
         title = SAVE_TEXT.saved_title
       elseif saveProgress.restart then
-        -- The restart offered after a failed save: still nothing saved, and the phase texts are
-        -- the ones a save with a reboot shows.
-        title = SAVE_TEXT.failed_title
+        -- The restart offered after a failed save, titled as what it is: whether the settings were
+        -- stored is not known (a lost answer to the EEPROM write may still have stored them). The
+        -- phase texts are the ones a save with a reboot shows.
+        title = SAVE_TEXT.restart
       end
       -- A finished save reports itself HERE, in the box that has been reporting all along. A
       -- native dialog for it would be drawn over this one from inside the reply handler, so
@@ -2790,7 +2791,7 @@ local function buildScene()
       if saveProgress.terminal then
         local result = saveProgress.result or {}
         if result.restart == true then
-          title = SAVE_TEXT.failed_title
+          title = SAVE_TEXT.restart
           -- Seen restarting is what the pilot needs to know; a connect chain that is slow after it
           -- does not undo the restart.
           if result.rebootProven == true then

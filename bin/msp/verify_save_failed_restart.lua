@@ -29,6 +29,7 @@ function queue:clear(client)
 end
 local mspState = { queue = queue, lastArmed = false, lastConnected = true }
 local onconnectActive = false
+local armedNow, armedUnknown = false, false
 
 local modules = {
   ["tasks/msp/runtime.lua"] = { getState = function() return mspState end },
@@ -46,6 +47,10 @@ local modules = {
     parse = function(buf) return { rtc_datetime_set = buf and buf[1] } end,
   },
   ["lib/log.lua"] = false,
+  ["lib/armed.lua"] = {
+    isArmed = function() return armedNow end,
+    isUncertain = function() return armedUnknown end,
+  },
 }
 
 _G.rfsuite = { session = {}, paths = { core = "/SCRIPTS/RFSUITE/core" } }
@@ -71,6 +76,7 @@ local function begin(reboot)
   queue.entries = {}
   mspState.lastArmed = false
   mspState.lastConnected = true
+  armedNow, armedUnknown = false, false
   onconnectActive = false
   clock = 0
   saved = 0
@@ -388,6 +394,29 @@ Pipeline.wakeup()
 p, r = outcome()
 equal(p and p.terminal, true, "tool closes: the restart's outcome stands in the notice")
 equal(r and r.restart, true, "tool closes: it is the restart's")
+
+-- 22. The arming reading goes away between the press and the pre-flight answer: no reboot.
+begin()
+ack(last()); refuse(last())
+equal(Pipeline.restartAfterFailure(), true, "unknown arming: restart started")
+armedUnknown = true
+ack(last(), { 1 })
+equal(countCommand(CMD.reboot), 0, "unknown arming: no reboot queued")
+equal(select(2, outcome()).restart, true, "unknown arming: the restart reports")
+
+-- 23. The backstop ends a write step before the queue gave up its sent message: it counts as reached.
+begin()
+last().__sentAt = 0                             -- the queue stamps a message when it is sent
+clock = 3200
+Pipeline.wakeup()
+p, r = outcome()
+equal(p and p.status, "timeout", "backstop on a sent write: timeout")
+equal(r and r.sentAny, true, "backstop on a sent write: counts as reached")
+equal(Pipeline.offersRestart(r), true, "backstop on a sent write: offer")
+begin()
+clock = 3200
+Pipeline.wakeup()
+equal(select(2, outcome()).sentAny, false, "backstop on a write never sent: not reached")
 
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end

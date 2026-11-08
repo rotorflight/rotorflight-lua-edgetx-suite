@@ -261,7 +261,8 @@ pipeline.restartAfterFailure = realRestart
 
 -- The restart itself: still nothing saved, the reboot phase texts, then its own outcome.
 draw({ phase = "reboot", restart = true, saved = false, done = 1, total = 1, fraction = 1, indeterminate = true })
-check(shows(Stubs, "app.save.failed_title"), "restart running: titled Not saved")
+check(showsExactly(Stubs, "@i18n(app.save.restart)@"), "restart running: titled as the restart")
+check(not shows(Stubs, "app.save.failed_title"), "restart running: not titled Not saved")
 check(shows(Stubs, "app.save.rebooting"), "restart running: the reboot phase text")
 draw({ phase = "outcome", terminal = true, status = "done", done = 1, total = 1, fraction = 1, dismissible = true,
   result = { status = "done", saved = false, restart = true, reboot = true, rebootProven = true } })
@@ -270,7 +271,9 @@ check(not shows(Stubs, "app.save.done_message"), "restart seen: not reported as 
 draw({ phase = "outcome", terminal = true, status = "timeout", done = 1, total = 1, fraction = 1, dismissible = true,
   result = { status = "timeout", saved = false, restart = true, reboot = true, phase = "reconnect" } })
 check(shows(Stubs, "app.save.restart_unconfirmed_failed"), "restart not seen: power off and on")
-check(not showsExactly(Stubs, "@i18n(app.save.restart)@"), "restart not seen: no second offer")
+local bOut = buttons()
+check(#bOut == 1 and bOut[1].text == "@i18n(app.save.dismiss)@", "restart not seen: Continue only, no second offer",
+  #bOut)
 draw({ phase = "outcome", terminal = true, status = "timeout", done = 1, total = 1, fraction = 1, dismissible = true,
   result = { status = "timeout", saved = false, restart = true, reboot = true, rebootProven = true, phase = "onconnect" } })
 check(shows(Stubs, "app.save.restarted_message"), "restart seen, connect slow after it: still reported as restarted")
