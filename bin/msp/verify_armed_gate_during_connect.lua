@@ -29,7 +29,14 @@
 --   after connect    the same gate, with every MSP request answered and the connect finished, as
 --                    the positive control that the scenario can see an arm at all;
 --   function script  while it is draining for the radio, the widget still records that telemetry
---                    is arriving (session.telemetryFrameAt) during the connect.
+--                    is arriving (session.telemetryFrameAt) during the connect;
+--   armed first      the craft armed from the first frame: no MSP request frame goes out until the
+--                    disarm, and after it the connect sequence runs and finishes;
+--   no armed source  frames that carry neither the arming flags nor the System Status word: the
+--                    first request goes out ARMED_WAIT_CYCLES (5 s) after the link came up.
+--
+-- The radio's getSourceValue() is installed: a row counts as current once something has written it
+-- in this world, which is what the radio answers for a sensor received since the link came up.
 -- Exit status: 0 green, 1 failed expectations, 2 invalid arguments.
 
 local ROOT = "."
@@ -63,6 +70,8 @@ local ARM_WITHIN_CYCLES = 40
 local SETTLE_CYCLES = 60
 -- The most cycles an answered connect may take to finish in the control scenario.
 local CONNECT_LIMIT_CYCLES = 1200
+-- tasks/msp/runtime.lua ARMED_STATE_WAIT_SECONDS, in 0.1 s cycles, and the pass either side of it.
+local ARMED_WAIT_CYCLES = 50
 
 local failures, checks = 0, 0
 local function check(ok, label, detail)
@@ -95,7 +104,9 @@ local frameId = 0
 local function pushArmFrame(armed, source)
   frameId = (frameId + 1) & 0xFF
   local f = { 0xEA, 0xC8, frameId, 0x11, 0x00, 0x00, 0x0A, 0x00, 0x14, 0x00, 0x1E, 0x10, 0x11, 0x00, 0xF6 }
-  if source == "stat" then
+  if source == "none" then
+    -- nothing after the voltage
+  elseif source == "stat" then
     for _, b in ipairs({ 0x12, 0x30, 0x00, 0x00, 0x00, armed and 1 or 0 }) do f[#f + 1] = b end
   elseif source == "both" then
     -- The System Status word in front of the arming flags: lib/sensors.lua takes the arming flags.
@@ -108,8 +119,12 @@ local function pushArmFrame(armed, source)
   Stubs.pushFrame(0x88, f)
 end
 
--- MSP request frames the radio sent, answered or not.
+-- MSP request frames the radio sent, answered or not, and the cycle the first went out in.
 local mspSent = 0
+local firstSentCycle = nil
+local cycleNo = 0
+-- Marks a radio row as received in this world (set per world in newWorld).
+local markWritten = function() end
 
 local function newWorld(answerMsp)
   Stubs.clearCard()
@@ -120,18 +135,32 @@ local function newWorld(answerMsp)
   FC.loadReplies(API_DIR, API_FILES)
   frameId = 0
   mspSent = 0
+  firstSentCycle = nil
+  cycleNo = 0
 
   -- The radio's sensor table: a published value is what getValue reads from then on.
   local publish = _G.setTelemetryValue
+  local written = {}
   _G.setTelemetryValue = function(id, sub, instance, value, unit, prec, name)
-    if type(name) == "string" and name ~= "" then Stubs.sensors[name] = value end
+    if type(name) == "string" and name ~= "" then
+      Stubs.sensors[name] = value
+      written[name] = true
+    end
     return publish(id, sub, instance, value, unit, prec, name)
   end
+  -- value, current: nothing for a row never received; current once written in this world.
+  _G.getSourceValue = function(name)
+    local v = Stubs.sensors[name]
+    if v == nil then return nil end
+    return v, written[name] == true
+  end
+  markWritten = function(name) written[name] = true end
 
   local fcPush = Stubs.onPush
   Stubs.onPush = function(frameType, payload)
     if frameType == 0x7A or frameType == 0x7C then
       mspSent = mspSent + 1
+      if firstSentCycle == nil then firstSentCycle = cycleNo end
       if not answerMsp then return true end
     end
     return fcPush(frameType, payload)
@@ -148,6 +177,7 @@ end
 
 -- One host cycle. `armed` nil pushes no frame: another Lua state is taking them.
 local function cycle(widget, armed, source)
+  cycleNo = cycleNo + 1
   Stubs.tick()
   if armed ~= nil then pushArmFrame(armed, source) end
   widget.background(widget)
@@ -257,6 +287,9 @@ local function functionScriptScenario()
   local widget = newWorld(false)
   for _ = 1, SETTLE_CYCLES do
     Stubs.shmVars[16] = (Stubs.shmVars[16] or 0) + 1
+    -- The script decodes for the radio, the arming flags included.
+    Stubs.sensors["ARM"] = 0
+    markWritten("ARM")
     cycle(widget, nil)
   end
   check(onconnectActive() == true, "function script: the connect tasks are still waiting")
@@ -272,11 +305,42 @@ local function functionScriptScenario()
     "telemetryFrameAt " .. tostring(before) .. " -> " .. tostring(after))
 end
 
+-- Armed from the first frame, every MSP request answered: nothing is sent until the disarm, and the
+-- connect runs and finishes after it.
+local function armedFirstScenario()
+  local widget, Msp = newWorld(true)
+  for _ = 1, 80 do cycle(widget, true, "arm") end
+  check(Msp.getState().lastArmed == true, "armed first: the MSP runtime reads the craft as armed")
+  check(mspSent == 0, "armed first: no MSP request is sent while armed", "request frames sent: " .. mspSent)
+  local finished = false
+  for _ = 1, CONNECT_LIMIT_CYCLES do
+    cycle(widget, false, "arm")
+    if mspSent > 0 and onconnectActive() == false then finished = true break end
+  end
+  check(mspSent > 0, "armed first: requests go out after the disarm", "request frames sent: " .. mspSent)
+  check(finished, "armed first: the connect sequence finishes after the disarm")
+end
+
+-- Neither the arming flags nor the System Status word in the frames: the link waits ARMED_WAIT_CYCLES
+-- for them and then connects.
+local function noArmedSourceScenario()
+  local widget, Msp = newWorld(true)
+  for _ = 1, ARMED_WAIT_CYCLES + 30 do cycle(widget, false, "none") end
+  local linkUpAt = Msp.getState().linkUpAt
+  local linkCycle = linkUpAt and math.floor(linkUpAt * 10 + 0.5) or nil
+  local waited = (firstSentCycle and linkCycle) and (firstSentCycle - linkCycle) or nil
+  check(waited ~= nil and waited >= ARMED_WAIT_CYCLES - 1 and waited <= ARMED_WAIT_CYCLES + 1,
+    "no armed source: the first request goes out 5 s after the link came up",
+    "link up at cycle " .. tostring(linkCycle) .. ", first request at cycle " .. tostring(firstSentCycle))
+end
+
 scenario("connect waiting", false, true, "arm")
 scenario("system status", false, true, "stat")
 scenario("both sources", false, true, "arm", "both")
 scenario("after connect", true, false, "arm")
 functionScriptScenario()
+armedFirstScenario()
+noArmedSourceScenario()
 
 Stubs.releaseCard()
 if failures > 0 then

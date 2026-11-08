@@ -550,8 +550,12 @@ function Events.wakeup(carry)
     -- refusal is reported by the tool's notice and the dashboard's status line instead.
     local refused = mspState.unsupportedApi == true
 
+    -- The connect tasks wait until the MSP runtime knows this link's armed state (see armedKnown in
+    -- tasks/msp/runtime.lua): a craft armed before the link came up must get no connect read either.
+    local armedKnown = not mspState or mspState.armedKnown ~= false
+
     local onconnectActive = false
-    if state.linkStableUp and not armed and not refused then
+    if state.linkStableUp and not armed and not refused and armedKnown then
       local onconnect = ensureEventRunner("onconnect")
       if onconnect then
         local wasActive = false
@@ -605,8 +609,10 @@ function Events.wakeup(carry)
     -- frames off the wire and publishes the armed state alone (telemetry_bg/tasks.lua,
     -- wakeupConnecting): the decode of every other sensor, SmartFuel and the adjustment teller
     -- still wait for the connect to finish. When the function script is running, that pass stands
-    -- aside for it like the full one does.
-    if state.linkStableUp and (not onconnectActive or armed or context == "tool") then
+    -- aside for it like the full one does. The same pass runs while the link waits for its armed
+    -- state before the connect starts (`armedKnown`): it publishes that state in fewer load steps
+    -- than the full pass would.
+    if state.linkStableUp and ((not onconnectActive and armedKnown) or armed or context == "tool") then
       if state.armingFlagsOnly then
         state.armingFlagsOnly = false
         if Log and type(Log.emit) == "function" then

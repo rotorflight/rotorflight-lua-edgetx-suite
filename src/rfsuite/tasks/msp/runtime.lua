@@ -78,6 +78,14 @@ local state = {
   versionReadCompleted = false,
   lastArmed = nil,
   lastConnected = nil,
+  -- Whether this link's armed state is known: a current reading of the arming flags or the System
+  -- Status word has arrived since the link came up, or ARMED_STATE_WAIT_SECONDS have passed without
+  -- one. Nothing is sent before -- not the core reads, and (tasks/events/runtime.lua) no connect
+  -- task -- so a craft that is already armed when the link comes up gets no MSP at all.
+  armedKnown = false,
+  linkUpAt = nil,
+  -- The last current reading said armed; polled until lib/armed.lua says the same.
+  readingArmed = false,
   -- The identity `session.signature` was last built from; see publish().
   signatureApiVersion = nil,
   signatureMcuId = nil
@@ -442,6 +450,9 @@ end
 
 -- Match FLIGHT_CONFIRM_SECONDS in tasks/events/runtime.lua, which confirms a flight after a gap.
 local FLIGHT_CONFIRM_SECONDS = 5.0
+-- How long a new link waits for a current armed state before it sends anyway: a flight controller
+-- that reports neither the arming flags nor the System Status word never answers the question.
+local ARMED_STATE_WAIT_SECONDS = 5.0
 local armedUncertainSinceTicks = nil
 
 local function holdArmedWhileUncertain(now)
@@ -506,17 +517,23 @@ end
 -- answers or the radio has no getSourceValue().
 -- tick() instead reads armflags through lib/armed.lua and holds its last armed state while
 -- uncertain, until disarm is current or uncertainty lasts FLIGHT_CONFIRM_SECONDS with the link up.
-function Runtime.armedReading()
+local function readArmedSources()
   local getSrcV = _G.getSourceValue
   if type(getSrcV) ~= "function" then return nil end
   for i = 1, #ARM_SOURCES do
     local ok, value, current = pcall(getSrcV, ARM_SOURCES[i])
     if ok and value ~= nil then
       local armed = armedFromValue(value)
-      if armed ~= nil then return armed, current == true end
+      if armed ~= nil then return armed, current end
     end
   end
   return nil
+end
+
+function Runtime.armedReading()
+  local armed, current = readArmedSources()
+  if armed == nil then return nil end
+  return armed, current == true
 end
 
 local function isConnected()
@@ -781,6 +798,9 @@ local function doDisconnect(now, reason, keepLink)
     return
   end
   state._disconnectHandled = true
+  state.armedKnown = false
+  state.linkUpAt = nil
+  state.readingArmed = false
   -- Ensure runtime reflects disconnected state.
   if not keepLink then
     state.lastConnected = false
@@ -1010,6 +1030,9 @@ function Runtime.tick()
       state.pendingVersionRead = true
       state.pendingUidRead = true
       state.uidReadSettled = false
+      state.armedKnown = false
+      state.linkUpAt = now
+      state.readingArmed = false
     else
       -- A real loss of the link. `lastConnected` is already false from the line above, so the
       -- refusal form is not wanted here.
@@ -1024,6 +1047,32 @@ function Runtime.tick()
   end
 
   local armed = readArmedState(now)
+  -- The radio's own answer, read directly: lib/armed.lua goes through lib/sensors.lua, which asks
+  -- again only after a second for a sensor it was asked for before it first arrived -- and on a new
+  -- link that is every armed sensor. Asked only while this link's armed state is not known yet, or
+  -- while its last answer was armed and lib/armed.lua has not caught up.
+  if not armed and (not state.armedKnown or state.readingArmed) then
+    -- A getSourceValue() that answers with the value alone (no second result) is taken as current,
+    -- as lib/sensors.lua takes it; only an explicit false is an old reading.
+    local reading, raw = readArmedSources()
+    local current = reading ~= nil and raw ~= false
+    state.readingArmed = current and reading == true
+    if state.readingArmed then armed = true end
+    if not state.armedKnown then
+      if current or type(_G.getSourceValue) ~= "function" then
+        -- A radio without getSourceValue() cannot tell a current reading from an old one, so it
+        -- does not wait for one.
+        state.armedKnown = true
+        log("armed state known (" .. (state.readingArmed and "armed" or "disarmed") .. ")", "debug")
+      elseif state.linkUpAt ~= nil and (now - state.linkUpAt) >= ARMED_STATE_WAIT_SECONDS then
+        state.armedKnown = true
+        log("armed state not reported within " .. ARMED_STATE_WAIT_SECONDS .. " s; connecting without it", "info")
+      end
+    end
+  elseif armed and not state.armedKnown then
+    state.armedKnown = true
+    log("armed state known (armed)", "debug")
+  end
   if armed then
     if state.lastArmed ~= true then
       state.lastArmed = true
@@ -1045,8 +1094,8 @@ function Runtime.tick()
     return false
   end
 
-  -- Core startup reads (API version + UID).
-  if not armed then
+  -- Core startup reads (API version + UID), once the armed state is known.
+  if not armed and state.armedKnown then
     enqueueVersionReads(now)
     enqueueUidRead(now)
   end

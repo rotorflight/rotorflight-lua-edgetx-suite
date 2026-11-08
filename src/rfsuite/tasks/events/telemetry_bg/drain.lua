@@ -320,6 +320,13 @@ local function modulesReady(now)
     -- pass that cannot pop must not start the window in which frame ids are not yet counted as
     -- gaps, or the first frame after a late load would count as frames the link lost.
     if not CrsfManager then
+        -- The MSP transport (tasks/msp/transports/crsf.lua) loads the same module first and it keeps
+        -- one instance per Lua state, so take that one rather than spend a load on it.
+        local shared = _G.rfsuite and _G.rfsuite.crsf_manager
+        if type(shared) == "table" then
+            CrsfManager = shared
+            return true
+        end
         if now < loadRetryAt then return false end
         CrsfManager = loadModule("lib/crsf.lua")
         if not CrsfManager then
