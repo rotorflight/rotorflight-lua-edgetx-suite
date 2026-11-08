@@ -499,6 +499,52 @@ function Queue:cancel(clientId, requestId)
   return found
 end
 
+-- A message's `sendIf` (see the send below): true lets it go on, anything else withholds it.
+local function sendAllowed(msg)
+  local okIf, allowed = pcall(msg.sendIf, msg)
+  if not okIf and isCpuLimitError(allowed) then error(allowed, 0) end
+  return okIf and allowed == true, (not okIf) and allowed or nil
+end
+
+-- Give a withheld message up as an abandoned one is given up: nothing of it may go out after
+-- this, so its buffered bytes go with it, and the next message waits its usual delay. The handler
+-- runs before the message is released, as at the give-up after the retries: an instruction-limit
+-- stop raised in it leaves the message current, and the next pass comes back here (the mark below)
+-- and calls it again, without asking sendIf and without sending.
+local function withhold(self, msg, now, err)
+  if not msg.__withheld then
+    self.logf("warn", "withheld cmd=%s rw=%s client=%s attempt=%d%s",
+      tostring(msg.command), isWriteMessage(msg) and "W" or "R", tostring(msg.client),
+      self.retryCount + 1, err and (" err=" .. tostring(err)) or "")
+  end
+  msg.__withheld = true
+  msg.__retryCount = self.retryCount
+  if self.common and self.common.clearTxBuf then
+    self.common.clearTxBuf()
+  end
+  if self.common and self.common.clearRxBuf then
+    self.common.clearRxBuf()
+  end
+  if type(msg.errorHandler) == "function" then
+    local ok, herr = pcall(msg.errorHandler, msg, "withheld")
+    if not ok then
+      if isCpuLimitError(herr) then error(herr, 0) end
+      self.logf("warn", "error handler raised cmd=%s client=%s reason=withheld err=%s",
+        tostring(msg.command), tostring(msg.client), tostring(herr))
+    end
+  end
+  if self.retryCount > 0 then keepCommandQuiet(self, msg, now) end
+  self.currentMessage = nil
+  self.currentMessageStartTime = nil
+  self.lastTimeCommandSent = nil
+  self.retryCount = 0
+  -- Released: a caller that adds the same table again starts it afresh.
+  msg.__withheld = nil
+  if self.interMessageDelay > 0 then
+    self._nextMessageAt = now + self.interMessageDelay
+  end
+end
+
 function Queue:processQueue(now)
   now = tonumber(now) or nowSeconds()
   local simulatorMode = self.isSimulator == true
@@ -548,6 +594,13 @@ function Queue:processQueue(now)
 
   local msg = self.currentMessage
   if not msg then return end
+
+  -- A withheld message whose handler was stopped by the instruction limit: only the give-up is
+  -- finished. Nothing of it is sent and no reply is taken for it.
+  if msg.__withheld then
+    withhold(self, msg, now)
+    return
+  end
 
   -- A read that add() found in the cache is completed here and never sent. Same shape as the
   -- success path below: processReply gets the buffer, the slot is released, the inter-message
@@ -654,6 +707,22 @@ function Queue:processQueue(now)
     return
   end
 
+  -- A message with `sendIf` that has started sending may still have bytes in the transmit buffer (a
+  -- frame the transport did not take yet, the chunks after the first, or a send an instruction-limit
+  -- stop interrupted before it was counted -- `__sendStarted` is set just before the send): they are
+  -- its sends too, so the same question is asked before they are flushed. Bytes a previous message
+  -- left are not this message's and do not raise its question. Only then: a message whose bytes are
+  -- all out is waiting for its answer, and that answer -- or its completion on silence -- is still
+  -- taken, since nothing more would be sent.
+  if msg.sendIf ~= nil and (self.retryCount > 0 or msg.__sendStarted == true) and self.common
+    and type(self.common.txPending) == "function" and self.common.txPending() then
+    local allowed, err = sendAllowed(msg)
+    if not allowed then
+      withhold(self, msg, now, err)
+      return
+    end
+  end
+
   -- Flush any pending TX fragments before checking for replies.
   if self.common and type(self.common.processTxQ) == "function" then
     self.common.processTxQ()
@@ -721,6 +790,15 @@ function Queue:processQueue(now)
     or (msg.completeAfterAttempt and self.retryCount >= msg.completeAfterAttempt)
 
   if success then
+    -- A message can complete with bytes of a later attempt still buffered (the reboot completes on
+    -- its sends, not on what the transport took); the next message's flush sends them, as it always
+    -- has -- a repeat of a frame that already went out. A message that asks for it
+    -- (`dropLeftoverOnComplete`: a send that must not go out later than its own sendIf check) has
+    -- them dropped here instead.
+    if msg.dropLeftoverOnComplete == true and self.common and type(self.common.txPending) == "function"
+      and self.common.txPending() and self.common.clearTxBuf then
+      self.common.clearTxBuf()
+    end
     msg.buf = buf
     -- `src=wire` is the counterpart of the `src=cache` line above, and the pair is the point:
     -- read on its own, neither says whether the bytes came off the transport or out of a table.
@@ -793,7 +871,20 @@ function Queue:processQueue(now)
   end
 
   if canSendByInterval and canSendByTimeout and self.retryCount <= maxRetries and not self.writeHeld and not keptQuiet then
+    -- A message may carry `sendIf`, asked in the same call as every send of it, the first and each
+    -- retry. Anything but true withholds it: the message is given up with the reason "withheld"
+    -- and nothing goes out. It exists for a request whose precondition can lapse while it waits in
+    -- the queue -- a reboot that must not reach a craft that armed after it was queued -- and is
+    -- absent on every other message, which this test then leaves alone.
+    if msg.sendIf ~= nil then
+      local allowed, err = sendAllowed(msg)
+      if not allowed then
+        withhold(self, msg, now, err)
+        return
+      end
+    end
     local payload = msg.payload or EMPTY_PAYLOAD
+    if msg.sendIf ~= nil then msg.__sendStarted = true end
     local okSend = self.common and type(self.common.sendRequest) == "function"
       and self.common.sendRequest(msg.command, payload, { write = isWriteMessage(msg) })
     if okSend then

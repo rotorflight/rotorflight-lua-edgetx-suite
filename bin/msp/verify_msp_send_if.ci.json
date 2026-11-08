@@ -1,0 +1,7 @@
+{
+  "id": "msp-send-if",
+  "name": "MSP message withheld by its sendIf",
+  "commands": [
+    "lua5.3 bin/msp/verify_msp_send_if.lua"
+  ]
+}

@@ -172,7 +172,10 @@ widget's own connection to the flight controller. The return key at the top of i
 it, and so does the return key on the *Flight Log* page where *FLIGHT LOG* opened it there. Arming the model closes it as well, because while it is open the dashboard does not run and
 nothing is announced. So does leaving full screen with a long press on the return key. In both
 cases the tool's own closing sequence runs, so a page's changes that were already sent still
-reach the flight controller.
+reach the flight controller. A save, or a **Restart FC** after a failed save, that is still running
+when the tool closes is finished by the dashboard, and its outcome is shown the next time the tool
+opens; a save that gave up sends nothing more from the dashboard either (see
+[Saving configuration](../reference/saving.md)).
 
 Two things are different from the tool started from the tool list:
 

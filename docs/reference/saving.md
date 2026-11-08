@@ -180,6 +180,49 @@ closed. Before, the save stopped waiting when the tool closed: the connection st
 again after the restart, and the next open of the tool reported a board that had come back long
 before as *The flight controller has not come back yet*.
 
+## A save that fails after reaching the flight controller
+
+A save sends its writes one by one and then asks the flight controller to store them in its
+EEPROM. The flight controller uses most written values at once; only the EEPROM write keeps them,
+and after a restart it loads what it has stored. When a save fails before the flight controller
+has confirmed the EEPROM write, the notice *Not saved* says which of two cases it is:
+
+- **No write can have been taken.** The first write was refused by the flight controller, or it
+  was never sent. The notice reads *The flight controller did not confirm the settings.* and
+  offers **Continue**.
+- **A write may have been taken.** At least one write was confirmed, or a write was sent and
+  never answered -- a lost answer looks the same as a lost write -- and then a later write or the
+  EEPROM write failed or was not answered. The flight controller may then run some of the new
+  values until it restarts. The notice says so and offers **Continue** and **Restart FC**.
+
+**Continue** keeps the page with its changes, so Save can be tried again. **Restart FC** restarts
+the flight controller and writes nothing; the notice shows the same waiting steps as a save that
+restarts the flight controller. It ends with *The flight controller restarted and runs the
+settings it has stored.* when the restart was seen (see above), and otherwise with *The flight
+controller's restart could not be confirmed. Power it off and on before flying.* -- also when the
+board does not answer again within 20 seconds, or when a step of the restart gets no answer for
+30 seconds. Either notice stays up until it is closed. An EEPROM write whose answer was lost may
+still have been stored, so what the flight controller loads after the restart is what it has
+stored, which can be the new values.
+
+Restart FC is offered only while the connection is up to the flight controller the save wrote to
+(a different one connected since is not restarted) and the model is neither armed nor of unknown
+arming state. The button comes and goes with these while the notice
+stands, and a press is checked again: if the model was armed since, it restarts nothing. Because
+the flight controller accepts the restart command over telemetry whatever its arming state, the
+tool then asks the flight controller itself whether it is armed and sends the command only on its
+answer that it is not, and only within two seconds of asking and while the radio's own check
+still holds. A restart held back that way ends with *could not be confirmed*. If the tool opened from the dashboard closes during the
+restart, the restart finishes on its own and its outcome is shown the next time the tool opens.
+Pages that save through their own chain rather than through the shared save are not covered, and
+Flight Tuning > Tune Advisor reports a failed apply in its own notice.
+
+A save step that gets no answer for 30 seconds ends the save. None of its writes, its EEPROM write
+or its restart is sent after that -- each is checked at the moment it would be sent -- and the
+requests it still had waiting are dropped, so a late EEPROM write cannot store what the notice
+reported as not saved. The ended save ignores any answer that still arrives for it instead of
+moving the save or restart that follows.
+
 ## When a different flight controller answers
 
 Adjustments, Beepers, Blackbox, Failsafe and Stats under Setup > Controls, the four Governor pages,
