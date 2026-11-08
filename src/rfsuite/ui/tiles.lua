@@ -14,8 +14,10 @@ end
 
 local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
 
-local function resolveTileTextColor(isEnabled, focused)
-  if not isEnabled or focused then
+-- EdgeTX marks a focused button with a border and an outline in the focus colour and keeps its fill
+-- (libui/etx_lv_theme.cpp, etx_std_ctrl_colors), so a focused tile's text stays the text colour.
+local function resolveTileTextColor(isEnabled)
+  if not isEnabled then
     return Palette.tileMuted
   end
   return Palette.text
@@ -178,7 +180,7 @@ function Tiles.append(children, x, y, size, iconFile, text, focused, pressHandle
       x = x + math.floor((size - iconSize) / 2),
       y = y + math.max(5, math.floor(size * 0.08)),
       w = iconSize, h = iconSize,
-      file = iconFile
+      file = Palette.iconPath(iconFile)
     }
   end
 
