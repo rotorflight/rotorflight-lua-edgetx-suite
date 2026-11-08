@@ -56,8 +56,8 @@ local function configuredDebugRank()
   local general = prefs and prefs.general
   local value = general and general.debug_level
   if value ~= configuredValue then
-    configuredValue = value
     configuredRank = configuredRankOf(value)
+    configuredValue = value
   end
   return configuredRank
 end

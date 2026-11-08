@@ -109,11 +109,41 @@ check(onConsole("w4") == 1 and onConsole("i4") == 0, "WARNING: the alias of warn
 begin("loudest", false)
 Log.emit("t", "e5", "error")
 check(onConsole("e5") == 0, "an unknown setting is off")
-begin("debug", false)
+-- At info, so a level read wrongly as debug is not written and one read wrongly as info is.
+begin("info", false)
 Log.emit("t", "m6", "Warning")
 Log.emit("t", "m7", nil)
-check(onConsole("m6") == 1, "a message level in capitals is understood")
-check(onConsole("m7") == 1, "a message without a level is a debug line")
+check(onConsole("m6") == 1, "a message level in capitals is understood (warn passes at info)")
+check(onConsole("m7") == 0 and inRing("m7") == 0, "a message without a level is a debug line (held back at info)")
+setLevel("debug")
+Log.emit("t", "m8", nil)
+check(onConsole("m8") == 1, "a message without a level is written at debug")
+
+-- emitf: formatted past the gate, and at off still into the ring for the important levels.
+begin("off", true)
+Log.emitf("t", "debug", "f%d", 1)
+Log.emitf("t", "warn", "f%d", 2)
+check(inRing("f1") == 0 and inRing("f2") == 1 and inSink("f2") == 1 and onConsole("f2") == 0,
+  "emitf at off: a debug line nowhere, a warning in ring and sink only")
+setLevel("debug")
+Log.emitf("t", "debug", "f%d", 3)
+check(onConsole("f3") == 1, "emitf at debug: the line is written")
+
+-- recording: the level lets info through, or a sink is attached.
+begin("off", false)
+check(Log.recording() == false, "recording: off and no sink")
+_G.rfsuite.log_sink = {}
+check(Log.recording() == true, "recording: off with a sink")
+_G.rfsuite.log_sink = nil
+setLevel("info")
+check(Log.recording() == true, "recording: at info")
+
+-- A replaced preferences table is read on the next line.
+begin("off", false)
+Log.emit("t", "r1", "debug")
+_G.rfsuite.preferences = { general = { debug_level = "debug" } }
+Log.emit("t", "r2", "debug")
+check(onConsole("r1") == 0 and onConsole("r2") == 1, "a replaced preferences table applies from the next line on")
 
 -- 4. The console opt-out keeps the ring.
 begin("debug", false)
@@ -128,11 +158,22 @@ local sink = _G.rfsuite.log_sink[#_G.rfsuite.log_sink]
 check(ring.time == sink.time, "ring and sink carry the same clock reading", tostring(ring.time) .. " " .. tostring(sink.time))
 check(ring.tag == "tag.x" and sink.tag == "tag.x" and ring.level == "info" and sink.level == "info",
   "ring and sink carry the same tag and level")
+check(ring.msg == "same text" and sink.msg == "same text", "ring and sink carry the same text")
 check(console[#console] == "[tag.x][info][" .. string.format("%0.1f", ring.time / 100) .. "] same text",
   "the console line carries the same clock reading", console[#console])
 Log.emit("t", nil, "info")
 check(_G.rfsuite.log_history[#_G.rfsuite.log_history].msg == "" and string.sub(console[#console], -4) == " nil",
   "a nil message is empty in the ring and 'nil' on the console, as before")
+local long = string.rep("x", 150)
+Log.emit("t", long, "info")
+check(#_G.rfsuite.log_history[#_G.rfsuite.log_history].msg == 100 and _G.rfsuite.log_sink[#_G.rfsuite.log_sink].msg == long,
+  "a long line: truncated in the ring, whole in the sink")
+local reads = 0
+local clock = _G.getTime
+_G.getTime = function() reads = reads + 1; return clock() end
+Log.emit("t", "one read", "info")
+_G.getTime = clock
+check(reads == 1, "one line reads the clock once", reads)
 
 _G.print = realPrint
 if failures > 0 then
