@@ -81,6 +81,7 @@ across the change keeps its full flight time.
 
 - **Do not rely on the tool alone if you want announcements or the custom sensors in flight.**
   Without one of the two widgets, everything stops when the tool is closed.
+- **Do not keep a background job of the earlier Rotorflight Lua scripts in the model.** With an active `rf2bg` entry in the model's special functions the suite adds no [background decoder](../reference/background-decoder.md), and both then write the same sensors. An entry that is switched off neither runs nor holds the suite's back. Remove an active entry; the suite adds its own `rfsbg` at the next connect where a slot is free, it runs from the next model load, and that one stays.
 - **Do not skip the restart after an install or an update.** The first start compiles the
   installed files; afterwards the dashboard and the service widget do not connect until the
   radio has been restarted, because the code they loaded before is still the previous build's.
