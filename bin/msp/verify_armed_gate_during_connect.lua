@@ -34,6 +34,8 @@
 --                    disarm -- not even one another client queued while the link waited (it is
 --                    dropped when the arm is read) -- and after it the connect sequence runs and
 --                    finishes;
+--   old frames       the same with forty pre-arm "disarmed" frames still waiting at the start: they
+--                    must not open the link;
 --   no armed source  frames that carry neither the arming flags nor the System Status word: the
 --                    first request goes out ARMED_WAIT_CYCLES (5 s) after the link came up.
 --
@@ -332,6 +334,22 @@ local function armedFirstScenario()
   check(finished, "armed first: the connect sequence finishes after the disarm")
 end
 
+-- Armed from the first frame, but with frames from before the arm still waiting (the radio keeps
+-- the oldest when nothing popped them): an old "disarmed" must not open the link to an armed craft.
+local function staleBacklogScenario()
+  local widget, Msp = newWorld(true)
+  for _ = 1, 40 do pushArmFrame(false, "arm") end
+  for _ = 1, 80 do cycle(widget, true, "arm") end
+  check(Msp.getState().lastArmed == true, "old frames: the MSP runtime reads the craft as armed")
+  check(mspSent == 0, "old frames: no MSP request is sent while armed", "request frames sent: " .. mspSent)
+  local finished = false
+  for _ = 1, CONNECT_LIMIT_CYCLES do
+    cycle(widget, false, "arm")
+    if mspSent > 0 and onconnectActive() == false then finished = true break end
+  end
+  check(finished, "old frames: the connect sequence finishes after the disarm")
+end
+
 -- Neither the arming flags nor the System Status word in the frames: the link waits ARMED_WAIT_CYCLES
 -- for them and then connects.
 local function noArmedSourceScenario()
@@ -351,6 +369,7 @@ scenario("both sources", false, true, "arm", "both")
 scenario("after connect", true, false, "arm")
 functionScriptScenario()
 armedFirstScenario()
+staleBacklogScenario()
 noArmedSourceScenario()
 
 Stubs.releaseCard()

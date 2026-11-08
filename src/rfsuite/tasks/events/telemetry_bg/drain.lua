@@ -198,6 +198,31 @@ local function popAndAccount()
     return data
 end
 
+-- Whether the frames popped from here on arrived after the queue was last emptied. The radio keeps
+-- at most a few custom frames for a script and, when that queue is full, drops the NEW one
+-- (radio/src/telemetry/telemetry.cpp, pushDataToQueue), so after a stretch in which nothing popped
+-- -- a link that came back, a pass that compiled instead of decoding -- the frames waiting are the
+-- oldest, from before whatever happened meanwhile. A disarmed arming state from them is not taken:
+-- tasks/msp/runtime.lua sends nothing to a new link until it knows the armed state, and an old
+-- "disarmed" would open that to a craft armed since. An armed state is taken at once (a refusal
+-- to send can only be early). Set once a pass ends with nothing left to pop; cleared on a resume.
+local freshFrames = false
+-- The current pass's verdict, taken at its start: frames popped in it are fresh only if an
+-- earlier pass emptied the queue.
+local passFresh = false
+
+-- The arming flags' and the System Status word's sensor ids (lib/rf2tlm_sensors.lua, "ARM", "STAT").
+local SID_ARMING_FLAGS = 0x1202
+local SID_SYSTEM_STATUS = 0x1230
+
+-- Whether a decoded arming flags or System Status value may be published now: an armed one always,
+-- a disarmed one only from fresh frames (see freshFrames).
+local function armedStateTrusted(val)
+    if passFresh then return true end
+    if type(val) ~= "number" then return false end
+    return bit32.btest(val, 1)
+end
+
 -- The expensive half: the byte walk through the per-sensor decoders. The frame id at byte 3
 -- was consumed by popAndAccount, so the walk starts at byte 4.
 local function decodeFrame(data, now)
@@ -210,7 +235,8 @@ local function decodeFrame(data, now)
         local sensor = RFSensors[sid]
         if sensor and type(sensor.dec) == "function" then
             val,ptr = sensor.dec(data, ptr)
-            if val then
+            if val and (passFresh or (sid ~= SID_ARMING_FLAGS and sid ~= SID_SYSTEM_STATUS)
+                    or armedStateTrusted(val)) then
                 publishSensorValue(sid, val, sensor, now)
             end
         else
@@ -349,11 +375,13 @@ local function beginPass(now)
     if resyncPending then
         resyncPending = false
         resyncUntil = now + M.REMOTE_STALE_SECONDS
+        freshFrames = false
     end
     if adoptPublished then
         adoptPublished = false
         adoptRadioSkip()
     end
+    passFresh = freshFrames
 end
 
 -- The frames one pass keeps for decoding. One table for every pass rather than a new one per
@@ -387,7 +415,7 @@ function M.wakeup(now, decodeAll)
     local popped = 0
     while popped < POP_CAP do
         local data = popAndAccount()
-        if not data then break end
+        if not data then freshFrames = true break end
         popped = popped + 1
         kept[#kept + 1] = data
         if not decodeAll and #kept > DECODE_CAP then
@@ -416,9 +444,6 @@ end
 -- carries no arming flags sensor (lib/rf2tlm_sensors.lua names both). lib/sensors.lua takes the
 -- arming flags whenever the radio has them, so a walk that met the System Status word goes on to the
 -- arming flags rather than stopping there.
-local SID_ARMING_FLAGS = 0x1202
-local SID_SYSTEM_STATUS = 0x1230
-
 -- Walk one frame up to the arming flags and publish them, and the System Status word on the way
 -- when `withStatus`; returns whether the arming flags were found, and whether the word was. Entries
 -- are of different lengths and the flight controller chooses their order, so the walk needs the
@@ -437,9 +462,11 @@ local function publishArmedSource(data, now, withStatus)
         val, ptr = sensor.dec(data, ptr)
         if sid == SID_ARMING_FLAGS then
             walkOnly = false
+            -- An untrusted disarmed reading is neither published nor the end of the search.
+            if not armedStateTrusted(val) then return false, statusFound end
             if val then publishSensorValue(sid, val, sensor, now) end
             return true, statusFound
-        elseif sid == SID_SYSTEM_STATUS and withStatus and not statusFound then
+        elseif sid == SID_SYSTEM_STATUS and withStatus and not statusFound and armedStateTrusted(val) then
             statusFound = true
             if val then publishSensorValue(sid, val, sensor, now) end
         end
@@ -469,7 +496,7 @@ function M.wakeupArmingFlags(now)
     local popped = 0
     while popped < POP_CAP do
         local data = popAndAccount()
-        if not data then break end
+        if not data then freshFrames = true break end
         popped = popped + 1
         kept[#kept + 1] = data
         if #kept > DECODE_CAP then table.remove(kept, 1) end
@@ -507,6 +534,7 @@ end
 -- one lost its flight controller.
 function M.reset()
     telemetryFrameId = 0
+    freshFrames = false
     resyncPending = true
     adoptPublished = true
     lastPublishedSkip = nil
