@@ -250,7 +250,8 @@ end
 do
   local w = world()
   local allow = true
-  local m = w.ask(C, function() return allow end, { completeAfterAttempt = 2, isWrite = true })
+  local m = w.ask(C, function() return allow end,
+    { completeAfterAttempt = 2, isWrite = true, dropLeftoverOnComplete = true })
   w.tick()
   equal(sends(C), 1, "completed with bytes left: the first send went out")
   h.refuse = 5                                   -- the transport takes nothing for a while
@@ -353,7 +354,7 @@ do
   local queue = Queue.new(assert(Common.new("stub")), { isSimulator = false })
   local now = 0
   local m = { command = C, client = "test", isWrite = true, completeAfterAttempt = 1, errors = {},
-    sendIf = function() return true end }
+    dropLeftoverOnComplete = true, sendIf = function() return true end }
   m.processReply = function() m.done = true end
   m.errorHandler = function(_, reason) m.errors[#m.errors + 1] = reason end
   queue:add(m)
@@ -366,6 +367,49 @@ do
   tick(2.5)
   tick(2.5)
   equal(sends(C), 0, "refused twice: the frame is not sent later")
+end
+
+-- Control: a message whose predicate still allows and that does not ask for the drop keeps its
+-- leftover bytes at the completion, as a message without sendIf does: they go out with the next
+-- message's flush, as before.
+do
+  local w = world()
+  local m = w.ask(C, function() return true end, { completeAfterAttempt = 2, isWrite = true })
+  w.tick()
+  h.refuse = 5
+  w.tick(1.1)
+  w.tick(1.1)
+  equal(m.done, true, "leftover kept: completes on its sends")
+  h.refuse = 0
+  w.ask(OTHER, nil)
+  w.tick(0.2)
+  w.tick(0.2)
+  equal(sends(C), 2, "leftover kept: the buffered second send goes out as before")
+end
+
+-- A first send stopped by the instruction limit after its bytes were buffered and before it was
+-- counted: the predicate is still asked before those bytes are flushed.
+do
+  local w = world()
+  local allow = true
+  local m = w.ask(C, function() return allow end, { isWrite = true })
+  local common = w.queue.common
+  local realSend = common.sendRequest
+  common.sendRequest = function(...)
+    local r = realSend(...)
+    common.sendRequest = realSend
+    error("CPU limit", 0)
+    return r
+  end
+  h.refuse = 5
+  local ok = pcall(w.tick)
+  equal(ok, false, "uncounted send: the limit is raised on")
+  equal(w.queue.retryCount, 0, "uncounted send: not counted")
+  equal(common.txPending(), true, "uncounted send: its bytes are buffered")
+  allow, h.refuse = false, 0
+  w.tick(0.1)
+  equal(sends(C), 0, "uncounted send: the buffered bytes are not flushed once the predicate says no")
+  equal(m.errors[1], "withheld", "uncounted send: withheld")
 end
 
 print(string.format("%d checks, %d failures", checks, failures))

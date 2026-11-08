@@ -707,12 +707,12 @@ function Queue:processQueue(now)
     return
   end
 
-  -- A message with `sendIf` that already went out may still have bytes in the transmit buffer (a
-  -- frame the transport did not take yet, or the chunks after the first): they are its sends too,
-  -- so the same question is asked before they are flushed. Only then: a message whose bytes are
-  -- all out is waiting for its answer, and that answer -- or its completion on silence -- is still
-  -- taken, since nothing more would be sent.
-  if msg.sendIf ~= nil and self.retryCount > 0 and self.common
+  -- A message with `sendIf` may still have bytes in the transmit buffer (a frame the transport did
+  -- not take yet, the chunks after the first, or a send an instruction-limit stop interrupted before
+  -- it was counted): they are its sends too, so the same question is asked before they are flushed.
+  -- Only then: a message whose bytes are all out is waiting for its answer, and that answer -- or
+  -- its completion on silence -- is still taken, since nothing more would be sent.
+  if msg.sendIf ~= nil and self.common
     and type(self.common.txPending) == "function" and self.common.txPending() then
     local allowed, err = sendAllowed(msg)
     if not allowed then
@@ -789,10 +789,13 @@ function Queue:processQueue(now)
 
   if success then
     -- A message carrying sendIf can complete with bytes of a later attempt still buffered (the
-    -- reboot completes on its sends, not on what the transport took). They are dropped here, or
-    -- the next message's flush would send them without asking the predicate.
+    -- reboot completes on its sends, not on what the transport took). The next message's flush would
+    -- send them without asking the predicate, so they are dropped here when the predicate no longer
+    -- allows them, or when the message asks for it (`dropLeftoverOnComplete`: a send that must not go
+    -- out later than its own check). Otherwise they stay and go out as before.
     if msg.sendIf ~= nil and self.common and type(self.common.txPending) == "function"
-      and self.common.txPending() and self.common.clearTxBuf then
+      and self.common.txPending() and self.common.clearTxBuf
+      and (msg.dropLeftoverOnComplete == true or not sendAllowed(msg)) then
       self.common.clearTxBuf()
     end
     msg.buf = buf

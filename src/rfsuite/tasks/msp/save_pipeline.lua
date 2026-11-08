@@ -573,6 +573,8 @@ local function queueReboot()
     -- timeout (2 s) after the flight controller's "disarmed" answer it rests on, and a frame lost
     -- on the way ends as "restart could not be confirmed" rather than as a later reboot.
     completeAfterAttempt = run.restart == true and 1 or 2,
+    -- Its frame, if the transport has not taken it by the completion, is not left for a later flush.
+    dropLeftoverOnComplete = run.restart == true or nil,
     -- The restart offered after a failed save is checked again at every send, not only when it is
     -- queued: the firmware takes MSP_REBOOT over telemetry without looking at the arming state.
     -- A withheld reboot ends the run through the errorHandler below. Any reboot goes out only while
