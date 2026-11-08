@@ -123,7 +123,7 @@ end
 do
   local w = world()
   local asked = 0
-  local m = w.ask(C, function() asked = asked + 1; return true end)
+  w.ask(C, function() asked = asked + 1; return true end)
   w.tick()
   equal(sends(C), 1, "sendIf true: sent")
   equal(asked, 1, "sendIf true: asked once for the send")
@@ -134,7 +134,7 @@ end
 do
   local w = world()
   local m = w.ask(C, function() return false end)
-  local other = w.ask(OTHER, nil)
+  w.ask(OTHER, nil)
   w.tick()
   equal(sends(C), 0, "sendIf false: nothing sent")
   equal(m.errors[1], "withheld", "sendIf false: given up as withheld")
