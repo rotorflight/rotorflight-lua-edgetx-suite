@@ -1,6 +1,7 @@
 -- Run from the repository root: lua5.3 bin/telemetry/verify_drain_failed_load.lua
 -- Drive the real custom-telemetry drain with one of its two modules failing to load, and count
--- how often it goes back to the card for it.
+-- how often it goes back to the card for it. The same for the pass a widget runs while its connect
+-- tasks hold the full one back (wakeupArmingFlags), which shares the drain's loads.
 local checks, failures = 0, 0
 local function check(ok, label, detail)
   checks = checks + 1
@@ -73,7 +74,7 @@ local function newDrain(failing, times, firstId, raises)
       self.t = self.t + STEP
       self.frames = self.frames + 1
       self.queued[#self.queued + 1] = frame(self.frames % 256, 1)
-      local n = self.drain.wakeup(self.t) or 0
+      local n = self.drain[self.pass or "wakeup"](self.t) or 0
       if n > 0 and not self.firstPopAt then self.firstPopAt = self.t end
       popped = popped + n
     end
@@ -181,6 +182,32 @@ scenario("reset_keeps_wait", function()
   check(h.loads[DECODER] == 1, "reset_keeps_wait: decoder table asked for once in 0.6 s across a reset",
     "loads=" .. tostring(h.loads[DECODER]))
 end)
+
+-- The armed-state pass loads through the same wait: a module that is not on the card is asked for
+-- at most once a second and nothing is taken; a load that fails once is asked for again and the
+-- arming flags are published within about a second.
+for _, module in ipairs({ DECODER, CRSF }) do
+  local label = "armed_pass_" .. (module == DECODER and "decoder" or "crsf")
+  scenario(label .. "_missing", function()
+    local h = newDrain(module)
+    h.pass = "wakeupArmingFlags"
+    local popped = h:run(WAKEUPS)
+    check((h.loads[module] or 0) <= MAX_LOADS and (h.loads[module] or 0) >= 2,
+      label .. "_missing: asked for again, at most once a second", "loads=" .. tostring(h.loads[module]))
+    check(popped == 0, label .. "_missing: nothing taken off the wire", "popped=" .. tostring(popped))
+    check(not h:armPublished(), label .. "_missing: nothing published")
+  end)
+  scenario(label .. "_fails_once", function()
+    local h = newDrain(module, 1, 100)
+    h.pass = "wakeupArmingFlags"
+    h:run(WAKEUPS)
+    check(h.loads[module] == 2, label .. "_fails_once: asked for again after the failure",
+      "loads=" .. tostring(h.loads[module]))
+    check(h.firstPopAt ~= nil and h.firstPopAt <= 1.5, label .. "_fails_once: frames taken within about a second",
+      "first pop at " .. tostring(h.firstPopAt))
+    check(h:armPublished(), label .. "_fails_once: the arming flags published")
+  end)
+end
 
 if failures > 0 then
   print(string.format("%d of %d checks failed", failures, checks))
