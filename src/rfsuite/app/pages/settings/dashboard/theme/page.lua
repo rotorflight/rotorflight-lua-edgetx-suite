@@ -100,16 +100,12 @@ local function ensureValidSelections()
     local value = ui.config[key]
     if value ~= "nil" and not DashboardLib.getThemeByPath(ui.themes, value) then
       ui.config[key] = "nil"
+      -- A theme no longer installed is dropped here, not by the pilot: it is no edit of the model
+      -- half, so Save does not count it as one (modelHalfEdited).
+      local held = ui.modelHeld
+      if held and held[key] == value then held[key] = "nil" end
     end
   end
-end
-
--- Per-model preferences are keyed by the flight controller's MCU id, so the
--- model override can only be stored while a flight controller is connected.
-local function hasModelStore()
-  if type(_G) ~= "table" or not _G.rfsuite then return false end
-  if type(_G.rfsuite.session) ~= "table" then return false end
-  return _G.rfsuite.session.mcu_id ~= nil
 end
 
 -- The name the connected model goes by: the flight controller's craft name where it has one,
@@ -134,20 +130,47 @@ local function connectedModelName()
   return nil
 end
 
-local function ensureLoaded(prefs)
-  if ui.loaded then return end
-
-  if not ui.themes then
-    refreshThemes(false)
+-- The flight controller whose stored model settings can be read now: its id while the session
+-- holds both the id and that model's preferences, nil otherwise. The id arrives first and the
+-- preferences are loaded for it, so the id alone does not yet mean the model can be read.
+local function modelStoreKey()
+  local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+  if type(session) == "table" and session.mcu_id ~= nil and type(session.modelPreferences) == "table" then
+    return session.mcu_id
   end
-  local defaultPath = DashboardLib.getDefaultThemePath(ui.themes)
-  local src = (prefs and prefs.dashboard) or {}
+  return nil
+end
 
+-- The model half as it was read or last written, so that Save can tell an edit of it from values
+-- that merely stand there: an edit that could not be written is not reported as saved.
+local MODEL_KEYS = { "overrides", "model_theme_preflight", "model_theme_inflight", "model_theme_postflight" }
+
+local function snapshotModelHalf()
+  local held = ui.modelHeld or {}
+  for i = 1, #MODEL_KEYS do
+    held[MODEL_KEYS[i]] = ui.config[MODEL_KEYS[i]]
+  end
+  ui.modelHeld = held
+end
+
+local function modelHalfEdited()
+  local held = ui.modelHeld or {}
+  for i = 1, #MODEL_KEYS do
+    if ui.config[MODEL_KEYS[i]] ~= held[MODEL_KEYS[i]] then return true end
+  end
+  return false
+end
+
+-- The model half of the page, read for the flight controller identified now (modelStoreKey), and
+-- recorded as read for it: only values read for a flight controller are drawn and saved for it.
+-- Read with the page, and again whenever the flight controller identified changes while the page
+-- is open -- typically when it answers after the page was opened, which used to leave the defaults
+-- standing and let Save write them over the model's own settings.
+local function readModelHalf(src)
+  local key = modelStoreKey()
   local modelSrc = nil
-  if type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.session) == "table" and type(_G.rfsuite.session.modelPreferences) == "table" then
-    if _G.rfsuite.session.modelPreferences.dashboard then
-      modelSrc = _G.rfsuite.session.modelPreferences.dashboard
-    end
+  if key ~= nil and type(_G.rfsuite.session.modelPreferences.dashboard) == "table" then
+    modelSrc = _G.rfsuite.session.modelPreferences.dashboard
   end
 
   -- What the two switches show is what the dashboard does with them (lib.lua). An absent radio
@@ -155,28 +178,63 @@ local function ensureLoaded(prefs)
   -- card written before the switch existed opens on a page that matches what it draws; with no
   -- model to ask, it is shown off.
   local modelOverridesOn = DashboardLib.modelOverridesOn(modelSrc)
-  local allowed
-  if src.model_overrides ~= nil then
-    allowed = src.model_overrides == true
-  elseif hasModelStore() then
-    allowed = modelOverridesOn
-  else
-    allowed = false
-  end
-  -- An inferred switch is only a picture of it; saving the page for another reason must not
-  -- turn that picture into a decision (see saveToPreferences).
   ui.modelOverridesInferred = src.model_overrides == nil
-  ui.modelOverridesShown = allowed
+  if src.model_overrides ~= nil then
+    if not ui.loaded then
+      ui.config.model_overrides = src.model_overrides == true
+      ui.modelOverridesShown = ui.config.model_overrides
+    end
+  elseif not ui.loaded or (ui.config.model_overrides == true) == (ui.modelOverridesShown == true) then
+    -- An inferred switch is only a picture of it, drawn again for the new model unless the pilot
+    -- has changed it on this visit; saving the page for another reason must not turn that picture
+    -- into a decision (see saveToPreferences).
+    local allowed = key ~= nil and modelOverridesOn or false
+    ui.config.model_overrides = allowed
+    ui.modelOverridesShown = allowed
+  end
+
+  ui.config.overrides = modelOverridesOn
+  ui.config.model_theme_preflight = (modelSrc and modelSrc.model_theme_preflight) or "nil"
+  ui.config.model_theme_inflight = (modelSrc and modelSrc.model_theme_inflight) or "nil"
+  ui.config.model_theme_postflight = (modelSrc and modelSrc.model_theme_postflight) or "nil"
+  ui.modelReadFor = key
+  snapshotModelHalf()
+end
+
+-- Whether the model half has to be read again: a flight controller is identified now and it is not
+-- the one the half was read for. A link that drops clears the id for a moment; the values stay as
+-- read, so edits not yet saved survive a reconnect to the same flight controller.
+local function modelHalfStale()
+  local key = modelStoreKey()
+  return key ~= nil and key ~= ui.modelReadFor
+end
+
+-- Whether the model's controls can be drawn: its half was read for the flight controller identified
+-- now. False while a dropped link has cleared the id, true again when the same one is back.
+local function modelControlsAvailable()
+  return ui.modelReadFor ~= nil and modelStoreKey() == ui.modelReadFor
+end
+
+local function ensureLoaded(prefs)
+  local src = (prefs and prefs.dashboard) or {}
+  if ui.loaded then
+    if modelHalfStale() then
+      debugLog("model half read again: flight controller %s -> %s", tostring(ui.modelReadFor), tostring(modelStoreKey()))
+      readModelHalf(src)
+    end
+    return
+  end
+
+  if not ui.themes then
+    refreshThemes(false)
+  end
+  local defaultPath = DashboardLib.getDefaultThemePath(ui.themes)
 
   ui.config.theme_preflight = src.theme_preflight or defaultPath
   ui.config.theme_inflight = src.theme_inflight or "nil"
   ui.config.theme_postflight = src.theme_postflight or "nil"
   ui.config.theme_per_phase = src.theme_per_phase == true
-  ui.config.model_overrides = allowed
-  ui.config.overrides = modelOverridesOn
-  ui.config.model_theme_preflight = (modelSrc and modelSrc.model_theme_preflight) or "nil"
-  ui.config.model_theme_inflight = (modelSrc and modelSrc.model_theme_inflight) or "nil"
-  ui.config.model_theme_postflight = (modelSrc and modelSrc.model_theme_postflight) or "nil"
+  readModelHalf(src)
 
   ui.loaded = true
 end
@@ -226,7 +284,8 @@ local function appendPhaseOverrides(children, x, y, w, i18n, prefix, options, ac
     options,
     getOptionalThemeId(ui.config[prefix .. "inflight"]),
     function(id) setOptionalThemeFromId(prefix .. "inflight", id) end,
-    { active = active }
+    { active = active, helpText = t(i18n, "help_inflight_override",
+      "Another theme while flying; Use theme above keeps the theme of this section.") }
   )
 
   used = used + Controls.appendComboSelect(
@@ -235,7 +294,8 @@ local function appendPhaseOverrides(children, x, y, w, i18n, prefix, options, ac
     options,
     getOptionalThemeId(ui.config[prefix .. "postflight"]),
     function(id) setOptionalThemeFromId(prefix .. "postflight", id) end,
-    { active = active }
+    { active = active, helpText = t(i18n, "help_postflight_override",
+      "Another theme after the flight; Use theme above keeps the theme of this section.") }
   )
 
   return used
@@ -265,8 +325,12 @@ local function saveToPreferences(prefs)
 
   if type(_G) == "table" and _G.rfsuite and type(_G.rfsuite.session) == "table" then
     local session = _G.rfsuite.session
-    if session.mcu_id then
-      if type(session.modelPreferences) ~= "table" then session.modelPreferences = {} end
+    -- Only values read for the flight controller identified now are written to its store; the
+    -- model half of a page opened before it answered was defaults, not the model's settings.
+    if session.mcu_id ~= nil and session.mcu_id ~= ui.modelReadFor then
+      debugLog("model half not saved: read for %s, flight controller now %s", tostring(ui.modelReadFor), tostring(session.mcu_id))
+    end
+    if session.mcu_id ~= nil and session.mcu_id == ui.modelReadFor and type(session.modelPreferences) == "table" then
       if type(session.modelPreferences.dashboard) ~= "table" then session.modelPreferences.dashboard = {} end
       local mDashboard = session.modelPreferences.dashboard
 
@@ -288,10 +352,36 @@ local function saveToPreferences(prefs)
           modelOk, modelErr = MP.saveByMcuId(session.mcu_id, session.modelPreferences)
         end
       end
+      if modelOk ~= false then snapshotModelHalf() end
+    elseif modelHalfEdited() then
+      -- An edit of the model half with no flight controller to write it for -- the link dropped
+      -- after the edit -- is a failed model save: the page stays unsaved and the pilot is told.
+      debugLog("model half edited but not saved: no flight controller it was read for")
+      modelOk, modelErr = false, "missing_mcu_id"
     end
   end
 
   return modelOk ~= false, modelErr
+end
+
+-- The model's settings can arrive after the page is drawn: the flight controller identifies itself
+-- and its stored settings are loaded for it a pass or more later, and nothing else redraws the page
+-- then. A change of the flight controller identified asks for a build, which reads them (ensureLoaded),
+-- and so does the same flight controller coming back after a dropped link: the build in between drew
+-- the page without the model's controls, and nothing else draws them again.
+-- Asked once per state: a build that a covering view (the help sheet, a notice) keeps from reaching
+-- this page would otherwise be asked for on every pass until the view closes, and the host builds
+-- this page again when it does.
+function M.wakeup()
+  if not (ui.loaded and ui.runtime) then return end
+  local wanted = modelHalfStale() or (modelControlsAvailable() ~= (ui.drawnWithModel == true))
+  if not wanted then return end
+  local asked = tostring(modelStoreKey()) .. "|" .. tostring(modelControlsAvailable())
+  if ui.rebuildAskedFor ~= asked then
+    ui.rebuildAskedFor = asked
+    local rebuild = ui.runtime.requestRebuild
+    if rebuild then rebuild() end
+  end
 end
 
 function M.getHeaderActions()
@@ -374,6 +464,8 @@ function M.build(ctx)
   end
   ensureValidSelections()
   ui.runtime.setRequestRebuild(ctx.requestRebuild)
+  ui.drawnWithModel = modelControlsAvailable()
+  ui.rebuildAskedFor = nil
 
   debugLog("build theme count=%s preflight=%s inflight=%s postflight=%s", ui.themes and #ui.themes or 0, ui.config.theme_preflight, ui.config.theme_inflight, ui.config.theme_postflight)
   if type(ui.themes) == "table" then
@@ -417,7 +509,9 @@ function M.build(ctx)
     t(i18n, "theme", "Theme"),
     themeOptions,
     getThemeId(ui.config.theme_preflight),
-    function(id) setThemeFromId("theme_preflight", id) end
+    function(id) setThemeFromId("theme_preflight", id) end,
+    { helpText = t(i18n, "help_theme",
+      "The theme every model shows unless it has settings of its own; it covers before, during and after the flight itself.") }
   )
 
   if perPhase then
@@ -438,11 +532,14 @@ function M.build(ctx)
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     t(i18n, "model_overrides", "Allow per-model settings"),
     ui.runtime.getBoolGetter("model_overrides"),
-    ui.runtime.getBoolSetter("model_overrides")
+    ui.runtime.getBoolSetter("model_overrides"),
+    nil,
+    { helpText = t(i18n, "help_model_overrides",
+      "Whether a model may use its own theme and theme settings; off, every model shows the theme above and keeps what it stored.") }
   )
 
   if ui.config.model_overrides == true then
-    if not hasModelStore() then
+    if not modelControlsAvailable() then
       cursorY = cursorY + appendNote(children, x, cursorY, w,
         t(i18n, "model_overrides_unavailable",
           "Connect a flight controller to set this model's own theme and theme settings"))
@@ -457,7 +554,10 @@ function M.build(ctx)
       cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
         t(i18n, "model_overrides_this", "Own settings for this model"),
         ui.runtime.getBoolGetter("overrides"),
-        ui.runtime.getBoolSetter("overrides")
+        ui.runtime.getBoolSetter("overrides"),
+        nil,
+        { helpText = t(i18n, "help_model_overrides_this",
+          "Turns this model's own theme and theme settings on; off keeps them stored and shows the theme above.") }
       )
 
       if ui.config.overrides == true then
@@ -466,7 +566,8 @@ function M.build(ctx)
           t(i18n, "theme", "Theme"),
           modelOptions,
           getOptionalThemeId(ui.config.model_theme_preflight),
-          function(id) setOptionalThemeFromId("model_theme_preflight", id) end
+          function(id) setOptionalThemeFromId("model_theme_preflight", id) end,
+          { helpText = t(i18n, "help_model_theme", "This model's theme for the whole flight; Disabled keeps the theme above.") }
         )
 
         if perPhase then
@@ -486,7 +587,10 @@ function M.build(ctx)
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     t(i18n, "theme_per_phase", "Per-Phase Themes"),
     ui.runtime.getBoolGetter("theme_per_phase"),
-    ui.runtime.getBoolSetter("theme_per_phase")
+    ui.runtime.getBoolSetter("theme_per_phase"),
+    nil,
+    { helpText = t(i18n, "help_per_phase",
+      "Adds an inflight and a postflight override to each section, so a flight phase can show another theme.") }
   )
 end
 

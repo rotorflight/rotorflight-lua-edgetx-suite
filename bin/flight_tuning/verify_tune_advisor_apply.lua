@@ -1002,7 +1002,7 @@ do
   local sent = pump()
   check("Clear erases the saved flights", files[TuneHistory.path(MCU)] == nil)
   check("Clear resets the flight controller's statistics", has(sent, Api.writeCommand), table.concat(sent, ","))
-  check("after Clear: no flights, fly more", shown("0m 00s, 0/5 flights") and not canSave())
+  check("after Clear: no flight saved, and the page says so", shown(T().noFlight) and not canSave())
   check("with no saved flight the page names no profiles the flights were flown on",
     not shown(T().profileUnknown))
 
@@ -1030,6 +1030,72 @@ do
   check("(control) one that refuses the command is shown as needing newer firmware", ui.unsupported
     and shown(T().unsupported))
   _G.rfsuite.session.mcu_id = MCU
+end
+
+print("No flight saved")
+do
+  -- The probe's reply with the board's seconds set: what the flight controller measured since it
+  -- was last cleared
+  local function probeWith(seconds)
+    local buf = {}
+    for i, v in ipairs(Api.simulatorResponseFor(1)) do buf[i] = v end
+    buf[3], buf[4] = seconds % 256, math.floor(seconds / 256)
+    return function(m) if m.command == Api.command then return buf end end
+  end
+  local function reopen(seconds)
+    openPage(true)
+    Page.onReload()
+    pump(probeWith(seconds))
+  end
+
+  clearCard()
+  resetFc()
+  reopen(0)
+  check("no flight saved: Flight data says so instead of a zero time", ui.view.data == T().noFlight
+    and shown(T().noFlight) and not shown("0m 00s"), ui.view.data)
+  check("no flight saved: no 'needs more flying' and no stops figure", ui.view.response == "-"
+    and ui.view.stops == "-", tostring(ui.view.response) .. " / " .. tostring(ui.view.stops))
+  check("no flight saved: the suggestion says what saves a flight", ui.view.actions[1] == T().actNoFlight
+    and #ui.view.actions == 1, table.concat(ui.view.actions, " | "))
+  check("no flight saved: the reasons name the widgets and the ARM sensor", contains(ui.view.whys, T().whyNoFlight)
+    and contains(ui.view.whys, T().whyNoFlightArm), table.concat(ui.view.whys, " | "))
+  check("no flight saved and the board holds none: no unsaved time is named", #ui.view.whys == 2,
+    table.concat(ui.view.whys, " | "))
+  check("no flight saved: nothing to Save", not canSave())
+
+  reopen(119)
+  check("the board holds a flight nobody saved: its time is named first",
+    ui.view.whys[1] == string.format(T().whyUnsavedFmt, 1, 59) and ui.view.data == T().noFlight,
+    table.concat(ui.view.whys, " | "))
+
+  _G.rfsuite.session.tuneCapture = { state = "failed", saved = 0 }
+  reopen(119)
+  check("the capture gave up: 'last flight not read' stands above the suggestion",
+    ui.view.actions[1] == T().notRead and ui.view.actions[2] == T().actNoFlight, table.concat(ui.view.actions, " | "))
+  _G.rfsuite.session.tuneCapture = nil
+
+  -- Control: one saved flight brings back the flight time and the advice
+  openPage()
+  check("(control) with a saved flight the page shows its time, not 'no flight saved'",
+    not shown(T().noFlight) and string.find(ui.view.data, "1/5", 1, true) ~= nil, ui.view.data)
+
+  -- A saved flight whose roll line does not read: the other axes still count, so the page must
+  -- not say that no flight was saved
+  local path = TuneHistory.path(MCU)
+  local torn, n = string.gsub(files[path], '"roll"', '"rolx"', 1)
+  assert(n == 1, "the saved flight has no roll line")
+  files[path] = torn
+  ui.selected = 1
+  Page.onReload()
+  pump()
+  check("a saved flight with an unreadable roll line: roll does not say 'no flight saved'",
+    not shown(T().noFlight), ui.view.data)
+  ui.selected = 2
+  Page.onReload()
+  pump()
+  check("(control) the same flight's pitch line still counts", not shown(T().noFlight)
+    and string.find(ui.view.data, "1/5", 1, true) ~= nil, ui.view.data)
+  ui.selected = 1
 end
 
 print()

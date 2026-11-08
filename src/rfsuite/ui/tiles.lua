@@ -135,21 +135,36 @@ end
 -- `badge` is the glyph of an optional corner badge, already resolved by the caller; nil draws
 -- none. It is a string rather than a flag so this file stays a pure renderer with no i18n of
 -- its own. `done` draws the done mark in the same corner when there is no badge.
+-- `enabled` is a boolean, or a function the firmware asks on its own refresh pass: such a tile
+-- enables and greys out where it stands, with nothing rebuilding the scene, so the tile the wheel
+-- is on keeps the focus.
 function Tiles.append(children, x, y, size, iconFile, text, focused, pressHandler, enabled, badge, done)
+  local live = type(enabled) == "function"
   local isEnabled = enabled ~= false
+  local active = live and enabled or function() return isEnabled end
+  local press = isEnabled and pressHandler or nil
+  if live and pressHandler then
+    press = function(...)
+      if enabled() then return pressHandler(...) end
+    end
+  end
 
   children[#children + 1] = {
     type  = "button",
     x = x, y = y, w = size, h = size,
     text  = "",
     -- Disabled tiles must be excluded from wheel focus traversal.
-    active = function()
-      return isEnabled
-    end,
-    press = isEnabled and pressHandler or nil
+    active = active,
+    press = press
   }
 
-  if not isEnabled then
+  if live then
+    children[#children + 1] = {
+      type = "rectangle", x = x + 1, y = y + 1, w = size - 2, h = size - 2,
+      color = Palette.tile, filled = true,
+      visible = function() return not enabled() end
+    }
+  elseif not isEnabled then
     children[#children + 1] = {
       type = "rectangle", x = x + 1, y = y + 1, w = size - 2, h = size - 2,
       color = Palette.tile, filled = true
@@ -174,7 +189,8 @@ function Tiles.append(children, x, y, size, iconFile, text, focused, pressHandle
     w = size - 8,
     text  = formatTileText(text),
     font  = SMLSIZE,
-    color = resolveTileTextColor(isEnabled, focused == true),
+    color = live and function() return resolveTileTextColor(enabled(), focused == true) end
+      or resolveTileTextColor(isEnabled, focused == true),
     align = CENTER
   }
 

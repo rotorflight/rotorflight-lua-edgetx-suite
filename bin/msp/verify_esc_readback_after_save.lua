@@ -28,7 +28,7 @@ local function newPage(family, apiName)
   local api = assert(loadfile("src/rfsuite/" .. apiPath))()
   local queue = { entries = {} }
   function queue:add(entry) self.entries[#self.entries + 1] = entry end
-  local remembers, rebuilds = {}, 0
+  local remembers, forgets, rebuilds = {}, {}, 0
   local modules = {
     ["app/pages/settings/common.lua"] = {
       pageT = function() return function(_, _, fallback) return fallback end end,
@@ -43,6 +43,9 @@ local function newPage(family, apiName)
     ["app/pages/setup/esc_motors/esc_tools/esc_current_limit.lua"] = {
       remember = function(session, amps, source)
         remembers[#remembers + 1] = { session = session, amps = amps, source = source }
+      end,
+      forget = function(session, source)
+        forgets[#forgets + 1] = { session = session, source = source }
       end
     }
   }
@@ -69,7 +72,7 @@ local function newPage(family, apiName)
       remembers = #remembers, rebuilds = rebuilds })
   end
   return { page = page, ui = ui, api = api, queue = queue, ctx = ctx,
-    remembers = remembers, snapshot = snapshot }
+    remembers = remembers, forgets = forgets, snapshot = snapshot }
 end
 
 local function answer(entry, bytes) entry.processReply(entry, bytes) end
@@ -133,6 +136,25 @@ for _, spec in ipairs({ { "flrtr", "flyrotor", "cell_count" }, { "yge", "yge", "
       eq(remembered.session, _G.rfsuite.session, "remember uses current session")
       eq(remembered.amps, parsed.current_limit / 100, "remember uses read-back amps")
       eq(remembered.source, "yge", "remember uses YGE source")
+      eq(#h.forgets, 0, "a real limit forgets nothing")
+
+      -- A read-back of no limit forgets instead of remembering, and one too short to carry the
+      -- field does neither, though its parse reads the missing field as 0.
+      local function readBack(reply)
+        h.page.onReload(h.ctx)
+        answer(h.queue.entries[#h.queue.entries], reply)
+      end
+      local rememberedNow = #h.remembers
+      local zero = { table.unpack(h.api.simulatorResponse) }
+      zero[57], zero[58] = 0, 0
+      readBack(zero)
+      eq(h.ui.config.current_limit, 0, "a reported 0 is what the page holds")
+      eq(#h.forgets, 1, "a reported 0 forgets")
+      eq(h.forgets[1].source, "yge", "forget uses YGE source")
+      eq(#h.remembers, rememberedNow, "a reported 0 is not remembered")
+      readBack({ table.unpack(h.api.simulatorResponse, 1, 56) })
+      eq(#h.forgets, 1, "a block too short to carry the limit forgets nothing")
+      eq(#h.remembers, rememberedNow, "a block too short to carry the limit remembers nothing")
     end
     eq(h.page.onSave(h.ctx), true, "save accepted after read-back")
   end

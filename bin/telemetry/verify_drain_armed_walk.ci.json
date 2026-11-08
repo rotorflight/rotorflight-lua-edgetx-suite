@@ -1,0 +1,7 @@
+{
+  "id": "telemetry-drain-armed-walk",
+  "name": "Telemetry drain: the armed state from newer frames, after a pause, and a decoder that raises",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_drain_armed_walk.lua"
+  ]
+}

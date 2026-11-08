@@ -31,7 +31,10 @@ local t = nil
 --     somewhere else.
 --   * The Rotorflight Configurator applies its own limits to the same fields
 --     (src/js/tabs/rates.js, tab.initRatesSystem), which is what a pilot sees on the other tool.
--- Roll, pitch and yaw take the narrower of the two; the collective takes the Configurator's.
+-- Roll, pitch and yaw take the flight controller's, so a cell shows every value the board can
+-- hold -- one set over the CLI or by the Tune Advisor's Apply above the Configurator's 1000 deg/s
+-- included -- instead of drawing it at a lower ceiling that an edit could then only go below.
+-- The collective takes the Configurator's.
 -- Both are converted out of display units with this cell's own scale and mult -- raw = display
 -- * scale / mult, the arithmetic parseValue below performs. Stating them here is what keeps a
 -- cell inside the single byte the field occupies on the wire (tasks/msp/api/rc_tuning.lua,
@@ -96,17 +99,17 @@ local RATE_TABLES = {
     cols = { "rc_rate", "acroplus", "expo" },
     fields = {
       {
-        { apikey="rcRates_1", scale=1, mult=10, min=1, max=100 },
+        { apikey="rcRates_1", scale=1, mult=10, min=1, max=200 },
         { apikey="rates_1", scale=1, min=0, max=255 },
         { apikey="rcExpo_1", scale=1, min=0, max=100 }
       },
       {
-        { apikey="rcRates_2", scale=1, mult=10, min=1, max=100 },
+        { apikey="rcRates_2", scale=1, mult=10, min=1, max=200 },
         { apikey="rates_2", scale=1, min=0, max=255 },
         { apikey="rcExpo_2", scale=1, min=0, max=100 }
       },
       {
-        { apikey="rcRates_3", scale=1, mult=10, min=1, max=100 },
+        { apikey="rcRates_3", scale=1, mult=10, min=1, max=200 },
         { apikey="rates_3", scale=1, min=0, max=255 },
         { apikey="rcExpo_3", scale=1, min=0, max=100 }
       },
@@ -148,18 +151,18 @@ local RATE_TABLES = {
     cols = { "center_sensitivity", "max_rate", "expo" },
     fields = {
       {
-        { apikey="rcRates_1", scale=1, mult=10, min=1, max=100 },
-        { apikey="rates_1", scale=1, mult=10, min=0, max=100 },
+        { apikey="rcRates_1", scale=1, mult=10, min=1, max=200 },
+        { apikey="rates_1", scale=1, mult=10, min=0, max=200 },
         { apikey="rcExpo_1", scale=100, min=0, max=100 }
       },
       {
-        { apikey="rcRates_2", scale=1, mult=10, min=1, max=100 },
-        { apikey="rates_2", scale=1, mult=10, min=0, max=100 },
+        { apikey="rcRates_2", scale=1, mult=10, min=1, max=200 },
+        { apikey="rates_2", scale=1, mult=10, min=0, max=200 },
         { apikey="rcExpo_2", scale=100, min=0, max=100 }
       },
       {
-        { apikey="rcRates_3", scale=1, mult=10, min=1, max=100 },
-        { apikey="rates_3", scale=1, mult=10, min=0, max=100 },
+        { apikey="rcRates_3", scale=1, mult=10, min=1, max=200 },
+        { apikey="rates_3", scale=1, mult=10, min=0, max=200 },
         { apikey="rcExpo_3", scale=100, min=0, max=100 }
       },
       {
@@ -175,17 +178,17 @@ local RATE_TABLES = {
     fields = {
       {
         { apikey="rcRates_1", scale=100, min=1, max=255 },
-        { apikey="rates_1", scale=1, mult=10, min=0, max=100 },
+        { apikey="rates_1", scale=1, mult=10, min=0, max=200 },
         { apikey="rcExpo_1", scale=100, min=0, max=100 }
       },
       {
         { apikey="rcRates_2", scale=100, min=1, max=255 },
-        { apikey="rates_2", scale=1, mult=10, min=0, max=100 },
+        { apikey="rates_2", scale=1, mult=10, min=0, max=200 },
         { apikey="rcExpo_2", scale=100, min=0, max=100 }
       },
       {
         { apikey="rcRates_3", scale=100, min=1, max=255 },
-        { apikey="rates_3", scale=1, mult=10, min=0, max=100 },
+        { apikey="rates_3", scale=1, mult=10, min=0, max=200 },
         { apikey="rcExpo_3", scale=100, min=0, max=100 }
       },
       {

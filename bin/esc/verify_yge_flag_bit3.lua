@@ -38,7 +38,8 @@ local function newPage()
     [apiPath] = api,
     [base .. "init.lua"] = assert(loadfile("src/rfsuite/" .. base .. "init.lua"))(),
     ["app/pages/setup/esc_motors/esc_tools/esc_current_limit.lua"] = {
-      remember = function() end
+      remember = function() end,
+      forget = function() end
     }
   }
   _G.rfsuite = { palette = {}, session = {} }
