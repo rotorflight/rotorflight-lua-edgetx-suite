@@ -79,7 +79,9 @@ local function readMarker(path)
   local text = io.read(f, 512) or ""
   io.close(f)
   local rows = {}
-  for flag, original, written in string.gmatch(text, "(%d+) (%d+) (%d+)") do
+  -- EdgeTX's Lua integers are 32 bits and a colour sits in the upper half of its flag, so a light colour
+  -- is a negative number (white is -32768): the sign is part of every value.
+  for flag, original, written in string.gmatch(text, "(%-?%d+) (%-?%d+) (%-?%d+)") do
     rows[#rows + 1] = { tonumber(flag), tonumber(original), tonumber(written) }
   end
   if #rows == 0 then return nil end
@@ -104,10 +106,13 @@ local function dropMarker(path)
   end
 end
 
--- True when every slot still holds what the marker says was written: nothing else has touched them.
+-- True when every slot still holds either what the marker says was written or the radio's own colour
+-- (a restore that stopped half way): nothing else has touched them since. A theme the pilot applied in
+-- between puts other colours there.
 local function stillOurs(rows)
   for i = 1, #rows do
-    if lcd.getColor(rows[i][1]) ~= rows[i][3] then return false end
+    local now = lcd.getColor(rows[i][1])
+    if now ~= rows[i][3] and now ~= rows[i][2] then return false end
   end
   return true
 end
@@ -119,7 +124,7 @@ local function putBack(rows)
 end
 
 --- A marker left by a tool that ended without putting the radio's colours back: put them back if the
---- slots still hold what it wrote, and drop it either way. Not while this state has its own colours
+--- slots still hold what it wrote (or the radio's own colour), and drop it either way. Not while this state has its own colours
 --- written (the marker is then its own). Returns true when colours were put back.
 function M.recover()
   if applied ~= nil or not canWrite() then return false end
@@ -142,10 +147,12 @@ local function arm(rows, path)
     __gc = function()
       if not state.armed then return end
       state.armed = false
+      local all = true
       for i = 1, #rows do
-        pcall(setColor, rows[i][1], rows[i][2])
+        if not pcall(setColor, rows[i][1], rows[i][2]) then all = false end
       end
-      if path and type(remove) == "function" then pcall(remove, path) end
+      -- The marker goes only with every colour back: otherwise it is what the next start restores from.
+      if all and path and type(remove) == "function" then pcall(remove, path) end
     end
   })
   guardState = state
@@ -210,14 +217,16 @@ function M.apply(name)
 end
 
 --- Put the radio's colours back, drop the marker and disarm the finaliser. Safe to call when nothing
---- was written.
+--- was written. The colours go back first: a call stopped half way (the instruction limit, hosted)
+--- leaves this state, the finaliser and the marker as they were, so a later restore or the end of
+--- the Lua state finishes the job.
 function M.restore(why)
   local rows = applied
   if rows == nil then return false end
+  if canWrite() then putBack(rows) end
   applied = nil
   appliedScheme = nil
   disarm()
-  if canWrite() then putBack(rows) end
   dropMarker(markerPath())
   log("info", "theme slots restored (%s)", tostring(why or "-"))
   return true
