@@ -229,7 +229,18 @@ frames for a script and drops the new one when that queue is full, so after a st
 nothing popped -- a link that came back, the compile pass holding the event runtime -- the frames
 waiting are the oldest, and an old "disarmed" would end the MSP runtime's wait for the armed state.
 That trust is cleared when the drain starts and on every link loss (`M.reset()`), not on a slow
-pass.
+pass -- except in the background function script, where it is also cleared after a gap of more than
+a second: that script runs on every cycle of the radio's script loop, so a gap there means a tool
+had it paused, not a slow radio.
+
+The armed-state walk also does not publish an older *disarmed* arming flags value once a newer frame of
+the same pass carried an armed System Status word: the MSP runtime takes the arming flags over the
+word, so that value would read a craft that has just armed as disarmed. If a decoder raises during
+the walk, the adjustment pair is still put back before the error goes on.
+
+`tasks.lua` asks for `drain.lua` again once a second when it does not load (the loader's `pcall`
+also catches the instruction limit, so a failure can be one pass that ran out); `smart.lua` and
+`adjustments.lua` stay off after a failed load.
 
 When the background function script (`rfsbg.lua`) is decoding for the whole radio, `drain.lua`
 and `adjustments.lua` step aside together, so sensors are not published twice and adjustments are
