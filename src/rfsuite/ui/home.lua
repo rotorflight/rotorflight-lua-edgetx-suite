@@ -3457,6 +3457,7 @@ function M.init(opts)
   state.memLowWarned = false
   state.lastInputTick = getTime and getTime() or 0
   state.initialLoadStartTick = getTime and getTime() or 0
+  state.startScreenTick = state.initialLoadStartTick
   state.ignoreNextPageKey = false
   state.suppressPressFrames = 0
   state.suppressBackFrames = 0
@@ -3499,6 +3500,8 @@ function M.init(opts)
   state.lastProgressSnapshot = ""
   state.precompileDone = 0
   state.precompileTotal = 0
+  state.precompileShownAt = nil
+  state.compileHeldConnect = false
   ensureVersion()
   logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader
@@ -3507,20 +3510,24 @@ function M.init(opts)
   -- developer section it is written by hand; an absent key keeps the pass. Without Precompile
   -- the start screen counts the compile as finished.
   --
-  -- Hosted, the tool shares the widget state, and with it the pass the widgets run after an
-  -- install (lib/precompile.lua, startIfStale): a pass still running is joined and its progress
-  -- shown here, and a tree the widgets have already compiled is not walked again on every open
-  -- from the dashboard. The whole walk stays with the tool's own start.
+  -- Every start, hosted or from the radio's tools menu, compiles only a tree that is not the one
+  -- last compiled (lib/precompile.lua, startIfStale), as the widgets do: a tree that is already
+  -- compiled costs two small file reads instead of a timestamp read per source, which held the
+  -- start screen for seconds with nothing to compile. Hosted, a pass the widgets still run is
+  -- joined and its progress shown here. A source edited on the card is compiled by the loader when
+  -- a page first needs it; `developer.precompile = "full"` walks the whole tree at every start to
+  -- get ahead of that, compiling whatever is missing or older than its source.
   local developer = prefs and prefs.developer
   local skipPrecompile = developer and developer.precompile == false
   if not skipPrecompile then
     ensurePrecompile()
     if Precompile then
       local version = Version and Version.VERSION or nil
-      if state.hosted then
-        Precompile.startIfStale(version)
-      else
+      if developer and developer.precompile == "full" then
+        logf("info", "compile pass: whole tree on request (developer.precompile)")
         Precompile.start(version)
+      elseif not Precompile.startIfStale(version) then
+        logf("info", "compile pass: none, the tree is the one last compiled")
       end
     end
   end
@@ -3687,7 +3694,10 @@ function M.run(event, touchState)
       state.lastInputTick = now
     end
 
-    if not state.mspAttached then
+    -- Attaching brings the MSP runtime up, which loads its modules; while a compile pass holds the
+    -- connection (below) that waits for the pass too, as on the dashboard.
+    if not state.mspAttached and not (Precompile and Precompile.isRunning()
+        and not Precompile.runsBehindConnection()) then
       ensureMspRuntime()
       if MspRuntime and type(MspRuntime.attach) == "function" then
         MspRuntime.attach("tool")
@@ -4064,14 +4074,29 @@ function M.run(event, touchState)
         Precompile.step()
         compileDone, compileTotal, compileFinished = Precompile.getProgress()
       end
-      state.precompileDone = compileDone
+      -- The compile moves the bar one file per run cycle and every repaint rebuilds this screen, so
+      -- the count shown follows at most once a second, as on the dashboard's splash. A new total
+      -- and the end of the pass are taken at once, so the screen moves on without waiting for it.
+      if compileTotal ~= state.precompileTotal or compileDone >= compileTotal
+          or now - (state.precompileShownAt or 0) >= 100 then
+        state.precompileDone = compileDone
+        state.precompileShownAt = now
+      end
       state.precompileTotal = compileTotal
+
+      -- The connection is held while the pass runs (below), so the time the start screen gives the
+      -- connect counts from the end of the pass, not from the start of the tool.
+      if state.compileHeldConnect and compileFinished then
+        state.compileHeldConnect = false
+        state.initialLoadStartTick = now
+        logf("info", "compile pass finished: connecting")
+      end
 
       -- Repaint when what is DISPLAYED changes, which is the count, the task name and the
       -- compile count -- not the count alone, or the frame naming a task would go stale
       -- within its own step.
       local snapshot = tostring(pDone) .. "/" .. tostring(pTotal) .. "/" .. tostring(taskName) ..
-                       " " .. tostring(compileDone) .. "/" .. tostring(compileTotal)
+                       " " .. tostring(state.precompileDone) .. "/" .. tostring(compileTotal)
       if snapshot ~= state.lastProgressSnapshot then
         state.lastProgressSnapshot = snapshot
         scheduleBuildUI(false)
@@ -4099,6 +4124,9 @@ function M.run(event, touchState)
       -- here rather than on the first page that happens to need a file.
       if mspSettled and compileFinished then
         state.initialLoad = false
+        -- How long a pilot looked at this screen (10 ms ticks), and what it ended on.
+        logf("info", "start screen left after %d ticks (%s)", math.floor(now - (state.startScreenTick or now)),
+          isConnected and "connected" or (hasMspError and "msp error" or "timeout"))
         if not state.hosted and type(_G.rfsuite.clearModule) == "function" then
           _G.rfsuite.clearModule("lib/color_schemes.lua")
         end
@@ -4118,7 +4146,17 @@ function M.run(event, touchState)
     end
 
     local moveHolds = _G.rfsuite.paths.moveTo and Precompile and Precompile.holdsConnectionForMove()
-    if (not moveHolds) and (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive) and MspRuntime and type(MspRuntime.tick) == "function" then
+    -- Nothing is attached, ticked or queued while a compile pass runs, as on the dashboard: the
+    -- connect chain would load the same files the pass is compiling, and the start screen waits for
+    -- the pass anyway. A move retried behind the connection does not hold it.
+    local compileHolds = Precompile and Precompile.isRunning() and not Precompile.runsBehindConnection()
+    if compileHolds and not state.compileHeldConnect then
+      state.compileHeldConnect = true
+      logf("info", "compile pass running: connection held until it finishes")
+    end
+    if (not moveHolds) and (not compileHolds)
+        and (not transitionedMenuThisTick) and (not deferBackground) and (not mspSpeedPageActive)
+        and MspRuntime and type(MspRuntime.tick) == "function" then
       if now == 0 or (now - (state.mspLastTick or 0)) >= 5 then
         state.mspLastTick = now
         MspRuntime.tick()

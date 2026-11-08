@@ -42,11 +42,19 @@ local function loadObjectWrapper(typ)
   end
 
   local wrapper = requireModule("widgets/dashboard/objects/" .. typ .. ".lua")
+  local Log = _G.rfsuite and _G.rfsuite.Log
   if not wrapper or type(wrapper) ~= "table" then
     objectWrappers[typ] = false
+    -- Remembered for the session, so said once: every box of this type now draws "--".
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.object", "warn", "object type %s did not load: its boxes draw no value", tostring(typ))
+    end
     return nil
   end
 
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.widget.object", "debug", "object type %s loaded", tostring(typ))
+  end
   objectWrappers[typ] = wrapper
   return wrapper
 end

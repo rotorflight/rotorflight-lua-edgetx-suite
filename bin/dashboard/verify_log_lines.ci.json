@@ -1,0 +1,8 @@
+{
+  "id": "dashboard-log-lines",
+  "name": "Dashboard, tool host, event runner and sensor log lines",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_log_lines.lua"
+  ],
+  "step": "Check the log lines of the dashboard, the tool host, the event runner and the sensor reader"
+}

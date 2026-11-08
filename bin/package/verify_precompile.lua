@@ -108,7 +108,7 @@ end
 
 -- Installs the radio's globals for one start and returns what the start recorded.
 local function installGlobals(card)
-  local record = { loads = {}, warnings = {} }
+  local record = { loads = {}, warnings = {}, notes = {} }
 
   local function parentOf(path)
     return string.match(path, "^(.*)/[^/]+$")
@@ -241,7 +241,10 @@ local function launch(card)
   _G.io = hostIo
   for _, entry in ipairs(_G.rfsuite.log_history or {}) do
     if entry.tag == "rfsuite.precompile" then
-      record.warnings[#record.warnings + 1] = entry.level .. " " .. entry.msg
+      -- What the pass reports as a fault is a warning; its account of itself (how much it checked
+      -- and compiled, and why) is kept apart, so a clean pass still reports nothing.
+      local list = (entry.level == "warn" or entry.level == "error") and record.warnings or record.notes
+      list[#list + 1] = entry.level .. " " .. entry.msg
     end
   end
   return record
@@ -256,6 +259,15 @@ local function check(name, ok, detail)
     failures = failures + 1
     print("FAIL  " .. name .. (detail and (": " .. detail) or ""))
   end
+end
+
+local function hasNote(record, text)
+  for _, line in ipairs(record.notes) do
+    if string.find(line, text, 1, true) then
+      return true
+    end
+  end
+  return false
 end
 
 local function hasWarning(record, text)
@@ -279,6 +291,12 @@ do
   check("fresh install: second start compiles nothing", #second.loads == 0, #second.loads .. " loads")
   check("fresh install: nothing is reported", #first.warnings == 0 and #second.warnings == 0,
     table.concat(first.warnings, "; ") .. table.concat(second.warnings, "; "))
+  check("fresh install: the first pass accounts for itself, forced for want of a stamp",
+    hasNote(first, "pass done: 2 checked, 2 compiled, 0 failed, forced: no stamp"),
+    table.concat(first.notes, "; "))
+  check("fresh install: the second pass accounts for itself, not forced",
+    hasNote(second, "pass done: 2 checked, 0 compiled, 0 failed, not forced"),
+    table.concat(second.notes, "; "))
 end
 
 -- The same with the user folder already there: unchanged behaviour.

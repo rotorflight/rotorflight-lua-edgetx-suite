@@ -91,6 +91,6 @@ The log on the card names each step as it finishes, and names the one that was g
 - [No connection to the flight controller](../troubleshooting/no-connection.md) -- what to check
   when the button stays on the cross or the warning symbol.
 - [Collecting logs](../troubleshooting/collecting-logs.md) -- the log the connect sequence
-  writes, and what to attach to a report.
+  writes, each task with its time and memory, and what to attach to a report.
 
 *Documented against RFSuite 0.1.7.*

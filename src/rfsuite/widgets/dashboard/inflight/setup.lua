@@ -68,7 +68,7 @@ M.log = logDrive
 -- declared, because writing an arbitrary one would move whatever it already drives. The channels
 -- ARE defaulted, to the pair the project's own generic radio setup documents.
 M.DEFAULTS = {
-  -- The radio master switch defaults to off for every model.
+  -- Off until the pilot switches it on for this radio model; see lib/preferences.lua M.settleInflight.
   enabled = false,
   bank_ch = 11,
   value_ch = 12,
@@ -713,7 +713,7 @@ function M.loadModelSettings(modelPreferences)
   }
 end
 
---- Radio wiring and model defaults; only the radio master switch enables tuning.
+--- Radio wiring and model defaults; only the switch for this radio model enables tuning.
 function M.settings(preferences, modelPreferences)
   local radio = M.loadRadioSettings(preferences)
   local model = M.loadModelSettings(modelPreferences)
@@ -1540,6 +1540,15 @@ function M.nameClashesFromNames(names, settings)
   end
   if not looked then return nil end
   return out
+end
+
+--- The key in the radio's [inflight] section that says tuning is ON for one radio model. Keyed by the
+-- model's file, which a connected flight controller's craft name does not change, and written only while
+-- on, so a model never switched on carries nothing. Its value is the model's own name, which tells a model
+-- that later got the same file name apart: see lib/preferences.lua M.inflightOn.
+function M.modelOnKey(modelFile)
+  if type(modelFile) ~= "string" or modelFile == "" then return nil end
+  return "on_" .. modelFile
 end
 
 -- The plan and the write of the radio set-up live in inflight/setup_plan.lua, loaded by the settings
