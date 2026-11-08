@@ -21,7 +21,7 @@ Always available.
 | Setting | What it does |
 | --- | --- |
 | SmartFuel | Speaks the falling level at the steps below, and warns when it reaches 0 %. On by default. |
-| Callout % | The steps at which the falling level is spoken, each once: *Only at 10%*, or every 5, 10, 20, 25 or 50 %. Default every 10 %. |
+| Callout % | The steps at which the falling level is spoken, each once: *Only at 10%*, or every 5, 10, 20, 25 or 50 %; every choice includes the 10 % step. Default every 10 %. |
 | Finer below | From this level down the steps are finer: the level itself, then every *Finer step* below it, in place of the *Callout %* steps there. *Off*, or 10, 15, 20, 25, 30, 40 or 50 %. Default *Off*. |
 | Finer step | The finer step, 1, 2 or 5 %. Used only while *Finer below* is set. Default 5 %. |
 | Repeat | How often the warning at 0 % speaks while the level stays there, 10 s apart: *Until cleared*, or 1 to 10 times. Default once. |
@@ -33,23 +33,26 @@ spoken, the rows below it cannot be changed, and *Raise Volume* is not shown.
 
 ## Notes
 
-- **0 % is the reserve.** The level spoken here is the one the dashboard shows: the pack's charge
-  rescaled so that the *Consumption reserve* reads 0 % and a full pack still reads 100 %. With the
-  default reserve of 35 %, the warning comes with 35 % of the pack left, and a spoken "40 %" means
-  about 61 % of the pack left. A reserve of 0 makes the level follow the pack one-to-one, and the
-  warning then comes at an empty pack. The reserve is kept per model.
+- **0 % is the reserve.** The level spoken here is the one the dashboard shows: the SmartFuel
+  estimate of the pack's charge, rescaled so that the *Consumption reserve* reads 0 % and a full
+  pack still reads 100 %. With the default reserve of 35 %, the warning comes when an estimated
+  35 % of the pack is left, and a spoken "40 %" means an estimated 61 % left. A reserve of 0 makes
+  the level follow the estimate one-to-one, and the warning then comes when the pack is estimated
+  empty. The reserve is kept per model. Until SmartFuel has its first estimate after connecting,
+  the dashboard can show the flight controller's charge level as it is, without the reserve.
 - **A warning at a given share of the pack, for example 40 % left:** set the *Consumption reserve*
-  to 40. The warning at 0 % then speaks with 40 % of the pack left, and the dashboard reads 0 % at
+  to 40. The warning at 0 % then speaks with an estimated 40 % of the pack left, and the dashboard reads 0 % at
   the same point. A step does not do the same: it is spoken as a level, without the warning sound,
   *Repeat* or *Haptic*, and it counts in the rescaled level described above.
 - The level is computed by the flight controller when SmartFuel is switched on there
   (*Setup* → *Power* → *SmartFuel*, MSP API 12.09 and later), otherwise by the radio from the local
   source set under *Setup* → *Power* → *Preferences*.
-- Each step is spoken once, as the level falls past it. A level that rises again (a fresh pack)
-  speaks nothing; the steps are passed again as it falls.
+- Each step is spoken once, as the level falls past it; when the level falls past several steps
+  at once, only the lowest of them is spoken. A level that rises again (a fresh pack) speaks
+  nothing; the steps are passed again as it falls.
 - The warning needs one reading above 0 % first: a pack that reads 0 % from the moment it
   connects is not warned about.
-- *Only at 10%* speaks the 10 % step alone. *Every 20%* with *Finer below* 30 % and a
+- *Only at 10%* speaks the 10 % step alone while *Finer below* is *Off*. *Every 20%* with *Finer below* 30 % and a
   *Finer step* of 5 % speaks 80, 60, 40, 30, 25, 20, 15, 10 and 5 %.
 - An electric model hears the battery sounds, a nitro model the fuel sounds; *Model Type* under
   *Setup* → *Power* → *Preferences* decides. The level once after connecting is a separate

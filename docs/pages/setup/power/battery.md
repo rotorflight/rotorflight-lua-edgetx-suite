@@ -71,7 +71,7 @@ values for every profile.
 - The Consumption reserve is also kept in this model's preferences on the radio, and is written
   to the flight controller only when it is edited here. The SmartFuel level the dashboard shows and
   the announcements speak reads 0 % at the reserve and 100 % on a full pack, and the SmartFuel
-  warning speaks at 0 %. So a warning with 40 % of the pack left is a reserve of 40; the
+  warning speaks at 0 %. So a warning with an estimated 40 % of the pack left is a reserve of 40; the
   announcements are set under [Audio → Events → SmartFuel](../../settings/audio/events/fuel.md),
   the estimate itself on the [SmartFuel](smartfuel.md) page.
 
