@@ -215,6 +215,10 @@ local armed, uncertain = false, false
 check(replaceUpvalue(buildUI, "isModelArmed", function() return armed end) > 0, "armed check found in the notice")
 check(replaceUpvalue(buildUI, "armedStateIsUncertain", function() return uncertain end) > 0,
   "uncertain check found in the notice")
+-- The pipeline's half of the gate (a link, the board the save wrote to, a craft not read as armed)
+-- is its own harness's question (bin/msp/verify_save_failed_restart.lua); here it answers yes
+-- unless a case says otherwise.
+pipeline.restartPossible = function() return true end
 
 draw(failedAfterWrite(false))
 check(shows(Stubs, "app.save.failed_message"), "nothing sent: the plain failure text")
@@ -308,6 +312,19 @@ Home.run(0)
 check(scheduled > 0, "arming state unknown while the notice stands: the run loop rebuilds it", scheduled)
 uncertain = false
 pipeline.hasOutcome = realHasOutcome
+
+-- The module that answers the arming question cannot be loaded: the arming state is not known, so
+-- the restart is not offered (a press would end as an unconfirmed restart with nothing sent).
+local realArmedState = find(buildUI, "armedState")
+check(type(realArmedState) == "function", "the notice's arming module accessor found")
+check(replaceUpvalue(buildUI, "armedState", function() return nil end) > 0, "arming module accessor replaced")
+draw(failedAfterWrite(true))
+check(shows(Stubs, "app.save.failed_running"), "no arming module: the running text still stands")
+check(not showsExactly(Stubs, "@i18n(app.save.restart)@"), "no arming module: no restart offered")
+check(state.restartOfferGate == "uncertain", "no arming module: the gate reads uncertain", state.restartOfferGate)
+replaceUpvalue(buildUI, "armedState", realArmedState)
+draw(failedAfterWrite(true))
+check(showsExactly(Stubs, "@i18n(app.save.restart)@"), "arming module back: the restart is offered again (control)")
 
 print(string.format("%d checks, %d failures", checks, failures))
 os.exit(failures == 0 and 0 or 1)

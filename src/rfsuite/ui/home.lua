@@ -322,9 +322,12 @@ local LoadingOverlay = nil
 local SavePipeline = nil
 
 --- Whether the save notice may offer Restart FC right now: "open", or why not. A restart needs a
--- link that answers and a craft that is neither read as armed nor of unknown arming state. The
+-- link that answers, the board the save wrote to (the pipeline's half, restartPossible) and a craft
+-- that is neither read as armed nor of unknown arming state. The
 -- notice keeps the answer it was drawn with, and the run loop rebuilds it when the answer moves.
 local function restartGateKey()
+  -- Without the module that answers the arming question, the arming state is not known.
+  if not armedState() then return "uncertain" end
   if isModelArmed() then return "armed" end
   if armedStateIsUncertain() then return "uncertain" end
   if not (SavePipeline and type(SavePipeline.restartPossible) == "function"
