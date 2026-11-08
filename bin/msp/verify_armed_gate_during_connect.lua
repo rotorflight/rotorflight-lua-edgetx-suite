@@ -31,7 +31,8 @@
 --   function script  while it is draining for the radio, the widget still records that telemetry
 --                    is arriving (session.telemetryFrameAt) during the connect;
 --   armed first      the craft armed from the first frame: no MSP request frame goes out until the
---                    disarm, and after it the connect sequence runs and finishes;
+--                    disarm -- not even one another client queued meanwhile -- and after it the
+--                    connect sequence runs and finishes;
 --   no armed source  frames that carry neither the arming flags nor the System Status word: the
 --                    first request goes out ARMED_WAIT_CYCLES (5 s) after the link came up.
 --
@@ -307,7 +308,11 @@ end
 -- connect runs and finishes after it.
 local function armedFirstScenario()
   local widget, Msp = newWorld(true)
-  for _ = 1, 80 do cycle(widget, true, "arm") end
+  for i = 1, 80 do
+    cycle(widget, true, "arm")
+    -- Another client puts a read on the queue while the link waits: it must wait too.
+    if i == 3 then Msp.enqueue({ command = 101, processReply = function() end }) end
+  end
   check(Msp.getState().lastArmed == true, "armed first: the MSP runtime reads the craft as armed")
   check(mspSent == 0, "armed first: no MSP request is sent while armed", "request frames sent: " .. mspSent)
   local finished = false

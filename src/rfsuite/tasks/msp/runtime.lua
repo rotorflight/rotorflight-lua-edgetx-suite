@@ -517,16 +517,23 @@ end
 -- answers or the radio has no getSourceValue().
 -- tick() instead reads armflags through lib/armed.lua and holds its last armed state while
 -- uncertain, until disarm is current or uncertainty lasts FLIGHT_CONFIRM_SECONDS with the link up.
+-- The first source with a current reading wins; failing one, the first with any reading, marked
+-- old. An old arming flags row from before the link must not hide a current System Status word.
 local function readArmedSources()
   local getSrcV = _G.getSourceValue
   if type(getSrcV) ~= "function" then return nil end
+  local oldArmed = nil
   for i = 1, #ARM_SOURCES do
     local ok, value, current = pcall(getSrcV, ARM_SOURCES[i])
     if ok and value ~= nil then
       local armed = armedFromValue(value)
-      if armed ~= nil then return armed, current end
+      if armed ~= nil then
+        if current ~= false then return armed, current end
+        if oldArmed == nil then oldArmed = armed end
+      end
     end
   end
+  if oldArmed ~= nil then return oldArmed, false end
   return nil
 end
 
@@ -798,9 +805,13 @@ local function doDisconnect(now, reason, keepLink)
     return
   end
   state._disconnectHandled = true
-  state.armedKnown = false
-  state.linkUpAt = nil
-  state.readingArmed = false
+  -- A refused board keeps its link (keepLink), and no new link edge would start the wait again, so
+  -- what is known about this link's armed state stays.
+  if not keepLink then
+    state.armedKnown = false
+    state.linkUpAt = nil
+    state.readingArmed = false
+  end
   -- Ensure runtime reflects disconnected state.
   if not keepLink then
     state.lastConnected = false
@@ -1104,6 +1115,13 @@ function Runtime.tick()
   -- values without publishing, and on a tick whose queue had work. Everything else in this file
   -- that changes one publishes itself or writes the session itself, so on an idle tick it would
   -- copy what the last publish copied -- unless something outside this file has written over it.
+  -- Nothing goes out before this link's armed state is known: not the core reads above, and not a
+  -- message another client has put on the queue meanwhile -- it waits there.
+  if not state.armedKnown then
+    if linkCameUp or not publishedStateIntact() then publish() end
+    return true
+  end
+
   local queueWasIdle = state.queue:isProcessed()
   state.queue:processQueue(now)
   if linkCameUp or not queueWasIdle or not publishedStateIntact() then
@@ -1146,6 +1164,7 @@ function Runtime.pump()
   if not state.queue or type(state.queue.processQueue) ~= "function" then return false end
   if state.lastConnected ~= true then return false end
   if state.lastArmed == true then return false end
+  if not state.armedKnown then return false end
   if state.unsupportedApi then return false end
   if type(state.queue.isProcessed) == "function" and state.queue:isProcessed() then return true end
 
