@@ -34,6 +34,7 @@ do
   local function surfaceOf(saved)
     local widget = Runtime.new({ x = 0, y = 0, w = 480, h = 320 }, {})
     widget.preferences.dashboard = widget.preferences.dashboard or {}
+    widget.preferences.dashboard.standby_intro_seen = true
     widget.preferences.dashboard.standby_enabled = saved
     widget.state.fblConnected, widget.state.armed = false, false
     widget.state.hadInflightFlight, widget.flightMode = false, "preflight"
@@ -367,6 +368,7 @@ do
   end
   local widget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   widget.preferences.dashboard = widget.preferences.dashboard or {}
+  widget.preferences.dashboard.standby_intro_seen = true
   widget._jobFaults.standby = nil
   widget.preferences.dashboard.standby_layout = "elrs"
   widget.preferences.audio_events = widget.preferences.audio_events or {}
@@ -458,6 +460,7 @@ do
     local gpsWidget = Runtime.new({ x = 0, y = 0, w = 480, h = 320 }, {})
     gpsWidget.i18n = { t = deText }
     gpsWidget.preferences.dashboard = gpsWidget.preferences.dashboard or {}
+    gpsWidget.preferences.dashboard.standby_intro_seen = true
     gpsWidget._jobFaults.standby = nil
     gpsWidget.preferences.dashboard.standby_layout = layout
     gpsWidget.preferences.audio_events = gpsWidget.preferences.audio_events or {}
@@ -481,6 +484,7 @@ do
   local changingWidget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   changingWidget.i18n = { t = deText }
   changingWidget.preferences.dashboard = changingWidget.preferences.dashboard or {}
+  changingWidget.preferences.dashboard.standby_intro_seen = true
   changingWidget._jobFaults.standby = nil
   changingWidget.preferences.dashboard.standby_layout = "clock"
   changingWidget.preferences.audio_events = changingWidget.preferences.audio_events or {}
@@ -504,6 +508,7 @@ do
   changingWidget:background()
   local coldWidget = Runtime.new({ x = 0, y = 0, w = 300, h = 180 }, {})
   coldWidget.preferences.dashboard = coldWidget.preferences.dashboard or {}
+  coldWidget.preferences.dashboard.standby_intro_seen = true
   coldWidget._jobFaults.standby = nil
   coldWidget.preferences.dashboard.standby_layout = "tx_gps"
   coldWidget.preferences.audio_events = coldWidget.preferences.audio_events or {}
@@ -540,6 +545,7 @@ do
   coldWidget:background()
   local leaseWidget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   leaseWidget.preferences.dashboard = leaseWidget.preferences.dashboard or {}
+  leaseWidget.preferences.dashboard.standby_intro_seen = true
   leaseWidget._jobFaults.standby = nil
   leaseWidget.preferences.dashboard.standby_layout = "elrs"
   leaseWidget.preferences.audio_events = leaseWidget.preferences.audio_events or {}
@@ -560,6 +566,7 @@ do
   local gpsReadsBeforeZone = gpsReads
   local zoneWidget = Runtime.new({ x = 4, y = 6, w = 300, h = 180 }, {})
   zoneWidget.preferences.dashboard = zoneWidget.preferences.dashboard or {}
+  zoneWidget.preferences.dashboard.standby_intro_seen = true
   zoneWidget._jobFaults.standby = nil
   zoneWidget.preferences.dashboard.standby_layout = "clock"
   zoneWidget.preferences.audio_events = zoneWidget.preferences.audio_events or {}
@@ -644,6 +651,7 @@ do
 
   local staleWidget = Runtime.new({ x = 0, y = 0, w = 300, h = 180 }, {})
   staleWidget.preferences.dashboard = staleWidget.preferences.dashboard or {}
+  staleWidget.preferences.dashboard.standby_intro_seen = true
   staleWidget._jobFaults.standby = nil
   staleWidget.preferences.dashboard.standby_layout = "clock"
   staleWidget.preferences.audio_events = staleWidget.preferences.audio_events or {}
@@ -703,6 +711,7 @@ do
     local name = case.w .. "x" .. case.h
     local retainedWidget = Runtime.new({ x = 0, y = 0, w = case.w, h = case.h }, {})
     retainedWidget.preferences.dashboard = retainedWidget.preferences.dashboard or {}
+    retainedWidget.preferences.dashboard.standby_intro_seen = true
     retainedWidget._jobFaults.standby = nil
     retainedWidget.preferences.dashboard.standby_layout = case.layout
     retainedWidget.preferences.audio_events = retainedWidget.preferences.audio_events or {}
@@ -751,6 +760,7 @@ do
   for _, case in ipairs({ { 480, 320, 3 }, { 800, 480, 4 } }) do
     local defaultWidget = Runtime.new({ x = 0, y = 0, w = case[1], h = case[2] }, {})
     defaultWidget.preferences.dashboard = defaultWidget.preferences.dashboard or {}
+    defaultWidget.preferences.dashboard.standby_intro_seen = true
     defaultWidget._jobFaults.standby = nil
     defaultWidget.preferences.dashboard.standby_layout = nil
     defaultWidget.preferences.audio_events = defaultWidget.preferences.audio_events or {}
@@ -769,6 +779,7 @@ do
 
   local widthWidget = Runtime.new({ x = 0, y = 0, w = 320, h = 320 }, {})
   widthWidget.preferences.dashboard = widthWidget.preferences.dashboard or {}
+  widthWidget.preferences.dashboard.standby_intro_seen = true
   widthWidget._jobFaults.standby = nil
   widthWidget.preferences.dashboard.standby_layout = "elrs"
   widthWidget.preferences.audio_events = widthWidget.preferences.audio_events or {}
@@ -811,6 +822,7 @@ do
       and widget._standbyCache.snapshotValues == nil and widget._standbyCache.snapshotAt == nil
       and widget._standbyCache.elrsCompact == nil and widget._standbyCache.elrs == rawElrsBeforeReload)
   widget.preferences.dashboard = widget.preferences.dashboard or {}
+  widget.preferences.dashboard.standby_intro_seen = true
   widget._jobFaults.standby = nil
   widget.preferences.dashboard.standby_layout = "elrs"
   widget._job = nil
@@ -925,6 +937,7 @@ do
   local firstOwner = calls.requestOwners[1]
   local second = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   second.preferences.dashboard = second.preferences.dashboard or {}
+  second.preferences.dashboard.standby_intro_seen = true
   second._jobFaults.standby = nil
   second.preferences.dashboard.standby_layout = "elrs"
   second.state.fblConnected, second.state.armed = false, false
@@ -962,6 +975,7 @@ do
   local function readyWidget(enabled, flown)
     local readyWidget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
     readyWidget.preferences.dashboard = readyWidget.preferences.dashboard or {}
+    readyWidget.preferences.dashboard.standby_intro_seen = true
     if not enabled then readyWidget._jobFaults.standby = 99 end
     readyWidget.preferences.audio_events = readyWidget.preferences.audio_events or {}
     readyWidget.preferences.audio_events.tpwr_alert = false
@@ -1043,6 +1057,7 @@ do
   local function newWidget(enabled)
     local widget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
     widget.preferences.dashboard = widget.preferences.dashboard or {}
+    widget.preferences.dashboard.standby_intro_seen = true
     if not enabled then widget._jobFaults.standby = 99 end
     widget.preferences.dashboard.standby_layout = "elrs"
     widget.preferences.audio_events = widget.preferences.audio_events or {}
@@ -1166,6 +1181,7 @@ local function standbyElrsScenario()
   Stubs.onPush = function(command, data) sent[#sent + 1] = command; return true end
   local widget = Runtime.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   widget.preferences.dashboard = widget.preferences.dashboard or {}
+  widget.preferences.dashboard.standby_intro_seen = true
   widget._jobFaults.standby = nil
   widget.preferences.dashboard.standby_layout = "elrs"
   widget.preferences.audio_events = widget.preferences.audio_events or {}
@@ -1290,6 +1306,7 @@ do
   local Other = assert(loadfile(runtimePath))()
   local other = Other.new({ x = 0, y = 0, w = 800, h = 480 }, {})
   other.preferences.dashboard = other.preferences.dashboard or {}
+  other.preferences.dashboard.standby_intro_seen = true
   other._jobFaults.standby = nil
   other.preferences.dashboard.standby_layout = "elrs"
   other.preferences.audio_events = other.preferences.audio_events or {}

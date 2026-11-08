@@ -71,6 +71,8 @@ Option names are shown in the radio's language; maker abbreviations such as CW/C
   ([Power → Preferences](../../../power/preferences.md)). Nothing is asked of the flight
   controller for it -- the value comes out of the parameter block the page reads anyway -- and
   a visit that finds the same limit, already marked as this family's, writes nothing.
+- A limit read as 0 stores nothing. It clears a figure this family stored; a figure typed in by
+  hand or from another family stays. The row itself starts at 1 A, so 0 is never set from this page.
 - Saving writes the whole parameter block to the ESC, not only the settings that were changed.
   Every setting the page offers is written back as it was read unless it was edited, and so is
   everything in the block the page does not show. That includes the bits of the flags byte the

@@ -41,9 +41,14 @@ If the preferences cannot be written to the card at that moment, the limit is no
 next visit to the page tries again.
 
 The remaining seven families do not report one, and that is what this row is for. Typed in by
-hand it behaves in every other respect the same way. A controller that reports a limit of zero --
-which is how all three spell "no limit set" -- is not remembered, so a figure typed in by hand is
-left alone rather than being wiped by a controller that has none.
+hand it behaves in every other respect the same way.
+
+A controller that reports no limit clears the figure its own family stored, and writes to the card
+only when there is one to clear. No limit is an AM32 with its limit off (0, or anything above
+200 A), a Scorpion at 0 or a YGE at 0. A figure typed in by hand, one from another family and one
+marked *(unknown)* stay, and so does every figure when the read failed or the reply did not carry
+the limit. A controller that reports a real limit replaces whatever is on file, including a figure
+typed in by hand.
 
 Left at *NOT SET* — and that includes every machine until one of the two routes above has
 supplied a figure — a dashboard tile whose source is `esc_load` shows `--` rather than a reading,
@@ -60,8 +65,8 @@ own:
   changed here, and the save stores it that way. Saving the page with the figure unchanged keeps
   its origin.
 - *(unknown)* — stored before the suite kept the origin. Such a figure may have come from either
-  route, so it is not called *by hand*; the next visit to the controller's page, or a change
-  here, settles it.
+  route, so it is not called *by hand*; the next limit the controller reports, or a change here,
+  settles it.
 
 A controller page that reports the figure already on file still records itself as its origin,
 so a figure first typed in by hand becomes the controller's once its page has been opened.

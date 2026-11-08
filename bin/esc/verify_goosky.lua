@@ -303,7 +303,7 @@ do
     ["tasks/msp/runtime.lua"] = { getState = function() return { queue = queue } end },
     [apiPath] = api,
     ["app/pages/setup/esc_motors/esc_tools/escmfg/am32/init.lua"] = {},
-    ["app/pages/setup/esc_motors/esc_tools/esc_current_limit.lua"] = { remember = function() end }
+    ["app/pages/setup/esc_motors/esc_tools/esc_current_limit.lua"] = { remember = function() end, forget = function() end }
   }
   local saved = _G.loadScript
   _G.loadScript = function(path)
