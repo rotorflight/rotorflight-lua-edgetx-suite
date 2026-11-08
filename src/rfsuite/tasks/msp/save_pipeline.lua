@@ -507,7 +507,10 @@ local function queueReboot()
     -- A board that is rebooting does not acknowledge the command that reboots it, so this
     -- message completes on silence rather than on a reply. Declaring that here is what lets the
     -- queue stop carrying MSP command 68 as a special case in its generic success test.
-    completeAfterAttempt = 2,
+    -- The restart offered after a failed save sends it once: a second send would go out a queue
+    -- timeout (2 s) after the flight controller's "disarmed" answer it rests on, and a frame lost
+    -- on the way ends as "restart could not be confirmed" rather than as a later reboot.
+    completeAfterAttempt = run.restart == true and 1 or 2,
     -- The restart offered after a failed save is checked again at every send, not only when it is
     -- queued: the firmware takes MSP_REBOOT over telemetry without looking at the arming state.
     -- A withheld reboot ends the run through the errorHandler below.

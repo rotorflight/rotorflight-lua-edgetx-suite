@@ -266,5 +266,28 @@ do
   equal(sends(OTHER), 1, "completed with bytes left: the next message goes out")
 end
 
+-- At the queue's own default timeout (2 s, no timeout on the message, as the restart's reboot):
+-- one send and completion on silence, whatever the predicate says after that send.
+do
+  h.sent, h.inbox, h.clock = {}, {}, 1000
+  local queue = Queue.new(assert(Common.new("stub")), { isSimulator = false })
+  local now = 0
+  local allow = true
+  local m = { command = C, client = "test", isWrite = true, completeAfterAttempt = 1, errors = {},
+    sendIf = function() return allow end }
+  m.processReply = function() m.done = true end
+  m.errorHandler = function(_, reason) m.errors[#m.errors + 1] = reason end
+  queue:add(m)
+  local function tick(s) now = now + s; h.clock = math.floor(now * 100 + 0.5); queue:processQueue(now) end
+  tick(0.01)
+  equal(sends(C), 1, "default timeout: one send")
+  allow = false
+  tick(0.5)
+  equal(m.done, true, "default timeout: completes after its one send")
+  equal(#m.errors, 0, "default timeout: not withheld")
+  tick(2.5)
+  equal(sends(C), 1, "default timeout: no second send")
+end
+
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end
