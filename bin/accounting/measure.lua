@@ -1241,6 +1241,8 @@ local function openToolPage(theme, menuId, pagePath, pad, counted, fault)
     protocol, apiName = 10, "esc_parameters_flyrotor"
   elseif pagePath == "setup/esc_motors/esc_tools/escmfg/yge/page.lua" then
     protocol, apiName = 9, "esc_parameters_yge"
+  elseif pagePath == "setup/esc_motors/esc_tools/escmfg/scorp/page.lua" then
+    protocol, apiName = 4, "esc_parameters_scorpion"
   elseif pagePath == "setup/esc_motors/srxl2/page.lua" then
     -- Lit only while the board reports ESC telemetry protocol 14 (SRXL2 from API 12.10).
     protocol, apiName, safetyNotice = 14, "srxl2_esc_config", false
@@ -1264,7 +1266,7 @@ local function openToolPage(theme, menuId, pagePath, pad, counted, fault)
     FC.replies[versionApi.command] = { 0, 12, 10 }
   end
 
-  -- A YGE read remembers its current limit in the model's preference file. Give these
+  -- A YGE or Scorpion read remembers its current limit in the model's preference file. Give these
   -- worlds their own card so a later page cannot inherit that saved limit or origin.
   Stubs.cardRoot = cardRoot .. "/esc-page"
   local ok, page = pcall(openToolPageActual, theme, menuId, pagePath, pad, counted, fault, safetyNotice)

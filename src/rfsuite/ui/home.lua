@@ -618,7 +618,7 @@ state = {
   stateLineTick = 0,
   memLowWarned = false,
   lastInputTick = 0,
-  initialLoadStartTick = 0,
+  startScreenTick = 0,
   activePageMenuId = nil,
   -- The menu id of a page whose `build` raised, so the failure page is up rather than the page.
   -- It suppresses that page's `wakeup` while the failure page is on screen and is cleared the
@@ -675,6 +675,7 @@ state = {
   connStatusNoticeTitle = nil,
   connStatusNoticeMessage = nil,
   restartNoticeVisible = false,
+  moveFailedNoticeVisible = false,
   lastAudioTick = 0,
   -- Whether the audio block's readiness test held on the previous audio tick. The clean-up on
   -- the other side of that test runs on the ready-to-not-ready edge, and this is what remembers
@@ -1530,22 +1531,83 @@ local ESC_PROTOCOLS = {1, 3, 4, 6, 7, 9, 10, 12, 14}
 -- getTime() ticks (10 ms) before either menu asks again for a protocol it failed to read.
 local ESC_PROTO_RETRY_TICKS = 500
 
+-- What the root menu's tiles are, apart from whether each is enabled: a change of the conditions
+-- that leaves this as it is can be applied without drawing the menu again.
+local function rootTileLayout(flatCards)
+  local parts = {}
+  for i = 1, #flatCards do
+    local card = flatCards[i]
+    local data = card.data or {}
+    parts[i] = tostring(card.sectionId) .. "/" .. tostring(card.id) .. "|" .. tostring(data.text)
+      .. "|" .. tostring(data.icon) .. "|" .. tostring(data.lockedByArm == true) .. "|" .. tostring(data.done == true)
+  end
+  return table.concat(parts, ";")
+end
+
+-- A change of the conditions on the root menu that only enables or greys out tiles: the tiles ask
+-- for their state on the firmware's refresh pass (ui/tiles.lua), so the new state is written where
+-- they read it and nothing is drawn again. A build would clear the scene, and the firmware's wheel
+-- focus with it -- a pilot who turned to a tile before the flight controller answered would find
+-- the focus back on the first one. Answers false where the menu has to be drawn: not on the root
+-- menu, or a tile comes, goes or changes its face (a hidden entry, the armed badge).
+local function refreshRootTilesInPlace()
+  local drawn = state.rootDrawn
+  if not drawn or not Tiles or state.initialLoad or not state.menu.isRoot() then return false end
+  local flatCards = Tiles.flattenRootCards(state.menu.getRootGroups())
+  -- The layout drawn is worked out here, from the cards it was built from, rather than at every build:
+  -- a build of the root menu is far more frequent than a change of the conditions under it.
+  if rootTileLayout(flatCards) ~= rootTileLayout(drawn.cards) then return false end
+  for i = 1, #flatCards do
+    local card = flatCards[i]
+    drawn.enabled[tostring(card.sectionId) .. "/" .. tostring(card.id)] = card.data.enabled ~= false
+  end
+  return true
+end
+
+-- Applies a change of the menu conditions to the root menu: in place where it can, otherwise by a
+-- build. Marked as owed before the conditions are touched (by the caller) and cleared only once it
+-- is through, because opened from the dashboard a pass can be stopped at the widget's instruction
+-- limit anywhere in between, and the change that started it is not seen again on the next pass.
+local function applyRootConditionChange()
+  if refreshRootTilesInPlace() then
+    logf("debug", "root menu: tiles changed in place, no build")
+  else
+    scheduleBuildUI(false)
+  end
+  state.rootRefreshOwed = false
+end
+
 local function updateRuntimeMenuConditions()
   if not state.menu then return end
 
   local root = _G and _G.rfsuite
   local session = root and root.session
 
+  -- A change a stopped pass left owed is derived again from the link as it is now, not finished as
+  -- it was begun: the link may have gone back in between, and the condition may be half set.
+  if state.rootRefreshOwed then
+    logf("debug", "root menu: a stopped condition change is applied again")
+    local live = readFblConnected()
+    state.menu.setCondition("fblConnected", live)
+    state.fblConnected = live
+    applyRootConditionChange()
+  end
+
   local nextFblConnected = readFblConnected()
   if state.fblConnected ~= nextFblConnected then
-    state.fblConnected = nextFblConnected
+    state.rootRefreshOwed = true
+    -- The condition before the record of it: a pass stopped in between then sees the change again.
     state.menu.setCondition("fblConnected", nextFblConnected)
+    state.fblConnected = nextFblConnected
+    -- Once per change: the tiles that need the flight controller enable or grey out with it.
+    logf("debug", "flight controller %s: tiles %s", nextFblConnected and "answered" or "lost",
+      nextFblConnected and "enabled" or "greyed out")
     if not nextFblConnected then
       if session then
         session.esc4WayDetectedProto = nil
       end
     end
-    scheduleBuildUI(false)
+    applyRootConditionChange()
   end
 
   local wasRfConnected = state.rfConnected == true
@@ -1625,10 +1687,15 @@ local function updateRuntimeMenuConditions()
   -- set again only when the protocol differs from the one this menu was last given (`false`
   -- stands for none). This runs on every pass of every page. The mark is written last, so a pass
   -- stopped part-way (the CPU limit) leaves it unwritten and the next pass sets them all again.
+  -- The old mark is dropped before the first condition is touched: a pass stopped part-way and a
+  -- protocol that goes back to the one last applied would otherwise match the old mark and leave
+  -- the conditions half set.
   local proto = session and session.esc4WayDetectedProto
   local applied = proto or false
   if state.menu._escProtoApplied == applied then return end
+  state.menu._escProtoApplied = nil
   local initialVersion = state.menu._conditionsVersion
+  state.rootRefreshOwed = true
   for _, p in ipairs(ESC_PROTOCOLS) do
     local isEnabled = false
     if proto ~= nil then
@@ -1640,8 +1707,9 @@ local function updateRuntimeMenuConditions()
   -- for the same telemetry. BLHeli_S and Bluejay stay on 1 alone: 16 names an AM32 ESC.
   state.menu.setCondition("escProtoAm32", proto == 1 or proto == 16)
   if state.menu._conditionsVersion ~= initialVersion then
-    scheduleBuildUI(false)
+    applyRootConditionChange()
   end
+  state.rootRefreshOwed = false
   logf("trace", "escProto conditions set for protocol %s", tostring(proto))
   state.menu._escProtoApplied = applied
 end
@@ -2634,14 +2702,16 @@ local function buildScene()
   -- and it is the one naming the screen that could not be built.
   local buildingMenuId = state.menu and state.menu.getCurrentMenuId and state.menu.getCurrentMenuId() or nil
   logStep("build menu=" .. tostring(buildingMenuId))
+  -- Whatever this build draws, the root menu's tiles drawn before it are gone; the root branch
+  -- below records the new ones.
+  state.rootDrawn = nil
 
   local isArmed = isModelArmed()
 
   if state.initialLoad then
-    -- The run loop already counts this start: it reads done/total off the onconnect runner and
-    -- repaints whenever that number changes. The frame it repainted carried none of it, so every
-    -- one of those repaints produced a screen identical to the one before it. Draw what is being
-    -- counted -- on the start's own full-screen background, in the shape this file already uses
+    -- The screen stands only while the compile pass (or the move of the pilot's data) runs, and
+    -- the run loop repaints it whenever the count shown changes. Draw what is being counted --
+    -- on the start's own full-screen background, in the shape this file already uses
     -- for a full-screen notice: a centred title over a centred message. The offsets are wider
     -- than the armed screen's because a third element follows them and MIDSIZE at h/2 - 30 puts
     -- the title's descenders on the message's ascenders. The page overlays' box is not reused
@@ -2649,27 +2719,17 @@ local function buildScene()
     if lvgl and type(lvgl.clear) == "function" then lvgl.clear() end
     local title = state.i18n and state.i18n.t and state.i18n.t("app.loading") or "Loading..."
 
-    -- Two things are counted while this screen stands, and only one of them can own the bar.
-    -- The compile pass runs first, happens only after an install or a version change, and is by
-    -- far the longer of the two, so it takes the bar for as long as it lasts and names itself in
-    -- the message line. It used to ride along as a bare "47/312" behind the title, which counts
-    -- files that mean nothing to whoever is holding the radio and leaves the message reading
-    -- "Connecting" while nothing is being connected -- the pair of them reads as a stall rather
-    -- than as work.
+    -- The compile pass owns the bar and names itself in the message line. The connection is not
+    -- counted here: it is held while the pass runs and goes on behind the menu afterwards.
     local compileDone = state.precompileDone or 0
     local compileTotal = state.precompileTotal or 0
-    local preparing = compileTotal > 0 and compileDone < compileTotal
 
     local message
     if _G.rfsuite.paths.moveFailed then
       message = state.i18n and state.i18n.t and state.i18n.t("app.restart_radio.move_failed_short")
         or "Settings not moved: card full?"
-    elseif preparing then
-      message = state.i18n and state.i18n.t and state.i18n.t("app.preparing") or "Preparing suite"
     else
-      message = ONCONNECT_TEXT[state.startTaskName or ""] or
-                (state.i18n and state.i18n.t and state.i18n.t("app.connecting")) or
-                "Connecting"
+      message = state.i18n and state.i18n.t and state.i18n.t("app.preparing") or "Preparing suite"
     end
     local screenW = LCD_W or 320
     local screenH = LCD_H or 240
@@ -2720,17 +2780,15 @@ local function buildScene()
       }
     }
 
-    -- The bar is drawn only once there is something to count. Before the onconnect runner has
-    -- loaded its manifest there is no denominator, and an empty trough would claim a measurement
-    -- that has not started. The track is the theme's inactive colour rather than its accent, so
-    -- that an empty bar cannot be mistaken for a full one -- the failure the page overlay's own
-    -- track had until this series.
-    --
-    -- The compile pass fills the same bar while it is the phase being shown. Its denominator
-    -- grows for as long as the tree is still being walked, but nothing is compiled before the
-    -- walk is through, so the numerator is zero throughout it and the fill never runs backwards.
-    local done = preparing and compileDone or (state.startDone or 0)
-    local total = preparing and compileTotal or (state.startTotal or 0)
+    -- The bar is drawn only once there is something to count: before the walk has found a file
+    -- there is no denominator, and an empty trough would claim a measurement that has not
+    -- started. The track is the theme's inactive colour rather than its accent, so that an empty
+    -- bar cannot be mistaken for a full one -- the failure the page overlay's own track had until
+    -- this series. The denominator grows for as long as the tree is still being walked, but
+    -- nothing is compiled before the walk is through, so the numerator is zero throughout it and
+    -- the fill never runs backwards.
+    local done = compileDone
+    local total = compileTotal
     if total > 0 then
       local barW = math.min(420, math.max(200, screenW - 120))
       local barH = 12
@@ -2993,9 +3051,10 @@ local function buildScene()
     return
   end
 
-  -- Raised once after a pass that rebuilt the whole tree (see the start screen's finish above),
-  -- in the same box as the two notices before it.
-  if state.restartNoticeVisible then
+  -- Raised once after a pass that rebuilt the whole tree (see leaveStartScreen), in the same box
+  -- as the two notices before it; the same box says once that the pilot's data could not be
+  -- moved, which no start screen stands long enough to say any more.
+  if state.restartNoticeVisible or state.moveFailedNoticeVisible then
     if lvgl and type(lvgl.clear) == "function" then lvgl.clear() end
     local lyt = {
       {
@@ -3006,16 +3065,28 @@ local function buildScene()
       }
     }
     local i18n = state.i18n
+    local message
+    if state.restartNoticeVisible then
+      message = i18n and i18n.t and i18n.t("app.restart_radio.message")
+        or "The suite was updated and prepared. Restart the radio once so that the dashboard runs the new version too."
+    else
+      message = i18n and i18n.t and i18n.t("app.restart_radio.move_failed")
+        or "Settings not moved: card full? Please restart the radio."
+    end
     LoadingOverlay.appendNotice(lyt, {
       x = 0,
       y = 0,
       w = LCD_W or 320,
       h = LCD_H or 240,
       title = i18n and i18n.t and i18n.t("app.restart_radio.title") or "Restart the radio",
-      message = i18n and i18n.t and i18n.t("app.restart_radio.message")
-        or "The suite was updated and prepared. Restart the radio once so that the dashboard runs the new version too.",
+      message = message,
       buttonText = i18n and i18n.t and i18n.t("app.actions.close") or "Close",
       press = function()
+        if not state.restartNoticeVisible then
+          state.moveFailedNoticeVisible = false
+          scheduleBuildUI(false)
+          return
+        end
         state.restartNoticeVisible = false
         -- After the move of the pilot's data no page opens on this start: a page saves into the
         -- folder this state read at its start, and the next start no longer reads that one.
@@ -3153,6 +3224,10 @@ local function buildScene()
     -- layout reuses state.cards as mutable output and would overwrite root data.
     wipeTable(state.cards)
     state.focusIndex = math.max(0, math.min(state.focusIndex, #flatCards))
+    -- What each tile asks on the firmware's refresh pass, so that a change of the conditions that
+    -- only enables or greys out tiles is applied where they stand (refreshRootTilesInPlace).
+    local drawn = { cards = flatCards, enabled = {} }
+    state.rootDrawn = drawn
 
     local cursorY   = contentY
     local flatIndex = 0
@@ -3197,12 +3272,14 @@ local function buildScene()
         local tileX    = card.x + math.floor((card.w - tileSize) / 2)
         local tileY    = card.y + math.floor((card.h - tileSize) / 2)
 
+        local tileIndex = group.id .. "/" .. tostring(card.id)
+        drawn.enabled[tileIndex] = card.data.enabled ~= false
         Tiles.append(
           children, tileX, tileY, tileSize,
           card.data.icon, card.data.text,
           flatIndex == state.focusIndex,
           getRootCardPressHandler(group.id, card.id),
-          card.data.enabled,
+          function() return drawn.enabled[tileIndex] end,
           card.data.lockedByArm and ARMED_BADGE_TEXT or nil,
           card.data.done == true
         )
@@ -3461,6 +3538,31 @@ local function openLanding(menuId)
   return false
 end
 
+-- The end of the start screen, from the run loop once the compile pass is through, or from init
+-- when no pass holds it, in which case it is never drawn. The caller asks for the next screen.
+local function leaveStartScreen(now, why)
+  state.initialLoad = false
+  -- How long a pilot looked at this screen (10 ms ticks), and why it went.
+  logf("info", "start screen left after %d ticks (%s)", math.floor((now or 0) - (state.startScreenTick or now or 0)), why)
+  if not state.hosted and type(_G.rfsuite.clearModule) == "function" then
+    _G.rfsuite.clearModule("lib/color_schemes.lua")
+  end
+  -- A pass that rebuilt the whole tree leaves the dashboard -- and, hosted, this tool --
+  -- running the previous build's modules until the radio is restarted, so the pilot is
+  -- asked for that once, on the screen that follows.
+  if Precompile and type(Precompile.needsRestart) == "function" and Precompile.needsRestart() then
+    state.restartNoticeVisible = true
+    logf("debug", "start screen: restart requested")
+  end
+  -- The move of the pilot's data failed, on this start or an earlier one, and is retried behind the
+  -- menu. The start screen said so while it waited for the connection; it no longer waits, so the
+  -- pilot is told once in the same box, after the restart request when there is one.
+  if _G.rfsuite.paths.moveFailed then
+    state.moveFailedNoticeVisible = true
+    logf("warn", "start screen: settings not moved, the pilot is told")
+  end
+end
+
 -- `opts.hosted` is for a host that runs this file inside its own Lua state rather than as the
 -- radio's tool script -- the dashboard widget does (widgets/dashboard/tool_host.lua). Everything
 -- under _G.rfsuite is then the host's as well: the module cache, the event runner, the card
@@ -3524,8 +3626,7 @@ function M.init(opts)
   state.stateLineTick = 0
   state.memLowWarned = false
   state.lastInputTick = getTime and getTime() or 0
-  state.initialLoadStartTick = getTime and getTime() or 0
-  state.startScreenTick = state.initialLoadStartTick
+  state.startScreenTick = getTime and getTime() or 0
   state.ignoreNextPageKey = false
   state.suppressPressFrames = 0
   state.suppressBackFrames = 0
@@ -3551,6 +3652,7 @@ function M.init(opts)
   state.armedFeedbackText = nil
   state.connStatusNoticeVisible = false
   state.restartNoticeVisible = false
+  state.moveFailedNoticeVisible = false
   state.pendingMenuOpen = nil
   state.pendingPageOpen = nil
   state.isClosing = false
@@ -3570,10 +3672,12 @@ function M.init(opts)
   state.precompileTotal = 0
   state.precompileShownAt = nil
   state.compileHeldConnect = false
+  state.rootDrawn = nil
+  state.rootRefreshOwed = false
   ensureVersion()
   logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader
-  -- when a page first needs it, and the start screen waits for the connection alone -- meant for
+  -- when a page first needs it, and the tool opens on its menu without a start screen -- meant for
   -- automated runs on a card that starts without bytecode each time. Like the rest of the
   -- developer section it is written by hand; an absent key keeps the pass. Without Precompile
   -- the start screen counts the compile as finished.
@@ -3598,6 +3702,18 @@ function M.init(opts)
         logf("info", "compile pass: none, the tree is the one last compiled")
       end
     end
+  end
+  -- With nothing to compile and no data to move there is nothing for the start screen to wait
+  -- for, so it is left before the first build and the first frame is the menu. A move retried
+  -- behind the connection reports itself finished and holds nothing.
+  local nothingToWaitFor = true
+  if Precompile then
+    nothingToWaitFor = select(3, Precompile.getProgress())
+  end
+  if nothingToWaitFor then
+    leaveStartScreen(getTime and getTime() or 0, "nothing to compile, not drawn")
+  else
+    logf("debug", "start screen shown: compile pass running")
   end
   state.landingMenuId = nil
   local landing = state.hosted and type(opts) == "table" and opts.landing or nil
@@ -3805,6 +3921,7 @@ function M.run(event, touchState)
         -- This ensures the Lua VM yields immediately and EdgeTX can draw the screen.
         if lvgl and lvgl.clear then
           lvgl.clear()
+          state.rootDrawn = nil
           local tr = state.i18n and state.i18n.t and state.i18n.t("app.closing_rfsuite") or "Closing RFSuite..."
           lvgl.build({
             {
@@ -4124,29 +4241,11 @@ function M.run(event, touchState)
     local currentMenuId = state.menu and state.menu.getCurrentMenuId and state.menu.getCurrentMenuId() or nil
     local mspSpeedPageActive = currentMenuId == "developer_msp_speed_page"
 
+    -- The start screen stands only while the compile pass (or the move of the pilot's data) runs.
+    -- It does not wait for the flight controller: the connection runs behind the menu exactly as
+    -- it does when a flight controller appears after the tool has opened, the header's status
+    -- button reports it, and the tiles that need it stay greyed out until it has answered.
     if state.initialLoad then
-      ensureMspRuntime()
-      ensureEvents()
-      local mspProgress = MspRuntime and MspRuntime.getProgress() or { done = 0, total = 0 }
-      local onconnectProgress = Events and Events.getOnconnectProgress() or nil
-
-      local pDone = 0
-      local pTotal = 0
-      if onconnectProgress and onconnectProgress.total > 0 then
-        pDone = onconnectProgress.done or 0
-        pTotal = onconnectProgress.total or 0
-      elseif mspProgress then
-        pDone = mspProgress.done or 0
-        pTotal = mspProgress.total or 0
-      end
-
-      local taskName = Events and Events.getOnconnectPendingTaskName and
-                       Events.getOnconnectPendingTaskName() or nil
-
-      state.startDone = pDone
-      state.startTotal = pTotal
-      state.startTaskName = taskName
-
       local compileDone, compileTotal, compileFinished = 0, 0, true
       if Precompile then
         Precompile.step()
@@ -4162,59 +4261,26 @@ function M.run(event, touchState)
       end
       state.precompileTotal = compileTotal
 
-      -- The connection is held while the pass runs (below), so the time the start screen gives the
-      -- connect counts from the end of the pass, not from the start of the tool.
+      -- The connection is held while the pass runs (below) and is let go with the start screen.
       if state.compileHeldConnect and compileFinished then
         state.compileHeldConnect = false
-        state.initialLoadStartTick = now
         logf("info", "compile pass finished: connecting")
       end
 
-      -- Repaint when what is DISPLAYED changes, which is the count, the task name and the
-      -- compile count -- not the count alone, or the frame naming a task would go stale
-      -- within its own step.
-      local snapshot = tostring(pDone) .. "/" .. tostring(pTotal) .. "/" .. tostring(taskName) ..
-                       " " .. tostring(state.precompileDone) .. "/" .. tostring(compileTotal)
+      -- Repaint when what is DISPLAYED changes, which is the compile count.
+      local snapshot = tostring(state.precompileDone) .. "/" .. tostring(compileTotal)
       if snapshot ~= state.lastProgressSnapshot then
         state.lastProgressSnapshot = snapshot
         scheduleBuildUI(false)
       end
 
-      -- Finish initial load when core MSP identity is resolved or timeout is reached.
-      -- If the FBL is offline, we enter the menu after a short timeout (2s).
-      -- If connected with RF link, we wait for MSP handshake or bounded connect timeout (6s).
-      -- If an explicit MSP error occurs or timeout is reached, we unblock the start screen
-      -- so the pilot reaches the main menu with a clear diagnostic notice instead of hanging indefinitely.
-      local mspState = nil
-      if MspRuntime and type(MspRuntime.getState) == "function" then
-        mspState = MspRuntime.getState()
-      end
-      local isConnected = mspState and mspState.lastConnected == true
-      local hasMspError = (mspState and mspState.mspLastError ~= nil and mspState.mspLastError ~= "")
-        or (_G.rfsuite and _G.rfsuite.session and _G.rfsuite.session.mspLastError ~= nil and _G.rfsuite.session.mspLastError ~= "")
-      local elapsed = now - (state.initialLoadStartTick or now)
-      local timeoutReached = (not isConnected and elapsed > 200) or hasMspError or (elapsed > 600)
-
-      local mspSettled = (isConnected and mspProgress and mspProgress.done >= mspProgress.total)
-                         or timeoutReached
-
       -- Hold the start screen until the compiling is through, which is the point of doing it
       -- here rather than on the first page that happens to need a file.
-      if mspSettled and compileFinished then
-        state.initialLoad = false
-        -- How long a pilot looked at this screen (10 ms ticks), and what it ended on.
-        logf("info", "start screen left after %d ticks (%s)", math.floor(now - (state.startScreenTick or now)),
-          isConnected and "connected" or (hasMspError and "msp error" or "timeout"))
-        if not state.hosted and type(_G.rfsuite.clearModule) == "function" then
-          _G.rfsuite.clearModule("lib/color_schemes.lua")
-        end
-        -- A pass that rebuilt the whole tree leaves the dashboard -- and, hosted, this tool --
-        -- running the previous build's modules until the radio is restarted, so the pilot is
-        -- asked for that once, on the screen that follows.
-        if Precompile and type(Precompile.needsRestart) == "function" and Precompile.needsRestart() then
-          state.restartNoticeVisible = true
-        end
+      if compileFinished then
+        leaveStartScreen(now, "compile pass done")
         scheduleBuildUI(false)
+      else
+        logf("trace", "start screen held: compile %d/%d", compileDone, compileTotal)
       end
     end
 

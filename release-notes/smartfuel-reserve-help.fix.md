@@ -1,0 +1,2 @@
+- **The SmartFuel warning and the consumption reserve point at each other (`settings/audio/events`, `setup/power/battery`)**:
+  - The SmartFuel row's help says that its warning at 0 % is the Consumption reserve and where that is set; the reserve's help says that the SmartFuel warning speaks there. A new documentation page describes Settings > Audio > Events > SmartFuel, including how to get a warning at a given share of the pack.

@@ -162,7 +162,7 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 | Audio → Events → Profiles | `settings/audio/events/profiles.md` | yes | always available | to write |
 | Audio → Events → ESC | `settings/audio/events/esc.md` | yes | always available | to write |
 | Audio → Events → Adjustments | `settings/audio/events/adjustment.md` | yes | always available | to write |
-| Audio → Events → SmartFuel | `settings/audio/events/fuel.md` | yes | always available | to write |
+| Audio → Events → SmartFuel | [settings/audio/events/fuel.md](settings/audio/events/fuel.md) | yes | always available | written |
 | Audio → Events → Link | `settings/audio/events/link.md` | yes | always available | to write |
 | Audio → Events → Rescue | [settings/audio/events/rescue.md](settings/audio/events/rescue.md) | yes | always available | written |
 

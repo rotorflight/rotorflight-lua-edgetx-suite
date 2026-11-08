@@ -34,11 +34,13 @@ local function ensureDeps()
   if not Log then Log = loadModule("lib/log.lua") end
 end
 
-local function logD(msg)
+local function emit(level, msg)
   if Log and type(Log.emit) == "function" then
-    pcall(Log.emit, "rfsuite.esc.currentlimit", tostring(msg), "debug")
+    pcall(Log.emit, "rfsuite.esc.currentlimit", tostring(msg), level)
   end
 end
+
+local function logD(msg) emit("debug", msg) end
 
 --- The key one physical fact is stored under, named here so that no reader has to spell it.
 M.KEY = "esc_current_limit"
@@ -53,9 +55,9 @@ M.ORIGIN_KEY = "esc_current_limit_origin"
 M.ORIGIN_HAND = "hand"
 M.ORIGINS = { am32 = true, scorpion = true, yge = true }
 
---- Whole amps, or nil where the argument is not a limit at all. A limit of zero is how every
---- one of the three families spells "no limit set", so it is not a figure to remember: it would
---- read back as a limit of nought and turn every reading into an overload.
+--- Whole amps, or nil where the argument is not a limit at all. A limit of zero is not a figure
+--- to remember: it would read back as a limit of nought and turn every reading into an overload.
+--- What a family reports when it has no limit is its own: see the callers of M.forget.
 function M.normalize(amps)
   local limit = tonumber(amps)
   if limit == nil then return nil end
@@ -109,6 +111,50 @@ function M.remember(session, amps, origin)
   logD("remember " .. tostring(limit) .. " A from " .. tostring(origin) .. ": "
     .. (ok and "saved" or ("failed: " .. tostring(err or "io"))))
   return ok, err
+end
+
+--- Removes the figure a family's page stored, for a page that has just read from that family's
+--- ESC that it has no limit. Only that family's figure goes: one typed in by hand, one from another
+--- family and one with no origin on file may each be right whatever this ESC says, so they stay.
+--- A real limit read from the ESC still replaces any of them, in M.remember.
+---
+--- A caller hands this only what the ESC actually reported. A failed or partial read is not "no
+--- limit" and must not get here. Nothing is written unless a figure goes, so a page visit with
+--- nothing to clear costs no card write. A failed write puts the figure back, as in M.remember.
+function M.forget(session, origin)
+  if not M.ORIGINS[origin] then return false, "unknown_origin" end
+  if type(session) ~= "table" then return false, "no_session" end
+  if type(session.modelPreferences) ~= "table" then return false, "no_model_preferences" end
+
+  ensureDeps()
+  local battery = session.modelPreferences.battery
+  local previous = type(battery) == "table" and battery[M.KEY] or nil
+  if previous == nil then
+    emit("trace", "forget from " .. origin .. ": nothing on file")
+    return true, "unchanged"
+  end
+  local previousOrigin = battery[M.ORIGIN_KEY]
+  if previousOrigin ~= origin then
+    emit("trace", "forget from " .. origin .. ": kept " .. tostring(previous) .. " A from "
+      .. tostring(previousOrigin))
+    return true, "kept"
+  end
+
+  if not PowerModelPreferences or type(PowerModelPreferences.save) ~= "function" then
+    return false, "model_preferences_unavailable"
+  end
+
+  battery[M.KEY] = nil
+  battery[M.ORIGIN_KEY] = nil
+  local ok, err = PowerModelPreferences.save(session)
+  if not ok then
+    battery[M.KEY] = previous
+    battery[M.ORIGIN_KEY] = previousOrigin
+    emit("warn", "forget " .. tostring(previous) .. " A from " .. origin .. " failed: " .. tostring(err or "io"))
+    return false, err
+  end
+  logD("forget " .. tostring(previous) .. " A from " .. origin .. ": the ESC reports no limit")
+  return true, "cleared"
 end
 
 return M

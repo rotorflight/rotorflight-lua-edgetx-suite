@@ -5,8 +5,9 @@ sidebar_label: No connection
 
 # No connection to the flight controller
 
-The tool stays on its start screen, every tile is greyed out, and the dashboard shows no
-values off the flight controller. This page is the order to check things in.
+The tool's tiles that need the flight controller stay greyed out, the [connection status button](../reference/connection-status.md)
+in its header never reaches its tick, and the dashboard shows no values off the flight
+controller. This page is the order to check things in.
 
 ## What has to be true
 
@@ -32,7 +33,7 @@ Two sequences run, and both have to finish before everything is available:
 
 1. **The handshake**, in the MSP runtime: the API version (MSP 1), the firmware version (MSP 3)
    and the board's unique id (MSP 160). The link counts as connected only once the API version has
-   been read and accepted, which is what the tool's start screen and the dashboard's connected
+   been read and accepted, which is what the tool's greyed-out tiles and the dashboard's connected
    state wait for. The unique id is what the per-model preferences file is keyed by.
 2. **The connect tasks**, one per pass: the status, the telemetry configuration, the battery and
    governor configuration, the model name, the clock, and the rest. Most of them are one MSP

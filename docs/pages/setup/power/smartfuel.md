@@ -52,9 +52,16 @@ when the local source under *Power* → *Preferences* is *VOLTAGE* or *COMBINED*
   the maximum-cell-voltage fallback. Firmware-computed fuel is unaffected.
 - While the local estimate is unavailable, updates to the radio's `SmFt` and `SmCp` sensors
   stop. Readers outside the suite follow the radio's normal telemetry timeout.
+- The level the suite shows and speaks is this estimate rescaled to the *Consumption reserve* set on
+  the [Battery](battery.md) page: it reads 0 % at the reserve and 100 % on a full pack, whichever
+  source computes it. Until the first estimate after connecting, the dashboard can show the flight
+  controller's charge level as it is. The SmartFuel callouts and the warning at 0 % are set under
+  [Audio → Events → SmartFuel](../../settings/audio/events/fuel.md).
 
 ## Related
 
+- [Battery](battery.md) — the *Consumption reserve*, where the level reads 0 %
+- [Audio → Events → SmartFuel](../../settings/audio/events/fuel.md) — the callouts and the warning at 0 %
 - [Custom telemetry sensors](../../../reference/telemetry-sensors.md) — what `SmFt` and `SmCp` are, and what can read them
 - [Rotorflight documentation: SmartFuel](https://doc.rotorflight.org/setup/smartfuel/)
 

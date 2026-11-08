@@ -204,6 +204,9 @@ if case == "compiled" then
     if not state.initialLoad then break end
     runFor(1)
   end
+  -- The tool attaches on its first pass behind the menu; with nothing to compile the start screen
+  -- is already gone before that pass.
+  runFor(3)
   expect(listed == 0, "a compiled tree is walked again: " .. listed .. " directories listed")
   expect(Precompile ~= nil and not Precompile.isRunning(), "a compile pass runs on a compiled tree")
   expect(state.mspAttached == true, "the tool did not attach to the message runtime (control)")
