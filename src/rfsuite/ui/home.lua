@@ -512,6 +512,11 @@ local function pageBodyHeight()
   return screenH - headerH
 end
 
+-- The colour scheme's page colour behind the page body (ui/palette.lua).
+local function appendPageBackground(children)
+  Palette.appendBackground(children, LCD_W or 480, pageBodyHeight())
+end
+
 local function toWrappedItems(items, cols)
   local wrapped = {}
   local c = 1
@@ -752,9 +757,24 @@ local function shortenBreadcrumb(breadcrumb)
   return breadcrumb
 end
 
+-- A saved colour scheme recolours at once: the palette and the theme slots take it, and the open page
+-- is built again in it (scheduleBuildUI, declared below, is looked up when this runs).
+local scheduleBuildUI
+local function applySavedScheme()
+  local general = state.preferences and state.preferences.general
+  local scheme = general and general.color_scheme
+  if Palette.scheme == nil or Palette.apply(scheme) == nil then return end
+  if ThemeSlots and ThemeSlots.current() == Palette.scheme then return end
+  logf("info", "colour scheme %s applied on save", tostring(Palette.scheme))
+  if ThemeSlots then pcall(ThemeSlots.apply, scheme) end
+  scheduleBuildUI(false)
+end
+
 local function performSave()
   _G.rfsuite.preferences = state.preferences
-  return savePreferencesSafe(state.preferences)
+  local ok, err = savePreferencesSafe(state.preferences)
+  if ok then applySavedScheme() end
+  return ok, err
 end
 
 local function isSerialMemoryLogEnabled()
@@ -877,7 +897,7 @@ local function releasePages()
   end
 end
 
-local function scheduleBuildUI(withGc)
+function scheduleBuildUI(withGc)
   state.pendingBuildUI = true
   if withGc == true then
     state.pendingGcAfterBuild = true
@@ -3049,6 +3069,7 @@ local function buildScene()
   -- Clear and reuse the children table to reduce garbage collection
   local children = state.children
   wipeTable(children)
+  appendPageBackground(children)
 
   local contentX = contentPad
   -- The strip sits flush under the page header and the content starts one gap below it, so
@@ -3266,6 +3287,7 @@ local function buildScene()
         -- finished, and the armed strip appended before it does not. Both come off, the strip
         -- goes back on, and the failure takes the page body.
         wipeTable(children)
+        appendPageBackground(children)
         if bannerH > 0 then
           appendArmedBanner(children, contentX, 0, contentW, bannerH, currentArmedBannerText())
         end
@@ -3493,8 +3515,10 @@ function M.init(opts)
   logStep("init: preferences read", true)
 
   -- Before the first build, so the first frame and every native control on it are in the scheme.
+  local scheme = prefs and prefs.general and prefs.general.color_scheme
+  Palette.apply(scheme)
   ThemeSlots = ThemeSlots or loadModule("lib/theme_slots.lua")
-  local schemeOk, schemeErr = pcall(ThemeSlots.apply, prefs and prefs.general and prefs.general.color_scheme)
+  local schemeOk, schemeErr = pcall(ThemeSlots.apply, scheme)
   if not schemeOk then
     logf("error", "theme slots not written: %s", tostring(schemeErr))
   end
