@@ -353,6 +353,10 @@ local function new(protocol)
     pollReply = mspPollReply,
     clearTxBuf = mspClearTxBuf,
     clearRxBuf = mspClearRxBuf,
+    -- Bytes of the current request still waiting for the transport (a refused frame, later chunks).
+    txPending = function()
+      return #mspTxBuf > 0
+    end,
     -- 3 asks for the compact framing, anything else is MSPv2.
     setProtocolVersion = function(v)
       mspVersion = (tonumber(v) == 3) and 3 or 2

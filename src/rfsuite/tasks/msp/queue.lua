@@ -694,8 +694,11 @@ function Queue:processQueue(now)
 
   -- A message with `sendIf` that already went out may still have bytes in the transmit buffer (a
   -- frame the transport did not take yet, or the chunks after the first): they are its sends too,
-  -- so the same question is asked before they are flushed.
-  if msg.sendIf ~= nil and self.retryCount > 0 then
+  -- so the same question is asked before they are flushed. Only then: a message whose bytes are
+  -- all out is waiting for its answer, and that answer -- or its completion on silence -- is still
+  -- taken, since nothing more would be sent.
+  if msg.sendIf ~= nil and self.retryCount > 0 and self.common
+    and type(self.common.txPending) == "function" and self.common.txPending() then
     local allowed, err = sendAllowed(msg)
     if not allowed then
       withhold(self, msg, now, err)

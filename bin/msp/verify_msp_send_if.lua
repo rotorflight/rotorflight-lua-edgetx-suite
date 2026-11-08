@@ -217,5 +217,33 @@ do
   equal(sends(C), 1, "buffered control: flushed on the next pass")
 end
 
+-- All bytes out, then sendIf turns false: the answer that arrives is still taken (nothing more is sent).
+do
+  local w = world()
+  local allow = true
+  local m = w.ask(C, function() return allow end)
+  w.tick()
+  equal(sends(C), 1, "answer after: the request went out")
+  w.answer(C, 9)
+  allow = false
+  w.tick()
+  equal(m.value, 9, "answer after: the answer is taken")
+  equal(#m.errors, 0, "answer after: not withheld")
+end
+
+-- The reboot's two sends are out, then sendIf turns false: it still completes on silence.
+do
+  local w = world()
+  local allow = true
+  local m = w.ask(C, function() return allow end, { completeAfterAttempt = 2, isWrite = true })
+  w.tick()
+  w.tick(1.1)
+  equal(sends(C), 2, "silent after: both sends went out")
+  allow = false
+  w.tick(1.1)
+  equal(m.done, true, "silent after: it completes on silence")
+  equal(#m.errors, 0, "silent after: not withheld")
+end
+
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end
