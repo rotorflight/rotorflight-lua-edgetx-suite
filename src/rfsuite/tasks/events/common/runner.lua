@@ -73,13 +73,13 @@ function M.new(category)
     local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
     local chunk = loadScript(_G.rfsuite.paths.core .. "/" .. MANIFEST_PATH, mode)
     if type(chunk) ~= "function" then
-      if type(Log) == "table" and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, "manifest missing: " .. tostring(MANIFEST_PATH), "debug") end
+      if type(Log) == "table" and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, "manifest missing: " .. tostring(MANIFEST_PATH), "error") end
       tasksLoaded = true
       return
     end
     local ok, manifest = pcall(chunk)
     if not ok or type(manifest) ~= "table" then
-      if type(Log) == "table" and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, "invalid manifest: " .. tostring(MANIFEST_PATH), "debug") end
+      if type(Log) == "table" and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, "invalid manifest: " .. tostring(MANIFEST_PATH), "error") end
       tasksLoaded = true
       return
     end
@@ -156,6 +156,7 @@ function M.new(category)
       t.attempts = 0
       t.nextEligibleAt = 0
       t.startTime = nil
+      t.raisedLogged = nil
     end
     tasksDoneLogged = false
     invalidateView()
@@ -252,7 +253,7 @@ function M.new(category)
       invalidateView()
       task.startTime = nil
       task.nextEligibleAt = 0
-      if Log and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, "failed to load task " .. tostring(task.name) .. ": " .. tostring(err or "?"), "info") end
+      if Log and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, "failed to load task " .. tostring(task.name) .. ": " .. tostring(err or "?"), "error") end
       return
     end
 
@@ -277,16 +278,25 @@ function M.new(category)
       if type(step) == "function" then
         pcall(step, "task " .. category .. ":" .. tostring(task.name))
       end
-      pcall(module.wakeup, args)
+      local woke, wakeErr = pcall(module.wakeup, args)
+      -- A task that raises otherwise shows only as a timeout much later. Once per attempt.
+      if not woke and task.raisedLogged ~= (task.attempts or 0) and Log and type(Log.emit) == "function" then
+        task.raisedLogged = task.attempts or 0
+        pcall(Log.emit, "rfsuite.tasks." .. category, "task " .. tostring(task.name) .. " raised: " .. tostring(wakeErr), "warn")
+      end
     end
 
     if module.isComplete and module.isComplete() then
       task.complete = true
       invalidateView()
+      local took = task.startTime and (nowSeconds() - task.startTime) or 0
       task.startTime = nil
       task.nextEligibleAt = 0
       releaseTaskModule(task, false)
-      if Log and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, "completed task " .. tostring(task.name), "debug") end
+      if Log and type(Log.emitf) == "function" and type(Log.wanted) == "function" and Log.wanted("debug") then
+        pcall(Log.emitf, "rfsuite.tasks." .. category, "debug", "completed task %s in %.1f s, lua %d kB",
+          tostring(task.name), took, math.floor(collectgarbage("count") + 0.5))
+      end
       return
     end
 
@@ -304,13 +314,13 @@ function M.new(category)
         -- and the line below announced work that never happened. Releasing it with its reset is
         -- what the complete and the give-up branches around this one already do.
         releaseTaskModule(task, true)
-        if Log and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, string.format("Task '%s' timed out. Re-queueing (attempt %d/%d) in %.1fs.", task.name, task.attempts, MAX_RETRIES, backoff), "info") end
+        if Log and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, string.format("Task '%s' timed out. Re-queueing (attempt %d/%d) in %.1fs.", task.name, task.attempts, MAX_RETRIES, backoff), "warn") end
       else
         task.failed = true
         invalidateView()
         task.startTime = nil
         releaseTaskModule(task, false)
-        if Log and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, string.format("Task '%s' failed after %d attempts. Skipping.", task.name, MAX_RETRIES), "info") end
+        if Log and type(Log.emit) == "function" then pcall(Log.emit, "rfsuite.tasks." .. category, string.format("Task '%s' failed after %d attempts. Skipping.", task.name, MAX_RETRIES), "error") end
       end
     end
   end

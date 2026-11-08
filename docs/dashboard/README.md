@@ -24,3 +24,4 @@ is the starting point; these files carry the detail.
 | [standby-screen.md](standby-screen.md) | The surface shown before a flight controller is ready, its single-screen fit rule, and the flight states that take priority over it. | the standby source and settings page | written |
 | `model-image.md` | Where the model picture comes from, the per-cell-count variant and the accepted file types. | README | to write |
 | [service-widget.md](service-widget.md) | What runs the background work, which of the two widgets to add to a model, where to place *RFSuite Service*, what its tile shows, what happens with both widgets on one model, and what to avoid. | the service and dashboard runtime sources | written |
+| [../troubleshooting/collecting-logs.md](../troubleshooting/collecting-logs.md#reading-a-dashboard-log) | What the dashboard writes to the log, by tag and level, and how to read it for what it costs and where a problem began. |
