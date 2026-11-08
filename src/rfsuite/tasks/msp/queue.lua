@@ -707,12 +707,14 @@ function Queue:processQueue(now)
     return
   end
 
-  -- A message with `sendIf` may still have bytes in the transmit buffer (a frame the transport did
-  -- not take yet, the chunks after the first, or a send an instruction-limit stop interrupted before
-  -- it was counted): they are its sends too, so the same question is asked before they are flushed.
-  -- Only then: a message whose bytes are all out is waiting for its answer, and that answer -- or
-  -- its completion on silence -- is still taken, since nothing more would be sent.
-  if msg.sendIf ~= nil and self.common
+  -- A message with `sendIf` that has started sending may still have bytes in the transmit buffer (a
+  -- frame the transport did not take yet, the chunks after the first, or a send an instruction-limit
+  -- stop interrupted before it was counted -- `__sendStarted` is set just before the send): they are
+  -- its sends too, so the same question is asked before they are flushed. Bytes a previous message
+  -- left are not this message's and do not raise its question. Only then: a message whose bytes are
+  -- all out is waiting for its answer, and that answer -- or its completion on silence -- is still
+  -- taken, since nothing more would be sent.
+  if msg.sendIf ~= nil and (self.retryCount > 0 or msg.__sendStarted == true) and self.common
     and type(self.common.txPending) == "function" and self.common.txPending() then
     local allowed, err = sendAllowed(msg)
     if not allowed then
@@ -788,14 +790,13 @@ function Queue:processQueue(now)
     or (msg.completeAfterAttempt and self.retryCount >= msg.completeAfterAttempt)
 
   if success then
-    -- A message carrying sendIf can complete with bytes of a later attempt still buffered (the
-    -- reboot completes on its sends, not on what the transport took). The next message's flush would
-    -- send them without asking the predicate, so they are dropped here when the predicate no longer
-    -- allows them, or when the message asks for it (`dropLeftoverOnComplete`: a send that must not go
-    -- out later than its own check). Otherwise they stay and go out as before.
-    if msg.sendIf ~= nil and self.common and type(self.common.txPending) == "function"
-      and self.common.txPending() and self.common.clearTxBuf
-      and (msg.dropLeftoverOnComplete == true or not sendAllowed(msg)) then
+    -- A message can complete with bytes of a later attempt still buffered (the reboot completes on
+    -- its sends, not on what the transport took); the next message's flush sends them, as it always
+    -- has -- a repeat of a frame that already went out. A message that asks for it
+    -- (`dropLeftoverOnComplete`: a send that must not go out later than its own sendIf check) has
+    -- them dropped here instead.
+    if msg.dropLeftoverOnComplete == true and self.common and type(self.common.txPending) == "function"
+      and self.common.txPending() and self.common.clearTxBuf then
       self.common.clearTxBuf()
     end
     msg.buf = buf
@@ -883,6 +884,7 @@ function Queue:processQueue(now)
       end
     end
     local payload = msg.payload or EMPTY_PAYLOAD
+    if msg.sendIf ~= nil then msg.__sendStarted = true end
     local okSend = self.common and type(self.common.sendRequest) == "function"
       and self.common.sendRequest(msg.command, payload, { write = isWriteMessage(msg) })
     if okSend then
