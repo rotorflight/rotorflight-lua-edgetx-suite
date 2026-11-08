@@ -1,0 +1,4 @@
+- **A raised Log Level costs less of the dashboard's instruction budget (`lib/log.lua`, `lib/sensors.lua`)**:
+  - Each log line now decides its level once, reads the clock once and converts its text once for the Session Logs ring, the card log and the console; the configured level is converted only when the setting changes. At *DEBUG* a line costs about a quarter less, with *Log Session To Card* on about 40 % less, and a line below the configured level about half. The lines and what they say are unchanged.
+  - The telemetry read path no longer builds a *DEBUG* line for every sensor on every read only to drop it because that line was already written once.
+  - With Log Level raised, the passes after a disarm carry this cost on top of the post-flight work, and the dashboard could be stopped by EdgeTX there (#785).
