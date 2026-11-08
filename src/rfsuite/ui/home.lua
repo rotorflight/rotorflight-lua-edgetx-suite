@@ -3854,15 +3854,7 @@ function M.run(event, touchState)
 
       -- Run MSP ticks to process the queued packets during shutdown (ticks 1 to 15)
       if state.closeTicks <= 15 then
-        -- A timed-out save's drop of its queued messages that is still owed goes first (the run
-        -- loop's SavePipeline.wakeup no longer runs while closing); while it is not done, the queue
-        -- is not ticked, or a closing tick could send the ended save's message.
-        local owedDone = true
-        if SavePipeline and type(SavePipeline.dropOwed) == "function" then
-          local okDrop, done = pcall(SavePipeline.dropOwed)
-          owedDone = okDrop and done ~= false
-        end
-        if owedDone and MspRuntime and type(MspRuntime.tick) == "function" then
+        if MspRuntime and type(MspRuntime.tick) == "function" then
           pcall(MspRuntime.tick)
         end
       elseif not state.shouldExit then

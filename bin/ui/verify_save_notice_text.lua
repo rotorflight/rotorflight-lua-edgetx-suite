@@ -326,24 +326,5 @@ replaceUpvalue(buildUI, "armedState", realArmedState)
 draw(failedAfterWrite(true))
 check(showsExactly(Stubs, "@i18n(app.save.restart)@"), "arming module back: the restart is offered again (control)")
 
--- Closing the tool: its closing ticks run the MSP queue without the run loop's pipeline wakeup. A
--- timed-out save's drop still owed goes first, and while it is not done the queue is not ticked.
--- Last in this file: the closing sequence ends the tool.
-local MspRuntime = assert(find(Home.run, "MspRuntime"), "home msp runtime missing")
-local realTick = MspRuntime.tick
-local ticks, owed = 0, true
-MspRuntime.tick = function(...) ticks = ticks + 1; return realTick(...) end
-local realDropOwed = pipeline.dropOwed
-check(type(realDropOwed) == "function", "the pipeline offers the owed drop")
-pipeline.dropOwed = function() return not owed end
-state.isClosing = true
-for _ = 1, 4 do Stubs.tick(); Home.run(0) end
-check(ticks == 0, "closing with a drop owed: no MSP tick", ticks)
-owed = false
-for _ = 1, 3 do Stubs.tick(); Home.run(0) end
-check(ticks > 0, "closing once the drop is done: the closing ticks run (control)", ticks)
-MspRuntime.tick = realTick
-pipeline.dropOwed = realDropOwed
-
 print(string.format("%d checks, %d failures", checks, failures))
 os.exit(failures == 0 and 0 or 1)

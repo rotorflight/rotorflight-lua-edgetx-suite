@@ -435,12 +435,13 @@ clock = 3200
 Pipeline.wakeup()
 equal(select(2, outcome()).sentAny, false, "backstop on a write never sent: not reached")
 
--- 24. The restart's reboot asks again at every send (sendIf); a normal save's reboot carries none.
+-- 24. The restart's reboot asks again at every send (sendIf); a normal save's reboot asks only
+-- whether its run is still the active one.
 begin(true)
 ack(last()); ack(last()); ack(last())
 ack(last(), { 1 })
 equal(last().command, CMD.reboot, "normal reboot save: reboot queued")
-equal(last().sendIf, nil, "normal reboot save: no sendIf")
+equal(last().sendIf and last().sendIf(last()), true, "normal reboot save: sent while its run is active")
 equal(last().completeAfterAttempt, 2, "normal reboot save: completes after two sends, as before")
 begin()
 ack(last()); refuse(last())
@@ -608,16 +609,47 @@ clock = 3200
 mspState.queue = nil
 Pipeline.wakeup()                               -- the save ends; no queue to drop from
 equal(select(2, outcome()).status, "timeout", "owed without a queue: the save ended")
-equal(Pipeline.dropOwed(), false, "owed without a queue: still owed")
+local sharedState = _G.rfsuite.tasks.savePipeline
+equal(sharedState.owedClear, "save:test_page", "owed without a queue: still owed")
 mspState.queue = queue
 queue.clear = function() error("broken", 0) end
-equal(Pipeline.dropOwed(), false, "owed after a raising clear: still owed")
-local ok31b, why31b = Pipeline.start({ pageId = "test_page", steps = { { label = "W", command = CMD.write1, payload = { 1 } } } })
-equal(ok31b, false, "owed: a save that may share the client is refused")
-equal(why31b, "busy", "owed: refusal reason")
+Pipeline.wakeup()
+equal(sharedState.owedClear, "save:test_page", "owed after a raising clear: still owed")
 queue.clear = realClear
-equal(Pipeline.dropOwed(), true, "owed: done once the clear runs through")
+Pipeline.wakeup()
+equal(sharedState.owedClear, nil, "owed: done once the clear runs through")
 equal(write31b.cleared, true, "owed: the ended run's message is dropped")
+
+-- 33. What keeps an ended run's message off the board is its sendIf, not the drop: every message
+-- that acts on the board asks whether its run is still the active one, at every send.
+begin()
+local w33 = last()
+equal(w33.sendIf and w33.sendIf(w33), true, "sendIf: the first write goes out while its run is active")
+ack(w33)
+local w33b = last()
+clock = 3200
+queue.clear = function() error("CPU limit", 0) end
+pcall(Pipeline.wakeup)                          -- the save ends; its drop is stopped
+queue.clear = realClear
+equal(w33b.cleared, nil, "sendIf: the ended run's write is still queued")
+equal(w33b.sendIf(w33b), false, "sendIf: and is withheld at the send")
+begin()
+ack(last()); ack(last())
+local commit33 = last()
+equal(commit33.command, CMD.eeprom, "sendIf: the commit is queued")
+equal(commit33.sendIf(commit33), true, "sendIf: the commit goes out while its run is active")
+clock = 3200
+Pipeline.wakeup()
+equal(commit33.sendIf(commit33), false, "sendIf: an ended run's EEPROM write is withheld")
+begin(true)
+ack(last()); ack(last()); ack(last())
+ack(last(), { 1 })
+local reboot33 = last()
+clock = clock + 3200
+Pipeline.wakeup()
+equal(reboot33.sendIf(reboot33), false, "sendIf: an ended save's reboot is withheld")
+reboot33.errorHandler(reboot33, "withheld")     -- the real queue's answer: changes nothing
+equal(select(2, outcome()).status, "timeout", "sendIf: the withheld give-up leaves the outcome as it was")
 
 -- 32. Late reboot and probe replies of an ended restart do not drive the save that runs next.
 begin()

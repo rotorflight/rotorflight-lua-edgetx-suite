@@ -217,10 +217,11 @@ restart, the restart finishes on its own and its outcome is shown the next time 
 Pages that save through their own chain rather than through the shared save are not covered, and
 Flight Tuning > Tune Advisor reports a failed apply in its own notice.
 
-A save step that gets no answer for 30 seconds ends the save. The requests it still had waiting
-are then dropped, so a late EEPROM write cannot store what the notice reported as not saved, and the
-ended save ignores any answer that still arrives for it instead of moving the save or restart that
-follows.
+A save step that gets no answer for 30 seconds ends the save. None of its writes, its EEPROM write
+or its restart is sent after that -- each is checked at the moment it would be sent -- and the
+requests it still had waiting are dropped, so a late EEPROM write cannot store what the notice
+reported as not saved. The ended save ignores any answer that still arrives for it instead of
+moving the save or restart that follows.
 
 ## When a different flight controller answers
 

@@ -562,10 +562,7 @@ local function driveLeftSave()
   if type(shared) ~= "table" then return end
   -- A successful outcome that clears itself is driven too: left standing, it would be drawn by the
   -- tool's first build at its next open, before the tool's own wakeup could clear it.
-  -- So is an ended run whose queued messages are still owed a drop (a backstop's cleanup that the
-  -- instruction limit stopped): this widget's MSP tick would otherwise send them.
-  if shared.run == nil and shared.owedClear == nil
-    and not (type(shared.outcome) == "table" and shared.outcome.clearAt) then
+  if shared.run == nil and not (type(shared.outcome) == "table" and shared.outcome.clearAt) then
     return
   end
   if not SavePipeline then
@@ -685,16 +682,6 @@ local function tickMspRuntime(self, carry)
 
   if type(MspRuntime.tick) ~= "function" then
     return
-  end
-
-  -- A timed-out save's drop of its queued messages that an instruction-limit stop left owed goes
-  -- before the queue runs again: this pass's tick could otherwise send the ended run's message. A
-  -- drop that did not get done (the instruction limit stopped it again) keeps the queue still for
-  -- this pass.
-  local leftSave = _G.rfsuite and _G.rfsuite.tasks and _G.rfsuite.tasks.savePipeline
-  if type(leftSave) == "table" and leftSave.owedClear ~= nil then
-    driveLeftSave()
-    if leftSave.owedClear ~= nil then return end
   end
 
   MspRuntime.tick()

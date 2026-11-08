@@ -242,6 +242,19 @@ local function isCurrent(run)
   return false
 end
 
+--- The `sendIf` of every message that acts on the board (a write, the EEPROM commit, the reboot):
+-- it goes out only while the run that queued it is the active one. The queue asks it at every send
+-- and before it flushes buffered bytes, so a message an ended run left behind is withheld at the
+-- send, however far the drop of that run's messages got (timedOut) -- the drop cannot be the
+-- guarantee, because an instruction-limit stop can interrupt it anywhere.
+local function whileCurrent(run)
+  return function()
+    if run ~= nil and S.run == run then return true end
+    logf("debug", "send withheld, its run has ended page=%s", tostring(run and run.desc and run.desc.pageId))
+    return false
+  end
+end
+
 --- Does this outcome need no acknowledgement? A save that asked for a restart is a plain success
 -- only once the restart was seen. An answer after the reboot proves only that the board is usable:
 -- a reboot command lost on the link leaves a board that never restarted answering just the same,
@@ -331,11 +344,11 @@ local function fail(step)
   finish("failed", { step = step })
 end
 
---- Drop the queued messages of a run that ended on a backstop (timedOut). Kept owed in the shared
--- state until the queue has done it: an instruction-limit stop is raised on, as everywhere in this
--- file, and the drop is done again on the next call instead of being lost. The mark goes only once a
--- clear has run through: without a queue (this copy's runtime handle not loaded yet) or after a clear
--- that raised, it stays for the next call. Returns true when nothing is owed any more.
+--- Drop the queued messages of a run that ended on a backstop (timedOut). Housekeeping, not the
+-- guarantee: what keeps such a message off the board is its sendIf (whileCurrent). Kept owed in the
+-- shared state until a clear has run through, so a drop an instruction-limit stop interrupted (the
+-- limit is raised on, as everywhere in this file) or one with no queue reachable is done on a later
+-- call. Returns true when nothing is owed any more.
 local function dropOwedMessages()
   local client = S.owedClear
   if not client then return true end
@@ -361,10 +374,10 @@ local function timedOut(phase)
   end
   -- A run that ends on a backstop leaves its own messages on the queue. Sent later, they would
   -- still act on the board: a queued EEPROM write would store what the notice calls not saved,
-  -- a queued reboot would restart a board long after the pilot moved on. They are dropped once
-  -- the run has ended, so their handlers find no current run and change nothing. The drop is
-  -- owed from before the run ends: an instruction-limit stop in either leaves it owed, and the next
-  -- wakeup -- or the next run, before it queues anything -- does it (dropOwedMessages).
+  -- a queued reboot would restart a board long after the pilot moved on. Each carries a sendIf that
+  -- withholds it once its run has ended (whileCurrent); they are also dropped, so their handlers
+  -- find no current run and change nothing. The drop is owed from before the run ends, and the next
+  -- wakeup does what an instruction-limit stop left of it (dropOwedMessages).
   if S.run and S.run.client then S.owedClear = S.run.client end
   finish("timeout", { phase = phase })
   dropOwedMessages()
@@ -562,15 +575,17 @@ local function queueReboot()
     completeAfterAttempt = run.restart == true and 1 or 2,
     -- The restart offered after a failed save is checked again at every send, not only when it is
     -- queued: the firmware takes MSP_REBOOT over telemetry without looking at the arming state.
-    -- A withheld reboot ends the run through the errorHandler below.
+    -- A withheld reboot ends the run through the errorHandler below. Any reboot goes out only while
+    -- its run is the active one (whileCurrent).
     sendIf = run.restart == true and function()
+      if S.run ~= run then return whileCurrent(run)() end
       local allowed, why = restartAllowed(run)
       if allowed and not (run.fcDisarmedAt and (nowSeconds() - run.fcDisarmedAt) <= DISARMED_EVIDENCE_SECONDS) then
         allowed, why = false, "fc_evidence_old"
       end
       if not allowed then logf("warn", "restart withheld at the send reason=%s", tostring(why)) end
       return allowed
-    end or nil,
+    end or whileCurrent(run),
     processReply = function()
       if not isCurrent(run) then return end
       enter(PHASE.PROBE)
@@ -656,6 +671,7 @@ local function queueCommit()
     payload = {},
     isWrite = true,
     client = S.run.client,
+    sendIf = whileCurrent(run),
     processReply = function()
       if not isCurrent(run) then return end
       afterCommit()
@@ -702,6 +718,7 @@ queueStep = function(index, payload)
     payload = payload,
     isWrite = true,
     client = S.run.client,
+    sendIf = whileCurrent(run),
     processReply = function()
       if not isCurrent(run) then return end
       if not S.run.sentAny then
@@ -754,12 +771,11 @@ function M.start(desc)
     logf("warn", "refused reason=msp_queue_unavailable page=%s", tostring(desc.pageId))
     return false, "msp_queue_unavailable"
   end
-  -- An ended run's drop still owed goes first: the client name may be this save's own, so a drop
-  -- that cannot be done now refuses the save rather than dropping its messages later.
-  if not dropOwedMessages() then
-    logf("warn", "refused reason=cleanup_owed page=%s", tostring(desc.pageId))
-    return false, "busy"
-  end
+  -- An ended run's drop still owed goes first, and ends here either way: the client name may be this
+  -- save's own, so a drop left for later could take this save's messages. What it could not drop is
+  -- withheld at the send (whileCurrent).
+  dropOwedMessages()
+  S.owedClear = nil
 
   -- While the model is armed the firmware only marks the configuration dirty and answers the
   -- EEPROM write with an error, so a save started here would report a failure the pilot cannot
@@ -853,10 +869,8 @@ function M.restartAfterFailure()
     logf("warn", "restart refused reason=msp_queue_unavailable")
     return false, "msp_queue_unavailable"
   end
-  if not dropOwedMessages() then
-    logf("warn", "restart refused reason=cleanup_owed")
-    return false, "busy"
-  end
+  dropOwedMessages()
+  S.owedClear = nil
   -- The same refusal start() makes: a board that is armed is not restarted from here.
   if mspState and mspState.lastArmed == true then
     logf("warn", "restart refused reason=armed")
@@ -890,16 +904,6 @@ function M.restartAfterFailure()
   logf("info", "restart after a failed save page=%s", tostring(pageId))
   startReboot()
   return true
-end
-
---- Finish a drop of an ended run's queued messages that is still owed (see dropOwedMessages).
--- For a caller about to run the MSP queue without driving the pipeline first -- the tool's closing
--- ticks, the dashboard widget's tick: while this returns false, that caller does not tick. An
--- instruction-limit stop is raised on.
-function M.dropOwed()
-  if not S.owedClear then return true end
-  ensureDeps()
-  return dropOwedMessages()
 end
 
 --- Drive the phases that wait on time rather than on a reply. Called from the run loop.
