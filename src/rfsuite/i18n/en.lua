@@ -4360,6 +4360,13 @@ return {
       status_disarmed = "DISARMED",
       connecting_fbl = "Connecting FBL...",
       standby = {
+        intro_title = "Getting started",
+        intro_placed = "The dashboard is placed, nothing else is needed.",
+        intro_others = "No other dashboards or service widgets on this model.",
+        intro_foreign_job = "Remove other background jobs (e.g. rf2bg) from Special Functions.",
+        intro_own_job = "rfsbg is added by the suite: do not delete it.",
+        intro_full_screen = "Done reading? Long-press the dashboard: Full screen.",
+        intro_keys = "In full screen: SYS opens the suite, TELE the quick menu.",
         screen_title = "Standby",
         layout_invalid = "Standby layout does not fit",
         module_clock = "Clock",

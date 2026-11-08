@@ -25,6 +25,23 @@ local function nowSeconds()
     return 0
 end
 
+-- The drain is the one module here that is asked for again after a failed load, once per
+-- DRAIN_RETRY_SECONDS, as drain.lua does for its own two. The loader's pcall also catches the
+-- radio's instruction limit, so a failure can be a pass that ran out rather than a file that is
+-- not there, and the drain is what publishes the armed state tasks/msp/runtime.lua stops on:
+-- `false` for good would leave the MSP gate blind for as long as this Lua state lives.
+local DRAIN_RETRY_SECONDS = 1.0
+local drainRetryAt = 0
+
+-- Whether this call is spent on the drain's load: the first call, and the first after the wait
+-- that follows a failed one. Shared by both passes, so they share the wait too.
+local function drainLoadStep(now)
+    if Drain == false and now < drainRetryAt then return false end
+    Drain = loadModule("tasks/events/telemetry_bg/drain.lua") or false
+    if not Drain then drainRetryAt = now + DRAIN_RETRY_SECONDS end
+    return true
+end
+
 function M.wakeup(carry)
     -- One module per wakeup: each of these pulls in a subtree of its own -- smart.lua alone
     -- reaches the sensor library, the reserve helper and the logger, and drain.lua reaches
@@ -35,11 +52,9 @@ function M.wakeup(carry)
     -- `false` rather than a retry: with `not Smart` as the test a module that cannot be
     -- loaded is asked for again on every wakeup, which is a failing card read ten times a
     -- second for as long as the radio is on. Every use below is already guarded, so a
-    -- module that is genuinely absent stays absent cheaply.
-    if Drain == nil then
-        Drain = loadModule("tasks/events/telemetry_bg/drain.lua") or false
-        return
-    end
+    -- module that is genuinely absent stays absent cheaply. The drain is the exception, asked
+    -- for again once a second (drainLoadStep); the stages below go on while it waits.
+    if not Drain and drainLoadStep(nowSeconds()) then return end
     if Smart == nil then
         Smart = loadModule("tasks/events/telemetry_bg/smart.lua") or false
         return
@@ -142,12 +157,9 @@ end
 -- the drain already loaded. Like M.wakeup, it stands aside while the background function script
 -- is draining for the whole radio. Returns the source it published on this pass, if any.
 function M.wakeupConnecting()
-    if Drain == nil then
-        Drain = loadModule("tasks/events/telemetry_bg/drain.lua") or false
-        return
-    end
-    if not Drain or type(Drain.wakeupArmingFlags) ~= "function" then return end
     local now = nowSeconds()
+    if not Drain and drainLoadStep(now) then return end
+    if not Drain or type(Drain.wakeupArmingFlags) ~= "function" then return end
     local remote = Drain.remoteAlive(now)
     local popped, published = 0, nil
     if not remote then popped, published = Drain.wakeupArmingFlags(now) end

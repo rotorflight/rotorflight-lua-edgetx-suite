@@ -1,0 +1,4 @@
+- **The armed state at link-up holds in three more cases (`tasks/events/telemetry_bg/tasks.lua`, `tasks/events/telemetry_bg/drain.lua`, `docs/reference/connection-status.md`, `docs/developer/background-tasks.md`)**:
+  - A failed load of the custom-telemetry drain is retried once a second instead of switching the drain off for good, so a single pass that ran out of instructions no longer leaves the MSP armed gate without a decoder.
+  - While the connect runs, an older disarmed arming flags value is no longer published after a newer armed System Status word, and the background function script no longer takes a disarmed value from frames left waiting while a tool had it paused.
+  - The adjustment pair is put back when a decoder raises during the armed-state walk, and the documentation says the 5-second wait also ends for a flight controller whose first armed report is late (#1070).

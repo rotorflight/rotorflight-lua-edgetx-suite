@@ -64,6 +64,8 @@ return {
     ["pass.standby.build"] = { target = 14000, measured = 12004 },
     ["pass.standby.state"] = { target = 12000, measured = 8809 },
     ["sweep.standby"] = { target = 950, measured = 935 },
+    ["pass.standby.intro"] = { target = 6000, measured = 4793 },
+    ["pass.standby.intro_save"] = { target = 8750, measured = 6993 },
 
     -- The cold start, before the link is up and the first scene is on screen. It is
     -- the pass that loads modules, and it is the closest any pass comes to the
