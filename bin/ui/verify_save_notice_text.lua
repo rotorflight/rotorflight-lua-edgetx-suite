@@ -175,5 +175,100 @@ draw({ phase = "write", label = LABEL, done = 1, total = 3, fraction = 1 / 3, te
   status = "failed", result = {} })
 check(shows(Stubs, "app.save.failed_message"), "a failed save shows its own text (control)")
 
+-- The buttons of the notice, in the order they are drawn.
+local function buttons()
+  local out = {}
+  local function walk(node, seen)
+    if seen[node] then return end
+    seen[node] = true
+    if node.type == "button" then out[#out + 1] = node end
+    for i = 1, #node do if type(node[i]) == "table" then walk(node[i], seen) end end
+  end
+  for i = 1, #Stubs.lvgl.trees do walk(Stubs.lvgl.trees[i], {}) end
+  return out
+end
+
+-- Replace a local the notice reads, wherever in home's closures it is held.
+local function replaceUpvalue(fn, wanted, value, seen)
+  seen = seen or {}
+  if seen[fn] then return 0 end
+  seen[fn] = true
+  local n = 0
+  for i = 1, 200 do
+    local name, v = debug.getupvalue(fn, i)
+    if not name then break end
+    if name == wanted then debug.setupvalue(fn, i, value); n = n + 1
+    elseif type(v) == "function" then n = n + replaceUpvalue(v, wanted, value, seen) end
+  end
+  return n
+end
+
+-- A save that failed after a write was acknowledged: the board may run new values, so the notice
+-- says so and offers the restart after Continue. One that sent nothing keeps Continue alone.
+local function failedAfterWrite(sent)
+  return { phase = "outcome", terminal = true, status = "failed", done = 1, total = 1, fraction = 1,
+    dismissible = true, result = { status = "failed", saved = false, sentAny = sent, step = "commit" } }
+end
+
+-- The arming state is the notice's question; this world answers it as the test says.
+local armed, uncertain = false, false
+check(replaceUpvalue(buildUI, "isModelArmed", function() return armed end) > 0, "armed check found in the notice")
+check(replaceUpvalue(buildUI, "armedStateIsUncertain", function() return uncertain end) > 0,
+  "uncertain check found in the notice")
+
+draw(failedAfterWrite(false))
+check(shows(Stubs, "app.save.failed_message"), "nothing sent: the plain failure text")
+check(not showsExactly(Stubs, "@i18n(app.save.restart)@"), "nothing sent: no restart offered")
+check(#buttons() == 1, "nothing sent: one button", #buttons())
+
+draw(failedAfterWrite(true))
+check(shows(Stubs, "app.save.failed_running"), "a write reached the board: the running text")
+check(not shows(Stubs, "app.save.failed_message"), "a write reached the board: not the plain text")
+local b = buttons()
+check(#b == 2, "a write reached the board: two buttons", #b)
+check(b[1] and b[1].text == "@i18n(app.save.dismiss)@", "Continue is the first button", b[1] and b[1].text)
+check(b[2] and b[2].text == "@i18n(app.save.restart)@", "Restart FC is the second button", b[2] and b[2].text)
+
+-- The press asks the pipeline for the restart.
+local restartCalls = 0
+local realRestart = pipeline.restartAfterFailure
+pipeline.restartAfterFailure = function() restartCalls = restartCalls + 1; return true end
+if b[2] then b[2].press() end
+check(restartCalls == 1, "Restart FC asks the pipeline for the restart", restartCalls)
+
+-- Armed, or not known: no restart offered, and a press already on screen is refused.
+armed = true
+draw(failedAfterWrite(true))
+check(shows(Stubs, "app.save.failed_running"), "armed: the running text still stands")
+check(not showsExactly(Stubs, "@i18n(app.save.restart)@"), "armed: no restart offered")
+armed, uncertain = false, true
+draw(failedAfterWrite(true))
+check(not showsExactly(Stubs, "@i18n(app.save.restart)@"), "arming state unknown: no restart offered")
+uncertain = false
+armed = false
+draw(failedAfterWrite(true))
+local b2 = buttons()
+armed = true
+restartCalls = 0
+if b2[2] then b2[2].press() end
+check(restartCalls == 0, "armed after the notice was drawn: the press does not restart", restartCalls)
+check(state.armedNoticeVisible == true, "armed after the notice was drawn: the armed notice", state.armedNoticeVisible)
+state.armedNoticeVisible = false
+armed = false
+pipeline.restartAfterFailure = realRestart
+
+-- The restart itself: still nothing saved, the reboot phase texts, then its own outcome.
+draw({ phase = "reboot", restart = true, saved = false, done = 1, total = 1, fraction = 1, indeterminate = true })
+check(shows(Stubs, "app.save.failed_title"), "restart running: titled Not saved")
+check(shows(Stubs, "app.save.rebooting"), "restart running: the reboot phase text")
+draw({ phase = "outcome", terminal = true, status = "done", done = 1, total = 1, fraction = 1, dismissible = true,
+  result = { status = "done", saved = false, restart = true, reboot = true, rebootProven = true } })
+check(shows(Stubs, "app.save.restarted_message"), "restart seen: its own outcome")
+check(not shows(Stubs, "app.save.done_message"), "restart seen: not reported as a save")
+draw({ phase = "outcome", terminal = true, status = "timeout", done = 1, total = 1, fraction = 1, dismissible = true,
+  result = { status = "timeout", saved = false, restart = true, reboot = true, phase = "reconnect" } })
+check(shows(Stubs, "app.save.restart_unconfirmed_failed"), "restart not seen: power off and on")
+check(not showsExactly(Stubs, "@i18n(app.save.restart)@"), "restart not seen: no second offer")
+
 print(string.format("%d checks, %d failures", checks, failures))
 os.exit(failures == 0 and 0 or 1)
