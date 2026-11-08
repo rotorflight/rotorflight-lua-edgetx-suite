@@ -341,6 +341,10 @@ local SAVE_TEXT = {
   restart_unconfirmed = "@i18n(app.save.restart_unconfirmed)@",
   failed_title    = "@i18n(app.save.failed_title)@",
   failed_message  = "@i18n(app.save.failed_message)@",
+  failed_running  = "@i18n(app.save.failed_running)@",
+  restart         = "@i18n(app.save.restart)@",
+  restarted_message = "@i18n(app.save.restarted_message)@",
+  restart_unconfirmed_failed = "@i18n(app.save.restart_unconfirmed_failed)@",
   eeprom_pending  = "@i18n(app.save.eeprom_pending)@",
   read_required   = "@i18n(app.save.read_required)@",
   page_changed    = "@i18n(app.save.page_changed)@",
@@ -2746,6 +2750,7 @@ local function buildScene()
     local message = state.i18n and state.i18n.t and state.i18n.t("app.saving_settings") or "Applying settings"
     local progress = 0.35
     local action = nil
+    local actions = nil
 
     -- Until the save reaches the flight controller the notice says only that something is being
     -- applied, which is all a queued chain can honestly say. A pipeline fills the bar step by step,
@@ -2759,6 +2764,10 @@ local function buildScene()
       progress = saveProgress.indeterminate and 1 or (saveProgress.fraction or 0)
       if saveProgress.saved then
         title = SAVE_TEXT.saved_title
+      elseif saveProgress.restart then
+        -- The restart offered after a failed save: still nothing saved, and the phase texts are
+        -- the ones a save with a reboot shows.
+        title = SAVE_TEXT.failed_title
       end
       -- A finished save reports itself HERE, in the box that has been reporting all along. A
       -- native dialog for it would be drawn over this one from inside the reply handler, so
@@ -2766,12 +2775,47 @@ local function buildScene()
       -- run() does not run at all.
       if saveProgress.terminal then
         local result = saveProgress.result or {}
-        if saveProgress.status == "timeout" and result.saved then
+        if result.restart == true then
+          title = SAVE_TEXT.failed_title
+          if saveProgress.status == "done" and result.rebootProven == true then
+            message = SAVE_TEXT.restarted_message
+          else
+            message = SAVE_TEXT.restart_unconfirmed_failed
+          end
+        elseif saveProgress.status == "timeout" and result.saved then
           title = SAVE_TEXT.timeout_title
           message = SAVE_TEXT.timeout_message
         elseif saveProgress.status ~= "done" then
           title = SAVE_TEXT.failed_title
           message = SAVE_TEXT.failed_message
+          -- A write was acknowledged before the failure, so the board may run new values until it
+          -- restarts. Continue comes first, so Enter straight after the notice changes nothing; the
+          -- restart is not offered while the craft is armed or that cannot be told.
+          if type(SavePipeline.offersRestart) == "function" and SavePipeline.offersRestart(result) then
+            message = SAVE_TEXT.failed_running
+            if not isModelArmed() and not armedStateIsUncertain() then
+              actions = {
+                { text = SAVE_TEXT.dismiss, press = function()
+                  SavePipeline.dismiss()
+                  scheduleBuildUI(false)
+                end },
+                { text = SAVE_TEXT.restart, press = function()
+                  if isModelArmed() or armedStateIsUncertain() then
+                    pcall(Log.emit, "rfsuite.save", "save notice: restart refused, armed or uncertain", "warn")
+                    showArmedNotice()
+                    return
+                  end
+                  pcall(Log.emit, "rfsuite.save", "save notice: restart pressed", "info")
+                  local ok, reason = SavePipeline.restartAfterFailure()
+                  if not ok then
+                    pcall(Log.emit, "rfsuite.save", "save notice: restart refused (" .. tostring(reason) .. ")", "warn")
+                    if reason == "armed" then showArmedNotice() return end
+                  end
+                  scheduleBuildUI(false)
+                end }
+              }
+            end
+          end
         elseif result.reboot == true and result.rebootProven ~= true then
           -- Stored, and the board answers again, but nothing showed that it restarted: settings
           -- that take effect at boot may not be in effect yet. The pipeline leaves this notice
@@ -2783,7 +2827,7 @@ local function buildScene()
           message = SAVE_TEXT.done_message
         end
       end
-      if saveProgress.dismissible then
+      if not actions and saveProgress.dismissible then
         action = {
           text = SAVE_TEXT.dismiss,
           press = function()
@@ -2827,7 +2871,8 @@ local function buildScene()
       title = title,
       message = message,
       progress = progress,
-      action = action
+      action = action,
+      actions = actions
     })
     lvgl.build(lyt)
     state.saveOverlayVisible = true

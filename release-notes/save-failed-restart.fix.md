@@ -1,0 +1,2 @@
+- **A failed save that reached the flight controller offers a restart (`tasks/msp/save_pipeline.lua`, `ui/home.lua`, `docs/reference/saving.md`)**:
+  - When a save fails after at least one of its writes was confirmed, the flight controller may already run some of the new values until it restarts. The *Not saved* notice now says so and offers **Restart FC** beside **Continue**; the restart stores nothing and waits for the board as a save with a restart does. It is not offered while the model is armed or that cannot be told. A save that sent nothing keeps the plain notice.

@@ -1,0 +1,7 @@
+{
+  "id": "save-failed-restart",
+  "name": "Restart offered after a failed save",
+  "commands": [
+    "lua5.3 bin/msp/verify_save_failed_restart.lua"
+  ]
+}

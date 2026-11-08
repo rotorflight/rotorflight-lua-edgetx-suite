@@ -180,6 +180,33 @@ closed. Before, the save stopped waiting when the tool closed: the connection st
 again after the restart, and the next open of the tool reported a board that had come back long
 before as *The flight controller has not come back yet*.
 
+## A save that fails after reaching the flight controller
+
+A save sends its writes one by one and then asks the flight controller to store them in its
+EEPROM. The flight controller uses most written values at once; only the EEPROM write keeps them,
+and after a restart it loads what it has stored. So a save can fail in two ways, and the notice
+*Not saved* says which:
+
+- **Nothing reached the flight controller.** The first write was refused or not answered. The
+  notice reads *The flight controller did not confirm the settings.* and offers **Continue**; the
+  flight controller runs what it ran before.
+- **Some values reached it.** At least one write was confirmed and a later write or the EEPROM
+  write failed or was not answered -- usually because the link dropped. The flight controller may
+  then run some of the new values until it restarts, and the stored ones after. The notice says so
+  and offers **Continue** and **Restart FC**.
+
+**Continue** keeps the page with its changes, so Save can be tried again. **Restart FC** restarts
+the flight controller without storing anything, and the notice shows the same waiting steps as a
+save that restarts the flight controller. It ends with *Nothing was saved. The flight controller
+restarted and runs its stored settings.* when the restart was seen (see above), and otherwise with
+*Nothing was saved, and the flight controller's restart could not be confirmed. Power it off and on
+before flying.* -- also when the board does not answer again within 20 seconds. Either notice stays
+up until it is closed.
+
+Restart FC is not offered while the model is armed, or while the tool cannot tell whether it is,
+and a press is checked again: an armed model gets the armed notice instead. Pages that save
+through their own chain rather than through the shared save are not covered.
+
 ## When a different flight controller answers
 
 Adjustments, Beepers, Blackbox, Failsafe and Stats under Setup > Controls, the four Governor pages,

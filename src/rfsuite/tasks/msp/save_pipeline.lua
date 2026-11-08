@@ -232,6 +232,8 @@ end
 -- failure, so that it cannot pass for a finished restart by clearing itself.
 local function clearsItself(result)
   if type(result) ~= "table" or result.status ~= "done" then return false end
+  -- A restart after a failed save reports that nothing was saved; it stands until it is read.
+  if result.restart == true then return false end
   return result.reboot ~= true or result.rebootProven == true
 end
 
@@ -247,6 +249,13 @@ local function finish(status, extra)
     rebootProven = S.run.rebootProven,
     rtcVerified = S.run.rtcVerified,
     probeDegraded = S.run.probeDegraded == true,
+    -- At least one write was acknowledged. The firmware applies most writes to its running
+    -- configuration at once and only the EEPROM write makes them permanent, so a save that fails
+    -- after this may leave the board running new values until it restarts.
+    sentAny = S.run.sentAny == true,
+    -- This run was the restart offered after such a failure, not a save.
+    restart = S.run.restart == true,
+    pageId = S.run.desc and S.run.desc.pageId or nil,
     -- Whoever asked for the save is not necessarily looking any more. A caller that reports its
     -- outcome in a dialog uses this to stay quiet and let takeResult() report on re-entry
     -- instead, so a message about one page cannot appear on top of another.
@@ -263,8 +272,9 @@ local function finish(status, extra)
   -- info rather than debug: whether a save reached the board is not a detail, and this is the
   -- one line that says it. `saved` is the pipeline's own verdict, `reboot`/`rebootProven` say
   -- whether the board was asked to restart and whether it was seen to.
-  logf("info", "pipeline %s page=%s saved=%s reboot=%s proven=%s rtc=%s step=%s phase=%s",
-    tostring(status), tostring(desc.pageId), tostring(result.saved), tostring(result.reboot),
+  logf("info", "pipeline %s page=%s saved=%s sent=%s restart=%s reboot=%s proven=%s rtc=%s step=%s phase=%s",
+    tostring(status), tostring(desc.pageId), tostring(result.saved), tostring(result.sentAny),
+    tostring(result.restart), tostring(result.reboot),
     tostring(result.rebootProven), tostring(result.rtcVerified),
     tostring(result.step), tostring(result.phase))
 
@@ -411,6 +421,21 @@ local function queueReboot()
   })
 end
 
+--- The restart and the wait for the board: after a commit that asked for a reboot, and as the
+-- restart offered after a failed save.
+local function startReboot()
+  -- Pre-flight, and it is a control rather than a step: the flag has to read 1 here, or the
+  -- probe cannot tell a board that rebooted from one that never went down. A board answering
+  -- RTC_NOT_SUPPORTED, or not answering at all, degrades the pipeline to responsiveness-only
+  -- and says so in its result instead of silently claiming a verified reboot.
+  enter(PHASE.PREFLIGHT)
+  probeOnce(function(value)
+    if not S.run then return end
+    S.run.probeDegraded = (value ~= 1)
+    queueReboot()
+  end)
+end
+
 local function afterCommit()
   S.run.saved = true
   if S.run.dismissRequested == true then S.run.dismissed = true end
@@ -429,16 +454,7 @@ local function afterCommit()
     return
   end
 
-  -- Pre-flight, and it is a control rather than a step: the flag has to read 1 here, or the
-  -- probe cannot tell a board that rebooted from one that never went down. A board answering
-  -- RTC_NOT_SUPPORTED, or not answering at all, degrades the pipeline to responsiveness-only
-  -- and says so in its result instead of silently claiming a verified reboot.
-  enter(PHASE.PREFLIGHT)
-  probeOnce(function(value)
-    if not S.run then return end
-    S.run.probeDegraded = (value ~= 1)
-    queueReboot()
-  end)
+  startReboot()
 end
 
 local function queueCommit()
@@ -499,6 +515,10 @@ queueStep = function(index, payload)
     client = S.run.client,
     processReply = function()
       if not S.run then return end
+      if not S.run.sentAny then
+        logf("trace", "first write acknowledged page=%s step=%d", tostring(S.run.desc.pageId), index)
+      end
+      S.run.sentAny = true
       queueStep(index + 1)
     end,
     errorHandler = function()
@@ -577,6 +597,61 @@ function M.start(desc)
   logf("info", "start page=%s steps=%d reboot=%s client=%s",
     tostring(desc.pageId), #desc.steps, tostring(reboot), tostring(S.run.client))
   queueStep(1, firstPayload)
+  return true
+end
+
+--- Does this outcome leave the board running values that are not stored? A save that failed or
+-- timed out before its EEPROM commit was acknowledged, after at least one of its writes was.
+-- Such a board runs those values until it restarts and the stored ones after, so the notice
+-- offers the restart that ends the difference.
+function M.offersRestart(result)
+  return type(result) == "table" and result.restart ~= true
+    and (result.status == "failed" or result.status == "timeout")
+    and result.saved ~= true and result.sentAny == true
+end
+
+--- The restart offered after such a failure: MSP_REBOOT, then the same wait for the board that a
+-- save asking for a reboot goes through. Nothing is written or stored. Returns false and a reason
+-- when it refuses.
+function M.restartAfterFailure()
+  if S.run then
+    logf("warn", "restart refused reason=busy")
+    return false, "busy"
+  end
+  local result = S.outcome and S.outcome.result or nil
+  if not M.offersRestart(result) then
+    logf("warn", "restart refused reason=nothing_to_restore")
+    return false, "nothing_to_restore"
+  end
+  if not ensureDeps() then
+    logf("warn", "restart refused reason=msp_runtime_unavailable")
+    return false, "msp_runtime_unavailable"
+  end
+  local queue, mspState = getQueue()
+  if not queue then
+    logf("warn", "restart refused reason=msp_queue_unavailable")
+    return false, "msp_queue_unavailable"
+  end
+  -- The same refusal start() makes: a board that is armed is not restarted from here.
+  if mspState and mspState.lastArmed == true then
+    logf("warn", "restart refused reason=armed")
+    return false, "armed"
+  end
+
+  local pageId = result.pageId
+  S.run = {
+    desc = { pageId = pageId, steps = {} },
+    client = "save:" .. tostring(pageId or "page") .. ":restart",
+    reboot = true,
+    restart = true,
+    saved = false,
+    dismissed = false,
+    stepIndex = 0,
+  }
+  S.outcome = nil
+  changed()
+  logf("info", "restart after a failed save page=%s", tostring(pageId))
+  startReboot()
   return true
 end
 
@@ -763,6 +838,7 @@ function M.getProgress()
     fraction = total > 0 and (done / total) or 0,
     indeterminate = indeterminate,
     saved = S.run.saved == true,
+    restart = S.run.restart == true,
     dismissible = M.isDismissible(),
     title = S.run.desc.title,
   }
