@@ -108,7 +108,7 @@ slots from the scheme with `lcd.setColor`, through one mapping:
 | `WARNING` | `warning` | Warning text |
 | `DISABLED` | `disabled` | Disabled text |
 
-`PRIMARY3` keeps the radio's colour: nothing in EdgeTX's own interface paints with it. The header and the controls are
+`PRIMARY3` keeps the radio's colour: EdgeTX paints the radio's top bar with it, not a control the tool shows. The header and the controls are
 coupled by the firmware: the header's colour is the controls' text colour and its title colour their
 background.
 
