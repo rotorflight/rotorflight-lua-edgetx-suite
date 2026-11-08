@@ -249,7 +249,10 @@ local function finish(widget, reason, outcome)
   -- dashboard and the radio's own screens are drawn in them again from here (lib/theme_slots.lua).
   local ThemeSlots = requireModule("lib/theme_slots.lua")
   if type(ThemeSlots) == "table" and type(ThemeSlots.restore) == "function" then
-    pcall(ThemeSlots.restore, "hosted tool closed (" .. tostring(reason) .. ")")
+    local ok, err = pcall(ThemeSlots.restore, "hosted tool closed (" .. tostring(reason) .. ")")
+    -- A stopped restore keeps its state, its finaliser and its marker (lib/theme_slots.lua), so the
+    -- next close of the tool or the end of this Lua state finishes it; said here so a report can see it.
+    if not ok then hostLog("theme slots not restored on close: " .. tostring(err), "warn") end
   end
 
   removeLoader(host)
