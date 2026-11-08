@@ -20,7 +20,7 @@ local function caseArg()
 end
 
 local CASES = { "nolink", "link", "pagefirst", "themesave", "linkdrop", "offlinesave", "savebeforeread", "otherfc",
-  "removedtheme", "compile", "movefailed", "restart", "both" }
+  "removedtheme", "registry", "compile", "movefailed", "restart", "both" }
 
 local function quote(text)
   return "'" .. string.gsub(text, "'", "'\\''") .. "'"
@@ -718,6 +718,42 @@ if case == "both" then
   expect(notices.current == nil, "a notice came back: " .. tostring(notices.current))
   expect(table.concat(notices.drawn, ",") == "restart,moved", "notices drawn: " .. table.concat(notices.drawn, ","))
   expect(state.shouldExit ~= true, "the tool closes although no data was moved")
+end
+
+if case == "registry" then
+  -- MenuRegistry.setCondition on its own: a call stopped right after it writes the value must leave the
+  -- caches dropped, so that the root groups read afterwards follow the new value. The registry is loaded
+  -- from the source here, apart from the tool, with the manifest the tool uses.
+  local manifest = assert(loadfile("src/rfsuite/app/manifest.lua"))()
+  local Registry = assert(loadfile("src/rfsuite/app/menu_registry.lua"))()
+  local menu = Registry.new(manifest, nil, {
+    conditions = { fblConnected = false, modelArmed = false },
+    apiVersionProvider = function() return "12.0.9" end
+  })
+  local function setupEnabled()
+    local groups = menu.getRootGroups()
+    for i = 1, #groups do
+      for _, card in ipairs(groups[i].cards or {}) do
+        if card.id == "setup" then return card.data.enabled == true end
+      end
+    end
+  end
+  expect(setupEnabled() == false, "Setup is enabled with no flight controller (control)")
+  local backing = menu.conditions
+  menu.conditions = setmetatable({}, {
+    __index = backing,
+    __newindex = function(_, key, value)
+      backing[key] = value
+      menu.conditions = backing
+      error("instruction limit (simulated)")
+    end
+  })
+  local stopped = not pcall(menu.setCondition, "fblConnected", true)
+  menu.conditions = backing
+  expect(stopped and backing.fblConnected == true, "the simulated stop after the value write did not happen (instrument)")
+  expect(setupEnabled() == true, "a setCondition stopped after it wrote the value left the cached root groups stale")
+  menu.setCondition("fblConnected", false)
+  expect(setupEnabled() == false, "a completed setCondition did not drop the caches (control)")
 end
 
 print("CHECKS " .. checks)
