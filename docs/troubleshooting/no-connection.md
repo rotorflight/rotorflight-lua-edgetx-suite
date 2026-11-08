@@ -67,7 +67,7 @@ written only at *TRACE*; a request sent again is also written at *DEBUG*. The li
 | `API_VERSION read failed repeatedly (no MSP reply)` | the request went out and nothing came back: telemetry is up, MSP is not getting through |
 | `Unsupported MSP API version …` | the board answered, and the suite refuses that version |
 | `queue cleared client=ALL …` | something took the queued requests away — the armed gate above, or a page being closed |
-| `completed task <name>` | one connect task finished |
+| `completed task <name> in <seconds> s, lua <kB> kB` | one connect task finished, how long it took and the memory at that moment |
 
 ## What to attach to a report
 

@@ -1,0 +1,9 @@
+{
+  "id": "tool-start-compile",
+  "name": "The tool's start compiles only a tree not yet compiled",
+  "commands": [
+    "lua5.3 bin/ui/verify_tool_start_compile.lua"
+  ],
+  "step": "Check the tool's start skips the walk on a compiled tree",
+  "rationale": "The configuration tool's start (src/rfsuite/ui/home.lua) runs the compile pass (src/rfsuite/lib/precompile.lua) only for a tree that is not the one last compiled, as the widgets do. This runs the tool's own start on the accounting stubs for a compiled tree, a new install, a changed tree, a developer's request for the whole walk, a developer's skip, and a pass that compiles thirty files while the start screen shows its count."
+}
