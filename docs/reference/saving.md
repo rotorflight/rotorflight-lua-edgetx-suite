@@ -184,35 +184,39 @@ before as *The flight controller has not come back yet*.
 
 A save sends its writes one by one and then asks the flight controller to store them in its
 EEPROM. The flight controller uses most written values at once; only the EEPROM write keeps them,
-and after a restart it loads what it has stored. So a save can fail in two ways, and the notice
-*Not saved* says which:
+and after a restart it loads what it has stored. When a save fails before the flight controller
+has confirmed the EEPROM write, the notice *Not saved* says which of two cases it is:
 
-- **Nothing reached the flight controller.** The first write was refused or not answered. The
-  notice reads *The flight controller did not confirm the settings.* and offers **Continue**; the
-  flight controller runs what it ran before.
-- **Some values reached it.** At least one write was confirmed and a later write or the EEPROM
-  write failed or was not answered -- usually because the link dropped. The flight controller may
-  then run some of the new values until it restarts, and the stored ones after. The notice says so
-  and offers **Continue** and **Restart FC**.
+- **No write can have been taken.** The first write was refused by the flight controller, or it
+  was never sent. The notice reads *The flight controller did not confirm the settings.* and
+  offers **Continue**.
+- **A write may have been taken.** At least one write was confirmed, or a write was sent and
+  never answered -- a lost answer looks the same as a lost write -- and then a later write or the
+  EEPROM write failed or was not answered. The flight controller may then run some of the new
+  values until it restarts. The notice says so and offers **Continue** and **Restart FC**.
 
 **Continue** keeps the page with its changes, so Save can be tried again. **Restart FC** restarts
-the flight controller without storing anything, and the notice shows the same waiting steps as a
-save that restarts the flight controller. It ends with *Nothing was saved. The flight controller
-restarted and runs its stored settings.* when the restart was seen (see above), and otherwise with
-*Nothing was saved, and the flight controller's restart could not be confirmed. Power it off and on
-before flying.* -- also when the board does not answer again within 20 seconds. Either notice stays
-up until it is closed.
+the flight controller and writes nothing; the notice shows the same waiting steps as a save that
+restarts the flight controller. It ends with *The flight controller restarted and runs the
+settings it has stored.* when the restart was seen (see above), and otherwise with *The flight
+controller's restart could not be confirmed. Power it off and on before flying.* -- also when the
+board does not answer again within 20 seconds, or when a step of the restart gets no answer for
+30 seconds. Either notice stays up until it is closed. An EEPROM write whose answer was lost may
+still have been stored, so what the flight controller loads after the restart is what it has
+stored, which can be the new values.
 
-Restart FC is not offered while the model is armed, or while the tool cannot tell whether it is,
-and a press is checked again: if the model was armed since the notice came up, the press restarts
-nothing and the button goes. Pages that save
-through their own chain rather than through the shared save are not covered.
+Restart FC is offered only while the connection to the flight controller is up and the model is
+neither armed nor of unknown arming state. The button comes and goes with these while the notice
+stands, and a press is checked again: if the model was armed since, it restarts nothing. The check
+is repeated just before the restart command is sent. If the tool opened from the dashboard closes
+during the restart, the restart finishes on its own and its outcome is shown the next time the
+tool opens. Pages that save through their own chain rather than through the shared save are not
+covered.
 
-A save that ended without an answer -- after 30 seconds -- can leave its last request on its way to
-the flight controller. An answer that arrives for it later is ignored: it no longer moves the save
-or the restart that follows it. Before, it was taken by the next save, which could then report
-*Settings saved.* before its own write was answered, and a restart started after the failed save
-could have stored the very values it was meant to drop.
+A save step that gets no answer for 30 seconds ends the save. The requests it still had waiting
+are then dropped, so a late EEPROM write cannot store what the notice reported as not saved, and the
+ended save ignores any answer that still arrives for it instead of moving the save or restart that
+follows.
 
 ## When a different flight controller answers
 

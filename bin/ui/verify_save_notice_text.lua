@@ -271,6 +271,40 @@ draw({ phase = "outcome", terminal = true, status = "timeout", done = 1, total =
   result = { status = "timeout", saved = false, restart = true, reboot = true, phase = "reconnect" } })
 check(shows(Stubs, "app.save.restart_unconfirmed_failed"), "restart not seen: power off and on")
 check(not showsExactly(Stubs, "@i18n(app.save.restart)@"), "restart not seen: no second offer")
+draw({ phase = "outcome", terminal = true, status = "timeout", done = 1, total = 1, fraction = 1, dismissible = true,
+  result = { status = "timeout", saved = false, restart = true, reboot = true, rebootProven = true, phase = "onconnect" } })
+check(shows(Stubs, "app.save.restarted_message"), "restart seen, connect slow after it: still reported as restarted")
+
+-- The pipeline refuses the restart (no link by now): the press shows no armed notice and does not fail.
+draw(failedAfterWrite(true))
+local b3 = buttons()
+pipeline.restartAfterFailure = function() return false, "no_link" end
+local pressOk = b3[2] and pcall(b3[2].press)
+check(pressOk == true, "pipeline refusal: the press does not raise")
+check(state.armedNoticeVisible ~= true, "pipeline refusal: no armed notice")
+pipeline.restartAfterFailure = realRestart
+
+-- Without a link the restart is not offered.
+local realPossible = pipeline.restartPossible
+pipeline.restartPossible = function() return false end
+draw(failedAfterWrite(true))
+check(shows(Stubs, "app.save.failed_running"), "no link: the running text")
+check(not showsExactly(Stubs, "@i18n(app.save.restart)@"), "no link: no restart offered")
+pipeline.restartPossible = realPossible
+
+-- The run loop rebuilds a standing offer when the arming state moves; the revision does not see it.
+draw(failedAfterWrite(true))
+check(state.restartOfferGate == "open", "the notice records the gate it was drawn with", state.restartOfferGate)
+local realHasOutcome = pipeline.hasOutcome
+pipeline.hasOutcome = function() return true end
+local scheduled = 0
+check(replaceUpvalue(Home.run, "scheduleBuildUI", function() scheduled = scheduled + 1 end) > 0,
+  "the run loop's rebuild found")
+uncertain = true
+Home.run(0)
+check(scheduled > 0, "arming state unknown while the notice stands: the run loop rebuilds it", scheduled)
+uncertain = false
+pipeline.hasOutcome = realHasOutcome
 
 print(string.format("%d checks, %d failures", checks, failures))
 os.exit(failures == 0 and 0 or 1)

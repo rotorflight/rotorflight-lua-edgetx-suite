@@ -259,9 +259,11 @@ local function finish(status, extra)
     rebootProven = S.run.rebootProven,
     rtcVerified = S.run.rtcVerified,
     probeDegraded = S.run.probeDegraded == true,
-    -- At least one write was acknowledged. The firmware applies most writes to its running
-    -- configuration at once and only the EEPROM write makes them permanent, so a save that fails
-    -- after this may leave the board running new values until it restarts.
+    -- At least one write reached the board or may have: it was acknowledged, or it was sent and
+    -- never answered (a lost reply looks the same as a lost request). The firmware applies most
+    -- writes to its running configuration at once and only the EEPROM write makes them permanent,
+    -- so a save that fails after this may leave the board running new values until it restarts.
+    -- A write the board answered with an error was not taken and does not count.
     sentAny = S.run.sentAny == true,
     -- This run was the restart offered after such a failure, not a save.
     restart = S.run.restart == true,
@@ -321,7 +323,17 @@ local function fail(step)
 end
 
 local function timedOut(phase)
+  -- A run that ends on a backstop leaves its own messages on the queue. Sent later, they would
+  -- still act on the board: a queued EEPROM write would store what the notice calls not saved,
+  -- a queued reboot would restart a board long after the pilot moved on. They are dropped once
+  -- the run has ended, so their handlers find no current run and change nothing.
+  local client = S.run and S.run.client
   finish("timeout", { phase = phase })
+  local queue = getQueue()
+  if client and queue and type(queue.clear) == "function" then
+    logf("debug", "timeout: dropping the ended run's queued messages client=%s", tostring(client))
+    pcall(queue.clear, queue, client)
+  end
 end
 
 --- Enter a phase and restart its backstop.
@@ -444,6 +456,17 @@ local function startReboot()
   probeOnce(function(value)
     if not S.run then return end
     S.run.probeDegraded = (value ~= 1)
+    -- The restart offered after a failed save is checked again here, a round trip after the
+    -- press: no reboot is queued into a link that went down, or for a craft that armed since.
+    if S.run.restart then
+      local _, mspState = getQueue()
+      if not mspState or mspState.lastConnected ~= true or mspState.lastArmed == true then
+        logf("warn", "restart abandoned before the reboot: connected=%s armed=%s",
+          tostring(mspState and mspState.lastConnected), tostring(mspState and mspState.lastArmed))
+        fail("reboot")
+        return
+      end
+    end
     queueReboot()
   end)
 end
@@ -535,8 +558,13 @@ queueStep = function(index, payload)
       S.run.sentAny = true
       queueStep(index + 1)
     end,
-    errorHandler = function()
+    errorHandler = function(msg, reason)
       if not isCurrent(run) then return end
+      if reason ~= "refused" and type(msg) == "table" and msg.__sentAt ~= nil then
+        logf("debug", "write unanswered after it was sent page=%s step=%d reason=%s",
+          tostring(S.run.desc.pageId), index, tostring(reason))
+        S.run.sentAny = true
+      end
       fail(step.label or tostring(step.command))
     end,
   })
@@ -624,6 +652,15 @@ function M.offersRestart(result)
     and result.saved ~= true and result.sentAny == true
 end
 
+--- Can a restart be sent right now? A link that answers and a craft not read as armed -- the
+-- pipeline's own half of the check; the screen adds the arming sensor's uncertain state.
+function M.restartPossible()
+  if not ensureDeps() then return false end
+  local queue, mspState = getQueue()
+  return queue ~= nil and mspState ~= nil and mspState.lastConnected == true
+    and mspState.lastArmed ~= true
+end
+
 --- The restart offered after such a failure: MSP_REBOOT, then the same wait for the board that a
 -- save asking for a reboot goes through. Nothing is written or stored. Returns false and a reason
 -- when it refuses.
@@ -650,6 +687,11 @@ function M.restartAfterFailure()
   if mspState and mspState.lastArmed == true then
     logf("warn", "restart refused reason=armed")
     return false, "armed"
+  end
+  -- A restart needs a board that answers; without a link the reboot could only wait in the queue.
+  if not mspState or mspState.lastConnected ~= true then
+    logf("warn", "restart refused reason=no_link")
+    return false, "no_link"
   end
 
   local pageId = result.pageId
@@ -734,7 +776,8 @@ function M.wakeup()
   end
 
   if S.run.phase == PHASE.WRITE or S.run.phase == PHASE.COMMIT
-    or S.run.phase == PHASE.PREFLIGHT or S.run.phase == PHASE.VERIFY then
+    or S.run.phase == PHASE.PREFLIGHT or S.run.phase == PHASE.REBOOT
+    or S.run.phase == PHASE.VERIFY then
     if (now - S.run.phaseStarted) > STEP_TIMEOUT_SECONDS then
       timedOut(S.run.phase)
     end
@@ -787,6 +830,10 @@ end
 -- A run that does not hold the page (no restart) is left alone, as Back leaves it.
 function M.dismissWhenStored()
   if not M.blocksNavigation() then return false end
+  -- The restart offered after a failed save stores nothing, so there is no moment at which it
+  -- could be dismissed as stored, and it belongs to no page that would claim it on re-entry. It
+  -- finishes without a screen and its outcome stands in the notice the next time the tool opens.
+  if S.run.restart == true then return false end
   if S.run.saved == true then
     S.run.dismissed = true
     changed()

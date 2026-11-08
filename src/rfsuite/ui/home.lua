@@ -321,6 +321,19 @@ end
 local LoadingOverlay = nil
 local SavePipeline = nil
 
+--- Whether the save notice may offer Restart FC right now: "open", or why not. A restart needs a
+-- link that answers and a craft that is neither read as armed nor of unknown arming state. The
+-- notice keeps the answer it was drawn with, and the run loop rebuilds it when the answer moves.
+local function restartGateKey()
+  if isModelArmed() then return "armed" end
+  if armedStateIsUncertain() then return "uncertain" end
+  if not (SavePipeline and type(SavePipeline.restartPossible) == "function"
+    and SavePipeline.restartPossible()) then
+    return "no_link"
+  end
+  return "open"
+end
+
 --- What the start is waiting for, by the onconnect runner's own task name.
 -- The runner reports the pending task as the manifest id; these are the same ids, with a text
 -- the pilot can read. An id with no entry falls back to the generic notice rather than putting
@@ -2759,6 +2772,7 @@ local function buildScene()
     -- after the MSP command they send, an identifier for the log rather than a text the pilot can
     -- read, and it is never translated.
     if saveProgress then
+      state.restartOfferGate = nil
       local phaseKey = SAVE_PHASE_TEXT[saveProgress.phase]
       message = (phaseKey and SAVE_TEXT[phaseKey]) or message
       progress = saveProgress.indeterminate and 1 or (saveProgress.fraction or 0)
@@ -2777,7 +2791,9 @@ local function buildScene()
         local result = saveProgress.result or {}
         if result.restart == true then
           title = SAVE_TEXT.failed_title
-          if saveProgress.status == "done" and result.rebootProven == true then
+          -- Seen restarting is what the pilot needs to know; a connect chain that is slow after it
+          -- does not undo the restart.
+          if result.rebootProven == true then
             message = SAVE_TEXT.restarted_message
           else
             message = SAVE_TEXT.restart_unconfirmed_failed
@@ -2793,7 +2809,9 @@ local function buildScene()
           -- restart is not offered while the craft is armed or that cannot be told.
           if type(SavePipeline.offersRestart) == "function" and SavePipeline.offersRestart(result) then
             message = SAVE_TEXT.failed_running
-            if not isModelArmed() and not armedStateIsUncertain() then
+            -- The run loop rebuilds the notice when this answer changes (restartGateKey).
+            state.restartOfferGate = restartGateKey()
+            if state.restartOfferGate == "open" then
               actions = {
                 { text = SAVE_TEXT.dismiss, press = function()
                   SavePipeline.dismiss()
@@ -2802,7 +2820,7 @@ local function buildScene()
                 { text = SAVE_TEXT.restart, press = function()
                   -- Armed since the notice was drawn: the rebuild withdraws the button. The armed notice
                   -- is not raised here -- it is drawn only after this one, so it would stand up later.
-                  if isModelArmed() or armedStateIsUncertain() then
+                  if restartGateKey() ~= "open" then
                     pcall(Log.emit, "rfsuite.save", "save notice: restart refused, armed or uncertain", "warn")
                     scheduleBuildUI(false)
                     return
@@ -4004,6 +4022,16 @@ function M.run(event, touchState)
         if snapshot ~= state.lastSaveSnapshot then
           state.lastSaveSnapshot = snapshot
           state.saveOverlayVisible = snapshot ~= nil
+          scheduleBuildUI(false)
+        end
+      end
+      -- A standing notice that offers Restart FC follows the arming state and the link: the
+      -- button comes and goes with them, which the pipeline's revision does not see.
+      if state.restartOfferGate then
+        if not SavePipeline.hasOutcome() then
+          state.restartOfferGate = nil
+        elseif restartGateKey() ~= state.restartOfferGate then
+          pcall(Log.emit, "rfsuite.save", "save notice: restart offer follows the arming state / link", "debug")
           scheduleBuildUI(false)
         end
       end
