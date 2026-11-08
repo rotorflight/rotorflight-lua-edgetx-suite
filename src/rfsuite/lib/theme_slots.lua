@@ -31,7 +31,7 @@ local M = {}
 --   WARNING     warning text                             DISABLED   disabled text
 --   SECONDARY3  a window's own background (etx_solid_bg), the keyboard, a full-screen dialog's buttons
 --   EDIT        a number or text field while it is edited, its text in PRIMARY2
--- PRIMARY3 is painted by nothing in EdgeTX's own interface and is left alone.
+-- PRIMARY3 is the radio's top bar (widgets/radio_info.cpp), not a control the tool shows, and is left alone.
 M.SLOTS = {
   { "COLOR_THEME_PRIMARY1",   "text" },
   { "COLOR_THEME_PRIMARY2",   "card" },
