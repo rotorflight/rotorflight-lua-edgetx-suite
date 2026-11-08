@@ -1,0 +1,4 @@
+- **The whole tool in the suite's color scheme (`src/rfsuite/ui/`, `src/rfsuite/lib/theme_slots.lua`)**:
+  - The tool's menu, pages, lists, help and notices draw in *Color scheme* from Settings > General > Appearance, opened from the radio's tools or from the dashboard; the tile icons and the dashboard themes' pictures come in a set for each scheme. Light as it comes, so the tool opens light after the update until the scheme is set to dark.
+  - While the tool is open, the radio's own switches, number fields, choices and page header take the scheme's colors too. The radio's theme colors come back when the tool closes, also after a long press of RTN or an error; should that fail, the next start of the tool or the dashboard puts them back.
+  - A saved change of the scheme shows at once.
