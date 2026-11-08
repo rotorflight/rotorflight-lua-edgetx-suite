@@ -78,6 +78,26 @@ check(owed.reasons[1] == "cleared", "the ended run's message is dropped", owed.r
 check(owed.__sentAt == nil, "the ended run's message was not sent before the drop", owed.__sentAt)
 check(owed.answered ~= true, "the ended run's message got no reply")
 
+-- The drop is stopped by the instruction limit again on this pass: the widget's MSP tick waits, so
+-- the ended run's message is not sent; the next pass drops it.
+local realClear = queue.clear
+local clears = 0
+queue.clear = function(self, client)
+  clears = clears + 1
+  if clears == 1 then error("CPU limit", 0) end
+  return realClear(self, client)
+end
+local owed2 = endedRunMessage("save:verify_page")
+shared.owedClear = "save:verify_page"
+cycle()
+check(shared.owedClear ~= nil, "drop stopped again: still owed after that pass")
+check(owed2.__sentAt == nil, "drop stopped again: the message was not sent on that pass", owed2.__sentAt)
+cycle()
+check(shared.owedClear == nil, "drop stopped again: done on the next pass", shared.owedClear)
+check(owed2.reasons[1] == "cleared" and owed2.__sentAt == nil, "drop stopped again: dropped, never sent",
+  tostring(owed2.reasons[1]) .. " " .. tostring(owed2.__sentAt))
+queue.clear = realClear
+
 local other = endedRunMessage("verify:other")
 cycle()
 check(#other.reasons == 0, "control: with nothing owed, another client's message is not dropped",

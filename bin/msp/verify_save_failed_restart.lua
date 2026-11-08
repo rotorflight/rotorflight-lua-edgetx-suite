@@ -599,6 +599,25 @@ local started31 = Pipeline.start({ pageId = "other_page", steps = { { label = "W
 equal(started31, true, "owed drop: the next save starts")
 equal(owed31.cleared, true, "owed drop: done before the next save queued anything")
 queue.clear = realClear
+-- The mark goes only with a clear that ran through: no queue reachable, or a clear that raised
+-- something else, leaves it owed, and a save or restart that would share the client is refused.
+begin()
+ack(last())
+local write31b = last()
+clock = 3200
+mspState.queue = nil
+Pipeline.wakeup()                               -- the save ends; no queue to drop from
+equal(select(2, outcome()).status, "timeout", "owed without a queue: the save ended")
+equal(Pipeline.dropOwed(), false, "owed without a queue: still owed")
+mspState.queue = queue
+queue.clear = function() error("broken", 0) end
+equal(Pipeline.dropOwed(), false, "owed after a raising clear: still owed")
+local ok31b, why31b = Pipeline.start({ pageId = "test_page", steps = { { label = "W", command = CMD.write1, payload = { 1 } } } })
+equal(ok31b, false, "owed: a save that may share the client is refused")
+equal(why31b, "busy", "owed: refusal reason")
+queue.clear = realClear
+equal(Pipeline.dropOwed(), true, "owed: done once the clear runs through")
+equal(write31b.cleared, true, "owed: the ended run's message is dropped")
 
 -- 32. Late reboot and probe replies of an ended restart do not drive the save that runs next.
 begin()

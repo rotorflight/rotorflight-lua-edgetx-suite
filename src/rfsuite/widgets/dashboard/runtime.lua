@@ -688,9 +688,14 @@ local function tickMspRuntime(self, carry)
   end
 
   -- A timed-out save's drop of its queued messages that an instruction-limit stop left owed goes
-  -- before the queue runs again: this pass's tick could otherwise send the ended run's message.
+  -- before the queue runs again: this pass's tick could otherwise send the ended run's message. A
+  -- drop that did not get done (the instruction limit stopped it again) keeps the queue still for
+  -- this pass.
   local leftSave = _G.rfsuite and _G.rfsuite.tasks and _G.rfsuite.tasks.savePipeline
-  if type(leftSave) == "table" and leftSave.owedClear ~= nil then driveLeftSave() end
+  if type(leftSave) == "table" and leftSave.owedClear ~= nil then
+    driveLeftSave()
+    if leftSave.owedClear ~= nil then return end
+  end
 
   MspRuntime.tick()
   

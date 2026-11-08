@@ -314,6 +314,36 @@ do
   equal(calls, 2, "cpu limit in withheld handler: no third call")
 end
 
+-- The same stop after the message was sent, withheld on its buffered retry: on the next pass the
+-- predicate allows again and the board's answer arrives, and still the message is only given up --
+-- no completion from that answer, nothing sent.
+do
+  local w = world()
+  local allow, calls = true, 0
+  local m = w.ask(C, function() return allow end)
+  m.errorHandler = function(_, reason)
+    calls = calls + 1
+    m.errors[#m.errors + 1] = reason
+    if calls == 1 then error("CPU limit", 0) end
+  end
+  w.tick()
+  equal(sends(C), 1, "withheld after a send: the first send went out")
+  h.refuse = 5                                   -- the retry stays in the buffer
+  w.tick(1.1)
+  allow = false
+  local ok = pcall(w.tick, 0.1)
+  equal(ok, false, "withheld after a send: the limit is raised on")
+  equal(w.queue.currentMessage, m, "withheld after a send: the message stays current")
+  allow, h.refuse = true, 0
+  w.answer(C, 5)
+  w.tick(0.1)
+  equal(m.done, nil, "withheld after a send: the answer does not complete it")
+  equal(calls, 2, "withheld after a send: the give-up is finished")
+  equal(sends(C), 1, "withheld after a send: nothing more is sent")
+  w.tick(1.1)
+  equal(sends(C), 1, "withheld after a send: nothing later either")
+end
+
 -- A single-attempt message whose frame the transport refuses on the send and on the next pass's
 -- flush completes on its attempt and drops the frame: nothing of it goes out later. For the restart
 -- this is a reboot lost on the way, which the pipeline's clock-flag probe reports as a restart that

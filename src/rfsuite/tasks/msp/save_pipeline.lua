@@ -333,17 +333,23 @@ end
 
 --- Drop the queued messages of a run that ended on a backstop (timedOut). Kept owed in the shared
 -- state until the queue has done it: an instruction-limit stop is raised on, as everywhere in this
--- file, and the drop is done again on the next call instead of being lost.
+-- file, and the drop is done again on the next call instead of being lost. The mark goes only once a
+-- clear has run through: without a queue (this copy's runtime handle not loaded yet) or after a clear
+-- that raised, it stays for the next call. Returns true when nothing is owed any more.
 local function dropOwedMessages()
   local client = S.owedClear
-  if not client then return end
+  if not client then return true end
   local queue = getQueue()
-  if queue and type(queue.clear) == "function" then
-    logf("debug", "timeout: dropping the ended run's queued messages client=%s", tostring(client))
-    local ok, err = pcall(queue.clear, queue, client)
-    if not ok and isCpuLimitError(err) then error(err, 0) end
+  if not (queue and type(queue.clear) == "function") then return false end
+  logf("debug", "timeout: dropping the ended run's queued messages client=%s", tostring(client))
+  local ok, err = pcall(queue.clear, queue, client)
+  if not ok then
+    if isCpuLimitError(err) then error(err, 0) end
+    logf("warn", "timeout: dropping the ended run's messages raised client=%s err=%s", tostring(client), tostring(err))
+    return false
   end
   S.owedClear = nil
+  return true
 end
 
 local function timedOut(phase)
@@ -748,8 +754,12 @@ function M.start(desc)
     logf("warn", "refused reason=msp_queue_unavailable page=%s", tostring(desc.pageId))
     return false, "msp_queue_unavailable"
   end
-  -- An ended run's drop still owed goes first: the client name may be this save's own.
-  dropOwedMessages()
+  -- An ended run's drop still owed goes first: the client name may be this save's own, so a drop
+  -- that cannot be done now refuses the save rather than dropping its messages later.
+  if not dropOwedMessages() then
+    logf("warn", "refused reason=cleanup_owed page=%s", tostring(desc.pageId))
+    return false, "busy"
+  end
 
   -- While the model is armed the firmware only marks the configuration dirty and answers the
   -- EEPROM write with an error, so a save started here would report a failure the pilot cannot
@@ -843,7 +853,10 @@ function M.restartAfterFailure()
     logf("warn", "restart refused reason=msp_queue_unavailable")
     return false, "msp_queue_unavailable"
   end
-  dropOwedMessages()
+  if not dropOwedMessages() then
+    logf("warn", "restart refused reason=cleanup_owed")
+    return false, "busy"
+  end
   -- The same refusal start() makes: a board that is armed is not restarted from here.
   if mspState and mspState.lastArmed == true then
     logf("warn", "restart refused reason=armed")
@@ -877,6 +890,16 @@ function M.restartAfterFailure()
   logf("info", "restart after a failed save page=%s", tostring(pageId))
   startReboot()
   return true
+end
+
+--- Finish a drop of an ended run's queued messages that is still owed (see dropOwedMessages).
+-- For a caller about to run the MSP queue without driving the pipeline first -- the tool's closing
+-- ticks, the dashboard widget's tick: while this returns false, that caller does not tick. An
+-- instruction-limit stop is raised on.
+function M.dropOwed()
+  if not S.owedClear then return true end
+  ensureDeps()
+  return dropOwedMessages()
 end
 
 --- Drive the phases that wait on time rather than on a reply. Called from the run loop.
