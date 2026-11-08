@@ -207,6 +207,12 @@ Restart FC is not offered while the model is armed, or while the tool cannot tel
 and a press is checked again: an armed model gets the armed notice instead. Pages that save
 through their own chain rather than through the shared save are not covered.
 
+A save that ended without an answer -- after 30 seconds -- can leave its last request on its way to
+the flight controller. An answer that arrives for it later is ignored: it no longer moves the save
+or the restart that follows it. Before, it was taken by the next save, which could then report
+*Settings saved.* before its own write was answered, and a restart started after the failed save
+could have stored the very values it was meant to drop.
+
 ## When a different flight controller answers
 
 Adjustments, Beepers, Blackbox, Failsafe and Stats under Setup > Controls, the four Governor pages,

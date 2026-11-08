@@ -225,6 +225,16 @@ local function changed()
   S.revision = S.revision + 1
 end
 
+--- Is the run that queued a message still the active one? A run that ended on the backstop leaves
+-- its messages on the queue, and the next run starts at once. A late reply or give-up of the earlier
+-- run must not drive the later one: it would advance its steps, mark it saved, or send its EEPROM
+-- write -- after a failed save, the restart's run would store the very values it is meant to drop.
+local function isCurrent(run)
+  if run ~= nil and S.run == run then return true end
+  logf("debug", "late reply of an ended run ignored page=%s", tostring(run and run.desc and run.desc.pageId))
+  return false
+end
+
 --- Does this outcome need no acknowledgement? A save that asked for a restart is a plain success
 -- only once the restart was seen. An answer after the reboot proves only that the board is usable:
 -- a reboot command lost on the link leaves a board that never restarted answering just the same,
@@ -371,21 +381,22 @@ probeOnce = function(onValue)
     onValue(nil)
     return
   end
-  S.run.probeOutstanding = true
+  local run = S.run
+  run.probeOutstanding = true
   queue:add({
     command = TxInfoApi.command,
     payload = {},
-    client = S.run.client,
+    client = run.client,
     simulatorResponse = TxInfoApi.simulatorResponse,
     processReply = function(_, buf)
-      if not S.run then return end
+      if not isCurrent(run) then return end
       S.run.probeOutstanding = false
       local parsed = TxInfoApi.parse and TxInfoApi.parse(buf) or nil
       local value = parsed and parsed.rtc_datetime_set or nil
       onValue(tonumber(value))
     end,
     errorHandler = function()
-      if not S.run then return end
+      if not isCurrent(run) then return end
       S.run.probeOutstanding = false
       onValue(nil)
     end,
@@ -399,6 +410,7 @@ local function queueReboot()
     return
   end
   enter(PHASE.REBOOT)
+  local run = S.run
   queue:add({
     command = RebootApi.writeCommand,
     payload = RebootApi.buildWritePayload({ rebootMode = 0 }),
@@ -409,13 +421,13 @@ local function queueReboot()
     -- queue stop carrying MSP command 68 as a special case in its generic success test.
     completeAfterAttempt = 2,
     processReply = function()
-      if not S.run then return end
+      if not isCurrent(run) then return end
       enter(PHASE.PROBE)
       S.run.probeDeadline = nowSeconds() + RECONNECT_TIMEOUT_SECONDS
       S.run.nextProbeAt = 0
     end,
     errorHandler = function()
-      if not S.run then return end
+      if not isCurrent(run) then return end
       fail("reboot")
     end,
   })
@@ -464,17 +476,18 @@ local function queueCommit()
     return
   end
   enter(PHASE.COMMIT)
+  local run = S.run
   queue:add({
     command = EepromApi.command,
     payload = {},
     isWrite = true,
     client = S.run.client,
     processReply = function()
-      if not S.run then return end
+      if not isCurrent(run) then return end
       afterCommit()
     end,
     errorHandler = function()
-      if not S.run then return end
+      if not isCurrent(run) then return end
       fail("commit")
     end,
   })
@@ -508,13 +521,14 @@ queueStep = function(index, payload)
 
   S.run.stepIndex = index
   enter(PHASE.WRITE)
+  local run = S.run
   queue:add({
     command = step.command,
     payload = payload,
     isWrite = true,
     client = S.run.client,
     processReply = function()
-      if not S.run then return end
+      if not isCurrent(run) then return end
       if not S.run.sentAny then
         logf("trace", "first write acknowledged page=%s step=%d", tostring(S.run.desc.pageId), index)
       end
@@ -522,7 +536,7 @@ queueStep = function(index, payload)
       queueStep(index + 1)
     end,
     errorHandler = function()
-      if not S.run then return end
+      if not isCurrent(run) then return end
       fail(step.label or tostring(step.command))
     end,
   })

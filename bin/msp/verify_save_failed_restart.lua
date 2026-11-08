@@ -220,5 +220,43 @@ equal(p and p.status, "timeout", "restart timeout: status")
 equal(r and r.restart, true, "restart timeout: outcome marked")
 equal(Pipeline.offersRestart(r), false, "restart timeout: no offer")
 
+-- 10. A late reply of a save that timed out does not drive the restart that follows it: the second
+--     write of the ended run answers after the restart started, and nothing is stored.
+begin()
+ack(last())
+local lateWrite = last()                        -- W2, never answered in time
+clock = 3200
+Pipeline.wakeup()
+equal(select(2, outcome()).status, "timeout", "late reply: the save timed out")
+ok = Pipeline.restartAfterFailure()
+equal(ok, true, "late reply: restart started")
+local probe = last()
+ack(lateWrite)                                  -- the ended run's write is answered now
+equal(countCommand(CMD.eeprom), 0, "late reply: no EEPROM write queued for the restart")
+equal(last(), probe, "late reply: nothing queued by the ended run's reply")
+local prog10 = Pipeline.getProgress()
+equal(prog10 and prog10.phase, "preflight", "late reply: the restart's phase is untouched")
+refuse(lateWrite)                               -- nor does its give-up fail the restart
+equal(Pipeline.getProgress() and Pipeline.getProgress().terminal, nil, "late give-up: the restart still runs")
+
+-- 11. The same for two saves: the commit of a save that timed out is answered while the next save
+--     waits on its first write, and the next save is not reported as stored.
+begin()
+ack(last()); ack(last())
+local lateCommit = last()
+equal(lateCommit.command, CMD.eeprom, "late commit: commit queued")
+clock = clock + 3200
+Pipeline.wakeup()
+Pipeline.dismiss()
+saved = 0
+ok = Pipeline.start({ pageId = "next_page", steps = { { label = "W1", command = CMD.write1, payload = { 1 } } },
+  onSaved = function() saved = saved + 1 end })
+equal(ok, true, "late commit: next save started")
+ack(lateCommit)
+equal(saved, 0, "late commit: the next save's onSaved not called")
+local prog11 = Pipeline.getProgress()
+equal(prog11 and prog11.saved, false, "late commit: the next save not marked stored")
+equal(prog11 and prog11.phase, "write", "late commit: the next save still waits on its write")
+
 print(string.format("%d checks, %d failures", checks, failures))
 if failures > 0 then os.exit(1) end
