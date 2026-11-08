@@ -1,0 +1,8 @@
+{
+  "id": "left-save-owed-drop",
+  "name": "Owed drop of a timed-out save on the dashboard",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_left_save_owed_drop.lua"
+  ],
+  "step": "Check the dashboard finishes a timed-out save's owed drop before its MSP tick"
+}

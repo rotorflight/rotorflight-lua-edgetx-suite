@@ -216,7 +216,7 @@ check(replaceUpvalue(buildUI, "isModelArmed", function() return armed end) > 0, 
 check(replaceUpvalue(buildUI, "armedStateIsUncertain", function() return uncertain end) > 0,
   "uncertain check found in the notice")
 -- The pipeline's half of the gate (a link, the board the save wrote to, a craft not read as armed)
--- is its own harness's question (bin/msp/verify_save_failed_restart.lua); here it answers yes
+-- is checked in bin/msp/verify_save_failed_restart.lua; here it answers yes
 -- unless a case says otherwise.
 pipeline.restartPossible = function() return true end
 
