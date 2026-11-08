@@ -360,6 +360,77 @@ do
   check(string.find(Backup.path("a b/c.yml"), "a_b_c.yml", 1, true) ~= nil, "the path is safe")
 end
 
+-- --------------------------------------------------------------------------- on per radio model
+do
+  world = freshWorld()
+  local key = Setup.modelOnKey(world.file)
+  check(key == "on_" .. world.file, "the key is the model file's")
+  check(Setup.modelOnKey(nil) == nil, "no model file, no key")
+  local Preferences = rfsuite.require("lib/preferences.lua")
+  local function settled(section)
+    local prefs = { general = { preview_inflight_tuning = true }, inflight = section }
+    Preferences.settleInflight(prefs)
+    return prefs
+  end
+  -- The key holds the model's own name, so a model that later gets the same file name is not on.
+  local plainRequire = rfsuite.require
+  local pendingName = nil
+  local storeReads = 0
+  rfsuite.require = function(path)
+    if path == "lib/model_name_store.lua" then
+      storeReads = storeReads + 1
+      return { pending = function() return pendingName end }
+    end
+    return plainRequire(path)
+  end
+  check(settled({ [key] = world.name }).inflight.enabled == true, "on for this radio model")
+  check(storeReads == 0, "a matching name reads no name store")
+  check(settled({ on_other = world.name }).inflight.enabled == false, "on for another model is off here")
+  check(settled({ enabled = true }).inflight.enabled == false, "the former radio-wide flag does not carry over")
+  check(settled({ [key] = true }).inflight.enabled == false, "a key from before the name was stored is off")
+  check(settled({ [key] = "Deleted model" }).inflight.enabled == false, "another model with this file name is off")
+  local ownName = world.name
+  world.name = "Trainer 2"
+  check(settled({ [key] = ownName }).inflight.enabled == false, "a renamed model is off")
+  pendingName = ownName
+  check(settled({ [key] = ownName }).inflight.enabled == true, "on while a craft's name stands in the model's place")
+  check(storeReads > 0, "the name store is read when the names differ")
+  pendingName = "Someone else"
+  check(settled({ [key] = ownName }).inflight.enabled == false, "the store's name has to match as well")
+  world.name = ownName
+  pendingName = nil
+  rfsuite.require = plainRequire
+  -- The mismatch path with the real name store and no record on the card, first in its state: what a
+  -- preferences reload costs while a connected craft's name stands in the model's place.
+  world.name = "Craft name"
+  local counted = 0
+  debug.sethook(function() counted = counted + 1 end, "", 1)
+  local off = settled({ [key] = ownName }).inflight.enabled
+  debug.sethook()
+  world.name = ownName
+  check(off == false, "with no record in the name store a different name stays off")
+  print(string.format("settle with a name mismatch, real name store, first load: %d instructions", counted))
+  -- And with the record there, as model_name_sync leaves it, read from the card in a fresh state.
+  local NameStore = plainRequire("lib/model_name_store.lua")
+  check(NameStore.remember(ownName) ~= false, "the name store takes the record")
+  NameStore.invalidate()
+  world.name = "Craft name"
+  counted = 0
+  debug.sethook(function() counted = counted + 1 end, "", 1)
+  local on = settled({ [key] = ownName }).inflight.enabled
+  debug.sethook()
+  check(on == true, "with the record, the model's own name keeps it on under the craft's name")
+  print(string.format("settle with the craft's name standing in, record read from the card: %d instructions", counted))
+  NameStore.forget()
+  world.name = ownName
+  local Views = assert(loadfile(sourceRoot .. "/rfsuite/widgets/dashboard/views.lua"))()
+  local function widget(section) return { state = {}, preferences = settled(section) } end
+  check(Views.condition("previewInflightTuning", widget({ [key] = world.name })) == true, "the entry is there")
+  check(Views.condition("previewInflightTuning", widget({})) ~= true, "never switched on: no entry")
+  check(Views.condition("previewInflightTuning", widget({ on_other = world.name })) ~= true, "on for another model: no entry")
+  check(Views.condition("previewInflightTuning", widget({ [key] = "Deleted model" })) ~= true, "a reused file name: no entry")
+end
+
 -- --------------------------------------------------------------------------- the page's job
 do
   SMLSIZE, MIDSIZE, CENTER = 1, 2, 0
@@ -440,6 +511,7 @@ do
     end
     return false
   end
+  local key = Setup.modelOnKey("model7.yml")
 
   -- A set-up: the question, the write, the switch on, the restore on offer, the name the model has.
   fresh()
@@ -454,9 +526,39 @@ do
   check(Backup.stateOf(world.file) == nil or Backup.stateOf(world.file) == "partial", "no complete record yet")
   check(until_button("Close"), "the result comes up")
   check(#world.mixes[10] == 1 and Backup.stateOf(world.file) == "complete", "written, record complete")
+  check(prefs.inflight[key] == nil and prefs.inflight.enabled ~= true, "the set-up turns nothing on")
+  check(saves == 1 and prefs.inflight.bank_ch == 11, "and saves the page's values")
+  check(string.find(labels(), "switch on this page", 1, true) ~= nil, "the result says what is next")
   press("Close")
   pass(40)
   check(find("Restore previous setup") ~= nil, "the restore is on offer")
+
+  -- The switch: greyed until the check passes, on for this model alone, stored by the page's save.
+  local function theSwitch()
+    local seen = false
+    for _, node in ipairs(ctx.children) do
+      if node.type == "label" and node.text == "In-flight tuning on this radio model" then seen = true
+      elseif seen and node.type == "toggle" then return node end
+    end
+  end
+  check(theSwitch() ~= nil, "the switch is drawn")
+  theSwitch().set(true)
+  Page.onSave(ctx)
+  check(prefs.inflight[key] == "Own name", "the switch stores this model's key with its own name")
+  check(prefs.inflight.on_other == nil, "and no other model's")
+  theSwitch().set(false)
+  Page.onSave(ctx)
+  check(prefs.inflight[key] == nil, "off removes it")
+  theSwitch().set(true)
+  Page.onSave(ctx)
+
+  -- Nothing left to write: the button says so and still leaves the switch as it is.
+  open()
+  press("Set up radio")
+  check(until_button("Close"), "nothing to write")
+  check(string.find(labels(), "nothing to write", 1, true) ~= nil, "says so")
+  check(prefs.inflight[key] == "Own name", "the switch stays on")
+  press("Close")
 
   -- The restore: marked partial before its first write, cut off, offered again, and it switches off.
   pass(40)
@@ -479,6 +581,7 @@ do
   press("Restore")
   check(until_button("Close"), "restored")
   check(Backup.stateOf(world.file) == nil and #world.mixes[10] == 3 and #world.mixes[11] == 4, "the lines are back")
+  check(prefs.inflight[key] == nil, "the restore turns it off for this model")
   press("Close")
 
   -- Armed: refused at the press, and an arm and disarm during the write stops it.
@@ -498,8 +601,18 @@ do
   check(until_button("Close"), "stops")
   check(string.find(labels(), "Stopped", 1, true) ~= nil, "says it stopped")
   check(Backup.stateOf(world.file) == "partial", "the record stays partial")
+  check(prefs.inflight[key] == nil, "a stopped set-up does not turn it on")
   press("Close")
 
+  -- A switch that cannot be saved is said, not hidden.
+  fresh()
+  saveFails = true
+  open()
+  press("Set up radio")
+  check(until_button("Set up"), "asks")
+  press("Set up")
+  check(until_button("Close"), "done")
+  check(string.find(labels(), "could not be saved", 1, true) ~= nil, "a failed save of the switch is said")
   Page.onClose()
   Backup.remove(world.file)
 end

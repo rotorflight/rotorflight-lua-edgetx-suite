@@ -781,7 +781,7 @@ local function inflightDrive()
   return InflightDriveCache.module
 end
 
--- Preview and the radio master setting enable tuning. Opening its fullscreen surface releases
+-- Preview and this radio model's setting enable tuning. Opening its fullscreen surface releases
 -- output; the setup check and the completed FC slot read determine what can be tuned.
 --
 -- The global preferences the widget holds are re-read when the file changes, and that reload
