@@ -104,16 +104,14 @@ local frameId = 0
 local function pushArmFrame(armed, source)
   frameId = (frameId + 1) & 0xFF
   local f = { 0xEA, 0xC8, frameId, 0x11, 0x00, 0x00, 0x0A, 0x00, 0x14, 0x00, 0x1E, 0x10, 0x11, 0x00, 0xF6 }
-  if source == "none" then
-    -- nothing after the voltage
-  elseif source == "stat" then
+  if source == "stat" then
     for _, b in ipairs({ 0x12, 0x30, 0x00, 0x00, 0x00, armed and 1 or 0 }) do f[#f + 1] = b end
   elseif source == "both" then
     -- The System Status word in front of the arming flags: lib/sensors.lua takes the arming flags.
     for _, b in ipairs({ 0x12, 0x30, 0x00, 0x00, 0x00, armed and 1 or 0, 0x12, 0x02, armed and 1 or 0 }) do
       f[#f + 1] = b
     end
-  else
+  elseif source ~= "none" then
     for _, b in ipairs({ 0x12, 0x02, armed and 1 or 0 }) do f[#f + 1] = b end
   end
   Stubs.pushFrame(0x88, f)
