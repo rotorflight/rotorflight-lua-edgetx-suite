@@ -16,6 +16,11 @@ scheme role each tool role takes, and `palette.apply(name)` rewrites the roles i
 module holding the table sees a change. `ui/home.lua` applies the stored scheme before its first
 build and again when a save changes it, and then builds the open page again. Every page body gets
 a rectangle in `page` behind it (`palette.appendBackground`).
+The tile icons and the shipped dashboard themes' pictures come once per scheme (see *Pictures*), in
+`app/icons/<scheme>/` and `widgets/dashboard/theme_icons/<scheme>/`, named by their path below
+`app/pages/` or `widgets/dashboard/themes/` with the slashes joined (`setup/mixer/icon.png` is
+`setup_mixer_icon.png`); `palette.iconPath` picks the scheme's file, and a pilot's own theme keeps its
+pictures.
 
 **The helicopter setup wizard reads it directly:** `helicopter_setup/page.lua` loads the file when
 the page opens, takes `general.color_scheme` through `name()` and hands the colours to its views as
@@ -82,11 +87,6 @@ The firmware cannot tint a picture, so a picture that follows the scheme exists 
 ground: the darkness becomes transparency in the scheme's colour. It reads the colour from this file:
 `text` in light, as dark as the pictures are today; `accentInk` in dark, the role for a glyph. Run it after changing either
 value; `--check` says where a picture is missing, stale or left over.
-
-The tool's tile icons and the shipped dashboard themes' pictures are in `app/icons/<scheme>/` and
-`widgets/dashboard/theme_icons/<scheme>/`, named by their path below `app/pages/` or
-`widgets/dashboard/themes/` with the slashes joined (`setup/mixer/icon.png` is `setup_mixer_icon.png`).
-`palette.iconPath` picks the scheme's file; a pilot's own theme keeps its pictures.
 
 ## What a scheme cannot reach
 
