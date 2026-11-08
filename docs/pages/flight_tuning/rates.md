@@ -40,7 +40,7 @@ as the flight controller holds it.
 | Raceflight | RC Rate 10 to 2000 °/s (collective 0.00 to 25.00) | Acro+ 0 to 255 | Expo 0 to 100 |
 | KISS | RC Rate 0.01 to 2.55 | Rate 0.00 to 0.90 (collective 0.00 to 0.99) | RC Curve 0.00 to 1.00 |
 | Actual | Center Sens 10 to 2000 °/s (collective 0.00 to 25.00) | Max Rate 0 to 2000 °/s (collective 0.00 to 25.00) | Expo 0.00 to 1.00 |
-| Quick | RC Rate 0.01 to 2.55 | Max Rate 0 to 2000 °/s (collective 0 to 1000 °/s) | Expo 0.00 to 1.00 |
+| Quick | RC Rate 0.01 to 2.55 | Max Rate 0 to 2000 °/s (collective 0 to 1000) | Expo 0.00 to 1.00 |
 | Rotorflight | Rate 10 to 1000 °/s (collective 0.00 to 25.00) | Shape 0 to 100 (collective 0 to 127) | Expo 0 to 100 |
 
 The collective row has its own range wherever the table names one. The flight controller
@@ -61,10 +61,12 @@ flight controller limits Roll, Pitch and Yaw to its own per-type range when it s
   to the board unchanged unless that cell is edited; editing it moves it inside the range.
 - *Actual*: Center Sens equal to Max Rate gives a linear response, lower softens the centre,
   and higher also raises the rate at full stick -- not recommended, as it causes issues in the
-  Blackbox log. *Quick*: the response is linear when the RC Rate times 200 equals the Max
-  Rate (2.00 for 400 °/s), lower softens the centre, higher also raises the rate at full
-  stick. *Rotorflight*: Shape moves the vertex of the curve; up to it the rate follows the
-  stick linearly, beyond it progressively.
+  Blackbox log. *Quick*: on Roll, Pitch and Yaw the response is linear when the RC Rate
+  times 200 equals the Max Rate (2.00 for 400 °/s); on Collective, whose Max Rate is a scale
+  rather than °/s, when the RC Rate times about 96 equals it. Lower softens the centre,
+  higher also raises the rate at full stick. *Rotorflight*: Shape sets the order of the Expo
+  curve (Shape / 16 + 2): a higher Shape keeps the centre flatter and the end steeper, and at
+  Expo 0 it has no effect.
 - Response time, accelerometer limit, setpoint boost and the cyclic ring belong to the same
   rate profile and are on *Advanced* → *Rates (Advanced)*.
 - Which rate profile is being edited is shown in the page heading. It follows the flight
