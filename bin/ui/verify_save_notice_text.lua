@@ -252,8 +252,10 @@ armed = true
 restartCalls = 0
 if b2[2] then b2[2].press() end
 check(restartCalls == 0, "armed after the notice was drawn: the press does not restart", restartCalls)
-check(state.armedNoticeVisible == true, "armed after the notice was drawn: the armed notice", state.armedNoticeVisible)
-state.armedNoticeVisible = false
+check(state.armedNoticeVisible ~= true, "armed after the notice was drawn: no armed notice raised behind it",
+  state.armedNoticeVisible)
+draw(failedAfterWrite(true))
+check(not showsExactly(Stubs, "@i18n(app.save.restart)@"), "armed after the notice was drawn: the rebuild withdraws it")
 armed = false
 pipeline.restartAfterFailure = realRestart
 

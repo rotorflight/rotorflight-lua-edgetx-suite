@@ -2800,16 +2800,17 @@ local function buildScene()
                   scheduleBuildUI(false)
                 end },
                 { text = SAVE_TEXT.restart, press = function()
+                  -- Armed since the notice was drawn: the rebuild withdraws the button. The armed notice
+                  -- is not raised here -- it is drawn only after this one, so it would stand up later.
                   if isModelArmed() or armedStateIsUncertain() then
                     pcall(Log.emit, "rfsuite.save", "save notice: restart refused, armed or uncertain", "warn")
-                    showArmedNotice()
+                    scheduleBuildUI(false)
                     return
                   end
                   pcall(Log.emit, "rfsuite.save", "save notice: restart pressed", "info")
                   local ok, reason = SavePipeline.restartAfterFailure()
                   if not ok then
                     pcall(Log.emit, "rfsuite.save", "save notice: restart refused (" .. tostring(reason) .. ")", "warn")
-                    if reason == "armed" then showArmedNotice() return end
                   end
                   scheduleBuildUI(false)
                 end }

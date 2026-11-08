@@ -204,7 +204,8 @@ before flying.* -- also when the board does not answer again within 20 seconds. 
 up until it is closed.
 
 Restart FC is not offered while the model is armed, or while the tool cannot tell whether it is,
-and a press is checked again: an armed model gets the armed notice instead. Pages that save
+and a press is checked again: if the model was armed since the notice came up, the press restarts
+nothing and the button goes. Pages that save
 through their own chain rather than through the shared save are not covered.
 
 A save that ended without an answer -- after 30 seconds -- can leave its last request on its way to
