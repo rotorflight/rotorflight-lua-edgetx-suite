@@ -64,6 +64,8 @@ return {
     ["pass.standby.build"] = { target = 14000, measured = 12004 },
     ["pass.standby.state"] = { target = 12000, measured = 8809 },
     ["sweep.standby"] = { target = 950, measured = 935 },
+    ["pass.standby.intro"] = { target = 6000, measured = 4793 },
+    ["pass.standby.intro_save"] = { target = 8750, measured = 6993 },
 
     -- The cold start, before the link is up and the first scene is on screen. It is
     -- the pass that loads modules, and it is the closest any pass comes to the
@@ -455,6 +457,7 @@ return {
     ["page.setup_esc_motors_esc_tools_flrtr_page.build"] = { target = 8850, measured = 7074 },
     -- The option labels now go through pageText; this run reads the unprecompiled source, where each call is a
     -- lookup, while the package carries them as literals. 5047 -> 7857 measured; target as --emit gives.
+    ["page.setup_esc_motors_esc_tools_scorp_page.build"] = { target = 5650, measured = 4505 },
     ["page.setup_esc_motors_esc_tools_yge_page.build"] = { target = 9850, measured = 7857, proposed = 6350 },
     ["page.setup_esc_motors_motor_override_page.build"] = { target = 3850, measured = 3047 },
     ["page.setup_esc_motors_rpm_page.build"] = { target = 4400, measured = 3510 },

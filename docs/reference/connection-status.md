@@ -66,9 +66,11 @@ versions. When the board does not answer, the home screen and the *Info* page as
 Nothing is sent to the flight controller until the suite knows whether the model is armed: the
 handshake and the connect sequence wait for the arming flags (or the System Status word) to arrive
 over telemetry, so a model that is already armed when the link comes up -- a late link, or a radio
-restarted with the model running -- is not sent anything until it is disarmed. A flight controller
-that reports neither is connected after 5 seconds without them. That wait is part of the circling
-arrows.
+restarted with the model running -- is not sent anything until it is disarmed. The wait lasts at
+most 5 seconds: if neither has arrived by then, the suite connects without them. That covers a
+flight controller that reports neither, but also one whose first report is late -- the suite cannot
+tell the two apart, so a model armed before the link came up can be sent requests if its armed
+state takes longer than that to arrive. That wait is part of the circling arrows.
 
 On a fast link the connect sequence can be through within a few seconds of opening the tool, so
 the step count may be seen only briefly or not at all. That is not a fault: the step count is

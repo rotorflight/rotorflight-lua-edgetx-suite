@@ -7,6 +7,11 @@ local function loadModule(path)
   return mod
 end
 
+-- The sheet reads one intro line, then one line per column of the active rate type.
+local function getIntro(i18n, t)
+  return t(i18n, "help_intro")
+end
+
 local function getTableHelp(i18n, t, rType)
   if rType == 0 then return t(i18n, "help_table_0") end
   if rType == 1 then return t(i18n, "help_table_1") end
@@ -24,13 +29,12 @@ return function(ctx)
   local ratesType = ctx and tonumber(ctx.ratesType) or 6
 
   local parts = {
-    t(i18n, "help_intro"),
-    getTableHelp(i18n, t, ratesType),
-    t(i18n, "help_dynamics")
+    getIntro(i18n, t),
+    getTableHelp(i18n, t, ratesType)
   }
 
   return {
     title = t(i18n, "help_title"),
-    message = table.concat(parts, "\n\n")
+    message = table.concat(parts, "\n")
   }
 end
