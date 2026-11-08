@@ -116,7 +116,10 @@ background.
 so the radio's colours are put back on every way the tool can end:
 
 - `restore()` on every exit the suite runs itself: the closing sequence, and the dashboard's
-  `tool_host.lua` when the hosted tool closes or fullscreen is left.
+  `tool_host.lua` when the hosted tool closes or fullscreen is left. It writes the colours back before
+  it lets go of anything, so one stopped at the instruction limit is called again on the widget's next
+  pass. `apply()` arms the finaliser and holds its state before it writes the marker or a slot, and
+  names the scheme only once every slot carries it.
 - A finaliser. A long press of RTN closes the tool without running any Lua and an error ends it, but
   both close its Lua state, and `lua_close` runs every pending `__gc` metamethod first. The guard
   holds the radio's colours and `lcd.setColor` as upvalues, since the suite's globals may be gone by
@@ -124,7 +127,8 @@ so the radio's colours are put back on every way the tool can end:
 - A marker file, `theme_slots.txt` in the user folder, written before the first slot. Should neither
   of the above run, the next start of the tool, or the dashboard widget's first refresh after a pause
   (EdgeTX stops widget refresh while a tool window is open), puts the radio's colours back -- only
-  while the slots still hold what the suite wrote, so a theme applied since is left alone.
+  while each slot holds the radio's colour or one a scheme writes there, so a theme applied since is
+  left alone. Never while the tool is open in that widget.
 - A restart of the radio, which reloads the theme.
 
 `bin/ui/verify_theme_slots.lua` drives the module against a stub of the colour table, every way out

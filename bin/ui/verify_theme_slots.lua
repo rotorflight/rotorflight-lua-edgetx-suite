@@ -226,6 +226,31 @@ check(T.recover() == true, "recover takes a half-restored table as its own")
 check(radioColours(), "recover puts the rest back")
 check(not exists(MARKER), "and drops the marker")
 
+-- 12. A scheme change stopped half way: the scheme is not named yet, so the next change makes it again,
+--     and a slot table mixed from both schemes still counts as the suite's.
+T = load()
+T.apply("dark")
+failAfter = 3
+check(not pcall(T.apply, "light"), "control: the stopped change raised")
+check(T.current() == "dark", "a stopped change does not name the new scheme")
+check(T.holding(), "and the state still holds the radio's colours")
+check(T.apply("light") == true and table_[COLOR_THEME_PRIMARY2] == light.card, "the next change goes through")
+T.restore("test")
+check(radioColours(), "and the restore after it puts the radio's colours back")
+leaveMarker("dark")
+lcd.setColor(COLOR_THEME_PRIMARY1, light.text)   -- part of the slots already in the other scheme
+T = load()
+check(T.recover() == true, "recover takes a table mixed from both schemes as the suite's")
+check(radioColours(), "and puts every colour back")
+
+-- 13. An apply stopped at its first write still holds its state, so recover() leaves its marker alone.
+T = load()
+failAfter = 0
+check(not pcall(T.apply, "dark"), "control: the stopped apply raised")
+check(T.holding() and T.current() == nil, "a stopped apply holds the colours and names no scheme")
+check(T.recover() == false and exists(MARKER), "recover leaves the marker of a state that holds colours")
+check(T.restore("test") == true and radioColours() and not exists(MARKER), "restore finishes it")
+
 -- 9. Without lcd.setColor (a desktop runner, an old radio) nothing is attempted.
 local saved = lcd.setColor
 lcd.setColor = nil
