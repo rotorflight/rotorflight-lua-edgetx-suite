@@ -1301,7 +1301,7 @@ return {
         help_title = "Rates",
         help_message = "Configure the rotation rates and stick feel.",
         help_intro = "Rotation rates and stick feel for Roll, Pitch, Yaw and Collective in the active rate profile; the columns follow the rate type. Response and acceleration limits are under Advanced.",
-        help_table_0 = "Rate: all values are zero and read-only, because the rate type None applies no curve.",
+        help_table_0 = "Rate: all values are zero and read-only, because the rate type \"None\" applies no curve.",
         help_table_1 = "RC Rate: maximum rotation rate at full stick deflection.\nSuper Rate: increases the maximum rotation rate while reducing sensitivity around half stick.\nExpo: reduces sensitivity near the stick's center where fine control is needed.",
         help_table_2 = "RC Rate: maximum rotation rate at full stick deflection in degrees per second.\nAcro+: increases the maximum rotation rate while reducing sensitivity around half stick.\nExpo: reduces sensitivity near the stick's center where fine control is needed.",
         help_table_3 = "RC Rate: maximum rotation rate at full stick deflection.\nRate: increases the maximum rotation rate while reducing sensitivity around half stick.\nRC Curve: reduces sensitivity near the stick's center where fine control is needed.",

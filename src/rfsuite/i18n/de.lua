@@ -1301,7 +1301,7 @@ return {
         help_title = "Drehraten",
         help_message = "Konfiguriert die Drehraten und das Steuergefühl.",
         help_intro = "Drehraten und Steuergefühl für Roll, Nick, Gier und Kollektiv im aktiven Ratenprofil; die Spalten folgen dem Ratentyp. Ansprechverhalten und Beschleunigung stehen unter Erweitert.",
-        help_table_0 = "Drehrate: alle Werte sind null und nur lesbar, weil der Ratentyp Keine keine Kurve anwendet.",
+        help_table_0 = "Drehrate: alle Werte sind null und nur lesbar, weil der Ratentyp \"Keine\" keine Kurve anwendet.",
         help_table_1 = "RC-Rate: maximale Drehrate bei vollem Knüppelausschlag.\nSuper-Rate: erhöht die maximale Drehrate und verringert die Empfindlichkeit um die halbe Knüppelstellung.\nExpo: verringert die Empfindlichkeit nahe der Knüppelmitte für feinere Steuerung.",
         help_table_2 = "RC-Rate: maximale Drehrate bei vollem Knüppelausschlag in Grad pro Sekunde.\nAcro+: erhöht die maximale Drehrate und verringert die Empfindlichkeit um die halbe Knüppelstellung.\nExpo: verringert die Empfindlichkeit nahe der Knüppelmitte für feinere Steuerung.",
         help_table_3 = "RC-Rate: maximale Drehrate bei vollem Knüppelausschlag.\nDrehrate: erhöht die maximale Drehrate und verringert die Empfindlichkeit um die halbe Knüppelstellung.\nRC-Kurve: verringert die Empfindlichkeit nahe der Knüppelmitte für feinere Steuerung.",
