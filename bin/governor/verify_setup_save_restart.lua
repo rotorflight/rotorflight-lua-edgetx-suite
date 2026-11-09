@@ -61,7 +61,8 @@ local stubs = {
   ["app/pages/settings/common.lua"] = {
     pageT = function() return function(_, _, fallback) return fallback end end,
     failPageRead = function(ui) ui.loading = false; ui.runtime.readPending = false; ui.runtime.readFailed = true end,
-    resetPageState = function(ui) ui.loaded = false; ui.dirty = false end,
+    -- As the real one (settings/common.lua): the visit ends, so a callback of the old visit sees a new one.
+    resetPageState = function(ui) ui.loaded = false; ui.dirty = false; ui.runtime = nil end,
     appendReadFailedNotice = function() end,
   },
 }
@@ -152,9 +153,10 @@ local function save(page, ctx)
   return find(CMD.reboot) ~= nil, payload, early
 end
 
--- From a queued MSP_REBOOT to the end of the run: the board goes away (the reboot completes on
--- silence), answers the probe with its clock cleared (it restarted), the connect steps run, and the
--- final probe reads the clock set again.
+-- From a queued MSP_REBOOT to the end of the run, through the pipeline's own phases: the reboot's
+-- completion is called directly, the probe after it answers with the clock cleared (it restarted),
+-- the connect steps are stubbed as finished, and the final probe reads the clock set again. No link
+-- loss, MCU id change or governor read again is simulated.
 local function completeRestart()
   ack(assert(find(CMD.reboot), "reboot queued"))
   clock = clock + 100
@@ -191,24 +193,6 @@ for _, spec in ipairs(PAGES) do
     eq(early, false, "nothing of the restart is queued before the EEPROM write is acknowledged")
     eq(rebooted, true, "the save restarts the flight controller (" .. commands() .. ")")
     eq(queued(CMD.txinfo), true, "the restart's clock probe is seen in the queue's history")
-  end)
-  scenario(spec.name .. " changed value, restart completes", function(eq)
-    local page, ctx = openPage(spec.name)
-    controls[spec.label].set(spec.value)
-    local rebooted = save(page, ctx)
-    eq(rebooted, true, "the save restarts the flight controller (control)")
-    completeRestart()
-    local progress = Pipeline.getProgress()
-    eq(progress and progress.status, "done", "the run ended done")
-    eq(page.hasUnsavedChanges(), false, "the edit is saved")
-    local stored = _G.rfsuite.session.governor_config
-    eq(stored ~= nil and GovernorApi.buildWritePayload(stored)[spec.byte], spec.value,
-      "the session holds the configuration written, the board being the one written to")
-    Pipeline.dismiss()
-    queue.entries = {}
-    local again, payload = save(page, ctx)
-    eq(payload ~= nil, true, "Save works again on the same visit")
-    eq(again, false, "an unchanged save after the restart compares with what was written: no restart (" .. commands() .. ")")
   end)
   scenario(spec.name .. " unedited save", function(eq)
     local page, ctx = openPage(spec.name)
@@ -282,6 +266,28 @@ end)
 -- 6. A restart save whose notice was dismissed while its page stays open: the page claims the result
 -- on its next wakeup instead of staying on its Saving overlay.
 local DISMISS = { PAGES[1], PAGES[2], PAGES[3], { name = "curves" } }
+
+-- A changed save, watched to the end of its restart, on every page.
+for _, spec in ipairs(DISMISS) do
+  scenario(spec.name .. " changed value, restart completes", function(eq)
+    local page, ctx = openPage(spec.name)
+    if spec.label then controls[spec.label].set(spec.value) else curveEditors(ctx)[3].set(42) end
+    local rebooted = save(page, ctx)
+    eq(rebooted, true, "the save restarts the flight controller (control)")
+    completeRestart()
+    local progress = Pipeline.getProgress()
+    eq(progress and progress.status, "done", "the run ended done")
+    eq(page.hasUnsavedChanges(), false, "the edit is saved")
+    local stored = _G.rfsuite.session.governor_config
+    eq(stored ~= nil and GovernorApi.buildWritePayload(stored)[spec.byte or (BYTE.curve1 + 2)], spec.value or 84,
+      "the session holds the configuration written, the board being the one written to")
+    Pipeline.dismiss()
+    queue.entries = {}
+    local again, payload = save(page, ctx)
+    eq(payload ~= nil, true, "Save works again on the same visit")
+    eq(again, false, "an unchanged save after the restart compares with what was written: no restart (" .. commands() .. ")")
+  end)
+end
 for _, spec in ipairs(DISMISS) do
   scenario(spec.name .. " dismissed notice, page stays open", function(eq)
     local page, ctx = openPage(spec.name)
@@ -354,7 +360,8 @@ for _, other in ipairs({ false, true }) do
     local before = { marker = true }
     if other then
       mspState.values.mcuId = "board-b"
-      _G.rfsuite.session = { signature = "board-b", mcu_id = "board-b", governor_config = before }
+      _G.rfsuite.session = { signature = "board-b", mcu_id = "board-b", governor_config = before,
+        governorMode = "board-b mode", governorFeature = "board-b feature" }
     end
     completeRestart()
     eq(Pipeline.hasOutcome(), false, "the dismissed run is held (control)")
@@ -364,6 +371,8 @@ for _, other in ipairs({ false, true }) do
     local stored = _G.rfsuite.session.governor_config
     if other then
       eq(stored, before, "the other board's session keeps its own configuration")
+      eq(_G.rfsuite.session.governorMode, "board-b mode", "the other board's session keeps its own mode")
+      eq(_G.rfsuite.session.governorFeature, "board-b feature", "the other board's session keeps its own feature state")
     else
       local byte, value = spec.byte or (BYTE.curve1 + 2), spec.value or 84
       eq(stored ~= nil and GovernorApi.buildWritePayload(stored)[byte], value,
