@@ -882,9 +882,13 @@ do
     ctx.children = {}
     local nextFits = ceilingCall(page.build, ctx)
     local labels = rowLabels(ctx)
-    local l26, l1 = st.logsList[26].labelText, st.logsList[1].labelText
-    check(nextFits and l26 ~= nil and string.find(labels, l26, 1, true) ~= nil
-      and string.find(labels, l1, 1, true) == nil,
+    -- Every row of the window, in order: logs 26 to 50 and nothing else.
+    local expected, complete = {}, true
+    for i = 26, 50 do
+      local text = st.logsList[i].labelText
+      if type(text) ~= "string" then complete = false else expected[#expected + 1] = text end
+    end
+    check(nextFits and complete and labels == table.concat(expected, "|"),
       "full window hosted, Next: the build draws logs 26 to 50", string.sub(labels, 1, 80))
   end
 
@@ -898,6 +902,9 @@ do
     local asked = true
     local octx = { children = {}, x = 0, y = 0, w = 480, h = 270, requestRebuild = function() asked = true end }
     local passes, builds, stopped, drawn = 0, 0, 0, false
+    -- Which wakeup ended the scan and which ended the fitting, and whether each asked for a build:
+    -- the scan's end leaves the build to the fitting, so only the fitting's end may ask.
+    local scanEndAsked, layoutEndAsked = nil, nil
     while passes < 400 and not drawn do
       passes = passes + 1
       if asked then
@@ -909,13 +916,19 @@ do
         drawn = button(octx, "btn_view") ~= nil
       end
       if not drawn then
+        local wasScanned, wasPending = ost.scanned == true, ost.layoutPending == true
         local ok = ceilingCall(open.wakeup, octx)
         if not ok then stopped = stopped + 1 end
+        if not wasScanned and ost.scanned == true then scanEndAsked = asked end
+        if wasPending and not ost.layoutPending then layoutEndAsked = asked end
       end
     end
     check(drawn and stopped == 0 and ost.scanned == true and not ost.layoutPending,
       "open hosted: scan, fitting and list build, each call within a widget call, the list drawn",
       passes .. " passes, " .. builds .. " builds, " .. stopped .. " stopped")
+    check(scanEndAsked == false and layoutEndAsked == true,
+      "open hosted: the scan's end asks for no build, the end of the fitting does",
+      "scan end " .. tostring(scanEndAsked) .. ", fitting end " .. tostring(layoutEndAsked))
   end
 
   hosted = false
