@@ -213,7 +213,10 @@ local function queueGovWrite(requestRebuild)
   writeData.gov_throttle_hold_timeout = ui.config.gov_throttle_hold_timeout
 
   local featureChanged = writeFeatures.enabledFeatures ~= ui.featureConfig.enabledFeatures
-  local reboot = featureChanged or writeData.gov_mode ~= ui.parsedCache.gov_mode
+  -- The firmware copies the governor configuration into the running governor only at start-up
+  -- (governorInit()); MSP_SET_GOVERNOR_CONFIG stores it and nothing more. So a save that changes
+  -- any of it restarts the flight controller, and so does a GOVERNOR feature change.
+  local reboot = featureChanged or GovernorConfigApi.payloadDiffers(ui.parsedCache, writeData)
   local steps = {
     {
       label = "MSP_SET_GOVERNOR_CONFIG",

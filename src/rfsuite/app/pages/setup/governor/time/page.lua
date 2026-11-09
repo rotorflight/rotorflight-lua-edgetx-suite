@@ -15,6 +15,7 @@ local Controls = nil
 local Common = nil
 local MspRuntime = nil
 local GovernorConfigApi = nil
+local SavePipeline = nil
 local GovernorFields = nil
 local LoadingOverlay = nil
 local t = nil
@@ -52,6 +53,7 @@ local function ensureDeps()
   if not Controls then Controls = loadModule("ui/controls.lua") end
   if not MspRuntime then MspRuntime = loadModule("tasks/msp/runtime.lua") end
   if not GovernorConfigApi then GovernorConfigApi = loadModule("tasks/msp/api/governor_config.lua") end
+  if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
   if not GovernorFields then GovernorFields = loadModule("lib/governor_fields.lua") end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
   if not t then t = Common and Common.pageT("setup_governor") or nil end
@@ -151,22 +153,15 @@ local function queueGovRead(isAutoReload)
   return true, nil
 end
 
-local function queueGovWrite(requestRebuild, ctx)
-  if not MspRuntime or not GovernorConfigApi or type(MspRuntime.getState) ~= "function" then
+local function queueGovWrite(requestRebuild)
+  if not SavePipeline or not GovernorConfigApi then
     return false, "msp_runtime_unavailable"
   end
 
-  local mspState = MspRuntime.getState()
-  local queue = mspState and mspState.queue
-  if not queue or type(queue.add) ~= "function" then
-    return false, "msp_queue_unavailable"
-  end
-
+  -- Built on a copy, so a save that is refused or fails is still compared with what this visit read.
   local writeData = {}
-  if ui.parsedCache then
-    for k, v in pairs(ui.parsedCache) do
-      writeData[k] = v
-    end
+  for k, v in pairs(ui.parsedCache or {}) do
+    writeData[k] = v
   end
 
   writeData.gov_startup_time = ui.config.gov_startup_time
@@ -175,7 +170,45 @@ local function queueGovWrite(requestRebuild, ctx)
   writeData.gov_tracking_time = ui.config.gov_tracking_time
   writeData.gov_recovery_time = ui.config.gov_recovery_time
 
-  local payload = GovernorConfigApi.buildWritePayload(writeData)
+  local visit = ui.runtime
+  local ok, err = SavePipeline.start({
+    pageId = "setup_governor_time",
+    steps = {
+      {
+        label = "MSP_SET_GOVERNOR_CONFIG",
+        command = GovernorConfigApi.writeCommand,
+        payload = GovernorConfigApi.buildWritePayload(writeData)
+      }
+    },
+    -- The firmware copies these values into the running governor only at start-up
+    -- (governorInit()); MSP_SET_GOVERNOR_CONFIG stores them and nothing more. So a save that
+    -- changes one restarts the flight controller, and a save that changes nothing does not.
+    reboot = GovernorConfigApi.payloadDiffers(ui.parsedCache, writeData),
+    onSaved = function()
+      if ui.runtime ~= visit then return end
+      ui.dirty = false
+    end,
+    onDone = function(result)
+      if result.status == "done" then
+        local session = getSession()
+        if session then
+          session.governor_config = writeData
+          session.governorMode = writeData.gov_mode
+        end
+      end
+      if ui.runtime ~= visit then return end
+      ui.saving = false
+      if result.status == "done" then
+        ui.parsedCache = writeData
+      else
+        ui.dirty = true
+      end
+      if type(ui.runtime.requestRebuild) == "function" then
+        ui.runtime.requestRebuild()
+      end
+    end
+  })
+  if not ok then return false, err end
 
   ui.saving = true
   ui.progress = 0
@@ -183,80 +216,14 @@ local function queueGovWrite(requestRebuild, ctx)
     requestRebuild()
   end
 
-  queue:add({
-    command = GovernorConfigApi.writeCommand,
-    payload = payload,
-    isWrite = true,
-    simulatorResponse = {},
-    processReply = function()
-      local eepromApi = loadModule("tasks/msp/api/eeprom_write.lua")
-      if eepromApi then
-        queue:add({
-          command = eepromApi.writeCommand,
-          payload = {},
-          isWrite = true,
-          simulatorResponse = {},
-          processReply = function()
-            ui.dirty = false
-            ui.saving = false
-            ui.parsedCache = writeData
-            local session = getSession()
-            if session then
-              session.governor_config = writeData
-              session.governorMode = writeData.gov_mode
-            end
-            if ctx and type(ctx.reportSave) == "function" then
-              ctx.reportSave({
-                ok = true,
-                title = pageText(ctx and ctx.i18n, "saved_title", "Saved"),
-                message = pageText(ctx and ctx.i18n, "saved_message", "Governor settings saved")
-              })
-            end
-            if type(requestRebuild) == "function" then
-              requestRebuild()
-            end
-          end,
-          errorHandler = function()
-            ui.saving = false
-            if type(requestRebuild) == "function" then
-              requestRebuild()
-            end
-          end
-        })
-      else
-        ui.dirty = false
-        ui.saving = false
-        ui.parsedCache = writeData
-        local session = getSession()
-        if session then
-          session.governor_config = writeData
-          session.governorMode = writeData.gov_mode
-        end
-        if ctx and type(ctx.reportSave) == "function" then
-          ctx.reportSave({
-            ok = true,
-            title = pageText(ctx and ctx.i18n, "saved_title", "Saved"),
-            message = pageText(ctx and ctx.i18n, "saved_message", "Governor settings saved")
-          })
-        end
-        if type(requestRebuild) == "function" then
-          requestRebuild()
-        end
-      end
-    end,
-    errorHandler = function()
-      ui.saving = false
-      if type(requestRebuild) == "function" then
-        requestRebuild()
-      end
-    end
-  })
-
   return true, nil
 end
 
 local function ensureLoaded()
   if ui.loaded then return end
+  if SavePipeline and type(SavePipeline.takeResult) == "function" then
+    SavePipeline.takeResult("setup_governor_time")
+  end
 
   if not ui.runtime then
     ui.runtime = {
@@ -478,8 +445,9 @@ function M.canSave()
 end
 
 function M.onSave(ctx)
+  if ui.saving then return false end
   if not M.canSave() then return false, "loaded_data_missing" end
-  local ok, err = queueGovWrite(ctx and ctx.requestRebuild, ctx)
+  local ok, err = queueGovWrite(ctx and ctx.requestRebuild)
   if not ok then
     if ctx and type(ctx.reportSave) == "function" then
       ctx.reportSave({
@@ -493,6 +461,7 @@ function M.onSave(ctx)
 end
 
 function M.onReload(ctx)
+  if ui.saving then return true end
   local session = getSession()
   if session then
     ui.dirty = false
@@ -518,10 +487,12 @@ function M.onClose()
       resetDirty = true
     })
   end
+  ui.saving = false
   Controls = nil
   Common = nil
   MspRuntime = nil
   GovernorConfigApi = nil
+  SavePipeline = nil
   GovernorFields = nil
   LoadingOverlay = nil
   t = nil

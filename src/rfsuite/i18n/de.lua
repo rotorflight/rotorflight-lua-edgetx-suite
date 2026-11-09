@@ -2219,8 +2219,6 @@ return {
         saving_title = "Speichern",
         loading_message = "Lese Governor-Konfiguration...",
         saving_message = "Speichere Governor-Konfiguration...",
-        saved_title = "Gespeichert",
-        saved_message = "Governor-Einstellungen gespeichert",
         save_error_title = "Fehler",
         unsaved_changes = "Ungespeicherte Änderungen",
         help_title = "Governor - Allgemein",
