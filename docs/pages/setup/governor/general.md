@@ -36,8 +36,9 @@ before that read, not firmware reset defaults.
   Changing Mode saves the selected mode and enables the governor feature for any mode other
   than OFF; selecting OFF disables it. Other feature bits are preserved.
   After a save, Flight Tuning > Governor, Tail Rotor and the dashboard follow the new GOVERNOR feature state without reconnecting.
-- **Save restarts the flight controller when Mode or the governor feature changes**, because
-  the firmware applies both only at start-up. The other settings save without a restart.
+- **Save restarts the flight controller when it changes any setting on this page, or the
+  governor feature**, because the firmware hands the governor these settings only at start-up; a
+  save that changes nothing does not restart it.
   See [Saving configuration](../../../reference/saving.md).
 - *Reload* reads the flight controller again and discards unsaved changes. If a read fails,
   Save stays unavailable until Reload succeeds.
