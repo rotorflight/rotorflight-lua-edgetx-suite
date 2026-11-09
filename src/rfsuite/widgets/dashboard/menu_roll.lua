@@ -565,9 +565,10 @@ end
 -- Drawing
 -- ---------------------------------------------------------------------------
 
---- Part of the view's key: the epoch moves when the scene has to be built again, and it moves here
---- when the wheel has rested, the one place that is asked on every pass while the menu is up. Not
---- while a finger is down: a build under it would take the touch away.
+--- Part of the view's key: the epoch moves when the scene has to be built again. A rest of the wheel is
+--- handled here, the one place that is asked on every pass while the menu is up, and moves it only where
+--- the rest changed the level, the side or the question, or the scene could not be kept. Not while a
+--- finger is down: a build under it would take the touch away.
 function M.renderKey(widget)
   local roll = current(widget)
   if roll == nil then return "" end

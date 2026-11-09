@@ -385,7 +385,6 @@ local SAVE_PHASE_TEXT = {
 }
 
 local ConnectionStatus = loadModule("lib/connection_status.lua")
-local ONCONNECT_TEXT = ConnectionStatus.ONCONNECT_TEXT
 
 -- The header's connection button, one glyph per state, alongside the other header glyphs in
 -- `app.actions`. They are FontAwesome code points out of the subset the firmware embeds
@@ -1490,7 +1489,7 @@ local function returnToRootOnDisconnect()
   if page and page.handlesDisconnect == true then return end
 
   -- A visit from the host's menu goes back there: the place the pilot came from shows what the lost
-  -- link means for each of its rows, and the tool's root would be a screen he never asked for.
+  -- link means for each of its rows, and the tool's root would be a screen the pilot never asked for.
   if state.visitMenuId ~= nil then
     -- A save that restarts the board takes the link with it, and its outcome is the pilot's to read:
     -- it holds the page until then, and the back key leaves as it does from any page.

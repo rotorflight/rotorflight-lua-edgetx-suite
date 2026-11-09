@@ -160,11 +160,13 @@ is grey rather than gone.
 
 **The header's line says how things stand**, one message by rank: *SENDING...* or *NOT SAVED*, or *Could
 not open* for a page the tool could not open, until the next detent or press; then *Connection error*,
-*Not connected* or *Connecting*, in the warning colour; then *Connected*, in green. A tap on it shows the details the tool's connection
+in the error colour, *Not connected* or *Connecting*, in the warning colour; then *Connected*, in green. A tap on it shows the details the tool's connection
 button shows; the wheel does not reach it. Back from a page the roll is where it was with these rules
 applied: a row that has gone in the meantime leaves the wheel on the level above it, and no other row
 takes its place under the press. A lost link on a page returns to the roll, greyed, and an open question
-or a running *SENDING...* does not survive it. A battery prompt comes up over the roll as it does over
+or a running *SENDING...* does not survive it. Two things hold the page instead: a page that deals with a lost
+link itself, and a save that is still running or whose outcome is still on screen, such as a save that restarts
+the board; RTN then leaves as it does from any page. A battery prompt comes up over the roll as it does over
 the menu, and the place is there again behind it.
 
 The roll is forgotten, and the dashboard shows, when the model arms on a page, full screen is left or
