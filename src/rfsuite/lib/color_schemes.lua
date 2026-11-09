@@ -24,6 +24,11 @@ M.DEFAULT = "light"
 -- be read on the light page.
 M.LOGOS = { light = "logo_on_light.png", dark = "logo.png" }
 
+-- How far a disabled tile's icon fades into the tile's face, 0-255 (an LVGL opacity). Dark draws a
+-- disabled tile as an empty frame on the page, so its icon fades; light greys the face instead and
+-- keeps the icon. Dark's 102 (40 %) keeps the faded icon at 3:1 on the face.
+M.ICON_FADE = { light = 0, dark = 102 }
+
 -- 0xRRGGBB per role: one number per role keeps less resident than a table of three, and lcd.RGB
 -- takes it as it is from EdgeTX 2.11, the oldest version the suite runs on. colors() converts a
 -- scheme in place the first time it is asked for, so read a scheme through colors() only.
@@ -47,6 +52,8 @@ M.SCHEMES = {
     ok         = 0x196C3B,
     onOk       = 0xFFFFFF, -- a mark on an ok fill
     rule       = 0xBCC2C7, -- a quiet divider
+    tileOff    = 0xE3E6E8, -- a disabled tile's face: raised's value, so the tile reads greyed out
+    tileOffText = 0x545C64, -- a disabled tile's text: muted's value, which reads on that face
   },
   dark = {
     page       = 0x101213,
@@ -67,6 +74,8 @@ M.SCHEMES = {
     ok         = 0x66CC90,
     onOk       = 0x101518,
     rule       = 0x33383D,
+    tileOff    = 0x101213, -- page's value: an enabled tile is a card, a disabled one an empty frame
+    tileOffText = 0x68737D, -- disabled's value, on page where it reads 3:1
   },
 }
 
@@ -74,6 +83,11 @@ M.SCHEMES = {
 function M.name(value)
   if type(value) == "string" and M.SCHEMES[value] ~= nil then return value end
   return M.DEFAULT
+end
+
+--- The fade of a disabled tile's icon for a stored value, 0-255.
+function M.iconFade(value)
+  return M.ICON_FADE[M.name(value)]
 end
 
 --- The logo's file for a stored value.

@@ -62,6 +62,11 @@ it, since every caller in the Lua state shares it.
 | `error`, `onError` | A failure or a close button, and the text on it |
 | `ok`, `onOk` | A check that passed, and a mark on an `ok` fill |
 | `rule` | A quiet divider, and the track of a progress bar, where `raised` hardly shows on the page |
+| `tileOff`, `tileOffText` | A disabled tile's face and its text. In light the face is greyed (`raised`'s value) with `muted`'s text; in dark the face is the page, so the tile is an empty frame, with `disabled`'s text |
+
+A disabled tile's icon also fades into its face: `ICON_FADE` in the same file holds the opacity per
+scheme (0-255), read through `iconFade()`. Light keeps the icon (0); dark fades it by 40 % (102), which
+keeps the faded icon at about 3.8:1 on the face, above the 3:1 a disabled control needs.
 
 ## Rules
 

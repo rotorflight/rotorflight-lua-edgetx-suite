@@ -175,13 +175,23 @@ function Tiles.append(children, x, y, size, iconFile, text, focused, pressHandle
 
   if iconFile then
     local iconSize = math.max(16, math.floor(size * 0.36))
+    local iconX, iconY = x + math.floor((size - iconSize) / 2), y + math.max(5, math.floor(size * 0.08))
     children[#children + 1] = {
       type = "image",
-      x = x + math.floor((size - iconSize) / 2),
-      y = y + math.max(5, math.floor(size * 0.08)),
+      x = iconX, y = iconY,
       w = iconSize, h = iconSize,
       file = Palette.iconPath(iconFile)
     }
+    -- A disabled tile's icon fades into the face: the face colour laid over it at the scheme's fade.
+    -- A scheme with no fade draws nothing here.
+    local fade = Palette.iconFade or 0
+    if fade > 0 and (live or not isEnabled) then
+      children[#children + 1] = {
+        type = "rectangle", x = iconX, y = iconY, w = iconSize, h = iconSize,
+        color = Palette.tile, filled = true, opacity = fade,
+        visible = live and function() return not enabled() end or nil
+      }
+    end
   end
 
   children[#children + 1] = {

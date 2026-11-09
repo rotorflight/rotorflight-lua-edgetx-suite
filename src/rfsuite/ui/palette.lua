@@ -31,8 +31,8 @@ local ROLES = {
   { "cursor", "accent" },    -- the log graph's cursor
   { "progressTrack", "rule" },
   { "testProgressTrack", "raised" },
-  { "tile", "raised" },    -- a disabled tile's face
-  { "tileMuted", "muted" },     -- a disabled tile's text
+  { "tile", "tileOff" },   -- a disabled tile's face
+  { "tileMuted", "tileOffText" }, -- a disabled tile's text
 }
 
 local palette = {}
@@ -43,6 +43,9 @@ local iconCache = {}
 
 -- The scheme name the roles carry.
 palette.scheme = nil
+
+-- How far a disabled tile's icon fades into its face, 0-255; 0 draws no fade.
+palette.iconFade = 0
 
 local function loadSchemes()
   local root = _G.rfsuite
@@ -63,6 +66,7 @@ function palette.apply(name)
     palette[ROLES[i][1]] = colors[ROLES[i][2]]
   end
   palette.scheme = scheme
+  palette.iconFade = Schemes.iconFade(scheme) or 0
   iconCache = {}
   return scheme
 end
