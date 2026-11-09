@@ -196,6 +196,9 @@ if case == "landing" then
   expect(builds == 1, "the first pass after init built " .. builds .. " scene(s) instead of the landing's page")
   expect(startBuilds == 0, "the start screen was drawn for a landing with nothing to compile")
   expect(state.menu.getCurrentMenuId() == PAGE, "the page on screen after the first pass is not the landing")
+  -- A build that raised still builds a scene (the page's build error), so the page's own build is checked too.
+  expect(state.pageBuildFailed == nil and state.activePageMenuId == PAGE,
+    "the landing's page did not build: failed " .. tostring(state.pageBuildFailed) .. ", active " .. tostring(state.activePageMenuId))
   print("CHECKS " .. checks)
   os.exit(0)
 end
