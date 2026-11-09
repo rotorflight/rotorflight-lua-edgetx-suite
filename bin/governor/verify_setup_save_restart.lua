@@ -90,6 +90,13 @@ local function find(command, from)
   end
 end
 local function ack(entry, bytes) entry.done = true; entry.processReply(entry, bytes or {}) end
+-- Was this command queued at any point since the queue was last emptied, answered or not?
+local function queued(command)
+  for _, e in ipairs(queue.entries) do
+    if e.command == command then return true end
+  end
+  return false
+end
 
 -- A governor configuration as the flight controller sends it; `overrides` by byte position.
 local function governorReply(overrides)
@@ -136,8 +143,9 @@ local function save(page, ctx)
   if feature then ack(feature) end
   local eeprom = find(CMD.eeprom)
   if eeprom then ack(eeprom) end
+  -- MSP_TX_INFO: RSSI source, then the clock flag the restart's pre-flight reads (1 = set).
   local probe = find(CMD.txinfo)
-  if probe then ack(probe, { 1 }) end
+  if probe then ack(probe, { 0, 1 }) end
   return find(CMD.reboot) ~= nil, payload
 end
 
@@ -166,13 +174,14 @@ for _, spec in ipairs(PAGES) do
     local rebooted, payload = save(page, ctx)
     eq(payload and payload[spec.byte], spec.value, "the new value is written")
     eq(rebooted, true, "the save restarts the flight controller (" .. commands() .. ")")
+    eq(queued(CMD.txinfo), true, "the restart's clock probe is seen in the queue's history")
   end)
   scenario(spec.name .. " unedited save", function(eq)
     local page, ctx = openPage(spec.name)
     local rebooted, payload = save(page, ctx)
     eq(payload ~= nil, true, "the configuration is written")
     eq(rebooted, false, "no restart (" .. commands() .. ")")
-    eq(find(CMD.txinfo) == nil and find(CMD.reboot) == nil, true, "nothing of a restart queued")
+    eq(queued(CMD.txinfo) or queued(CMD.reboot), false, "nothing of a restart queued (" .. commands() .. ")")
   end)
 end
 
@@ -211,6 +220,16 @@ scenario("curves changed point", function(eq)
   eq(rebooted, true, "the save restarts the flight controller (" .. commands() .. ")")
 end)
 
+scenario("curves point edited and set back to its shown value", function(eq)
+  -- 25 is shown as 13 %; the pilot sets it to 14 and back to 13: that is the value written.
+  local page, ctx = openPage("curves", governorReply({ [BYTE.curve1 + 1] = 25 }))
+  curveEditors(ctx)[2].set(14)
+  curveEditors(ctx)[2].set(13)
+  local rebooted, payload = save(page, ctx)
+  eq(payload and payload[BYTE.curve1 + 1], 26, "the edited point is written as shown")
+  eq(rebooted, true, "the stored point changed, so the save restarts (" .. commands() .. ")")
+end)
+
 -- 5. A failed save leaves the comparison with what was read, so the next Save restarts too.
 scenario("time failed save then save again", function(eq)
   local page, ctx = openPage("time")
@@ -226,7 +245,33 @@ scenario("time failed save then save again", function(eq)
   eq(rebooted, true, "the second save restarts (" .. commands() .. ")")
 end)
 
--- 6. Armed: the three pages that had their own chain refuse like General does.
+-- 6. A restart save whose notice was dismissed while its page stays open: the page claims the result
+-- on its next wakeup instead of staying on its Saving overlay.
+for _, spec in ipairs(PAGES) do
+  scenario(spec.name .. " dismissed notice, page stays open", function(eq)
+    local page, ctx = openPage(spec.name)
+    controls[spec.label].set(spec.value)
+    eq(page.onSave(ctx), true, "the save starts")
+    ack(assert(find(CMD.govWrite), "write queued"))
+    ack(assert(find(CMD.eeprom), "EEPROM write queued"))
+    eq(Pipeline.isDismissible(), true, "stored and holding the page: the notice can be dismissed")
+    Pipeline.dismiss()
+    -- The restart then fails (no answer to the clock probe, reboot refused): the run ends held.
+    local probe = assert(find(CMD.txinfo), "clock probe queued")
+    probe.done = true
+    probe.errorHandler(probe, "max_retries")
+    local reboot = assert(find(CMD.reboot), "reboot queued")
+    reboot.done = true
+    reboot.errorHandler(reboot, "refused")
+    eq(Pipeline.hasOutcome(), false, "the dismissed run reports nothing on screen")
+    page.wakeup(ctx)
+    eq(page.hasUnsavedChanges(), true, "the failed restart's result reached the page: the edit is unsaved")
+    queue.entries = {}
+    eq(page.onSave(ctx), true, "the page left its Saving state: Save works again on the same visit")
+  end)
+end
+
+-- 7. Armed: the three pages that had their own chain refuse like General does.
 for _, name in ipairs({ "time", "filters", "curves" }) do
   scenario(name .. " armed", function(eq)
     local page, ctx = openPage(name)

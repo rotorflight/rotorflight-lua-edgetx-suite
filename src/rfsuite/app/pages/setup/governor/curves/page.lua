@@ -33,6 +33,8 @@ local ui = {
     curve = { 0, 5, 10, 15, 25, 30, 35, 40, 50 }
   },
   parsedCache = {},
+  -- Points the pilot edited since the record was read; only these are written from the screen.
+  edited = {},
   runtime = {
     readPending = false,
     requestRebuild = nil,
@@ -88,6 +90,7 @@ local function loadFromSession()
     ui.config.curve[i] = clampPercent((tonumber(raw) or 0) / 2)
   end
   ui.parsedCache = cached
+  ui.edited = {}
 end
 
 local function queueGovRead(isAutoReload)
@@ -127,6 +130,7 @@ local function queueGovRead(isAutoReload)
           ui.config.curve[i] = clampPercent((tonumber(raw) or 0) / 2)
         end
         ui.parsedCache = parsed
+        ui.edited = {}
 
         local session = getSession()
         if session then
@@ -169,13 +173,11 @@ local function queueGovWrite(requestRebuild)
   end
 
   -- The page shows whole percent and the flight controller stores half percent, so a point the
-  -- pilot left alone keeps the byte it was read with; rounding it would change what is stored.
+  -- pilot did not edit keeps the byte it was read with; rounding it would change what is stored.
   for i = 1, FIELD_COUNT do
     local key = "gov_bypass_throttle_curve_" .. tostring(i)
-    local raw = tonumber(writeData[key])
-    local pct = clampPercent(ui.config.curve[i])
-    if raw == nil or clampPercent(raw / 2) ~= pct then
-      writeData[key] = pct * 2
+    if ui.edited[i] or writeData[key] == nil then
+      writeData[key] = clampPercent(ui.config.curve[i]) * 2
     end
   end
 
@@ -209,6 +211,7 @@ local function queueGovWrite(requestRebuild)
       ui.saving = false
       if result.status == "done" then
         ui.parsedCache = writeData
+        ui.edited = {}
       else
         ui.dirty = true
       end
@@ -247,6 +250,7 @@ local function ensureLoaded()
     curve = { 0, 5, 10, 15, 25, 30, 35, 40, 50 }
   }
   ui.parsedCache = {}
+  ui.edited = {}
 
   loadFromSession()
   ui.loaded = true
@@ -261,6 +265,13 @@ function M.wakeup(ctx)
   ensureLoaded()
 
   ui.runtime.requestRebuild = ctx and ctx.requestRebuild or nil
+
+  -- A save whose notice was dismissed is held for its page instead of reported (save_pipeline.lua
+  -- finish()). While this page stays open it claims that result here, or it would stay on its
+  -- Saving overlay, with Save and Reload refused, until it is opened again.
+  if ui.saving and SavePipeline and type(SavePipeline.takeResult) == "function" then
+    SavePipeline.takeResult("setup_governor_curves")
+  end
 
   local signature = buildSessionSignature()
   if signature ~= ui.runtime.lastSessionSignature then
@@ -442,6 +453,7 @@ function M.build(ctx)
       end,
       set = function(val)
         ui.config.curve[pointIndex] = clampPercent(val)
+        ui.edited[pointIndex] = true
         ui.dirty = true
       end,
       display = function(val)

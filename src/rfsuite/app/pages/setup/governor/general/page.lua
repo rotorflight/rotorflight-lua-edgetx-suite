@@ -316,6 +316,13 @@ function M.wakeup(ctx)
 
   ui.runtime.requestRebuild = ctx and ctx.requestRebuild or nil
 
+  -- A save whose notice was dismissed is held for its page instead of reported (save_pipeline.lua
+  -- finish()). While this page stays open it claims that result here, or it would stay on its
+  -- Saving overlay, with Save and Reload refused, until it is opened again.
+  if ui.saving and SavePipeline and type(SavePipeline.takeResult) == "function" then
+    SavePipeline.takeResult("setup_governor_general")
+  end
+
   local signature = buildSessionSignature()
   if signature ~= ui.runtime.lastSessionSignature then
     ui.runtime.lastSessionSignature = signature
