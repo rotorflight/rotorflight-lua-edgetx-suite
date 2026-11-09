@@ -41,6 +41,9 @@ Always available.
   colors from the scheme when it opens and puts the radio theme's back when it closes -- also when it
   is closed with a long press of RTN or ends with an error. Should that ever fail, the next start of the
   tool or the dashboard puts them back, and a restart of the radio always does.
+- **A menu tile that cannot be opened yet** -- such as the configuration tiles before the flight controller
+  answers -- is grey with a grey label in *Light*, and an empty frame with a faded icon and a grey label
+  in *Dark*.
 - **A saved scheme shows in the tool at once**, on the page it was saved on. The widget picks it up
   with its next reload of the settings, which follows a save on its own.
 - **A preview feature is already in the suite but not finished.** It stays hidden until it is
