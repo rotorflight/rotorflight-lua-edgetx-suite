@@ -137,6 +137,16 @@ def render(source, color, size):
     return buffer.getvalue()
 
 
+def same_picture(path, data):
+    """Whether the picture on disk shows what `data` shows. The pixels are compared, not the file's bytes:
+    the PNG encoder's output depends on the Pillow and zlib versions, so the same picture can be written
+    as different bytes on another machine."""
+    with open(path, "rb") as handle:
+        old = Image.open(io.BytesIO(handle.read())).convert("RGBA")
+    new = Image.open(io.BytesIO(data)).convert("RGBA")
+    return old.size == new.size and old.tobytes() == new.tobytes()
+
+
 def run_set(name, spec, colors, args):
     wanted = spec["pictures"]
     if args.count:
@@ -155,7 +165,7 @@ def run_set(name, spec, colors, args):
             data = render(source, color, spec["size"])
             size += len(data)
             if args.check:
-                if not os.path.exists(path) or open(path, "rb").read() != data:
+                if not os.path.exists(path) or not same_picture(path, data):
                     print("STALE " + path)
                     bad += 1
             else:
