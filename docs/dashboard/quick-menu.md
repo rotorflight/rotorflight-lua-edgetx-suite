@@ -165,7 +165,8 @@ button shows; the wheel does not reach it. Back from a page the roll is where it
 applied: a row that has gone in the meantime leaves the wheel on the level above it, and no other row
 takes its place under the press. A lost link on a page returns to the roll, greyed, and an open question
 or a running *SENDING...* does not survive it. Two things hold the page instead: a page that deals with a lost
-link itself, and a save whose outcome is still on screen or that restarts the board and has not been dismissed;
+link itself, and a save the suite's save sequence is still reporting, or one that restarts the board and has
+not been closed;
 RTN then works as it does on any page. A battery prompt comes up over the roll as it does over
 the menu, and the place is there again behind it.
 

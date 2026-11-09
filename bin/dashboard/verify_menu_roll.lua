@@ -464,6 +464,7 @@ local function run(mutate)
     Views.navigate(w, "done")
     check("the prompt hands back to the default menu", Views.top(w) == nil and w._viewStack == session
       and Views.roll(w, "battery_pick") == nil and Views.roll(w, "menu") == r)
+    check("and the wheel finds the menu's roll before the next pass names it", Views.topRoll(w) == r)
     late.processReply(late, {})
     check("the answered write closes the default menu though the last pass named the prompt",
       w._viewStack ~= session or Views.roll(w, "menu") == nil)

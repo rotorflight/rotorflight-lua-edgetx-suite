@@ -727,18 +727,24 @@ function M.dropRoll(widget, id)
   if rolls ~= nil and id ~= nil then rolls[id] = nil end
 end
 
---- Whether view `id` is the one drawn now: the top of the stack, or with the stack empty and no base
---- layer the default view, as `resolve` picks it. Asked between passes, where `_viewId` may still name
---- a view that has just been taken off.
-function M.onTop(widget, id)
+-- The view drawn now: the top of the stack, or with the stack empty and no base layer the default
+-- view, as `resolve` picks it. Keys and replies are handled before a pass resolves, where `_viewId`
+-- may still name a view that has just been taken off.
+local function drawnView(widget)
   local top = M.top(widget)
-  if top ~= nil then return top == id end
-  return widget._viewBase == nil and id == M.DEFAULT_VIEW
+  if top ~= nil then return top end
+  if widget._viewBase == nil then return M.DEFAULT_VIEW end
+  return widget._viewId
 end
 
---- The roll of the view on top, where that view draws one.
+--- Whether view `id` is the one drawn now.
+function M.onTop(widget, id)
+  return drawnView(widget) == id
+end
+
+--- The roll of the view drawn now, where that view draws one.
 function M.topRoll(widget)
-  return M.roll(widget, M.top(widget) or widget._viewId)
+  return M.roll(widget, drawnView(widget))
 end
 
 --- Whether a rolling menu holds the screen: it stays up through a lost link, where the rows say what
