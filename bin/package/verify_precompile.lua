@@ -457,7 +457,8 @@ do
   check("picture folders: the pass finishes on its own, not at the step cap", finished and steps < 10000,
     steps .. " steps")
   check("picture folders: it compiles both sources, each once, and reports nothing",
-    #record.loads == 2 and #record.warnings == 0, #record.loads .. " loads; " .. table.concat(record.warnings, "; "))
+    #record.loads == 2 and record.loads[1] ~= record.loads[2] and #record.warnings == 0,
+    table.concat(record.loads, ", ") .. "; " .. table.concat(record.warnings, "; "))
   check("picture folders: the stamp is written", card.files[USER .. "/precompiled.txt"] ~= nil)
   check("picture folders: no call takes more than 6000 of the module's instructions", worst > 0 and worst <= 6000,
     "worst call " .. worst)
