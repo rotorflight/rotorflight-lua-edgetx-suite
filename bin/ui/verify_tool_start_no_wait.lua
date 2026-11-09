@@ -199,6 +199,9 @@ if case == "landing" then
   -- A build that raised still builds a scene (the page's build error), so the page's own build is checked too.
   expect(state.pageBuildFailed == nil and state.activePageMenuId == PAGE,
     "the landing's page did not build: failed " .. tostring(state.pageBuildFailed) .. ", active " .. tostring(state.activePageMenuId))
+  -- The page being active says which module is current, not that its build drew anything: the
+  -- Flight Log's own first scene is its read overlay, and no other page draws that line.
+  expect(lastTexts["Reading the flight log"] == true, "the first scene does not show the Flight Log page's own content")
   print("CHECKS " .. checks)
   os.exit(0)
 end
