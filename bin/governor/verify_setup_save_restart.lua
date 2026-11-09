@@ -114,7 +114,8 @@ local function openPage(name, reply, featureBits)
   reported = {}
   Pipeline.reset()
   mspState.lastArmed = false
-  _G.rfsuite.session = { signature = "board-a" }
+  mspState.values.mcuId = "board-a"
+  _G.rfsuite.session = { signature = "board-a", mcu_id = "board-a" }
   local page = assert(loadfile(sourceRoot .. "app/pages/setup/governor/" .. name .. "/page.lua"))()
   local ctx = {
     children = {}, x = 0, y = 0, w = 480, h = 320,
@@ -131,7 +132,8 @@ local function openPage(name, reply, featureBits)
 end
 
 -- Save and run the pipeline up to its restart: the writes and the EEPROM write answered, then the
--- clock probe that opens a restart. Returns whether MSP_REBOOT was queued and the governor payload.
+-- clock probe that opens a restart. Returns whether MSP_REBOOT was queued, the governor payload, and
+-- whether anything of a restart was queued before the EEPROM write was acknowledged.
 local function save(page, ctx)
   local started = page.onSave(ctx)
   if not started then return nil end
@@ -141,12 +143,25 @@ local function save(page, ctx)
   ack(write)
   local feature = find(CMD.featureWrite)
   if feature then ack(feature) end
+  local early = queued(CMD.reboot) or queued(CMD.txinfo)
   local eeprom = find(CMD.eeprom)
   if eeprom then ack(eeprom) end
   -- MSP_TX_INFO: RSSI source, then the clock flag the restart's pre-flight reads (1 = set).
   local probe = find(CMD.txinfo)
   if probe then ack(probe, { 0, 1 }) end
-  return find(CMD.reboot) ~= nil, payload
+  return find(CMD.reboot) ~= nil, payload, early
+end
+
+-- From a queued MSP_REBOOT to the end of the run: the board goes away (the reboot completes on
+-- silence), answers the probe with its clock cleared (it restarted), the connect steps run, and the
+-- final probe reads the clock set again.
+local function completeRestart()
+  ack(assert(find(CMD.reboot), "reboot queued"))
+  clock = clock + 100
+  Pipeline.wakeup()
+  ack(assert(find(CMD.txinfo), "probe after the reboot queued"), { 0, 0 })
+  Pipeline.wakeup()
+  ack(assert(find(CMD.txinfo), "final probe queued"), { 0, 1 })
 end
 
 -- 1. The comparison itself.
@@ -171,10 +186,29 @@ for _, spec in ipairs(PAGES) do
     local page, ctx = openPage(spec.name)
     eq(controls[spec.label] ~= nil, true, "control '" .. spec.label .. "' built")
     controls[spec.label].set(spec.value)
-    local rebooted, payload = save(page, ctx)
+    local rebooted, payload, early = save(page, ctx)
     eq(payload and payload[spec.byte], spec.value, "the new value is written")
+    eq(early, false, "nothing of the restart is queued before the EEPROM write is acknowledged")
     eq(rebooted, true, "the save restarts the flight controller (" .. commands() .. ")")
     eq(queued(CMD.txinfo), true, "the restart's clock probe is seen in the queue's history")
+  end)
+  scenario(spec.name .. " changed value, restart completes", function(eq)
+    local page, ctx = openPage(spec.name)
+    controls[spec.label].set(spec.value)
+    local rebooted = save(page, ctx)
+    eq(rebooted, true, "the save restarts the flight controller (control)")
+    completeRestart()
+    local progress = Pipeline.getProgress()
+    eq(progress and progress.status, "done", "the run ended done")
+    eq(page.hasUnsavedChanges(), false, "the edit is saved")
+    local stored = _G.rfsuite.session.governor_config
+    eq(stored ~= nil and GovernorApi.buildWritePayload(stored)[spec.byte], spec.value,
+      "the session holds the configuration written, the board being the one written to")
+    Pipeline.dismiss()
+    queue.entries = {}
+    local again, payload = save(page, ctx)
+    eq(payload ~= nil, true, "Save works again on the same visit")
+    eq(again, false, "an unchanged save after the restart compares with what was written: no restart (" .. commands() .. ")")
   end)
   scenario(spec.name .. " unedited save", function(eq)
     local page, ctx = openPage(spec.name)
@@ -254,6 +288,7 @@ for _, spec in ipairs(DISMISS) do
     if spec.label then controls[spec.label].set(spec.value) else curveEditors(ctx)[3].set(42) end
     eq(page.onSave(ctx), true, "the save starts")
     ack(assert(find(CMD.govWrite), "write queued"))
+    eq(queued(CMD.reboot) or queued(CMD.txinfo), false, "nothing of the restart queued before the EEPROM write is acknowledged")
     ack(assert(find(CMD.eeprom), "EEPROM write queued"))
     eq(Pipeline.isDismissible(), true, "stored and holding the page: the notice can be dismissed")
     Pipeline.dismiss()
@@ -272,7 +307,73 @@ for _, spec in ipairs(DISMISS) do
   end)
 end
 
--- 7. Armed: the three pages that had their own chain refuse like General does.
+-- 7. A restart save dismissed, the page left and entered again while the run still goes on: the run's
+-- failure is shown while the page is open, not held until a later Save discards it.
+for _, spec in ipairs(DISMISS) do
+  scenario(spec.name .. " dismissed notice, page entered again before the end", function(eq)
+    local page, ctx = openPage(spec.name)
+    if spec.label then controls[spec.label].set(spec.value) else curveEditors(ctx)[3].set(42) end
+    eq(page.onSave(ctx), true, "the save starts")
+    ack(assert(find(CMD.govWrite), "write queued"))
+    ack(assert(find(CMD.eeprom), "EEPROM write queued"))
+    Pipeline.dismiss()
+    page.onClose()
+    page.wakeup(ctx)
+    local read = find(CMD.govRead)
+    if read then ack(read, governorReply()) end
+    local feature = find(CMD.featureRead)
+    if feature then ack(feature, FeatureApi.buildWritePayload({ enabledFeatures = 1 << 26 })) end
+    page.build(ctx)
+    eq(Pipeline.hasOutcome(), false, "the run still goes on: nothing to show yet (control)")
+    local probe = assert(find(CMD.txinfo), "clock probe queued")
+    probe.done = true
+    probe.errorHandler(probe, "max_retries")
+    local reboot = assert(find(CMD.reboot), "reboot queued")
+    reboot.done = true
+    reboot.errorHandler(reboot, "refused")
+    page.wakeup(ctx)
+    local progress = Pipeline.getProgress()
+    eq(progress and progress.status, "failed", "the failed restart is shown on the page entered again")
+  end)
+end
+
+-- 8. A restart save dismissed and finished done while another board was connected: claiming it does
+-- not put the first board's configuration into the session of the board now on the link.
+for _, spec in ipairs(DISMISS) do
+for _, other in ipairs({ false, true }) do
+  local label = other and "another board" or "the same board"
+  scenario(spec.name .. " dismissed restart done, claimed on " .. label, function(eq)
+    local page, ctx = openPage(spec.name)
+    if spec.label then controls[spec.label].set(spec.value) else curveEditors(ctx)[3].set(42) end
+    eq(page.onSave(ctx), true, "the save starts")
+    ack(assert(find(CMD.govWrite), "write queued"))
+    ack(assert(find(CMD.eeprom), "EEPROM write queued"))
+    Pipeline.dismiss()
+    page.onClose()
+    ack(assert(find(CMD.txinfo), "clock probe queued"), { 0, 1 })
+    local before = { marker = true }
+    if other then
+      mspState.values.mcuId = "board-b"
+      _G.rfsuite.session = { signature = "board-b", mcu_id = "board-b", governor_config = before }
+    end
+    completeRestart()
+    eq(Pipeline.hasOutcome(), false, "the dismissed run is held (control)")
+    page.wakeup(ctx)
+    local progress = Pipeline.getProgress()
+    eq(progress and progress.status, "done", "the held result is claimed on entry")
+    local stored = _G.rfsuite.session.governor_config
+    if other then
+      eq(stored, before, "the other board's session keeps its own configuration")
+    else
+      local byte, value = spec.byte or (BYTE.curve1 + 2), spec.value or 84
+      eq(stored ~= nil and GovernorApi.buildWritePayload(stored)[byte], value,
+        "the same board's session takes the configuration written")
+    end
+  end)
+end
+end
+
+-- 9. Armed: the three pages that had their own chain refuse like General does.
 for _, name in ipairs({ "time", "filters", "curves" }) do
   scenario(name .. " armed", function(eq)
     local page, ctx = openPage(name)

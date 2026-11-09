@@ -466,11 +466,15 @@ as a failed save. Save pressed while the save is still running is ignored.
 General, Ramp Time, Filters and Bypass Curve under Setup > Governor send their save through the
 tool's shared save: the governor configuration write (on General also the feature configuration,
 when the governor feature changes), then one EEPROM write, then a restart when the written governor
-settings differ from what the page read, because the flight controller hands them to the running
-governor only at start-up. A save that changes nothing does not restart. The page is marked clean
-only once the flight controller has stored the values; a refused or unanswered write is shown as a
-failed save and leaves the edits unsaved. A Save pressed while the save is still running is
-ignored, and a save is refused while the model is armed.
+settings differ from what the page read or, on General, when the governor feature changes, because
+the flight controller hands both to the running governor only at start-up. A save that changes
+nothing does not restart. The page is marked clean only once the flight controller has stored the
+values; a refused or unanswered write is shown as a failed save and leaves the edits unsaved. A Save
+pressed while the save is still running is ignored, and a save is refused while the model is armed.
+The outcome of a save whose notice was put away with Back is shown as soon as the save ends while
+the page is open, also when the page was left and opened again in between. A save that ends after
+another flight controller was connected does not change what the tool holds of that board's
+governor settings.
 
 Battery, Sources and SmartFuel under Setup > Power send their save through the tool's shared save.
 Battery writes the battery profile when it was selected on the page, then the battery

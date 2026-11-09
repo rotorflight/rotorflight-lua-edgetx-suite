@@ -189,9 +189,16 @@ local function queueGovWrite(requestRebuild)
     onDone = function(result)
       if result.status == "done" then
         local session = getSession()
-        if session then
+        -- A save whose notice was dismissed reports when this page is entered again, and the
+        -- board on the link may be another one by then: its session holds its own configuration.
+        if session and result.mcuId ~= nil and session.mcu_id == result.mcuId then
           session.governor_config = writeData
           session.governorMode = writeData.gov_mode
+        elseif session then
+          local Log = _G.rfsuite and _G.rfsuite.Log
+          if Log and type(Log.emit) == "function" then
+            pcall(Log.emit, "rfsuite.governor", "filters save done, board on the link not known as the one written: session not updated", "info")
+          end
         end
       end
       if ui.runtime ~= visit then return end
@@ -256,9 +263,10 @@ function M.wakeup(ctx)
   ui.runtime.requestRebuild = ctx and ctx.requestRebuild or nil
 
   -- A save whose notice was dismissed is held for its page instead of reported (save_pipeline.lua
-  -- finish()). While this page stays open it claims that result here, or it would stay on its
-  -- Saving overlay, with Save and Reload refused, until it is opened again.
-  if ui.saving and SavePipeline and type(SavePipeline.takeResult) == "function" then
+  -- finish()). While this page is open it claims that result here: one started on this visit would
+  -- otherwise keep the Saving overlay, with Save and Reload refused, and one started before the page
+  -- was entered again, still running then, would stay unreported until the next Save discards it.
+  if SavePipeline and type(SavePipeline.takeResult) == "function" then
     SavePipeline.takeResult("setup_governor_filters")
   end
 
