@@ -247,10 +247,11 @@ end)
 
 -- 6. A restart save whose notice was dismissed while its page stays open: the page claims the result
 -- on its next wakeup instead of staying on its Saving overlay.
-for _, spec in ipairs(PAGES) do
+local DISMISS = { PAGES[1], PAGES[2], PAGES[3], { name = "curves" } }
+for _, spec in ipairs(DISMISS) do
   scenario(spec.name .. " dismissed notice, page stays open", function(eq)
     local page, ctx = openPage(spec.name)
-    controls[spec.label].set(spec.value)
+    if spec.label then controls[spec.label].set(spec.value) else curveEditors(ctx)[3].set(42) end
     eq(page.onSave(ctx), true, "the save starts")
     ack(assert(find(CMD.govWrite), "write queued"))
     ack(assert(find(CMD.eeprom), "EEPROM write queued"))
