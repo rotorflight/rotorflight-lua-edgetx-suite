@@ -771,21 +771,23 @@ function M.wakeup(ctx)
   if scanning then
     if scanForAWhile(state.scan, widgetCall and SCAN_UNITS_PER_WIDGET_WAKEUP or nil) then
       state.logsList = state.scan.found
-      state.scan = nil
-      state.scanShown = nil
       state.scanned = true
       state.loading = false
-      -- Frees what the steps left behind (about 300 KB at 587 logs) before the build allocates;
-      -- measured on the EdgeTX simulator, under 1 ms and no more than the same collect after it.
-      collectgarbage("collect")
-      pageLog("info", "logs list: %d logs found", #state.logsList)
       -- Hosted, the window's rows are broken first (below), and that asks for the build once it is
-      -- done; the notice stays up meanwhile.
+      -- done; the notice stays up meanwhile. Both before the scan is dropped: a call stopped before
+      -- that finds the finished scan again and repeats this, rather than finding nothing left to do
+      -- under a notice nobody asks to replace.
       if widgetCall and state.listW and #state.logsList > 0 then
         state.layoutPending = true
       elseif state.requestRebuild then
         state.requestRebuild()
       end
+      state.scan = nil
+      state.scanShown = nil
+      -- Frees what the steps left behind (about 300 KB at 587 logs) before the build allocates;
+      -- measured on the EdgeTX simulator, under 1 ms and no more than the same collect after it.
+      collectgarbage("collect")
+      pageLog("info", "logs list: %d logs found", #state.logsList)
     else
       local shown = state.scan.read .. "/" .. #state.scan.found
       if shown ~= state.scanShown then
@@ -1056,8 +1058,8 @@ end
 -- most (all where `rows` is nil), and answers true once every row of the window is. The lines are
 -- kept on the log's record with the width and the default model name they were made for: the
 -- records outlive the page (see M.onClose), and a log without a model is labelled in the language
--- of the moment. One record is complete or untouched, so a call stopped in the middle of a row
--- breaks that row again on the next.
+-- of the moment. A record's key is set last and cleared first, so a call stopped in the middle of
+-- a row breaks that row again on the next.
 layOutWindow = function(labelW, modelDefault, rows)
   local logs = state.logsList
   local _, first, last = listWindow()
@@ -1070,6 +1072,9 @@ layOutWindow = function(labelW, modelDefault, rows)
       end
       local lines = wrapToWidth(string.format("[%s] %s", item.model or modelDefault, item.file),
                                 SMLSIZE, labelW, LIST_ROW_MAX_LINES)
+      -- First: a call stopped while the fields below change leaves a record broken for no column,
+      -- never one whose old key vouches for new lines.
+      item.labelW = nil
       item.labelText = table.concat(lines, "\n")
       item.labelLines = #lines
       item.labelModel = modelDefault

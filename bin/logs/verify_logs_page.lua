@@ -839,20 +839,28 @@ do
   local page = loadPage()
   local st = find(page.wakeup, "state")
   st.logsList, st.scanned, st.listTop = fullWindow(), true, 0
-  local ctx = { children = {}, x = 0, y = 0, w = 480, h = 270, requestRebuild = function() end }
+  -- The build the list waits for is the one the page asks for: count the requests per wakeup.
+  local requests = 0
+  local ctx = { children = {}, x = 0, y = 0, w = 480, h = 270, requestRebuild = function() requests = requests + 1 end }
   local firstFits, firstUsed = ceilingCall(page.build, ctx)
   check(firstFits and st.layoutPending == true and button(ctx, "btn_view") == nil,
     "full window hosted: the first build draws the notice and leaves the names to the wakeup", firstUsed)
-  local calls, allFit, worst = 0, true, 0
-  while st.layoutPending and calls < 50 do
-    local fits, used = ceilingCall(page.wakeup, ctx)
-    if not fits then allFit = false end
-    if used > worst then worst = used end
-    calls = calls + 1
+  local function fitNames(label)
+    local calls, allFit, worst, askedAt = 0, true, 0, nil
+    requests = 0
+    while st.layoutPending and calls < 50 do
+      local fits, used = ceilingCall(page.wakeup, ctx)
+      if not fits then allFit = false end
+      if used > worst then worst = used end
+      calls = calls + 1
+      if requests > 0 and askedAt == nil then askedAt = calls end
+    end
+    check(allFit and not st.layoutPending and calls > 1,
+      label .. ": each wakeup fitting names fits a widget call, over several calls", calls .. " calls, worst " .. worst)
+    check(askedAt == calls, label .. ": the wakeup that finishes the window asks for the build, none before it",
+      "asked at call " .. tostring(askedAt) .. " of " .. calls)
   end
-  check(allFit and not st.layoutPending and calls > 1,
-    "full window hosted: each wakeup fitting names fits a widget call, over several calls",
-    calls .. " calls, worst " .. worst)
+  fitNames("full window hosted")
   ctx.children = {}
   local listFits, listUsed = ceilingCall(page.build, ctx)
   local rows = 0
@@ -860,6 +868,25 @@ do
   check(listFits and rows == 25, "full window hosted: the build of 25 rows fits a widget call",
     listUsed .. " instructions, " .. rows .. " rows")
   local hostedLabels = rowLabels(ctx)
+
+  -- Next: the window after it is fitted the same way, and its rows are the next 25 logs.
+  local nextButton = button(ctx, "page_next")
+  check(nextButton ~= nil and type(nextButton.press) == "function", "full window hosted: a Next button")
+  if nextButton then
+    nextButton.press()
+    ctx.children = {}
+    local fits = ceilingCall(page.build, ctx)
+    check(fits and st.layoutPending == true and button(ctx, "btn_view") == nil,
+      "full window hosted, Next: the build draws the notice for the next window")
+    fitNames("full window hosted, Next")
+    ctx.children = {}
+    local nextFits = ceilingCall(page.build, ctx)
+    local labels = rowLabels(ctx)
+    local l26, l1 = st.logsList[26].labelText, st.logsList[1].labelText
+    check(nextFits and l26 ~= nil and string.find(labels, l26, 1, true) ~= nil
+      and string.find(labels, l1, 1, true) == nil,
+      "full window hosted, Next: the build draws logs 26 to 50", string.sub(labels, 1, 80))
+  end
 
   hosted = false
   local tool = loadPage()
