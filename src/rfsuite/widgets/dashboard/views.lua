@@ -404,6 +404,18 @@ function M.top(widget)
   return entry and entry.id or nil
 end
 
+-- A view taken off the stack starts its rolling menu over the next time it opens, wherever it was
+-- taken off; one merely covered keeps its place. What the quick menu read for its way on goes with it.
+local function forgetView(widget, id)
+  local stack = widget._viewStack
+  if stack == nil or id == nil then return end
+  if stack.rolls ~= nil and stack.rolls[id] ~= nil then
+    stack.rolls[id] = nil
+    if _G.rfsuite.logSteps then viewStep("%s left the stack, its rolling menu starts over", tostring(id)) end
+  end
+  if id == M.DEFAULT_VIEW then stack.tree = nil end
+end
+
 -- Put `id` on top. A view already on the stack is returned to -- everything above it is
 -- dropped -- rather than pushed a second time. An explicit open (`auto` not set) takes the
 -- automatic mark off an entry its condition had pushed, so it no longer closes when the
@@ -417,7 +429,10 @@ local function push(widget, id, auto)
   local stack = widget._viewStack
   local at = indexOf(stack, id)
   if at ~= nil then
-    for i = #stack, at + 1, -1 do stack[i] = nil end
+    for i = #stack, at + 1, -1 do
+      forgetView(widget, stack[i].id)
+      stack[i] = nil
+    end
     if not auto then stack[at].auto = nil end
     stack.refused = nil
     return true
@@ -573,6 +588,7 @@ function M.resolve(widget)
   for i = #session, 1, -1 do
     if session[i].auto and not held[session[i].id] then
       if _G.rfsuite.logSteps then viewStep("%s closed: its condition fell", tostring(session[i].id)) end
+      forgetView(widget, session[i].id)
       table.remove(session, i)
       changed = true
     end
@@ -798,19 +814,14 @@ function M.navigate(widget, after)
   elseif verb == "closeView" then
     local closed = M.top(widget)
     pop(widget)
-    -- That view's rolling menu starts over the next time it is opened; one under it keeps its place.
-    if widget._viewStack ~= nil then
-      M.dropRoll(widget, closed)
-      -- What the quick menu read for its way on goes with it.
-      if closed == M.DEFAULT_VIEW then widget._viewStack.tree = nil end
-    end
+    forgetView(widget, closed)
     M.invalidate(widget)
   elseif verb == "done" then
     -- A view that rose by itself over a rolling menu, the battery prompt, hands back to the place under it.
     local stack = widget._viewStack
     local entry = stack ~= nil and stack[#stack] or nil
     if entry ~= nil and entry.auto == true and entry.id ~= M.DEFAULT_VIEW and M.roll(widget, M.DEFAULT_VIEW) ~= nil then
-      M.dropRoll(widget, entry.id)
+      forgetView(widget, entry.id)
       stack[#stack] = nil
       M.invalidate(widget)
       return

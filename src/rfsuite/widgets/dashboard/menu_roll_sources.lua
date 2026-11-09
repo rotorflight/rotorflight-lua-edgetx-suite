@@ -89,9 +89,10 @@ local function writeProfile(widget, entry, choice, roll)
   local function report(value)
     base(value)
     trace("profile write " .. tostring(value))
-    -- A chain with a failed message stays failed whatever the last answer says, and a reply to a
-    -- write from before the menu was closed says nothing about this menu.
-    if value == "ok" and widget._viewStack == session and Views.roll(widget, roll.view) == roll
+    -- A chain with a failed message stays failed whatever the last answer says, a reply to a
+    -- write from before the menu was closed says nothing about this menu, and one that comes while
+    -- a view stands over the menu (the battery prompt) leaves that view up.
+    if value == "ok" and widget._viewStack == session and Views.topRoll(widget) == roll
       and Views.status(widget, entry.id) == "ok" then
       Views.navigate(widget, "done")
     end

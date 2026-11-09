@@ -431,6 +431,39 @@ local function run(mutate)
     check("an old reply leaves the new menu up", w._viewStack == session and roll(w) ~= nil)
   end
   do
+    -- A reply that comes while the battery prompt stands over the menu leaves the prompt up.
+    local w = toProfile()
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    local late = adds[#adds]
+    w.state.batteryPick = { loaded = true, pending = true, candidates = { { id = "a", name = "Pack A", cap = 3000 } } }
+    Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the prompt rose over the menu", Views.top(w) == "battery_pick" and Views.roll(w, "battery_pick") ~= nil)
+    late.processReply(late, {})
+    check("a reply under the prompt leaves it up", Views.top(w) == "battery_pick" and w.state.batteryPick.pending == true)
+  end
+  do
+    -- A view taken off the stack starts over; one merely covered keeps its place.
+    local w = open()
+    local r = roll(w)
+    w.state.batteryPick = { loaded = true, pending = true, candidates = { { id = "a", name = "Pack A", cap = 3000 } } }
+    Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the menu keeps its roll under the prompt", Views.roll(w, "menu") == r and Views.roll(w, "battery_pick") ~= nil)
+    Views.navigate(w, "openView:menu")
+    check("going back to the menu drops the prompt's roll", Views.top(w) == "menu" and Views.roll(w, "battery_pick") == nil
+      and Views.roll(w, "menu") == r)
+    w.state.batteryPick.pending = false
+    Views.resolve(w)
+    w.state.batteryPick.pending = true
+    Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the prompt rose again with a roll", Views.top(w) == "battery_pick" and Views.roll(w, "battery_pick") ~= nil)
+    w.state.batteryPick.pending = false
+    Views.resolve(w)
+    check("a prompt whose condition fell leaves no roll behind", Views.top(w) == "menu" and Views.roll(w, "battery_pick") == nil)
+  end
+  do
     -- The right list follows the left entry, from the one in force.
     local w, r = toProfile()
     r.levels[2].index = 3
@@ -1008,7 +1041,7 @@ if selfTest then
       return (string.gsub(t, "Menu.run%(widget, entry, choice, \"none\", report%)", "Menu.run(widget, entry, choice, \"done\", report)"))
     end },
     { "a write's success closes whatever it finds", function(t)
-      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and Views.roll%(widget, roll.view%) == roll\n      and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
+      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and Views.topRoll%(widget%) == roll\n      and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
     end },
     { "a position reported twice counts", function(t)
       return (string.gsub(t, "if sy == window.y then return end\n", ""))
