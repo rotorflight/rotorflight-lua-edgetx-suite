@@ -1,0 +1,5 @@
+- **The configuration tool started from the radio's tools menu no longer looks at every installed file on each start (`ui/home.lua`, `lib/precompile.lua`, `docs/reference/configuration-files.md`)**:
+  - It compiles only after an install or an update, as the dashboard does; on a compiled suite nothing is compiled at the start.
+  - While it compiles, it does not connect to the flight controller yet, as the dashboard does; the connection starts when the compile is through.
+  - A file edited on the card is compiled when a page first loads it; `developer.precompile = "full"` in `preferences.lua` brings back the look at every file on each start.
+  - While it compiles, the start screen follows the count at most once a second instead of rebuilding for every file, and the compile logs when it starts and when it ends: files checked, compiled and failed, why, and how long it took.

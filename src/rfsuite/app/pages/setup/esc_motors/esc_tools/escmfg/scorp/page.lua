@@ -103,6 +103,18 @@ local function pageText(i18n, key, fallback)
   return fallback
 end
 
+local function getInlineHelpHandler()
+  if ui.runtime.inlineHelpHandler then return ui.runtime.inlineHelpHandler end
+  ui.runtime.inlineHelpHandler = function(helpText, helpTitle)
+    if type(helpText) ~= "string" or helpText == "" then return end
+    local openHelp = ui.runtime.openHelp
+    if type(openHelp) == "function" then
+      openHelp(helpText, helpTitle)
+    end
+  end
+  return ui.runtime.inlineHelpHandler
+end
+
 -- `retryOnError` is set only for the read that FOLLOWS a write. The firmware invalidates
 -- its parameter cache on a successful commit and answers both the read and the next write
 -- with an error until a fresh readback from the ESC has been cached, so that first refusal
@@ -134,9 +146,15 @@ local function queueScorpionReadActual(queue, retryOnError)
 
         local session = getSession()
         -- Hundredths of an amp in the block, which is the unit the row on this page displays
-        -- and divides by; the store keeps whole amps.
-        if session and EscCurrentLimit then
-          EscCurrentLimit.remember(session, (tonumber(ui.config.max_current) or 0) / 100, "scorpion")
+        -- and divides by; the store keeps whole amps. The API module refuses a short block, so a
+        -- 0 here is what the ESC sent; the row offers it as the bottom of its range.
+        local maxCurrent = tonumber(parsed.max_current)
+        if session and EscCurrentLimit and maxCurrent then
+          if maxCurrent <= 0 then
+            EscCurrentLimit.forget(session, "scorpion")
+          else
+            EscCurrentLimit.remember(session, maxCurrent / 100, "scorpion")
+          end
         end
         if session then
           session.setup_esc_motors_esc_tools_scorp = {
@@ -355,6 +373,7 @@ end
 
 function M.getHeaderActions()
   return {
+    help = true,
     save = true,
     reload = true,
     menu = true
@@ -387,11 +406,18 @@ function M.onReload(ctx)
   return true
 end
 
+function M.onHelp(ctx)
+  local help = loadModule("app/pages/setup/esc_motors/esc_tools/escmfg/scorp/help.lua")
+  if type(help) ~= "function" then return nil end
+  return help({ i18n = ctx and ctx.i18n })
+end
+
 function M.build(ctx)
   ensureDeps()
   ensureLoaded()
 
   ui.runtime.requestRebuild = ctx and ctx.requestRebuild or nil
+  ui.runtime.openHelp = ctx and ctx.openHelp or nil
   ui.i18n = ctx and ctx.i18n or nil
 
   local children = ctx.children
@@ -491,7 +517,11 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, modeLabel, modeOpts, ui.config.esc_mode, function(val)
       ui.config.esc_mode = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_scorp_esc_mode", "The ESC's operating mode: one of its helicopter governor modes, or a mode for an airplane, a boat or a quad."),
+      helpTitle = modeLabel,
+      onHelp = getInlineHelpHandler()
+    })
     cursorY = cursorY + rowH
 
     local rotOpts = {
@@ -502,7 +532,11 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, motorRotationLabel, rotOpts, ui.config.rotation, function(val)
       ui.config.rotation = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_scorp_rotation", "Direction the motor turns, counter-clockwise or clockwise."),
+      helpTitle = motorRotationLabel,
+      onHelp = getInlineHelpHandler()
+    })
     cursorY = cursorY + rowH
 
     local becOpts = {
@@ -516,7 +550,11 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, becVoltageLabel, becOpts, ui.config.bec_voltage, function(val)
       ui.config.bec_voltage = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_scorp_bec_voltage", "The voltage the ESC's BEC puts out, or Disabled to leave the BEC off."),
+      helpTitle = becVoltageLabel,
+      onHelp = getInlineHelpHandler()
+    })
     cursorY = cursorY + rowH
 
     local teleOpts = {
@@ -530,12 +568,19 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, telemetryProtocolLabel, teleOpts, ui.config.telemetry_protocol, function(val)
       ui.config.telemetry_protocol = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_scorp_telemetry_protocol", "The format the ESC sends its telemetry in."),
+      helpTitle = telemetryProtocolLabel,
+      onHelp = getInlineHelpHandler()
+    })
     cursorY = cursorY + rowH
 
   elseif ui.currentSection == 2 then
     -- Advanced Settings
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_soft_start_time", "Soft Start Time"), {
+      helpText = pageText(i18n, "help_scorp_soft_start_time", "How long the ESC takes to bring the motor up on a soft start, 0 to 60 seconds."),
+      helpTitle = pageText(i18n, "esc_soft_start_time", "Soft Start Time"),
+      onHelp = getInlineHelpHandler(),
       min = 0, max = 60000, step = 1000,
       display = function(val) return string.format("%ds", math.floor(val / 1000)) end,
       get = function() return ui.config.soft_start_time end,
@@ -547,6 +592,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_runup_time", "Runup Time"), {
+      helpText = pageText(i18n, "help_scorp_runup_time", "How long the ESC takes for a runup, 0 to 60 seconds."),
+      helpTitle = pageText(i18n, "esc_runup_time", "Runup Time"),
+      onHelp = getInlineHelpHandler(),
       min = 0, max = 60000, step = 1000,
       display = function(val) return string.format("%ds", math.floor(val / 1000)) end,
       get = function() return ui.config.runup_time end,
@@ -558,6 +606,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_bailout_time", "Bailout Time"), {
+      helpText = pageText(i18n, "help_scorp_bailout_time", "How long the ESC's bailout takes, 0 to 65 seconds. It holds the time in milliseconds, in 16 bits, so 65 is the longest whole second."),
+      helpTitle = pageText(i18n, "esc_bailout_time", "Bailout Time"),
+      onHelp = getInlineHelpHandler(),
       -- Bailout is a 16-bit count of milliseconds on the wire (esc_parameters_scorpion.lua),
       -- so 65 s is the last whole second it holds; 66 s and up would wrap to under 35 s.
       min = 0, max = 65000, step = 1000,
@@ -571,6 +622,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_governor_p_gain", "Governor P Gain"), {
+      helpText = pageText(i18n, "help_scorp_gov_p", "Proportional gain of the ESC's own governor, 0.30 to 1.80."),
+      helpTitle = pageText(i18n, "esc_governor_p_gain", "Governor P Gain"),
+      onHelp = getInlineHelpHandler(),
       min = 30, max = 180, step = 1,
       display = function(val) return string.format("%.2f", val / 100) end,
       get = function() return ui.config.gov_proportional end,
@@ -582,6 +636,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_governor_i_gain", "Governor I Gain"), {
+      helpText = pageText(i18n, "help_scorp_gov_i", "Integral gain of the ESC's own governor, 1.50 to 2.50."),
+      helpTitle = pageText(i18n, "esc_governor_i_gain", "Governor I Gain"),
+      onHelp = getInlineHelpHandler(),
       min = 150, max = 250, step = 1,
       display = function(val) return string.format("%.2f", val / 100) end,
       get = function() return ui.config.gov_integral end,
@@ -600,12 +657,19 @@ function M.build(ctx)
     rowH = Controls.appendComboSelect(children, x, cursorY, w, startupSoundLabel, soundOpts, ui.config.motor_startup_sound, function(val)
       ui.config.motor_startup_sound = val
       markDirty()
-    end)
+    end, {
+      helpText = pageText(i18n, "help_scorp_startup_sound", "Whether the motor plays its tune at start."),
+      helpTitle = startupSoundLabel,
+      onHelp = getInlineHelpHandler()
+    })
     cursorY = cursorY + rowH
 
   elseif ui.currentSection == 3 then
     -- Limits Settings
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_protection_delay", "Protection Delay"), {
+      helpText = pageText(i18n, "help_scorp_protection_delay", "How long the ESC waits before its protections take effect, 0 to 5 seconds."),
+      helpTitle = pageText(i18n, "esc_protection_delay", "Protection Delay"),
+      onHelp = getInlineHelpHandler(),
       min = 0, max = 5000, step = 1000,
       display = function(val) return string.format("%ds", math.floor(val / 1000)) end,
       get = function() return ui.config.protection_delay end,
@@ -617,6 +681,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_cutoff_handling", "Cutoff Handling"), {
+      helpText = pageText(i18n, "help_scorp_cutoff_handling", "How hard the ESC cuts back when a limit is reached, 0 to 100 %."),
+      helpTitle = pageText(i18n, "esc_cutoff_handling", "Cutoff Handling"),
+      onHelp = getInlineHelpHandler(),
       min = 0, max = 10000, step = 100,
       display = function(val) return string.format("%d%%", math.floor(val / 100)) end,
       get = function() return ui.config.cutoff_handling end,
@@ -628,6 +695,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_max_temperature", "Max Temperature"), {
+      helpText = pageText(i18n, "help_scorp_max_temperature", "The temperature the ESC limits at, 0 to 400 degrees Celsius."),
+      helpTitle = pageText(i18n, "esc_max_temperature", "Max Temperature"),
+      onHelp = getInlineHelpHandler(),
       min = 0, max = 40000, step = 100,
       display = function(val) return string.format("%dC", math.floor(val / 100)) end,
       get = function() return ui.config.max_temperature end,
@@ -639,6 +709,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_max_current", "Max Current"), {
+      helpText = pageText(i18n, "help_scorp_max_current", "The current the ESC limits at, 0 to 300 A. The radio notes a set limit for the dashboard's ESC load and clears its note at 0."),
+      helpTitle = pageText(i18n, "esc_max_current", "Max Current"),
+      onHelp = getInlineHelpHandler(),
       min = 0, max = 30000, step = 100,
       display = function(val) return string.format("%dA", math.floor(val / 100)) end,
       get = function() return ui.config.max_current end,
@@ -650,6 +723,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_min_voltage", "Min Voltage"), {
+      helpText = pageText(i18n, "help_scorp_min_voltage", "The pack voltage the ESC cuts back at, 0 to 70 V."),
+      helpTitle = pageText(i18n, "esc_min_voltage", "Min Voltage"),
+      onHelp = getInlineHelpHandler(),
       min = 0, max = 7000, step = 100,
       display = function(val) return string.format("%.1fV", val / 100) end,
       get = function() return ui.config.min_voltage end,
@@ -661,6 +737,9 @@ function M.build(ctx)
     cursorY = cursorY + rowH
 
     rowH = Controls.appendNumberField(children, x, cursorY, w, pageText(i18n, "esc_max_capacity_used", "Max Capacity Used"), {
+      helpText = pageText(i18n, "help_scorp_max_capacity_used", "The capacity the ESC allows to be drawn, 0 to 60 Ah."),
+      helpTitle = pageText(i18n, "esc_max_capacity_used", "Max Capacity Used"),
+      onHelp = getInlineHelpHandler(),
       min = 0, max = 6000, step = 100,
       display = function(val) return string.format("%.1fAh", val / 100) end,
       get = function() return ui.config.max_used end,

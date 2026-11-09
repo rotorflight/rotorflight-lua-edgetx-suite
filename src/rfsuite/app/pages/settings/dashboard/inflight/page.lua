@@ -124,6 +124,17 @@ local function preferences(prefs)
   return prefs
 end
 
+--- The radio model's own name: while a connected craft's name stands in its place, the name store
+-- holds the one it replaced. The switch's key stores it, and the set-up line shows it.
+local function ownModelName(info)
+  local name = info and info.name or ""
+  local ok, store = pcall(_G.rfsuite.require or loadModule, "lib/model_name_store.lua")
+  if ok and type(store) == "table" and type(store.pending) == "function" then
+    name = store.pending() or name
+  end
+  return name
+end
+
 --- One radio surface for the whole visit. It is a table of closures, so building a fresh one per
 -- build would hand the page a new set of them every time the screen was laid out again.
 local function radio()
@@ -136,6 +147,14 @@ end
 local function ensureLoaded(prefs)
   if ui.loaded then return end
   ui.config = Setup.loadRadioSettings(preferences(prefs))
+  do
+    local info = Setup.radio().modelInfo()
+    local key = Setup.modelOnKey(info and info.filename)
+    local Preferences = (_G.rfsuite.require or loadModule)("lib/preferences.lua")
+    ui.modelOnKey = key
+    ui.modelOnName = ownModelName(info)
+    ui.config.enabled = key ~= nil and Preferences.inflightOn(preferences(prefs).inflight, info)
+  end
   ui.radio = nil
   ui.checkDone = false
   ui.checkResult = nil
@@ -363,6 +382,7 @@ local function checkResult()
     -- The resolved block goes with it: a trim setting is a switch POSITION now, and the trim-mode
     -- half of the check indexes the firmware's own table by the semantic number behind it.
     ui.checkResult = Setup.check({ radio = radio(), settings = ui.config }, ui.config, trimNames())
+    ui.faultSettled = false
   end
   return ui.checkResult
 end
@@ -414,6 +434,20 @@ local function describeCheck(i18n, result)
   if trim then parts[#parts + 1] = t(i18n, "check_trim", "Trim still active in a flight mode") end
   if claim then parts[#parts + 1] = t(i18n, "check_claim", "Walk and adjust need two different trims") end
   return table.concat(parts, " / ")
+end
+
+--- Whether the set-up button can answer this verdict. Two trims claimed twice, a variable pair not
+-- chosen and the like are the fields' to fix; the verdict line says which.
+local function setupCanFix(result)
+  if type(result) ~= "table" then return result == nil end
+  for i = 1, #result do
+    local code = result[i]
+    if string.find(code, "mix", 1, true) or string.find(code, "gvar_", 1, true)
+        or string.find(code, "trim_mode", 1, true) then
+      return true
+    end
+  end
+  return false
 end
 
 --- The conflict warning's text, or nil where there is nothing to warn about.
@@ -484,9 +518,16 @@ local function saveToStore(ctx)
   if type(prefs) ~= "table" then return false, "preferences" end
   if type(prefs.inflight) ~= "table" then prefs.inflight = {} end
   Setup.storeRadioSettings(prefs.inflight, ui.config)
+  -- Written only while on, so a model never switched on carries nothing. The value is the model's own
+  -- name, so a later model with the same file name is not on: see lib/preferences.lua M.inflightOn.
+  if ui.modelOnKey ~= nil then
+    prefs.inflight[ui.modelOnKey] = ui.config.enabled == true and (ui.modelOnName or "") or nil
+  end
 
-  if type(ctx.savePreferences) ~= "function" then return false, "preferences" end
-  return ctx.savePreferences()
+  -- A set-up's result arrives with the build's context, which carries the table and not the writer.
+  local save = ctx.savePreferences or (_G.rfsuite and _G.rfsuite.savePreferences)
+  if type(save) ~= "function" then return false, "preferences" end
+  return save()
 end
 
 function M.getHeaderActions()
@@ -550,7 +591,7 @@ local function planQuestion(i18n, plan)
 
   -- The plan is built from the fields as they stand, which is not the same as the file on the card:
   -- a channel or a variable edited and not yet saved is what gets written.
-  lines[#lines + 1] = t(i18n, "plan_from_page", "It writes the values as they are set on this page, saved or not.")
+  lines[#lines + 1] = t(i18n, "plan_from_page", "It writes and saves the values as they are set on this page.")
   return table.concat(lines, "\n")
 end
 
@@ -577,6 +618,9 @@ local function refusalText(i18n, reason)
     return t(i18n, "plan_same_channel", "The two channels have to be different.")
   elseif reason == "no_ls" then
     return t(i18n, "plan_no_ls", "No logical switch is free to time the pulses; empty one first.")
+  elseif reason == "trim_claimed_twice" or reason == "no_nav_trim" then
+    -- The sentence the check shows for both.
+    return t(i18n, "check_claim", "Walk and adjust need two different trims")
   end
   return t(i18n, "plan_unsupported", "This radio does not offer the mixer writer.")
 end
@@ -619,11 +663,17 @@ local function modelFile()
   return info and info.filename or nil
 end
 
---- A refusal asks only whether armed is REPORTED. The page works with no flight controller connected:
--- that is how a pilot sets a model up at home, so "cannot tell" does not refuse here.
+--- A set-up and a restore change what the radio sends, so they run with nothing on the link at all, which
+-- is how a pilot sets a model up at home. Asking for armed alone would let them through on a craft that
+-- is powered with its arming flags unreported.
 local function isArmed()
   local armed = ensureArmed()
   return armed ~= nil and armed.isArmed() == true
+end
+
+local function linkUp()
+  local armed = ensureArmed()
+  return armed ~= nil and armed.linkUp() == true
 end
 
 local function finishJob(title, message)
@@ -649,8 +699,69 @@ end
 -- disarm can pass between two slices with nothing to see but the count.
 local function mayGoOn(job)
   local armed = ensureArmed()
-  if armed ~= nil and (armed.isArmed() == true or armed.changeCount() ~= job.armCount) then return false end
+  if armed ~= nil and (armed.isArmed() == true or armed.linkUp() == true or armed.changeCount() ~= job.armCount) then
+    return false
+  end
   return modelFile() == job.modelFile
+end
+
+--- A set-up saves the page's values at once: they have just gone to the radio, and with others on the
+-- card the check would fail on the next visit. It turns nothing on; that is the switch's. Answers the
+-- text to add when the save failed, so the result does not claim what the card does not hold.
+local function storeSetup()
+  local ok, err = saveToStore(ui.saveCtx)
+  logJob(ok and "info" or "warn", "setup job: page values saved %s %s", tostring(ok), tostring(err or ""))
+  if ok then
+    ui.dirty = false
+    return ""
+  end
+  return " " .. t(ui.i18n, "plan_not_saved", "The settings could not be saved; save the page.")
+end
+
+--- A restore leaves the model not set up, so tuning goes off for it. Only that key is stored: edits on
+-- the page that were not saved stay unsaved. Answers the text to add when the save failed.
+local function storeRestored(file)
+  ui.config.enabled = false
+  local ctx = ui.saveCtx
+  local prefs = ctx and ctx.preferences
+  local save = ctx and ctx.savePreferences or (_G.rfsuite and _G.rfsuite.savePreferences)
+  local key = Setup.modelOnKey(file)
+  local ok, err = false, "preferences"
+  if type(prefs) == "table" and type(prefs.inflight) == "table" and type(save) == "function" and key ~= nil then
+    prefs.inflight[key] = nil
+    prefs.inflight.enabled = false
+    ok, err = save()
+  end
+  logJob(ok and "info" or "warn", "setup job: tuning off for this radio model, saved %s %s", tostring(ok), tostring(err or ""))
+  if ok then return "" end
+  return " " .. t(ui.i18n, "plan_not_saved", "The settings could not be saved; save the page.")
+end
+
+--- A setup fault turns tuning off for this radio model until the pilot switches it on again: a model
+-- repaired or changed since would otherwise run tuning as soon as the check passes, with no choice made.
+-- The switch goes off at once. With the page's values as saved the fault is the model's, and only its key
+-- is stored, as a restore does; with edits not saved yet the fault may be theirs, and the switch's off
+-- is stored with the page. Once per verdict.
+local function settleFault()
+  if ui.faultSettled or not ui.checkDone or type(ui.checkResult) ~= "table" then return false end
+  ui.faultSettled = true
+  local wasOn = ui.config.enabled == true
+  ui.config.enabled = false
+  local ctx = ui.saveCtx
+  local prefs = ctx and ctx.preferences
+  local key = ui.modelOnKey
+  if ui.dirty or key == nil or type(prefs) ~= "table" or type(prefs.inflight) ~= "table"
+      or prefs.inflight[key] == nil then
+    logJob("debug", "setup fault: switch off on the page, on before %s", tostring(wasOn))
+    return false
+  end
+  local save = ctx.savePreferences or (_G.rfsuite and _G.rfsuite.savePreferences)
+  prefs.inflight[key] = nil
+  prefs.inflight.enabled = false
+  local ok, err = false, "preferences"
+  if type(save) == "function" then ok, err = save() end
+  logJob(ok and "info" or "warn", "setup fault: tuning off for this radio model, saved %s %s", tostring(ok), tostring(err or ""))
+  return true
 end
 
 local JOB_STAGES = {}
@@ -689,9 +800,10 @@ function JOB_STAGES.plan(job)
   if plan.ok ~= true then
     finishJob(t(i18n, "plan_title", "Set up radio"), refusalText(i18n, plan.refused))
   elseif plan.nothing == true then
-    -- Nothing to write, so there is nothing to confirm.
+    -- Nothing to write, so there is nothing to confirm; the page's values are what it carries.
     finishJob(t(i18n, "plan_title", "Set up radio"),
-      t(i18n, "plan_nothing", "This radio model already carries this setup; nothing to write."))
+      t(i18n, "plan_nothing", "This radio model already carries this setup; nothing to write.")
+      .. " " .. t(i18n, "plan_switch_next", "Turn tuning on with the switch on this page.") .. storeSetup())
   else
     logJob("info", "setup job: asks, %d step(s) planned", #plan.gvars + #plan.deletions + #plan.insertions + #plan.trims)
     job.stage = "ask"
@@ -703,6 +815,15 @@ function JOB_STAGES.ask()
   -- The box's two buttons answer; see appendJobBox.
 end
 
+--- The pilot's word that the helicopter is powered off, before anything is written. A write is refused
+-- while anything answers on the link, so every write that gets here has nothing on it, and with nothing
+-- on it the radio cannot tell an unpowered helicopter from one whose receiver sends no telemetry: with
+-- telemetry off the radio reads no signal from a receiver that is on and bound. The model's mixer lines
+-- are the ones a powered helicopter flies on, so the question is asked every time.
+function JOB_STAGES.power()
+  -- The box's two buttons answer; see appendJobBox.
+end
+
 --- The record goes on the card BEFORE the first write, and is read back: no record, no write. A restore
 -- marks its record `partial` first, so one cut off in the middle is still offered.
 function JOB_STAGES.backup(job)
@@ -711,6 +832,27 @@ function JOB_STAGES.backup(job)
   local restoring = job.kind == "restore"
   if not restoring and job.encode == nil then job.encode = store.newEncode(job.plan, job.modelFile) end
   if not restoring and not store.encodeStep(job.encode, ENCODE_SLICE) then return end
+  -- Before the card: the record of the set-up before this one is the only way back to its lines, and it
+  -- is not to be replaced for a write that will not happen.
+  if not mayGoOn(job) then
+    logJob("warn", "setup job stopped before the record: armed or another model")
+    finishJob(restoring and t(i18n, "restore_setup", "Restore previous setup") or t(i18n, "plan_title", "Set up radio"),
+      t(i18n, "plan_stopped_early", "Stopped: a receiver or flight controller came up, or another radio model was selected. Nothing was changed."))
+    return
+  end
+  -- The answer may have stood for a while, and a restore's deletions clear whatever stands there. Its own
+  -- pass: this reads the model's state.
+  if restoring and job.record.state == "complete" and job.rechecked ~= true then
+    job.rechecked = true
+    if not store.stillCarries(radio(), job.record) then
+      logJob("info", "setup job: restore refused, the model changed during the question")
+      ui.recordChecked = false
+      ui.recordOffer = false
+      finishJob(t(i18n, "restore_setup", "Restore previous setup"),
+        t(i18n, "restore_changed", "This radio model changed since the set-up; nothing was restored."))
+    end
+    return
+  end
   local saved
   if restoring then
     saved = store.markState(job.modelFile, "partial")
@@ -738,7 +880,7 @@ function JOB_STAGES.write(job)
     logJob("warn", "setup job stopped: armed or another model, %d step(s) done", job.apply.at - 1)
     modelWritten()
     finishJob(title, t(i18n, "plan_stopped",
-      "Stopped: the model was armed or another radio model was selected. Restore previous setup puts it back."))
+      "Stopped: a receiver or flight controller came up, or another radio model was selected. Restore previous setup puts it back."))
     return
   end
   if not Plan.applyStep(job.apply, WRITE_SLICE) then return end
@@ -748,10 +890,17 @@ function JOB_STAGES.write(job)
     if job.apply.stopped then
       finishJob(title, t(i18n, "restore_failed", "The radio refused part of the restore; the saved setup is kept"))
     else
+      local note = ""
       if not ensureBackup().remove(job.modelFile) then
         logJob("warn", "setup job: the record could not be removed after the restore")
+        -- Still `partial` it would offer this restore again and refuse a set-up. `complete` is offered only
+        -- while the model carries what that set-up wrote, which it no longer does.
+        if not ensureBackup().markState(job.modelFile, "complete") then
+          logJob("warn", "setup job: the record could not be retired either")
+        end
+        note = " " .. t(i18n, "restore_not_removed", "The saved setup could not be deleted from the card.")
       end
-      finishJob(title, t(i18n, "restore_done", "Previous setup restored"))
+      finishJob(title, t(i18n, "restore_done", "Previous setup restored") .. note .. storeRestored(job.modelFile))
     end
   elseif job.apply.stopped then
     finishJob(title, string.format("%s (%d/%d)",
@@ -762,7 +911,8 @@ function JOB_STAGES.write(job)
       -- The set-up stands; the record still says partial, so the restore stays on offer.
       logJob("warn", "setup job: the record could not be marked complete")
     end
-    finishJob(title, string.format("%s (%d)", t(i18n, "plan_done", "Radio set up"), report.written))
+    finishJob(title, string.format("%s (%d)", t(i18n, "plan_done", "Radio set up"), report.written)
+      .. " " .. t(i18n, "plan_switch_next", "Turn tuning on with the switch on this page.") .. storeSetup())
   end
 end
 
@@ -770,18 +920,42 @@ end
 function JOB_STAGES.read(job)
   local i18n = ui.i18n
   local store = ensureBackup()
-  if job.parse == nil then
-    job.modelFile = modelFile()
-    job.parse = store.newParse(job.modelFile)
+  local title = t(i18n, "restore_setup", "Restore previous setup")
+  if job.record == nil then
     if job.parse == nil then
-      finishJob(t(i18n, "restore_setup", "Restore previous setup"),
-        t(i18n, "restore_failed", "The radio refused part of the restore; the saved setup is kept"))
-      return
+      job.modelFile = modelFile()
+      job.parse = store.newParse(job.modelFile)
+      if job.parse == nil then
+        finishJob(title, t(i18n, "restore_failed", "The radio refused part of the restore; the saved setup is kept"))
+        return
+      end
     end
+    if not store.parseStep(job.parse, PARSE_SLICE) then return end
+    job.record = job.parse.record
+    job.parse = nil
+    return
   end
-  if not store.parseStep(job.parse, PARSE_SLICE) then return end
-  job.plan = store.restorePlan(radio(), job.parse.record)
-  job.parse = nil
+  if job.checked ~= true then
+    -- Its own pass: the model's state is read here. A damaged record cannot put anything back and, kept,
+    -- would refuse every set-up, so it goes. The offer was read when the page opened; a function script
+    -- or another widget can have changed the model since. A `partial` record is restored whatever stands.
+    job.checked = true
+    if not store.isWhole(job.record) then
+      local removed = store.remove(job.modelFile)
+      logJob("warn", "setup job: the record is damaged, removed %s", tostring(removed))
+      ui.recordChecked = false
+      ui.recordOffer = false
+      finishJob(title, removed and t(i18n, "restore_damaged", "The saved setup is damaged and was discarded; nothing was changed.")
+        or t(i18n, "restore_damaged_kept", "The saved setup is damaged and could not be deleted; delete it from the card."))
+    elseif job.record.state == "complete" and not store.stillCarries(radio(), job.record) then
+      logJob("info", "setup job: restore refused, the model changed since the set-up")
+      ui.recordChecked = false
+      ui.recordOffer = false
+      finishJob(title, t(i18n, "restore_changed", "This radio model changed since the set-up; nothing was restored."))
+    end
+    return
+  end
+  job.plan = store.restorePlan(radio(), job.record)
   job.stage = "ask"
   requestRebuild()
 end
@@ -813,7 +987,9 @@ local function stepRecordCheck()
     end
   end
   if not store.parseStep(ui.recordParse, PARSE_SLICE) then return false end
-  ui.recordOffer = store.stillCarries(radio(), ui.recordParse.record)
+  -- A record that is not whole is not compared: stillCarries indexes the model by its entries.
+  local record = ui.recordParse.record
+  ui.recordOffer = store.isWhole(record) and store.stillCarries(radio(), record)
   logJob("debug", "setup job: restore offered %s", tostring(ui.recordOffer))
   ui.recordParse = nil
   ui.recordChecked = true
@@ -828,6 +1004,12 @@ local function offerSetup(i18n)
       title = t(i18n, "plan_title", "Set up radio"),
       message = t(i18n, "plan_armed", "Not while the model is armed.")
     }
+  elseif linkUp() then
+    logJob("info", "setup job: set-up refused, the link is up")
+    ui.jobResult = {
+      title = t(i18n, "plan_title", "Set up radio"),
+      message = t(i18n, "plan_connected", "Not while a receiver or flight controller is connected; power it off first.")
+    }
   else
     logJob("debug", "setup job: set-up started")
     ui.job = { kind = "setup", stage = "plan" }
@@ -840,6 +1022,12 @@ local function offerRestore(i18n)
     ui.jobResult = {
       title = t(i18n, "restore_setup", "Restore previous setup"),
       message = t(i18n, "plan_armed", "Not while the model is armed.")
+    }
+  elseif linkUp() then
+    logJob("info", "setup job: restore refused, the link is up")
+    ui.jobResult = {
+      title = t(i18n, "restore_setup", "Restore previous setup"),
+      message = t(i18n, "plan_connected", "Not while a receiver or flight controller is connected; power it off first.")
     }
   else
     logJob("debug", "setup job: restore started")
@@ -883,8 +1071,33 @@ local function appendJobBox(children, x, y, w, h, i18n)
         {
           text = restoring and t(i18n, "restore_confirm", "Restore") or t(i18n, "plan_confirm", "Set up"),
           press = function()
+            logJob("debug", "setup job: answered, asks whether the helicopter is off")
+            job.stage = "power"
+            requestRebuild()
+          end
+        }
+      }
+    })
+  elseif job.stage == "power" then
+    LoadingOverlay.append(children, {
+      x = x, y = y, w = w, h = h, title = title, bar = false,
+      message = t(i18n, "plan_power_question",
+        "Is the helicopter powered off? With telemetry off the radio cannot see a receiver that is on."),
+      actions = {
+        {
+          text = t(i18n, "plan_cancel", "Cancel"),
+          press = function()
+            logJob("info", "setup job: cancelled at the power question")
+            ui.job = nil
+            requestRebuild()
+          end
+        },
+        {
+          text = t(i18n, "plan_power_confirm", "It is off"),
+          press = function()
             -- The answer only: the write runs from the page's wakeup. The count starts here, so an
             -- arm and disarm from now on stops it.
+            logJob("info", "setup job: the pilot confirmed the helicopter is off")
             local armed = ensureArmed()
             job.armCount = armed and armed.changeCount() or 0
             job.stage = "backup"
@@ -916,13 +1129,7 @@ end
 -- model is really called is kept in lib/model_name_store.lua until the name is put back.
 local function radioModelName()
   if ui.modelName == nil then
-    local info = radio().modelInfo()
-    local name = info and info.name or ""
-    local ok, store = pcall(_G.rfsuite.require or loadModule, "lib/model_name_store.lua")
-    if ok and type(store) == "table" and type(store.pending) == "function" then
-      name = store.pending() or name
-    end
-    ui.modelName = name
+    ui.modelName = ownModelName(radio().modelInfo())
   end
   return ui.modelName
 end
@@ -996,22 +1203,32 @@ local function buildGeneral(children, x, y, w, i18n)
   local cursorY = y
   cursorY = cursorY + appendNote(children, x, cursorY, w,
     t(i18n, "pointer_tuning", "Set up suggested functions from the tuning screen on the ground."))
-  local enabledLabel = t(i18n, "enabled", "In-flight tuning on this radio")
+  -- On only while this radio model is set up: with a fault the overlay refuses to drive anyway, and a
+  -- switch that says on then says something untrue. A fault also turns it off for the model (see
+  -- settleFault), so after a repair the pilot switches it on again.
+  local enabledLabel = t(i18n, "enabled", "In-flight tuning on this radio model")
+  local result = checkResult()
+  local ready = result == "ok"
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     enabledLabel,
-    ui.runtime.getBoolGetter("enabled"),
-    ui.runtime.getBoolSetter("enabled"),
-    nil,
+    function() return ready and ui.config.enabled == true end,
+    function(value)
+      -- This model alone; the others keep what they have.
+      ui.config.enabled = value == true
+      ui.runtime.markValueChanged()
+    end,
+    function() return ready end,
     {
-      helpText = t(i18n, "help_enabled", "With it off, in-flight tuning drives nothing on any model. Off by default."),
+      helpText = t(i18n, "help_enabled", "On or off for this radio model, once it is set up. Renaming the model turns it off. With it off, in-flight tuning drives nothing on it."),
       helpTitle = enabledLabel,
       onHelp = onRowHelp
     })
-  cursorY = cursorY + appendNote(children, x, cursorY, w,
-    t(i18n, "enabled_note",
-      "The master switch for every model."))
+  if result ~= "reading" and not ready and setupCanFix(result) then
+    cursorY = cursorY + appendNote(children, x, cursorY, w,
+      t(i18n, "enabled_needs_setup", "Set up this radio model first."))
+  end
 
-  cursorY = cursorY + appendNote(children, x, cursorY, w, describeCheck(i18n, checkResult()))
+  cursorY = cursorY + appendNote(children, x, cursorY, w, describeCheck(i18n, result))
 
   -- Which model the button writes: the radio's, not the flight controller's.
   cursorY = cursorY + appendNote(children, x, cursorY, w,
@@ -1035,7 +1252,7 @@ local function buildGeneral(children, x, y, w, i18n)
     text = "?",
     press = function()
       onRowHelp(t(i18n, "help_setup",
-        "Writes this radio model's channels, variables and trims as set here; check them first. Restore previous setup puts back what it replaced."),
+        "Writes and saves this radio model's channels, variables and trims as set here; check them first. Tuning stays off until the switch is on. Restore previous setup puts back what it replaced."),
         setupLabel)
     end
   }
@@ -1201,7 +1418,11 @@ local function buildTrims(children, x, y, w, i18n)
   cursorY = cursorY + Controls.appendRadioSwitch(children, x, cursorY, w,
     trimsLabel,
     ui.runtime.getBoolGetter("trims"),
-    ui.runtime.getBoolSetter("trims"),
+    function(value)
+      -- The check claims trims only while they drive the surface, so its verdict was about the other value.
+      ui.checkDone = false
+      ui.runtime.getBoolSetter("trims")(value)
+    end,
     nil,
     {
       helpText = t(i18n, "help_trims",
@@ -1339,6 +1560,7 @@ function M.build(ctx)
   -- markValue writes the warning from a callback, which is handed no i18n.
   ui.i18n = i18n
   ui.requestRebuild = ctx.requestRebuild
+  ui.saveCtx = ctx
 
   -- While a job runs the page is that job's box and nothing else: no control under it can change
   -- what the pilot has just agreed to.
@@ -1388,6 +1610,8 @@ function M.wakeup(ctx)
     stepJob()
     return
   end
+  -- A pass of its own, as a save is.
+  if settleFault() then return end
   -- The record on the card, once per visit: whether a restore is on offer.
   if not inWidgetCall() then
     if not ui.recordChecked and stepRecordCheck() then requestRebuild() end
@@ -1450,6 +1674,7 @@ function M.onClose()
   ui.job = nil
   ui.jobResult = nil
   ui.requestRebuild = nil
+  ui.saveCtx = nil
   ui.recordChecked = false
   ui.recordParse = nil
   ui.recordOffer = false

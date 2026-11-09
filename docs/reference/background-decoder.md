@@ -36,7 +36,13 @@ Deleting the entry instead frees the script slot, and the suite adds it again on
 connect — deleting is not how to switch it off.
 
 Without the script, the dashboard decodes for itself exactly as it did before. Nothing is lost
-and nothing needs to be configured.
+and nothing needs to be configured. While the dashboard's connect sequence is still reading the
+flight controller's configuration -- and before it, while the suite waits for the armed state
+before sending anything -- it decodes only the armed state (the arming flags, or the System Status
+word), so it can see an armed model and send it nothing; the other values follow once the sequence
+is through. That is also what
+happens on the first connect of a model, before the radio has loaded the entry the suite has
+just added.
 
 ## Notes
 

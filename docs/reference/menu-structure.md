@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**142 entries, 120 of them open a page, 90 of those pages are documented.**
+**142 entries, 120 of them open a page, 91 of those pages are documented.**
 
 ## Diagrams
 
@@ -403,7 +403,7 @@ flowchart LR
   n12 --> n18
   n19["Adjustments"]:::undocumented
   n12 --> n19
-  n20["SmartFuel"]:::undocumented
+  n20["SmartFuel"]:::documented
   n12 --> n20
   n21["Link"]:::undocumented
   n12 --> n21
@@ -584,7 +584,7 @@ Section `system`.
 | Settings &rsaquo; Audio &rsaquo; Events &rsaquo; Profiles | `audio_events_profiles` | `settings_audio_events_profiles_page` | `settings/audio/events/profiles` | **none** | &mdash; |
 | Settings &rsaquo; Audio &rsaquo; Events &rsaquo; ESC | `audio_events_esc` | `settings_audio_events_esc_page` | `settings/audio/events/esc` | **none** | &mdash; |
 | Settings &rsaquo; Audio &rsaquo; Events &rsaquo; Adjustments | `audio_events_adjustment` | `settings_audio_events_adjustment_page` | `settings/audio/events/adjustment` | **none** | &mdash; |
-| Settings &rsaquo; Audio &rsaquo; Events &rsaquo; SmartFuel | `audio_events_fuel` | `settings_audio_events_fuel_page` | `settings/audio/events/fuel` | **none** | &mdash; |
+| Settings &rsaquo; Audio &rsaquo; Events &rsaquo; SmartFuel | `audio_events_fuel` | `settings_audio_events_fuel_page` | `settings/audio/events/fuel` | [settings/audio/events/fuel.md](../pages/settings/audio/events/fuel.md) | &mdash; |
 | Settings &rsaquo; Audio &rsaquo; Events &rsaquo; Link | `audio_events_link` | `settings_audio_events_link_page` | `settings/audio/events/link` | **none** | &mdash; |
 | Settings &rsaquo; Audio &rsaquo; Events &rsaquo; Rescue | `audio_events_rescue` | `settings_audio_events_rescue_page` | `settings/audio/events/rescue` | [settings/audio/events/rescue.md](../pages/settings/audio/events/rescue.md) | &mdash; |
 | Settings &rsaquo; Shortcuts | `shortcuts` | `settings_shortcuts_page` | no page file and no entries | &mdash; | `enabled = false`, `hideWhenDisabled = true` |

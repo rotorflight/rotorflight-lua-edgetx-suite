@@ -244,6 +244,32 @@ function utils.log(self, msg, level)
   end
 end
 
+--- A milestone: one info line that ends with what this Lua state and the radio have left. Asked
+--- first, so with nobody recording it builds nothing and pushes no Session Logs entry out. For
+--- rare events only: creation, a phase, a theme, the connection.
+function utils.milestone(tag, fmt, ...)
+  if not (Log and type(Log.recording) == "function" and Log.recording()) then return end
+  local ok, text = pcall(string.format, fmt, ...)
+  Log.emit(tag, (ok and text or tostring(fmt)) .. ", " .. Log.resources(), "info")
+end
+
+--- A line of the base log, which stands at every level: the same words, and the memory figures
+--- only while somebody is recording, so a radio left at off pays one call here.
+function utils.withResources(msg)
+  if Log and type(Log.recording) == "function" and Log.recording() then
+    return msg .. ", " .. Log.resources()
+  end
+  return msg
+end
+
+--- This Lua state's memory in whole kB, and the highest figure seen since load. It is sampled at
+--- the state line and around each build, so the peak is the highest SAMPLE, not a true maximum.
+function utils.luaKb(self)
+  local kb = math.floor(collectgarbage("count") + 0.5)
+  if kb > (self._luaPeak or 0) then self._luaPeak = kb end
+  return kb
+end
+
 local function audioLog(self, msg, level)
   utils.log(self, msg, level)
 end
@@ -351,7 +377,14 @@ local function traceInstructionUsage(self)
 
   -- The cheap path, taken on all but one pass in fifty: two comparisons and a clock read.
   -- Sampling has to happen on every pass, because the peak is the point of the line.
-  if percent > self._usageWindowPeak then self._usageWindowPeak = percent end
+  if percent > self._usageWindowPeak then
+    self._usageWindowPeak = percent
+    self._usageWindowWork = self._passWork
+    if percent >= 50 and self._shmOn then
+      Log.emitf("rfsuite.widget", "debug", "long pass: %d%% of the instruction budget, work %s",
+        percent, tostring(self._passWork))
+    end
+  end
   if percent > self._usagePeak then self._usagePeak = percent end
 
   -- The heartbeat, for a reader outside this Lua state.
@@ -390,6 +423,8 @@ local function traceInstructionUsage(self)
   -- most expensive one this widget has.
   if self._shmOn == nil then
     self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
+    self._traceOn = self._shmOn and Log.wanted("trace")
+    _G.rfsuite.logSteps = self._shmOn
   end
 
   self._shmPass = (self._shmPass or 0) + 1
@@ -439,18 +474,30 @@ local function traceInstructionUsage(self)
   self._usageReportAt = now + USAGE_REPORT_INTERVAL
 
   self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
+  self._traceOn = self._shmOn and Log.wanted("trace")
+  _G.rfsuite.logSteps = self._shmOn
+  -- The module load lines (lib/require.lua). Not on the first report, which falls on the first
+  -- pass: that pass loads modules and searches every source once, close to the instruction limit
+  -- by itself, and a line per load took it over at debug.
+  _G.rfsuite.logModuleLoads = self._usageReported and self._shmOn or false
+  self._usageReported = true
 
   -- The state line: this state's budget and memory and the radio's, every interval, at INFO so a
   -- log taken for a report carries it. Built only while somebody is recording -- with the log off
   -- it would push the Session Logs list's entries out one by one for nobody.
-  if Log and type(Log.recording) == "function" and Log.recording() then
+  -- Kept for the phase and link lines, which fall on the armed pass, the closest to its limit.
+  self._recordingOn = Log and type(Log.recording) == "function" and Log.recording() or false
+  if self._recordingOn then
     Log.emitf("rfsuite.widget", "info",
-      "state: instruction budget %d%% now, %d%% peak/%ds, %d%% peak since load, %d objects, %s, theme=%s",
+      "state: instruction budget %d%% now, %d%% peak/%ds, %d%% peak since load, %d objects, %s, "
+        .. "peak work %s, lua peak %d kB, theme=%s",
       percent, self._usageWindowPeak, USAGE_REPORT_INTERVAL, self._usagePeak,
-      self._lastChildCount, Log.resources(), tostring(self.themePath))
+      self._lastChildCount, Log.resources(), tostring(self._usageWindowWork),
+      utils.luaKb(self) and self._luaPeak, tostring(self.themePath))
   end
 
   self._usageWindowPeak = -1
+  self._usageWindowWork = nil
 end
 
 local function readValue(name, fallback)
@@ -522,7 +569,11 @@ local function driveLeftSave()
     SavePipeline = requireModule("tasks/msp/save_pipeline.lua")
   end
   if type(SavePipeline) == "table" and type(SavePipeline.wakeup) == "function" then
-    pcall(SavePipeline.wakeup)
+    local saveOk, saveErr = pcall(SavePipeline.wakeup)
+    if not saveOk and saveErr ~= utils.lastSaveError then
+      utils.lastSaveError = saveErr
+      widgetLog(nil, "save pipeline raised: " .. tostring(saveErr), "warn")
+    end
   end
 end
 
@@ -640,7 +691,12 @@ local function tickMspRuntime(self, carry)
   driveLeftSave()
 
   if EventsRuntime and type(EventsRuntime.wakeup) == "function" then
-    pcall(EventsRuntime.wakeup, carry)
+    local eventsOk, eventsErr = pcall(EventsRuntime.wakeup, carry)
+    -- Once per message: this runs every pass, and a raise here would repeat at the pass rate.
+    if not eventsOk and eventsErr ~= utils.lastEventsError then
+      utils.lastEventsError = eventsErr
+      widgetLog(nil, "events wakeup raised: " .. tostring(eventsErr), "warn")
+    end
   end
 
   -- The wakeup above is what FILLS the queue while the connect chain runs. Without a second
@@ -677,6 +733,7 @@ local function loadPreferences()
   end
   local loadedOk, prefs = pcall(PreferencesModule.load)
   if not loadedOk or type(prefs) ~= "table" then
+    widgetLog(nil, "preferences did not load: " .. tostring(prefs), "warn")
     return nil
   end
   return prefs
@@ -739,12 +796,15 @@ local function logGv(fmt, ...)
   -- and one of them sits on the unconditional path of every background pass. Log.wanted
   -- asks the same question the emit path asks, so a level added to the ladder later
   -- cannot leave this gate behind.
-  if not (Log and type(Log.wanted) == "function" and Log.wanted("info")) then return end
+  --
+  -- Debug, not info: a build fires on every change of a displayed value, and a log read at info
+  -- is the milestones (utils.milestone), which carry the memory figures as well.
+  if not (Log and type(Log.wanted) == "function" and Log.wanted("debug")) then return end
 
   local msg = tostring(fmt)
   if select("#", ...) > 0 then msg = string.format(msg, ...) end
 
-  Log.emit("rfsuite.reload", msg, "info")
+  Log.emit("rfsuite.reload", msg, "debug")
 end
 
 -- The in-flight tuning overlay, loaded on first use rather than at the top of this file. It is
@@ -781,7 +841,7 @@ local function inflightDrive()
   return InflightDriveCache.module
 end
 
--- Preview and the radio master setting enable tuning. Opening its fullscreen surface releases
+-- Preview and this radio model's setting enable tuning. Opening its fullscreen surface releases
 -- output; the setup check and the completed FC slot read determine what can be tuned.
 --
 -- The global preferences the widget holds are re-read when the file changes, and that reload
@@ -936,6 +996,10 @@ local function dropInflightModules(viewOnly)
     end
   end
   if first and first < InflightLoadIndex then InflightLoadIndex = first end
+  if first and Log and type(Log.wanted) == "function" and Log.wanted("debug") then
+    Log.emit("rfsuite.widget", "in-flight modules dropped (" .. (viewOnly and "view only" or "all") .. "), "
+      .. Log.resources(), "debug")
+  end
 end
 
 -- Output, a held step, a profile job or a save still to finish: a session is not ended under them.
@@ -1407,6 +1471,12 @@ local function standbyJobStep(self)
     lvgl.build(children)
     self._standbyCache.elrsWidths = job.elrsWidths
     self._standbyCache.elrsActiveWidths = job.elrsWidths
+    if job.intro and not self._standbyIntroShown then
+      self._standbyIntroShown = true
+      if Log and type(Log.emitf) == "function" then
+        Log.emitf("rfsuite.widget.standby", "info", "first-start tile shown")
+      end
+    end
     self.built = true
     self._lastChildCount = #children
     if Log and type(Log.emitf) == "function" then
@@ -1450,6 +1520,35 @@ local function standbyJobStep(self)
     end
     return false
   end
+  -- The first-start tile takes the place of the rows, in a pass of its own: fitting its text is the
+  -- most of its cost, and the files are loaded for this one build.
+  if job.introNodes and (job.introW ~= self.zone.w or job.introH ~= self.zone.h) then job.introNodes = nil end
+  if job.intro and job.introNodes == nil then
+    local core = _G.rfsuite.paths.core .. "/widgets/dashboard/"
+    local Notice = assert(loadScript(core .. "notice.lua", _G.rfsuite.loadMode or "t"))()
+    local firstStart = assert(loadScript(core .. "first_start.lua", _G.rfsuite.loadMode or "t"))()
+    local t = (self.i18n and self.i18n.t) or function(_, fallback) return fallback end
+    local title, lines = firstStart(t)
+    local x, y, w, h = DashboardStandby.noticeArea(self.zone.w, self.zone.h)
+    local nodes = {}
+    local rows = Notice.append(nodes, x, y, w, h, title, lines,
+      requireModule("lib/color_schemes.lua").colors(utils.colorScheme(self)))
+    if rows then
+      job.introNodes, job.introW, job.introH = nodes, self.zone.w, self.zone.h
+      if Log and type(Log.emitf) == "function" then
+        Log.emitf("rfsuite.widget.standby", "trace", "first-start tile fitted: %d rows", rows)
+      end
+    else
+      -- It stays unread, and a zone it fits in shows it; here the rows stand.
+      job.intro = false
+      self._standbyIntroNoFitW, self._standbyIntroNoFitH = self.zone.w, self.zone.h
+      if Log and type(Log.emitf) == "function" then
+        Log.emitf("rfsuite.widget.standby", "warn", "first-start text does not fit %sx%s",
+          tostring(self.zone.w), tostring(self.zone.h))
+      end
+    end
+    return false
+  end
   local values = self._standbyCache.snapshotValues or {}
   local infoKind = self.state and self.state.standbyInfoKind or nil
   local texts = standbyTexts(self, items, infoKind)
@@ -1469,8 +1568,12 @@ local function standbyJobStep(self)
   self._standbyCache.elrsBuildWidths = job.elrsWidths
   -- A label reading the line, as on the splash: see splashJobStep.
   self._statusLineText = self._statusLineText or function() return self.statusLine or "Please wait..." end
-  job.children = DashboardStandby.build(self.zone, self._statusLineText, text, items, values, self._standbyCache, info,
-    utils.colorScheme(self))
+  job.children = DashboardStandby.build(self.zone, self._statusLineText, text, job.intro and {} or items, values,
+    self._standbyCache, info, utils.colorScheme(self))
+  if job.introNodes then
+    for i = 1, #job.introNodes do job.children[#job.children + 1] = job.introNodes[i] end
+    job.introNodes = false
+  end
   self._standbyCache.elrsBuildWidths = nil
   job.zoneW, job.zoneH, job.layout = self.zone.w, self.zone.h, dashboard.standby_layout
   job.i18n, job.infoKind = self.i18n, infoKind
@@ -1893,6 +1996,9 @@ local function batteryPickLoadStep(self)
 
   -- The registry is read whole off the card; GEMINI.md asks for an explicit collect after that.
   collectgarbage("collect")
+  if self._shmOn then
+    Log.emitf("rfsuite.widget.view", "debug", "battery pick loaded, after the collect lua %d kB", utils.luaKb(self))
+  end
   return true
 end
 
@@ -1912,6 +2018,7 @@ end
 --- records nothing. A lost answer does not say what the board did: it may have taken the profile while
 --- the pack before stands, until the next connection reads the board again or a pick moves it.
 local function batteryPickApplyStep(self)
+  if self._traceOn then Log.emitf("rfsuite.widget.view", "trace", "battery pick: applying") end
   local pick = self.state.batteryPick
   local BatteryPick = requireModule("lib/battery_pick.lua")
   if type(BatteryPick) ~= "table" then
@@ -2045,6 +2152,7 @@ local function batteryPickApplyStep(self)
     end
     pick.writing = nil
     if ok then
+      widgetLog(self, "battery pick: profile " .. tostring(target) .. " written", "debug")
       self._batteryPickWritten = { id = id, target = target, press = press }
     else
       widgetLog(self, "battery pick not recorded: the profile write was given up", "warn")
@@ -2059,6 +2167,7 @@ local function batteryPickApplyStep(self)
     pick.boardProfile = nil
   else
     pick.writing = nil
+    widgetLog(self, "battery pick: the profile write was refused: " .. tostring(why), "warn")
     pick.applied = "refused:" .. tostring(why)
     if press ~= nil then press.report("failed") end
   end
@@ -2241,6 +2350,20 @@ local function preferencesStamp(modelPath, keptStamp)
   if not modelStamp then return nil end
 
   return globalStamp .. "|" .. modelStamp
+end
+
+-- The files as they stand now: the stamp above and the reload request's sizes, the same two looks
+-- reloadPreferencesIfNeeded takes. Nil where the stamp cannot be established.
+local function preferencesLook(keptStamp)
+  local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
+  local stamp = preferencesStamp(session and session.modelPreferencesFile, keptStamp)
+  if not stamp then return nil end
+  local seqs, paths = {}, reloadRequestPaths()
+  for i = 1, #paths do
+    local ok, info = pcall(fstat, paths[i])
+    seqs[paths[i]] = (ok and type(info) == "table" and (info.size or 0) > 0) and info.size or 0
+  end
+  return stamp, seqs
 end
 
 --- Which of the two files a stamp difference is about.
@@ -2434,7 +2557,10 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   -- Returning here does NOT lose the change: `self._reloadPending` is kept until the reload
   -- actually executes, so the next pass after disarming sees the pending reload and reloads then.
   if not force and (self.state.armed or (self.state.hadInflightFlight == true and not self.state.fblConnected)) then
-    logGv("reloadPreferencesIfNeeded: deferred due to armed/offline (armed=%s, hadInflightFlight=%s, fblConnected=%s)", tostring(self.state.armed), tostring(self.state.hadInflightFlight), tostring(self.state.fblConnected))
+    if self._shmOn and self._reloadDeferral ~= "armed" then
+      self._reloadDeferral = "armed"
+      logGv("reloadPreferencesIfNeeded: deferred due to armed/offline (armed=%s, hadInflightFlight=%s, fblConnected=%s)", tostring(self.state.armed), tostring(self.state.hadInflightFlight), tostring(self.state.fblConnected))
+    end
     return
   end
 
@@ -2448,7 +2574,10 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     and type(MspRuntime.getState) == "function" and MspRuntime.isFblConnected() then
     local msp = MspRuntime.getState()
     if type(msp) == "table" and msp.uidReadSettled == false then
-      logGv("reloadPreferencesIfNeeded: deferred until the UID read settles (pending=%s)", tostring(self._reloadPending))
+      if self._shmOn and self._reloadDeferral ~= "uid" then
+        self._reloadDeferral = "uid"
+        logGv("reloadPreferencesIfNeeded: deferred until the UID read settles (pending=%s)", tostring(self._reloadPending))
+      end
       return
     end
   end
@@ -2456,7 +2585,10 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   if isBackground and not force then
     -- During background passes (when widget is off-screen), defer heavy file I/O and theme
     -- compilation until widget returns to screen (refresh pass) to avoid EdgeTX CPU limit faults.
-    logGv("reloadPreferencesIfNeeded: deferred due to background pass (pending=%s)", tostring(self._reloadPending))
+    if self._shmOn and self._reloadDeferral ~= "background" then
+      self._reloadDeferral = "background"
+      logGv("reloadPreferencesIfNeeded: deferred due to background pass (pending=%s)", tostring(self._reloadPending))
+    end
     return
   end
 
@@ -2488,6 +2620,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
     end
   end
 
+  self._reloadDeferral = nil
   logGv("reloadPreferencesIfNeeded executing (force=%s signal=%s pending=%s armed=%s)", tostring(force), tostring(signalReload), tostring(self._reloadPending), tostring(self.state and self.state.armed))
 
   -- Invalidate current theme and memoization state BEFORE heavy disk reads.
@@ -2837,7 +2970,7 @@ local function updateConnectionState(self)
     self.built = false
     self.renderKey = nil
     if ready then
-      widgetLog(self, "FBL connected and telemetry initialized", "info")
+      widgetLog(self, utils.withResources("FBL connected and telemetry initialized"), "info")
       if softTimeoutReady then
         widgetLog(self, "Splash soft-timeout reached; continuing without full startup prerequisites", "warn")
       end
@@ -3070,19 +3203,26 @@ end
 
 local function loadDashboardLib()
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript(_G.rfsuite.paths.core .. "/app/pages/settings/dashboard/lib.lua", mode)
-  if not chunk then return nil end
-  local ok, lib = pcall(chunk)
-  if not ok or type(lib) ~= "table" then return nil end
+  local chunk, err = loadScript(_G.rfsuite.paths.core .. "/app/pages/settings/dashboard/lib.lua", mode)
+  local ok, lib = false, nil
+  if chunk then ok, lib = pcall(chunk) end
+  if not ok or type(lib) ~= "table" then
+    widgetLog(nil, "dashboard settings library did not load: " .. tostring(chunk and lib or err), "error")
+    return nil
+  end
   return lib
 end
 
 local function loadDashboardEngine()
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local chunk = loadScript(_G.rfsuite.paths.core .. "/widgets/dashboard/engine.lua", mode)
-  if not chunk then return nil end
-  local ok, engine = pcall(chunk)
-  if not ok or type(engine) ~= "table" then return nil end
+  local chunk, err = loadScript(_G.rfsuite.paths.core .. "/widgets/dashboard/engine.lua", mode)
+  local ok, engine = false, nil
+  if chunk then ok, engine = pcall(chunk) end
+  if not ok or type(engine) ~= "table" then
+    widgetLog(nil, "dashboard engine did not load, a declarative theme draws nothing: "
+      .. tostring(chunk and engine or err), "error")
+    return nil
+  end
   return engine
 end
 
@@ -3116,10 +3256,21 @@ end
 local function loadThemeInit(themePath)
   local source, folder = parseThemePath(themePath)
   local base = source == "user" and USER_THEME_BASE or SYSTEM_THEME_BASE
-  local initChunk = loadScript(base .. folder .. "/init.lua", themeLoadMode(base))
-  if not initChunk then return nil, base, folder end
+  local initChunk, initError = loadScript(base .. folder .. "/init.lua", themeLoadMode(base))
+  if not initChunk then
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.theme", "debug", "%s has no init.lua: %s", tostring(folder), tostring(initError))
+    end
+    return nil, base, folder
+  end
   local ok, initTable = pcall(initChunk)
-  if not ok or type(initTable) ~= "table" then return nil, base, folder end
+  if not ok or type(initTable) ~= "table" then
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.theme", utils.themeFailRepeat and "debug" or "warn", "%s/init.lua did not load: %s",
+        tostring(folder), tostring(initTable))
+    end
+    return nil, base, folder
+  end
   return initTable, base, folder
 end
 
@@ -3211,7 +3362,7 @@ local function loadThemeModuleForState(themePath, flightMode)
     scriptPath = base .. folder .. "/widget.lua"
   end
 
-  local chunk = loadScript(scriptPath, themeLoadMode(base))
+  local chunk, loadError = loadScript(scriptPath, themeLoadMode(base))
   if chunk then
     local ok, theme = pcall(chunk)
     if ok and type(theme) == "table" and (
@@ -3222,6 +3373,13 @@ local function loadThemeModuleForState(themePath, flightMode)
     ) then
       return theme, stateKey, initTable
     end
+    loadError = ok and "not a theme module" or theme
+  end
+  utils.themeFellBack = true
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.widget.theme", utils.themeFailRepeat and "debug" or "warn",
+      "%s did not load, using the default theme: %s",
+      tostring(scriptPath), tostring(loadError))
   end
 
   local fallbackPath = SYSTEM_THEME_BASE .. "default/" .. stateKey .. ".lua"
@@ -3230,7 +3388,14 @@ local function loadThemeModuleForState(themePath, flightMode)
     fallbackChunk = loadScript(SYSTEM_THEME_BASE .. "default/preflight.lua",
                                themeLoadMode(SYSTEM_THEME_BASE))
   end
-  if not fallbackChunk then return nil, stateKey, initTable end
+  if not fallbackChunk then
+    if Log and type(Log.emitf) == "function" then
+      Log.emitf("rfsuite.widget.theme", utils.themeFailRepeat and "debug" or "error",
+        "no theme module for phase %s: the default theme did not load either",
+        tostring(stateKey))
+    end
+    return nil, stateKey, initTable
+  end
   local ok, theme = pcall(fallbackChunk)
   if ok and type(theme) == "table" and (
     type(theme.build) == "function" or
@@ -3239,6 +3404,11 @@ local function loadThemeModuleForState(themePath, flightMode)
     type(theme.boxes) == "function"
   ) then
     return theme, stateKey, initTable
+  end
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.widget.theme", utils.themeFailRepeat and "debug" or "error",
+      "the default theme did not load for phase %s: %s",
+      tostring(stateKey), tostring(ok and "not a theme module" or theme))
   end
   return nil, stateKey, initTable
 end
@@ -3614,6 +3784,8 @@ local function resolveThemePathForState(dashboard, modelPrefs, flightMode, lib)
     reason = "default_fallback"
   end
 
+  utils.themeReason = reason
+
   logGv("resolveTheme: mode=%s, modelOverride=%s, modelPreflight=%s, globalPreflight=%s, modelKey=%s, modelValue=%s, globalKey=%s, globalValue=%s => chosen=%s (%s)",
     tostring(flightMode), tostring(modelOverride),
     tostring(modelDashboard and modelDashboard.model_theme_preflight),
@@ -3765,7 +3937,9 @@ local function releaseUnusedThemes(self)
       count = count + 1
     end
   end
-  if count > 0 then logGv("released %d theme module(s) no widget uses", count) end
+  if count > 0 then
+    utils.milestone("rfsuite.widget.theme", "released %d theme module(s) no widget uses", count)
+  end
 end
 
 -- Everything reloadActiveTheme reads out of the per-model preferences sits under `dashboard`:
@@ -4700,6 +4874,9 @@ function Runtime.new(zone, options)
       if type(msp) == "table" and msp.uidReadSettled == false then
         self.theme = nil
         if self._themeFolder == nil then self._themeFolder = false end
+        if self._shmOn then
+          Log.emitf("rfsuite.widget.theme", "debug", "theme not resolved yet: the board's UID read has not settled")
+        end
         return
       end
     end
@@ -4721,6 +4898,7 @@ function Runtime.new(zone, options)
     nextConfig.v_max = tonumber(nextConfig.v_max) or 25.2
     nextConfig._customVoltage = hasCustomVoltage
 
+    local previousTheme = self._themeShown
     self.themePath = selectedTheme
     -- Before the new theme loads, so the one being left is not held beside it for longer than
     -- this widget still has it on screen. Only on a change of folder: a phase change within one
@@ -4746,8 +4924,31 @@ function Runtime.new(zone, options)
     -- the pass below can compare MODULES rather than phase names: a phase change that resolves
     -- to the module already on screen is not a reason to tear the scene down.
     local declares
+    utils.themeFellBack = nil
+    -- With nothing to draw the next logic tick asks for this load again, so a theme whose default
+    -- fails too would put its lines into the ring ten times a second at every level. They are said
+    -- at their own level once per theme and phase, and at debug on every retry until a theme loads.
+    local failKey = tostring(selectedTheme) .. "|" .. tostring(self.flightMode)
+    utils.themeFailRepeat = self._themeFailedFor == failKey
     self.theme, self.themeStateKey, declares = loadThemeModuleForState(selectedTheme, self.flightMode)
     self.themeStateKeys = themeStateKeys(declares)
+    self._themeShown = utils.themeFellBack and "system/default" or selectedTheme
+    local failedBefore = utils.themeFailRepeat
+    utils.themeFailRepeat = nil
+    self._themeFailedFor = (self.theme == nil) and failKey or nil
+    if self.theme == nil then
+      if not failedBefore then
+        -- The Session Logs ring keeps 100 characters of a line, so the path, the longest part, is last.
+        widgetLog(self, "theme left nothing to draw, retried until one loads: " .. tostring(selectedTheme), "warn")
+      end
+    elseif switching then
+      utils.milestone("rfsuite.widget.theme", "theme %s loaded for phase %s (%s, from %s)",
+        utils.themeFellBack and ("system/default in place of " .. tostring(selectedTheme)) or tostring(selectedTheme),
+        tostring(self.themeStateKey), tostring(utils.themeReason), tostring(previousTheme))
+    elseif self._shmOn then
+      Log.emitf("rfsuite.widget.theme", "debug", "theme %s, phase module %s, lua %d kB",
+        tostring(selectedTheme), tostring(self.themeStateKey), utils.luaKb(self))
+    end
 
     -- A theme of the pilot's own may read the flight record under the names it carried before it
     -- moved to the session table. The mapping goes on HERE -- with the theme, in the same call,
@@ -4858,6 +5059,9 @@ function Runtime.new(zone, options)
       if readDue then
         self._lastTelemetryReadAt = now
         readThisPass = true
+        if self._traceOn then
+          Log.emitf("rfsuite.widget", "trace", "telemetry read, phase %s", tostring(self.flightMode))
+        end
         readTelemetry(self.state, self.audioState)
         -- The snapshot the reactive closures read, rebuilt on the same cadence as the
         -- telemetry read that feeds it -- probing is legal here and nowhere in the sweep.
@@ -4990,8 +5194,11 @@ function Runtime.new(zone, options)
       if self.audioState and DashboardAudio and type(DashboardAudio.resetConnectionState) == "function" then
         DashboardAudio.resetConnectionState(self.audioState)
       end
-      widgetLog(self, "FBL reconnect edge: reset dashboard session state", "info")
+      widgetLog(self, utils.withResources("FBL reconnect edge: reset dashboard session state"), "info")
     elseif not isFblConnected and wasFblConnected then
+      if self._recordingOn ~= false then
+        utils.milestone("rfsuite.widget", "FBL link lost, phase %s", tostring(self.flightMode))
+      end
       -- The event history's two memos go with the connection: the next one starts its governor
       -- from its own first reading and notes its speed controller's first verdict again.
       noteEvent(self.state, "disconnected", 2)
@@ -5025,7 +5232,12 @@ function Runtime.new(zone, options)
     self.lastFblConnected = isFblConnected
 
     local nextMode = computeFlightMode(self.state)
-    if statusLine ~= nil then self.statusLine = statusLine end
+    if statusLine ~= nil then
+      if statusLine ~= self.statusLine and self._shmOn then
+        Log.emitf("rfsuite.widget.splash", "debug", "waiting: %s", statusLine)
+      end
+      self.statusLine = statusLine
+    end
 
     -- The read has been decided by now, so this is exact rather than predicted: a pass that read
     -- while logic ticks come closer together than the read interval leaves the announcements to
@@ -5129,6 +5341,11 @@ function Runtime.new(zone, options)
       -- runs this work whatever is queued.
       self._job = nil
     else
+      if nextMode ~= self.flightMode and self._recordingOn ~= false then
+        utils.milestone("rfsuite.widget", "phase %s -> %s: armed=%s, connected=%s, ready=%s",
+          tostring(self.flightMode), tostring(nextMode), tostring(self.state.armed),
+          tostring(isFblConnected), tostring(self.connectionReady))
+      end
       self.flightMode = nextMode
       -- A switch of theme is staged over two logic ticks: the theme's module on this one, its field
       -- choices, readings and first snapshot on the next (finishThemeLoad). A reload that falls
@@ -5179,6 +5396,7 @@ function Runtime.new(zone, options)
     self._usagePeak = -1
     self._usageWindowPeak = -1
     self._usageReportAt = 0
+    self._luaPeak = nil
   end
 
 
@@ -5193,6 +5411,9 @@ function Runtime.new(zone, options)
 
     -- The firmware calls refresh() for the widget the pilot is looking at and background() for
     -- every other one, so this is where "on screen" is known. The overlay drives only from here.
+    if self._foreground ~= true and self._shmOn then
+      Log.emitf("rfsuite.widget", "debug", "on screen, phase %s", tostring(self.flightMode))
+    end
     self._foreground = true
 
     -- A firmware fullscreen exit may arrive while a build or the connection
@@ -5392,7 +5613,19 @@ function Runtime.new(zone, options)
       -- any build step runs, since a step may clear the tree and then raise, and recorded only
       -- once a build has completed. A one-shot job builds nothing and leaves the record alone.
       if counted and jobKind ~= "standby" then self._treeKind, self._treeKey = nil, nil end
-      local stepOk, stepDone = pcall(self._job.step, self)
+      local job = self._job
+      job.passes = (job.passes or 0) + 1
+      if job.passes == 1 and self._shmOn then
+        job.luaAtStart = utils.luaKb(self)
+        if self._traceOn then
+          Log.emitf("rfsuite.widget.job", "trace", "%s started, lua %d kB", tostring(jobKind), job.luaAtStart)
+        end
+      end
+      local stepOk, stepDone = pcall(job.step, self)
+      if stepOk and stepDone and job.luaAtStart and counted and self.built then
+        Log.emitf("rfsuite.widget.job", "debug", "%s built: %d pass(es), %d objects, lua %d -> %d kB",
+          tostring(jobKind), job.passes, self._lastChildCount or 0, job.luaAtStart, utils.luaKb(self))
+      end
       if not stepOk then
         self._job   = nil
         self.built  = false
@@ -5450,6 +5683,60 @@ function Runtime.new(zone, options)
         cancelStandbyElrs(self, "fc_startup")
       end
     end
+    -- The first change to full screen after the first-start tile stood closes it for good. The save
+    -- waits for a state pass with the model disarmed, by the sensor's reading and not only this file's
+    -- copy of it, and has that pass to itself: it writes the whole file, and the background work is one
+    -- pass late. A failed one, or a radio switched off before it, only brings the tile back at the next
+    -- start.
+    if self._standbyIntroShown and event ~= nil then
+      self._standbyIntroShown, self._standbyIntroClosed, self._standbyIntroOwed = nil, true, true
+      if Log and type(Log.emitf) == "function" then
+        Log.emitf("rfsuite.widget.standby", "debug", "first-start tile closed by full screen")
+      end
+    end
+    local introOwed = self._standbyIntroOwed
+    if introOwed and self.state.armed ~= true then
+      local Armed = requireModule("lib/armed.lua")
+      introOwed = not (type(Armed) == "table" and type(Armed.isArmed) == "function" and Armed.isArmed())
+    else
+      introOwed = false
+    end
+    -- It writes this widget's copy whole, so where the files moved since that copy was read -- the
+    -- tool saved, and the reload has not run yet -- it waits: the reload below takes the newer file
+    -- and a later pass writes the key onto it.
+    if introOwed then
+      local stale = self._reloadPending and true or false
+      if not stale and type(self._lastPrefsStamp) == "string" then
+        local ok, stamp, seqs = pcall(preferencesLook, self._lastPrefsStamp)
+        stale = ok and stamp ~= nil and stamp ~= self._lastPrefsStamp
+        local lastSeqs = self._lastReloadSeqs or {}
+        for path, seq in pairs((ok and seqs) or {}) do
+          if lastSeqs[path] ~= nil and lastSeqs[path] ~= seq then stale = true end
+        end
+        -- The reload's own look then runs on this pass instead of up to a second later.
+        if stale then self._lastPrefsStatAt = nil end
+      end
+      introOwed = not stale
+    end
+    if introOwed then
+      self._standbyIntroOwed = nil
+      local widgetPrefs = self.preferences
+      -- A second dashboard on the model may have written it already, and this one reloaded it.
+      if type(widgetPrefs) == "table" and not (widgetPrefs.dashboard and widgetPrefs.dashboard.standby_intro_seen == true) then
+        widgetPrefs.dashboard = widgetPrefs.dashboard or {}
+        widgetPrefs.dashboard.standby_intro_seen = true
+        local Preferences = requireModule("lib/preferences.lua")
+        local saved = Preferences and type(Preferences.save) == "function" and Preferences.save(widgetPrefs)
+        if Log and type(Log.emitf) == "function" then
+          Log.emitf("rfsuite.widget.standby", saved and "info" or "warn", "first-start tile: %s",
+            saved and "saved as read" or "could not be saved, it comes back at the next start")
+        end
+      end
+      self._passEndAt = nowSeconds()
+      return
+    end
+
+    self._passWork = "state"
     local ready = performBackgroundWork(self, false)
     local tuningMode = inflightMode(self, event ~= nil)
 
@@ -5554,7 +5841,13 @@ function Runtime.new(zone, options)
       if useStandby then
         self._standbyCache = self._standbyCache or {}
       end
-      local splashKey = (useStandby and "standby|" or "splash|") .. "info="
+      -- The first-start tile: not read yet, and placed in a zone about the size of the screen, which
+      -- an App mode layout is and a full-screen layout is with or without the top bar.
+      local intro = useStandby and not fullscreenSplash and dashboardPrefs.standby_intro_seen ~= true
+        and self._standbyIntroClosed ~= true
+        and (self._standbyIntroNoFitW ~= self.zone.w or self._standbyIntroNoFitH ~= self.zone.h)
+        and self.zone.w * 4 >= (LCD_W or 480) * 3 and self.zone.h * 4 >= (LCD_H or 320) * 3
+      local splashKey = (useStandby and (intro and "standby|intro|" or "standby|") or "splash|") .. "info="
         .. tostring(self.state.standbyInfoKind) .. "|" .. tostring(self.state.zoneW) .. "x" .. tostring(self.state.zoneH)
         .. (fullscreenSplash and "|fs" or "") .. "|" .. tostring(utils.colorScheme(self)) .. (useStandby
           and ("|" .. tostring(dashboardPrefs.standby_layout)
@@ -5582,7 +5875,7 @@ function Runtime.new(zone, options)
         -- readings stop with it (fullscreen_controls.lua `refresh`).
         self._fullscreenBarControls = nil
         if useStandby and not jobCapped(self, "standby") then
-          self._job = { kind = "standby", step = standbyJobStep, fullscreen = fullscreenSplash }
+          self._job = { kind = "standby", step = standbyJobStep, fullscreen = fullscreenSplash, intro = intro }
         elseif not useStandby and not jobCapped(self, "splash") then
           self._job = { kind = "splash", step = splashJobStep, fullscreenSplash = fullscreenSplash }
         elseif not jobCapped(self, "failed_label") then
@@ -5737,6 +6030,10 @@ function Runtime.new(zone, options)
     end
 
     if nextRenderKey ~= self.renderKey then
+      if self._traceOn then
+        Log.emitf("rfsuite.widget.job", "trace", "render key %.60s -> %.60s",
+          tostring(self.renderKey), tostring(nextRenderKey))
+      end
       self.renderKey = nextRenderKey
       self.built = false
       -- Fall through: detection and enqueue happen in this same pass, and the build
@@ -5790,17 +6087,7 @@ function Runtime.new(zone, options)
         -- a look; one made since the last look leaves the files off it, and nothing is taken.
         -- The look is the same one reloadPreferencesIfNeeded takes, once per pick.
         self._job = { kind = "battery_pick_apply", oneShot = true, step = function(w)
-          local function look()
-            local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
-            local stamp = preferencesStamp(session and session.modelPreferencesFile, w._lastPrefsStamp)
-            if not stamp then return nil end
-            local seqs, paths = {}, reloadRequestPaths()
-            for i = 1, #paths do
-              local ok, info = pcall(fstat, paths[i])
-              seqs[paths[i]] = (ok and type(info) == "table" and (info.size or 0) > 0) and info.size or 0
-            end
-            return stamp, seqs
-          end
+          local function look() return preferencesLook(w._lastPrefsStamp) end
           -- Each look is protected: one that raises takes nothing, and never keeps the pick itself
           -- from running (it is what takes the request off).
           local seen = false
@@ -5833,6 +6120,9 @@ function Runtime.new(zone, options)
   function widget.background(self)
     -- Off screen. The overlay's own tick refuses to drive from here and cleans up instead, which
     -- is what makes a widget scrolled away stop writing the two variables.
+    if self._foreground == true and self._shmOn then
+      Log.emitf("rfsuite.widget", "debug", "off screen, phase %s", tostring(self.flightMode))
+    end
     self._foreground = false
     cleanupInflight(self)
     releaseStandby(self, "widget_background")
@@ -5849,6 +6139,8 @@ function Runtime.new(zone, options)
     -- on screen had been stopped by the instruction limit, and the stop would never be recorded.
     if self._shmOn == nil then
       self._shmOn = Log and type(Log.wanted) == "function" and Log.wanted("debug") or false
+      self._traceOn = self._shmOn and Log.wanted("trace")
+      _G.rfsuite.logSteps = self._shmOn
     end
     self._shmPass = (self._shmPass or 0) + 1
     if self._shmPass >= SHM_PASS_WRAP then self._shmPass = 1 end
@@ -5943,6 +6235,8 @@ function Runtime.new(zone, options)
     _G.rfsuite = _G.rfsuite or {}
     _G.rfsuite.dashboardHeartbeatOwner = widget._shmToken
   end
+  utils.milestone("rfsuite.widget", "dashboard created: zone %sx%s, phase %s",
+    tostring(zone and zone.w), tostring(zone and zone.h), tostring(widget.flightMode))
   return widget
 end
 

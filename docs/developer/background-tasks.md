@@ -69,11 +69,19 @@ service widget and a tool hosted by the dashboard all use the same event runtime
    flight is kept. Once the link is back, the runtime waits up to 5 s for an armed reading
    received since then (`settleFlightAfterGap`). If the craft is armed, it is the same flight. If
    it is disarmed, or no such reading arrives in time, the kept flight is ended.
-3. **`onconnect`.** This runs while the link is held up, the craft is not armed, and the MSP API
-   version was not refused. When the chain finishes, a garbage collection runs.
-4. **`telemetry_bg`.** This runs while the link is held up. In the widget context it waits until
-   `onconnect` has finished, unless the craft is armed. The wait exists because of the firmware's
-   per-call instruction limit for widgets. The tool does not wait: a standalone script has no such
+3. **`onconnect`.** This runs while the link is held up, the craft is not armed, the MSP API
+   version was not refused, and the MSP runtime knows this link's armed state (`armedKnown`: a
+   current reading of `ARM` or `STAT` has arrived since the link came up, or 5 s have passed
+   without one; the MSP runtime's own version and UID reads wait for the same). When the chain
+   finishes, a garbage collection runs.
+4. **`telemetry_bg`.** This runs while the link is held up. In the widget context the full pass
+   waits until `onconnect` has finished, and until the armed state is known, unless the craft is
+   armed. The wait exists because of the
+   firmware's per-call instruction limit for widgets. While it waits, the widget runs a smaller
+   pass instead (`wakeupConnecting`): it takes the custom telemetry frames off the link and
+   publishes the armed state only -- the arming flags (`ARM`), or the System Status word (`STAT`)
+   where the flight controller sends that instead -- so the MSP runtime still sees an arming and
+   stops sending during the connect sequence. The tool does not wait: a standalone script has no such
    limit, and while the tool is open the background function script is paused, so this is the
    only decoder running.
 5. **Arm and disarm edges.** These are detected while the link is held up and no kept flight is
@@ -206,6 +214,35 @@ single pass loads all three. After that, each pass runs them in this order:
 `tasks.lua` also sets `session.telemetryFrameAt` whenever frames arrived on this pass or the
 background function script is decoding them.
 
+While a widget's `onconnect` holds this pass back, or the link is still waiting for its armed
+state, `tasks.lua`'s `wakeupConnecting` runs in its place. It loads `drain.lua` alone and calls its `wakeupArmingFlags`, which takes the frames off the
+link as the full pass does (at most 15) and walks the newest 4, newest first, until it finds the
+arming flags, publishing the newest System Status word it meets on the way; it publishes those and
+nothing else -- the decoders it
+walks past that publish a group of their own (cells, GPS, attitude and the like) are told not to.
+`smart.lua` and `adjustments.lua` are loaded and run by the full pass once the connect sequence is
+through. It also steps aside while the background function script is decoding, and like the full
+pass it sets `session.telemetryFrameAt` when frames arrived or that script is decoding them.
+
+Both passes take a *disarmed* arming flags or System Status value only from frames popped after an
+earlier pass emptied the queue; an armed value is taken at once. The radio keeps only a few custom
+frames for a script and drops the new one when that queue is full, so after a stretch in which
+nothing popped -- a link that came back, the compile pass holding the event runtime -- the frames
+waiting are the oldest, and an old "disarmed" would end the MSP runtime's wait for the armed state.
+That trust is cleared when the drain starts and on every link loss (`M.reset()`), not on a slow
+pass -- except in the background function script, where it is also cleared after a gap of more than
+a second: that script runs on every cycle of the radio's script loop, so a gap there means a tool
+had it paused, not a slow radio.
+
+The armed-state walk also does not publish an older *disarmed* arming flags value once a newer frame of
+the same pass carried an armed System Status word: the MSP runtime takes the arming flags over the
+word, so that value would read a craft that has just armed as disarmed. If a decoder raises during
+the walk, the adjustment pair is still put back before the error goes on.
+
+`tasks.lua` asks for `drain.lua` again once a second when it does not load (the loader's `pcall`
+also catches the instruction limit, so a failure can be one pass that ran out); `smart.lua` and
+`adjustments.lua` stay off after a failed load.
+
 When the background function script (`rfsbg.lua`) is decoding for the whole radio, `drain.lua`
 and `adjustments.lua` step aside together, so sensors are not published twice and adjustments are
 not announced twice. The script signals that through a counter it advances when it takes frames;
@@ -252,6 +289,8 @@ These run on the same hosts but are not part of `tasks/events/`:
   [Audio announcements](audio-announcements.md).
 - **The card log** (`lib/log_sink.lua`) is flushed from the widgets, the tool and the background
   function script.
+- **What these tasks log**, at which level and under which tag, is in
+  [Collecting logs](../troubleshooting/collecting-logs.md#reading-a-dashboard-log).
 
 ## Related
 

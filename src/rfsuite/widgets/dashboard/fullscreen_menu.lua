@@ -341,7 +341,13 @@ function BUILD.erase_blackbox(widget, t)
                local eraseApi = requireModule("tasks/msp/api/dataflash_erase.lua")
                local summaryApi = requireModule("tasks/msp/api/dataflash_summary.lua")
 
+               if not (eraseApi and summaryApi) and Log and type(Log.emit) == "function" then
+                 Log.emit("rfsuite.widget.menu", "blackbox erase not queued: its API did not load", "warn")
+               end
                if eraseApi and summaryApi then
+                 if Log and type(Log.emit) == "function" then
+                   Log.emit("rfsuite.widget.menu", "blackbox erase queued", "info")
+                 end
                  queueChain(mState.queue, {
                    {
                      command = eraseApi.writeCommand,
@@ -556,6 +562,13 @@ function BUILD.battery_profile(widget, t)
                           simulatorResponse = {},
                           isWrite = true,
                        }
+                     end
+                     if Log and type(Log.emit) == "function" then
+                       if api and type(api.buildWritePayload) == "function" then
+                         Log.emit("rfsuite.widget.menu", "battery profile " .. tostring(i) .. " write queued", "info")
+                       else
+                         Log.emit("rfsuite.widget.menu", "battery profile " .. tostring(i) .. " not queued: its API did not load", "warn")
+                       end
                      end
                      queueChain(mState.queue, chain, report)
                   end

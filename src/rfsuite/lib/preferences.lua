@@ -195,9 +195,9 @@ local SCHEMA = {
   -- how far one press moves them, which PID profile is the undo -- is in the per-model store.
   -- Off by default, like every preview surface: see app/pages/settings/dashboard/inflight.
   inflight = {
-    keys = {
-      enabled = false,
-    },
+    -- On or off is one key per radio model (`on_<model file>`, see M.settleInflight), written only while
+    -- on. `enabled` is what the widget reads, worked out from that key at every load and never stored.
+    retired = { "enabled" },
     -- Everything else the transmitter's half holds -- the channel and
     -- global-variable pair and the trim assignment -- is declared and
     -- defaulted by widgets/dashboard/inflight/setup.lua, which states that the radio half is
@@ -220,7 +220,12 @@ local SCHEMA = {
     -- a menu the pilot has emptied (widgets/dashboard/quick_menu_order.lua).
     -- `key_*`: the fullscreen keys, as the pilot set them on Settings > Dashboard > Keys. Absent
     -- means the key's default (widgets/dashboard/keys.lua).
-    optional = { "model_overrides", "quick_menu", "key_page_down", "key_page_up", "key_mdl", "key_sys", "key_tele", "standby_layout" },
+    -- `standby_intro_seen`: the first-start tile has been read on this radio; written by the widget
+    -- at the first change to full screen. Absent means it still shows.
+    optional = {
+      "model_overrides", "quick_menu", "key_page_down", "key_page_up", "key_mdl", "key_sys", "key_tele",
+      "standby_layout", "standby_intro_seen",
+    },
     -- A theme's own configuration is stored here under keys built from the theme's path
     -- (app/pages/settings/dashboard/lib.lua), so the set of key names is not knowable from
     -- a schema and the section keeps whatever it is handed.
@@ -316,6 +321,42 @@ function M.defaults()
   return store:defaults()
 end
 
+--- Whether in-flight tuning is on for one radio model. The key `on_<model file>` holds the model's
+-- name as it was when the pilot switched tuning on. EdgeTX gives a new model the file name of a
+-- deleted one, and Companion renumbers the files when models are added or removed, so the file alone
+-- can name another model later: it counts as on only while the name matches too. A renamed model is
+-- off until it is switched on again; a value from before the name was stored (`true`) counts as off.
+--
+-- While a connected craft's name stands in the model's place (onconnect/tasks/model_name_sync.lua),
+-- lib/model_name_store.lua holds the name it replaced. That store is read only when the names differ,
+-- so an ordinary match costs no file read.
+function M.inflightOn(section, info)
+  if type(section) ~= "table" or type(info) ~= "table" then return false end
+  local file = info.filename
+  if type(file) ~= "string" or file == "" then return false end
+  local stamp = section["on_" .. file]
+  if type(stamp) ~= "string" then return false end
+  local name = type(info.name) == "string" and info.name or ""
+  if stamp == name then return true end
+  local NameStore = nil
+  if _G.rfsuite and _G.rfsuite.require then
+    local ok, mod = pcall(_G.rfsuite.require, "lib/model_name_store.lua")
+    if ok and type(mod) == "table" then NameStore = mod end
+  end
+  if NameStore == nil or type(NameStore.pending) ~= "function" then return false end
+  local ok, own = pcall(NameStore.pending)
+  return ok and own == stamp
+end
+
+--- Whether in-flight tuning is on for the selected radio model, as the one flag its readers look at. A
+-- radio model change starts the widget again, so this is settled at each load.
+function M.settleInflight(prefs)
+  local section = type(prefs) == "table" and prefs.inflight or nil
+  if type(section) ~= "table" then return end
+  local ok, info = pcall(function() return model.getInfo() end)
+  section.enabled = ok and M.inflightOn(section, info) or false
+end
+
 --- Reads the radio-wide settings. Answers the table and whether the file was there; the table
 --- is usable either way, and a corrupt file gives the declared defaults and a logged error.
 ---
@@ -343,6 +384,7 @@ function M.load()
   -- widget; there the load below reads the former file into memory instead and writes nothing.
   store:migrate(path, ConfigStore.legacyPath(path), opts)
   local prefs, info = store:load(path, opts)
+  M.settleInflight(prefs)
 
   publishIfUnclaimed(prefs)
   emitDeferred(opts.messages)

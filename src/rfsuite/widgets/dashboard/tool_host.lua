@@ -90,6 +90,19 @@ local function hostLogTransition(msg)
   hostLog(msg)
 end
 
+-- A step of an open or a close. Called behind the dashboard's cached flag, so that with the log off
+-- a press pays one table read and builds no text. The sample is taken as the transition's is: a
+-- step of the close runs before the dashboard is handed back, and a failed sample must not stop it.
+local function hostStep(msg)
+  if Log and type(Log.emit) == "function" then
+    if type(Log.resources) == "function" then
+      local ok, text = pcall(Log.resources)
+      if ok and type(text) == "string" then msg = msg .. ", " .. text end
+    end
+    pcall(Log.emit, "rfsuite.widget.tool", msg, "debug")
+  end
+end
+
 local function isCpuLimit(err)
   local fn = _G.rfsuite and _G.rfsuite.isCpuLimitError
   if type(fn) == "function" then return fn(err) == true end
@@ -166,16 +179,19 @@ end
 
 local function dropToolModules()
   local modules = _G.rfsuite and _G.rfsuite.modules
-  if type(modules) ~= "table" then return end
+  if type(modules) ~= "table" then return 0 end
+  local dropped = 0
   for path in pairs(modules) do
     for i = 1, #TOOL_PREFIXES do
       local prefix = TOOL_PREFIXES[i]
       if string.sub(path, 1, #prefix) == prefix then
         modules[path] = nil
+        dropped = dropped + 1
         break
       end
     end
   end
+  return dropped
 end
 
 -- A save that restarts the flight controller holds the page, and Back on it dismisses it once the
@@ -257,7 +273,8 @@ local function finish(widget, reason, outcome)
     root.confirmDialogSlot.pending = {}
   end
 
-  dropToolModules()
+  local dropped = dropToolModules()
+  if _G.rfsuite.logSteps then hostStep("tool modules dropped: " .. tostring(dropped)) end
 
   widget._job = nil
   widget.built = false
@@ -284,6 +301,7 @@ end
 -- key walks, and the close reports how it went (`finish`).
 function M.request(widget, landing, visit)
   if widget._toolHost ~= nil then return false end
+  if _G.rfsuite.logSteps then hostStep("tool asked for, landing " .. tostring(landing)) end
   if modelArmed() then
     hostLog("tool not opened: the model is armed", "warn")
     return false
@@ -307,6 +325,8 @@ end
 local function stopped(widget, host, err, phase)
   if isCpuLimit(err) then
     host.cpuHits = host.cpuHits + 1
+    hostLog("tool " .. phase .. " stopped at the instruction limit (" .. host.cpuHits .. "/" .. CPU_GIVE_UP .. ")",
+      host.cpuHits >= CPU_GIVE_UP and "error" or "warn")
     if host.cpuHits >= CPU_GIVE_UP then
       finish(widget, phase .. " stopped at the instruction limit " .. host.cpuHits .. " times", "failed")
     end
@@ -341,6 +361,7 @@ local function loadStep(widget, host)
     finish(widget, "load failed", "failed")
     return
   end
+  if _G.rfsuite.logSteps then hostStep("tool loaded") end
   host.home = home
   host.phase = "init"
   host.cpuHits = 0
@@ -361,6 +382,7 @@ local function runStep(widget, host, event, touchState)
   -- closing sequence takes it down over the passes that follow, writes included.
   if not host.closing and (event == nil or modelArmed()) then
     host.closing = true
+    if _G.rfsuite.logSteps then hostStep(event == nil and "tool closing: fullscreen was left" or "tool closing: the model armed") end
     leaveSave()
     if type(home.requestClose) == "function" then pcall(home.requestClose) end
   end

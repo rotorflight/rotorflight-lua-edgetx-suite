@@ -201,7 +201,7 @@ replacing earlier ones. Files resolve below `SOUNDS/rf/<locale>/` in both EN and
 
 ### 8. SmartFuel
 
-Callouts of the SmartFuel level while the model is connected. The flight controller computes the value when SmartFuel is switched on there (*Setup* → *Power* → *SmartFuel*, MSP API 12.0.9 and later); otherwise the radio computes it from the local source chosen under *Setup* → *Power* → *Preferences*.
+Callouts of the SmartFuel level while the model is connected. The flight controller computes the value when SmartFuel is switched on there (*Setup* → *Power* → *SmartFuel*, MSP API 12.0.9 and later); otherwise the radio computes it from the local source chosen under *Setup* → *Power* → *Preferences*. The level reads 0% at the *Consumption reserve* (*Setup* → *Power* → *Battery*, default 35% of the pack), so the empty alarm speaks when SmartFuel estimates that share of the pack is left; the page itself is described in [SmartFuel](../pages/settings/audio/events/fuel.md).
 
 | Setting | Switch / Key | Default | Scope | Description |
 | --- | --- | --- | --- | --- |

@@ -14,7 +14,9 @@ of its own. The theme chosen here is the one every model shows unless it has set
 *System* → *Settings* → *Dashboard* → *Theme*
 
 Always available. The rows for the connected model need a flight controller that has been read,
-because a model's own values are stored in the file named after that flight controller.
+because a model's own values are stored in the file named after that flight controller. Opened
+before the flight controller has answered, the page shows them as soon as it has: it reads the
+model's values then, as it does when it is opened with the flight controller connected.
 
 ## Settings
 
@@ -58,9 +60,16 @@ The model's own theme settings are edited under
   and saving turns the per-model values off for every model on this radio, without deleting them.
 - *Own settings for this model* is also written under the key the former *Model Override* switch
   used, so an older version of the suite on the same card still shows the model's theme.
-- Saving writes the radio's file and, with a flight controller connected, the model's file. The
-  page reports *Saved* only when both were written, and otherwise *Save failed* with the reason:
-  *the settings file could not be written to the SD card* where the card refused a file.
+- Saving writes the radio's file and, with a flight controller connected, the model's file -- only
+  with values the page read for that flight controller, so a model's own settings are never
+  replaced by what the page showed before the flight controller answered. A link that drops for a
+  moment keeps the values on the page; with no flight controller identified at the moment of the
+  save, only the radio's file is written. If the model's values were changed on the page, such a
+  save reports *Save failed* with *Connect the flight controller to save this model's settings*,
+  and the page counts as unsaved until they are written. That holds while the page stays open: a
+  link lost for longer takes the tool back to its menu, and the change goes with the page. The page reports *Saved* when every file it wrote was
+  written, and otherwise *Save failed* with the reason: *the settings file could not be written to
+  the SD card* where the card refused a file.
 - **The post-flight screen keeps the model's theme after the battery is unplugged.** A model with
   a theme of its own shows that theme on its post-flight screen also once the flight controller
   has stopped answering, until the next flight controller connects, also when a Setup > Power

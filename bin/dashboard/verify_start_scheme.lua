@@ -130,6 +130,8 @@ local saves = 0
 local function save(name)
   local prefs = Preferences.load()
   prefs.general.color_scheme = name
+  prefs.dashboard = prefs.dashboard or {}
+  prefs.dashboard.standby_intro_seen = true
   assert(Preferences.save(prefs))
   -- The stubs' fstat answers this for every file, so the widget sees the file's status move.
   saves = saves + 1
@@ -207,7 +209,7 @@ for _, name in ipairs(NAMES) do
   state.initialLoad = true
   save(name, false)
   state.preferences = Preferences.load()
-  state.startDone, state.startTotal = 3, 8
+  state.precompileDone, state.precompileTotal = 3, 8
   Stubs.lvgl.trees = {}
   M.buildUI(true)
   holdsScheme(name, "tool start, " .. name, true)

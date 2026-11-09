@@ -9,16 +9,16 @@ The tool's header carries a button that says what the connection is doing. Its s
 state at a glance; pressing it opens the detail, including what is connected once everything
 has been read.
 
-It exists because the start screen leaves before the connection is finished. The suite stops
-holding it as soon as the flight controller has answered two questions -- its MSP API version
-and its unique id -- or the wait runs out, and the compile pass has walked the installed tree;
-the rest of the reading then carries on behind the menu. Without the button there is nothing on
-screen that separates a flight controller which is still being read from one that never
-answered at all.
+It exists because the tool does not wait for the connection. It opens on its menu as soon as
+nothing is being compiled or moved -- after an install or an update the start screen shows
+*Preparing suite* until that is through -- and the whole connection, from the first answer of the flight
+controller to the last step of the reading, carries on behind the menu. Without the button there
+is nothing on screen that separates a flight controller which is still being read from one that
+never answered at all.
 
-The button reports; it changes nothing. It does not decide when the start screen leaves, and it
-does not decide when a tile becomes usable -- a tile stays greyed out until the flight
-controller has answered, exactly as before.
+The button reports; it changes nothing. It does not decide when a tile becomes usable -- a tile
+that needs the flight controller stays greyed out until it has answered, and then becomes usable
+where it stands. The menu is not drawn again for it, so the tile the wheel is on keeps the focus.
 
 ## Where to find it
 
@@ -63,9 +63,18 @@ names it too when loading times out; its *Supported MSP API* row lists the suppo
 versions. When the board does not answer, the home screen and the *Info* page ask you to check
 `FEATURE_TELEMETRY` and the MSP serial port configuration.
 
-On a fast link the connect sequence can be through before the start screen leaves, so the menu
-opens straight on the connected state and the step count is never seen. That is not a fault:
-the step count is shown for as long as there is a step still to read.
+Nothing is sent to the flight controller until the suite knows whether the model is armed: the
+handshake and the connect sequence wait for the arming flags (or the System Status word) to arrive
+over telemetry, so a model that is already armed when the link comes up -- a late link, or a radio
+restarted with the model running -- is not sent anything until it is disarmed. The wait lasts at
+most 5 seconds: if neither has arrived by then, the suite connects without them. That covers a
+flight controller that reports neither, but also one whose first report is late -- the suite cannot
+tell the two apart, so a model armed before the link came up can be sent requests if its armed
+state takes longer than that to arrive. That wait is part of the circling arrows.
+
+On a fast link the connect sequence can be through within a few seconds of opening the tool, so
+the step count may be seen only briefly or not at all. That is not a fault: the step count is
+shown for as long as there is a step still to read.
 
 ## When a step did not complete
 
@@ -96,6 +105,6 @@ module (`lib/connection_status.lua`): *Not connected*, *Connecting*, *Connection
 - [No connection to the flight controller](../troubleshooting/no-connection.md) -- what to check
   when the button stays on the cross or the warning symbol.
 - [Collecting logs](../troubleshooting/collecting-logs.md) -- the log the connect sequence
-  writes, and what to attach to a report.
+  writes, each task with its time and memory, and what to attach to a report.
 
 *Documented against RFSuite 0.1.7.*

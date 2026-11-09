@@ -79,9 +79,19 @@ local function nowSeconds()
   return 0
 end
 
+local DEBUG_LINES_PER_SLOT = 3
+local debugLineSlot, debugLinesInSlot = nil, 0
+
 local function debugLog(key, msg)
   if not debugWanted() then return end
   if key and loggedSources[key] then return end
+  -- Only the lines a later read asks for again: a duplicate or a promotion is said once.
+  if key and string.sub(key, 1, 4) ~= "dup:" and string.sub(key, 1, 17) ~= "telemetry-promote" then
+    local slot = math.floor(nowSeconds() * 5)
+    if slot ~= debugLineSlot then debugLineSlot, debugLinesInSlot = slot, 0 end
+    if debugLinesInSlot >= DEBUG_LINES_PER_SLOT then return end
+    debugLinesInSlot = debugLinesInSlot + 1
+  end
   if key then loggedSources[key] = true end
   if not taggedLog then
     local L = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
@@ -924,6 +934,9 @@ readValue = function(source)
     if wait > SEARCH_MISS_MAX_SECONDS then wait = SEARCH_MISS_MAX_SECONDS end
     searchWaits[source] = wait
   end
+  if debugWanted() and _G.rfsuite and _G.rfsuite.session and _G.rfsuite.session.isConnected then
+    debugLog("miss:" .. source, "no telemetry source found for " .. source)
+  end
   return nil
 end
 
@@ -952,6 +965,11 @@ end
 
 -- Flush cached sensor paths and miss / probe timers (e.g. on model disconnect/reconnect).
 function Sensors.reset()
+  -- The level is asked again after a reset, so a level changed on the radio reaches these lines at
+  -- the next connect rather than at the next start.
+  debugEnabled = nil
+  -- These lines say once per connection which source was taken or missed, not once per start.
+  loggedSources = {}
   if Sensors.active_paths then
     for k in pairs(Sensors.active_paths) do
       Sensors.active_paths[k] = nil

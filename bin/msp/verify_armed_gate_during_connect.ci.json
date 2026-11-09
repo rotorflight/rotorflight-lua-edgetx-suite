@@ -1,0 +1,7 @@
+{
+  "id": "armed-gate-during-connect",
+  "name": "The MSP armed gate fires while the connect tasks wait",
+  "commands": [
+    "lua5.3 bin/msp/verify_armed_gate_during_connect.lua"
+  ]
+}

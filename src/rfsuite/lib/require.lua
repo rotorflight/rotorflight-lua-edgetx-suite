@@ -80,12 +80,30 @@ local function requireModule(path, forceReload)
     return modules[fullPath]
   end
 
+  -- What each module costs, for a log read at debug. A module that loads others carries theirs in
+  -- its figure. The dashboard raises this flag some seconds after it starts (traceInstructionUsage),
+  -- and not in its create or first pass, which load some twenty modules each in one call close to the
+  -- instruction limit: a line per load there stopped the widget, at debug and trace only.
+  local Logger = _G.rfsuite and _G.rfsuite.logModuleLoads and _G.rfsuite.Log
+  local luaBefore = Logger and math.floor(collectgarbage("count") + 0.5) or nil
+
   local chunk, err = loadScript(fullPath, _G.rfsuite.loadMode)
   if not chunk then
     if type(err) == "string" then
       -- Raw print on purpose, here and below: this is the module loader reporting that a
       -- load failed, and the logger may be the very module that could not load.
       print("[require] Failed to load " .. tostring(fullPath) .. ": " .. err)
+      local Log = _G.rfsuite and _G.rfsuite.Log
+      local said = _G.rfsuite
+      if type(Log) == "table" and type(Log.emit) == "function" and said then
+        -- Once per file, as a caller may ask again every pass and the ring holds sixty lines. The
+        -- console opted out: the line above already went there.
+        said.requireFailures = said.requireFailures or {}
+        if not said.requireFailures[fullPath] then
+          said.requireFailures[fullPath] = true
+          pcall(Log.emit, "rfsuite.require", "failed to load " .. tostring(fullPath) .. ": " .. err, "error", false)
+        end
+      end
     end
     return nil, err
   end
@@ -93,6 +111,15 @@ local function requireModule(path, forceReload)
   local ok, result = pcall(chunk)
   if not ok then
     print("[require] Error executing " .. tostring(fullPath) .. ": " .. tostring(result))
+    local Log = _G.rfsuite and _G.rfsuite.Log
+    local said = _G.rfsuite
+    if type(Log) == "table" and type(Log.emit) == "function" and said then
+      said.requireFailures = said.requireFailures or {}
+      if not said.requireFailures[fullPath] then
+        said.requireFailures[fullPath] = true
+        pcall(Log.emit, "rfsuite.require", "error executing " .. tostring(fullPath) .. ": " .. tostring(result), "error", false)
+      end
+    end
     return nil, result
   end
 
@@ -104,12 +131,21 @@ local function requireModule(path, forceReload)
   -- drops what a forced reload of a module that used to return a table left in the cache.
   modules[fullPath] = result
 
+  if luaBefore then
+    pcall(Logger.emitf, "rfsuite.require", "debug", "loaded %s, lua %d -> %d kB", tostring(fullPath), luaBefore,
+      math.floor(collectgarbage("count") + 0.5))
+  end
+
   return result
 end
 
 local function clearModule(path)
   local fullPath = normalizePath(path)
   if fullPath then
+    local Logger = _G.rfsuite and _G.rfsuite.logModuleLoads and _G.rfsuite.Log
+    if Logger and modules[fullPath] ~= nil then
+      pcall(Logger.emitf, "rfsuite.require", "debug", "released %s", tostring(fullPath))
+    end
     modules[fullPath] = nil
   end
 end

@@ -28,7 +28,7 @@ Read-only while the model is armed.
 | Warn cell voltage | The per-cell voltage at which the low-voltage alarm starts. 1.00 to 5.00 V, default 3.50. |
 | Min cell voltage | The minimum per-cell voltage, below which the low-voltage alarm is triggered. 1.00 to 5.00 V, default 3.30. |
 | Cell count | Cells in the pack, 0 to 24. 0 lets the flight controller work it out from the pack voltage. |
-| Consumption reserve | How much of the capacity is held back, so that the fuel reading reaches zero with that much of the pack left. 0 to 60 %, default 35; 0 means no reserve. |
+| Consumption reserve | How much of the capacity is held back, so that the fuel reading reaches zero with that much of the pack left. The SmartFuel warning at 0 % speaks at that point. 0 to 60 %, default 35; 0 means no reserve. |
 
 On firmware that keeps the cell count and the four cell voltages per battery profile, those five
 rows show and edit the profile chosen in *Edit Battery*, and every profile is written on save; a
@@ -69,11 +69,16 @@ values for every profile.
   when it is disarmed, and the suite's own voltage callouts and its own SmartFuel estimate
   follow the `BatP` sensor, which reports the profile the board is running.
 - The Consumption reserve is also kept in this model's preferences on the radio, and is written
-  to the flight controller only when it is edited here. What it is used for is on the
-  [SmartFuel](smartfuel.md) page.
+  to the flight controller only when it is edited here. The SmartFuel level the dashboard shows and
+  the announcements speak reads 0 % at the reserve and 100 % on a full pack, and the SmartFuel
+  warning speaks at 0 %. So a warning with an estimated 40 % of the pack left is a reserve of 40; the
+  announcements are set under [Audio → Events → SmartFuel](../../settings/audio/events/fuel.md),
+  the estimate itself on the [SmartFuel](smartfuel.md) page.
 
 ## Related
 
+- [Audio → Events → SmartFuel](../../settings/audio/events/fuel.md) — the callouts of the level and
+  the warning at 0 %
 - [Rotorflight documentation](https://doc.rotorflight.org/) — the battery profiles and the
   voltage levels themselves are the flight controller's
 

@@ -101,17 +101,24 @@ by hand, and a save keeps whatever the section holds.
   `true` is the normal behaviour: after an install or an update the configuration tool's start
   screen, or the dashboard's connection splash if the dashboard starts first, reads *Preparing
   suite* until every file has its compiled copy beside it, so no page pays for that later. The
-  dashboard connects to the flight controller only once that has finished; when the tool is
-  opened from the dashboard meanwhile, its start screen shows the same pass rather than starting
-  another. After an install or an update the dashboard then reads *Suite updated. Please restart
+  dashboard and the tool connect to the flight controller only once that has finished; when the
+  tool is opened from the dashboard meanwhile, its start screen shows the same pass rather than
+  starting another. After an install or an update the dashboard then reads *Suite updated. Please restart
   the radio.* and does not connect until the radio has been restarted, and the tool shows the same
   request once when its start screen closes: what was loaded before the pass is still the previous
   build's code, and only a restart replaces it. This applies to an install made from the release
-  archive, which carries the build identity; a source tree copied by hand is compiled but never
-  holds the dashboard back. `false` skips this in both places: the start screen and the splash wait for the
+  archive, which carries the build identity; a source tree copied by hand is compiled by the tool
+  once per version but never holds the dashboard back. Once the installed files are compiled, later starts of the tool, from
+  the dashboard or from the radio's tools menu, open straight on the menu -- or on the page a
+  dashboard shortcut asked for -- without looking at the files again, and connect behind it. A file edited on the card afterwards is compiled the first time a page loads it,
+  which makes that opening slower once. `false` skips this in both places: the tool opens without a start screen and the splash waits for the
   connection only, and each file is compiled the first time a page needs it, which makes that
   first opening slower. It is meant for automated test runs on a card that starts without
-  compiled files every time; on a radio there is no reason to set it.
+  compiled files every time; on a radio there is no reason to set it. `"full"` makes every start
+  of the tool look at every installed file and compile the ones that are missing their compiled
+  copy or are newer than it, before it connects and before the start screen leaves. That holds
+  every start for as long as the look takes, and is meant for someone editing the suite's files on
+  the card.
 - **`mspexpbytes`** — how many bytes the developer page *MSP Experiments* edits. Absent means
   16, which is also the most it handles. Like `precompile` it is only read, and set by hand.
 
@@ -159,8 +166,8 @@ copies your data over by itself on the first start:
   and `sim`. Not copied: the debug logs in `logs`, `reload.req`, and any file of your own in that folder.
 - Every file is read back and compared. If you switch off during the copy, the next start copies again.
 - If the copy fails, for instance because the card is full, you keep flying on the old folder. The
-  start screen says *Settings not moved: card full?*, and each start tries again without holding up the
-  connection. Once such a try has gone through, the first start after you switch the radio off and on
+  tool says once after it opens *Settings not moved: card full? Please restart the radio.*, and each
+  start tries again without holding up the connection. Once such a try has gone through, the first start after you switch the radio off and on
   copies once more and asks for the restart.
 - **The suite never deletes the old folders.** Once you have checked your settings, you can delete
   `/SCRIPTS/TOOLS/rfsuite-core/` and `/SCRIPTS/TOOLS/rfsuite.user/` yourself. The RFSuite Updater
@@ -202,9 +209,10 @@ eload.req — a few bytes the tool writes when you save, so the dashboard widget
 - `precompiled.txt` — which installed build was last compiled, written when *Preparing suite*
   finishes, whether the tool or the dashboard ran it. A later start compiles everything again only
   when the installed build differs from it, so deleting it costs one slower start and nothing else.
-  The dashboard reads only this file and the build identity beside the core: on a build already
-  compiled it does no further work and connects at once, and a single source edited on the card
-  is compiled by the tool's next start. On a fresh card
+  The dashboard and the tool read only this file and the build identity beside the core: on a
+  build already compiled they do no further work and connect at once. A single source edited on
+  the card is compiled the first time a page loads it, unless `precompile = "full"` makes the
+  tool's start look at every file. On a fresh card
   where nothing has been saved yet, the tool creates this folder to write it.
   The pass leaves out the `._` files macOS writes beside every file it copies onto a card,
   and a file that does not compile is named in the log, once per start.
