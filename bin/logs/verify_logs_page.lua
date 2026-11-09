@@ -888,6 +888,36 @@ do
       "full window hosted, Next: the build draws logs 26 to 50", string.sub(labels, 1, 80))
   end
 
+  -- The whole open, hosted: the build starts the scan, the wakeups walk it and fit the first window,
+  -- and every page build happens only when the page asked for one. Each call fits a widget call,
+  -- and the list is drawn.
+  do
+    listingStub(60)
+    local open = loadPage()
+    local ost = find(open.wakeup, "state")
+    local asked = true
+    local octx = { children = {}, x = 0, y = 0, w = 480, h = 270, requestRebuild = function() asked = true end }
+    local passes, builds, stopped, drawn = 0, 0, 0, false
+    while passes < 400 and not drawn do
+      passes = passes + 1
+      if asked then
+        asked = false
+        octx.children = {}
+        local ok = ceilingCall(open.build, octx)
+        builds = builds + 1
+        if not ok then stopped = stopped + 1 end
+        drawn = button(octx, "btn_view") ~= nil
+      end
+      if not drawn then
+        local ok = ceilingCall(open.wakeup, octx)
+        if not ok then stopped = stopped + 1 end
+      end
+    end
+    check(drawn and stopped == 0 and ost.scanned == true and not ost.layoutPending,
+      "open hosted: scan, fitting and list build, each call within a widget call, the list drawn",
+      passes .. " passes, " .. builds .. " builds, " .. stopped .. " stopped")
+  end
+
   hosted = false
   local tool = loadPage()
   local tst = find(tool.wakeup, "state")
