@@ -1818,14 +1818,13 @@ function M.build(ctx)
   -- the window here; hosted, the wakeup does it a few rows per call (see
   -- LAYOUT_ROWS_PER_WIDGET_WAKEUP), and until it is done the notice is drawn with the window it is
   -- preparing.
-  local isNarrow, dateColW, btnW, labelW = listColumns(w)
-  local modelDefault = pageText(i18n, "model_default")
   if #state.logsList > 0 then
+    local _, _, _, layoutW = listColumns(w)
     local deferred = LoadingOverlay ~= nil and inWidgetCall()
-    if not layOutWindow(labelW, modelDefault, deferred and 0 or nil) then
+    if not layOutWindow(layoutW, pageText(i18n, "model_default"), deferred and 0 or nil) then
       state.layoutPending = true
       local _, first, last = listWindow()
-      pageLog("debug", "logs list: rows %d-%d not broken yet for %d px, drawn once they are", first, last, labelW)
+      pageLog("debug", "logs list: rows %d-%d not broken yet for %d px, drawn once they are", first, last, layoutW)
       LoadingOverlay.append(children, {
         x = x,
         y = y,
@@ -1887,7 +1886,7 @@ function M.build(ctx)
   --   their wrapping needs; on 480 px two 100px buttons left half of it and doubled the build.
   -- - Model & filename: space between date column and action button with safe margins
   -- - Row height: follows measured broken lines so wrapped titles cannot overflow into adjacent rows
-  -- (The columns are listColumns'.)
+  local isNarrow, dateColW, btnW, labelW = listColumns(w)
   local btnH = 30
   local graphX = x + w - btnW - 10
   local btnX = graphX - GRAPH_GAP - btnW

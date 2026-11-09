@@ -851,12 +851,14 @@ do
     calls = calls + 1
   end
   check(allFit and not st.layoutPending and calls > 1,
-    "full window hosted: each wakeup fitting names fits a widget call, over several calls", calls .. " calls, worst " .. worst)
+    "full window hosted: each wakeup fitting names fits a widget call, over several calls",
+    calls .. " calls, worst " .. worst)
   ctx.children = {}
   local listFits, listUsed = ceilingCall(page.build, ctx)
   local rows = 0
   for _, c in ipairs(ctx.children) do if c.type == "button" and c.text == "btn_view" then rows = rows + 1 end end
-  check(listFits and rows == 25, "full window hosted: the build of 25 rows fits a widget call", listUsed .. " instructions, " .. rows .. " rows")
+  check(listFits and rows == 25, "full window hosted: the build of 25 rows fits a widget call",
+    listUsed .. " instructions, " .. rows .. " rows")
   local hostedLabels = rowLabels(ctx)
 
   hosted = false
