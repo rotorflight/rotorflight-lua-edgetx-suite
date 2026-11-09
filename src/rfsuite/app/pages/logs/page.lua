@@ -36,6 +36,16 @@ local GRAPH_TICKS_PER_WIDGET_WAKEUP = 1
 -- SCAN_UNIT_ENTRIES cost about 3 700 where the names carry their date.
 local SCAN_UNITS_PER_WIDGET_WAKEUP = 3
 
+-- Breaking a row's model and file name into the lines its column holds is most of what the list
+-- costs: about 1 100 instructions a row at 480x320, so some 28 000 for a window of twenty-five,
+-- against the 2 100 the rest of the page build takes. Built that way inside the widget's call, the
+-- build was stopped every time, built again on the next pass, and the list never appeared on a
+-- card holding more than about fifteen logs. Hosted, the page's wakeup breaks this many rows per
+-- call instead, keeps the lines on each log's record, and asks for the build once the window is
+-- done (see layOutWindow); five rows cost about 5 500. The tool script runs without that limit,
+-- and its build breaks the window itself as before.
+local LAYOUT_ROWS_PER_WIDGET_WAKEUP = 5
+
 -- True while the page is called from inside the dashboard widget (see lib/env.lua).
 local function inWidgetCall()
   return Env ~= nil and Env ~= false and Env.isWidget() == true
@@ -713,6 +723,17 @@ local function scanLogFiles()
 end
 
 
+-- The list's layout, defined with the list's constants further down (see layOutWindow).
+local listColumns, listWindow, layOutWindow
+
+-- One line to the suite's log; nothing is built when the log does not want this level.
+local function pageLog(level, fmt, ...)
+  local Log = _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.logs", level, fmt, ...)
+  end
+end
+
 function M.getHeaderActions()
   return {
     reload = true,
@@ -746,7 +767,8 @@ function M.wakeup(ctx)
   -- uses for reading a selected log -- and the notice is drawn again whenever what it counts
   -- has moved. Hosted, the wakeup spends a number of units on it instead (see
   -- SCAN_UNITS_PER_WIDGET_WAKEUP).
-  if state.scan then
+  local scanning = state.scan ~= nil
+  if scanning then
     if scanForAWhile(state.scan, widgetCall and SCAN_UNITS_PER_WIDGET_WAKEUP or nil) then
       state.logsList = state.scan.found
       state.scan = nil
@@ -756,7 +778,12 @@ function M.wakeup(ctx)
       -- Frees what the steps left behind (about 300 KB at 587 logs) before the build allocates;
       -- measured on the EdgeTX simulator, under 1 ms and no more than the same collect after it.
       collectgarbage("collect")
-      if state.requestRebuild then
+      pageLog("info", "logs list: %d logs found", #state.logsList)
+      -- Hosted, the window's rows are broken first (below), and that asks for the build once it is
+      -- done; the notice stays up meanwhile.
+      if widgetCall and state.listW and #state.logsList > 0 then
+        state.layoutPending = true
+      elseif state.requestRebuild then
         state.requestRebuild()
       end
     else
@@ -766,6 +793,27 @@ function M.wakeup(ctx)
         if state.requestRebuild then
           state.requestRebuild()
         end
+      end
+    end
+  end
+
+  -- Hosted, the rows of the window on screen are broken here rather than in the build, a few per
+  -- call (see LAYOUT_ROWS_PER_WIDGET_WAKEUP), and the build is asked for once all of them are.
+  -- Never in the call that ran the scan: its last step and the collect after it are already there.
+  if state.layoutPending and not scanning then
+    if state.selectedFile or state.view == "graph" or not state.listW or #state.logsList == 0 then
+      state.layoutPending = false
+    else
+      local _, _, _, labelW = listColumns(state.listW)
+      local modelDefault = pageText(ctx and ctx.i18n, "model_default")
+      local rows = widgetCall and LAYOUT_ROWS_PER_WIDGET_WAKEUP or nil
+      if layOutWindow(labelW, modelDefault, rows) then
+        -- Asked for before the flag is cleared: a call stopped in between asks again, never not.
+        if state.requestRebuild then state.requestRebuild() end
+        state.layoutPending = false
+        pageLog("debug", "logs list: window laid out, %d px label column", labelW)
+      else
+        pageLog("trace", "logs list: %d rows broken this call", rows or 0)
       end
     end
   end
@@ -843,6 +891,7 @@ function M.onReload(ctx)
   state.listTop = 0
   state.scan = nil
   state.scanShown = nil
+  state.layoutPending = nil
   closeGraph()
   state.selectedFile = nil
   state.selectedFilePath = nil
@@ -979,6 +1028,57 @@ end
 local LIST_WINDOW = 25
 
 local LIST_NAV_H = 44
+
+local LIST_ROW_MIN_H = 44
+local LIST_ROW_MAX_LINES = 3
+
+-- The list's columns for a page `w` px wide; the label column is the room between the date column
+-- and the two buttons. One function for the build and the wakeup, so the lines the wakeup keeps
+-- were broken for the column the build draws them into.
+listColumns = function(w)
+  local isNarrow = w < 380
+  local dateColW = isNarrow and math.floor(w * 0.34) or math.min(180, math.floor(w * 0.28))
+  local btnW = isNarrow and 56 or (w < 600 and 76 or 100)
+  local labelW = math.max(40, (w - btnW - 10 - GRAPH_GAP - btnW) - (dateColW + 15) - 10)
+  return isNarrow, dateColW, btnW, labelW
+end
+
+-- The logs of the window on screen: the index of the first and the last, and the window's top.
+-- It is clamped because the list can be shorter after a refresh than when the window was chosen.
+listWindow = function()
+  local logCount = #state.logsList
+  local maxTop = math.floor((logCount - 1) / LIST_WINDOW) * LIST_WINDOW
+  local top = math.max(0, math.min(state.listTop or 0, maxTop))
+  return top, top + 1, math.min(logCount, top + LIST_WINDOW)
+end
+
+-- Breaks the names of the window's logs that are not broken for this column yet, `rows` of them at
+-- most (all where `rows` is nil), and answers true once every row of the window is. The lines are
+-- kept on the log's record with the width and the default model name they were made for: the
+-- records outlive the page (see M.onClose), and a log without a model is labelled in the language
+-- of the moment. One record is complete or untouched, so a call stopped in the middle of a row
+-- breaks that row again on the next.
+layOutWindow = function(labelW, modelDefault, rows)
+  local logs = state.logsList
+  local _, first, last = listWindow()
+  for i = first, last do
+    local item = logs[i]
+    if item.labelW ~= labelW or item.labelModel ~= modelDefault then
+      if rows ~= nil then
+        if rows <= 0 then return false end
+        rows = rows - 1
+      end
+      local lines = wrapToWidth(string.format("[%s] %s", item.model or modelDefault, item.file),
+                                SMLSIZE, labelW, LIST_ROW_MAX_LINES)
+      item.labelText = table.concat(lines, "\n")
+      item.labelLines = #lines
+      item.labelModel = modelDefault
+      -- Last: it is what marks the record as broken for this column.
+      item.labelW = labelW
+    end
+  end
+  return true
+end
 
 -- A row of the window's own: a button, where there is somewhere to go, and which logs the
 -- window holds out of how many.
@@ -1674,6 +1774,10 @@ function M.build(ctx)
   end
 
   -- List Mode: show available telemetry logs
+  --
+  -- The page width is kept for the wakeup, which breaks the rows of the list for it where the tool
+  -- runs inside the dashboard widget (see layOutWindow).
+  state.listW = w
   if not state.scanned then
     -- `state.loading` belongs to the CSV parse and drives a branch above this one with its own
     -- message, so the scan has a state of its own. Starting it reads nothing; the wakeup does
@@ -1708,6 +1812,32 @@ function M.build(ctx)
     state.scan = nil
     scanLogFiles()
     state.scanned = true
+  end
+
+  -- The rows' names are broken for the label column before a row is drawn. The tool script breaks
+  -- the window here; hosted, the wakeup does it a few rows per call (see
+  -- LAYOUT_ROWS_PER_WIDGET_WAKEUP), and until it is done the notice is drawn with the window it is
+  -- preparing.
+  local isNarrow, dateColW, btnW, labelW = listColumns(w)
+  local modelDefault = pageText(i18n, "model_default")
+  if #state.logsList > 0 then
+    local deferred = LoadingOverlay ~= nil and inWidgetCall()
+    if not layOutWindow(labelW, modelDefault, deferred and 0 or nil) then
+      state.layoutPending = true
+      local _, first, last = listWindow()
+      pageLog("debug", "logs list: rows %d-%d not broken yet for %d px, drawn once they are", first, last, labelW)
+      LoadingOverlay.append(children, {
+        x = x,
+        y = y,
+        w = w,
+        h = h,
+        title = pageText(i18n, "loading_title"),
+        message = pageText(i18n, "select_log") .. "\n"
+          .. string.format(pageText(i18n, "list_range"), first, last, #state.logsList),
+        bar = false
+      })
+      return
+    end
   end
 
   if Controls and type(Controls.appendStaticSectionHeader) == "function" then
@@ -1757,26 +1887,17 @@ function M.build(ctx)
   --   their wrapping needs; on 480 px two 100px buttons left half of it and doubled the build.
   -- - Model & filename: space between date column and action button with safe margins
   -- - Row height: follows measured broken lines so wrapped titles cannot overflow into adjacent rows
-  local ROW_MIN_H = 44
-  local ROW_MAX_LINES = 3
-  local isNarrow = w < 380
-  local dateColW = isNarrow and math.floor(w * 0.34) or math.min(180, math.floor(w * 0.28))
-  local btnW = isNarrow and 56 or (w < 600 and 76 or 100)
+  -- (The columns are listColumns'.)
   local btnH = 30
   local graphX = x + w - btnW - 10
   local btnX = graphX - GRAPH_GAP - btnW
   local labelX = x + dateColW + 15
-  local labelW = math.max(40, btnX - labelX - 10)
   local _, labelLineH = textSize("Ag", SMLSIZE)
 
-  -- The window on screen. It is clamped because the list can be shorter after a refresh than
-  -- when the window was chosen.
+  -- The window on screen (see listWindow).
   local logCount = #state.logsList
-  local maxTop = math.floor((logCount - 1) / LIST_WINDOW) * LIST_WINDOW
-  local top = math.max(0, math.min(state.listTop or 0, maxTop))
+  local top, first, last = listWindow()
   state.listTop = top
-  local first = top + 1
-  local last = math.min(logCount, top + LIST_WINDOW)
   local windowed = logCount > LIST_WINDOW
   local rangeText = string.format(pageText(i18n, "list_range"), first, last, logCount)
 
@@ -1793,16 +1914,14 @@ function M.build(ctx)
   end
 
   local dateUnknown = pageText(i18n, "date_unknown")
-  local modelDefault = pageText(i18n, "model_default")
 
   for i = first, last do
     local item = state.logsList[i]
     local itemY = cursorY
 
-    local labelLines = wrapToWidth(string.format("[%s] %s", item.model or modelDefault, item.file),
-                                   SMLSIZE, labelW, ROW_MAX_LINES)
-    local labelText = table.concat(labelLines, "\n")
-    local rowH = math.max(ROW_MIN_H, 22 + #labelLines * labelLineH)
+    -- Broken for this column by layOutWindow above, or by the wakeup before this build.
+    local labelText = item.labelText
+    local rowH = math.max(LIST_ROW_MIN_H, 22 + item.labelLines * labelLineH)
 
     -- Date and Time
     children[#children + 1] = {
@@ -1910,6 +2029,7 @@ end
 function M.onClose()
   state.scan = nil
   state.scanShown = nil
+  state.layoutPending = nil
   closeGraph()
   state.selectedFile = nil
   state.selectedFilePath = nil
