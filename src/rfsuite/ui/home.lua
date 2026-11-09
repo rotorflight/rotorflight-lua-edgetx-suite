@@ -2694,14 +2694,16 @@ end
 local function buildScene()
   if lvgl == nil then return end
 
-  ensureBuildDeps()
-  local loadingGrid = nil
-
   -- Before the build, not after it. A build that allocates more than the LVGL pool can give it
   -- does not come back, so a line written afterwards is the one line that would never appear --
-  -- and it is the one naming the screen that could not be built.
+  -- and it is the one naming the screen that could not be built. Before the build's modules are
+  -- loaded too: a page the host opened the tool on is built on the pass after init, so a stop in
+  -- that load would otherwise leave init's last line in the step file.
   local buildingMenuId = state.menu and state.menu.getCurrentMenuId and state.menu.getCurrentMenuId() or nil
   logStep("build menu=" .. tostring(buildingMenuId))
+
+  ensureBuildDeps()
+  local loadingGrid = nil
   -- Whatever this build draws, the root menu's tiles drawn before it are gone; the root branch
   -- below records the new ones.
   state.rootDrawn = nil
