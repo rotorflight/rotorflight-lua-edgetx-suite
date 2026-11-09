@@ -58,7 +58,7 @@ check(Schemes.SCHEMES[Schemes.DEFAULT] ~= nil, "the default names a scheme")
 -- A role added or removed changes this list, both schemes and the page together.
 local ROLES = {
   "page", "card", "raised", "header", "headerText", "text", "muted", "disabled", "accent", "accentInk",
-  "onAccent", "selection", "warning", "error", "onError", "ok", "onOk", "rule",
+  "onAccent", "selection", "warning", "error", "onError", "ok", "onOk", "rule", "tileOff", "tileOffText",
 }
 local listed = {}
 for _, role in ipairs(ROLES) do listed[role] = true end
@@ -98,6 +98,8 @@ local PAIRS = {
   { "disabled", "page", 3 }, { "disabled", "card", 3 },
   { "accent", "page", 3 }, { "accent", "card", 3 }, { "accent", "selection", 3 }, { "accent", "raised", 3 },
   { "warning", "raised", 3 },
+  -- A disabled tile: its text on its face.
+  { "tileOffText", "tileOff", 3 },
   -- A progress bar: the fill on its track, and the empty track on the page.
   { "accent", "rule", 2.4 }, { "rule", "page", 1.4 },
 }
@@ -108,6 +110,29 @@ for _, name in ipairs(names) do
     check(value >= pair[3], string.format("%s: %s on %s reads %.2f, needs %.1f", name, pair[1], pair[2], value, pair[3]))
   end
 end
+
+-- A disabled tile's icon fades into the face at the scheme's fade, and the faded picture still reads at
+-- 3:1 there. The picture is drawn in text on light and accentInk on dark (the icon generator's rule).
+local function fadeInto(fg, bg, opa)
+  local function ch(shift)
+    local f, b = (fg >> shift) & 0xFF, (bg >> shift) & 0xFF
+    return math.floor((f * (255 - opa) + b * opa) / 255 + 0.5)
+  end
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0)
+end
+local PICTURE = { light = "text", dark = "accentInk" }
+for _, name in ipairs(names) do
+  local scheme, fade = Schemes.SCHEMES[name], Schemes.ICON_FADE[name]
+  check(math.type(fade) == "integer" and fade >= 0 and fade <= 255, name .. ": the icon fade is an opacity 0-255")
+  check(Schemes.iconFade(name) == fade, name .. ": iconFade gives the scheme's fade")
+  local value = contrast(fadeInto(scheme[PICTURE[name]], scheme.tileOff, fade), scheme.tileOff)
+  check(value >= 3, string.format("%s: the faded icon on tileOff reads %.2f, needs 3", name, value))
+end
+check(Schemes.iconFade("neon") == Schemes.ICON_FADE[Schemes.DEFAULT], "iconFade: an unknown scheme gives the default's fade")
+check(Schemes.ICON_FADE.dark > 0, "dark fades a disabled tile's icon")
+-- Control: a 60 % fade (153) is past what dark's face can take, so the fade check can fail.
+check(contrast(fadeInto(Schemes.SCHEMES.dark.accentInk, Schemes.SCHEMES.dark.tileOff, 153), Schemes.SCHEMES.dark.tileOff) < 3,
+  "control: dark's icon faded 60 % falls under 3:1")
 
 -- A meaning colour does not cross over: dark's warning is not legible on the light page.
 check(contrast(Schemes.SCHEMES.dark.warning, Schemes.SCHEMES.light.page) < 3, "dark's warning does not read on the light page")
