@@ -342,11 +342,22 @@ function M.build(ctx)
     cursorY = cursorY + (Controls.STATIC_SECTION_H or 50)
   end
 
+  -- A row's ? opens its line in the tool's help view, titled with the row's label.
+  local openHelp = ctx and ctx.openHelp
+  local function onRowHelp(text, label)
+    if type(openHelp) == "function" and type(text) == "string" and text ~= "" then openHelp(text, label) end
+  end
+
   -- 1. Headspeed Filter Cutoff
+  local rpmLabel = pageText(i18n, "gov_rpm_filter", "Headspeed Filter Cutoff")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_rpm_filter", "Headspeed Filter Cutoff"),
+    rpmLabel,
     {
+      helpText = pageText(i18n, "help_rpm_filter",
+        "Cutoff of the lowpass filter on the headspeed signal the governor regulates on."),
+      helpTitle = rpmLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -363,10 +374,15 @@ function M.build(ctx)
   )
 
   -- 2. Voltage Filter Cutoff
+  local pwrLabel = pageText(i18n, "gov_pwr_filter", "Voltage Filter Cutoff")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_pwr_filter", "Voltage Filter Cutoff"),
+    pwrLabel,
     {
+      helpText = pageText(i18n, "help_pwr_filter",
+        "Cutoff of the lowpass filter on the battery voltage the governor compensates for."),
+      helpTitle = pwrLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -383,10 +399,15 @@ function M.build(ctx)
   )
 
   -- 3. TTA Bandwidth
+  local ttaLabel = pageText(i18n, "gov_tta_filter", "TTA Bandwidth")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_tta_filter", "TTA Bandwidth"),
+    ttaLabel,
     {
+      helpText = pageText(i18n, "help_tta_filter",
+        "Cutoff of the lowpass filter on the Tail Torque Assist input."),
+      helpTitle = ttaLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -403,10 +424,15 @@ function M.build(ctx)
   )
 
   -- 4. Precomp Bandwidth
+  local ffLabel = pageText(i18n, "gov_ff_filter", "Precomp Bandwidth")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_ff_filter", "Precomp Bandwidth"),
+    ffLabel,
     {
+      helpText = pageText(i18n, "help_ff_filter",
+        "Cutoff of the lowpass filter on the cyclic and collective precompensation."),
+      helpTitle = ffLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 25,
       step = 1,
@@ -423,10 +449,15 @@ function M.build(ctx)
   )
 
   -- 5. D-Term Cutoff (stored in 0.1Hz, e.g. 50 = 5.0Hz)
+  local dLabel = pageText(i18n, "gov_d_filter", "D-Term Cutoff")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_d_filter", "D-Term Cutoff"),
+    dLabel,
     {
+      helpText = pageText(i18n, "help_d_filter",
+        "Cutoff of the lowpass filter on the governor's D-term, in 0.1 Hz steps."),
+      helpTitle = dLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,

@@ -414,7 +414,7 @@ function M.build(ctx)
     end,
     {
       helpText = pageText(i18n, "help_mode",
-        "OFF passes throttle through, LIMIT applies the throttle limits, DIRECT only spools up and recovers, ELECTRIC and NITRO govern fully; OFF while the feature is off, and a change restarts the board."),
+        "OFF passes throttle through, LIMIT applies the throttle limits, DIRECT only spools up and recovers, ELECTRIC and NITRO govern fully; OFF while the feature is off."),
       helpTitle = modeLabel,
       onHelp = onRowHelp
     }
