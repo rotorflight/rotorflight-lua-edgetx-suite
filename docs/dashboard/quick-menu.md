@@ -224,8 +224,8 @@ Two things are different from the tool started from the tool list:
 - **A page that builds a lot can take a moment longer to appear.** A widget is stopped when one
   call runs too long, where the tool started from the tool list is paused and resumed, so such a
   page is finished over the next few frames. For the same reason, when **FLIGHT LOG** or a row of
-  the rolling menu opens the tool on a page, the page is drawn on the frame after the tool has
-  loaded, not in the same one.
+  the rolling menu opens the tool on a page, the page is drawn one frame after the tool has started
+  up, not in the same frame.
 - **Some memory stays in use after it is closed.** The pages are released, but the parts of the
   tool the dashboard shares stay loaded until the widget is.
 
