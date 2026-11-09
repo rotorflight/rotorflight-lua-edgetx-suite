@@ -3636,8 +3636,20 @@ function M.init(opts)
       logf("info", "landing %s not offered, the tool opens on its menu", landing)
     end
   end
-  logStep("init: first build", true)
-  M.buildUI()
+  -- A page the host opened the tool on is built on the next pass, not in this one. Hosted, init
+  -- is one widget call under the widget's instruction limit, and by here it has loaded the
+  -- manifest, the menu registry and the preferences; a page's first build on top of that stops at
+  -- the limit, and EdgeTX lets the rest of a call run once it has raised that stop, so a module the
+  -- page loads under a pcall of its own can come back nil and fail later in a reply handler. The
+  -- start screen used to take this pass. With nothing to compile it is left before the first
+  -- build, so the page waits one pass instead; a start screen that still stands is built now.
+  if state.landingMenuId ~= nil and not state.initialLoad then
+    logf("info", "landing %s: first build on the next pass", tostring(state.landingMenuId))
+    scheduleBuildUI(false)
+  else
+    logStep("init: first build", true)
+    M.buildUI()
+  end
   logStep("init: done", true)
 end
 

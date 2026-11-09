@@ -1,0 +1,2 @@
+- **A page the tool is opened on from the dashboard opens again (`ui/home.lua`, `docs/dashboard/quick-menu.md`)**:
+  - Opened from the dashboard on a page -- the quick menu's *FLIGHT LOG*, or a key bound to it -- the page is built on the pass after the tool has loaded instead of in the same one, where it could stop at the widget's instruction limit and end in the page's build error.
