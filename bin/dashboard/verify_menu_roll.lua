@@ -443,6 +443,32 @@ local function run(mutate)
     check("a reply under the prompt leaves it up", Views.top(w) == "battery_pick" and w.state.batteryPick.pending == true)
   end
   do
+    -- The menu as the default view, on an empty stack with no base layer: the prompt rises over it and is
+    -- answered, and the write's reply comes before the next pass has named the menu the view again.
+    adds, exits, toolOpened = {}, 0, 0
+    local w = newWidget("rotary")
+    w._viewId = Views.resolve(w)
+    local s = scene(Menu, w)
+    local r = roll(w)
+    check("the default menu has its roll on an empty stack", Views.top(w) == nil and r ~= nil and r.view == "menu")
+    detent(s.forward, s.forward.h, 2)
+    Roll.press(w)
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    local late = adds[#adds]
+    local session = w._viewStack
+    w.state.batteryPick = { loaded = true, pending = true, candidates = { { id = "a", name = "Pack A", cap = 3000 } } }
+    w._viewId = Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the prompt rose over the default menu", w._viewId == "battery_pick" and Views.top(w) == "battery_pick")
+    w.state.batteryPick.pending = false
+    Views.navigate(w, "done")
+    check("the prompt hands back to the default menu", Views.top(w) == nil and w._viewStack == session
+      and Views.roll(w, "battery_pick") == nil and Views.roll(w, "menu") == r)
+    late.processReply(late, {})
+    check("the answered write closes the default menu though the last pass named the prompt",
+      w._viewStack ~= session or Views.roll(w, "menu") == nil)
+  end
+  do
     -- A view taken off the stack starts over; one merely covered keeps its place.
     local w = open()
     local r = roll(w)
@@ -1041,7 +1067,7 @@ if selfTest then
       return (string.gsub(t, "Menu.run%(widget, entry, choice, \"none\", report%)", "Menu.run(widget, entry, choice, \"done\", report)"))
     end },
     { "a write's success closes whatever it finds", function(t)
-      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and Views.topRoll%(widget%) == roll\n      and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
+      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and Views.onTop%(widget, roll.view%)\n      and Views.roll%(widget, roll.view%) == roll\n      and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
     end },
     { "a position reported twice counts", function(t)
       return (string.gsub(t, "if sy == window.y then return end\n", ""))

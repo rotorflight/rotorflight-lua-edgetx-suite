@@ -92,7 +92,8 @@ local function writeProfile(widget, entry, choice, roll)
     -- A chain with a failed message stays failed whatever the last answer says, a reply to a
     -- write from before the menu was closed says nothing about this menu, and one that comes while
     -- a view stands over the menu (the battery prompt) leaves that view up.
-    if value == "ok" and widget._viewStack == session and Views.topRoll(widget) == roll
+    if value == "ok" and widget._viewStack == session and Views.onTop(widget, roll.view)
+      and Views.roll(widget, roll.view) == roll
       and Views.status(widget, entry.id) == "ok" then
       Views.navigate(widget, "done")
     end

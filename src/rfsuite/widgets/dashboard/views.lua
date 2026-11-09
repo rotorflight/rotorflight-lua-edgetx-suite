@@ -61,6 +61,18 @@ local function viewStep(fmt, ...)
   end
 end
 
+-- A view taken off the stack starts its rolling menu over the next time it opens, wherever it was
+-- taken off; one merely covered keeps its place. What the quick menu read for its way on goes with it.
+local function forgetView(widget, id)
+  local stack = widget._viewStack
+  if stack == nil or id == nil then return end
+  if stack.rolls ~= nil and stack.rolls[id] ~= nil then
+    stack.rolls[id] = nil
+    if _G.rfsuite.logSteps then viewStep("%s left the stack, its rolling menu starts over", tostring(id)) end
+  end
+  if id == M.DEFAULT_VIEW then stack.tree = nil end
+end
+
 -- How deep the stack may grow. A push beyond it is refused rather than dropping the bottom
 -- entry: a view that silently disappeared from under the others would be a way back that no
 -- longer leads anywhere.
@@ -379,7 +391,10 @@ function M.register(widget, themeViews)
   local stack = widget._viewStack
   if stack ~= nil then
     for i = #stack, 1, -1 do
-      if M.find(widget, stack[i].id) == nil then table.remove(stack, i) end
+      if M.find(widget, stack[i].id) == nil then
+        forgetView(widget, stack[i].id)
+        table.remove(stack, i)
+      end
     end
   end
   return registry
@@ -402,18 +417,6 @@ function M.top(widget)
   local stack = widget._viewStack
   local entry = stack and stack[#stack] or nil
   return entry and entry.id or nil
-end
-
--- A view taken off the stack starts its rolling menu over the next time it opens, wherever it was
--- taken off; one merely covered keeps its place. What the quick menu read for its way on goes with it.
-local function forgetView(widget, id)
-  local stack = widget._viewStack
-  if stack == nil or id == nil then return end
-  if stack.rolls ~= nil and stack.rolls[id] ~= nil then
-    stack.rolls[id] = nil
-    if _G.rfsuite.logSteps then viewStep("%s left the stack, its rolling menu starts over", tostring(id)) end
-  end
-  if id == M.DEFAULT_VIEW then stack.tree = nil end
 end
 
 -- Put `id` on top. A view already on the stack is returned to -- everything above it is
@@ -462,6 +465,7 @@ local function pop(widget)
   if _G.rfsuite.logSteps then
     viewStep("%s closed, %d left on the stack", tostring(stack[#stack] and stack[#stack].id), math.max(#stack - 1, 0))
   end
+  forgetView(widget, stack[#stack] and stack[#stack].id)
   stack[#stack] = nil
   stack.refused = nil
 end
@@ -504,7 +508,10 @@ function M.fail(widget, entry, why)
     entry.failed = true
     local stack = widget._viewStack
     local at = indexOf(stack, entry.id)
-    if at ~= nil then table.remove(stack, at) end
+    if at ~= nil then
+      forgetView(widget, entry.id)
+      table.remove(stack, at)
+    end
   end
 end
 
@@ -720,6 +727,15 @@ function M.dropRoll(widget, id)
   if rolls ~= nil and id ~= nil then rolls[id] = nil end
 end
 
+--- Whether view `id` is the one drawn now: the top of the stack, or with the stack empty and no base
+--- layer the default view, as `resolve` picks it. Asked between passes, where `_viewId` may still name
+--- a view that has just been taken off.
+function M.onTop(widget, id)
+  local top = M.top(widget)
+  if top ~= nil then return top == id end
+  return widget._viewBase == nil and id == M.DEFAULT_VIEW
+end
+
 --- The roll of the view on top, where that view draws one.
 function M.topRoll(widget)
   return M.roll(widget, M.top(widget) or widget._viewId)
@@ -812,9 +828,7 @@ function M.navigate(widget, after)
     if not push(widget, id, false) then return end
     M.invalidate(widget)
   elseif verb == "closeView" then
-    local closed = M.top(widget)
     pop(widget)
-    forgetView(widget, closed)
     M.invalidate(widget)
   elseif verb == "done" then
     -- A view that rose by itself over a rolling menu, the battery prompt, hands back to the place under it.
