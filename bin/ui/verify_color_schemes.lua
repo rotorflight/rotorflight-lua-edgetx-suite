@@ -113,12 +113,12 @@ end
 
 -- A disabled tile's icon fades into the face at the scheme's fade, and the faded picture still reads at
 -- 3:1 there. The picture is drawn in text on light and accentInk on dark (the icon generator's rule).
+-- Both colours are blended as the panel holds them (RGB565), the stricter of the two ways to model it.
 local function fadeInto(fg, bg, opa)
-  local function ch(shift)
-    local f, b = (fg >> shift) & 0xFF, (bg >> shift) & 0xFF
-    return math.floor((f * (255 - opa) + b * opa) / 255 + 0.5)
-  end
-  return (ch(16) << 16) | (ch(8) << 8) | ch(0)
+  local fr, fg2, fb = drawn(fg)
+  local br, bg2, bb = drawn(bg)
+  local function mix(f, b) return math.floor((f * (255 - opa) + b * opa) / 255 + 0.5) end
+  return (mix(fr, br) << 16) | (mix(fg2, bg2) << 8) | mix(fb, bb)
 end
 local PICTURE = { light = "text", dark = "accentInk" }
 for _, name in ipairs(names) do
@@ -130,6 +130,11 @@ for _, name in ipairs(names) do
 end
 check(Schemes.iconFade("neon") == Schemes.ICON_FADE[Schemes.DEFAULT], "iconFade: an unknown scheme gives the default's fade")
 check(Schemes.ICON_FADE.dark > 0, "dark fades a disabled tile's icon")
+-- Light's disabled tile keeps the look it had before the two roles existed: raised's face, muted's
+-- text, no fade.
+check(Schemes.SCHEMES.light.tileOff == Schemes.SCHEMES.light.raised, "light: a disabled tile's face is raised's value")
+check(Schemes.SCHEMES.light.tileOffText == Schemes.SCHEMES.light.muted, "light: a disabled tile's text is muted's value")
+check(Schemes.ICON_FADE.light == 0, "light: a disabled tile's icon is not faded")
 -- Control: a 60 % fade (153) is past what dark's face can take, so the fade check can fail.
 check(contrast(fadeInto(Schemes.SCHEMES.dark.accentInk, Schemes.SCHEMES.dark.tileOff, 153), Schemes.SCHEMES.dark.tileOff) < 3,
   "control: dark's icon faded 60 % falls under 3:1")

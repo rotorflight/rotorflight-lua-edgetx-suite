@@ -101,6 +101,45 @@ do
   palette.iconFade = saved
 end
 
+-- The real palette and scheme file: light -> dark -> light, the roles and the fade a tile is drawn
+-- with, and a tile built in each.
+do
+  local mods = {}
+  _G.lcd = { RGB = function(v) return v end }
+  _G.rfsuite = {
+    preferences = { general = { color_scheme = "light" } },
+    require = function(path)
+      mods[path] = mods[path] or assert(loadfile("src/rfsuite/" .. path))()
+      return mods[path]
+    end,
+  }
+  local Real = assert(loadfile("src/rfsuite/ui/palette.lua"))()
+  local Schemes = mods["lib/color_schemes.lua"]
+  local raw = {}
+  for name, scheme in pairs(Schemes.SCHEMES) do raw[name] = {} for k, v in pairs(scheme) do raw[name][k] = v end end
+  local function tilesFor()
+    _G.rfsuite.palette = Real
+    return assert(loadfile("src/rfsuite/ui/tiles.lua"))()
+  end
+  local function layersOf(T)
+    local children = {}
+    T.append(children, 0, 0, 100, "app/pages/setup/icon.png", "Setup", false, function() end, false)
+    return layers(children)
+  end
+  check(Real.scheme == "light" and Real.iconFade == 0, "real: light as stored, no fade")
+  check(Real.tile == raw.light.raised and Real.tileMuted == raw.light.muted, "real: light's disabled tile keeps raised and muted")
+  check(#layersOf(tilesFor()) == 0, "real: light draws no fade layer")
+  Real.apply("dark")
+  check(Real.iconFade == Schemes.ICON_FADE.dark and Real.iconFade > 0, "real: dark takes its fade")
+  check(Real.tile == raw.dark.page and Real.tileMuted == raw.dark.disabled, "real: dark's disabled tile is page and disabled")
+  local l = layersOf(tilesFor())
+  check(#l == 1 and l[1].c.opacity == Real.iconFade and l[1].c.color == raw.dark.page,
+    "real: dark draws the face over the icon at its fade")
+  Real.apply("light")
+  check(Real.iconFade == 0 and Real.tile == raw.light.raised, "real: back to light, no fade and the old face")
+  _G.rfsuite, _G.lcd = { palette = palette }, nil
+end
+
 if selfTest then
   print(string.format("verify_tile_disabled --self-test: %d checks, %d failures with the fade off", checks, failures))
   if failures == 0 then
