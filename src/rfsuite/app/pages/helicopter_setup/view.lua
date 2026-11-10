@@ -1,6 +1,8 @@
 -- Compact illustrated tasks use a drawing beside the controls. Large displays
 -- have a separate instruction column. The scene is published four objects per pass.
 local M = {}
+-- The font a text button draws in: EdgeTX's standard font, flags 0.
+local BUTTON_FONT = _G.STDSIZE or 0
 function M.new(w, ctx, diagrams)
   local palette = w.palette
   local function label(x, y, width, text, font)
@@ -32,7 +34,8 @@ function M.new(w, ctx, diagrams)
       tw = tonumber(tw)
       if ok and tw then return tw end
     end
-    return math.floor(#text * (font == MIDSIZE and (large and 14 or 10) or (large and 10 or 7.5)) + 0.5)
+    return math.floor(#text * (font == MIDSIZE and (large and 14 or 10) or font == BUTTON_FONT and font ~= SMLSIZE
+      and (large and 12 or 9) or (large and 10 or 7.5)) + 0.5)
   end
   -- A card's explanation runs across the full width at the top; the rows start below it. It takes the lines it needs, two at least and three at most, the third
   -- only where the rows still fit above the status line; the ? sheet carries the whole text.
@@ -483,7 +486,8 @@ function M.new(w, ctx, diagrams)
         -- An action button is as wide as its label; a label that changes keeps a fixed width.
         local bw
         if type(r.label) == "string" then
-          bw = math.max(2*controlH, math.min(formW, textWidth(r.label, SMLSIZE)+(large and 48 or 28)))
+          -- A text button draws in the standard font (flags 0), not the small one.
+          bw = math.max(2*controlH, math.min(formW, textWidth(r.label, BUTTON_FONT)+(large and 48 or 28)))
         else
           bw = math.min(formW, large and 320 or 220)
         end
