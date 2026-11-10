@@ -560,7 +560,7 @@ return function(h)
         w.step,w.card=5,1;step(w,"rates");w.stepMenu=true
         local scene=h.view.new(w,{w=size[1],h=size[2]},h.diagrams);while not scene:step() do end
         clearOfHelp(scene,string.format("%s %dx%d step menu",locale,size[1],size[2]))
-        local buttons=0
+        local buttons,names=0,0
         for _,item in ipairs(scene.children) do
           if item.type=="button" and item.w and item.w<size[1]/2 and type(item.text)=="string" and item.text~="?" and item.text~=LL.back and item.text~=LL.exit then
             buttons=buttons+1
@@ -568,7 +568,17 @@ return function(h)
             check(width(item.text,SMLSIZE)+14<=item.w,string.format("FIT %s %dx%d step menu '%s' %d fits %d",locale,size[1],size[2],item.text,width(item.text,SMLSIZE),item.w))
             check(item.h>=(size[2]<=272 and 21 or 24),string.format("FIT %dx%d step menu buttons are %d px high",size[1],size[2],item.h))
           end
+          -- On the 480-wide screens the number and name stand in a label over the button, on up to
+          -- two lines: every word fits a line and the whole fits two.
+          if item.type=="label" and type(item.text)=="string" and string.match(item.text,"^%d+%. ") and item.y>30 then
+            names=names+1
+            local lineW=0
+            for word in string.gmatch(item.text,"%S+") do check(width(word,SMLSIZE)<=item.w,"FIT step menu word '"..word.."' fits its line") end
+            lineW=width(item.text,SMLSIZE)
+            check(lineW<=item.w or (lineW<=2*item.w*0.9 and item.h>=34),string.format("FIT %s %dx%d step menu '%s' %d fits two lines of %d",locale,size[1],size[2],item.text,lineW,item.w))
+          end
         end
+        check(names==0 or names==19,"FIT the step menu names all 19 steps with their numbers")
         eq(buttons,19,"FIT step menu shows 19 steps")
         w.stepMenu=nil
       end

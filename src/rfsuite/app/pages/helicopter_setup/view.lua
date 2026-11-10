@@ -213,40 +213,53 @@ function M.new(w, ctx, diagrams)
       all[#all + 1] = label(10, textY, width-20, w.L.stepMenuOpen)
       all[#all].h, all[#all].color = large and 28 or 18, palette.muted
     end
-    local cols, rows = 3, 7
+    -- 800x480: three columns, each as wide as its longest name. The 480-wide screens: four
+    -- columns of five, each button carrying its number and name on up to two lines, so the
+    -- order reads at a glance and a long name still fits.
+    local cols, rows = large and 3 or 4, large and 7 or 5
     local top = hint and textY+(large and 34 or 20) or textY
     local bottom = height-controlH-(large and 40 or 27)-4
     local gap = large and 6 or 2
     local margin = large and 10 or 6
-    local bh = math.min(controlH, math.floor((bottom-top)/rows)-gap)
-    -- Each column is as wide as its longest step name and the button's own padding; what is left
-    -- of the width is shared out, so a long name in one column does not cramp the others.
-    local names = large and w.L.numberedSteps or w.L.steps
-    local colW, used = {}, 0
-    for c = 1, cols do
-      local most = 0
-      for index = c, 19, cols do most = math.max(most, textWidth(names[index], SMLSIZE)) end
-      colW[c] = most + (large and 20 or 16); used = used + colW[c]
+    local bh = math.min(large and controlH or 2*controlH, math.floor((bottom-top)/rows)-gap)
+    local names = w.L.numberedSteps
+    local colW, colX = {}, { margin }
+    if large then
+      -- Each column is as wide as its longest step name and the button's own padding; what is
+      -- left of the width is shared out, so a long name in one column does not cramp the others.
+      local used = 0
+      for c = 1, cols do
+        local most = 0
+        for index = c, 19, cols do most = math.max(most, textWidth(names[index], SMLSIZE)) end
+        colW[c] = most + 20; used = used + colW[c]
+      end
+      local spare = math.floor((width-2*margin-(cols-1)*gap-used)/cols)
+      for c = 1, cols do colW[c] = math.max(1, colW[c]+spare) end
+    else
+      for c = 1, cols do colW[c] = math.floor((width-2*margin-(cols-1)*gap)/cols) end
     end
-    local spare = math.floor((width-2*margin-(cols-1)*gap-used)/cols)
-    local colX = { margin }
-    for c = 1, cols do
-      colW[c] = math.max(1, colW[c]+spare)
-      colX[c+1] = colX[c]+colW[c]+gap
-    end
+    for c = 1, cols do colX[c+1] = colX[c]+colW[c]+gap end
     local mask = w.history and w.history.mask or 0
+    local lineH = large and 23 or 17
     for index = 1, 19 do
       local col, row = (index-1) % cols, math.floor((index-1)/cols)
       local x, y, bw = colX[col+1], top+row*(bh+gap), colW[col+1]
       local target = index
-      button(x, y, bw, names[index], function() w:jumpToStep(target) end,
+      local current = index == w.step
+      button(x, y, bw, large and names[index] or "", function() w:jumpToStep(target) end,
         function() return w.canEdit == true end)
       all[#all].h, all[#all].font = bh, SMLSIZE
-      if index == w.step then all[#all].color, all[#all].textColor = palette.accent, palette.onAccent end
+      if current then all[#all].color, all[#all].textColor = palette.accent, palette.onAccent end
+      if not large then
+        -- The name above the button wraps within it; a label takes no tap, so the button gets it.
+        local lines = textWidth(names[index], SMLSIZE) <= bw-12 and 1 or 2
+        all[#all + 1] = label(x+6, y+math.max(1, math.floor((bh-lines*lineH)/2)), bw-12, names[index])
+        all[#all].h, all[#all].color = lines*lineH, current and palette.onAccent or palette.text
+      end
       if (mask & (1 << (index-1))) ~= 0 then
         local d = large and 8 or 6
-        all[#all + 1] = { type = "rectangle", x = x+4, y = y+math.floor((bh-d)/2), w = d, h = d,
-          filled = true, color = index == w.step and palette.onAccent or palette.ok }
+        all[#all + 1] = { type = "rectangle", x = large and x+4 or x+bw-d-3, y = large and y+math.floor((bh-d)/2) or y+3,
+          w = d, h = d, filled = true, color = current and palette.onAccent or palette.ok }
       end
     end
   elseif w.overview then
@@ -280,7 +293,8 @@ function M.new(w, ctx, diagrams)
     end
     local illustrated = card.art ~= nil
     local formX = illustrated and math.floor(width * (large and 0.43 or 0.35))+(large and 0 or 4) or 10
-    if attitudeCard then formX=large and math.floor(width*.64) or 10;rowY=large and 166 or height-3*controlH-10 end
+    -- The attitude card: the helicopter on the left, its hint and the answer on the right.
+    if attitudeCard then formX=math.floor(width*(large and .64 or .5));rowY=large and 166 or textY+3*17+28 end
     local formW = width-formX-(large and 16 or 10)
     -- The status line's top: everything a card draws ends above it.
     local cardBottom = height-controlH-(large and 40 or 27)
@@ -296,10 +310,10 @@ function M.new(w, ctx, diagrams)
     -- Rows may sit at the foot of the card, under a full-width overview.
     if card.rowsAtFoot then rowY = cardBottom-2-slots*rowH end
     if attitudeCard then
-      all[#all+1]=label(10,textY,width-20,w.L.orientationModelHint)
-      all[#all].h=large and 32 or 23;all[#all].color=palette.muted
-      diagrams.append(all,w,card,10,large and 108 or textY+26,
-        large and formX-26 or width-20,large and height-controlH-168 or rowY-textY-38)
+      all[#all+1]=label(large and 10 or formX,textY,large and width-20 or formW,w.L.orientationModelHint)
+      all[#all].h=large and 32 or 3*17;all[#all].color=palette.muted
+      diagrams.append(all,w,card,10,large and 108 or textY,
+        formX-26,large and height-controlH-168 or cardBottom-4-textY)
     else
     -- The card's name is in the header; its explanation leads the card across the full width.
     local badgeW = 0
@@ -481,8 +495,8 @@ function M.new(w, ctx, diagrams)
           editW = large and 270 or math.min(formW-labelW, 190)
           editX, textW = formX+labelW, labelW-8
         end
-        if attitudeCard and large then
-          all[#all+1]=label(formX,y-34,formW,r.label)
+        if attitudeCard then
+          all[#all+1]=label(formX,y-(large and 34 or 22),formW,r.label)
           editW, editX = formW, formX
         elseif r.fullWidth then
           editW, editX = formW, formX
