@@ -89,7 +89,7 @@ belongs in its list.
 
 The firmware cannot tint a picture, so a picture that follows the scheme exists once per scheme.
 `bin/icons/make_scheme_icons.py` makes them from the suite's own icons, which are dark on an opaque
-ground: the darkness becomes transparency in the scheme's colour. It reads the colour from this file:
+ground: the darkness becomes transparency in the scheme's colour. It reads the colour from `lib/color_schemes.lua`:
 `text` in light, as dark as the pictures are today; `accentInk` in dark, the role for a glyph. Run it after changing either
 value; `--check` says where a picture is missing, stale or left over.
 

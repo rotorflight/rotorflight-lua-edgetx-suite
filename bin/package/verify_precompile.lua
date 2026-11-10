@@ -423,8 +423,66 @@ local function driveShared(Precompile, advance)
   end
 end
 
--- Folders of pictures: the colour schemes ship each tile icon once per scheme, a hundred-odd pictures to
--- a folder. A picture costs no timestamp, so the entry loop used to take a whole folder in one call. Every
+-- Folders of pictures: the rolling quick menu ships each icon once per colour, a hundred pictures to a
+-- folder. A picture costs no timestamp, so the entry loop used to take a whole folder in one call. Every
+-- widget call of the pass is counted in the module's own instructions (the card's dir() here is a test
+-- stand-in and is left out), and the most expensive one has to stay well under the widget's limit.
+do
+  local card = installedCard()
+  local folders = { { "widgets/dashboard/roll_icons/light", 100 }, { "widgets/dashboard/roll_icons/dark", 100 } }
+  for _, folder in ipairs(folders) do
+    for n = 1, folder[2] do
+      card.put(string.format("%s/%s/roll_icon_%03d.png", CORE, folder[1], n), "png", 100)
+    end
+  end
+  local Precompile, record, advance, close = widgetState(card, true)
+  local source = "=" .. modulePath
+  local worst, steps = 0, 0
+  if hasWidgetApi(Precompile) and Precompile.startIfStale("0.2.0") then
+    while Precompile.isRunning() and steps < 10000 do
+      local n = 0
+      debug.sethook(function()
+        local info = debug.getinfo(2, "S")
+        if info and info.source == source then n = n + 1 end
+      end, "", 1)
+      Precompile.stepShared()
+      debug.sethook()
+      if n > worst then worst = n end
+      advance()
+      steps = steps + 1
+    end
+  end
+  local finished = hasWidgetApi(Precompile) and not Precompile.isRunning()
+  close()
+  check("picture folders: the pass finishes on its own, not at the step cap", finished and steps < 10000,
+    steps .. " steps")
+  check("picture folders: it compiles both sources, each once, and reports nothing",
+    #record.loads == 2 and record.loads[1] ~= record.loads[2] and #record.warnings == 0,
+    table.concat(record.loads, ", ") .. "; " .. table.concat(record.warnings, "; "))
+  check("picture folders: the stamp is written", card.files[USER .. "/precompiled.txt"] ~= nil)
+  check("picture folders: no call takes more than 6000 of the module's instructions", worst > 0 and worst <= 6000,
+    "worst call " .. worst)
+end
+
+-- After an install the widgets run the whole pass, and it leaves the stamp the tool reads.
+do
+  local card = installedCard()
+  local Precompile, record, advance, close = widgetState(card, true)
+  local api = hasWidgetApi(Precompile)
+  local started = api and Precompile.startIfStale("0.2.0")
+  if started then driveShared(Precompile, advance) end
+  close()
+  check("widget after install: the module offers the shared entry points", api)
+  check("widget after install: a pass starts", started == true)
+  check("widget after install: both sources are compiled", #record.loads == 2, #record.loads .. " loads")
+  check("widget after install: the stamp is written", card.files[USER .. "/precompiled.txt"] ~= nil)
+  local second = launch(card)
+  check("widget after install: the tool's next start compiles nothing", #second.loads == 0,
+    #second.loads .. " loads")
+end
+
+-- The colour schemes' folders: each tile icon and each shipped theme's picture once per scheme, a hundred-odd
+-- pictures to a folder, walked the same way. A picture costs no timestamp, so the entry loop used to take a whole folder in one call. Every
 -- widget call of the pass is counted in the module's own instructions (the card's dir() here is a test
 -- stand-in and is left out), and the most expensive one has to stay well under the widget's limit.
 do
@@ -453,28 +511,16 @@ do
       steps = steps + 1
     end
   end
+  local finished = hasWidgetApi(Precompile) and not Precompile.isRunning()
   close()
-  check("picture folders: the pass finishes and compiles both sources", #record.loads == 2,
-    #record.loads .. " loads, " .. steps .. " steps")
-  check("picture folders: no call takes more than 6000 of the module's instructions", worst > 0 and worst <= 6000,
+  check("scheme picture folders: the pass finishes on its own, not at the step cap", finished and steps < 10000,
+    steps .. " steps")
+  check("scheme picture folders: it compiles both sources, each once, and reports nothing",
+    #record.loads == 2 and record.loads[1] ~= record.loads[2] and #record.warnings == 0,
+    table.concat(record.loads, ", ") .. "; " .. table.concat(record.warnings, "; "))
+  check("scheme picture folders: the stamp is written", card.files[USER .. "/precompiled.txt"] ~= nil)
+  check("scheme picture folders: no call takes more than 6000 of the module's instructions", worst > 0 and worst <= 6000,
     "worst call " .. worst)
-end
-
--- After an install the widgets run the whole pass, and it leaves the stamp the tool reads.
-do
-  local card = installedCard()
-  local Precompile, record, advance, close = widgetState(card, true)
-  local api = hasWidgetApi(Precompile)
-  local started = api and Precompile.startIfStale("0.2.0")
-  if started then driveShared(Precompile, advance) end
-  close()
-  check("widget after install: the module offers the shared entry points", api)
-  check("widget after install: a pass starts", started == true)
-  check("widget after install: both sources are compiled", #record.loads == 2, #record.loads .. " loads")
-  check("widget after install: the stamp is written", card.files[USER .. "/precompiled.txt"] ~= nil)
-  local second = launch(card)
-  check("widget after install: the tool's next start compiles nothing", #second.loads == 0,
-    #second.loads .. " loads")
 end
 
 -- A tree already compiled: no pass, no walk, nothing loaded, so the connection is not held.
