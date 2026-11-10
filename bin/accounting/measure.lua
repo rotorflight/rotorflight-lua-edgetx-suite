@@ -268,12 +268,19 @@ local cycleFor, cycle = nil, nil
 -- (lib/sensors.lua). An entry with no value set, and every group entry, keeps its zero bytes.
 -- Filled in when the frame is built, never in the cycle, so a value the run moves reaches the next
 -- frame.
+-- The scenarios name the battery profile by the radio label they were written with; the frame row
+-- is the decoder table's BAT#.
+local SCENARIO_ALIAS = { ["BAT#"] = "BatP" }
+
 local function scenarioBytes(sid, width)
   if width > 4 or sid == 0x102F or sid == 0x1126 then return nil end
   local sensor = World.sensorInfo and World.sensorInfo[sid]
-  local value = sensor and Stubs.sensors[sensor.name]
+  local value = sensor and (Stubs.sensors[sensor.name] or Stubs.sensors[SCENARIO_ALIAS[sensor.name] or ""])
   if type(value) ~= "number" then return nil end
-  local raw = math.floor(value * 10 ^ (sensor.prec or 0) + 0.5) % (1 << (8 * width))
+  local raw = math.floor(value * 10 ^ (sensor.prec or 0) + 0.5)
+  -- A cell voltage goes out as hundredths of a volt less 2 V (decCellV adds the 200 back), 0 for none.
+  if sid == 0x1021 then raw = raw > 0 and math.max(1, math.min(255, raw - 200)) or 0 end
+  raw = raw % (1 << (8 * width))
   local bytes = {}
   for i = width, 1, -1 do
     bytes[i] = raw & 0xFF

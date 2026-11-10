@@ -33,14 +33,18 @@ because its values are in the background decoder's script, not in the dashboard'
 its own telemetry page -- ratio, offset, filter, a changed unit or number of decimals, a headspeed
 multiplier -- when it stores a value in its sensor, and a value read from the decoder has none of
 them. Calibrate a value in the flight controller; a correction made on the radio's sensor page
-shows on the radio's own screens, its alarms and its SD log, and in the dashboard only while the
-background decoder runs.
+shows on the radio's own screens, its alarms and its SD log, and, for a value the dashboard reads
+from its decoder, in the dashboard only while the background decoder runs. A value read from the
+radio's sensors, as below, carries it as before.
 
 Not from the decoder, and searched for as described below: a value the flight controller does not
 send (the next name on the list answers, as before), a value whose list starts with a sensor that
 is not part of the custom telemetry -- smart fuel, which the suite computes itself, or the link
 statistics -- and the values that come as a group, such as the cells, the attitude or the GPS
-position. After the link is lost the sensors are read until the decoder has taken new frames.
+position -- and a single value such a group also carries, once the group has come in. After the
+link is lost, and after the dashboard takes the decoding back from the background decoder, the
+sensors are read until the decoder has taken new frames. The configuration pages that ask whether a
+sensor is arriving right now (the feedback during the helicopter setup) ask the radio's sensor.
 
 ## Choosing a sensor
 

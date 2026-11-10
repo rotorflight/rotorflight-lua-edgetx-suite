@@ -13,7 +13,10 @@
 --   * taking over again: the values this state decodes from then on answer again;
 --   * a source whose list starts with a sensor that is not custom keeps its order (smartfuel);
 --   * a custom sensor the flight controller does not send falls back to the sensor search (VFAS);
---   * a group (attitude) and a link reset fall back to the sensors.
+--   * a group (attitude) and a link reset fall back to the sensors, and a group supersedes a single row
+--     it also publishes;
+--   * taking over with an unchanged value answers from the decoder at once;
+--   * the live read used for configuration feedback still resolves the radio's sensor.
 -- Exit status: 0 green, 1 a FAIL line was printed.
 
 local ROOT = "."
@@ -203,6 +206,50 @@ scenario("group_and_reset", function()
   W.tasks.reset()
   W.rows.Vbat = 21.0
   check(near(S.getValue("voltage"), 21.0), "reset: after a link reset the sensor answers", S.getValue("voltage"))
+end)
+
+-- 5. A group that also publishes a single-value row supersedes that row's own earlier value.
+scenario("group_supersedes_row", function()
+  newWorld()
+  W.payload = { u16(0x1101, 10) }
+  seconds(0.5)
+  local S = W.sensors
+  check(near(S.getValue("pitch"), 10), "group_supersedes_row: the single row answers first", S.getValue("pitch"))
+  W.payload = { s16x3(0x1100, 200, 0, 0) }
+  seconds(0.5)
+  check(near(S.getValue("pitch"), 20), "group_supersedes_row: then the group's pitch, from the sensor",
+    S.getValue("pitch"))
+end)
+
+-- 6. Taking over with the same value still on the wire: the value this state decodes after the take-over
+-- answers at once, not only after the two-second refresh.
+scenario("takeover_unchanged", function()
+  newWorld()
+  W.payload = { u16(0x1011, 2240) }
+  -- Just past the first two-second refresh, so the take-over falls early in the next refresh window.
+  seconds(2.1)
+  local S = W.sensors
+  -- A short stand-aside: the take-over (1 s after the other decoder's counter stops) comes well
+  -- inside the two-second refresh of a value that does not change.
+  W.remote = true
+  seconds(0.2)
+  W.remote = false
+  pass(22)
+  check(near(S.getValue("voltage"), 22.4), "takeover_unchanged: the decoded value answers right after taking over",
+    S.getValue("voltage"))
+end)
+
+-- 7. The live read (configuration feedback) asks the radio whether its sensor is arriving now, and must
+-- still find the sensor's path while the decoder answers the ordinary reads.
+scenario("live_read", function()
+  newWorld()
+  W.payload = { u8(0x104F, 7) }
+  seconds(1)
+  local S = W.sensors
+  check(near(S.getValue("Esc#"), 7), "live_read: the ordinary read comes from the decoder", S.getValue("Esc#"))
+  S.reset()
+  check(near(S.getLiveValue("Esc#"), 7), "live_read: the live read still resolves the radio's sensor",
+    S.getLiveValue("Esc#"))
 end)
 
 print = realPrint

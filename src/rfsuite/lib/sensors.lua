@@ -767,6 +767,9 @@ end
 -- source and kept (`directPlans`, three entries per name: sid, divisor, name; false for a source
 -- with none), so a read is a table lookup and one call per candidate.
 local directPlans = {}
+-- Set by the live read (Sensors.getLiveValue), which reads the radio's sensor on purpose -- it asks
+-- whether the sensor is arriving now -- and calls readValue only to have its path resolved.
+local radioOnly = false
 
 local function directPlan(decoder, source, resolved)
   local custom = decoder.customSensor
@@ -784,6 +787,7 @@ local function directPlan(decoder, source, resolved)
 end
 
 local function directValue(source, resolved)
+  if radioOnly then return nil end
   local root = _G.rfsuite
   local decoder = root and root.telemetryDecoder
   if not decoder then return nil end
@@ -1010,7 +1014,9 @@ end
 -- contract (including held readings) unchanged for dashboard consumers.
 local function liveValue(source)
   if type(source) ~= "string" or type(_G.getSourceValue) ~= "function" then return nil end
-  readValue(source)
+  radioOnly = true
+  pcall(readValue, source)
+  radioOnly = false
   local path = Sensors.active_paths and Sensors.active_paths[source]
   if not path then return nil end
   if duplicateNames ~= false then path = slotName(path) end

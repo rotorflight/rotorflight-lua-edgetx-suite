@@ -208,6 +208,16 @@ local decodeNow = 0
 -- that raised part-way cannot leave the full pass silenced.
 local walkOnly = false
 
+-- The single-value rows a group also publishes (lib/rf2tlm_sensors.lua: decCells, decControl,
+-- decAttitude, decAccel, decAdjFunc).
+local GROUP_MEMBERS = {
+    [0x102F] = { 0x1020 },
+    [0x1030] = { 0x1031, 0x1032, 0x1033, 0x1034 },
+    [0x1100] = { 0x1101, 0x1102, 0x1103 },
+    [0x1110] = { 0x1111, 0x1112, 0x1113 },
+    [0x1220] = { 0x1221, 0x1222 },
+}
+
 local function traceGroup(sid, frame, data, first, last)
     if frame and lastGroupLength[sid] == last - first then
         local offset = lastGroupFirst[sid] - first
@@ -233,6 +243,13 @@ local function groupDue(sid, data, first, last)
     -- A group's values are published by its decoder, so the trace line names the group only, and
     -- only when its bytes changed rather than for a refresh.
     if traceOn then traceGroup(sid, frame, data, first, last) end
+    -- The group publishes these single-value sensors too, so a value one of them published on its
+    -- own earlier is not current any more: forgotten, and read from the radio's sensor
+    -- (M.valueBySid). It is published again when its own row comes in a frame.
+    local members = GROUP_MEMBERS[sid]
+    if members then
+        for i = 1, #members do lastPublishedValue[members[i]] = nil end
+    end
     lastPublishedValue[sid] = data
     lastGroupFirst[sid] = first
     lastGroupLength[sid] = last - first
@@ -452,9 +469,6 @@ local remoteSeen = false
 -- beginPass's resume line: a stretch spent standing aside is not a stretch without a pass. Set
 -- whatever the log level, so a level raised while standing aside still names the resume right.
 local asideSincePass = false
--- When this state last took the decoding over from another one (M.remoteAlive's edge). A value it
--- published before that is from before it stood aside, so M.valueBySid does not hand it out.
-local directSince = 0
 
 --- Say that this Lua state is TAKING FRAMES OFF THE WIRE, for whoever is watching the slot.
 --
@@ -499,7 +513,14 @@ function M.remoteAlive(now)
     local alive = remoteMovedAt ~= nil and (now - remoteMovedAt) < M.REMOTE_STALE_SECONDS
     -- The handoff, for both of a host's passes (telemetry_bg/tasks.lua), on its edge only.
     if alive ~= remoteLast then
-        if remoteLast and not alive then directSince = now end
+        -- Taking the decoding over: what this state published before it stood aside is older than
+        -- what the other state published since, so it is forgotten, as a lost link forgets it
+        -- (M.reset). The next frame then publishes every value it carries again, and M.valueBySid
+        -- hands out only what this state decoded after the take-over.
+        if remoteLast and not alive then
+            lastPublishedValue = {}
+            lastPublishedAt = {}
+        end
         if now >= logCheckAt then refreshLog(now) end
         if debugOn then
             if alive then
@@ -802,13 +823,13 @@ end
 -- the decoder took it from the frame: before any setting of the radio's own sensor page (ratio,
 -- offset, filter, unit) -- those belong to the radio's sensor, and the flight controller is where a
 -- value is calibrated. nil while another Lua state is decoding (this state's values are then not
--- current), for a value published before this state last took over, for a group (cells, GPS,
+-- current), for a value published before this state last took over (forgotten then), for a group (cells, GPS,
 -- attitude, ...: a group's values are published by its decoder and only its frame is kept here),
 -- and before the first frame.
 function M.valueBySid(sid)
     if remoteLast then return nil end
     local value = lastPublishedValue[sid]
-    if type(value) ~= "number" or (lastPublishedAt[sid] or 0) < directSince then return nil end
+    if type(value) ~= "number" then return nil end
     return value
 end
 

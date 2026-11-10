@@ -76,7 +76,7 @@ just added.
 - **While it runs, the dashboard reads the radio's sensors.** Without it, the dashboard decodes
   for itself and reads its values straight from its own decoder, as the flight controller sends
   them; see [sensor selection](sensor-selection.md). A correction made on the radio's sensor page
-  therefore reaches the dashboard only while this script runs.
+  therefore reaches a value the dashboard reads from its decoder only while this script runs.
 - **Its decoding can be followed in the log.** From *DEBUG* up, the decoder's lines (tag
   `rfsuite.decoder`) start with `bg` when this script decodes and with `dash` or `tool` when the
   dashboard or the tool does, so a log shows when the dashboard stood aside for it and when it took
