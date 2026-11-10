@@ -574,10 +574,14 @@ return function(h)
           -- two lines: every word fits a line and the whole fits two.
           if item.type=="label" and type(item.text)=="string" and string.match(item.text,"^%d+%. ") and item.y>30 then
             names=names+1
-            local lineW=0
-            for word in string.gmatch(item.text,"%S+") do check(width(word,SMLSIZE)<=item.w,"FIT step menu word '"..word.."' fits its line") end
-            lineW=width(item.text,SMLSIZE)
-            check(lineW<=item.w or (lineW<=2*item.w*0.9 and item.h>=34),string.format("FIT %s %dx%d step menu '%s' %d fits two lines of %d",locale,size[1],size[2],item.text,lineW,item.w))
+            -- Wrapped the way a label wraps: word by word, a word that does not fit opens a line.
+            local lines,line=1,""
+            for word in string.gmatch(item.text,"%S+") do
+              check(width(word,SMLSIZE)<=item.w,"FIT step menu word '"..word.."' fits its line")
+              local joined=line=="" and word or line.." "..word
+              if width(joined,SMLSIZE)<=item.w then line=joined else lines,line=lines+1,word end
+            end
+            check(lines<=2 and item.h>=lines*17,string.format("FIT %s %dx%d step menu '%s' takes %d line(s) in %d px",locale,size[1],size[2],item.text,lines,item.w))
           end
         end
         check(names==0 or names==19,"FIT the step menu names all 19 steps with their numbers")

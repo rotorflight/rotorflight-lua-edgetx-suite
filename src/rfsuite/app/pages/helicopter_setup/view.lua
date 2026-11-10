@@ -223,7 +223,7 @@ function M.new(w, ctx, diagrams)
     local top = hint and textY+(large and 34 or 20) or textY
     local bottom = height-controlH-(large and 40 or 27)-4
     local gap = large and 6 or 2
-    local margin = large and 10 or 6
+    local margin = large and 10 or 2
     local bh = math.min(large and controlH or 2*controlH, math.floor((bottom-top)/rows)-gap)
     local names = w.L.numberedSteps
     local colW, colX = {}, { margin }
@@ -255,8 +255,8 @@ function M.new(w, ctx, diagrams)
       if current then all[#all].color, all[#all].textColor = palette.accent, palette.onAccent end
       if not large then
         -- The name above the button wraps within it; a label takes no tap, so the button gets it.
-        local lines = textWidth(names[index], SMLSIZE) <= bw-12 and 1 or 2
-        all[#all + 1] = label(x+6, y+math.max(1, math.floor((bh-lines*lineH)/2)), bw-12, names[index])
+        local lines = textWidth(names[index], SMLSIZE) <= bw-6 and 1 or 2
+        all[#all + 1] = label(x+3, y+math.max(1, math.floor((bh-lines*lineH)/2)), bw-6, names[index])
         all[#all].h, all[#all].color = lines*lineH, current and palette.onAccent or palette.text
       end
       if (mask & (1 << (index-1))) ~= 0 then

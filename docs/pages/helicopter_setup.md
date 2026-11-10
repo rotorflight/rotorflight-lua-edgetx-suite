@@ -184,7 +184,8 @@ unplug servos, restart, then confirm the test prerequisites.
 | ? | Full instructions for the current task and the navigation help. |
 
 Every card leads with its explanation across the full width, two lines, or three where the
-rows still fit; the rows follow below. The ? sheet carries the whole text. Without a picture, each control follows right after
+rows still fit; the rows follow below. The ? sheet carries the whole text. The orientation
+check is the exception: its live helicopter takes the left half, its hint and answer the right. Without a picture, each control follows right after
 its label; illustrated tasks put the Configurator picture or mechanical reference on the
 left and centre their rows on it. Action buttons are as wide as their label. The side-view cards show a picture of the helicopter in the
 Configurator wizard's three poses: blades crossed out where they must come off (Board
