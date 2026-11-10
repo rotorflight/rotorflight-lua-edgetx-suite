@@ -21,6 +21,14 @@ local LiveOverride = nil
 local SavePipeline = nil
 local t = nil
 
+-- Reached through the global lib/log.lua publishes; absent logger, absent lines.
+local function logf(level, fmt, ...)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.geometry", level, fmt, ...)
+  end
+end
+
 local MSP_SET_MIXER_OVERRIDE = 191
 local MIXER_OVERRIDE_OFF = 2501
 -- Passthrough: the sticks still move the swashplate through the mixer, so the geometry can be
@@ -347,6 +355,7 @@ local function queueGeometryRead(isAutoReload)
   end
 
   local function readFailed()
+    logf("warn", "read of the swashplate geometry failed")
     ui.runtime.readPending = false
     ui.loading = false
     if type(ui.runtime.requestRebuild) == "function" then
@@ -490,7 +499,10 @@ local function queueGeometryWrite(hadEdit)
     end,
     onDone = function(result)
       if ui.runtime ~= visit then return end
-      if not (type(result) == "table" and result.saved == true) and hadEdit then ui.dirty = true end
+      if not (type(result) == "table" and result.saved == true) and hadEdit then
+        logf("info", "save not stored: the page stays unsaved")
+        ui.dirty = true
+      end
       if type(ui.runtime.requestRebuild) == "function" then
         ui.runtime.requestRebuild()
       end
@@ -539,6 +551,7 @@ local function ensureOverride()
     cadence = "periodic",
     interval = LIVE_INTERVAL
   })
+  logf("debug", "setup mode: override created")
   -- The records read stay as read (writes go out as copies), so they are what the board holds,
   -- even when values were edited on screen before *.
   local records = {}
@@ -890,7 +903,11 @@ function M.onClose()
   -- the override writes on purpose: should the close end before every write is out, a lost
   -- override write leaves a board that refuses to arm, a lost rollback a trial geometry the model
   -- would fly with. A save still writing is not undone here (rollbackDue above).
-  if rollbackDue() then rollbackLiveChanges() end
+  if rollbackDue() then
+    rollbackLiveChanges()
+  elseif ui.dirty and ui.override then
+    logf("debug", "close: a save is still writing, nothing put back")
+  end
   if overrideActive() then
     ui.override:disable(getQueue())
   end

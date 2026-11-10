@@ -18,6 +18,14 @@ local ApiVersion = nil
 local SavePipeline = nil
 local t = nil
 
+-- Reached through the global lib/log.lua publishes; absent logger, absent lines.
+local function logf(level, fmt, ...)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.servos.pwm", level, fmt, ...)
+  end
+end
+
 local MSP_SET_SERVO_OVERRIDE_ALL = 196
 local MSP_SET_SERVO_CENTER = 213
 -- 0 holds every servo at its centre; 2001 hands them back to the flight controller.
@@ -238,6 +246,7 @@ local function syncOverrideServo()
   if not orig then return false end
   ui.override:snapshot({ raw = raw, mid = orig.mid }, { mid = orig.mid })
   ui.overrideServo = raw
+  logf("debug", "override follows servo %s", tostring(raw))
   return true
 end
 
@@ -1186,6 +1195,7 @@ function M.onSave(ctx)
   local hadEdit = ui.dirty
   local ok, err = queueServoWrite(ui.selectedServoIndex, function(stored)
     if not stored then
+      if hadEdit then logf("info", "save not stored: the page stays unsaved") end
       ui.dirty = hadEdit
     elseif type(onSaved) == "function" then
       onSaved()
@@ -1269,7 +1279,11 @@ function M.onClose()
   -- Queued ahead of the override write on purpose: should the close end before every write is out,
   -- a lost override write leaves a board that refuses to arm, a lost rollback a trial centre the
   -- model would fly with. A save still writing is not undone here (rollbackDue above).
-  if rollbackDue() then rollbackChanges() end
+  if rollbackDue() then
+    rollbackChanges()
+  elseif ui.dirty then
+    logf("debug", "close: a save is still writing, nothing put back")
+  end
   if overrideActive() then
     ui.override:disable(getQueue())
   end

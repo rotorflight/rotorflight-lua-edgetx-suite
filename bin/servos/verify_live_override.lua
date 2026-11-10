@@ -109,6 +109,13 @@ local Log = {
   emitf = function(tag, level, fmt, ...) logged[#logged + 1] = level .. " " .. tag .. ": " .. string.format(fmt, ...) end
 }
 
+local function loggedLine(pattern)
+  for _, line in ipairs(logged) do
+    if string.find(line, pattern, 1, true) then return line end
+  end
+  return nil
+end
+
 local stubs = {
   ["app/pages/settings/common.lua"] = Common,
   ["ui/controls.lua"] = Controls,
@@ -287,6 +294,8 @@ for _, name in ipairs({ "pwm", "bus" }) do
     page.onClose()
     equal(commands(), "213,196", name .. ": after a failed save, leaving puts the centre back, then releases")
     equal(u16(queue.messages[1], 2), orig, name .. ": that rollback carries the centre read")
+    check(loggedLine("info rfsuite.servos." .. name .. ": save not stored") ~= nil, name .. ": the failed save is logged")
+    check(loggedLine("info rfsuite.override: rollback: the board's record queued") ~= nil, name .. ": the rollback is logged")
   end
 
   -- Reload without Save puts the centre back before it reads again.

@@ -605,6 +605,7 @@ do
   equal(commands(), "43,171,171,171,191,191,191,191",
     "geometry: after a failed save, leaving puts the records back, then releases")
   equal(payloads(queue.messages, 1, 4), boardWrite, "geometry: that rollback carries the records read")
+  check(loggedLine("save not stored") ~= nil, "geometry: the failed save is logged")
 end
 
 -- Switching setup mode off keeps what went out live a trial: leaving still puts it back.

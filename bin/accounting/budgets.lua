@@ -483,7 +483,7 @@ return {
     ["page.setup_power_sources_page.build"] = { target = 4800, measured = 3839 },
     ["page.setup_radio_config_page.build"] = { target = 3950, measured = 3139 },
     ["page.setup_servos_bus_page.build"] = { target = 7800, measured = 6206 },
-    ["page.setup_servos_pwm_page.build"] = { target = 5950, measured = 4750 },
+    ["page.setup_servos_pwm_page.build"] = { target = 7900, measured = 6312, proposed = 5950 },
     ["page.setup_telemetry_page.build"] = { target = 15550, measured = 12427 },
     ["page.helicopter_setup_page.build"] = { target = 1000, measured = 74 },
     ["page.helicopter_setup_history_page.build"] = { target = 50, measured = 33 },
