@@ -150,7 +150,12 @@ function M.new(w, ctx, diagrams)
   local counterW = counter and textWidth(counter, SMLSIZE) or 0
   local counterX = chevronX-(chevronW > 0 and 6 or 0)-counterW
   local headNameW = math.min(textWidth(headStep, headFont), (counter and counterX or headRight)-8-nameX)
-  all[#all + 1] = label(nameX, large and 7 or 3, headNameW, headStep, headFont)
+  -- The card name and the counter sit on the step name's baseline: below the large step font
+  -- the small text moves down by the difference (measured on the radio: baseline at 33 px in a
+  -- MIDSIZE label, 18 px in a SMLSIZE one).
+  local nameY = large and (headFont == MIDSIZE and 7 or 13) or 3
+  local smallY = headFont == MIDSIZE and nameY + 15 or nameY
+  all[#all + 1] = label(nameX, nameY, headNameW, headStep, headFont)
   all[#all].h, all[#all].color = large and 32 or 20, menuHeader and palette.accentInk or palette.text
   if headCard then
     -- The step and the card are parted by a drawn chevron: the radio's fonts carry no arrow glyph.
@@ -162,12 +167,12 @@ function M.new(w, ctx, diagrams)
       local cy, s = 2+math.floor(headH/2), large and 5 or 4
       all[#all + 1] = { type = "line", pts = {{sepX, cy-s}, {sepX+s, cy}}, color = palette.muted, thickness = 2 }
       all[#all + 1] = { type = "line", pts = {{sepX+s, cy}, {sepX, cy+s}}, color = palette.muted, thickness = 2 }
-      all[#all + 1] = label(cardX, large and 13 or 4, room, text)
+      all[#all + 1] = label(cardX, smallY, room, text)
       all[#all].h, all[#all].color = large and 24 or 18, palette.muted
     end
   end
   if counter then
-    all[#all + 1] = label(counterX, large and 13 or 4, counterW+8, counter)
+    all[#all + 1] = label(counterX, smallY, counterW+8, counter)
     all[#all].h, all[#all].color = large and 24 or 18, palette.muted
   end
   if menuHeader then
@@ -522,7 +527,8 @@ function M.new(w, ctx, diagrams)
           -- A value row may name a palette role for its live state, e.g. a switch that is on.
           if r.color then all[#all].color=function() return palette[r.color()] or palette.text end end
         elseif switch then
-          local sw, sh = large and 72 or 56, math.min(rowControlH, large and 36 or 28)
+          -- Every switch has the same size, whatever the row height of its card.
+          local sw, sh = large and 64 or 48, large and 32 or 24
           all[#all + 1] = { type = "toggle", x = editX, y = y+math.floor((rowControlH-sh)/2), w = sw, h = sh,
             get = function() return r.get() == 2 end,
             set = function(v)
