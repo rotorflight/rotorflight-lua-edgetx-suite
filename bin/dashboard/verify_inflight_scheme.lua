@@ -118,7 +118,9 @@ local SURFACES = {
     drive = function(drive) drive.sessionPickerOpen, drive.allGroups = true, {GROUP} end},
   {name = "ground, reading", inflight = {phase = "ground", setupVerdict = "ok", setSource = "board", cellCount = 36,
     prime = {phase = "done"}},
-    drive = function(drive) drive.profileJob = {plan = {{op = "read", kind = "pid", index = 1}, {op = "read", kind = "pid", index = 2}}, at = 1} end},
+    drive = function(drive)
+      drive.profileJob = {plan = {{op = "read", kind = "pid", index = 1}, {op = "read", kind = "pid", index = 2}}, at = 1}
+    end},
   -- Two two-line statuses, a refused save and announcements off: the actions fall back to two to a row.
   {name = "ground, crowded", inflight = {phase = "ground", setupVerdict = {"same_gvar"}, setSource = "unavailable",
     prime = {phase = "done"}, boundsCount = 3},
@@ -230,7 +232,8 @@ for _, scheme in ipairs({false, "light", "dark", "unknown"}) do
           for index, node in ipairs(nodes) do
             if node == fill then track = nodes[index - 1] end
           end
-          check(track and fill and track.color == c.rule and fill.color == c.accent, label .. ": the progress track is the rule, its fill the accent")
+          check(track and fill and track.color == c.rule and fill.color == c.accent,
+            label .. ": the progress track is the rule, its fill the accent")
           check(textColour("Reading - Step 1 of 2") == c.accentInk, label .. ": the step text is accent text, accentInk")
         end
         if surface.name == "ground" and size[2] > 350 then
