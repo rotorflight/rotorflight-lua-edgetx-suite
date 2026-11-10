@@ -442,17 +442,18 @@ end
 ------------------------------------------------------------------------------------------------
 -- Swash Geometry
 ------------------------------------------------------------------------------------------------
-local function openGeometry()
+-- `pitch`, when given, answers the pitch input read instead of its simulator response.
+local function openGeometry(pitch)
   clearQueue()
   saveRequest = nil
   savePhase = nil
   local page = freshPage("swashgeometry")
   page.wakeup(ctx)
   -- The read is a chain of four, each queued from the reply before it.
-  for _ = 1, 4 do
+  for i = 1, 4 do
     local m = queue.messages[1]
     if not m then break end
-    reply(m.simulatorResponse)
+    reply((i == 2 and pitch) or m.simulatorResponse)
   end
   clearQueue()
   build(page)
@@ -622,6 +623,45 @@ do
   clearQueue()
   page.onClose()
   equal(commands(), "43,171,171,171", "geometry: leaving after * off still puts the records back, with nothing left to release")
+end
+
+-- A raw value the screen cannot show exactly: a pitch limit of 1001 reads as 12.0 degrees, which
+-- writes back as 1000. A change that is set back again must leave the board's raw values as read,
+-- and a live write must not move a field nobody changed.
+do
+  -- rate 250, max 1001, min -1001 (u16 64535)
+  local pitch = { 250, 0, 233, 3, 23, 252 }
+  local page = openGeometry(pitch)
+  page.onSave({})
+  local steps = saveRequest and saveRequest.steps or {}
+  local fake = {}
+  for i, st in ipairs(steps) do fake[i] = { command = st.command, payload = st.payload } end
+  local offGridWrite = payloads(fake, 1, 4)
+  finishSave("done")
+  page.onClose()
+  check(string.find(offGridWrite, "171:2,250,0,233,3,23,252", 1, true) ~= nil,
+    "geometry: a save that changed nothing writes the pitch record as read")
+
+  page = openGeometry(pitch)
+  page.onStar({})
+  clearQueue()
+  build(page)
+  local cal = fields["Cyclic Calibration"].opts.get()
+  fields["Collective Calibration"].opts.set(fields["Collective Calibration"].opts.get() + 30)
+  advance(0.25)
+  page.wakeup(ctx)
+  local changedWrite = payloads(queue.messages, 1, 4)
+  check(string.find(changedWrite, "171:2,250,0,233,3,23,252", 1, true) ~= nil,
+    "geometry: a live write of another field leaves the pitch record as read")
+  clearQueue()
+  fields["Collective Calibration"].opts.set(fields["Collective Calibration"].opts.get() - 30)
+  advance(0.25)
+  page.wakeup(ctx)
+  equal(payloads(queue.messages, 1, 4), offGridWrite, "geometry: a value set back sends the records read")
+  clearQueue()
+  page.onClose()
+  equal(commands(), "191,191,191,191", "geometry: after setting it back, leaving only releases")
+  equal(cal, 250, "geometry: the pitch rate reads as its calibration")
 end
 
 print(string.format("%d checks, %d failed", checks, failures))

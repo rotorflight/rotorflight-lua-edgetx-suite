@@ -225,10 +225,21 @@ local function valuesFrom(records)
   }
 end
 
--- The records a write carries: the board's records with `values` in them, as fresh tables, so the
--- records the board holds stay as they are.
+-- The records a write carries: the board's records, as fresh tables, with the fields of the values
+-- that differ from what those records stand for. A field whose value is unchanged keeps its raw
+-- record value: the screen holds the limits in 0.1 degree and the geo correction in steps of two,
+-- so writing every field back from the screen would move raw values nobody changed -- and putting
+-- the original screen values back would not put those raw values back.
 local function recordsFor(values)
   if not haveRecords(ui.apiData) then return nil end
+  local board = valuesFrom(ui.apiData)
+  local function changed(...)
+    for i = 1, select("#", ...) do
+      local k = select(i, ...)
+      if values[k] ~= board[k] then return true end
+    end
+    return false
+  end
   local pConfig = copyFlat(ui.apiData.MIXER_CONFIG)
   local pPitch = copyFlat(ui.apiData.GET_MIXER_INPUT_PITCH)
   local pRoll = copyFlat(ui.apiData.GET_MIXER_INPUT_ROLL)
@@ -241,26 +252,42 @@ local function recordsFor(values)
   local collMax_raw   = math.floor((values.collective_pitch_limit or 0) * 100 / 12 + 0.5)
 
   -- MIXER_CONFIG
-  pConfig.swash_geo_correction = math.floor((values.geo_correction or 0) / 2 + 0.5)
-  pConfig.swash_pitch_limit = math.floor((values.swash_pitch_limit or 0) * 100 / 12 + 0.5)
-  pConfig.swash_phase = math.floor(values.swash_phase or 0)
-  pConfig.collective_tilt_correction_pos = math.floor(values.collective_tilt_correction_pos or 0)
-  pConfig.collective_tilt_correction_neg = math.floor(values.collective_tilt_correction_neg or 0)
+  if changed("geo_correction") then
+    pConfig.swash_geo_correction = math.floor((values.geo_correction or 0) / 2 + 0.5)
+  end
+  if changed("swash_pitch_limit") then
+    pConfig.swash_pitch_limit = math.floor((values.swash_pitch_limit or 0) * 100 / 12 + 0.5)
+  end
+  if changed("swash_phase") then pConfig.swash_phase = math.floor(values.swash_phase or 0) end
+  if changed("collective_tilt_correction_pos") then
+    pConfig.collective_tilt_correction_pos = math.floor(values.collective_tilt_correction_pos or 0)
+  end
+  if changed("collective_tilt_correction_neg") then
+    pConfig.collective_tilt_correction_neg = math.floor(values.collective_tilt_correction_neg or 0)
+  end
 
-  -- PITCH
-  pPitch.rate_stabilized_pitch = s16_to_u16(cyclicRate * dirSign(values.ele_direction))
-  pPitch.max_stabilized_pitch = s16_to_u16(math.abs(cyclicMax_raw))
-  pPitch.min_stabilized_pitch = s16_to_u16(-math.abs(cyclicMax_raw))
-
-  -- ROLL
-  pRoll.rate_stabilized_roll = s16_to_u16(cyclicRate * dirSign(values.ail_direction))
-  pRoll.max_stabilized_roll = s16_to_u16(math.abs(cyclicMax_raw))
-  pRoll.min_stabilized_roll = s16_to_u16(-math.abs(cyclicMax_raw))
+  -- PITCH and ROLL share the cyclic gain and limit; each has its own direction.
+  if changed("cyclic_calibration", "ele_direction") then
+    pPitch.rate_stabilized_pitch = s16_to_u16(cyclicRate * dirSign(values.ele_direction))
+  end
+  if changed("cyclic_calibration", "ail_direction") then
+    pRoll.rate_stabilized_roll = s16_to_u16(cyclicRate * dirSign(values.ail_direction))
+  end
+  if changed("cyclic_pitch_limit") then
+    pPitch.max_stabilized_pitch = s16_to_u16(math.abs(cyclicMax_raw))
+    pPitch.min_stabilized_pitch = s16_to_u16(-math.abs(cyclicMax_raw))
+    pRoll.max_stabilized_roll = s16_to_u16(math.abs(cyclicMax_raw))
+    pRoll.min_stabilized_roll = s16_to_u16(-math.abs(cyclicMax_raw))
+  end
 
   -- COLLECTIVE
-  pColl.rate_stabilized_collective = s16_to_u16(collRate * dirSign(values.col_direction))
-  pColl.max_stabilized_collective = s16_to_u16(math.abs(collMax_raw))
-  pColl.min_stabilized_collective = s16_to_u16(-math.abs(collMax_raw))
+  if changed("collective_calibration", "col_direction") then
+    pColl.rate_stabilized_collective = s16_to_u16(collRate * dirSign(values.col_direction))
+  end
+  if changed("collective_pitch_limit") then
+    pColl.max_stabilized_collective = s16_to_u16(math.abs(collMax_raw))
+    pColl.min_stabilized_collective = s16_to_u16(-math.abs(collMax_raw))
+  end
 
   return {
     MIXER_CONFIG = pConfig,
