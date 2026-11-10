@@ -3,4 +3,5 @@
   - After `*` was used, a save that failed leaves the page unsaved, and leaving it puts back what the flight controller has stored instead of leaving the new values running until its next restart. Leaving while a save is still writing no longer puts anything back between the save's steps.
   - On PWM Output and BUS Output, the settings locked while `*` is on, and the servo selector, are shown as text instead of disabled controls, so the focus can no longer rest on a control that keeps EXIT from leaving the page.
   - PWM Output puts an unsaved centre back before it releases the servos when the page is left or reloaded, and both servo pages send a centre when it changes rather than every 200 ms.
+  - Swash Geometry writes back only the fields whose value changed, so a save no longer moves raw values nobody touched (a pitch limit of 1001 was written back as 1000, and a roll limit that differs from pitch was replaced by it).
   - The three pages have their own help sheet, a `?` on every row and a documentation page.
