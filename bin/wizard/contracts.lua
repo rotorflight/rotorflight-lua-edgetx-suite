@@ -481,7 +481,7 @@ return function(h)
     check(w.preparationCard==true and w.cards and w.cards[1].title==L.prepareStep,"MENU a jump in Complete setup asks the step's preparation")
     check(next(w.holds)==nil,"MENU the preparation card holds nothing")
     -- A jump with staged changes asks first; Back on that question stays on the step.
-    w.preparationCard,w.preparationDone=nil,true;w:navigate(16,1);drain(w)
+    w.preparationCard,w.preparationDone=nil,true;w.checks.bladesBoom=true;w:navigate(16,2);drain(w)
     w:touch("mixer_config")
     w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(5)
     check(w.confirmExit and w.jumpTarget==5 and w.step==16,"MENU a jump with changes asks to save or discard")
@@ -859,12 +859,12 @@ return function(h)
     check(not w.error and not w.trial,"S01 unsupported auto alignment preserves manual setup")
     eq(w.message,L.manualAlign,"S01 unsupported detection explains the manual alternative")
     eq(w.data.board_alignment_config.yaw_degrees,before,"S01 refused detection preserves current angles")
-    w.cards[3].rows[4].set(45)
+    w.cards[3].rows[3].set(45)
     eq(w.data.board_alignment_config.yaw_degrees,45,"S01 manual angle remains editable after refusal")
     check(w.dirty.board_alignment_config and w.live.board_alignment_config,"S01 a typed angle goes to the FC at once")
-    w.checks.orientation=true;w.cards[3].rows[4].set(45)
+    w.checks.orientation=true;w.cards[3].rows[3].set(45)
     check(w.checks.orientation,"S01 the same angle keeps the answer")
-    w.cards[3].rows[4].set(46)
+    w.cards[3].rows[3].set(46)
     check(not w.checks.orientation,"S01 a changed angle clears the orientation answer")
   end)
   case("VISUAL.rotor-direction-arrow",function()
@@ -1126,7 +1126,7 @@ return function(h)
         local channels={};for i,v in ipairs(values) do channels[i]=v end
         w.data.rx_channels={channels=channels};w.rxChannelsAt=getTime();w.onLive("rx_channels",w.data.rx_channels)
       end
-      reply();cards[2].rows[1].press()
+      reply();cards[2].rows[2].press()
       for n,channel in ipairs({4,1,2,3,5,6}) do
         values[channel]=1900;reply()
         if n==4 then check(w.rx.travel[1][2]>0,"S02 positive control records movement during detection") end
@@ -1174,7 +1174,7 @@ return function(h)
     end
     raw();local cards=step(w,"receiver")
     for _,row in ipairs(cards[1].rows) do check(row.label~=L.port,"REVIEW receiver UART is not editable on its radio link") end
-    cards[2].rows[1].press()
+    cards[2].rows[2].press()
     values[4]=2000;h.measure("RX learning",function() w.onLive("rx_channels",raw()) end)
     check(w.rx.detect and w.rx.detect.index==2,"REVIEW first movement after Detect uses the pre-click FC baseline")
     for _,channel in ipairs({1,2,3,5,7}) do values[channel]=2000;h.measure("RX learning",function() w.onLive("rx_channels",raw()) end) end
@@ -1246,13 +1246,13 @@ return function(h)
     values[w.data.rx_map.collective+1]=1500;w.onLive("rx_channels",raw())
     cards[3].rows[1].press()
     -- Link-affecting receiver settings stay locked; throttle range stays available.
-    check(not cards[1].rows[2].enabled() and not cards[1].rows[4].enabled() and not cards[2].rows[1].enabled()
+    check(not cards[1].rows[2].enabled() and not cards[1].rows[3].enabled() and not cards[2].rows[1].enabled()
       and not cards[2].rows[2].enabled(),"S02 receiver configuration is locked until Advanced is on")
     for i=2,4 do check(cards[4].rows[i].enabled==nil,"S02 throttle range row stays usable without Advanced") end
     eq(cards[4].summary(),L.throttleQuick,"S02 throttle summary does not ask for Advanced")
-    check(cards[3].rows[1].enabled==nil and cards[1].rows[3].enabled==nil,"S02 the stick check and the USB hint stay usable")
+    check(cards[3].rows[1].enabled==nil,"S02 the stick check stays usable")
     cards[1].rows[1].set(2)
-    check(cards[1].rows[2].enabled() and cards[1].rows[4].enabled() and cards[2].rows[1].enabled()
+    check(cards[1].rows[2].enabled() and cards[1].rows[3].enabled() and cards[2].rows[1].enabled()
       and cards[2].rows[2].enabled(),
       "S02 Advanced unlocks the receiver settings")
     w.step=3;w:navigate(2,1)
@@ -1644,11 +1644,11 @@ return function(h)
     eq(w.data.feature_config.enabledFeatures,(1<<3)|(1<<28),"S02 RX feature group preserves RPM feature")
     local c=step(w,"receiver")
     for i,map in ipairs({{0,1,3,2,5,4,6,7},{0,1,3,4,2,5,6,7},{0,1,3,5,2,4,6,7},{1,2,3,5,0,4,6,7}}) do
-      c[2].rows[2].set(i)
+      c[2].rows[1].set(i)
       for n,key in ipairs({"aileron","elevator","rudder","collective","throttle","aux1","aux2","aux3"}) do
         eq(w.data.rx_map[key],map[n],"S02 preset "..i.." function "..n)
       end
-      eq(c[2].rows[2].get(),i,"S02 preset readback")
+      eq(c[2].rows[1].get(),i,"S02 preset readback")
     end
   end)
   case("S02.port-selection",function()
@@ -1675,7 +1675,7 @@ return function(h)
       w.data.rx_channels={channels=copy};w.rxChannelsAt=getTime();w.onLive("rx_channels",w.data.rx_channels)
     end
     reply()
-    c[2].rows[1].press()
+    c[2].rows[2].press()
     -- Collective, roll, pitch, yaw, throttle, arm; a used channel is never reused.
     for n,channel in ipairs({3,2,4,1,5,7}) do
       if n==6 then
@@ -3175,7 +3175,7 @@ return function(h)
     local opened
     w.openPage=function(id) opened=id end
     local rx=step(w,"receiver")
-    eq(#rx[1].rows,4,"HOST receiver card keeps the unlock, protocol, USB and reboot without a diagnostics pointer")
+    eq(#rx[1].rows,3,"HOST receiver card keeps the unlock, protocol and reboot without a diagnostics pointer")
     w.step=9
     local motor=step(w,"motor")
     local esc
@@ -4459,9 +4459,8 @@ return function(h)
     eq(w.message,L.receiverUsbHint,"CORE receiver trial directs user to USB")
     for i=sent+1,#q.sent do check(q.sent[i].command~=0x5F12,"CORE no receiver trial request sent over radio") end
     local cards=step(w,"receiver")
-    eq(cards[1].rows[3].label,L.receiverUsb,"CORE receiver task explains USB route")
-    cards[1].rows[3].press()
-    eq(w.message,L.receiverUsbHint,"CORE receiver USB button explains connection loss")
+    eq(#cards[1].rows,3,"CORE the receiver card has no USB button: its card text names the USB route")
+    eq(cards[1].rows[3].label,L.saveReboot,"CORE the receiver card ends with Save & reboot")
   end)
   case("CORE.trial-state-and-diagnostics",function()
     local w=world()

@@ -185,7 +185,8 @@ function M.attach(w, ctx)
         enabled = function() return self:fcSensorsListed() == false end,
         visible = function() return self:fcSensorsListed() == false end }
     })}
-    self.cards[1].fitRows=true
+    -- Six rows: they share the space above the status line on every screen.
+    self.cards[1].fitRows,self.cards[1].dense=true,true
     self.cards[1].summary=self.L.modelPreparationIntro
     self.card,self.modelPreparationCard=1,true
     return true
