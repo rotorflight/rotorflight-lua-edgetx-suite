@@ -1654,7 +1654,7 @@ return {
         color_scheme = "Farbschema",
         color_scheme_light = "Hell",
         color_scheme_dark = "Dunkel",
-        help_color_scheme = "Helle oder dunkle Farben für das ganze Tool samt den Bedienelementen des Senders, das Schnellmenü des Dashboards und seine Seiten, In-Flight-Tuning, Lade- und Standby-Bild und den Setup-Assistenten.",
+        help_color_scheme = "Helle oder dunkle Farben für das ganze Tool samt den Bedienelementen des Senders, das Schnellmenü des Dashboards und seine Seiten, In-Flight-Tuning, Lade- und Standby-Bild und Helikopter einrichten.",
         help_save_confirm = "Fragt nach, bevor Speichern auf den Flight Controller schreibt.",
         help_save_armed_warning = "Warnt vor Speichern oder Neu laden, solange das Modell scharf ist.",
         help_reload_confirm = "Fragt nach, bevor Neu laden ungespeicherte Änderungen ersetzt.",
