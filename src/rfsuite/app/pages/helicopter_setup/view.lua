@@ -516,6 +516,7 @@ function M.new(w, ctx, diagrams)
         button(formX, y, bw, r.label, function() if enabled() and w:usable() then r.press() end end, enabled,
           r.kind == "hold" and "momentaryButton" or "button", r.release)
         all[#all].h=rowControlH
+        if r.visible then all[#all].visible = r.visible end
       else
         local editW = large and 190 or math.floor(formW * 0.48)
         local editX = formX+formW-editW

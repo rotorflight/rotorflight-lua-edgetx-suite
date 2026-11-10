@@ -206,11 +206,9 @@ return function(w)
       { kind = "toggle", label = L.advanced, values = { L.no, L.yes },
         get = function() return unlocked() and 2 or 1 end, set = function(v) r.advanced = v == 2 end },
       locked(protocol),
-      w:button(L.receiverUsb, function() w.message=L.receiverUsbHint end),
       locked(w:button(L.saveReboot, function() w:serialReceiver(); w:reboot() end))
     }, nil, "receiver"),
     w:cardDef(L.channelOrder, L.channelHint, {
-      locked(w:button(function() return r.detect and L.cancelDetect or L.detect end, detect)),
       { kind="choice",label=L.standardOrder,allowUnset=true,values=PRESET_NAMES,
         get=presetIndex,
         set=function(v)
@@ -218,6 +216,7 @@ return function(w)
           if not preset then return end
           r.detect=nil;for i,k in ipairs(keys) do w.data.rx_map[k]=preset[i] end;w:touch("rx_map")
         end, enabled=unlocked },
+      locked(w:button(function() return r.detect and L.cancelDetect or L.detect end, detect)),
       w:button(L.detectSkip, function() if r.detect then advance(nil, nil) end end, function() return r.detect ~= nil end)
     }, nil, "stickDetect"),
     w:cardDef(L.checkSticks, L.stickGuideHint, {
@@ -252,7 +251,7 @@ return function(w)
   cards[4].dense = true
   cards[1].summary=function() return unlocked() and L.receiverUnlocked or L.receiverWarning end
   cards[1].summaryColor, cards[1].summaryBold = "warning", true
-  cards[2].summary=function() return r.detect and detectPrompt() or unlocked() and L.channelQuick or L.receiverLocked end
+  cards[2].summary=function() return r.detect and detectPrompt() or unlocked() and L.channelOrderPick or L.receiverLocked end
   cards[2].stickMove=function()
     local move=r.detect and DETECT_MOVES[r.detect.index]
     if move then return move[1],move[2] end

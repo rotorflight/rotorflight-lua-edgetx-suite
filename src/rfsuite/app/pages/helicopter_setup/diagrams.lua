@@ -240,6 +240,11 @@ function M.append(children, w, card, x, y, width, height)
     end
     image(picture)
     text(5,0,210,(kind=="tailKind" or kind=="tailMotor") and L.artSide or L.artTop)
+  elseif kind == "bladesBoom" then
+    -- The helicopter from above, nose left: the main blades turned along the tail boom.
+    image(function() return "heli-top-blades-boom" end)
+    text(5,0,210,L.artTop)
+    arrow(70,152,24,152); text(89,144,125,L.artFront)
   elseif kind == "rescue" then
     -- Follows the flip answer: upside down with a turn arrow, or the helicopter levelled.
     image(function() return card.rescueFlip() and "rescue-flip" or "rescue-up" end)

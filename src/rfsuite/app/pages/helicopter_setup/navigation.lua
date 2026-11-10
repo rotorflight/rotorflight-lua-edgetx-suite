@@ -108,6 +108,14 @@ function M.attach(w, ctx)
     if value ~= nil then return self.L.sensorLive end
     return (self.systemReads or 0) >= 4 and self.L.sensorMissing or self.L.sensorChecking
   end
+  -- A state sensor's row: its name, OK or missing in the scheme's ok and error colours.
+  function w:sensorRow(label, read)
+    return { kind = "value", label = label, get = function() return self:sensorState(read()) end,
+      color = function()
+        if read() ~= nil then return "ok" end
+        return (self.systemReads or 0) >= 4 and "error" or "muted"
+      end }
+  end
   -- The FC's own telemetry list (MSP telemetry_config): true when System Status (120) and System
   -- Config (121) are both in it, false when one is missing, nil when it was not read.
   local FC_SENSORS = { 120, 121 }
@@ -157,6 +165,9 @@ function M.attach(w, ctx)
       self.card,self.recoveryCard=1,true;return true
     end
     if not self.modelPreparationRequired or self.modelPreparationDone then return false end
+    -- Prepared before for this FC: a single step passes the card by itself once both state
+    -- sensors are live. Complete setup always shows it.
+    self.modelPreparationAuto = self.singleStep and self.history ~= nil and self.history.prepared == true
     self.cards={self:cardDef(self.L.modelPreparationTitle,self.L.modelPreparationIntro.."\n"..self.L.modelPreparationHint.."\n"..
       self.L.activeModel..": "..self.activeModelName.."\n"..self.L.craftNameHint.."\n\n"..self.L.sensorsHint,{
       -- The flight controller's own name, set here once so every later screen can show it.
@@ -165,12 +176,13 @@ function M.attach(w, ctx)
         set = function(v) if self.data.name then self:field("name", "name", v) end end },
       self:check("modelReady",self.L.modelChecked),
       -- Prerequisites checked up front: the two packed FC state sensors the hints depend on.
-      self:value(self.L.fcStatusSensor,function() return self:sensorState(self.systemStatus) end),
-      self:value(self.L.fcConfigSensor,function() return self:sensorState(self.systemConfig) end),
-      self:button(function()
-        local listed = self:fcSensorsListed()
-        return listed and self.L.fcSensorsListed or listed == nil and self.L.fcSensorsUnread or self.L.addFcSensors
-      end, function() self:addFcSensors() end, function() return self:fcSensorsListed() == false end)
+      self:sensorRow(self.L.fcStatusSensor, function() return self.systemStatus end),
+      self:sensorRow(self.L.fcConfigSensor, function() return self.systemConfig end),
+      -- Offered only when the FC's own telemetry list lacks a sensor; a sensor that is listed but
+      -- not live has nothing a button could add.
+      { kind = "button", label = self.L.addFcSensors, press = function() self:addFcSensors() end,
+        enabled = function() return self:fcSensorsListed() == false end,
+        visible = function() return self:fcSensorsListed() == false end }
     })}
     self.cards[1].fitRows=true
     self.cards[1].summary=self.L.modelPreparationIntro.."\n"..self.L.activeModel..": "..self.activeModelName

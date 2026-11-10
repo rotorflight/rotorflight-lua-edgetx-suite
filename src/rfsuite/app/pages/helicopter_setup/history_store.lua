@@ -30,9 +30,33 @@ function M.mask(identity, modelFile)
   if not found then mask = read(path .. ".tmp") end
   return mask or 0
 end
+-- Whether the radio model was prepared for this FC: a file of its own beside the completion
+-- record, so the record's fixed format and every reader of it stay as they are.
+local function preparedPath(path) return path and string.gsub(path, "%.lua$", "-prepared.lua") end
+local PREPARED = "return { version = 1, prepared = true }\n"
+local function readPrepared(path)
+  local file = path and io.open(path, "r")
+  if not file then return false end
+  local text = io.read(file, 64)
+  io.close(file)
+  return text == PREPARED
+end
 function M.new(identity, modelFile)
   local h = { mask = 0, count = 0 }
   h.directory, h.path = location(identity, modelFile)
+  h.prepared = readPrepared(preparedPath(h.path))
+  function h:markPrepared()
+    if self.prepared then return true end
+    if not self.path or type(mkdir) ~= "function" then return false end
+    local directoryResult = mkdir(self.directory)
+    if directoryResult ~= 0 and directoryResult ~= 8 then return false end
+    local file = io.open(preparedPath(self.path), "w")
+    if not file then return false end
+    local wrote = io.write(file, PREPARED)
+    io.close(file)
+    self.prepared = wrote and readPrepared(preparedPath(self.path)) or false
+    return self.prepared
+  end
   function h:publish(mask)
     self.mask, self.count = mask, 0
     for bit = 0,18 do if (mask & (1 << bit)) ~= 0 then self.count = self.count + 1 end end
