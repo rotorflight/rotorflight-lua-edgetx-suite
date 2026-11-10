@@ -1,0 +1,8 @@
+{
+  "id": "inflight-scheme",
+  "name": "In-flight tuning in the colour scheme",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_inflight_scheme.lua"
+  ],
+  "step": "Check every in-flight tuning surface draws in the chosen colour scheme"
+}

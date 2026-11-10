@@ -4708,6 +4708,7 @@ return {
       inflight_fc_slot_failed = "Einstellplatz %s konnte nicht geschrieben werden.",
       inflight_fc_rotor_running = "Der Rotor läuft. Vor dem Einrichten des Flight Controllers anhalten.",
       inflight_fc_setup_action = "Vorgeschlagene Funktionen einrichten",
+      inflight_fc_setup_short = "Funktionen",
       inflight_fc_no_functions = "Der FC hat keine Einstellfunktionen für In-Flight-Tuning.",
       inflight_fc_slot_conflict = "Platz %d kollidiert mit den Tuning-Kanälen. Im Configurator ändern.",
       inflight_fc_setup_intro = "Ersetzt Anpassungs-Slots %d-%d durch die Vorschläge, egal was dort steht.\nSlots 1-%d (Profilwahl) bleiben.\nDie Liste folgt auf der nächsten Seite.",
