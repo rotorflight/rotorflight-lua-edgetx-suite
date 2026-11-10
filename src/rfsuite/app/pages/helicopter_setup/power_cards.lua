@@ -53,6 +53,18 @@ return function(w, cards)
   sourceRows(sourceRowsList, "voltageMeterSource", L.voltageSource, "voltage", "V")
   sourceRows(sourceRowsList, "currentMeterSource", L.currentSource, "current", "A")
   add(L.powerSources, L.powerVoltageHelp .. "\n" .. L.powerCurrentHelp, sourceRowsList, L.powerSourceShort)
+  -- The cell count is picked from a list rather than typed: Auto (0, the FC detects the
+  -- count) and then every count the field allows. The number row keeps its own get and set.
+  local function cellList(row)
+    local values = {}
+    for count = fields.cellCount.min, fields.cellCount.max do
+      values[#values+1] = count == 0 and L.cellsAuto or string.format(L.cellsShort, count)
+    end
+    local first = fields.cellCount.min
+    return { kind = "choice", label = row.label, values = values, enabled = row.enabled,
+      get = function() local v = row.get(); return type(v) == "number" and v - first + 1 or 1 end,
+      set = function(index) if values[index] then row.set(index - 1 + first) end end }
+  end
   local profile = w.data.battery_profile and w.data.battery_profile.batteryProfile
   if type(profile) ~= "number" or profile < 0 or profile > 5 or profile % 1 ~= 0 then profile = nil end
   local cellKey = battery.hasProfileCells and profile ~= nil and "batteryCellCount_" .. profile or "batteryCellCount"
@@ -66,7 +78,10 @@ return function(w, cards)
         set(v)
         if battery[cellKey] == v then w:field("battery_config", "batteryCellCount", v) end
       end
+      cell = cellList(cell)
     end
+  else
+    cell = cellList(cell)
   end
   if battery.hasProfileCells and battery.batteryCapacity_5 ~= nil then
     -- How many packs the pilot flies: as many battery profiles as hold a capacity, at least one,
@@ -98,13 +113,13 @@ return function(w, cards)
     for index = 0, w.packCount - 1 do
       local cellKey, capKey = "batteryCellCount_" .. index, "batteryCapacity_" .. index
       local cells = w:n("battery_config", cellKey, L.cellCount, fields.cellCount.min, fields.cellCount.max)
-      cells.display = function(v) return string.format(L.cellsShort, v) end
       local setCells = cells.set
       cells.set = function(v)
         setCells(v)
         -- The active profile's values are also the FC's current ones.
         if profile == index and battery[cellKey] == v then w:field("battery_config", "batteryCellCount", v) end
       end
+      cells = cellList(cells)
       local capacity = w:n("battery_config", capKey, L.capacity, fields.capacity.min, fields.capacity.max)
       capacity.display = fields.capacityText
       local setCap = capacity.set

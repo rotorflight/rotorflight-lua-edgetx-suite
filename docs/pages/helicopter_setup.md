@@ -281,7 +281,7 @@ After **Check** and **Telemetry readings**, step 11 adds **Voltage and current**
 sources with their live readings on one card), **Batteries** and SmartFuel Mode. On a flight
 controller with per-profile cell counts (Rotorflight 4.7), **Batteries** asks first how many
 different packs are flown (**Different packs**, 1-6; it starts at the number of battery profiles
-that hold a capacity) and then shows one row per battery profile with its cell count and
+that hold a capacity) and then shows one row per battery profile with its cell count, picked from a list (Auto or 1S-24S), and
 capacity. Profiles beyond that number are not changed, and a profile that leaves the table goes
 back to the values read. Without per-profile cell counts the former Battery and Capacity cards
 stay. The existing ESC throttle-range
@@ -296,7 +296,7 @@ written by opening a card. Existing ESC reboot requirements still apply.
 | Current Source | FC current input with the same options and version rule as Voltage Source. |
 | Current | Live ESC current in A, or the FC's selected-source analog reading once the source is written. Zero current can be normal at rest. A source not yet written never claims another source's reading. |
 | Selected | Read-only active battery profile, obtained from the optional battery_profile API. It is never switched by these cards. An unanswered or out-of-range profile is shown as unknown. |
-| Cell count | 0-24, with 0 for automatic detection. With per-profile cells, edits affect the active slot and preserve every other slot. If its active profile is unknown, the received active cell count is read-only. Legacy single cell count remains editable. |
+| Cell count | A list: Auto (stored as 0, the FC detects the cells) or 1S-24S. With per-profile cells, edits affect the active slot and preserve every other slot. If its active profile is unknown, the received active cell count is read-only. Legacy single cell count remains editable. |
 | Battery 1 | Capacity of slot 1, 0-40000 mAh; editing does not activate it. |
 | Battery 2 | Capacity of slot 2, 0-40000 mAh; editing does not activate it. |
 | Battery 3 | Capacity of slot 3, 0-40000 mAh; editing does not activate it. |

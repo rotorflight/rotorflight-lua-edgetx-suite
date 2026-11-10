@@ -67,6 +67,7 @@ local L = {
   packTable = "@i18n(app.modules.helicopter_setup.packTable)@",
   packTableShort = "@i18n(app.modules.helicopter_setup.packTableShort)@",
   packTableHelp = "@i18n(app.modules.helicopter_setup.packTableHelp)@",
+  cellsAuto = "@i18n(app.modules.helicopter_setup.cellsAuto)@",
   cellsShort = "@i18n(app.modules.helicopter_setup.cellsShort)@",
   powerSourceShort = "@i18n(app.modules.helicopter_setup.powerSourceShort)@",
   powerBatteryShort = "@i18n(app.modules.helicopter_setup.powerBatteryShort)@",

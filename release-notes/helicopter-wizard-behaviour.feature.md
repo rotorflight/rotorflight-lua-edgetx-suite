@@ -3,4 +3,4 @@
   - Throttle range has *Automatic throttle range* as in the Configurator; the Defaults button is gone.
   - ELRS link: a table of the FC's and the module's values with one result, the two sync directions named by what they do, and *Set on both*, which writes the module first and then lets the FC take its values.
   - Governor: every PID profile's headspeed on one card.
-  - ESC telemetry / power: voltage and current source on one card; batteries as one table of cell count and capacity per battery profile, after asking how many packs are flown.
+  - ESC telemetry / power: voltage and current source on one card; batteries as one table of cell count and capacity per battery profile, after asking how many packs are flown; the cell count is picked from a list (Auto, 1S-24S).

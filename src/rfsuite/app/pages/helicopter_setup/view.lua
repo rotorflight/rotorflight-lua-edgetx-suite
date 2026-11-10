@@ -684,7 +684,15 @@ function M.new(w, ctx, diagrams)
           elseif r.kind == "pair" then
             -- Two counts of one gear pair side by side, "a : b".
             local half = math.floor((editW - 12) / 2)
-            numberField(editX, half, r.left)
+            local left = r.left
+            if left.kind == "choice" then
+              all[#all + 1] = { type = "choice", x = editX, y = y, w = half, h = rowControlH,
+                title = left.label, values = left.values, get = left.get,
+                set = function(v) w:applyEdit(function() if editable() then left.set(v) end end) end,
+                active = enabled }
+            else
+              numberField(editX, half, left)
+            end
             all[#all + 1] = label(editX+half, centredTop(y, rowControlH), 12, r.separator or ":")
             numberField(editX+editW-half, half, r.right)
           else
