@@ -115,16 +115,37 @@ local SURFACES = {
     groupPicker = true}},
   {name = "parameter choice", inflight = {phase = "ground", setupVerdict = "ok", setSource = "board", cellCount = 36,
     prime = {phase = "done"}},
-    drive = function(drive) drive.sessionPickerOpen, drive.allGroups = true, {GROUP} end},
+    drive = function(drive)
+      drive.sessionPickerOpen, drive.allGroups = true, {GROUP}
+      drive.sessionPick = {page = 1, wanted = {[1] = true}}
+    end},
   {name = "ground, reading", inflight = {phase = "ground", setupVerdict = "ok", setSource = "board", cellCount = 36,
     prime = {phase = "done"}},
     drive = function(drive)
       drive.profileJob = {plan = {{op = "read", kind = "pid", index = 1}, {op = "read", kind = "pid", index = 2}}, at = 1}
     end},
-  -- Two two-line statuses, a refused save and announcements off: the actions fall back to two to a row.
-  {name = "ground, crowded", inflight = {phase = "ground", setupVerdict = {"same_gvar"}, setSource = "unavailable",
-    prime = {phase = "done"}, boundsCount = 3},
+  -- A two-part verdict, the bounds warning, a refused save and announcements off on a populated board.
+  {name = "ground, crowded", inflight = {phase = "ground", setupVerdict = {"same_gvar", "mix_missing"}, setSource = "board",
+    cellCount = 36, prime = {phase = "done", skipped = 2}, boundsCount = 3},
     drive = function(drive) drive.saveResult = "unavailable" end},
+  {name = "ground, empty board, refused save", inflight = {phase = "ground", setupVerdict = "ok", setSource = "unavailable",
+    prime = {phase = "done"}},
+    drive = function(drive) drive.saveResult = "unavailable" end},
+  {name = "restore results", inflight = {phase = "ground", setSource = "board", cellCount = 36},
+    drive = function(drive)
+      drive.restoreResultOpen = 1
+      drive.transfer = {results = {pid1 = "ok", rate1 = "ram_ok", global = "verify_failed"}, reason = "verify_failed"}
+    end},
+  {name = "FC setup choices", inflight = {phase = "ground", setSource = "board", cellCount = 36},
+    drive = function(drive)
+      drive.fcSetupOpen, drive.fcSurface = true, rfsuite.require("widgets/dashboard/inflight/fcsurface.lua")
+      drive.fcSetup = {phase = "choices", step = 5, step_headspeed = 50}
+    end},
+  {name = "FC setup writing", inflight = {phase = "ground", setSource = "board", cellCount = 36},
+    drive = function(drive)
+      drive.fcSetupOpen, drive.fcSurface = true, rfsuite.require("widgets/dashboard/inflight/fcsurface.lua")
+      drive.fcSetup = {phase = "writing", run = {done = 3, total = 73, phase = "writing"}}
+    end},
 }
 local SIZES = {{800, 480}, {480, 320}, {480, 272}}
 
@@ -163,7 +184,8 @@ for _, scheme in ipairs({false, "light", "dark", "unknown"}) do
         if surface.armed then
           check(close == nil, label .. ": no close box while armed")
         elseif surface.name ~= "restore question" and surface.name ~= "after-landing actions"
-          and surface.name ~= "parameter choice" then
+          and surface.name ~= "parameter choice" and surface.name ~= "restore results"
+          and string.sub(surface.name, 1, 8) ~= "FC setup" then
           check(close and close.color == c.error and glyph.color == c.onError, label .. ": the close box is red, its X on it")
         end
         if surface.name == "ground" or surface.name == "ground, empty board" then
@@ -208,10 +230,59 @@ for _, scheme in ipairs({false, "light", "dark", "unknown"}) do
           local back, forward = buttonText("<"), buttonText(">")
           check(back and forward and back.color == c.raised and forward.color == c.raised, label .. ": the page arrows are raised cells")
         end
+        if surface.name == "restore results" then
+          check(textColour("Restore results 1/1") == c.accentInk, label .. ": the title is accent text, accentInk")
+          local back, forward = labelled(nodes, "<"), labelled(nodes, ">")
+          check(back and forward and back.color == c.raised and forward.color == c.raised, label .. ": the page buttons are raised cells")
+        end
+        if surface.name == "FC setup choices" then
+          check(textColour("Set up suggested functions") == c.accentInk, label .. ": the heading is accent text, accentInk")
+          local chosen, other = labelled(nodes, "5"), labelled(nodes, "2")
+          local nextButton, nextCaption = labelled(nodes, "Next")
+          local cancel = labelled(nodes, "Cancel")
+          check(chosen and other and chosen.color == c.accent and other.color == c.raised and nextButton
+            and nextButton.color == c.accent and nextCaption.color == c.onAccent and cancel and cancel.color == c.raised,
+            label .. ": the chosen step and Next on the accent, the others and Cancel raised")
+        end
+        if surface.name == "FC setup writing" then
+          local track, fill
+          for index, node in ipairs(nodes) do
+            if node.type == "rectangle" and type(node.size) == "function" then fill, track = node, nodes[index - 1] end
+          end
+          check(track and fill and track.color == c.rule and fill.color == c.accent,
+            label .. ": the progress track is the rule, its fill the accent")
+        end
+        if string.sub(surface.name, 1, 6) == "ground" and surface.name ~= "ground, reading" then
+          for _, node in ipairs(nodes) do
+            if node.type == "button" and node.y > 0 then
+              check(node.h >= 20, label .. ": every action is at least a line of text tall (" .. node.h .. ")")
+            end
+          end
+        end
         if surface.name == "live list" then
           local back, forward, title = buttonText("<"), buttonText(">"), buttonText("Roll")
           check(back and forward and title and back.color == c.raised and forward.color == c.raised and title.color == c.raised
-            and back.textColor == c.text, label .. ": the function arrows and the group title are raised cells")
+            and back.textColor == c.text and forward.textColor == c.text,
+            label .. ": the function arrows and the group title are raised cells")
+        end
+        if surface.name == "live value" then
+          local resting, guards = 0, 0
+          for _, node in ipairs(nodes) do
+            if node.type == "box" and type(node.children) == "table" then
+              for _, child in ipairs(node.children) do
+                if child.type == "button" then
+                  if value(child.text) == "Encoder" then
+                    guards = guards + 1
+                    check(child.color == c.bg or child.color == c.page, label .. ": a guard row stands on the page")
+                  elseif child.text ~= nil then
+                    resting = resting + 1
+                    check(child.color == c.page, label .. ": a resting name row stands on the page")
+                  end
+                end
+              end
+            end
+          end
+          check(resting > 0 and guards > 0, label .. ": the resting rows and the guards were found (" .. resting .. ", " .. guards .. ")")
         end
         if surface.name == "group picker" then
           local chosen, other = buttonText("Roll"), buttonText("Pitch")
@@ -221,8 +292,13 @@ for _, scheme in ipairs({false, "light", "dark", "unknown"}) do
         if surface.name == "parameter choice" then
           local back, forward = buttonText("<"), buttonText(">")
           local apply, applyCaption = labelled(nodes, "Apply")
-          check(back and forward and back.color == c.raised and apply and apply.color == c.accent and applyCaption.color == c.onAccent,
-            label .. ": page arrows raised, Apply the primary")
+          check(back and forward and back.color == c.raised and forward.color == c.raised and back.textColor == c.text
+            and forward.textColor == c.text and apply and apply.color == c.accent and applyCaption.color == c.onAccent,
+            label .. ": both page arrows raised, Apply the primary")
+          local chosen, unchosen = buttonText("[x] P-gain"), buttonText("[  ] I-gain")
+          check(chosen and unchosen and chosen.color == c.accent and chosen.textColor == c.onAccent
+            and unchosen.color == c.raised and unchosen.textColor == c.text,
+            label .. ": a chosen parameter on the accent, one not chosen on a raised cell")
         end
         if surface.name == "ground, reading" then
           local track, fill
@@ -242,9 +318,10 @@ for _, scheme in ipairs({false, "light", "dark", "unknown"}) do
             label .. ": with room, the secondary actions share one row")
         end
         if (surface.name == "ground" or surface.name == "ground, crowded") and size[2] >= 300 then
-          local primary = labelled(nodes, surface.name == "ground" and "Choose parameters" or "Set up suggested functions")
+          local primary = labelled(nodes, "Choose parameters")
           local read = labelled(nodes, "Read again")
-          check(primary and read and primary.h > read.h, label .. ": the primary is taller than the cells")
+          check(primary and read and primary.h > read.h, label .. ": the primary is taller than the cells ("
+            .. tostring(primary and primary.h) .. " / " .. tostring(read and read.h) .. ")")
         end
         if surface.name == "live value" then
           local plus, minus
@@ -263,6 +340,8 @@ end
 
 -- Positive controls: a colour outside the scheme is seen, nested in a child too.
 check(not schemeValues("dark")[Schemes.colors("light").page], "positive control: the two schemes differ")
+-- A wrong ROLE is a scheme value too: the role checks above must tell raised from accent. Proven on a node.
+check(Schemes.colors("light").raised ~= Schemes.colors("light").accent, "positive control: raised and accent differ")
 local injected = colours({{type = "button", color = 0x123456, children = {{type = "label", color = 0x654321}}}}, {}, "")
 local lightSet = schemeValues("light")
 check(#injected == 2 and not lightSet[injected[1].colour] and not lightSet[injected[2].colour],
