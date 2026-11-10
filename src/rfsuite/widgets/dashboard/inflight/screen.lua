@@ -38,6 +38,7 @@ end
 local Functions = requireModule("widgets/dashboard/inflight/functions.lua")
 local Drive = requireModule("widgets/dashboard/inflight/drive.lua")
 local Input = requireModule("widgets/dashboard/inflight/input.lua")
+local Schemes = requireModule("lib/color_schemes.lua")
 
 -- A dependency that did not load must not leave a WORKING-LOOKING module behind.
 --
@@ -55,7 +56,7 @@ local Input = requireModule("widgets/dashboard/inflight/input.lua")
 -- Raising here instead means the pcall in lib/require.lua fails, NOTHING is cached, and the next
 -- pass loads the file again on a budget that may well be quieter. A missing file behaves the same
 -- way and is answered by the caller, which keeps its own retry.
-if type(Functions) ~= "table" or type(Drive) ~= "table" or type(Input) ~= "table" then
+if type(Functions) ~= "table" or type(Drive) ~= "table" or type(Input) ~= "table" or type(Schemes) ~= "table" then
   error("inflight/screen.lua: a dependency did not load", 0)
 end
 
@@ -91,7 +92,6 @@ end
 --
 -- One table per scheme, kept: a build asks for it once and the answer changes only when the pilot
 -- saves the settings page.
-local Schemes = requireModule("lib/color_schemes.lua")
 local palettes = {}
 
 local function palette(widget)
@@ -590,7 +590,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
       local forward, reverse = sensor.windows()
       local ladder, previous = {}, {}
       local first, leave = sensor.first, sensor.leave
-      local color, textColor = p.header, p.text
+      local color, textColor = p.bg, p.text
       -- The transparent resting window still participates in pointer hit testing.
       previous[1] = {
         type = "button", y = first * nameH, w = lineW, h = nameH,
@@ -600,7 +600,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
       local function guard(list, index)
         list[#list + 1] = {
           type = "button", x = 0, y = index * nameH, w = lineW, h = nameH,
-          color = p.header, textColor = p.text, font = m.font,
+          color = p.bg, textColor = p.text, font = m.font,
           text = t("widgets.dashboard.inflight_encoder", "Encoder"), press = sensor.leave
         }
       end
@@ -816,9 +816,9 @@ local function appendFlight(children, widget, m, w, h, t, p)
     button(children, titleX, groupY, titleW, groupH, title, function() openGroupPicker(widget) end, p.accent)
     return
   end
-  button(children, m.pad, groupY, arrowW, groupH, "<", action("function", -1), p.accent)
+  button(children, m.pad, groupY, arrowW, groupH, "<", action("function", -1))
   button(children, titleX, groupY, titleW, groupH, title, function() openGroupPicker(widget) end)
-  button(children, w - m.pad - arrowW, groupY, arrowW, groupH, ">", action("function", 1), p.accent)
+  button(children, w - m.pad - arrowW, groupY, arrowW, groupH, ">", action("function", 1))
 end
 
 local appendBusy, busyStepText
@@ -1090,7 +1090,9 @@ function M.buildGround(children, widget, m, w, h, t, p)
   local extraRows = (job and 1 or 0) + (boundsRow and 1 or 0) + (saveRow and 1 or 0)
   -- From 320 px up an action keeps a comfortable height and the primary a little more; below, a
   -- line of text and its margin.
-  local actionCount = #actionRows(captions, h >= 320) + 1
+  -- Sized for the rows the actions need at worst, one line per caption: sized for the one-row
+  -- layout, a fallback to two to a row found later would squeeze the primary to the cells' height.
+  local actionCount = #actionRows(captions, false) + 1
   local actionMin = h >= 320 and 28 or lineH + 2
   local actionsNeed = actionCount * actionMin + (h >= 320 and 8 or 0) + gap * (actionCount + 1)
     + ((emptyBoard and available) and lineH * 2 + gap or 0)
@@ -1547,16 +1549,18 @@ function M.buildPost(children, widget, m, w, h, t, p)
   end)
   children[#children - 1].color = p.accent
   children[#children].color = p.onAccent
+  local restoreAt = #children + 1
   appendAction(children, m, m.pad * 2 + continueW, actionY, buttonW - continueW - m.pad,
     t("widgets.dashboard.inflight_post_restore", "Restore..."), p, function()
     drive.postActionsOpen = {kind = target.scope, index = target.profile}
     drive.valueEpoch = drive.valueEpoch + 1; widget._tuningKeyDirty = true
   end)
+  for index = restoreAt + 1, #children do children[index].color = p.error end
   for index = 1, 2 do
     local direction = index == 1 and -1 or 1
     children[#children + 1] = {
       type = "button", x = w - m.pad - arrowW * (3 - index), y = actionY,
-      w = arrowW - 4, h = m.actionH, color = p.accent, textColor = p.onAccent,
+      w = arrowW - 4, h = m.actionH, color = p.button, textColor = p.text,
       text = index == 1 and "<" or ">", press = function() Input.dispatch(widget, "group", direction, "touch") end
     }
   end
@@ -1684,12 +1688,12 @@ local function appendSessionPicker(children, widget, m, w, h, t, p)
       if target >= 1 and target <= #pages then pick.page = target; refresh() end
     end
   end
-  children[#children + 1] = { type = "button", x = m.pad, y = y, w = arrowW, h = selectorH, color = p.accent,
-    text = "<", textColor = p.onAccent, press = turn(-1) }
+  children[#children + 1] = { type = "button", x = m.pad, y = y, w = arrowW, h = selectorH, color = p.button,
+    text = "<", textColor = p.text, press = turn(-1) }
   appendCentredLabel(children, m.pad + arrowW, y, lineW - arrowW * 2, selectorH,
     fitText(title, lineW - arrowW * 2, m.font), p.text, m.font, CENTER, m)
-  children[#children + 1] = { type = "button", x = w - m.pad - arrowW, y = y, w = arrowW, h = selectorH, color = p.accent,
-    text = ">", textColor = p.onAccent, press = turn(1) }
+  children[#children + 1] = { type = "button", x = w - m.pad - arrowW, y = y, w = arrowW, h = selectorH, color = p.button,
+    text = ">", textColor = p.text, press = turn(1) }
   y = y + selectorH + gap
 
   local actionY = h - m.pad - actionH
@@ -1701,7 +1705,7 @@ local function appendSessionPicker(children, widget, m, w, h, t, p)
       local on = pick.wanted[entry.id] == true
       children[#children + 1] = {
         type = "button", x = m.pad, y = y, w = lineW, h = rowH - 2,
-        color = on and p.accent or p.rowFill, textColor = on and p.onAccent or p.text,
+        color = on and p.accent or p.button, textColor = on and p.onAccent or p.text,
         text = fitText((on and "[x] " or "[  ] ") .. entry.name, lineW - 16, m.listFont),
         press = function()
           if pick.wanted[entry.id] then
