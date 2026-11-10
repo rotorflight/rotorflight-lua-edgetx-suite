@@ -587,6 +587,8 @@ end
 print("Differences from the Ethos suite: a rate stays within what its rates_type keeps (#1142)")
 do
   local QUICK, ROTORFLIGHT = 5, 6
+  -- What the page proposes for one starting rate: Save, the limit reason, and every change as
+  -- field=value
   local function advise(ratesType, field, key, raw)
     resetFc()
     if ratesType then
@@ -596,31 +598,59 @@ do
     fc.rates[field] = raw
     flightRoll = { [key] = raw }
     openPage()
-    local offered = canSave()
-    local whys = table.concat(ui.view.whys, " | ")
+    local writes = {}
+    for _, c in ipairs(ui.view.changes) do writes[#writes + 1] = c.field .. "=" .. tostring(c.to) end
+    table.sort(writes)
+    local r = { offered = canSave(), limit = contains(ui.view.whys, T().whyLimit),
+      writes = "," .. table.concat(writes, ",") .. "," }
     resetFlights()
-    return offered, whys
+    return r
+  end
+  local function refused(label, ratesType, field, key, raw)
+    local r = advise(ratesType, field, key, raw)
+    check(label, not r.offered and r.writes == ",," and r.limit, r.writes)
+  end
+  local function offered(label, ratesType, field, key, raw, to)
+    local r = advise(ratesType, field, key, raw)
+    check(label, r.offered and not r.limit and string.find(r.writes, ",pid_0_F=96,", 1, true) ~= nil
+      and string.find(r.writes, "," .. field .. "=" .. to .. ",", 1, true) ~= nil, r.writes)
   end
 
   -- Actual keeps rc rate and max rate at 200 (2000 deg/s)
-  local offered, whys = advise(nil, "rates_1", "sRate", 190)
-  check("Actual: max rate 190 -> 238 is not offered, past the 200 it keeps", not offered
-    and string.find(whys, T().whyLimit, 1, true) ~= nil, whys)
-  check("Actual: max rate 150 -> 188 is offered, within 200", (advise(nil, "rates_1", "sRate", 150)))
-  check("Actual: center sensitivity 170 -> 213 is not offered, past the 200 it keeps",
-    not advise(nil, "rcRates_1", "rcRate", 170))
-  check("Actual: center sensitivity 150 -> 188 is offered, within 200", (advise(nil, "rcRates_1", "rcRate", 150)))
+  refused("Actual: max rate 190 -> 238 is not offered, past the 200 it keeps", nil, "rates_1", "sRate", 190)
+  offered("Actual: max rate 150 -> 188 is offered with F 96, within 200", nil, "rates_1", "sRate", 150, 188)
+  refused("Actual: center sensitivity 170 -> 213 is not offered, past the 200 it keeps", nil, "rcRates_1", "rcRate", 170)
+  offered("Actual: center sensitivity 150 -> 188 is offered with F 96, within 200", nil, "rcRates_1", "rcRate", 150, 188)
 
   -- Quick keeps max rate at 200 and rc rate at the byte's 255
-  check("Quick: max rate 190 -> 238 is not offered, past the 200 it keeps",
-    not advise(QUICK, "rates_1", "sRate", 190))
-  check("Quick: max rate 150 -> 188 is offered, within 200", (advise(QUICK, "rates_1", "sRate", 150)))
-  check("Quick: rc rate 190 -> 238 is offered, within the 255 it keeps", (advise(QUICK, "rcRates_1", "rcRate", 190)))
+  refused("Quick: max rate 190 -> 238 is not offered, past the 200 it keeps", QUICK, "rates_1", "sRate", 190)
+  offered("Quick: max rate 150 -> 188 is offered with F 96, within 200", QUICK, "rates_1", "sRate", 150, 188)
+  offered("Quick: rc rate 190 -> 238 is offered with F 96, within the 255 it keeps", QUICK, "rcRates_1", "rcRate",
+    190, 238)
 
   -- Rotorflight keeps its rate at 200 (1000 deg/s)
-  check("Rotorflight: rate 170 -> 213 is not offered, past the 200 it keeps",
-    not advise(ROTORFLIGHT, "rcRates_1", "rcRate", 170))
-  check("Rotorflight: rate 150 -> 188 is offered, within 200", (advise(ROTORFLIGHT, "rcRates_1", "rcRate", 150)))
+  refused("Rotorflight: rate 170 -> 213 is not offered, past the 200 it keeps", ROTORFLIGHT, "rcRates_1", "rcRate", 170)
+  offered("Rotorflight: rate 150 -> 188 is offered with F 96, within 200", ROTORFLIGHT, "rcRates_1", "rcRate", 150, 188)
+
+  -- The check before the write holds the same ceiling: a confirmed change raised past it after
+  -- the confirm writes nothing (201 still fits the byte, so only the ceiling refuses it)
+  resetFc()
+  fc.rates.rates_1 = 150
+  flightRoll = { sRate = 150 }
+  openPage()
+  local before = snapshot()
+  check("the write check: a valid proposal to start from", Page.getSaveConfirm(ctx) ~= nil and ui.snapshot ~= nil)
+  local raised = false
+  for _, c in ipairs(ui.snapshot and ui.snapshot.changes or {}) do
+    if c.field == "rates_1" then c.to = 201; raised = true end
+  end
+  Page.onSave(ctx)
+  local sent = pump()
+  check("the write check: Actual max rate 201 after the confirm is refused, nothing written", raised
+    and lastReport().message == T().range and changedFields(before) == ""
+    and not has(sent, codecs.rates.writeCommand) and not has(sent, EEPROM),
+    tostring(lastReport().message) .. " / " .. changedFields(before) .. " / " .. table.concat(sent, ","))
+  resetFlights()
 
   -- At the ceiling, Apply writes what the flight controller keeps and the read-back matches
   resetFc()
