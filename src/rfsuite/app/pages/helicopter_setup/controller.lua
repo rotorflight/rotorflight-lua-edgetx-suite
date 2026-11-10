@@ -943,7 +943,11 @@ function M.new(runtime, transport, mathModule, labels)
     -- Switch learning reads the channels three polls in four; STATUS keeps its turn.
     local switches=self.step==3 or self.step==4
     self.pollIndex = (self.pollIndex or 0) % ((attitudeCheck or switches) and 4 or 3) + 1
+    -- The receiver step shows only the channels: no servo poll there, so the bars follow the
+    -- sticks twice as often; STATUS keeps its turn.
+    local channelsOnly = self.step == 2 and not self.motorHold
     local api = switches and (self.pollIndex==1 and "status" or "rc") or
+      channelsOnly and (self.pollIndex==1 and "status" or "rx_channels") or
       attitudeCheck and (self.pollIndex%2==1 and "attitude" or self.pollIndex==2 and "status" or "servo") or
       self.pollIndex == 1 and "status" or self.pollIndex == 2 and "servo" or
       ({ [1] = "attitude", [2] = "rx_channels", [3] = "rc", [4] = "rc", [10] = "motor", [11] = "motor_telemetry",
