@@ -67,23 +67,9 @@ return function(w, cards)
   end
   local profile = w.data.battery_profile and w.data.battery_profile.batteryProfile
   if type(profile) ~= "number" or profile < 0 or profile > 5 or profile % 1 ~= 0 then profile = nil end
-  local cellKey = battery.hasProfileCells and profile ~= nil and "batteryCellCount_" .. profile or "batteryCellCount"
-  local cell = w:n("battery_config", cellKey, L.cellCount, fields.cellCount.min, fields.cellCount.max)
+  -- The wizard opens only on firmware with a cell count per battery profile (the controller
+  -- refuses a reply without one), so batteries are always this table.
   if battery.hasProfileCells then
-    if profile == nil then
-      cell = w:value(L.cellCount, function() return battery.batteryCellCount end)
-    else
-      local set = cell.set
-      cell.set = function(v)
-        set(v)
-        if battery[cellKey] == v then w:field("battery_config", "batteryCellCount", v) end
-      end
-      cell = cellList(cell)
-    end
-  else
-    cell = cellList(cell)
-  end
-  if battery.hasProfileCells and battery.batteryCapacity_5 ~= nil then
     -- How many packs the pilot flies: as many battery profiles as hold a capacity, at least one,
     -- until the pilot says otherwise. Only these rows are edited; the record written keeps every
     -- other profile and field as it was read.
@@ -132,33 +118,6 @@ return function(w, cards)
     end
     add(L.packTable, L.packTableHelp, rows, L.packTableShort)
     cards[#cards].dense = #rows > 4
-  else
-  add(L.powerBattery, L.powerBatteryHelp, {
-    w:value(L.selectedBattery, function() return profile ~= nil and L.batterySlot .. " " .. (profile+1) or L.powerProfileUnknown end),
-    cell
-  }, battery.hasProfileCells and profile == nil and L.powerProfileUnknown or L.powerBatteryShort)
-  -- Six capacity slots fit on two three-row cards; never switch the active battery profile.
-  if battery.batteryCapacity_5 ~= nil then
-    for first = 0, 3, 3 do
-      local rows = {}
-      for index = first, first+2 do
-        local key = "batteryCapacity_" .. index
-        local row = w:n("battery_config", key, L.batterySlot .. " " .. (index+1), fields.capacity.min, fields.capacity.max)
-        row.display = fields.capacityText
-        local set = row.set
-        row.set = function(v)
-          set(v)
-          if profile == index and battery[key] == v then w:field("battery_config", "batteryCapacity", v) end
-        end
-        rows[#rows+1] = row
-      end
-      add(L.capacity, first == 0 and L.powerCapacityFirstHelp or L.powerCapacityLastHelp, rows, L.powerCapacityShort)
-    end
-  else
-    local row = w:n("battery_config", "batteryCapacity", L.capacity, fields.capacity.min, fields.capacity.max)
-    row.display = fields.capacityText
-    add(L.capacity, L.powerCapacityHelp, {row}, L.powerCapacityShort)
-  end
   end
   if w.data.smartfuel_config then
     add(L.smartFuel, L.powerSmartFuelHelp, {

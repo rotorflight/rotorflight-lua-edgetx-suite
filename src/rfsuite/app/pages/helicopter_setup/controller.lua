@@ -926,6 +926,14 @@ function M.new(runtime, transport, mathModule, labels)
       if not inputs[4] or not self.data.status.pid_profile_count or self.data.status.pid_profile_count < 1 then
         self:fail("status", "configuration"); return
       end
+      -- A 4.7 development build can report API 12.10 before it carried a cell count per
+      -- battery profile; the wizard is not offered there either.
+      local battery = self.data.battery_config
+      if battery and not battery.hasProfileCells then
+        self.ready, self.transition, self.buildRequested, self.apiTooOld = true, nil, true, true
+        if self.logInfo then self:log("info", "load stopped, no per-profile battery cells") end
+        self.message = self.L.apiTooOld; self:rebuild(); return
+      end
       self.startTail = self.data.mixer_config.tail_rotor_mode
       self.savedRebootPending = self.rebootPending
       self.ready, self.transition, self.buildRequested = true, nil, true

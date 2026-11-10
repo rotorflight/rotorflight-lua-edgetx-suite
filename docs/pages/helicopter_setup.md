@@ -18,9 +18,10 @@ The Wizards group is hidden until *System* → *Settings* → *General* → *Pre
 *Setup Assistant* is enabled (`visibleWhen = "previewSetupWizard"` on the parent).
 The page is greyed out until the flight controller answers
 (`enabledWhen = "fblConnected"`), locked while armed (`lockedWhileArmed = true`),
-and offered from MSP API 12.09 (`minApiVersion = {12, 0, 9}`), the Suite's packaged API. The setup
-steps themselves need MSP API 12.10 (Rotorflight 4.7): on an older flight controller the page shows
-**Firmware too old** with the reported version and reads no configuration. It works from
+and offered only from MSP API 12.10 (`minApiVersion = {12, 0, 10}`, Rotorflight 4.7): on an older
+flight controller the menu entries stay greyed out. The page checks the version again, and a 4.7
+development build that reports 12.10 but has no cell count per battery profile is refused as well;
+both show **Firmware too old** with the reported version instead of the steps. It works from
 the TOOLS menu and when the tool is hosted by the dashboard widget.
 
 ## Colors
@@ -279,12 +280,11 @@ The short instruction area may show only its first lines; **?** opens the full t
 
 After **Check** and **Telemetry readings**, step 11 adds **Voltage and current** (both
 sources with their live readings on one card), **Batteries** and SmartFuel Mode. On a flight
-controller with per-profile cell counts (Rotorflight 4.7), **Batteries** asks first how many
+**Batteries** asks first how many
 different packs are flown (**Different packs**, 1-6; it starts at the number of battery profiles
 that hold a capacity) and then shows one row per battery profile with its cell count, picked from a list (Auto or 1S-24S), and
 capacity. Profiles beyond that number are not changed, and a profile that leaves the table goes
-back to the values read. Without per-profile cell counts the former Battery and Capacity cards
-stay. The existing ESC throttle-range
+back to the values read. The existing ESC throttle-range
 and operating-mode cards follow this block. Settings use the wizard's normal
 Save/Discard/EEPROM boundary; no source, battery-profile or SmartFuel setting is
 written by opening a card. Existing ESC reboot requirements still apply.
@@ -295,21 +295,14 @@ written by opening a card. Existing ESC reboot requirements still apply.
 | Voltage | Live ESC voltage in V from motor telemetry, including an explicit missing-voltage message. Other sources show the FC's selected-source analog reading as soon as the changed source has been written to the FC, before the card is saved; until then the row reads *Applying source...*. Missing or stale readings show no telemetry. |
 | Current Source | FC current input with the same options and version rule as Voltage Source. |
 | Current | Live ESC current in A, or the FC's selected-source analog reading once the source is written. Zero current can be normal at rest. A source not yet written never claims another source's reading. |
-| Selected | Read-only active battery profile, obtained from the optional battery_profile API. It is never switched by these cards. An unanswered or out-of-range profile is shown as unknown. |
-| Cell count | A list: Auto (stored as 0, the FC detects the cells) or 1S-24S. With per-profile cells, edits affect the active slot and preserve every other slot. If its active profile is unknown, the received active cell count is read-only. Legacy single cell count remains editable. |
-| Battery 1 | Capacity of slot 1, 0-40000 mAh; editing does not activate it. |
-| Battery 2 | Capacity of slot 2, 0-40000 mAh; editing does not activate it. |
-| Battery 3 | Capacity of slot 3, 0-40000 mAh; editing does not activate it. |
-| Battery 4 | Capacity of slot 4, 0-40000 mAh; editing does not activate it. |
-| Battery 5 | Capacity of slot 5, 0-40000 mAh; editing does not activate it. |
-| Battery 6 | Capacity of slot 6, 0-40000 mAh; editing does not activate it. |
-| Capacity | A single 0-40000 mAh editor replaces the six slots when battery_config contains no slot block. |
+| Different packs | 1-6: how many kinds of flight battery are flown, one battery profile each. Starts at the number of profiles that hold a capacity. |
+| Battery n | One row per battery profile: the cell count from a list, Auto (stored as 0, the FC detects the cells) or 1S-24S, and the capacity, 0-40000 mAh. Editing a row does not activate that profile; the active profile's values are also the FC's current ones. |
 | Firmware Source | SmartFuel OFF (LOCAL), VOLTAGE, CURRENT or COMBINED. VOLTAGE and COMBINED show a warning when the draft Voltage Source is NONE. The three tuning values are preserved. |
 
 Battery and Sources have no API-version gate in the current Power pages. The
 wizard uses optional, single-message startup reads for battery_config and
-battery_profile and hides unavailable settings; reply length determines slot and
-per-profile-cell support. SmartFuel follows the Power menu's API 12.0.9 gate and
+battery_profile; reply length determines per-profile-cell support, which the wizard
+requires. SmartFuel follows the Power menu's API 12.0.9 gate and
 is hidden if its optional read fails. The wizard's existing overall API 12.10
 requirement remains in force.
 
