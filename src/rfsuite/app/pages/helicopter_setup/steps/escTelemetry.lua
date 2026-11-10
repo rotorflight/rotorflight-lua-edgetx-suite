@@ -40,7 +40,7 @@ return function(w)
   port.enabled=function() return not castle and not w.trial and not w.escBusy and usesPort() end
   local cards={
     w:cardDef(L.connectBattery, L.telemetryBatteryHint, {}, nil, "esc"),
-    w:cardDef(L.escTelemetry, castle and L.castleTelemetryHint or L.telemetryHint, {
+    w:cardDef(L.cardTelemetryProtocol, castle and L.castleTelemetryHint or L.telemetryHint, {
       protocol,
       w:button(L.saveReboot, function() w:reboot() end,
         function() return not w.escBusy and not (w.escParams and w.escParams.changes) end)

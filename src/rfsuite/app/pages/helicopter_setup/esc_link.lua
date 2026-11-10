@@ -37,6 +37,16 @@ function M.attach(w, params, status)
     self:field("esc_sensor_config", "half_duplex", 1, true)
     self:field("esc_sensor_config", "pin_swap", swap, true)
   end
+  -- Switching half-duplex off: the port goes back to receive-only telemetry. The pin swap this page
+  -- sets with it is taken back to what the FC had when half-duplex was off there, else to none.
+  function w:escHalfDuplexOff()
+    local config, saved = self.data.esc_sensor_config, self.saved.esc_sensor_config
+    if config.half_duplex ~= 1 then return end
+    local swap = saved and saved.half_duplex ~= 1 and saved.pin_swap or 0
+    if self.logDebug then self:log("debug", "ESC wiring set receive-only, pin swap %s", swap) end
+    self:field("esc_sensor_config", "half_duplex", 0, true)
+    self:field("esc_sensor_config", "pin_swap", swap, true)
+  end
   -- Moving from an ESC this page can program to one it cannot takes back the wiring choosing it set.
   -- Any other wiring, a detected one for instance, stays.
   function w:escRestoreWiring(previous)
@@ -218,8 +228,14 @@ function M.attach(w, params, status)
     cards.stale = function() return linkState() ~= stateText or selected ~= 1 end
     add(L.escLink,L.escLinkHelp,{
       self:button(L.escRead,function() self:readEsc() end,function() return not self.escBusy and self:escLinkReady() end),
-      self:button(L.escUseHalfDuplex,function() self:applyEdit(function() self:escUseHalfDuplex(); self:escRefresh() end) end,
-        function() return not self.escBusy and self:escTelemetryOnly() end)
+      -- A switch showing the port's half-duplex state; the edit asks for the restart either way.
+      { kind = "toggle", label = L.escUseHalfDuplex, values = { L.no, L.yes },
+        get = function() return self.data.esc_sensor_config.half_duplex == 1 and 2 or 1 end,
+        set = function(v)
+          if v == 2 then self:escUseHalfDuplex() else self:escHalfDuplexOff() end
+          self:escRefresh()
+        end,
+        enabled = function() return not self.escBusy end }
     }, stateText)
     if s and s.changes then
       add(L.escRestartTitle,L.escRestartHelp,{

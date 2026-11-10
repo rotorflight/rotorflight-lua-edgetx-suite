@@ -2342,7 +2342,7 @@ return function(h)
     c[1].rows[3].set(2);c[1].rows[4].set(2)
     check(w.validate(),"S10 both confirmations complete the step")
     noConfigWrites(w,"S10")
-    w.rebootPending=true;c=step(w,"connect");cardOrder(c,{L.connect},"S10 restart")
+    w.rebootPending=true;c=step(w,"connect");cardOrder(c,{L.cardRestart},"S10 restart")
     eq(c[1].rows[1].label,L.servosUnplugged,"S10 restart retains unplugged confirmation")
     eq(c[1].art,"servo","S10 restart retains its picture")
   end)
@@ -2373,7 +2373,7 @@ return function(h)
     w.checks.connected,w.checks.blades=true,true;w.card=#w.cards;w:next();drain(w)
     eq(w.step,11,"CORE connect advances to ESC telemetry")
     eq(w.cards[1].detail,L.telemetryBatteryHint,"CORE ESC telemetry begins with battery connection")
-    eq(w.cards[2].title,L.escTelemetry,"CORE controller loads telemetry at step 11")
+    eq(w.cards[2].title,L.cardTelemetryProtocol,"CORE controller loads telemetry at step 11")
     local function polls(command,name)
       q.sent={};w.pollIndex=2;w.lastPoll=nil;w:poll();drain(w)
       local found=false
@@ -2437,7 +2437,7 @@ return function(h)
     local w=world();settle(w);w.step=11;w.data.motor_config.motor_pwm_protocol=5
     w.data.esc_sensor_config.protocol=1
     local c=step(w,"escTelemetry")
-    cardOrder(c,{L.connectBattery,L.escTelemetry,L.port,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 serial")
+    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.port,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 serial")
     eq(c[1].detail,L.telemetryBatteryHint,"S11 powers the ESC before configuration and live readings")
     c[2].rows[1].set(3);c[3].rows[1].set(1)
     eq(w.data.esc_sensor_config.protocol,2,"S11 protocol field")
@@ -2462,9 +2462,9 @@ return function(h)
     eq(serialWrites,#expected,"S11 saves every configured serial port")
     check(serialWrites>0,"S11 port assignment is saved")
     c=step(w,"escTelemetry");c[2].rows[1].set(1);c=step(w,"escTelemetry")
-    cardOrder(c,{L.connectBattery,L.escTelemetry,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Off")
+    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Off")
     w.data.motor_config.motor_pwm_protocol=9;c=step(w,"escTelemetry")
-    cardOrder(c,{L.connectBattery,L.escTelemetry,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Castle")
+    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Castle")
     eq(c[1].detail,L.telemetryBatteryHint,"S11 Castle also starts with battery connection")
     eq(c[2].detail,L.castleTelemetryHint,"S11 Castle explains its throttle wire")
     check(not c[2].rows[1].enabled(),"S11 Castle protocol stays read-only")
@@ -3448,7 +3448,7 @@ return function(h)
     eq(w.data.mixer_input.inputs[1].rate,-before,"S14 reverse input scale")
     check(not w.checks.control1,"S14 reversal invalidates previous physical answer")
     c=step(w,"level");c[2].enter()
-    cardOrder(c,{L.motorOffTitle,L.level,L.levelCheck,L.bladeZeroTitle},"S15")
+    cardOrder(c,{L.motorOffTitle,L.cardSwashTrims,L.levelCheck,L.bladeZeroTitle},"S15")
     eq(c[1].rows[1].label,L.motorUnplugged,"S15 the motor card comes first")
     check(c[1].enter==nil,"S15 nothing is held before the motor answer")
     eq(c[2].rows[1].label,L.roll,"S15 first trim is roll axis")
@@ -4639,6 +4639,34 @@ return function(h)
     w.motorTelemetryAt=getTime()
     return step(w,"escTelemetry")
   end
+  case("S11.half-duplex-switch",function()
+    -- The ESC link card shows the port's half-duplex state as a switch: on sets half-duplex with
+    -- the board's pin swap, off goes back to receive-only and takes the pin swap back.
+    local w=escWorld(9)
+    local config=w.data.esc_sensor_config
+    config.half_duplex,config.pin_swap=0,0
+    w.saved.esc_sensor_config={half_duplex=0,pin_swap=0,protocol=9}
+    local card=findCard(step(w,"escTelemetry"),L.escLink)
+    local row
+    for _,r in ipairs(card and card.rows or {}) do if r.label==L.escUseHalfDuplex then row=r end end
+    check(row~=nil and row.kind=="toggle" and row.values[1]==L.no and row.values[2]==L.yes,"S11 half-duplex is a yes/no switch")
+    if not row then return end
+    eq(row.get(),1,"S11 the switch reads the port: off")
+    row.set(2)
+    eq(config.half_duplex,1,"S11 switching on sets half-duplex")
+    eq(config.pin_swap,w:escPinSwap(),"S11 switching on sets the board's pin swap")
+    eq(row.get(),2,"S11 the switch reads the port: on")
+    check(w.rebootPending==true or w.dirty.esc_sensor_config~=nil,"S11 the wiring change is an edit that is saved")
+    row.set(1)
+    eq(config.half_duplex,0,"S11 switching off goes back to receive-only")
+    eq(config.pin_swap,0,"S11 switching off takes the pin swap back")
+    -- An FC that was half-duplex already: off leaves no pin swap behind.
+    config.half_duplex,config.pin_swap=1,1
+    w.saved.esc_sensor_config={half_duplex=1,pin_swap=1,protocol=9}
+    row.set(1)
+    eq(config.half_duplex,0,"S11 off from a saved half-duplex port")
+    eq(config.pin_swap,0,"S11 off from a saved half-duplex port clears the pin swap")
+  end)
   case("S11.incomplete-and-smaller-blocks",function()
     local yge=h.api("esc_parameters_yge")
     local shared=load("lib/esc_params.lua")
@@ -4724,7 +4752,7 @@ return function(h)
       else w:readEsc();settle(w) end
       check(not s.changes and not s.restart and w.validate(),"S11 verified re-read clears unresolved expectation")
       s.changes,s.restart={governor=2},true
-      local protocol=findCard(step(w,"escTelemetry"),L.escTelemetry).rows[1]
+      local protocol=findCard(step(w,"escTelemetry"),L.cardTelemetryProtocol).rows[1]
       protocol.set(protocol.get())
       check(w.escParams==s and s.changes,"S11 unchanged protocol retains expectation")
       w.data.esc_sensor_config.protocol=3;step(w,"escTelemetry")

@@ -558,7 +558,7 @@ function M.new(runtime, transport, mathModule, labels)
     self:run(function()
       self.transition = nil
       -- A commit may report something the pilot has to see before moving on; the save itself
-      -- is complete, and the next Save & next goes on.
+      -- is complete, and the next Next step goes on.
       if self.stayNotice then
         self.message, self.stayNotice = self.stayNotice, nil
         if self.logInfo then self:keyMessage(self.stayNoticeKey) end

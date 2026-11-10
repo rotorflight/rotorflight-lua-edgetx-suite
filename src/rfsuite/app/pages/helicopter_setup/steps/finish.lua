@@ -6,13 +6,13 @@ return function(w)
   end
   local motorProtocols,telemetryProtocols=w:motorProtocols(),w:telemetryProtocols()
   local cards = {
-    w:cardDef(L.finish,L.finishHint,{
+    w:cardDef(L.cardFinishGeometry,L.finishHint,{
       w:value(L.swashType,function() return ({L.none,L.direct,"120","135","140","90L","90V"})[w.data.mixer_config.swash_type+1] or L.unknown end),
       w:value(L.rotorDirection,function() return w.data.mixer_config.main_rotor_dir==0 and L.clockwise or L.counterclockwise end),
       w:value(L.tailType,function() return ({L.servoTail,L.motorTail,L.bidirectional})[w.data.mixer_config.tail_rotor_mode+1] end),
       w:value(L.collectiveLimit,function() return string.format("%.1f°",w.data.mixer_input.inputs[4].max*0.012) end)
     }),
-    w:cardDef(L.finish,L.finishHint,{
+    w:cardDef(L.cardFinishDrive,L.finishHint,{
       w:value(L.cyclicLimit,function() return string.format("%.1f°",w.data.mixer_input.inputs[2].max*0.012) end),
       w:value(L.protocol,function() return protocol(motorProtocols,w.data.motor_config.motor_pwm_protocol) end),
       w:value(L.escTelemetry,function() return w.data.motor_config.motor_pwm_protocol==9 and "Castle Link" or protocol(telemetryProtocols,w.data.esc_sensor_config.protocol) end),
@@ -21,7 +21,7 @@ return function(w)
         return ({L.off,L.limit,L.direct,L.electric,L.nitro})[w.data.governor_config.gov_mode+1] or L.unknown
       end)
     }),
-    w:cardDef(L.finish,L.finishSafetyHint,{
+    w:cardDef(L.cardFinishSafety,L.finishSafetyHint,{
       w:value(L.throttleType,function() return ({L.normal,L.switch,L.functionMode})[w.data.governor_config.gov_throttle_type+1] or L.unknown end),
       w:value(L.fastRpm,function() return w:fastRpm() and L.available or L.rpmMissing end),
       w:value(L.arm,function()
@@ -40,7 +40,7 @@ return function(w)
     table.insert(cards, 3, before)
   end
   if w:analogThrottle() then
-    cards[#cards+1] = w:cardDef(L.finish,L.rangeSummaryHelp,{
+    cards[#cards+1] = w:cardDef(L.cardFinishRanges,L.rangeSummaryHelp,{
       w:value(L.throttleRange,function()
         return w.rangeSource == "esc_link" and L.rangeViaLink or w.rangeSource == "asserted" and L.rangeByPilot
           or w.rangeSource == "calibrated" and L.rangeCalibrated or L.unknown

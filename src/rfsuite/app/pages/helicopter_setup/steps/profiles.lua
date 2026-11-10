@@ -108,7 +108,7 @@ return function(w)
     return text
   end
   local cards={
-    w:cardDef(L.profiles,L.profileHint,{
+    w:cardDef(L.cardProfileSwitch,L.profileHint,{
       {kind="choice",label=L.profileSwitch,values={L.bothProfiles,L.pidOnly,L.none},get=function() return p.mode end,
         set=function(v)
           cancel()

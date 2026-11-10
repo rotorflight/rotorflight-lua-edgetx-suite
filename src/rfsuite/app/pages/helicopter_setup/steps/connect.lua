@@ -16,7 +16,7 @@ return function(w)
     return w:ack("connected") and w:ack("blades")
   end
   if w.rebootPending then
-    return { w:cardDef(L.connect, L.rebootGateHint, {
+    return { w:cardDef(L.cardRestart, L.rebootGateHint, {
       w:check("unplugged", L.servosUnplugged),
       w:value(L.reboot, function() return L.required end)
     }, nil, "servo") }

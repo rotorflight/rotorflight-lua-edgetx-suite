@@ -103,7 +103,7 @@ return function(w)
     cards[#cards+1]=card
   end
   -- The step closes on a table of everything a style sets: a column per profile, the rates type,
-  -- a row per axis with rate and expo, and the collective with its expo, as Save & next will hold them.
+  -- a row per axis with rate and expo, and the collective with its expo, as Next step will hold them.
   local TYPES={[4]="Actual",[6]="Rotorflight"}
   local columns,typeRow,curveRow,collectiveRow={},{},{},{}
   local axisRows={{},{},{}}
