@@ -461,7 +461,6 @@ local L = {
   linkMakeMatch = "@i18n(app.modules.helicopter_setup.linkMakeMatch)@",
   linkOther = "@i18n(app.modules.helicopter_setup.linkOther)@",
   linkSetBoth = "@i18n(app.modules.helicopter_setup.linkSetBoth)@",
-  linkAsksFirst = "@i18n(app.modules.helicopter_setup.linkAsksFirst)@",
   linkSetBothQuestion = "@i18n(app.modules.helicopter_setup.linkSetBothQuestion)@",
   linkSetBothStep = "@i18n(app.modules.helicopter_setup.linkSetBothStep)@",
   linkSetBothFc = "@i18n(app.modules.helicopter_setup.linkSetBothFc)@",

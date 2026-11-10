@@ -335,8 +335,12 @@ function M.new(w, ctx, diagrams)
       rowH = math.min(rowH, math.max(18, math.floor((cardBottom-2-rowY)/slots)))
       rowControlH = math.min(rowControlH, rowH-2)
     end
-    -- Rows may sit at the foot of the card, under a full-width overview.
-    if card.rowsAtFoot then rowY = cardBottom-2-slots*rowH end
+    -- Rows may sit at the foot of the card, under a full-width overview; on the 480-wide screens
+    -- each takes only its control's height, so the overview keeps its room.
+    if card.rowsAtFoot then
+      if not large then rowH = math.min(rowH, controlH+2) end
+      rowY = cardBottom-2-slots*rowH
+    end
     if attitudeCard then
       all[#all+1]=label(large and 10 or formX,textY,large and width-20 or formW,w.L.orientationModelHint)
       all[#all].h=large and 48 or 4*17;all[#all].color=palette.muted
@@ -414,7 +418,9 @@ function M.new(w, ctx, diagrams)
       local cols = #t.columns
       local firstW = math.floor((width-20)*(large and 0.22 or 0.26))
       local cw = math.floor((width-20-firstW)/math.max(1,cols))
-      local lineH = math.min(large and 40 or 24, math.floor((cardBottom-2-overviewY)/(#t.rows+1)))
+      -- It ends above rows at the foot of the card, else above the status line.
+      local tableBottom = card.rowsAtFoot and rowY-2 or cardBottom-2
+      local lineH = math.min(large and 40 or 24, math.floor((tableBottom-overviewY)/(#t.rows+1)))
       local y = overviewY
       for c, head in ipairs(t.columns) do
         all[#all+1] = label(10+firstW+(c-1)*cw, y, cw-6, head)

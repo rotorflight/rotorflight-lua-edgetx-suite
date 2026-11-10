@@ -7,6 +7,9 @@ function M.attach(w, state, sensors)
       self.systemStatus, self.systemConfig, self.systemHint = nil, nil, nil
       return
     end
+    -- While a save, a restart or a close runs, its passes carry the configuration snapshot (one
+    -- block per pass); the hints keep what they last showed and the next read waits for it.
+    if self.transition then return end
     local now = getTime()
     if now < due then return end
     due = now + 25

@@ -232,7 +232,8 @@ function M.new(w)
     plan.at,plan.started=plan.at+1,nil
   end
   function c:rows()
-    self.card.summary=L.linkAsksFirst
+    -- No text band: the table starts at the top; the ? sheet says why the sides must match.
+    self.card.summary=""
     self.card.table={columns={L.linkFc,L.linkModule},rows={
       {label=L.linkRate,cells={function() local v=self:fcValues();return v or "--" end,
         function() local v=self:moduleValues();return v or "--" end}},
