@@ -110,6 +110,19 @@ local SURFACES = {
     drive = function(drive) drive.restoreConfirm = {all = true} end},
   {name = "after-landing actions", inflight = {phase = "post", setSource = "board", cellCount = 36},
     drive = function(drive) drive.postActionsOpen = {kind = "pid", index = 1} end},
+  {name = "group picker", armed = true, inflight = {phase = "live", live = true, profileText = "PID 1 / RTE 1",
+    groups = {GROUP, {name = "Pitch", entries = {{id = 3, name = "P-gain"}}}}, group = 1, groupRows = ROWS, entry = 1,
+    groupPicker = true}},
+  {name = "parameter choice", inflight = {phase = "ground", setupVerdict = "ok", setSource = "board", cellCount = 36,
+    prime = {phase = "done"}},
+    drive = function(drive) drive.sessionPickerOpen, drive.allGroups = true, {GROUP} end},
+  {name = "ground, reading", inflight = {phase = "ground", setupVerdict = "ok", setSource = "board", cellCount = 36,
+    prime = {phase = "done"}},
+    drive = function(drive) drive.profileJob = {plan = {{op = "read", kind = "pid", index = 1}, {op = "read", kind = "pid", index = 2}}, at = 1} end},
+  -- Two two-line statuses, a refused save and announcements off: the actions fall back to two to a row.
+  {name = "ground, crowded", inflight = {phase = "ground", setupVerdict = {"same_gvar"}, setSource = "unavailable",
+    prime = {phase = "done"}, boundsCount = 3},
+    drive = function(drive) drive.saveResult = "unavailable" end},
 }
 local SIZES = {{800, 480}, {480, 320}, {480, 272}}
 
@@ -147,7 +160,8 @@ for _, scheme in ipairs({false, "light", "dark", "unknown"}) do
         local close, glyph = labelled(nodes, "X")
         if surface.armed then
           check(close == nil, label .. ": no close box while armed")
-        elseif surface.name ~= "restore question" and surface.name ~= "after-landing actions" then
+        elseif surface.name ~= "restore question" and surface.name ~= "after-landing actions"
+          and surface.name ~= "parameter choice" then
           check(close and close.color == c.error and glyph.color == c.onError, label .. ": the close box is red, its X on it")
         end
         if surface.name == "ground" or surface.name == "ground, empty board" then
@@ -171,6 +185,64 @@ for _, scheme in ipairs({false, "light", "dark", "unknown"}) do
             end
           end
         end
+        -- The accent where it is text is accentInk, wherever it stands.
+        local function textColour(text)
+          for _, node in ipairs(nodes) do
+            if node.type == "label" and value(node.text) == text then return value(node.color) end
+          end
+        end
+        local function buttonText(text)
+          for _, node in ipairs(nodes) do
+            if node.type == "button" and value(node.text) == text then return node end
+          end
+        end
+        if surface.name == "after landing" then
+          check(textColour("1 parameter changed") == c.accentInk and textColour("70 -> 72  +2") == c.accentInk,
+            label .. ": the count and the change are accent text, accentInk")
+          local restore, caption = labelled(nodes, "Restore...")
+          local continue = labelled(nodes, "Continue tuning")
+          check(restore and restore.color == c.raised and caption.color == c.error and continue and continue.color == c.accent,
+            label .. ": Restore... is a raised cell named in red, Continue tuning the primary")
+          local back, forward = buttonText("<"), buttonText(">")
+          check(back and forward and back.color == c.raised and forward.color == c.raised, label .. ": the page arrows are raised cells")
+        end
+        if surface.name == "live list" then
+          local back, forward, title = buttonText("<"), buttonText(">"), buttonText("Roll")
+          check(back and forward and title and back.color == c.raised and forward.color == c.raised and title.color == c.raised
+            and back.textColor == c.text, label .. ": the function arrows and the group title are raised cells")
+        end
+        if surface.name == "group picker" then
+          local chosen, other = buttonText("Roll"), buttonText("Pitch")
+          check(chosen and other and chosen.color == c.accent and chosen.textColor == c.onAccent and other.color == c.raised,
+            label .. ": the current group is on the accent, the others raised")
+        end
+        if surface.name == "parameter choice" then
+          local back, forward = buttonText("<"), buttonText(">")
+          local apply, applyCaption = labelled(nodes, "Apply")
+          check(back and forward and back.color == c.raised and apply and apply.color == c.accent and applyCaption.color == c.onAccent,
+            label .. ": page arrows raised, Apply the primary")
+        end
+        if surface.name == "ground, reading" then
+          local track, fill
+          for _, node in ipairs(nodes) do
+            if node.type == "rectangle" and type(node.size) == "function" then fill = node end
+          end
+          for index, node in ipairs(nodes) do
+            if node == fill then track = nodes[index - 1] end
+          end
+          check(track and fill and track.color == c.rule and fill.color == c.accent, label .. ": the progress track is the rule, its fill the accent")
+          check(textColour("Reading - Step 1 of 2") == c.accentInk, label .. ": the step text is accent text, accentInk")
+        end
+        if surface.name == "ground" and size[2] > 350 then
+          local functions, read, restore = labelled(nodes, "Functions"), labelled(nodes, "Read again"), labelled(nodes, "Restore all")
+          check(functions and read and restore and functions.y == read.y and read.y == restore.y,
+            label .. ": with room, the secondary actions share one row")
+        end
+        if (surface.name == "ground" or surface.name == "ground, crowded") and size[2] >= 300 then
+          local primary = labelled(nodes, surface.name == "ground" and "Choose parameters" or "Set up suggested functions")
+          local read = labelled(nodes, "Read again")
+          check(primary and read and primary.h > read.h, label .. ": the primary is taller than the cells")
+        end
         if surface.name == "live value" then
           local plus, minus
           for _, node in ipairs(nodes) do
@@ -186,8 +258,12 @@ for _, scheme in ipairs({false, "light", "dark", "unknown"}) do
   end
 end
 
--- A positive control: a colour outside the scheme is seen. Light's page is no dark value.
+-- Positive controls: a colour outside the scheme is seen, nested in a child too.
 check(not schemeValues("dark")[Schemes.colors("light").page], "positive control: the two schemes differ")
+local injected = colours({{type = "button", color = 0x123456, children = {{type = "label", color = 0x654321}}}}, {}, "")
+local lightSet = schemeValues("light")
+check(#injected == 2 and not lightSet[injected[1].colour] and not lightSet[injected[2].colour],
+  "positive control: an injected node and its child carry colours no scheme has, and both are found")
 
 if #failures > 0 then
   for _, message in ipairs(failures) do print("FAIL " .. message) end
