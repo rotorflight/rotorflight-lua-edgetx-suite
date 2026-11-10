@@ -320,7 +320,7 @@ function M.new(w, ctx, diagrams)
     local illustrated = card.art ~= nil
     local formX = illustrated and math.floor(width * (large and 0.43 or 0.35))+(large and 0 or 4) or 10
     -- The attitude card: the helicopter on the left, its hint and the answer on the right.
-    if attitudeCard then formX=math.floor(width*(large and .64 or .5));rowY=large and 166 or textY+3*17+28 end
+    if attitudeCard then formX=math.floor(width*(large and .64 or .5));rowY=large and 166 or textY+4*17+28 end
     local formW = width-formX-(large and 16 or 10)
     -- The status line's top: everything a card draws ends above it.
     local cardBottom = height-controlH-(large and 40 or 27)
@@ -339,7 +339,7 @@ function M.new(w, ctx, diagrams)
     if card.rowsAtFoot then rowY = cardBottom-2-slots*rowH end
     if attitudeCard then
       all[#all+1]=label(large and 10 or formX,textY,large and width-20 or formW,w.L.orientationModelHint)
-      all[#all].h=large and 32 or 3*17;all[#all].color=palette.muted
+      all[#all].h=large and 48 or 4*17;all[#all].color=palette.muted
       diagrams.append(all,w,card,10,large and 108 or textY,
         formX-26,large and height-controlH-168 or cardBottom-4-textY)
     else

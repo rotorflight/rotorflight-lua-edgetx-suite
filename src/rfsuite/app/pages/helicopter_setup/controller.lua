@@ -643,6 +643,7 @@ function M.new(runtime, transport, mathModule, labels)
       -- Remembered for this FC: later single steps pass the card while both sensors are live.
       if self.history and self.history.markPrepared and not self.history:markPrepared() then
         self:log("warn", "radio model preparation not remembered")
+        self.message = self.L.preparedNotSaved
       end
       self.cards,self.buildRequested=nil,true;self:rebuild();return
     end

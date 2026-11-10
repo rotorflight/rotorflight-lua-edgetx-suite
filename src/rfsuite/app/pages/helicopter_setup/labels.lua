@@ -347,6 +347,7 @@ local L = {
   bladesBoomNext = "@i18n(app.modules.helicopter_setup.bladesBoomNext)@",
   bladesBoomCheck = "@i18n(app.modules.helicopter_setup.bladesBoomCheck)@",
   bladesBoomHint = "@i18n(app.modules.helicopter_setup.bladesBoomHint)@",
+  preparedNotSaved = "@i18n(app.modules.helicopter_setup.preparedNotSaved)@",
   nextStep = "@i18n(app.modules.helicopter_setup.nextStep)@",
   cardPrepare = "@i18n(app.modules.helicopter_setup.cardPrepare)@",
   cardMounting = "@i18n(app.modules.helicopter_setup.cardMounting)@",

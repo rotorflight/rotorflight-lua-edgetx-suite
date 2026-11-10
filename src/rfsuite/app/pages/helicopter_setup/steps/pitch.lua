@@ -10,10 +10,9 @@ return function(w)
   -- First the blades are turned along the boom, by hand: both measurements start from there, and
   -- the cards after this one are not reached before it is confirmed (card.requires).
   local intro = w:cardDef(L.cardBladesBoom, L.bladesBoomHint, {
-    { kind = "notice", get = function() return L.bladesBoomNext end },
     w:check("bladesBoom", L.bladesBoomCheck)
   }, nil, "bladesBoom")
-  intro.summary, intro.requires = L.bladesBoomIntro, "bladesBoom"
+  intro.summary, intro.requires = L.bladesBoomIntro .. "\n" .. L.bladesBoomNext, "bladesBoom"
   cards[1] = intro
   -- One cyclic calibration, as every interface to the firmware has it. It is measured over roll,
   -- with pitch and collective at zero, so the rotor head stays where it stood for collective, the

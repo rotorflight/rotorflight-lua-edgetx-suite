@@ -174,6 +174,7 @@ function M.attach(w, ctx)
       { kind = "text", label = self.L.craftName, length = 16,
         get = function() return self.data.name and self.data.name.name or "" end,
         set = function(v) if self.data.name then self:field("name", "name", v) end end },
+      self:value(self.L.activeModel,function() return self.activeModelName end),
       self:check("modelReady",self.L.modelChecked),
       -- Prerequisites checked up front: the two packed FC state sensors the hints depend on.
       self:sensorRow(self.L.fcStatusSensor, function() return self.systemStatus end),
@@ -185,7 +186,7 @@ function M.attach(w, ctx)
         visible = function() return self:fcSensorsListed() == false end }
     })}
     self.cards[1].fitRows=true
-    self.cards[1].summary=self.L.modelPreparationIntro.."\n"..self.L.activeModel..": "..self.activeModelName
+    self.cards[1].summary=self.L.modelPreparationIntro
     self.card,self.modelPreparationCard=1,true
     return true
   end
