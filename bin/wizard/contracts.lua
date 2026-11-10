@@ -547,7 +547,8 @@ return function(h)
             clearOfHelp(scene,string.format("%s %dx%d step %d card %d",locale,size[1],size[2],index,c))
             local named=false
             for _,item in ipairs(scene.children) do
-              if item.type=="label" and type(item.text)=="string" and item.y and item.y<20 then
+              -- The header band: the card name sits lower below a large step name (shared baseline).
+              if item.type=="label" and type(item.text)=="string" and item.y and item.y<(size[1]>=700 and 30 or 20) then
                 local right=item.x+width(item.text,item.font)
                 check(right<=headRight,string.format("FIT %s %dx%d step %d card %d header '%s' ends at %d <= %d",
                   locale,size[1],size[2],index,c,item.text,right,headRight))
