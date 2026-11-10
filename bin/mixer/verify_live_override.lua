@@ -1,4 +1,4 @@
--- Setup > Mixer > Tail and Trims: the live override (app/pages/lib/live_override.lua) driven through
+-- Setup > Mixer > Tail, Trims and Geometry: the live override (app/pages/lib/live_override.lua) driven through
 -- the real pages and the real MSP API modules, with the queue, the controls and the dialogs stubbed.
 -- Run from the repository root: lua5.3 bin/mixer/verify_live_override.lua
 
@@ -79,7 +79,7 @@ local function finishSave(status, held)
   savePhase = nil
   if not saveRequest then return end
   if status == "done" and saveRequest.onSaved then saveRequest.onSaved() end
-  if not held then saveRequest.onDone({ status = status }) end
+  if not held then saveRequest.onDone({ status = status, saved = status == "done" }) end
 end
 
 local Common = {
@@ -92,7 +92,8 @@ local Common = {
   end
 }
 
--- The helper logs through lib/log.lua; every line is kept, so a check can ask for one.
+-- The helper logs through the logger lib/log.lua publishes as rfsuite.Log; every line is kept,
+-- so a check can ask for one.
 local logged = {}
 local Log = {
   emitf = function(tag, level, fmt, ...) logged[#logged + 1] = level .. " " .. tag .. ": " .. string.format(fmt, ...) end
@@ -112,16 +113,21 @@ local stubs = {
   ["ui/confirm_dialog.lua"] = ConfirmDialog,
   ["tasks/msp/save_pipeline.lua"] = SavePipeline,
   ["lib/armed.lua"] = Armed,
-  ["lib/log.lua"] = Log,
   ["ui/palette.lua"] = { muted = 1, border = 2, text = 3 }
 }
 local real = {
   ["tasks/msp/api/mixer_config.lua"] = true,
   ["tasks/msp/api/get_mixer_input_yaw.lua"] = true,
+  ["tasks/msp/api/get_mixer_input_pitch.lua"] = true,
+  ["tasks/msp/api/get_mixer_input_roll.lua"] = true,
+  ["tasks/msp/api/get_mixer_input_collective.lua"] = true,
   ["app/pages/lib/live_override.lua"] = true
 }
+-- How often each module was asked for, so a check can tell whether a page loaded one at all.
+local loads = {}
 function loadScript(path)
   local relative = string.match(path, "/SCRIPTS/RFSUITE/core/(.+)$")
+  if relative then loads[relative] = (loads[relative] or 0) + 1 end
   if stubs[relative] then return function() return stubs[relative] end end
   if real[relative] then return assert(loadfile("src/rfsuite/" .. relative)) end
   error("unexpected loadScript path: " .. tostring(path))
@@ -130,7 +136,8 @@ end
 -- The card roots, as lib/require.lua publishes them before any page is loaded.
 _G.rfsuite = {
   session = { apiVersion = "12.10", fblConnected = true },
-  paths = dofile("src/rfsuite/lib/paths.lua")
+  paths = dofile("src/rfsuite/lib/paths.lua"),
+  Log = Log
 }
 
 -- MIXER_CONFIG: main_rotor_dir, tail_rotor_mode, tail_motor_idle, tail_center_trim (S16), ...
@@ -430,6 +437,190 @@ do
   clearQueue()
   page.onClose()
   equal(commands(), "43,191,191,191,191", "trims: after a failed save, leaving puts the trims back, then releases")
+end
+
+------------------------------------------------------------------------------------------------
+-- Swash Geometry
+------------------------------------------------------------------------------------------------
+local function openGeometry()
+  clearQueue()
+  saveRequest = nil
+  savePhase = nil
+  local page = freshPage("swashgeometry")
+  page.wakeup(ctx)
+  -- The read is a chain of four, each queued from the reply before it.
+  for _ = 1, 4 do
+    local m = queue.messages[1]
+    if not m then break end
+    reply(m.simulatorResponse)
+  end
+  clearQueue()
+  build(page)
+  return page
+end
+
+local function payloads(messages, from, to)
+  local out = {}
+  for i = from, to do
+    local m = messages[i]
+    out[#out + 1] = m and (tostring(m.command) .. ":" .. table.concat(m.payload or {}, ",")) or "-"
+  end
+  return table.concat(out, " | ")
+end
+
+local function overrideValue(m)
+  return m and m.payload and (m.payload[3] * 256 + m.payload[2]) or nil
+end
+
+-- What the board's own records write as: a save of a visit that changed nothing.
+local boardWrite
+do
+  local page = openGeometry()
+  page.onSave({})
+  local steps = saveRequest and saveRequest.steps or {}
+  local fake = {}
+  for i, s in ipairs(steps) do fake[i] = { command = s.command, payload = s.payload } end
+  boardWrite = payloads(fake, 1, 4)
+  finishSave("done")
+  page.onClose()
+  check(#steps == 4, "geometry: Save writes the mixer configuration and the three inputs")
+end
+
+do
+  loads["app/pages/lib/live_override.lua"] = nil
+  local page = openGeometry()
+  equal(page.getHeaderActions().help, true, "geometry: the header offers ?")
+  equal(loads["app/pages/lib/live_override.lua"], nil, "geometry: the override helper is not loaded before *")
+  check(fields["Cyclic Calibration"] and fields["Cyclic Calibration"].opts.helpText ~= nil,
+    "geometry: rows carry an inline help text")
+
+  lastDialog = nil
+  uncertain = true
+  page.onStar({})
+  uncertain = false
+  check(loads["app/pages/lib/live_override.lua"] ~= nil, "geometry: * loads the override helper")
+  check(lastDialog ~= nil and string.find(lastDialog.message, "The flight controller does not report whether it is armed", 1, true) == 1,
+    "geometry: the confirm says so first when the armed state is unknown")
+  equal(commands(), "191,191,191,191", "geometry: setup mode holds all four inputs")
+  for i = 1, 4 do
+    local m = queue.messages[i]
+    equal(m and m.payload[1], i, "geometry: override input " .. i)
+    equal(overrideValue(m), 2502, "geometry: override " .. i .. " is the passthrough value")
+  end
+  clearQueue()
+  build(page)
+  check(fields["Cyclic Calibration"] ~= nil, "geometry: the rows stay editable in setup mode")
+
+  local before = fields["Cyclic Calibration"].opts.get()
+  fields["Cyclic Calibration"].opts.set(before + 50)
+  page.wakeup(ctx)
+  equal(commands(), "43,171,171,171", "geometry: a change goes out as the four records at once")
+  local live = payloads(queue.messages, 1, 4)
+  check(live ~= boardWrite, "geometry: the live write carries the change")
+  clearQueue()
+  advance(1)
+  page.wakeup(ctx)
+  equal(#queue.messages, 0, "geometry: an unchanged value is not sent again")
+
+  -- A write the board did not answer goes out again on the next due pass.
+  fields["Geo Correction"].opts.set(10)
+  advance(0.25)
+  page.wakeup(ctx)
+  local lost = queue.messages[1]
+  clearQueue()
+  if lost and lost.errorHandler then lost.errorHandler(lost, "timeout") end
+  advance(0.25)
+  page.wakeup(ctx)
+  equal(commands(), "43,171,171,171", "geometry: an unanswered live write is sent again")
+  clearQueue()
+
+  page.onClose()
+  equal(commands(), "43,171,171,171,191,191,191,191",
+    "geometry: leaving without Save puts the records back, then releases the four inputs")
+  equal(payloads(queue.messages, 1, 4), boardWrite, "geometry: the rollback carries the records read")
+  for i = 5, 8 do
+    equal(overrideValue(queue.messages[i]), 2501, "geometry: release " .. (i - 4) .. " value is 2501")
+  end
+  check(loggedLine("rollback: the board's record queued") ~= nil, "geometry: the rollback is logged")
+end
+
+-- Reload without Save puts the records back before it reads again.
+do
+  local page = openGeometry()
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Phase Angle"].opts.set(fields["Phase Angle"].opts.get() + 10)
+  page.wakeup(ctx)
+  clearQueue()
+  page.onReload({})
+  equal(commands(), "43,171,171,171,42", "geometry: Reload puts the records back, then reads")
+  equal(payloads(queue.messages, 1, 4), boardWrite, "geometry: the Reload rollback carries the records read")
+  page.onClose()
+end
+
+-- After a Save that reached EEPROM, leaving only releases.
+do
+  local page = openGeometry()
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Phase Angle"].opts.set(fields["Phase Angle"].opts.get() + 10)
+  page.wakeup(ctx)
+  clearQueue()
+  page.onSave({})
+  equal(saveRequest and saveRequest.reboot, false, "geometry: Save does not restart")
+  finishSave("done")
+  clearQueue()
+  page.onClose()
+  equal(commands(), "191,191,191,191", "geometry: after Save, leaving only releases the override")
+end
+
+-- Leaving while a save is still writing: no rollback between the save's steps.
+do
+  local page = openGeometry()
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Phase Angle"].opts.set(fields["Phase Angle"].opts.get() + 10)
+  page.onSave({})
+  fields["Phase Angle"].opts.set(fields["Phase Angle"].opts.get() + 10)
+  page.onClose()
+  equal(commands(), "191,191,191,191", "geometry: leaving during a save queues no rollback, only the release")
+  finishSave("done")
+end
+
+-- A save that fails after its writes may have reached RAM: the page stays unsaved, and leaving puts
+-- the records read back.
+do
+  local page = openGeometry()
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Phase Angle"].opts.set(fields["Phase Angle"].opts.get() + 10)
+  page.onSave({}) -- before the live write was due
+  finishSave("failed")
+  clearQueue()
+  page.onClose()
+  equal(commands(), "43,171,171,171,191,191,191,191",
+    "geometry: after a failed save, leaving puts the records back, then releases")
+  equal(payloads(queue.messages, 1, 4), boardWrite, "geometry: that rollback carries the records read")
+end
+
+-- Switching setup mode off keeps what went out live a trial: leaving still puts it back.
+do
+  local page = openGeometry()
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Phase Angle"].opts.set(fields["Phase Angle"].opts.get() + 10)
+  page.wakeup(ctx)
+  clearQueue()
+  page.onStar({})
+  equal(commands(), "191,191,191,191", "geometry: * again releases the four inputs")
+  clearQueue()
+  page.onClose()
+  equal(commands(), "43,171,171,171", "geometry: leaving after * off still puts the records back, with nothing left to release")
 end
 
 print(string.format("%d checks, %d failed", checks, failures))
