@@ -51,7 +51,7 @@ function M.stateKey(status, detail, failed)
     return detail and "error" or "handshake"
   end
   if status == "chain" then return "handshake" end
-  return failed > 0 and "error" or "ready"
+  return (failed or 0) > 0 and "error" or "ready"
 end
 
 --- The state's name, as the notice's title reads.
@@ -71,6 +71,7 @@ end
 -- That box is not this change's to alter, and a caller can stay inside it: the third thing
 -- worth saying is always somewhere the pilot can already read it.
 function M.notice(i18n, session, status, detail, taskName, done, total, failed)
+  failed = failed or 0
   local key = M.stateKey(status, detail, failed)
   local title = M.title(i18n, key)
 

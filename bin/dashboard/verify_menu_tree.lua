@@ -632,6 +632,14 @@ local function run(mutate)
 
   -- From the review of the finished branch: each of these was read wrong once.
   do
+    -- The connection's words with no count of failed steps: read as none failed, not an error raised.
+    local Status = req("lib/connection_status.lua")
+    local okKey, key = pcall(Status.stateKey, "ready", nil)
+    check("a state with no failed count is ready", okKey and key == "ready")
+    local okNotice, title = pcall(Status.notice, nil, {}, "ready", nil, nil, 3, 3)
+    check("and its notice reads Connected", okNotice and title == "Connected")
+  end
+  do
     -- RTN from the right: the right list stays where it was.
     local w, r = open()
     toSetup(w, r)
