@@ -35,12 +35,12 @@ flowchart LR
     S0 --> S1
     subgraph S2["2. Receiver"]
       direction TB
-      S2c0["<b>Receiver protocol</b><br/>sets: Protocol, Advanced<br/>reads: MSP status, MSP servo, MSP rx_channels<br/>writes: rx_config, feature_config"]:::k3
+      S2c0["<b>Receiver protocol</b><br/>sets: Protocol, Minimum (us), Maximum (us)...<br/>reads: Throttle, Range (us), MSP status, MSP...<br/>writes: rx_config, rc_config, feature_config"]:::k3
       S2c1["<b>Channel order</b><br/>sets: Standard channel order<br/>writes: rx_map"]:::k3
       S2c0 --> S2c1
       S2c2["<b>Check sticks</b>"]:::k4
       S2c1 --> S2c2
-      S2c3["<b>Throttle range</b><br/>sets: Minimum (us), Maximum (us)<br/>reads: Throttle<br/>writes: rc_config.rc_min_throttle, rc_config...."]:::k3
+      S2c3["<b>Throttle range</b>"]:::k4
       S2c2 --> S2c3
       S2c4["<b>ELRS link</b><br/>reads: Status"]:::k1
       S2c3 --> S2c4
@@ -120,8 +120,7 @@ flowchart LR
       S8c1 --> S8c2
       S8c3["<b>Throttle Type</b><br/>sets: Throttle Type<br/>writes: governor_config.gov_throttle_type"]:::k3
       S8c2 --> S8c3
-      S8c4["<b>PID profile {n}</b><br/>sets: Full headspeed (rpm)<br/>writes: governor_profile"]:::k3
-      class S8c4 deviation
+      S8c4["<b>Full headspeed (rpm)</b><br/>sets: PID profile {n}<br/>writes: governor_profile"]:::k3
       S8c3 --> S8c4
     end
     S7 --> S8
@@ -167,54 +166,42 @@ flowchart LR
       S11c4["<b>Telemetry readings</b><br/>reads: Current, RPM, Active, Protocol"]:::k1
       class S11c4 deviation
       S11c3 --> S11c4
-      S11c5["<b>Voltage Source</b><br/>sets: Voltage Source<br/>reads: Voltage / Current, battery_config.vol...<br/>writes: battery_config"]:::k3
+      S11c5["<b>Voltage and current</b><br/>sets: {label}<br/>reads: battery_config.voltageMeterSource, ba...<br/>writes: battery_config"]:::k3
       class S11c5 deviation
       S11c4 --> S11c5
-      S11c6["<b>Current Source</b><br/>sets: Current Source<br/>reads: Current, battery_config.currentMeterS...<br/>writes: battery_config.currentMeterSource, ba..."]:::k3
+      S11c6["<b>Batteries</b><br/>sets: Cell count, Capacity, Different packs...<br/>reads: Voltage / Current, battery_config.bat...<br/>writes: battery_config"]:::k3
       class S11c6 deviation
       S11c5 --> S11c6
-      S11c7["<b>Battery</b><br/>sets: Cell count<br/>reads: Cell count, Selected, battery_config....<br/>writes: battery_config.{cellKey}, battery_con..."]:::k3
+      S11c7["<b>SmartFuel Mode</b><br/>sets: Firmware Source<br/>reads: smartfuel_config.smartfuel_mode<br/>writes: smartfuel_config.smartfuel_mode"]:::k3
       class S11c7 deviation
       S11c6 --> S11c7
-      S11c8["<b>Capacity</b><br/>writes: battery_config.batteryCapacity"]:::k3
+      S11c8["<b>Throttle range</b><br/>sets: How is the ESC&#35;x27;s throttle range set?<br/>reads: MSP motor_config<br/>writes: esc_sensor_config.half_duplex, esc_se..."]:::k3
       class S11c8 deviation
       S11c7 --> S11c8
-      S11c9["<b>Capacity</b><br/>writes: battery_config.batteryCapacity"]:::k3
+      S11c9["<b>Throttle range</b><br/>confirms: I confirm the ESC range is set"]:::k2
       class S11c9 deviation
       S11c8 --> S11c9
-      S11c10["<b>Capacity</b><br/>sets: Battery, Capacity<br/>reads: battery_config.batteryCapacity<br/>writes: battery_config"]:::k3
+      S11c10["<b>ESC parameter link</b><br/>sets: Use half-duplex"]:::k0
       class S11c10 deviation
       S11c9 --> S11c10
-      S11c11["<b>SmartFuel Mode</b><br/>sets: Firmware Source<br/>reads: smartfuel_config.smartfuel_mode<br/>writes: smartfuel_config.smartfuel_mode"]:::k3
+      S11c11["<b>Restart the ESC</b><br/>confirms: Battery unplugged and reconnected"]:::k2
       class S11c11 deviation
       S11c10 --> S11c11
-      S11c12["<b>Throttle range</b><br/>sets: How is the ESC&#35;x27;s throttle range set?<br/>reads: MSP motor_config<br/>writes: esc_sensor_config.half_duplex, esc_se..."]:::k3
+      S11c12["<b>ESC operating mode</b><br/>sets: Expected ESC mode<br/>reads: Current ESC mode"]:::k0
       class S11c12 deviation
       S11c11 --> S11c12
-      S11c13["<b>Throttle range</b><br/>confirms: I confirm the ESC range is set"]:::k2
+      S11c13["<b>ESC parameter link</b><br/>reads: Current ESC mode"]:::k1
       class S11c13 deviation
       S11c12 --> S11c13
-      S11c14["<b>ESC parameter link</b><br/>sets: Use half-duplex"]:::k0
+      S11c14["<b>Current ESC values</b><br/>reads: ESC model, ESC firmware, Stick zero (..."]:::k1
       class S11c14 deviation
       S11c13 --> S11c14
-      S11c15["<b>Restart the ESC</b><br/>confirms: Battery unplugged and reconnected"]:::k2
+      S11c15["<b>Throttle range</b><br/>sets: Minimum pulse (us), Maximum pulse (us)<br/>reads: Stop pulse (us)"]:::k0
       class S11c15 deviation
       S11c14 --> S11c15
-      S11c16["<b>ESC operating mode</b><br/>sets: Expected ESC mode<br/>reads: Current ESC mode"]:::k0
-      class S11c16 deviation
-      S11c15 --> S11c16
-      S11c17["<b>ESC parameter link</b><br/>reads: Current ESC mode"]:::k1
-      class S11c17 deviation
-      S11c16 --> S11c17
-      S11c18["<b>Current ESC values</b><br/>reads: ESC model, ESC firmware, Stick zero (..."]:::k1
-      class S11c18 deviation
-      S11c17 --> S11c18
-      S11c19["<b>Throttle range</b><br/>sets: Minimum pulse (us), Maximum pulse (us)<br/>reads: Stop pulse (us)"]:::k0
-      class S11c19 deviation
-      S11c18 --> S11c19
       S11gate{"Advance?<br/>validation passes"}:::k4
       class S11gate deviation
-      S11c19 --> S11gate
+      S11c15 --> S11gate
       S11gate -->|blocked| S11gate
     end
     subgraph S12["12. ESC #amp; spin test"]
@@ -346,16 +333,16 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | --- | --- | --- | --- | --- | --- | --- |
 | Model. Prepare the radio model | Interrupted session<br/>Prepare the radio model | FC name | FC power-cycled<br/>Radio model set up | — | name.name<br/>telemetry_config<br/>telemetry_config.buffer | differs from the Configurator |
 | 1. Board orientation | Prepare<br/>Calibrate the accelerometer<br/>Mounting angles<br/>Check orientation | Roll<br/>Pitch<br/>Yaw | All blades removed<br/>Servos unplugged<br/>Direction is correct | status<br/>attitude<br/>servo<br/>board_auto_align | acc_calibration<br/>board_alignment_config.roll_degrees<br/>board_alignment_config.pitch_degrees<br/>board_alignment_config.yaw_degrees<br/>board_auto_align | same |
-| 2. Receiver | Receiver protocol<br/>Channel order<br/>Check sticks<br/>Throttle range<br/>ELRS link<br/>Receiver done | Protocol<br/>Advanced<br/>Standard channel order<br/>Minimum (us)<br/>Maximum (us) | — | status<br/>servo<br/>rx_channels | rx_config.serialrx_provider<br/>rx_config<br/>feature_config<br/>feature_config.enabledFeatures<br/>rx_map<br/>rc_config.rc_min_throttle<br/>rc_config.rc_max_throttle | same |
+| 2. Receiver | Receiver protocol<br/>Channel order<br/>Check sticks<br/>Throttle range<br/>ELRS link<br/>Receiver done | Protocol<br/>Minimum (us)<br/>Maximum (us)<br/>Automatic throttle range<br/>Advanced<br/>Standard channel order | — | status<br/>rx_channels<br/>servo | rx_config.serialrx_provider<br/>rx_config<br/>rc_config.rc_min_throttle<br/>rc_config.rc_max_throttle<br/>feature_config<br/>feature_config.enabledFeatures<br/>rx_map | same |
 | 3. Mode switches | Arm switch<br/>Rescue switch<br/>Trainer switch<br/>Switches done | — | — | status<br/>rc<br/>servo | mode_ranges<br/>set_mode_range<br/>set_adjustment_range | same |
 | 4. Profiles & gain | Profile switch<br/>Master gain<br/>Trim-button guide<br/>Channel use<br/>Rescue | Profile switch<br/>Method<br/>Rescue mode enable<br/>Flip to upright | — | rescue_profile<br/>status<br/>rc<br/>servo | adjustment_ranges<br/>set_adjustment_range<br/>set_pid_profile<br/>rescue_profile<br/>rescue_profile.rescue_mode<br/>rescue_profile.rescue_flip_mode | same |
 | 5. Rates | Switch position {n} · rate profile {n} / Rate profile {n}<br/>Rates set | — | — | rc_tuning<br/>status<br/>servo | set_pid_profile<br/>rc_tuning | same |
 | 6. Swashplate | Swash type<br/>Rotor direction<br/>Tail type<br/>Swashplate set | Swash type<br/>Servo 1<br/>Rotor direction<br/>Tail type | — | governor_profile<br/>status<br/>servo | tail_motor_output.action<br/>mixer_input<br/>mixer_config.swash_type<br/>mixer_input.rate<br/>set_pid_profile<br/>governor_profile<br/>governor_profile.governor_tta_gain<br/>mixer_config.main_rotor_dir<br/>mixer_config.tail_rotor_mode | same |
 | 7. Servo type | Swash servos<br/>Tail servo<br/>No servos | Swash servos<br/>Frame rate (Hz)<br/>Geometry correction<br/>Tail servo | Servos unplugged | status<br/>servo | servo_configurations<br/>servo_configurations.mid<br/>servo_configurations.min<br/>servo_configurations.max<br/>servo_configurations.rneg<br/>servo_configurations.rpos<br/>servo_configurations.rate<br/>servo_configurations.flags | same |
-| 8. Governor | Governor Mode<br/>RPM source<br/>RPM filter<br/>Throttle Type<br/>PID profile {n} | Mode<br/>RPM source<br/>Throttle Type<br/>Full headspeed (rpm) | — | filter_config<br/>rpm_filter_v2<br/>governor_profile<br/>status<br/>governor_profile.governor_headspeed<br/>filter_config.rpm_preset<br/>rpm_filter_v2.notch_source_1..16 (axes 0..2, CUSTOM only)<br/>servo | governor_config.gov_mode<br/>feature_config.enabledFeatures<br/>governor_config.gov_throttle_type<br/>set_pid_profile<br/>governor_profile<br/>governor_profile.governor_headspeed<br/>motor_config.use_dshot_telemetry | beyond the Configurator |
+| 8. Governor | Governor Mode<br/>RPM source<br/>RPM filter<br/>Throttle Type<br/>Full headspeed (rpm) | Mode<br/>RPM source<br/>Throttle Type<br/>PID profile {n} | — | filter_config<br/>rpm_filter_v2<br/>governor_profile<br/>status<br/>governor_profile.governor_headspeed<br/>filter_config.rpm_preset<br/>rpm_filter_v2.notch_source_1..16 (axes 0..2, CUSTOM only)<br/>servo | governor_config.gov_mode<br/>feature_config.enabledFeatures<br/>governor_config.gov_throttle_type<br/>set_pid_profile<br/>governor_profile<br/>governor_profile.governor_headspeed<br/>motor_config.use_dshot_telemetry | beyond the Configurator |
 | 9. Motor & ESC | Throttle Protocol<br/>Main motor poles<br/>Main gear ratio<br/>Tail gear ratio<br/>Motor & ESC set | Bidirectional DShot<br/>Protocol<br/>Main motor poles<br/>Gear train<br/>Gear ratio<br/>Pinion : intermediate<br/>Intermediate : main gear<br/>Pinion : main gear<br/>Tail motor poles<br/>Tail drive from<br/>Pulley : tail rotor pulley<br/>Drive : tail rotor gear | All blades removed | status<br/>servo | motor_config.use_dshot_telemetry<br/>motor_config.motor_pwm_protocol<br/>esc_sensor_config<br/>feature_config.enabledFeatures<br/>motor_config.motor_pole_count_0<br/>motor_config.main_rotor_gear_ratio_0<br/>motor_config.main_rotor_gear_ratio_1<br/>motor_config.tail_rotor_gear_ratio_0<br/>motor_config.tail_rotor_gear_ratio_1<br/>motor_config.motor_pole_count_1 | same |
 | 10. Connect the servos | Restart first<br/>Plug the servos in | — | Servos unplugged<br/>Servos connected and powered<br/>All blades removed | status<br/>servo<br/>motor | — | same |
-| 11. ESC telemetry | Connect the battery<br/>Telemetry protocol<br/>Port<br/>Check<br/>Telemetry readings<br/>Voltage Source<br/>Current Source<br/>Battery<br/>Capacity<br/>SmartFuel Mode<br/>Throttle range<br/>ESC parameter link<br/>Restart the ESC<br/>ESC operating mode<br/>Current ESC values | Protocol<br/>Port<br/>Voltage Source<br/>Current Source<br/>Cell count<br/>Battery<br/>Capacity<br/>Firmware Source<br/>How is the ESC's throttle range set?<br/>Use half-duplex<br/>Expected ESC mode<br/>Minimum pulse (us)<br/>Maximum pulse (us) | I confirm the ESC range is set<br/>Battery unplugged and reconnected | motor_config<br/>esc_parameters_yge.governor<br/>esc_parameters_yge.stick_zero_us<br/>esc_parameters_yge.stick_range_us<br/>esc_parameters_yge.esc_model<br/>esc_parameters_yge.esc_type<br/>esc_parameters_yge.firmware_version<br/>esc_parameters_hw5.flight_mode<br/>esc_parameters_hw5.model_name<br/>esc_parameters_hw5.firmware_version<br/>esc_parameters_hw5._supported<br/>motor_config.mincommand<br/>motor_config.minthrottle<br/>motor_config.maxthrottle<br/>esc_sensor_config.half_duplex<br/>motor_telemetry.voltage<br/>motor_telemetry.temperature<br/>status<br/>servo<br/>motor_telemetry<br/>analog<br/>esc_sensor_config.protocol<br/>esc_sensor_trial<br/>battery_config.voltageMeterSource<br/>battery_config.vbatmincellvoltage<br/>battery_config.vbatmaxcellvoltage<br/>battery_config.vbatfullcellvoltage<br/>battery_config.vbatwarningcellvoltage<br/>battery_config.lvcPercentage<br/>battery_config.consumptionWarningPercentage<br/>battery_config.batteryCapacity_0..5<br/>battery_config.batteryCellCount_0..5<br/>battery_config.vbatmincellvoltage_0..5<br/>battery_config.vbatmaxcellvoltage_0..5<br/>battery_config.vbatfullcellvoltage_0..5<br/>battery_config.vbatwarningcellvoltage_0..5<br/>battery_config.hasProfileCells<br/>battery_profile.batteryProfile<br/>smartfuel_config.voltage_drop_rate<br/>smartfuel_config.charge_drop_rate<br/>smartfuel_config.sag_gain<br/>motor_telemetry.current<br/>analog.voltage<br/>analog.current<br/>battery_config.currentMeterSource<br/>battery_config.batteryCellCount<br/>battery_config.batteryCapacity<br/>smartfuel_config.smartfuel_mode | serial_config<br/>esc_sensor_config<br/>feature_config.enabledFeatures<br/>motor_config.use_dshot_telemetry<br/>esc_sensor_config.half_duplex<br/>esc_sensor_config.pin_swap<br/>motor_config<br/>esc_parameters_yge.governor<br/>esc_parameters_yge.stick_zero_us<br/>esc_parameters_yge.stick_range_us<br/>esc_parameters_hw5.flight_mode<br/>motor_config.mincommand<br/>motor_config.minthrottle<br/>motor_config.maxthrottle<br/>esc_sensor_config.protocol<br/>serial_config.port_{n}_function_mask<br/>esc_sensor_trial<br/>battery_config.voltageMeterSource<br/>battery_config<br/>battery_config.batteryCapacity_0..5<br/>battery_config.batteryCellCount_0..5<br/>battery_config.currentMeterSource<br/>battery_config.{cellKey}<br/>battery_config.batteryCellCount<br/>battery_config.batteryCapacity<br/>battery_config.batteryCapacity_0<br/>battery_config.batteryCapacity_1<br/>battery_config.batteryCapacity_2<br/>battery_config.batteryCapacity_3<br/>battery_config.batteryCapacity_4<br/>battery_config.batteryCapacity_5<br/>smartfuel_config.smartfuel_mode | differs from the Configurator<br/>beyond the Configurator |
+| 11. ESC telemetry | Connect the battery<br/>Telemetry protocol<br/>Port<br/>Check<br/>Telemetry readings<br/>Voltage and current<br/>Batteries<br/>SmartFuel Mode<br/>Throttle range<br/>ESC parameter link<br/>Restart the ESC<br/>ESC operating mode<br/>Current ESC values | Protocol<br/>Port<br/>{label}<br/>Cell count<br/>Capacity<br/>Different packs<br/>{cells . label}<br/>Battery<br/>Firmware Source<br/>How is the ESC's throttle range set?<br/>Use half-duplex<br/>Expected ESC mode<br/>Minimum pulse (us)<br/>Maximum pulse (us) | I confirm the ESC range is set<br/>Battery unplugged and reconnected | motor_config<br/>esc_parameters_yge.governor<br/>esc_parameters_yge.stick_zero_us<br/>esc_parameters_yge.stick_range_us<br/>esc_parameters_yge.esc_model<br/>esc_parameters_yge.esc_type<br/>esc_parameters_yge.firmware_version<br/>esc_parameters_hw5.flight_mode<br/>esc_parameters_hw5.model_name<br/>esc_parameters_hw5.firmware_version<br/>esc_parameters_hw5._supported<br/>motor_config.mincommand<br/>motor_config.minthrottle<br/>motor_config.maxthrottle<br/>esc_sensor_config.half_duplex<br/>motor_telemetry.voltage<br/>motor_telemetry.temperature<br/>status<br/>servo<br/>motor_telemetry<br/>analog<br/>esc_sensor_config.protocol<br/>esc_sensor_trial<br/>battery_config.voltageMeterSource<br/>battery_config.currentMeterSource<br/>battery_config.vbatmincellvoltage<br/>battery_config.vbatmaxcellvoltage<br/>battery_config.vbatfullcellvoltage<br/>battery_config.vbatwarningcellvoltage<br/>battery_config.lvcPercentage<br/>battery_config.consumptionWarningPercentage<br/>battery_config.batteryCapacity_0..5<br/>battery_config.batteryCellCount_0..5<br/>battery_config.vbatmincellvoltage_0..5<br/>battery_config.vbatmaxcellvoltage_0..5<br/>battery_config.vbatfullcellvoltage_0..5<br/>battery_config.vbatwarningcellvoltage_0..5<br/>battery_config.hasProfileCells<br/>battery_profile.batteryProfile<br/>smartfuel_config.voltage_drop_rate<br/>smartfuel_config.charge_drop_rate<br/>smartfuel_config.sag_gain<br/>motor_telemetry.current<br/>analog.voltage<br/>analog.current<br/>battery_config.batteryCapacity<br/>battery_config.batteryCellCount<br/>smartfuel_config.smartfuel_mode | serial_config<br/>esc_sensor_config<br/>feature_config.enabledFeatures<br/>motor_config.use_dshot_telemetry<br/>esc_sensor_config.half_duplex<br/>esc_sensor_config.pin_swap<br/>motor_config<br/>esc_parameters_yge.governor<br/>esc_parameters_yge.stick_zero_us<br/>esc_parameters_yge.stick_range_us<br/>esc_parameters_hw5.flight_mode<br/>motor_config.mincommand<br/>motor_config.minthrottle<br/>motor_config.maxthrottle<br/>esc_sensor_config.protocol<br/>serial_config.port_{n}_function_mask<br/>esc_sensor_trial<br/>battery_config.{key}<br/>battery_config<br/>battery_config.voltageMeterSource<br/>battery_config.currentMeterSource<br/>battery_config.batteryCapacity_0..5<br/>battery_config.batteryCellCount_0..5<br/>battery_config.{cellKey}<br/>battery_config.batteryCellCount<br/>battery_config.{capKey}<br/>battery_config.batteryCapacity<br/>smartfuel_config.smartfuel_mode | differs from the Configurator<br/>beyond the Configurator |
 | 12. ESC & spin test | Full throttle<br/>Connect the battery<br/>Low throttle<br/>Throttle<br/>Main rotor direction | Power (%) | All blades removed<br/>Direction is correct | status<br/>servo<br/>motor | motor_override.index<br/>motor_override.value | differs from the Configurator |
 | 13. Servo direction & centre | Servo arms<br/>{c . title .. " " .. c . role}<br/>{nil . title .. " " .. nil . role} | — | Servo arms | status<br/>servo | servo_configurations<br/>servo_configurations.flags<br/>servo_configurations.mid<br/>servo_override | same |
 | 14. Control directions | Roll right<br/>Pitch forward<br/>Collective up | — | Direction is correct | status<br/>servo<br/>rc_command | mixer_input<br/>mixer_input.rate<br/>mixer_override | same |
@@ -365,4 +352,4 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | 18. Gyro check | Roll<br/>Pitch<br/>Yaw | — | Counters movement | status<br/>servo | — | same |
 | 19. Finish | Swashplate and tail<br/>Motor and governor<br/>Safety check<br/>Before the first flight<br/>Throttle range | — | Final checks understood | status<br/>servo | — | same |
 
-Diagram: 107 nodes; 19 numbered steps plus the model card.
+Diagram: 103 nodes; 19 numbered steps plus the model card.
