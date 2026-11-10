@@ -34,16 +34,27 @@ function M.new(w, ctx, diagrams)
     end
     return math.floor(#text * (font == MIDSIZE and (large and 14 or 10) or (large and 10 or 7.5)) + 0.5)
   end
-  -- A card's explanation runs across the full width at the top, at most two lines, with a rule
-  -- under it; the rows start below the rule. The servo grid and the attitude view lay out their own.
+  -- A card's explanation runs across the full width at the top; the rows start below it. It takes the lines it needs, two at least and three at most, the third
+  -- only where the rows still fit above the status line; the ? sheet carries the whole text.
+  -- The servo grid and the attitude view lay out their own.
   local cardScene = card and not w.overview and not w.confirmExit and not w.error and not w.historyFailure
     and not w.disconnectExit and not w.stepMenu
   local summaryText = cardScene and not card.servo and not attitudeCard and (card.summary or card.detail) or nil
   if summaryText == "" then summaryText = nil end
   local textY = large and 56 or 30
-  local textH = summaryText and (large and 48 or height <= 272 and 34 or 36) or 0
-  local ruleY = textY + textH + (large and 4 or 2)
-  local rowY = cardScene and (summaryText and ruleY + (large and 10 or 6) or textY) or
+  local lineH = large and 24 or height <= 272 and 17 or 18
+  local textLines = 2
+  if summaryText and type(summaryText) == "string" then
+    -- A wrapped line breaks at a word, so a line holds a little less than its width.
+    local need = math.ceil(textWidth(summaryText, SMLSIZE) * 1.15 / (width - 20))
+    local rowsBelow = card.rows and #card.rows or 0
+    local bottom = height-controlH-(large and 40 or 27)
+    local rowNeed = large and 52 or controlH+6
+    if need >= 3 and textY+3*lineH+(large and 14 or 8)+rowsBelow*rowNeed <= bottom then textLines = 3 end
+  end
+  local textH = summaryText and textLines*lineH or 0
+  local textEnd = textY + textH + (large and 4 or 2)
+  local rowY = cardScene and (summaryText and textEnd + (large and 10 or 6) or textY) or
     (large and 108 or height <= 272 and 80 or 88)
   local rowH = large and 52 or math.min(controlH+6, math.floor((height-2*controlH-31-rowY)/3))
   if card and card.link=="overview" and not large then
@@ -111,9 +122,26 @@ function M.new(w, ctx, diagrams)
   end
   local counter = menuHeader and string.format(w.L.stepCounter, w.step) or nil
   local chevronW = menuHeader and (large and 12 or 9) or 0
-  local counterW = counter and textWidth(counter, SMLSIZE) or 0
-  local counterX = headRight-10-chevronW-(chevronW > 0 and 6 or 0)-counterW
   local nameX = menuHeader and 18 or 10
+  local chevronX = headRight-10-chevronW
+  local function fits(stepFont, withCounter, cardText)
+    local right = chevronX-(chevronW > 0 and 6 or 0)-(withCounter and counter and textWidth(counter, SMLSIZE) or 0)
+    local used = nameX+textWidth(headStep, stepFont)
+    if cardText then used = used+(large and 22 or 15)+textWidth(cardText, SMLSIZE) end
+    return used+8 <= right
+  end
+  if measured and headCard then
+    local count = stepCard and #w.cards > 1 and string.format(w.L.cardCount, w.card, #w.cards) or nil
+    if not fits(headFont, true, headCard) then
+      if large and fits(SMLSIZE, true, headCard) then headFont = SMLSIZE
+      elseif fits(headFont, false, headCard) then counter = nil
+      elseif large and fits(SMLSIZE, false, headCard) then headFont, counter = SMLSIZE, nil
+      elseif count and fits(headFont, true, count) then headCard = count
+      elseif count then headCard, counter = count, nil end
+    end
+  end
+  local counterW = counter and textWidth(counter, SMLSIZE) or 0
+  local counterX = chevronX-(chevronW > 0 and 6 or 0)-counterW
   local nameW = math.min(textWidth(headStep, headFont), (counter and counterX or headRight)-8-nameX)
   all[#all + 1] = label(nameX, large and 7 or 3, nameW, headStep, headFont)
   all[#all].h, all[#all].color = large and 32 or 20, menuHeader and palette.accentInk or palette.text
@@ -123,9 +151,6 @@ function M.new(w, ctx, diagrams)
     local cardX = sepX+(large and 14 or 10)
     local room = (counter and counterX or headRight)-8-cardX
     local text = headCard
-    if measured and textWidth(text, SMLSIZE) > room and stepCard and #w.cards > 1 then
-      text = string.format(w.L.cardCount, w.card, #w.cards)
-    end
     if room > 20 then
       local cy, s = 2+math.floor(headH/2), large and 5 or 4
       all[#all + 1] = { type = "line", pts = {{sepX, cy-s}, {sepX+s, cy}}, color = palette.muted, thickness = 2 }
@@ -137,7 +162,9 @@ function M.new(w, ctx, diagrams)
   if counter then
     all[#all + 1] = label(counterX, large and 13 or 4, counterW+8, counter)
     all[#all].h, all[#all].color = large and 24 or 18, palette.muted
-    local cx, cy, s = headRight-10-chevronW, 2+math.floor(headH/2), math.floor(chevronW/2)
+  end
+  if menuHeader then
+    local cx, cy, s = chevronX, 2+math.floor(headH/2), math.floor(chevronW/2)
     all[#all + 1] = { type = "line", pts = {{cx, cy-math.floor(s/2)}, {cx+s, cy+math.floor(s/2)+1}},
       color = palette.accentInk, thickness = 2 }
     all[#all + 1] = { type = "line", pts = {{cx+s, cy+math.floor(s/2)+1}, {cx+2*s, cy-math.floor(s/2)}},
@@ -180,22 +207,40 @@ function M.new(w, ctx, diagrams)
   elseif w.stepMenu and card then
     -- The step menu: every step as a button, the current one in the accent colour, a done step
     -- with a mark in the ok colour. Back returns to the card it was opened from.
-    all[#all + 1] = label(10, large and 56 or 30, width-20, w.L.stepMenuOpen)
-    all[#all].h, all[#all].color = large and 28 or 18, palette.muted
+    local hint = large or height > 272
+    if hint then
+      all[#all + 1] = label(10, large and 56 or 30, width-20, w.L.stepMenuOpen)
+      all[#all].h, all[#all].color = large and 28 or 18, palette.muted
+    end
     local cols, rows = 3, 7
-    local top = large and 90 or 50
+    local top = large and 90 or hint and 50 or 31
     local bottom = height-controlH-(large and 40 or 27)-4
-    local gap = large and 6 or 3
+    local gap = large and 6 or 2
+    local margin = large and 10 or 6
     local bh = math.min(controlH, math.floor((bottom-top)/rows)-gap)
-    local bw = math.floor((width-20-(cols-1)*gap)/cols)
+    -- Each column is as wide as its longest step name and the button's own padding; what is left
+    -- of the width is shared out, so a long name in one column does not cramp the others.
+    local names = large and w.L.numberedSteps or w.L.steps
+    local colW, used = {}, 0
+    for c = 1, cols do
+      local most = 0
+      for index = c, 19, cols do most = math.max(most, textWidth(names[index], SMLSIZE)) end
+      colW[c] = most + (large and 20 or 16); used = used + colW[c]
+    end
+    local spare = math.floor((width-2*margin-(cols-1)*gap-used)/cols)
+    local colX = { margin }
+    for c = 1, cols do
+      colW[c] = math.max(1, colW[c]+spare)
+      colX[c+1] = colX[c]+colW[c]+gap
+    end
     local mask = w.history and w.history.mask or 0
     for index = 1, 19 do
       local col, row = (index-1) % cols, math.floor((index-1)/cols)
-      local x, y = 10+col*(bw+gap), top+row*(bh+gap)
+      local x, y, bw = colX[col+1], top+row*(bh+gap), colW[col+1]
       local target = index
-      button(x, y, bw, w.L.numberedSteps[index], function() w:jumpToStep(target) end,
+      button(x, y, bw, names[index], function() w:jumpToStep(target) end,
         function() return w.canEdit == true end)
-      all[#all].h = bh
+      all[#all].h, all[#all].font = bh, SMLSIZE
       if index == w.step then all[#all].color, all[#all].textColor = palette.accent, palette.onAccent end
       if (mask & (1 << (index-1))) ~= 0 then
         local d = large and 8 or 6
@@ -274,7 +319,6 @@ function M.new(w, ctx, diagrams)
       -- A card may lead with a warning or a live prompt instead of a muted summary.
       if card.summaryColor then all[#all].color = palette[card.summaryColor] or all[#all].color end
       if card.summaryBold and height > 272 then all[#all].font = BOLD end
-      all[#all + 1] = { type = "rectangle", x = 10, y = ruleY, w = width-20, h = 1, filled = true, color = palette.rule }
     end
     if illustrated and not card.servo then
       if card.instructions and width<400 then
@@ -489,7 +533,11 @@ function M.new(w, ctx, diagrams)
             title = r.label, values = values, get = get,
             set = function(v)
               if v <= offset or not values[v] then return end
-              w:applyEdit(function() if editable() then r.set(v - offset) end end)
+              w:applyEdit(function()
+                if not editable() then return end
+                r.set(v - offset)
+                if unset and yesNo then w.buildRequested = true; w:rebuild() end
+              end)
             end, active = enabled }
         elseif r.kind == "text" then
           all[#all + 1] = { type = "textEdit", x = editX, y = y, w = editW, h = rowControlH,

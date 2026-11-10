@@ -20,6 +20,7 @@ function M.attach(w, ctx)
     if self.logTrace then self:log("trace", "step list") end
     self:release()
     self.overview, self.singleStep, self.confirmExit, self.exitToSteps = true, nil, nil, nil
+    self.stepMenu, self.jumpTarget, self.preparationStep = nil, nil, nil
     self.cards, self.commit, self.validate, self.onLive, self.buildRequested = nil, nil, nil, nil, nil
     self.checks, self.preparationDone, self.preparationCard = {}, nil, nil
     self.message = self.rebootPending and self.L.pendingReboot or self.L.ready
@@ -60,9 +61,18 @@ function M.attach(w, ctx)
     if self.logInfo then self:log("info", "jump from step %s to %s", self.step, index) end
     self.stepMenu = nil
     if next(self.dirty) then
-      self.confirmExit, self.backTarget = true, index; self:rebuild(); return
+      self.confirmExit, self.jumpTarget = true, index; self:rebuild(); return
     end
-    self.preparationDone, self.preparationCard = nil, nil
+    self:enterNewVisit(index)
+  end
+  -- A step reached from the step menu or by Next step is a new visit, as when it is started from
+  -- the menu: no answer of the step left carries over, and its "Before this step" card is asked
+  -- again, in Complete setup too (the steps in between, which would have asked, were skipped).
+  function w:enterNewVisit(index)
+    if self.logDebug then self:log("debug", "new visit of step %s", index) end
+    self.checks, self.preparationDone, self.preparationCard = {}, nil, nil
+    self.preparationStep = index
+    self:resetVisit(index)
     self:navigate(index, 1)
   end
   function w:startStep(index, complete)
@@ -73,13 +83,14 @@ function M.attach(w, ctx)
     end
     if self.logInfo then self:log("info", "start step %s, complete=%s", index, tostring(complete)) end
     self.overview, self.singleStep, self.selectedStep = nil, not complete, index
+    self.stepMenu, self.jumpTarget, self.preparationStep = nil, nil, nil
     self.checks, self.preparationDone, self.preparationCard = {}, nil, nil
     -- Started from the menu, the step is a new visit even when it is the one just left.
     self:resetVisit(index)
     self:navigate(index, 1)
   end
   function w:standalonePreparation()
-    if not self.singleStep then return false end
+    if not self.singleStep and self.preparationStep ~= self.step then return false end
     return (self.step > 1 and self.step < 10) or self.step == 11 or (self.step >= 13 and self.step <= 16) or
       (self.step == 17 and not self:motorised()) or self.step == 18
   end
@@ -183,9 +194,10 @@ function M.attach(w, ctx)
     local function after()
       if self.step == 19 then
         if self.singleStep and not self.returnToSuite then self:showSteps() else self:close() end
-      else
-        if self.singleStep then self.preparationDone, self.preparationCard = nil, nil end
+      elseif self.singleStep then
         if self.logDebug then self:log("debug", "step %s done, next step %s", self.step, self.step + 1) end
+        self:enterNewVisit(self.step + 1)
+      else
         self:navigate(self.step + 1, 1)
       end
     end
@@ -194,12 +206,12 @@ function M.attach(w, ctx)
   function w:resolveExit(save)
     if self.transition then return end
     if self.logDebug then self:log("debug", "leaving a changed step, save=%s", tostring(save)) end
-    local steps,target = self.exitToSteps,self.backTarget
-    self.confirmExit, self.exitToSteps,self.backTarget = nil, nil,nil
-    -- A step chosen from the step menu is a new visit: its "Before this step" card is asked again.
-    local after = target and function() self.preparationDone, self.preparationCard = nil, nil; self:navigate(target,1) end or
+    local steps,target,jump = self.exitToSteps,self.backTarget,self.jumpTarget
+    self.confirmExit, self.exitToSteps,self.backTarget,self.jumpTarget = nil, nil,nil,nil
+    local after = jump and function() self:enterNewVisit(jump) end or
+      target and function() self:navigate(target,1) end or
       steps and function() self:showSteps() end or function() self:close() end
-    if save then self:save(after) else self:discard((steps or target) and after or nil) end
+    if save then self:save(after) else self:discard((steps or target or jump) and after or nil) end
   end
 end
 return M

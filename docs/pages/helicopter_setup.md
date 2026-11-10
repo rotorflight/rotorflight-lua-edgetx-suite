@@ -177,12 +177,12 @@ unplug servos, restart, then confirm the test prerequisites.
 | Exit | Leave the step, or the complete setup, at once; unsaved changes first offer Save or Discard. |
 | Header | Opens the step menu (not on the preparation cards). |
 | Reboot | At the connection gate, keep servos unplugged until restart completes. ESC telemetry restarts with the servos connected: their frame rate is already live. |
-| Finish | On the last card of step 19: save pending settings, release overrides, restore arming availability and leave. It never arms the model. |
+| Finish | On the last card of step 19: save pending settings, release overrides, and leave; a step opened from the wizard's own step list returns to that list. Leaving the wizard restores arming availability; it never arms the model. |
 | Hold | A momentary motor control. Releasing the button stops the motor; motor overrides also lapse in firmware without refresh. |
 | ? | Full instructions for the current task and the navigation help. |
 
-Every card leads with its explanation across the full width, at most two lines, with a
-rule under it; the rows follow below. Without a picture, each control follows right after
+Every card leads with its explanation across the full width, two lines, or three where the
+rows still fit; the rows follow below. The ? sheet carries the whole text. Without a picture, each control follows right after
 its label; illustrated tasks put the Configurator picture or mechanical reference on the
 left and centre their rows on it. Action buttons are as wide as their label. The side-view cards show a picture of the helicopter in the
 Configurator wizard's three poses: blades crossed out where they must come off (Board

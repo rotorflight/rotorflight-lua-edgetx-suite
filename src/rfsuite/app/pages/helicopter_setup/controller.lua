@@ -708,7 +708,7 @@ function M.new(runtime, transport, mathModule, labels)
       self.message = self.L.historyNotSaved
       self:rebuild(); return
     end
-    if self.confirmExit then self.confirmExit, self.exitToSteps, self.backTarget = nil, nil, nil; self:rebuild(); return end
+    if self.confirmExit then self.confirmExit, self.exitToSteps, self.backTarget, self.jumpTarget = nil, nil, nil, nil; self:rebuild(); return end
     -- Back on the step menu returns to the card it was opened from.
     if self.stepMenu then self:closeStepMenu(); return end
     if self.overview then
@@ -1107,7 +1107,7 @@ function M.new(runtime, transport, mathModule, labels)
         if self.logDebug then self:log("debug", "cards %s built, %s", key, #self.cards) end
       end
       self.card = math.min(self.card, #self.cards)
-      if self.cards[self.card].enter then self:afterRelease(self.cards[self.card].enter) end
+      if self.cards[self.card].enter and not self.stepMenu then self:afterRelease(self.cards[self.card].enter) end
       self:rebuild(); return
     end
     if not self.ready or self.error or self.transition then return end

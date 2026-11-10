@@ -449,6 +449,111 @@ return function(h)
       h.setRecordFault(nil)
     end
   end)
+  case("CORE.step-menu",function()
+    -- The step menu behind a card's header keeps the step as it is, starts no hold behind it,
+    -- and a jump is a new visit that asks its preparation, in Complete setup too.
+    local w=world();settle(w)
+    w:navigate(14,1);drain(w)
+    check(w.step==14 and w.cards and next(w.holds)~=nil,"MENU control directions holds the swash on entry")
+    local cards,checks=w.cards,w.checks
+    w.checks.control1=true
+    w:openStepMenu();drain(w)
+    check(w.stepMenu==true and next(w.holds)==nil,"MENU opening releases the card's holds")
+    check(w.cards==cards and w.checks.control1==true,"MENU opening keeps the step's cards and answers")
+    -- A rebuild while the menu is open (a retry after a lost link) starts no entry behind it.
+    w.buildRequested=true;w:rebuild();drain(w)
+    check(next(w.holds)==nil,"MENU a rebuild behind the menu starts no hold")
+    w:back();drain(w)
+    check(not w.stepMenu and w.step==14 and next(w.holds)~=nil,"MENU Back returns to the card and its hold")
+    check(w.checks.control1==true,"MENU Back keeps the step's answers")
+    -- Not on a preparation card.
+    w.preparationCard=true;w:openStepMenu();check(not w.stepMenu,"MENU no step menu on a preparation card");w.preparationCard=nil
+    -- A restart owed: steps from 11 on wait for it.
+    w:openStepMenu();drain(w);w.statusAt=getTime();check(w:usable(),"MENU the status is fresh for the refusal");w.rebootPending=true;w:jumpToStep(16)
+    check(w.stepMenu and w.step==14,"MENU a jump to step 16 waits for the owed restart")
+    w.rebootPending=nil
+    -- A clean jump in Complete setup: a new visit with its preparation card.
+    -- A press counts only while the status is fresh, as for every other control.
+    drain(w);w.statusAt=getTime();w:jumpToStep(16);drain(w)
+    check(not w.stepMenu and w.step==16 and not w.singleStep,"MENU a jump keeps Complete setup")
+    check(w.checks.control1==nil,"MENU a jump carries no answer of the step left")
+    check(w.preparationCard==true and w.cards and w.cards[1].title==L.prepareStep,"MENU a jump in Complete setup asks the step's preparation")
+    check(next(w.holds)==nil,"MENU the preparation card holds nothing")
+    -- A jump with staged changes asks first; Back on that question stays on the step.
+    w.preparationCard,w.preparationDone=nil,true;w:navigate(16,1);drain(w)
+    w:touch("mixer_config")
+    w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(5)
+    check(w.confirmExit and w.jumpTarget==5 and w.step==16,"MENU a jump with changes asks to save or discard")
+    w:back();check(not w.confirmExit and w.jumpTarget==nil and w.step==16,"MENU Back on the question stays on the step")
+    w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(5);w:resolveExit(false);drain(w)
+    check(w.step==5 and next(w.dirty)==nil,"MENU discarding opens the chosen step")
+    -- Leaving to the step list or starting a step ends the menu.
+    w:openStepMenu();w:showSteps();check(not w.stepMenu,"MENU the step list ends the menu")
+  end)
+  case("LAYOUT.header-and-menu-fit",function()
+    -- With the radio's own font widths, every card's header and every step-menu button holds its
+    -- text, in English and German, on all three screens: a long header gives up the large step
+    -- font, then "Step n/19", then the card's name for its place.
+    local fonts=assert(loadfile("bin/dashboard/edgetx_font_widths.lua"))()
+    local set
+    local function width(text,font)
+      local face=set[font==MIDSIZE and "L" or "XS"];local n=0
+      for _,code in utf8.codes(tostring(text)) do n=n+assert(face[code],"glyph "..code.." is measured") end
+      return n
+    end
+    local saved=lcd.sizeText
+    lcd.sizeText=function(text,font) return width(text,font),20 end
+    local raw=load("app/pages/helicopter_setup/labels.lua")
+    for _,locale in ipairs({"en","de"}) do
+      local bundle=load("i18n/"..locale..".lua").app.modules.helicopter_setup
+      local LL={}
+      for k,v in pairs(raw) do
+        local key=type(v)=="string" and string.match(v,"^@i18n%(app%.modules%.helicopter_setup%.(.-)%)@$")
+        LL[k]=key and bundle[key] or v
+      end
+      LL.steps={LL.sensors,LL.receiver,LL.modeSwitches,LL.profiles,LL.rates,LL.swash,LL.servoType,LL.governor,LL.motor,LL.connect,
+        LL.escTelemetry,LL.spinTest,LL.servoDirectionCentre,LL.controlDirections,LL.level,LL.bladePitch,LL.tail,LL.gyroCheck,LL.finish}
+      LL.numberedSteps={};for i,n in ipairs(LL.steps) do LL.numberedSteps[i]=i..". "..n end
+      for _,size in ipairs({{480,272},{480,320},{800,480}}) do
+        set=size[1]>=700 and fonts.lrg or fonts.std
+        local headRight=size[1]-(size[1]>=700 and 44 or 32)-12
+        local w=world();settle(w);w.L=LL;w.wideScreen=size[1]>=700
+        for index,name in ipairs(h.stepNames) do
+          w.step=index
+          local cards=step(w,name)
+          for c,card in ipairs(cards) do
+            w.card=c
+            local scene=h.view.new(w,{w=size[1],h=size[2]},h.diagrams);while not scene:step() do end
+            local named=false
+            for _,item in ipairs(scene.children) do
+              if item.type=="label" and type(item.text)=="string" and item.y and item.y<20 then
+                local right=item.x+width(item.text,item.font)
+                check(right<=headRight,string.format("FIT %s %dx%d step %d card %d header '%s' ends at %d <= %d",
+                  locale,size[1],size[2],index,c,item.text,right,headRight))
+                if item.text==card.title or string.find(item.text,card.title,1,true)==1 or string.match(item.text,"^%(%d+/%d+%)$") then named=true end
+              end
+            end
+            check(named or card.title==LL.steps[index] and #cards==1,string.format("FIT %s %dx%d step %d card %d header names the card or its place",locale,size[1],size[2],index,c))
+          end
+        end
+        -- The step menu's buttons.
+        w.step,w.card=5,1;step(w,"rates");w.stepMenu=true
+        local scene=h.view.new(w,{w=size[1],h=size[2]},h.diagrams);while not scene:step() do end
+        local buttons=0
+        for _,item in ipairs(scene.children) do
+          if item.type=="button" and item.w and item.w<size[1]/2 and type(item.text)=="string" and item.text~="?" and item.text~=LL.back and item.text~=LL.exit then
+            buttons=buttons+1
+            -- EdgeTX pads a text button 6 px each side (PAD_MEDIUM) inside its border.
+            check(width(item.text,SMLSIZE)+14<=item.w,string.format("FIT %s %dx%d step menu '%s' %d fits %d",locale,size[1],size[2],item.text,width(item.text,SMLSIZE),item.w))
+            check(item.h>=(size[2]<=272 and 21 or 24),string.format("FIT %dx%d step menu buttons are %d px high",size[1],size[2],item.h))
+          end
+        end
+        eq(buttons,19,"FIT step menu shows 19 steps")
+        w.stepMenu=nil
+      end
+    end
+    lcd.sizeText=saved
+  end)
   case("CORE.individual-step-entry",function()
     for selected=1,19 do
       local w=world();settle(w);w:showSteps()
@@ -476,9 +581,11 @@ return function(h)
           if w.step==13 then for _,s in pairs(w.data.servo_configurations.servos) do s.mid=s.mid>1040 and 1520 or 760 end end
           w:next()
         end
-        if w.overview or w.error then break end
+        if w.overview or w.error or w.step~=selected then break end
       end
-      check(w.overview and not w.error,"CORE completed individual step returns to overview")
+      -- A completed single step opens the next one as a single step; step 19 returns to the list.
+      if selected==19 then check(w.overview and not w.error,"CORE completed individual step 19 returns to overview")
+      else check(w.step==selected+1 and w.singleStep and not w.overview and not w.error,"CORE completed individual step opens the next step") end
       check(w.active and w.locked,"CORE individual completion retains arming lock")
     end
   end)
