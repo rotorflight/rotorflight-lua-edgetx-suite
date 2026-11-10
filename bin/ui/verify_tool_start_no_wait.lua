@@ -19,7 +19,7 @@ local function caseArg()
   end
 end
 
-local CASES = { "nolink", "link", "pagefirst", "themesave", "linkdrop", "offlinesave", "savebeforeread", "otherfc",
+local CASES = { "nolink", "link", "pagefirst", "landing", "themesave", "linkdrop", "offlinesave", "savebeforeread", "otherfc",
   "removedtheme", "registry", "compile", "movefailed", "restart", "both" }
 
 local function quote(text)
@@ -179,6 +179,31 @@ local function runFor(passes)
     Stubs.tick()
     Home.run(0)
   end
+end
+
+-- Opened from the dashboard on a page (a landing): init is one widget call under the widget's
+-- instruction limit and has already loaded the tool by the time it would build, so the page's
+-- first build waits for the next pass. Until the start screen stopped waiting for the connection,
+-- the start screen took the init call; with nothing to compile it no longer does.
+if case == "landing" then
+  local PAGE = "tools_flight_log_page"
+  Home.init({ hosted = true, landing = PAGE })
+  expect(state.menu and state.menu.getCurrentMenuId() == PAGE, "the landing did not open its page (control)")
+  expect(state.initialLoad == false, "the start screen still stands after init with nothing to compile (control)")
+  expect(builds == 0, "init built " .. builds .. " scene(s) with a landing: the page's first build shares the call that loaded the tool")
+  expect(logged("first build on the next pass") ~= nil, "the log does not say that the landing is built on the next pass")
+  runFor(1)
+  expect(builds == 1, "the first pass after init built " .. builds .. " scene(s) instead of the landing's page")
+  expect(startBuilds == 0, "the start screen was drawn for a landing with nothing to compile")
+  expect(state.menu.getCurrentMenuId() == PAGE, "the page on screen after the first pass is not the landing")
+  -- A build that raised still builds a scene (the page's build error), so the page's own build is checked too.
+  expect(state.pageBuildFailed == nil and state.activePageMenuId == PAGE,
+    "the landing's page did not build: failed " .. tostring(state.pageBuildFailed) .. ", active " .. tostring(state.activePageMenuId))
+  -- The page being active says which module is current, not that its build drew anything: the
+  -- Flight Log's own first scene is its read overlay, and no other page draws that line.
+  expect(lastTexts["Reading the flight log"] == true, "the first scene does not show the Flight Log page's own content")
+  print("CHECKS " .. checks)
+  os.exit(0)
 end
 
 if case == "movefailed" or case == "both" then
