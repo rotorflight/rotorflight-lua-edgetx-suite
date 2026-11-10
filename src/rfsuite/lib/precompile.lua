@@ -45,9 +45,10 @@ local STAMP_LIMIT = 64
 -- to revisit is STATS_PER_STEP, once the cost of a timestamp on a real card has been measured.
 local DIRS_PER_STEP = 8
 local STATS_PER_STEP = 16
--- Every entry counts as well, a picture included: a directory of a hundred pictures costs no timestamp
--- and used to be taken whole in one call, about 7 000 instructions in a desktop count, and two of them
--- in one widget call reached its limit.
+-- Every entry counts as well, a picture included: a picture costs no timestamp, so a directory of a
+-- hundred of them (the rolling quick menu's icons, one folder per colour) used to be taken whole in one
+-- call, and the most expensive call of the pass came to about 12 600 of the module's own instructions
+-- in a desktop count. With this cap it stays under 4 500.
 local ENTRIES_PER_STEP = 48
 local FILES_PER_STEP = 1
 local GC_EVERY = 8
