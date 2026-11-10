@@ -92,6 +92,18 @@ local Common = {
   end
 }
 
+-- The helper logs through lib/log.lua; every line is kept, so a check can ask for one.
+local logged = {}
+local Log = {
+  emitf = function(tag, level, fmt, ...) logged[#logged + 1] = level .. " " .. tag .. ": " .. string.format(fmt, ...) end
+}
+local function loggedLine(pattern)
+  for _, line in ipairs(logged) do
+    if string.find(line, pattern) then return line end
+  end
+  return nil
+end
+
 local stubs = {
   ["app/pages/settings/common.lua"] = Common,
   ["ui/controls.lua"] = Controls,
@@ -100,6 +112,7 @@ local stubs = {
   ["ui/confirm_dialog.lua"] = ConfirmDialog,
   ["tasks/msp/save_pipeline.lua"] = SavePipeline,
   ["lib/armed.lua"] = Armed,
+  ["lib/log.lua"] = Log,
   ["ui/palette.lua"] = { muted = 1, border = 2, text = 3 }
 }
 local real = {
