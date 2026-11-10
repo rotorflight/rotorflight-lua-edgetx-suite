@@ -47,7 +47,10 @@ function M.new(w, ctx, diagrams)
   local textLines = 2
   if summaryText and type(summaryText) == "string" then
     -- A wrapped line breaks at a word, so a line holds a little less than its width.
-    local need = math.ceil(textWidth(summaryText, SMLSIZE) * 1.15 / (width - 20))
+    local need = 0
+    for paragraph in string.gmatch(summaryText .. "\n", "([^\n]*)\n") do
+      need = need + math.max(1, math.ceil(textWidth(paragraph, SMLSIZE) * 1.15 / (width - 20)))
+    end
     local rowsBelow = card.rows and #card.rows or 0
     local bottom = height-controlH-(large and 40 or 27)
     local rowNeed = large and 52 or controlH+6
