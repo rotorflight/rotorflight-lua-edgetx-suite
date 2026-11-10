@@ -213,7 +213,10 @@ local function queueGovWrite(requestRebuild)
   writeData.gov_throttle_hold_timeout = ui.config.gov_throttle_hold_timeout
 
   local featureChanged = writeFeatures.enabledFeatures ~= ui.featureConfig.enabledFeatures
-  local reboot = featureChanged or writeData.gov_mode ~= ui.parsedCache.gov_mode
+  -- The firmware copies the governor configuration into the running governor only at start-up
+  -- (governorInit()); MSP_SET_GOVERNOR_CONFIG stores it and nothing more. So a save that changes
+  -- any of it restarts the flight controller, and so does a GOVERNOR feature change.
+  local reboot = featureChanged or GovernorConfigApi.payloadDiffers(ui.parsedCache, writeData)
   local steps = {
     {
       label = "MSP_SET_GOVERNOR_CONFIG",
@@ -241,10 +244,17 @@ local function queueGovWrite(requestRebuild)
     onDone = function(result)
       if result.status == "done" then
         local session = getSession()
-        if session then
+        -- A save whose notice was dismissed reports when this page is entered again, and the
+        -- board on the link may be another one by then: its session holds its own configuration.
+        if session and result.mcuId ~= nil and session.mcu_id == result.mcuId then
           session.governor_config = writeData
           session.governorMode = writeData.gov_mode
           session.governorFeature = (writeFeatures.enabledFeatures & (1 << 26)) ~= 0
+        elseif session then
+          local Log = _G.rfsuite and _G.rfsuite.Log
+          if Log and type(Log.emit) == "function" then
+            pcall(Log.emit, "rfsuite.governor", "general save done, board on the link not known as the one written: session not updated", "info")
+          end
         end
       end
       if ui.runtime ~= visit then return end
@@ -312,6 +322,14 @@ function M.wakeup(ctx)
   ensureLoaded()
 
   ui.runtime.requestRebuild = ctx and ctx.requestRebuild or nil
+
+  -- A save whose notice was dismissed is held for its page instead of reported (save_pipeline.lua
+  -- finish()). While this page is open it claims that result here: one started on this visit would
+  -- otherwise keep the Saving overlay, with Save and Reload refused, and one started before the page
+  -- was entered again, still running then, would stay unreported until the next Save discards it.
+  if SavePipeline and type(SavePipeline.takeResult) == "function" then
+    SavePipeline.takeResult("setup_governor_general")
+  end
 
   local signature = buildSessionSignature()
   if signature ~= ui.runtime.lastSessionSignature then
@@ -414,7 +432,7 @@ function M.build(ctx)
     end,
     {
       helpText = pageText(i18n, "help_mode",
-        "OFF passes throttle through, LIMIT applies the throttle limits, DIRECT only spools up and recovers, ELECTRIC and NITRO govern fully; OFF while the feature is off, and a change restarts the board."),
+        "OFF passes throttle through, LIMIT applies the throttle limits, DIRECT only spools up and recovers, ELECTRIC and NITRO govern fully; OFF while the feature is off."),
       helpTitle = modeLabel,
       onHelp = onRowHelp
     }
