@@ -142,7 +142,9 @@ ends of the bar. A reading turns to the accent colour once its control has reach
 ## Navigation
 
 Every card shows where it is in its header: the step, the card's own name and its place
-(for example **Receiver › Check sticks (3/6)**), and **Step n/19** on the right. Tapping the
+(for example **Receiver › Check sticks (3/6)**), and **Step n/19** on the right. Where a long
+name does not fit, the header gives up space in this order: the large step font (800×480),
+then the **Step n/19** text (the arrow stays), then the card's name for its place **(3/6)**. Tapping the
 header opens the step menu: all 19 steps, the current one marked, done steps with a mark.
 Choosing another step first offers Save or Discard when something changed, then opens that
 step at its first card; the mode stays (Complete setup carries on from there, a single step

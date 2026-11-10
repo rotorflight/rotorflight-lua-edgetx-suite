@@ -43,7 +43,7 @@ function M.new(w, ctx, diagrams)
   if summaryText == "" then summaryText = nil end
   -- Below the header band and the ? button (controlH high from y 2).
   local textY = large and 56 or controlH+6
-  local lineH = large and 24 or height <= 272 and 17 or 18
+  local textLineH = large and 24 or height <= 272 and 17 or 18
   local textLines = 2
   if summaryText and type(summaryText) == "string" then
     -- A wrapped line breaks at a word, so a line holds a little less than its width.
@@ -51,9 +51,9 @@ function M.new(w, ctx, diagrams)
     local rowsBelow = card.rows and #card.rows or 0
     local bottom = height-controlH-(large and 40 or 27)
     local rowNeed = large and 52 or controlH+6
-    if need >= 3 and textY+3*lineH+(large and 14 or 8)+rowsBelow*rowNeed <= bottom then textLines = 3 end
+    if need >= 3 and textY+3*textLineH+(large and 14 or 8)+rowsBelow*rowNeed <= bottom then textLines = 3 end
   end
-  local textH = summaryText and textLines*lineH or 0
+  local textH = summaryText and textLines*textLineH or 0
   local textEnd = textY + textH + (large and 4 or 2)
   local rowY = cardScene and (summaryText and textEnd + (large and 10 or 6) or textY) or
     (large and 108 or height <= 272 and 80 or 88)
@@ -143,12 +143,12 @@ function M.new(w, ctx, diagrams)
   end
   local counterW = counter and textWidth(counter, SMLSIZE) or 0
   local counterX = chevronX-(chevronW > 0 and 6 or 0)-counterW
-  local nameW = math.min(textWidth(headStep, headFont), (counter and counterX or headRight)-8-nameX)
-  all[#all + 1] = label(nameX, large and 7 or 3, nameW, headStep, headFont)
+  local headNameW = math.min(textWidth(headStep, headFont), (counter and counterX or headRight)-8-nameX)
+  all[#all + 1] = label(nameX, large and 7 or 3, headNameW, headStep, headFont)
   all[#all].h, all[#all].color = large and 32 or 20, menuHeader and palette.accentInk or palette.text
   if headCard then
     -- The step and the card are parted by a drawn chevron: the radio's fonts carry no arrow glyph.
-    local sepX = nameX+nameW+(large and 8 or 5)
+    local sepX = nameX+headNameW+(large and 8 or 5)
     local cardX = sepX+(large and 14 or 10)
     local room = (counter and counterX or headRight)-8-cardX
     local text = headCard
@@ -478,7 +478,7 @@ function M.new(w, ctx, diagrams)
         end
       elseif r.kind == "button" or r.kind == "hold" then
         -- An action button is as wide as its label; a label that changes keeps a fixed width.
-        local bw = formW
+        local bw
         if type(r.label) == "string" then
           bw = math.max(2*controlH, math.min(formW, textWidth(r.label, SMLSIZE)+(large and 48 or 28)))
         else
@@ -505,9 +505,9 @@ function M.new(w, ctx, diagrams)
         end
         -- A plain yes/no or off/on answer is a switch. A choice that can be unknown (not read yet,
         -- or servos of one group that disagree) keeps its list while it is, so no answer is implied.
-        local values = r.values
-        local yesNo = type(values) == "table" and #values == 2 and
-          ((values[1] == w.L.no and values[2] == w.L.yes) or (values[1] == w.L.off and values[2] == w.L.on))
+        local answers = r.values
+        local yesNo = type(answers) == "table" and #answers == 2 and
+          ((answers[1] == w.L.no and answers[2] == w.L.yes) or (answers[1] == w.L.off and answers[2] == w.L.on))
         local switch = yesNo and (r.kind == "toggle" or (r.kind == "choice" and not (r.allowUnset and r.get() == 0)))
         if r.kind == "value" then
           all[#all + 1] = label(editX, y+3, editW, function() return tostring(r.get() or "--") end)

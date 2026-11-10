@@ -3,6 +3,7 @@
 return function(h)
   local world,load,H,L,q=h.world,h.load,h.H,h.L,h.q
   local eq,check=h.eq,h.check
+  local settingSwitch=h.settingSwitch
   local cases={}
   local function case(id,fn)
     cases[#cases+1]=id

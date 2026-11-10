@@ -172,7 +172,7 @@ L.steps = { L.sensors,L.receiver,L.modeSwitches,L.profiles,L.rates,L.swash,L.ser
 local rawLabels = load(PATH .. "labels.lua")
 -- Settings drawn as switches; the label drawn just before a switch names it.
 local SETTING_SWITCHES = { geometryCorrection=true, bidirectionalDshot=true, rescueEnable=true, rescueFlip=true }
-function settingSwitch(children, item)
+local function settingSwitch(children, item)
   for j, it in ipairs(children) do
     if it == item then
       local before = children[j-1]
@@ -183,7 +183,7 @@ function settingSwitch(children, item)
   return false
 end
 -- The header names the step in its own label; the rendered run counts a visit by that name.
-rawStepIndex = {}
+local rawStepIndex = {}
 for i, name in ipairs(rawLabels.steps) do rawStepIndex[name] = i end
 check(#rawLabels.numberedSteps == 19 and rawLabels.numberedSteps[1] == "1. " .. rawLabels.sensors
   and rawLabels.numberedSteps[19] == "19. " .. rawLabels.finish, "step chooser entries are numbered like the source")
@@ -932,6 +932,7 @@ local function contractWorld()
 end
 local contractCases=assert(loadfile("bin/wizard/contracts.lua"))()({
   world=contractWorld,load=load,H=H,L=L,q=q,check=check,eq=eq,pump=pump,measure=measure,api=api,stepNames=steps,
+  settingSwitch=settingSwitch,
   fixtures=fixtures,advance=function(value) ticks=ticks+value end,
   beginWorld=beginWorld,mutation=mutation,
   setServoCount=function(count) statusServoCount=count end,
