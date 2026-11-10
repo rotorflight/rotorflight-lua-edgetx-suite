@@ -22,6 +22,11 @@ The tile icons and the shipped dashboard themes' pictures come once per scheme (
 `setup_mixer_icon.png`); `palette.iconPath` picks the scheme's file, and a pilot's own theme keeps its
 pictures.
 
+**In-flight tuning reads it directly:** `widgets/dashboard/inflight/screen.lua` takes
+`general.color_scheme` from the widget's preferences through `name()` and keeps one table per scheme
+that names the roles for its surfaces, the selected row's fill (`selection`), the cells of its
+actions (`raised`) and the track of its progress bars (`rule`) among them.
+
 **The helicopter setup wizard reads it directly:** `helicopter_setup/page.lua` loads the file when
 the page opens, takes `general.color_scheme` through `name()` and hands the colours to its views as
 `w.palette`, and the scheme's name as `w.scheme`, which also picks the picture set

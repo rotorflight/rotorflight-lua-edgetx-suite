@@ -1,0 +1,4 @@
+- **In-flight tuning in the color scheme, and a lighter ground screen (`widgets/dashboard/inflight/screen.lua`, `widgets/dashboard/inflight/fcsurface.lua`, `docs/dashboard/inflight-tuning.md`)**:
+  - In-flight tuning draws in the color scheme of *Settings* → *General* → *Appearance*, the same one as the quick menu it opens from. The scheme is light as it comes, so tuning that was always dark is now light until the scheme is set to dark.
+  - Every tuning screen: no boxes and no footer strips, grey cells for the actions, the main action in the accent blue, and **Restore** named in red rather than filled with it.
+  - The ground screen: the three status rows on the page with a line under them, one large primary action, and the other actions in one row under it, **Set up suggested functions** shortened to **Functions** there.
