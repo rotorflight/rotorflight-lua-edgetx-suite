@@ -1326,6 +1326,7 @@ return {
         no_aircraft = "Zuerst mit einem Modell verbinden",
         reading_flight = "Lese den letzten Flug...",
         not_read = "Letzter Flug nicht gelesen. Er wird beim nächsten Entschärfen gelesen.",
+        not_saved = "Letzter Flug nicht auf der Karte gespeichert. Vor dem nächsten Flug die Karte prüfen; das nächste Entschärfen versucht es erneut.",
         no_flight = "Noch kein Flug gespeichert",
         act_no_flight = "Im Acro-Modus fliegen, mit dem RFSuite-Dashboard oder dem Service-Widget auf diesem Modell, dann entschärfen.",
         why_no_flight = "Das Dashboard oder das Service-Widget speichert jeden Flug nach dem Entschärfen. Das Tool allein speichert keinen.",

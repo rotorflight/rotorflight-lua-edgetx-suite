@@ -324,6 +324,8 @@ local function loadTexts(i18n)
     unsupported = pageText(i18n, "unsupported", "Needs newer firmware"),
     readingFlight = pageText(i18n, "reading_flight", "Reading the last flight..."),
     notRead = pageText(i18n, "not_read", "Last flight not read. It is read at the next disarm."),
+    notSaved = pageText(i18n, "not_saved",
+      "Last flight not saved to the card. Check the card before the next flight; the next disarm tries again."),
     noFlight = pageText(i18n, "no_flight", "No flight saved yet"),
     actNoFlight = pageText(i18n, "act_no_flight",
       "Fly in acro mode with the RFSuite dashboard or Service widget on this model, then disarm."),
@@ -717,12 +719,21 @@ local function sessionMcu()
 end
 
 -- The flight capture's state, where it runs in this Lua state (a tool opened from the dashboard):
--- "reading" from the disarm until the flight is saved, "failed" when it gave up until the next
--- disarm. A tool started on its own never sees it.
+-- "reading" from the disarm until the flight is saved, "failed" when it gave up reading until the
+-- next disarm, "unsaved" when it gave up writing the flight to the card. A tool started on its own
+-- never sees it.
 local function captureState()
   local session = getSession()
   local capture = session and session.tuneCapture
   return capture and capture.state or nil
+end
+
+-- The note above the advice when the last flight did not make it into the saved flights
+local function captureNote(T)
+  local state = captureState()
+  if state == "failed" then return T.notRead end
+  if state == "unsaved" then return T.notSaved end
+  return nil
 end
 
 local function copy(record)
@@ -788,7 +799,8 @@ local function render()
     if unsaved > 0 then
       table.insert(view.whys, 1, string.format(T.whyUnsavedFmt, math.floor(unsaved / 60), unsaved % 60))
     end
-    if captureState() == "failed" then table.insert(view.actions, 1, T.notRead) end
+    local note = captureNote(T)
+    if note then table.insert(view.actions, 1, note) end
     pageLog("debug", "no flight saved for %s; the board holds %d s not saved", tostring(ui.mcu), unsaved)
   elseif ui.axes then
     local axis = ui.selected
@@ -822,7 +834,8 @@ local function render()
         view.actions[#view.actions + 1] = T.applyHint
       end
     end
-    if captureState() == "failed" then table.insert(view.actions, 1, T.notRead) end
+    local note = captureNote(T)
+    if note then table.insert(view.actions, 1, note) end
   end
   requestRebuild()
 end

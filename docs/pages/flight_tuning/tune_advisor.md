@@ -48,11 +48,27 @@ values read then would belong to the other profile.
 - **A link loss is caught up.** If the model is disarmed while the link is down, the flight is read once the radio
   reconnects, provided the flight controller has not been powered off in between. If the link drops the reading,
   the radio asks again 5 seconds later; after three failures it waits for the next disarm, and since the flight
-  controller was not cleared, that flight is then saved together with this one.
+  controller was not cleared, that flight is then saved together with this one. An answer for another axis than
+  the one asked for is not kept; that axis is asked again, and it counts as one of those failures. If the link
+  drops after the flight is saved but before the flight controller is cleared, the clear is not sent when the
+  link is back: the model may have flown meanwhile, and the clear would erase that flight unread. The flight
+  controller is then cleared after the next disarm, as below.
 - **If another flight controller is connected before the clear**, it is not cleared, and its settings are not
   added to the first one's flight; that flight stays saved with its settings unknown.
 - **Arming again before the flight is saved** stops the reading. The flight controller keeps adding to its
   measurements, so the next disarm saves both flights as one.
+- **Arming again after the flight is saved but before the clear has gone through** (or after a clear lost to the
+  link) leaves that flight in the flight controller, which adds the next flight to it. The radio does not send that
+  old clear afterwards, since it would erase the next flight before it is read; the next disarm reads first, saves,
+  and then clears. That reading still holds the earlier flight, which the radio cannot tell from the reply, so that
+  flight is then counted twice.
+- **The same holds while the RFSuite widgets do not run for more than 5 seconds** (the configuration tool open):
+  the model may have flown meanwhile, so a clear still owed is not sent afterwards, and the flight controller is
+  cleared after the next disarm.
+- **A flight that cannot be written to the SD card** (the card is full or write-protected, or the history file is
+  over the 16 KiB the page reads) is tried again 5 seconds later, and after three failed writes the radio waits for
+  the next disarm. The flight controller is not cleared, so that disarm reads the flight again, together with the
+  next one.
 - A flight with no acro flight time is not saved.
 
 **Coming from another dashboard:** put the RFSuite dashboard or the RFSuite Service widget on a screen of the model
@@ -95,7 +111,8 @@ which keeps saving flights meanwhile, and it reads the flights again when one is
 the cyclic polarity, cyclic ring and I-term relax type have been added to it (a few seconds after the save). Until
 that flight is saved it shows "Reading the last flight..." in place of the advice, with *Save* and *\** greyed
 out. If the radio could not read the flight, the advice from the saved flights comes back with "Last flight not
-read. It is read at the next disarm." above it.
+read. It is read at the next disarm." above it; if it could not write the flight to the card, with "Last flight
+not saved to the card. Check the card before the next flight; the next disarm tries again." above it.
 
 ## Settings
 

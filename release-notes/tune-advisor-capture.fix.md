@@ -1,0 +1,4 @@
+- **Tune Advisor no longer erases a flight with a stale clear, stops retrying a card that cannot be written, and stores each answer under its own axis (`tasks/events/tune_capture.lua`)**:
+  - A clear still owed when the model is armed again, across a link loss, or while the widgets did not run for more than five seconds, is no longer sent afterwards, where it erased the next flight before it was read.
+  - A flight that cannot be written to the SD card is tried three times, then not again until the next disarm, and the Tune Advisor page opened from the dashboard says "Last flight not saved to the card. Check the card before the next flight; the next disarm tries again." instead of "Reading the last flight..." for as long as the model sits disarmed.
+  - An answer for another axis than the one asked for is no longer saved under that axis.
