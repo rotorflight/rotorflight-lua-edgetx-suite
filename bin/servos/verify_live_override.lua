@@ -389,6 +389,29 @@ for _, name in ipairs({ "pwm", "bus" }) do
     equal(commands(), "196", name .. ": a second visit with nothing edited only releases")
   end
 
+  -- After * off with a trial centre in the board's RAM, the centre set back and a Save that fails:
+  -- leaving still puts the centre read back.
+  do
+    local page = open(name)
+    local orig = fields["Center"].opts.get()
+    page.onStar({})
+    clearQueue()
+    build(page)
+    fields["Center"].opts.set(orig + 20)
+    page.wakeup(ctx)
+    clearQueue()
+    page.onStar({})
+    clearQueue()
+    build(page)
+    fields["Center"].opts.set(orig)
+    page.onSave({})
+    finishSave("failed")
+    clearQueue()
+    page.onClose()
+    equal(commands(), "213", name .. ": after a failed save of the centre set back, leaving puts the centre read back")
+    equal(u16(queue.messages[1], 2), orig, name .. ": with the centre read")
+  end
+
   -- An override made earlier for another servo: a save of the servo picked since, which fails,
   -- still puts that servo's centre back when the page is left.
   do
@@ -404,6 +427,13 @@ for _, name in ipairs({ "pwm", "bus" }) do
     local orig = fields["Center"].opts.get()
     fields["Center"].opts.set(orig + 12)
     page.onSave({})
+    local idx1 = saveRequest and saveRequest.steps[1].payload[1]
+    equal(u16({ payload = saveRequest and saveRequest.steps[1].payload }, 2), orig + 12, name .. ": Save writes the servo picked's centre")
+    if name == "pwm" then
+      equal(idx1, 1, name .. ": Save writes the servo picked (packed index 1)")
+    else
+      check(idx1 ~= nil and idx1 ~= raw0 + 1, name .. ": Save writes the packed index, not the raw one (" .. tostring(idx1) .. ")")
+    end
     finishSave("failed")
     clearQueue()
     page.onClose()

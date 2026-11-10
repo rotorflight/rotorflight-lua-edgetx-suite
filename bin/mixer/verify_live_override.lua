@@ -442,8 +442,8 @@ end
 ------------------------------------------------------------------------------------------------
 -- Swash Geometry
 ------------------------------------------------------------------------------------------------
--- `pitch`, when given, answers the pitch input read instead of its simulator response.
-local function openGeometry(pitch)
+-- `pitch` and `roll`, when given, answer those input reads instead of their simulator responses.
+local function openGeometry(pitch, roll)
   clearQueue()
   saveRequest = nil
   savePhase = nil
@@ -453,7 +453,7 @@ local function openGeometry(pitch)
   for i = 1, 4 do
     local m = queue.messages[1]
     if not m then break end
-    reply((i == 2 and pitch) or m.simulatorResponse)
+    reply((i == 2 and pitch) or (i == 3 and roll) or m.simulatorResponse)
   end
   clearQueue()
   build(page)
@@ -664,8 +664,8 @@ end
 -- writes back as 1000. A change that is set back again must leave the board's raw values as read,
 -- and a live write must not move a field nobody changed.
 do
-  -- rate 250, max 1001, min -1001 (u16 64535)
-  local pitch = { 250, 0, 233, 3, 23, 252 }
+  -- rate 250, min -1001 (u16 64535), max 1001: the order the parser reads them
+  local pitch = { 250, 0, 23, 252, 233, 3 }
   local page = openGeometry(pitch)
   page.onSave({})
   local steps = saveRequest and saveRequest.steps or {}
@@ -674,7 +674,7 @@ do
   local offGridWrite = payloads(fake, 1, 4)
   finishSave("done")
   page.onClose()
-  check(string.find(offGridWrite, "171:2,250,0,233,3,23,252", 1, true) ~= nil,
+  check(string.find(offGridWrite, "171:2,250,0,23,252,233,3", 1, true) ~= nil,
     "geometry: a save that changed nothing writes the pitch record as read")
 
   page = openGeometry(pitch)
@@ -686,7 +686,7 @@ do
   advance(0.25)
   page.wakeup(ctx)
   local changedWrite = payloads(queue.messages, 1, 4)
-  check(string.find(changedWrite, "171:2,250,0,233,3,23,252", 1, true) ~= nil,
+  check(string.find(changedWrite, "171:2,250,0,23,252,233,3", 1, true) ~= nil,
     "geometry: a live write of another field leaves the pitch record as read")
   clearQueue()
   fields["Collective Calibration"].opts.set(fields["Collective Calibration"].opts.get() - 30)
@@ -697,6 +697,62 @@ do
   page.onClose()
   equal(commands(), "191,191,191,191", "geometry: after setting it back, leaving only releases")
   equal(cal, 250, "geometry: the pitch rate reads as its calibration")
+end
+
+-- Exact writes per changed field: the cyclic limit moves pitch AND roll limits; the cyclic gain keeps
+-- each axis's own direction (a reversed roll stays reversed); nothing else moves.
+do
+  -- roll reversed: rate -250 (u16 65286), min -1250, max 1250
+  local roll = { 6, 255, 30, 251, 226, 4 }
+  local page = openGeometry(nil, roll)
+  page.onStar({})
+  clearQueue()
+  build(page)
+  local lim = fields["Cyclic Pitch Limit"].opts.get()
+  fields["Cyclic Pitch Limit"].opts.set(lim + 10)
+  advance(0.25)
+  page.wakeup(ctx)
+  local raw = math.floor((lim + 10) * 100 / 12 + 0.5)
+  local lo, hi = raw % 256, math.floor(raw / 256) % 256
+  local nraw = 65536 - raw
+  local nlo, nhi = nraw % 256, math.floor(nraw / 256) % 256
+  local want = string.format("171:2,250,0,%d,%d,%d,%d | 171:1,6,255,%d,%d,%d,%d", nlo, nhi, lo, hi, nlo, nhi, lo, hi)
+  check(string.find(payloads(queue.messages, 1, 4), want, 1, true) ~= nil,
+    "geometry: a cyclic limit change writes both pitch and roll limits, rates as read")
+  clearQueue()
+  fields["Cyclic Pitch Limit"].opts.set(lim)
+  fields["Cyclic Calibration"].opts.set(300)
+  advance(0.25)
+  page.wakeup(ctx)
+  -- 300 = 0x012C; reversed roll -300 = 65236 = 0xFED4
+  check(string.find(payloads(queue.messages, 1, 4), "171:2,44,1,30,251,226,4 | 171:1,212,254,30,251,226,4", 1, true) ~= nil,
+    "geometry: a cyclic gain change keeps the reversed roll reversed and the limits as read")
+  clearQueue()
+  page.onClose()
+end
+
+-- After * off with a trial value still in the board's RAM, the value set back and a Save that fails
+-- before its writes take: leaving must still put the records read back.
+do
+  local page = openGeometry()
+  page.onStar({})
+  clearQueue()
+  build(page)
+  local orig = fields["Cyclic Calibration"].opts.get()
+  fields["Cyclic Calibration"].opts.set(orig + 50)
+  advance(0.25)
+  page.wakeup(ctx)
+  clearQueue()
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Cyclic Calibration"].opts.set(orig)
+  page.onSave({})
+  finishSave("failed")
+  clearQueue()
+  page.onClose()
+  equal(commands(), "43,171,171,171", "geometry: after a failed save of the value set back, leaving puts the records read back")
+  equal(payloads(queue.messages, 1, 4), boardWrite, "geometry: with the records read")
 end
 
 print(string.format("%d checks, %d failed", checks, failures))

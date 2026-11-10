@@ -525,8 +525,10 @@ local function queueGeometryWrite(hadEdit)
       saveToSession()
     end,
     onDone = function(result)
+      local saved = type(result) == "table" and result.saved == true
+      if not saved and override then override:saveFailed() end
       if ui.runtime ~= visit then return end
-      if not (type(result) == "table" and result.saved == true) and hadEdit then
+      if not saved and hadEdit then
         logf("info", "save not stored: the page stays unsaved")
         ui.dirty = true
       end

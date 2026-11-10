@@ -711,6 +711,7 @@ local function queueServoWrite(servoIdx, onDone)
       saveToSession()
     end,
     onDone = function(result)
+      if result.saved ~= true and override and overrideRaw == ui.overrideServo then override:saveFailed() end
       if ui.runtime ~= visit then return end
       if type(onDone) == "function" then onDone(result.saved == true) end
       if type(ui.runtime.requestRebuild) == "function" then

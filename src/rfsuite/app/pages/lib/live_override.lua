@@ -199,6 +199,15 @@ function Override:writeFailed(reason)
     reason == "refused" and "not repeated until the value changes" or "sent again on the next due pass")
 end
 
+--- A save that did not reach EEPROM: which of its writes the board took is not known, so what went
+--- out last is forgotten. Leaving then always puts the board's record back, and the live loop sends
+--- the values on screen again when they are due.
+function Override:saveFailed()
+  self.sent = nil
+  self.sentAny = true
+  log("info", "save not stored: the last values sent are unknown, a rollback will put the record back")
+end
+
 --- Called from the page's wakeup while the override is on. `send(values)` queues the write and
 --- returns true once it is queued; false (queue busy, read not complete) keeps the values due.
 function Override:tick(values, send)
