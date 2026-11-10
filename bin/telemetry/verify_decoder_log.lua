@@ -71,6 +71,7 @@ local function newWorld(host, level)
     spoken = {},
     shm = {},
     lines = {},
+    loaded = {},
     wanted = 0,
     prefs = { audio_events = { adjustment_events = true }, general = { debug_level = level } },
   }
@@ -112,6 +113,7 @@ local function newWorld(host, level)
     end
     assert(string.sub(path, 1, #CORE) == CORE, "unexpected module path: " .. tostring(path))
     local relative = string.sub(path, #CORE + 1)
+    W.loaded[relative] = true
     if standIns[relative] then return standIns[relative] end
     return loadfile(ROOT .. "/src/rfsuite/" .. relative)
   end
@@ -264,6 +266,9 @@ scenario("debug_widget", function()
   check(grep("dash: takes over decoding") == 1, "debug_widget: taking over is logged once", dump(60))
   check(grep("dash: decoding resumes after") == 1, "debug_widget: the resume is logged", dump(60))
   check(grep("dash: frame %d+:") == 0, "debug_widget: no per-frame line at debug")
+  -- The lines above came from the real modules, not from a stand-in.
+  check(W.loaded["tasks/events/telemetry_bg/drain.lua"] == true, "debug_widget: the real drain ran")
+  check(W.loaded["tasks/events/telemetry_bg/adjustments.lua"] == true, "debug_widget: the real teller ran")
   check(grep("%[rfsuite%.adjust%]%[trace%]") == 0, "debug_widget: no teller trace at debug")
 end)
 

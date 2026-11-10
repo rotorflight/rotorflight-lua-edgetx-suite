@@ -697,6 +697,26 @@ do
     passes(20)
     Stubs.sensors["Gov"], Stubs.sensors["Thr%"], Stubs.sensors["Hspd"] = 4, 40, 1800
     passes(40)
+
+    -- The state line ends with what the telemetry decoder in this state did since the last one
+    -- (tasks/events/telemetry_bg/drain.lua, summary): `decoder dash, N frames, G gaps`,
+    -- `decoder elsewhere`, `decoder idle`, or `decoder -` on a line written before the decoder has
+    -- loaded.
+    if level ~= "off" then
+      local stateLines = find("rfsuite.widget", "state: instruction budget")
+      local withDecoder = 0
+      for i = 1, #stateLines do
+        local msg = stateLines[i].msg
+        if string.match(msg, ", decoder dash, %d+ frames, %d+ gaps$")
+          or string.match(msg, ", decoder elsewhere$") or string.match(msg, ", decoder idle$")
+          or (i == 1 and string.match(msg, ", decoder %-$")) then
+          withDecoder = withDecoder + 1
+        end
+      end
+      check(#stateLines >= 1, label .. ": a state line is written", #stateLines)
+      check(withDecoder == #stateLines, label .. ": every state line ends with the decoder fragment",
+        withDecoder .. " of " .. #stateLines .. (stateLines[1] and (": " .. stateLines[1].msg) or ""))
+    end
     Stubs.sensors["ARM"], Stubs.sensors["Gov"], Stubs.sensors["Thr%"], Stubs.sensors["Hspd"] = 0, 0, 0, 0
     passes(40)
     check(widget.state.hadInflightFlight == true, label .. ": the flight was seen", widget.state.hadInflightFlight)
