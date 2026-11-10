@@ -170,6 +170,21 @@ end
 L.steps = { L.sensors,L.receiver,L.modeSwitches,L.profiles,L.rates,L.swash,L.servoType,L.governor,L.motor,L.connect,
   L.escTelemetry,L.spinTest,L.servoDirectionCentre,L.controlDirections,L.level,L.bladePitch,L.tail,L.gyroCheck,L.finish }
 local rawLabels = load(PATH .. "labels.lua")
+-- Settings drawn as switches; the label drawn just before a switch names it.
+local SETTING_SWITCHES = { geometryCorrection=true, bidirectionalDshot=true, rescueEnable=true, rescueFlip=true }
+function settingSwitch(children, item)
+  for j, it in ipairs(children) do
+    if it == item then
+      local before = children[j-1]
+      local key = before and type(before.text)=="string" and string.match(before.text,"^@i18n%(app%.modules%.helicopter_setup%.([%w_]+)%)@$")
+      return key ~= nil and SETTING_SWITCHES[key] == true
+    end
+  end
+  return false
+end
+-- The header names the step in its own label; the rendered run counts a visit by that name.
+rawStepIndex = {}
+for i, name in ipairs(rawLabels.steps) do rawStepIndex[name] = i end
 check(#rawLabels.numberedSteps == 19 and rawLabels.numberedSteps[1] == "1. " .. rawLabels.sensors
   and rawLabels.numberedSteps[19] == "19. " .. rawLabels.finish, "step chooser entries are numbered like the source")
 L.numberedSteps = {}
@@ -318,7 +333,7 @@ for t,keys in pairs({label="color,font,h,pos,text,type,visible,w,x,y,align",
   momentaryButton="active,color,h,press,release,text,textColor,type,w,x,y",numberEdit="active,display,get,h,max,min,set,type,w,x,y",
   button="active,color,font,h,press,text,textColor,type,visible,w,x,y",choice="active,get,h,set,title,type,values,w,x,y",
   rectangle="color,filled,h,thickness,type,w,x,y",line="color,pts,thickness,type,visible",
-  image="file,h,type,visible,w,x,y"}) do
+  image="file,h,type,visible,w,x,y",toggle="active,get,h,set,type,w,x,y"}) do
   RADIO_PROPS[t]={};for k in string.gmatch(keys,"[^,]+") do RADIO_PROPS[t][k]=true end
 end
 for _, size in ipairs({ {480,272},{480,320},{800,480} }) do
@@ -500,6 +515,11 @@ for _,size in ipairs({{480,272},{480,320},{800,480}}) do
     while not job.done do job:step() end
     exported[#exported+1]={step=w.step,name=name,task=task,width=size[1],height=size[2],children=resolve(job.children)}
   end
+  -- The step menu behind a card's header, opened on step 5 with step 1 recorded done.
+  local history=w.history
+  w.history={mask=1}
+  export("rates","step-menu",function() w.stepMenu=true end)
+  w.stepMenu,w.history=nil,history
   for _,value in ipairs({1000,1900}) do
     export("modes",value==1000 and "off" or "on",function()
       w.data.mode_ranges.mode_ranges[1]={id=0,auxChannelIndex=0,range={start=1800,["end"]=2100}}
@@ -755,8 +775,14 @@ for _=1,5000 do
   for _,item in ipairs(frameCtx.children) do
     local active=type(item.active)~="function" or item.active()
     if (item.type=="label" or item.type=="button") and type(item.text)=="string" then
-      local number=string.match(item.text,"^(%d+)/19")
+      local number=string.match(item.text,"^(%d+)/19") or rawStepIndex[item.text]
       if number then frameVisited[tonumber(number)]=true end
+    end
+    -- A switch that answers a question is answered, as the No/Yes buttons were; a setting that
+    -- became a switch (it was an Off/On list before) is left as the run found it.
+    if active and item.type=="toggle" and item.get and not item.get() and not settingSwitch(frameCtx.children,item) then
+      if not pausedModelChoice then ticks=ticks+400;pausedModelChoice=true end
+      measure("page input",function() item.set(true) end)
     end
     if active and item.type=="choice" and item.set and
       (item.title==L.modelChecked or item.title=="@i18n(app.modules.helicopter_setup.modelChecked)@") and
@@ -775,8 +801,8 @@ for _=1,5000 do
       if shown and (key=="servoTestUp" or key=="answerUp" or caption==L.servoTestUp or caption==L.answerUp) then
         measure("page input",item.press)
       end
-      if key=="continue" or key=="saveNext" or key=="finish" or key=="completeSetup" or
-        caption==L.continue or caption==L.saveNext or caption==L.finish or caption==L.completeSetup then
+      if key=="continue" or key=="nextStep" or key=="finish" or key=="completeSetup" or
+        caption==L.continue or caption==L.nextStep or caption==L.finish or caption==L.completeSetup then
         measure("page input",item.press)
       end
     end

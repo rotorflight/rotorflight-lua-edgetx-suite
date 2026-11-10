@@ -542,11 +542,12 @@ return function(h)
       local font=size[1]>=700 and widths.lrg.XS or widths.std.XS
       check(feedback.y+font.line<=back.y,"LAYOUT feedback remains above navigation")
       local bottom,count=0,0
-      for i=4,#nodes-3 do
+      for i=4,#nodes-2 do
         local item=nodes[i]
         local value=item.type=="label" and item.h and item.text~=card.summary and
           item.text~=card.detail and item.text~=L.orientationModelHint
-        if item.y and item.h and item.y>2 and (controls[item.type] or value) then
+        local exit=item.type=="button" and item.text==L.exit
+        if item.y and item.h and item.y>2 and not exit and (controls[item.type] or item.type=="toggle" or value) then
           bottom=math.max(bottom,item.y+item.h);count=count+1
         end
       end
@@ -590,8 +591,9 @@ return function(h)
     for _,item in ipairs(scene.children) do
       if item.type=="choice" and item.title==L.rpmSource then choice=item end
       if item.type=="label" and item.text==L.linkStatus then statusLabel=item end
-      if item.type=="label" and item.text==L.rpmSource then
-        if item.y==50 then title=item else duplicate=item end
+      -- The header carries the card's name with its place: "RPM source (n/m)".
+      if item.type=="label" and type(item.text)=="string" and string.find(item.text,L.rpmSource,1,true)==1 then
+        if item.y<50 then title=item else duplicate=item end
       end
       if item.type=="label" and type(item.text)=="function" and item.h then status=item end
     end
@@ -3207,7 +3209,7 @@ return function(h)
         eq(w.message,string.format(L.servoBlocked,w.cards[2].servo.title,w.cards[2].servo.role,L.servoFar),"S13 far-centre validation names its servo")
         w.data.servo_configurations.servos[0].mid=1620
         w:next();shown()
-        check(single and w.overview or not single and w.step==14,"S13 valid Save and next completes the step")
+        check(w.step==14 and (w.singleStep==true)==(single==true),"S13 valid Next step completes the step and opens the next")
       end
     end
   end)
@@ -3840,11 +3842,15 @@ return function(h)
     -- The scene control routes through the same path.
     w.error=nil;w.locked=true;settle(w);w.cards=c;w.card=1
     local job=h.view.new(w,{w=800,h=480},h.diagrams);while not job.done do job:step() end
+    -- With every servo of the group agreeing, the answer is a switch after its label.
     local choice
-    for _,item in ipairs(job.children) do if item.type=="choice" and item.title==L.geometryCorrection then choice=item end end
-    check(choice~=nil,"CORE geometry choice is on the scene")
+    for j,item in ipairs(job.children) do
+      local before=job.children[j-1]
+      if item.type=="toggle" and before and before.text==L.geometryCorrection then choice=item end
+    end
+    check(choice~=nil,"CORE geometry switch is on the scene")
     if choice then
-      w.statusAt=getTime()-301;choice.set(1)
+      w.statusAt=getTime()-301;choice.set(false)
       eq(servos[0].flags,2,"CORE a scene edit waits for fresh STATUS")
       drain(w)
       eq(servos[0].flags,0,"CORE a scene edit made while a list was open applies")
@@ -4362,6 +4368,8 @@ return function(h)
     local function entry(id,number,history,width,height)
       q.messages,q.sent,loaded={},{},{}
       local page=load("app/pages/helicopter_setup/page.lua")
+      -- The header names the step by its own label, as the source writes it.
+      local rawSteps=load("app/pages/helicopter_setup/labels.lua").steps
       local closed=false
       local ctx={children={},w=width or 480,h=height or 272,menu={getCurrentMenuId=function() return id end},
         requestClose=function() closed=true end,requestRebuild=function() end}
@@ -4375,7 +4383,7 @@ return function(h)
         for _,item in ipairs(ctx.children) do
           if type(item.text)=="string" then
             if history and item.text=="@i18n(app.modules.helicopter_setup.historyTitle)@" then found=true end
-            if not history and tonumber(string.match(item.text,"^(%d+)/19"))==number then found=true end
+            if not history and (tonumber(string.match(item.text,"^(%d+)/19"))==number or item.text==rawSteps[number]) then found=true end
           end
         end
         if not found and not history then
@@ -4387,6 +4395,7 @@ return function(h)
             if item.type=="button" and type(item.text)=="function" and item.text()=="@i18n(app.modules.helicopter_setup.no)@" then
               item.press()
             end
+            if item.type=="toggle" and item.get and not item.get() and not settingSwitch(ctx.children,item) then item.set(true) end
           end
           for _,item in ipairs(ctx.children) do
             local caption=type(item.text)=="function" and item.text() or item.text
@@ -4405,6 +4414,9 @@ return function(h)
         check(#loaded<=1,"CORE direct entry loads at most its own step definition")
       end
       if string.find(id,"_step_",1,true) then
+        -- A direct Suite step ends with Next step, which opens the following step; Exit there
+        -- returns to the Suite menu. Step 19 finishes and returns at once.
+        local movedOn=false
         for _=1,2000 do
           h.measure("suite completion",function()
             page.wakeup(ctx);ctx.children={};page.build(ctx);h.resolve(ctx.children)
@@ -4412,21 +4424,32 @@ return function(h)
           h.pump();h.advance(1)
           if closed then break end
           for _,item in ipairs(ctx.children) do
+            if number<19 and type(item.text)=="string" and item.text==rawSteps[number+1] then movedOn=true end
+          end
+          for _,item in ipairs(ctx.children) do
             local active=type(item.active)~="function" or item.active()
+            if movedOn then
+              if active and item.type=="button" and item.text=="@i18n(app.modules.helicopter_setup.exit)@" then item.press() end
+              goto nextItem
+            end
             if active and item.type=="button" and type(item.text)=="function" and
               item.text()=="@i18n(app.modules.helicopter_setup.no)@" then item.press() end
+            if active and item.type=="toggle" and item.get and not item.get() and not settingSwitch(ctx.children,item) then item.set(true) end
             local caption=type(item.text)=="function" and item.text() or item.text
             local shown=type(item.visible)~="function" or item.visible()
             if active and shown and item.type=="button" and (caption=="@i18n(app.modules.helicopter_setup.servoTestUp)@" or
               caption=="@i18n(app.modules.helicopter_setup.answerUp)@") then item.press() end
             if active and item.type=="button" and (caption=="@i18n(app.modules.helicopter_setup.continue)@" or
-              caption=="@i18n(app.modules.helicopter_setup.saveNext)@" or caption=="@i18n(app.modules.helicopter_setup.saveStep)@" or
-              caption=="@i18n(app.modules.helicopter_setup.backToSuite)@") then item.press() end
+              caption=="@i18n(app.modules.helicopter_setup.nextStep)@" or caption=="@i18n(app.modules.helicopter_setup.finish)@") then item.press() end
+            ::nextItem::
           end
         end
-        check(closed,"CORE direct Suite step completes back to its menu "..number)
+        check(closed,"CORE direct Suite step completes, then Exit returns to its menu "..number)
+        check(number==19 or movedOn,"CORE Next step on a direct Suite step opens the following step "..number)
         for _,path in ipairs(loaded) do
-          check(string.find(path,"/steps/"..h.stepNames[number]..".lua",1,true)~=nil,"CORE individual visit loads no other step")
+          check(string.find(path,"/steps/"..h.stepNames[number]..".lua",1,true)~=nil or
+            (number<19 and string.find(path,"/steps/"..h.stepNames[number+1]..".lua",1,true)~=nil),
+            "CORE individual visit loads only its own step and the one Next step opens")
         end
         local unlock=false
         for _,m in ipairs(q.sent) do if m.command==99 and m.payload[1]==0 then unlock=true end end
@@ -4561,7 +4584,7 @@ return function(h)
     eq(w.history.mask,0,"CORE unconfirmed step cannot enter history")
     w.checks.control1,w.checks.control2,w.checks.control4=true,true,true
     w:next();drain(w)
-    check(w.overview and (w.history.mask&(1<<13))~=0,"CORE validated single step is recorded before returning")
+    check(w.step==15 and w.singleStep and (w.history.mask&(1<<13))~=0,"CORE validated single step is recorded before the next step opens")
     w:startStep(14);w:tick()
     check(w.historyHint==L.historyRecheck,"CORE repeated step asks for recheck")
     check(not w:ack("control1") and next(w.holds)==nil,"CORE past completion cannot bypass fresh preparation")
@@ -4586,12 +4609,12 @@ return function(h)
     eq(w.history.mask,0,"CORE card failure has no completion badge")
     w:back();check(not w.historyFailure and not w.overview,"CORE Back cancels history failure without advancing")
     w:next();drain(w);fs.failure=nil;w.historyRetry();drain(w)
-    check(w.overview and w.history.mask==(1<<13),"CORE explicit retry records the completed step")
+    check(w.step==15 and w.history.mask==(1<<13),"CORE explicit retry records the completed step")
     w.overview=nil;w.singleStep=true;w.step=15;step(w,"level");w.card=#w.cards;w.checks.level,w.checks.motorUnplugged,w.checks.bladeZero=true,true,true
     fs.failure="short";w:next();drain(w)
     check(w.historyFailure,"CORE failed readback is visible")
     w.historySkip();drain(w)
-    check(w.overview and (w.history.mask&(1<<14))==0,"CORE explicit continue leaves failed visit unrecorded")
+    check(w.step==16 and (w.history.mask&(1<<14))==0,"CORE explicit continue leaves failed visit unrecorded")
     fs:restore()
   end)
   local function escWorld(protocol, throttle, governor)

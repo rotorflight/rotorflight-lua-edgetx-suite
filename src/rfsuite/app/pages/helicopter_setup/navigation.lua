@@ -33,6 +33,38 @@ function M.attach(w, ctx)
     elseif self.returnToSuite then self:close()
     else self:showSteps() end
   end
+  -- The step menu behind a card's header. Opening it releases the card's holds and keeps the
+  -- step as it is (cards, checks, staged changes), so Back returns to the same card and a jump
+  -- leaves through the same save/discard question as Exit.
+  function w:openStepMenu()
+    if not self.ready or self.transition or not self.cards or self.stepMenu then return end
+    if self.modelPreparationCard or self.recoveryCard or self.preparationCard or self.entryRebootGate then return end
+    if self.logTrace then self:log("trace", "step menu opened on %s card %s", self.step, self.card) end
+    self:release()
+    self.stepMenu = true; self:rebuild()
+  end
+  function w:closeStepMenu()
+    if not self.stepMenu then return end
+    if self.logTrace then self:log("trace", "step menu closed, back to %s card %s", self.step, self.card) end
+    self.stepMenu = nil
+    -- A move to the same card runs its entry again, so a hold the card keeps is set again.
+    self:navigate(self.step, self.card)
+  end
+  function w:jumpToStep(index)
+    if not self.stepMenu or not self:usable() or type(index) ~= "number" or index < 1 or index > 19 or index % 1 ~= 0 then return end
+    if index == self.step then self:closeStepMenu(); return end
+    if index >= 11 and self.rebootPending then
+      if self.logDebug then self:log("debug", "jump to step %s waits for the owed restart", index) end
+      self.message = self.L.pendingReboot; self:rebuild(); return
+    end
+    if self.logInfo then self:log("info", "jump from step %s to %s", self.step, index) end
+    self.stepMenu = nil
+    if next(self.dirty) then
+      self.confirmExit, self.backTarget = true, index; self:rebuild(); return
+    end
+    self.preparationDone, self.preparationCard = nil, nil
+    self:navigate(index, 1)
+  end
   function w:startStep(index, complete)
     if not self:usable() or not index or index < 1 or index > 19 or index % 1 ~= 0 then return end
     if index >= 11 and self.rebootPending then
@@ -146,11 +178,16 @@ function M.attach(w, ctx)
     return true
   end
   function w:finishStep()
+    -- The last card's button moves on to the next step in both modes; a single step stays a
+    -- single step, so its "Before this step" card is asked again. Step 19 finishes.
     local function after()
-      if self.singleStep then
-        if self.returnToSuite then self:close() else self:showSteps() end
-      elseif self.step == 19 then self:close()
-      else self:navigate(self.step + 1, 1) end
+      if self.step == 19 then
+        if self.singleStep and not self.returnToSuite then self:showSteps() else self:close() end
+      else
+        if self.singleStep then self.preparationDone, self.preparationCard = nil, nil end
+        if self.logDebug then self:log("debug", "step %s done, next step %s", self.step, self.step + 1) end
+        self:navigate(self.step + 1, 1)
+      end
     end
     if self.rememberStep then self:rememberStep(after) else after() end
   end
@@ -159,7 +196,8 @@ function M.attach(w, ctx)
     if self.logDebug then self:log("debug", "leaving a changed step, save=%s", tostring(save)) end
     local steps,target = self.exitToSteps,self.backTarget
     self.confirmExit, self.exitToSteps,self.backTarget = nil, nil,nil
-    local after = target and function() self:navigate(target,1) end or
+    -- A step chosen from the step menu is a new visit: its "Before this step" card is asked again.
+    local after = target and function() self.preparationDone, self.preparationCard = nil, nil; self:navigate(target,1) end or
       steps and function() self:showSteps() end or function() self:close() end
     if save then self:save(after) else self:discard((steps or target) and after or nil) end
   end

@@ -709,6 +709,8 @@ function M.new(runtime, transport, mathModule, labels)
       self:rebuild(); return
     end
     if self.confirmExit then self.confirmExit, self.exitToSteps, self.backTarget = nil, nil, nil; self:rebuild(); return end
+    -- Back on the step menu returns to the card it was opened from.
+    if self.stepMenu then self:closeStepMenu(); return end
     if self.overview then
       if next(self.dirty) then self.confirmExit = true; self:rebuild() else self:close() end
       return
