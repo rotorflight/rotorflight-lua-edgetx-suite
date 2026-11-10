@@ -564,8 +564,9 @@ return function(h)
         for _,item in ipairs(scene.children) do
           if item.type=="button" and item.w and item.w<size[1]/2 and type(item.text)=="string" and item.text~="?" and item.text~=LL.back and item.text~=LL.exit then
             buttons=buttons+1
-            -- EdgeTX pads a text button 6 px each side (PAD_MEDIUM) inside its border.
-            check(width(item.text,SMLSIZE)+14<=item.w,string.format("FIT %s %dx%d step menu '%s' %d fits %d",locale,size[1],size[2],item.text,width(item.text,SMLSIZE),item.w))
+            -- EdgeTX pads a text button PAD_MEDIUM each side inside a 2 px frame: 6+2 px on the
+            -- 480-wide screens, 8+2 px at 800x480 (LAYOUT_SCALE x11/8).
+            check(width(item.text,SMLSIZE)+(size[1]>=700 and 20 or 16)<=item.w,string.format("FIT %s %dx%d step menu '%s' %d fits %d",locale,size[1],size[2],item.text,width(item.text,SMLSIZE),item.w))
             check(item.h>=(size[2]<=272 and 21 or 24),string.format("FIT %dx%d step menu buttons are %d px high",size[1],size[2],item.h))
           end
           -- On the 480-wide screens the number and name stand in a label over the button, on up to
