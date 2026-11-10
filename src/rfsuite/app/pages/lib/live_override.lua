@@ -58,12 +58,13 @@ end
 local Override = {}
 Override.__index = Override
 
-local Log = nil
-local LOG_TAG = "override"
-
+-- Reached through the global lib/log.lua publishes rather than loaded here, so a page that uses
+-- the override pays for no second copy of the logger. Absent logger, absent lines.
 local function log(level, fmt, ...)
-  if not Log then Log = loadModule("lib/log.lua") or false end
-  if Log and type(Log.emitf) == "function" then Log.emitf(LOG_TAG, level, fmt, ...) end
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.override", level, fmt, ...)
+  end
 end
 
 -- A save is still writing: a step or the EEPROM commit is ahead. The pipeline queues each step
