@@ -33,20 +33,26 @@ Home.init({})
 setLevel("info")
 _G.rfsuite.log_history = {}
 -- 1 500 passes of 10 ticks: about thirty state-line intervals of 500 ticks.
+-- One custom telemetry frame per pass (the MCU temperature, sensor 0x10A3), so the tool's decoder has
+-- frames to count.
+local frameId = 0
 for _ = 1, 1500 do
   setLevel("info")
+  frameId = (frameId + 1) % 256
+  Stubs.pushFrame(0x88, { 0, 0, frameId, 0x10, 0xA3, 40 })
   Stubs.tick()
   Home.run(0)
 end
 _G.print = realPrint
 
-local lines, withDecoder, first = 0, 0, nil
+local lines, withDecoder, first, counted = 0, 0, nil, 0
 local history = _G.rfsuite.log_history or {}
 for i = 1, #history do
   local e = history[i]
   if e.tag == "rfsuite.ui" and type(e.msg) == "string" and string.find(e.msg, "state: page", 1, true) then
     lines = lines + 1
     first = first or e.msg
+    if string.match(e.msg, ", decoder tool, [1-9]%d* frames, %d+ gaps$") then counted = counted + 1 end
     if string.match(e.msg, ", decoder tool, %d+ frames, %d+ gaps$") or string.match(e.msg, ", decoder elsewhere$")
       or string.match(e.msg, ", decoder idle$") or string.match(e.msg, ", decoder %-$") then
       withDecoder = withDecoder + 1
@@ -55,6 +61,7 @@ for i = 1, #history do
 end
 
 check(lines >= 1, "tool state line: written at INFO", lines)
+check(counted >= 1, "tool state line: names the tool decoding the frames it was given", first)
 check(withDecoder == lines, "tool state line: each ends with the decoder fragment",
   withDecoder .. " of " .. lines .. (first and (": " .. first) or ""))
 

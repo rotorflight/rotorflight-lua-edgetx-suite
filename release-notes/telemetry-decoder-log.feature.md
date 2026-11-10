@@ -1,4 +1,4 @@
 - **The telemetry decoder and the adjustment announcement can be followed in the log (`tasks/events/telemetry_bg`)**:
   - From DEBUG up, the decoder says which part of the suite decodes (the dashboard, the background decoder or the tool), when one stands aside for another or takes over, each frame the link lost and a module that did not load; the adjustment announcement says what the flight controller reported and whether it was spoken, or why not. Each line names the part of the suite that wrote it.
-  - At TRACE each decoded frame is listed with the values that changed, and the announcement says what it is waiting for.
+  - At TRACE each decoded frame is listed with the values that changed (a group of values by its name), and the announcement says what it is waiting for.
   - The five-second state line of the dashboard, the background decoder and the tool says who decoded and how many frames and gaps it saw.

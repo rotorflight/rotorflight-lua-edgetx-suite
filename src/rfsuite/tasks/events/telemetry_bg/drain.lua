@@ -23,6 +23,11 @@ end
 local telemetryFrameId = 0
 local telemetryFrameSkip = 0
 local telemetryFrameCount = 0
+-- What the counters stood at when the last state-line summary was taken (M.summary). A reset
+-- (M.reset) and a skip count taken over from another state move them with the counters, so the
+-- summary counts only what this state saw.
+local summaryFrames = 0
+local summarySkips = 0
 
 -- The decoder's own log lines. Every line names the Lua state that wrote it -- `bg` for the
 -- background function script, `dash` for the widget state (the dashboard, the service widget and
@@ -61,6 +66,10 @@ local seenLog = nil
 
 local function refreshLog(now)
     logCheckAt = now + LOG_CHECK_SECONDS
+    -- Read here, inside the host's work: a widget sets its event context only for the length of
+    -- its background logic, so a state line written outside it would read the tool. Kept for that
+    -- line and for the teller (M.host).
+    hostName = resolveHost()
     local root = _G.rfsuite
     local L = root and root.Log
     local prefs = root and root.preferences
@@ -75,7 +84,11 @@ local function refreshLog(now)
     Log = L
     debugOn = L.wanted("debug") == true
     traceOn = debugOn and L.wanted("trace") == true
-    hostName = resolveHost()
+end
+
+--- The Lua state this decoder runs in, as its lines name it.
+function M.host()
+    return hostName
 end
 
 -- `fmt` is prefixed with the host here; numbers that can be fractional go in through %s or are
@@ -83,11 +96,6 @@ end
 local function logf(level, fmt, ...)
     if not Log then return end
     pcall(Log.emitf, LOG_TAG, level, "%s: " .. fmt, hostName, ...)
-end
-
---- A host's handoff line (telemetry_bg/tasks.lua): written on the edge only, at debug.
-function M.logEdge(msg)
-    if debugOn then logf("debug", "%s", msg) end
 end
 
 -- Reused for every traced frame rather than built per frame; emptied after each line.
@@ -163,6 +171,8 @@ local function adoptRadioSkip()
     end
     published = math.floor(published)
     if published == lastPublishedSkip then return end
+    -- Another state's count, taken over: the summary counts only the gaps this state sees.
+    summarySkips = summarySkips + (published - telemetryFrameSkip)
     telemetryFrameSkip = published
 end
 
@@ -198,6 +208,17 @@ local decodeNow = 0
 -- that raised part-way cannot leave the full pass silenced.
 local walkOnly = false
 
+local function traceGroup(sid, frame, data, first, last)
+    if frame and lastGroupLength[sid] == last - first then
+        local offset = lastGroupFirst[sid] - first
+        local i = first
+        while i < last and frame[i + offset] == data[i] do i = i + 1 end
+        if i == last then return end
+    end
+    local sensor = RFSensors and RFSensors[sid]
+    traceChanged[#traceChanged + 1] = tostring(sensor and sensor.name or sid)
+end
+
 local function groupDue(sid, data, first, last)
     if walkOnly then return false end
     local now = decodeNow
@@ -209,15 +230,13 @@ local function groupDue(sid, data, first, last)
         while i < last and frame[i + offset] == data[i] do i = i + 1 end
         if i == last then return false end
     end
+    -- A group's values are published by its decoder, so the trace line names the group only, and
+    -- only when its bytes changed rather than for a refresh.
+    if traceOn then traceGroup(sid, frame, data, first, last) end
     lastPublishedValue[sid] = data
     lastGroupFirst[sid] = first
     lastGroupLength[sid] = last - first
     lastPublishedAt[sid] = now
-    -- A group's values are published by its decoder, so the trace line names the group only.
-    if traceOn then
-        local sensor = RFSensors and RFSensors[sid]
-        traceChanged[#traceChanged + 1] = tostring(sensor and sensor.name or sid)
-    end
     return true
 end
 
@@ -246,7 +265,8 @@ local loadFailures = 0
 local function loadFailed(name, now)
     loadRetryAt = now + LOAD_RETRY_SECONDS
     loadFailures = loadFailures + 1
-    if loadFailing ~= name then
+    -- Marked as said only once it was: with no logger yet, the next failure tries again.
+    if loadFailing ~= name and Log then
         loadFailing = name
         logf("warn", "%s failed to load, asked again every %d s", name, LOAD_RETRY_SECONDS)
     end
@@ -375,11 +395,10 @@ local function decodeFrameTraced(data, now)
             decoded = decoded + 1
             if val and (passFresh or (sid ~= SID_ARMING_FLAGS and sid ~= SID_SYSTEM_STATUS)
                     or armedStateTrusted(val)) then
-                -- publishSensorValue's own test, asked first so the change can be named.
-                local due = lastPublishedValue[sid] ~= val
-                    or (now - (lastPublishedAt[sid] or 0)) >= FORCE_REFRESH_INTERVAL
+                -- Asked first so a change can be named; a refresh of an unchanged value is not one.
+                local changed = lastPublishedValue[sid] ~= val
                 publishSensorValue(sid, val, sensor, now)
-                if due then
+                if changed then
                     traceChanged[#traceChanged + 1] = tostring(sensor.name or sid) .. "=" .. tostring(val)
                 end
             end
@@ -424,6 +443,11 @@ local LIVENESS_WRAP = 0x40000000
 local liveness = 0
 local remoteValue = nil
 local remoteMovedAt = nil
+-- The last answer of M.remoteAlive, for its edge line, and whether it said "another state is
+-- decoding" since the last state-line summary (cleared there, so a link that went quiet while this
+-- state stood aside does not keep reading "elsewhere").
+local remoteLast = nil
+local remoteSeen = false
 
 --- Say that this Lua state is TAKING FRAMES OFF THE WIRE, for whoever is watching the slot.
 --
@@ -466,7 +490,20 @@ function M.remoteAlive(now)
         remoteMovedAt = now
     end
     local alive = remoteMovedAt ~= nil and (now - remoteMovedAt) < M.REMOTE_STALE_SECONDS
-    M.lastRemote = alive
+    -- The handoff, for both of a host's passes (telemetry_bg/tasks.lua), on its edge only.
+    if alive ~= remoteLast then
+        if now >= logCheckAt then refreshLog(now) end
+        if debugOn then
+            if alive then
+                logf("debug", "stands aside: another Lua state is decoding")
+            elseif remoteLast ~= nil then
+                logf("debug", "takes over decoding: no other decoder seen for %s s",
+                    tostring(M.REMOTE_STALE_SECONDS))
+            end
+        end
+        remoteLast = alive
+    end
+    if alive then remoteSeen = true end
     return alive
 end
 
@@ -498,6 +535,7 @@ local function modulesReady(now)
         local shared = _G.rfsuite and _G.rfsuite.crsf_manager
         if type(shared) == "table" then
             CrsfManager = shared
+            loadRecovered("CRSF module")
             return true
         end
         if now < loadRetryAt then return false end
@@ -724,19 +762,16 @@ end
 -- stood aside because another Lua state was draining, `decoder idle` when neither. Counted from
 -- this state's own counters, so the background script's line and the widget's line each say what
 -- their own state did. One caller per state: the counts are the difference since the last call.
-local summaryFrames = 0
-local summarySkips = 0
-
 function M.summary()
     local frames = telemetryFrameCount - summaryFrames
     local skips = telemetryFrameSkip - summarySkips
-    if frames < 0 then frames = telemetryFrameCount end
-    if skips < 0 then skips = telemetryFrameSkip end
     summaryFrames, summarySkips = telemetryFrameCount, telemetryFrameSkip
+    local aside = remoteSeen
+    remoteSeen = false
     if frames > 0 then
-        return string.format("decoder %s, %d frames, %d gaps", resolveHost(), frames, skips)
+        return string.format("decoder %s, %d frames, %d gaps", hostName, frames, skips)
     end
-    if M.lastRemote then return "decoder elsewhere" end
+    if aside then return "decoder elsewhere" end
     return "decoder idle"
 end
 
@@ -744,6 +779,8 @@ end
 -- cleared: it is what another Lua state is doing, and that state does not restart because this
 -- one lost its flight controller.
 function M.reset()
+    summaryFrames = summaryFrames - telemetryFrameCount
+    summarySkips = summarySkips - telemetryFrameSkip
     telemetryFrameId = 0
     freshFrames = false
     resyncPending = true

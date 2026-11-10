@@ -26,12 +26,14 @@ do
   if dir then ROOT = string.match(dir, "^(.*)[/\\]bin[/\\]telemetry$") or (dir .. "/../..") end
 end
 
+local realPrint = print
 local checks, failures = 0, 0
+-- Through the real print: the worlds below replace print to read the logger's output.
 local function check(ok, label, detail)
   checks = checks + 1
   if not ok then
     failures = failures + 1
-    print("FAIL " .. label .. (detail and (": " .. tostring(detail)) or ""))
+    realPrint("FAIL " .. label .. (detail and (": " .. tostring(detail)) or ""))
   end
 end
 
@@ -45,7 +47,6 @@ bit32 = {
   btest = function(a, b) return (a & b) ~= 0 end,
 }
 
-local realPrint = print
 local CORE = "/SCRIPTS/RFSUITE/core/"
 local FUNCTIONS = "/SCRIPTS/FUNCTIONS/"
 local PASS_TICKS = 5          -- 50 ms per pass
@@ -128,12 +129,18 @@ local function newWorld(host, level)
   end
 
   if host == "widget" then
-    _G.rfsuite = { session = { event_context = "widget" }, preferences = W.prefs }
+    -- The widget sets its event context only for the length of its background logic
+    -- (widgets/dashboard/runtime.lua), so the world does the same.
+    _G.rfsuite = { session = {}, preferences = W.prefs }
     assert(loadScript(CORE .. "lib/require.lua"))()
     assert(loadScript(CORE .. "lib/log.lua"))()
     wrapLog()
     W.tasks = assert(loadScript(CORE .. "tasks/events/telemetry_bg/tasks.lua"))()
-    W.step = function() W.tasks.wakeup() end
+    W.step = function()
+      _G.rfsuite.session.event_context = "widget"
+      if W.connecting then W.tasks.wakeupConnecting() else W.tasks.wakeup() end
+      _G.rfsuite.session.event_context = nil
+    end
   else
     W.script = assert(loadScript(FUNCTIONS .. "rfsbg.lua"))()
     W.step = function() W.script.run() wrapLog() end
@@ -214,8 +221,8 @@ scenario("off_widget", function()
   local wanted, passes = W.wanted, W.passes
   print = realPrint
   check(printed == 0, "off_widget: no decoder or teller line at off", dump())
-  -- Two modules (drain, teller), one question a second each over 5 s, plus their first.
-  check(wanted <= 14, "off_widget: level asked at most once a second per module",
+  -- Two modules (drain, teller), each asking once: the setting never changes in this run.
+  check(wanted <= 2, "off_widget: the level asked only when the setting changed",
     string.format("%d questions in %d passes", wanted, passes))
   check(wanted >= 2, "off_widget: the level is asked at all", "questions=" .. wanted)
 end)
@@ -283,7 +290,9 @@ scenario("trace_widget", function()
   local n, first = grep("dash: frame %d+: %d+ value%(s%), changed:")
   check(n >= frames - 2 and n <= frames, "trace_widget: one line per decoded frame",
     string.format("%d lines for %d frames", n, frames))
-  check(grep("changed: ARM=0") >= 1, "trace_widget: the first ARM value is named", first)
+  check(grep("changed: ARM=0") == 1, "trace_widget: the unchanged ARM value is named once, not at each refresh",
+    grep("ARM=0"))
+  check(grep("changed:.*ADJ") == 2, "trace_widget: the ADJ group is named for its two changes only", grep("ADJ"))
   check(grep("changed: %-$") >= 1, "trace_widget: an unchanged frame says so", first)
   check(grep("dash: waiting: function 10 value 5 settles in") >= 1, "trace_widget: the teller says it waits", dump(40))
 end)
@@ -304,6 +313,37 @@ scenario("debug_bg", function()
   check(n >= 1, "debug_bg: the state line says the background script decoded", line or dump(20))
 end)
 
+-- 4b. The pass a widget runs while its connect tasks hold the full one back: the handoff is logged
+-- there too.
+scenario("debug_connecting", function()
+  newWorld("widget", "debug")
+  W.connecting = true
+  seconds(1)
+  W.remote = true
+  seconds(1)
+  W.remote = false
+  seconds(2)
+  print = realPrint
+  check(grep("dash: stands aside") == 1, "debug_connecting: standing aside is logged", dump(40))
+  check(grep("dash: takes over decoding") == 1, "debug_connecting: taking over is logged", dump(40))
+end)
+
+-- 4c. A report that arrives while an in-flight selection is being spoken is logged, with the reason
+-- it waits.
+scenario("debug_selection", function()
+  newWorld("widget", "debug")
+  seconds(1)
+  local teller = _G.rfsuite.adjustmentAnnouncer
+  check(type(teller) == "table", "debug_selection: the teller is loaded")
+  if type(teller) ~= "table" then return end
+  teller.select("overlay", "group", "cyclic", nil, W.ticks + 100000)
+  W.adj = { 10, 7 }
+  seconds(1)
+  print = realPrint
+  check(grep("dash: report: function 10 value 7, waits: a selection is being spoken") == 1,
+    "debug_selection: the held report is logged with its reason", dump(40))
+end)
+
 -- 5. The fragment for the widget's state line.
 scenario("summary_widget", function()
   newWorld("widget", "off")
@@ -311,7 +351,17 @@ scenario("summary_widget", function()
   local decoder = _G.rfsuite.telemetryDecoder
   check(type(decoder) == "table" and type(decoder.summary) == "function", "summary_widget: decoder registered")
   local first = decoder.summary()
-  check(string.match(first, "^decoder dash, %d+ frames, 0 gaps$") ~= nil, "summary_widget: frames counted", first)
+  check(string.match(first, "^decoder dash, %d+ frames, 0 gaps$") ~= nil,
+    "summary_widget: frames counted and the widget named, read outside its background logic", first)
+  -- A link reset between two summaries: the frames on both sides of it are counted.
+  local before = W.frameId
+  seconds(1)
+  W.tasks.reset()
+  seconds(1)
+  local across = decoder.summary()
+  local n = tonumber(string.match(across, "^decoder dash, (%d+) frames"))
+  check(n ~= nil and n >= (W.frameId - before) - 1, "summary_widget: a reset does not lose the frames counted before it",
+    across .. " for " .. (W.frameId - before) .. " frames")
   W.remote = true
   seconds(1)
   W.frames = {}
@@ -319,6 +369,9 @@ scenario("summary_widget", function()
   check(aside == "decoder elsewhere" or string.match(aside, "^decoder dash"), "summary_widget: aside or the frames before it", aside)
   seconds(1)
   check(decoder.summary() == "decoder elsewhere", "summary_widget: standing aside reads elsewhere")
+  -- The link goes quiet while the widget stands aside: nothing calls the drain any more, and the
+  -- next line must not keep saying elsewhere.
+  check(decoder.summary() == "decoder idle", "summary_widget: elsewhere is not kept once nothing confirms it")
   print = realPrint
 end)
 

@@ -36,12 +36,15 @@ local drainRetryAt = 0
 -- logger cannot say it, since it is the module that did not load.
 local drainLoadFailing = false
 
+-- Returns whether the line went out, so a failure is marked as said only once it was.
 local function logDrainLoad(level, msg)
     local root = _G.rfsuite
     local L = root and root.Log
-    if type(L) == "table" and type(L.emit) == "function" then
-        pcall(L.emit, "rfsuite.decoder", msg, level)
-    end
+    if type(L) ~= "table" or type(L.emit) ~= "function" then return false end
+    local session = root.session
+    local host = type(session) == "table" and session.event_context == "widget" and "dash" or "tool"
+    pcall(L.emit, "rfsuite.decoder", host .. ": " .. msg, level)
+    return true
 end
 
 -- Whether this call is spent on the drain's load: the first call, and the first after the wait
@@ -52,8 +55,7 @@ local function drainLoadStep(now)
     if not Drain then
         drainRetryAt = now + DRAIN_RETRY_SECONDS
         if not drainLoadFailing then
-            drainLoadFailing = true
-            logDrainLoad("warn", "the telemetry decoder failed to load, asked again every 1 s")
+            drainLoadFailing = logDrainLoad("warn", "the telemetry decoder failed to load, asked again every 1 s")
         end
     elseif drainLoadFailing then
         drainLoadFailing = false
@@ -160,15 +162,9 @@ function M.wakeup(carry)
             end
             local root = _G.rfsuite
             if root then root.adjustmentReport = nil end
-            if type(Drain.logEdge) == "function" then
-                Drain.logEdge("stands aside: another Lua state is decoding, drain and teller paused")
-            end
         end
         tellerAside = true
     else
-        if tellerAside and Drain and type(Drain.logEdge) == "function" then
-            Drain.logEdge("takes over decoding: no other decoder seen for 1 s")
-        end
         tellerAside = false
         if Adjustments and type(Adjustments.wakeup) == "function" then
             Adjustments.wakeup()

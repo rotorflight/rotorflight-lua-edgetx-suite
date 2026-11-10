@@ -683,9 +683,14 @@ do
 
     -- The preferences are read from the card during the run and may replace the table that holds
     -- the level; it is put back before every pass so the level is the case's own.
+    -- One custom telemetry frame per pass, carrying the MCU temperature only (sensor 0x10A3), so the
+    -- decoder in this state has frames to count without touching the armed state the run drives.
+    local frameId = 0
     local function passes(n)
       for _ = 1, n do
         setLevel(level)
+        frameId = (frameId + 1) % 256
+        Stubs.pushFrame(0x88, { 0, 0, frameId, 0x10, 0xA3, 40 })
         Stubs.tick()
         widget.refresh(widget, 0, nil)
       end
@@ -704,8 +709,9 @@ do
     -- loaded.
     if level ~= "off" then
       local stateLines = find("rfsuite.widget", "state: instruction budget")
-      local withDecoder = 0
+      local withDecoder, counted = 0, 0
       for i = 1, #stateLines do
+        if string.match(stateLines[i].msg, ", decoder dash, [1-9]%d* frames, %d+ gaps$") then counted = counted + 1 end
         local msg = stateLines[i].msg
         if string.match(msg, ", decoder dash, %d+ frames, %d+ gaps$")
           or string.match(msg, ", decoder elsewhere$") or string.match(msg, ", decoder idle$")
@@ -714,6 +720,8 @@ do
         end
       end
       check(#stateLines >= 1, label .. ": a state line is written", #stateLines)
+      check(counted >= 1, label .. ": a state line names the dashboard decoding the frames it was given",
+        stateLines[#stateLines] and stateLines[#stateLines].msg)
       check(withDecoder == #stateLines, label .. ": every state line ends with the decoder fragment",
         withDecoder .. " of " .. #stateLines .. (stateLines[1] and (": " .. stateLines[1].msg) or ""))
     end

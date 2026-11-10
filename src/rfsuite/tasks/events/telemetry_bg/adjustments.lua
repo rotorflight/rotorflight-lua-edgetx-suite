@@ -158,8 +158,8 @@ local function refreshLog(now)
   debugOn = L.wanted("debug") == true
   traceOn = debugOn and L.wanted("trace") == true
   local decoder = root.telemetryDecoder
-  if type(decoder) == "table" and type(decoder.resolveHost) == "function" then
-    hostName = decoder.resolveHost()
+  if type(decoder) == "table" and type(decoder.host) == "function" then
+    hostName = decoder.host()
   elseif type(root.decoderHost) == "string" then
     hostName = root.decoderHost
   end
@@ -311,21 +311,25 @@ function M.wakeup()
   if not enabled() then return end
   local now = nowSeconds()
   if now >= logCheckAt then refreshLog(now) end
+  -- The report is logged before the selection below can hold the teller back, so an adjustment
+  -- reported while a selection is being spoken is still in the log, with the reason it waits.
+  local suite = _G.rfsuite
+  local report = suite and suite.adjustmentReport
+  if debugOn and type(report) == "table" and report[1] ~= nil and report[2] ~= nil
+      and (report[1] ~= loggedId or report[2] ~= loggedValue) then
+    loggedId, loggedValue = report[1], report[2]
+    logf("debug", "report: function %s value %s%s", tostring(report[1]), tostring(report[2]),
+      selection ~= nil and report[1] ~= 0 and ", waits: a selection is being spoken" or "")
+  end
   if M.selectionTick(now * 100) then return end
   if selection ~= nil then
     if traceOn then logf("trace", "waiting: a selection is pending") end
     return
   end
 
-  local suite = _G.rfsuite
-  local report = suite and suite.adjustmentReport
   if type(report) ~= "table" then return end
   local functionId, value = report[1], report[2]
   if functionId == nil or value == nil then return end
-  if debugOn and (functionId ~= loggedId or value ~= loggedValue) then
-    loggedId, loggedValue = functionId, value
-    logf("debug", "report: function %s value %s", tostring(functionId), tostring(value))
-  end
 
   -- Nothing is being adjusted. Do not announce, and do not remember it as a change either --
   -- the flight controller reports 0 between adjustments, and announcing that would put a
