@@ -23,7 +23,7 @@ Always available.
 | Safety & Prompts | Confirm on Save | Asks before a Save writes to the flight controller. On as it comes. |
 | Safety & Prompts | Show Disarm Warning on Save/Reload | Warns before a Save or Reload while the model is armed. On as it comes. |
 | Safety & Prompts | Confirm on Reload | Asks before a Reload replaces edits that are not saved. On as it comes. |
-| Appearance | Color scheme | *Light* or *Dark*: the colors of the whole tool -- its menu, pages, help and notices, and the radio's own switches, fields and page header while it is open -- of the dashboard's [quick menu](../../dashboard/quick-menu.md) and the pages it opens, of its loading and [standby](../../dashboard/standby-screen.md) screens and of the [helicopter setup wizard](../helicopter_setup.md), on every theme. *Light* as it comes. A saved change shows at once. |
+| Appearance | Color scheme | *Light* or *Dark*: the colors of the whole tool -- its menu, pages, help and notices, and the radio's own switches, fields and page header while it is open -- of the dashboard's [quick menu](../../dashboard/quick-menu.md) and the pages it opens, of [in-flight tuning](../../dashboard/inflight-tuning.md), of its loading and [standby](../../dashboard/standby-screen.md) screens and of the [helicopter setup wizard](../helicopter_setup.md), on every theme. *Light* as it comes. A saved change shows at once. |
 | Appearance | Menu style | *Card*: a button for each entry, as it comes. *Rotary*: [rolling lists](../../dashboard/quick-menu.md#the-rotary-style) for the wheel or a finger. Sets the quick menu and the [battery picker](../../dashboard/quick-menu.md#the-battery-picker), on every theme. |
 | Preview | Setup Assistant | Shows the unfinished setup assistant in the menu. It asks once when turned on, because it can write to the flight controller. Off as it comes. |
 | Preview | In-flight tuning | Shows the unfinished [in-flight tuning](../../dashboard/inflight-tuning.md) surface, which changes parameters in flight. It asks once when turned on. Off as it comes. |
@@ -33,7 +33,7 @@ Always available.
 
 - **The color scheme reaches the whole tool**, opened from the radio's tools or from the dashboard,
   and the dashboard's quick menu, battery picker, battery profile page, erase question, loading and
-  standby screens and the helicopter setup wizard. In-flight tuning and the dashboard themes keep their
+  standby screens, in-flight tuning and the helicopter setup wizard. The dashboard themes keep their
   colors, so a dark theme opens a light menu until the scheme is set to dark, and a widget zone on the
   radio's home screen stands in the scheme's color until the first connection.
 - **While the tool is open, the radio's own controls take the scheme too.** EdgeTX draws its switches,
