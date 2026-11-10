@@ -4714,6 +4714,7 @@ return {
       inflight_fc_slot_failed = "Adjustment slot %s could not be written.",
       inflight_fc_rotor_running = "The rotor is running. Stop it before setting up the flight controller.",
       inflight_fc_setup_action = "Set up suggested functions",
+      inflight_fc_setup_short = "Functions",
       inflight_fc_no_functions = "The FC has no adjustment functions for in-flight tuning.",
       inflight_fc_slot_conflict = "Slot %d conflicts with the tuning channels. Change it in the Configurator.",
       inflight_fc_setup_intro = "Replaces adjustment slots %d-%d with the suggestions, whatever they hold now.\nSlots 1-%d (profile selection) stay.\nThe next page lists what is replaced.",

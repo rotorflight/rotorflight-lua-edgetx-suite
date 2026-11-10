@@ -357,7 +357,9 @@ check(Input.key(widget, 513) and not d.valueMode and d.open and d.live, "RTN lea
 check(Input.key(widget, 513) and d.open and d.live, "duplicate RTN cannot leave two levels")
 ticks = ticks + 1
 local exits = 0
-lcd = { exitFullScreen = function() exits = exits + 1 end }
+-- The surface draws in the suite's colour scheme (lib/color_schemes.lua), which asks the firmware
+-- for each colour once: lcd.RGB with one 0xRRGGBB argument, as EdgeTX 2.11 and later take it.
+lcd = { exitFullScreen = function() exits = exits + 1 end, RGB = function(rgb) return rgb end }
 lcd.exitFullScreen()
 check(exits == 1, "positive fullscreen exit stub control")
 exits = 0
@@ -611,10 +613,11 @@ do
     check(choose and read and restore and choose.active() and choose.visible() and chooseLabel.visible(),
       "usable board exposes the primary and all ground actions")
     check(not action(nodes, "Reset start values"), "every session reads its own start values: no reset action")
-    local setup = action(nodes, "Set up suggested functions")
-    check(choose.w == restore.w and setup and setup.h == read.h and choose.y + choose.h < setup.y
-      and (setup.y < read.y or (setup.y == read.y and setup.x + setup.w < read.x)) and read.y + read.h < restore.y and restore.color ~= read.color,
-      "primary is full width, secondary actions follow in focus order with one height, restore stays below")
+    local setup = action(nodes, "Functions")
+    local function after(a, b) return a.y > b.y or (a.y == b.y and a.x > b.x + b.w) end
+    check(setup and setup.h == read.h and restore.h == read.h and choose.y + choose.h < setup.y
+      and after(read, setup) and after(restore, read) and restore.color == read.color,
+      "primary on top, secondary actions follow in focus order with one height, restore the last of them")
     for _, node in ipairs(nodes) do
       local text = type(node.text) == "function" and node.text() or node.text
       local height = node.h or (node.type == "label" and (node.font == MIDSIZE and 30 or node.font == SMLSIZE and 14 or 20) *
@@ -854,7 +857,7 @@ for _, size in ipairs({ { 480, 272 }, { 480, 320 }, { 800, 480 } }) do
         if text == "PID profile 2: reading values" then current = node end
         if text == "Cancel" then cancel, cancelLabel = nodes[i - 1], node end
         if text == "Read again" and not retry then retry, retryLabel = nodes[i - 1], node end
-        if text == "Set up suggested functions" then setup = nodes[i - 1] end
+        if text == "Functions" then setup = nodes[i - 1] end
         if text == "Restore all" then restore = nodes[i - 1] end
       end
     end
