@@ -141,7 +141,7 @@ Every line starts with the part of the suite that wrote it, its tag, then its le
 | `rfsuite.widget.object` | An object type that loaded, or did not, for the boxes of a theme. |
 | `rfsuite.reload` | The dashboard reloading its settings, and why it waited. |
 | `rfsuite.events`, `rfsuite.tasks.…` | The connect sequence and the arm and disarm tasks, each with its time and memory. |
-| `rfsuite.sensors` | Which telemetry source was taken, or, while connected, that none was found; once per connection. |
+| `rfsuite.sensors` | Which telemetry source was taken, or, while connected, that none was found; once per connection. At *DEBUG*, once per value, that it is read from the decoder of the part of the suite that decodes (`voltage read from the decoder (Vbat)`). |
 | `rfsuite.decoder` | The telemetry decoder. Each line starts with the part of the suite that decodes: `dash`, `bg` (the background decoder) or `tool`, because all three can decode and write to the same serial port. |
 | `rfsuite.adjust` | The adjustment announcement: what the flight controller reported, and whether it was spoken. Named like the decoder's lines. |
 | `rfsuite.audio`, `rfsuite.inflight` | Announcements, and the in-flight tuning surface. |

@@ -753,6 +753,59 @@ function Sensors.getValue(source)
   return bit32.band(bit32.rshift(math.floor(word), derived.shift), derived.mask)
 end
 
+-- The value the telemetry decoder in this Lua state decoded for a source, when this state is the one
+-- decoding (tasks/events/telemetry_bg/drain.lua, valueBySid); nil to read the radio's sensors as
+-- before. A source with a search list is walked in its order for as long as the names are sensors of
+-- the custom telemetry: a name the decoder has a value for answers; a custom name it has not seen
+-- is passed over, as the sensor search passes over a sensor that is not arriving; the first name
+-- that is not a custom sensor ends the walk, and the sensors are read as before, so a list whose
+-- next candidate is a native or a radio-side sensor keeps its order. Read through the root rather
+-- than a module handle, because the decoder belongs to the host's telemetry task and this module
+-- does not load it.
+--
+-- Which names of a source are custom sensors, and their sids and scales, is worked out once per
+-- source and kept (`directPlans`, three entries per name: sid, divisor, name; false for a source
+-- with none), so a read is a table lookup and one call per candidate.
+local directPlans = {}
+
+local function directPlan(decoder, source, resolved)
+  local custom = decoder.customSensor
+  if type(custom) ~= "function" then return false end
+  local names = Sensors.search_paths[source] or { resolved or source }
+  local plan = {}
+  for i = 1, #names do
+    local sid, scale = custom(names[i])
+    if sid == nil then return nil end
+    if sid == false then break end
+    plan[#plan + 1], plan[#plan + 2], plan[#plan + 3] = sid, scale, names[i]
+  end
+  if #plan == 0 then return false end
+  return plan
+end
+
+local function directValue(source, resolved)
+  local root = _G.rfsuite
+  local decoder = root and root.telemetryDecoder
+  if not decoder then return nil end
+  local plan = directPlans[source]
+  if plan == nil then
+    plan = directPlan(decoder, source, resolved)
+    if plan == nil then return nil end
+    directPlans[source] = plan
+  end
+  if not plan then return nil end
+  local valueBySid = decoder.valueBySid
+  for i = 1, #plan, 3 do
+    local value = valueBySid(plan[i])
+    if value ~= nil then
+      local scale = plan[i + 1]
+      if scale ~= 1 then value = value / scale end
+      return value, plan[i + 2]
+    end
+  end
+  return nil
+end
+
 readValue = function(source)
   if type(source) ~= "string" then return nil end
 
@@ -795,6 +848,13 @@ readValue = function(source)
     
     -- WICHTIG: Im Simulator kein Hardware-Fallback!
     return nil
+  end
+
+  -- While this Lua state decodes the custom telemetry itself, its own decoded value answers.
+  local direct, directName = directValue(source, resolved)
+  if direct ~= nil then
+    if debugWanted() then debugLog("direct:" .. source, source .. " read from the decoder (" .. directName .. ")") end
+    return direct
   end
 
   -- At most one clock reading for the whole call, taken where it is first needed and handed to

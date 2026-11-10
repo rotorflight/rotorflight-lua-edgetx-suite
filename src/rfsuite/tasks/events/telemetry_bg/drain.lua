@@ -452,6 +452,9 @@ local remoteSeen = false
 -- beginPass's resume line: a stretch spent standing aside is not a stretch without a pass. Set
 -- whatever the log level, so a level raised while standing aside still names the resume right.
 local asideSincePass = false
+-- When this state last took the decoding over from another one (M.remoteAlive's edge). A value it
+-- published before that is from before it stood aside, so M.valueBySid does not hand it out.
+local directSince = 0
 
 --- Say that this Lua state is TAKING FRAMES OFF THE WIRE, for whoever is watching the slot.
 --
@@ -496,6 +499,7 @@ function M.remoteAlive(now)
     local alive = remoteMovedAt ~= nil and (now - remoteMovedAt) < M.REMOTE_STALE_SECONDS
     -- The handoff, for both of a host's passes (telemetry_bg/tasks.lua), on its edge only.
     if alive ~= remoteLast then
+        if remoteLast and not alive then directSince = now end
         if now >= logCheckAt then refreshLog(now) end
         if debugOn then
             if alive then
@@ -769,6 +773,43 @@ function M.wakeupArmingFlags(now)
     end
     if not ok then error(found, 0) end
     return popped, found
+end
+
+-- Sensor name -> sid of the decoder table, built on the first question: the table is keyed by sid,
+-- and a reader asks by the name the radio shows.
+local nameToSid = nil
+local DIRECT_SCALE = { 10, 100, 1000 }
+
+--- The sensor of the custom telemetry a name stands for: its sid and the divisor its precision asks
+-- for (1 for none); false for a name that is not one; nil while the decoder table is not loaded, so
+-- the question is asked again. A reader asks this once per name and keeps the answer, because the
+-- table does not change.
+function M.customSensor(name)
+    if not RFSensors then return nil end
+    if nameToSid == nil then
+        nameToSid = {}
+        for sid, sensor in pairs(RFSensors) do
+            if type(sensor) == "table" and sensor.name then nameToSid[sensor.name] = sid end
+        end
+    end
+    local sid = nameToSid[name]
+    if sid == nil then return false end
+    local prec = RFSensors[sid].prec or 0
+    return sid, prec > 0 and (DIRECT_SCALE[prec] or 10 ^ prec) or 1
+end
+
+--- The value this state decoded last for a sensor of the custom telemetry, by its sid, unscaled, as
+-- the decoder took it from the frame: before any setting of the radio's own sensor page (ratio,
+-- offset, filter, unit) -- those belong to the radio's sensor, and the flight controller is where a
+-- value is calibrated. nil while another Lua state is decoding (this state's values are then not
+-- current), for a value published before this state last took over, for a group (cells, GPS,
+-- attitude, ...: a group's values are published by its decoder and only its frame is kept here),
+-- and before the first frame.
+function M.valueBySid(sid)
+    if remoteLast then return nil end
+    local value = lastPublishedValue[sid]
+    if type(value) ~= "number" or (lastPublishedAt[sid] or 0) < directSince then return nil end
+    return value
 end
 
 --- One fragment for a host's state line: who decoded since the last call, and what it saw.
