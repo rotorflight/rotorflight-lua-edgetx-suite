@@ -24,6 +24,76 @@ local telemetryFrameId = 0
 local telemetryFrameSkip = 0
 local telemetryFrameCount = 0
 
+-- The decoder's own log lines. Every line names the Lua state that wrote it -- `bg` for the
+-- background function script, `dash` for the widget state (the dashboard, the service widget and
+-- the tool opened from the dashboard), `tool` for the tool started from the radio's Tools menu --
+-- because the same code decodes in all three and they all write to the same serial port.
+--
+-- The level is asked once a second, not per pass: Log.wanted costs tens of instructions at the
+-- shipped level, and this module runs on every pass of every host. Between two asks a pass pays
+-- one comparison. Lines that are written on an edge (a take-over, a resume, a gap, a failed load)
+-- and the per-frame trace line are built only behind the cached flag.
+local LOG_TAG = "rfsuite.decoder"
+local LOG_CHECK_SECONDS = 1.0
+local Log = nil
+local logCheckAt = 0
+local debugOn = false
+local traceOn = false
+local hostName = "tool"
+
+-- Which Lua state this is. The background function script says so itself (functions/rfsbg.lua
+-- sets `rfsuite.decoderHost`); it has no session table, so the event context below would call it
+-- the tool. A widget host sets the session's event context to "widget".
+local function resolveHost()
+    local root = _G.rfsuite
+    if type(root) ~= "table" then return "tool" end
+    if type(root.decoderHost) == "string" then return root.decoderHost end
+    local session = root.session
+    if type(session) == "table" and session.event_context == "widget" then return "dash" end
+    return "tool"
+end
+M.resolveHost = resolveHost
+
+-- What the level was decided from: the setting as stored and the logger. Only when either has
+-- changed is the logger asked again, so the look once a second is a few table reads.
+local seenLevel = nil
+local seenLog = nil
+
+local function refreshLog(now)
+    logCheckAt = now + LOG_CHECK_SECONDS
+    local root = _G.rfsuite
+    local L = root and root.Log
+    local prefs = root and root.preferences
+    local general = prefs and prefs.general
+    local level = general and general.debug_level
+    if level == seenLevel and L == seenLog then return end
+    seenLevel, seenLog = level, L
+    if type(L) ~= "table" or type(L.wanted) ~= "function" or type(L.emitf) ~= "function" then
+        Log, debugOn, traceOn = nil, false, false
+        return
+    end
+    Log = L
+    debugOn = L.wanted("debug") == true
+    traceOn = debugOn and L.wanted("trace") == true
+    hostName = resolveHost()
+end
+
+-- `fmt` is prefixed with the host here; numbers that can be fractional go in through %s or are
+-- floored by the caller, since %d raises on a non-integral float.
+local function logf(level, fmt, ...)
+    if not Log then return end
+    pcall(Log.emitf, LOG_TAG, level, "%s: " .. fmt, hostName, ...)
+end
+
+--- A host's handoff line (telemetry_bg/tasks.lua): written on the edge only, at debug.
+function M.logEdge(msg)
+    if debugOn then logf("debug", "%s", msg) end
+end
+
+-- Reused for every traced frame rather than built per frame; emptied after each line.
+local traceChanged = {}
+local TRACE_MAX_CHARS = 200
+
 -- A published sensor stays valid on the radio for TELEMETRY_SENSOR_TIMEOUT_START, so an
 -- unchanged value does not have to be re-sent every frame, and every setTelemetryValue() call
 -- has the firmware look the sensor up among the model's sensor slots before it stores the
@@ -143,6 +213,11 @@ local function groupDue(sid, data, first, last)
     lastGroupFirst[sid] = first
     lastGroupLength[sid] = last - first
     lastPublishedAt[sid] = now
+    -- A group's values are published by its decoder, so the trace line names the group only.
+    if traceOn then
+        local sensor = RFSensors and RFSensors[sid]
+        traceChanged[#traceChanged + 1] = tostring(sensor and sensor.name or sid)
+    end
     return true
 end
 
@@ -163,6 +238,25 @@ local CrsfManager = nil
 -- catches the radio's instruction limit when it stops a pass while the module's chunk runs.
 local LOAD_RETRY_SECONDS = 1
 local loadRetryAt = 0
+-- Which module is failing to load, so a failure is logged once per streak rather than once per
+-- retry, and its recovery once.
+local loadFailing = nil
+local loadFailures = 0
+
+local function loadFailed(name, now)
+    loadRetryAt = now + LOAD_RETRY_SECONDS
+    loadFailures = loadFailures + 1
+    if loadFailing ~= name then
+        loadFailing = name
+        logf("warn", "%s failed to load, asked again every %d s", name, LOAD_RETRY_SECONDS)
+    end
+end
+
+local function loadRecovered(name)
+    if loadFailing ~= name then return end
+    logf("info", "%s loaded after %d failed attempt(s)", name, loadFailures)
+    loadFailing, loadFailures = nil, 0
+end
 
 -- Per-pass bounds for the custom-telemetry drain. Popping a frame is a handful of C calls;
 -- DECODING one is a Lua walk over every sensor it carries -- the expensive term. So the
@@ -191,6 +285,10 @@ local function popAndAccount()
         local delta = bit32.band(fid - telemetryFrameId, 0xFF)
         if delta > 1 then
             telemetryFrameSkip = telemetryFrameSkip + 1
+            if debugOn then
+                logf("debug", "frame gap: id %d -> %d, %d missing, %d gap(s) counted",
+                    telemetryFrameId, fid, delta - 1, telemetryFrameSkip)
+            end
         end
     end
     telemetryFrameId = fid
@@ -232,6 +330,14 @@ end
 
 -- The expensive half: the byte walk through the per-sensor decoders. The frame id at byte 3
 -- was consumed by popAndAccount, so the walk starts at byte 4.
+local function traceFrame(data, decoded)
+    local text = table.concat(traceChanged, " ")
+    for i = #traceChanged, 1, -1 do traceChanged[i] = nil end
+    if #text > TRACE_MAX_CHARS then text = string.sub(text, 1, TRACE_MAX_CHARS) .. "..." end
+    logf("trace", "frame %s: %d value(s), changed: %s", tostring(data[3]), decoded,
+        text ~= "" and text or "-")
+end
+
 local function decodeFrame(data, now)
     local sid, val
     walkOnly = false
@@ -250,6 +356,38 @@ local function decodeFrame(data, now)
             break
         end
     end
+end
+
+-- decodeFrame with the per-frame trace line: the same walk, counting the values and naming those
+-- it publishes. A twin rather than a branch inside decodeFrame, so that a pass at any other level
+-- pays nothing per sensor for the trace.
+local function decodeFrameTraced(data, now)
+    local sid, val
+    walkOnly = false
+    decodeNow = now
+    local ptr = 4
+    local decoded = 0
+    while ptr < #data do
+        sid,ptr = decU16(data, ptr)
+        local sensor = RFSensors[sid]
+        if sensor and type(sensor.dec) == "function" then
+            val,ptr = sensor.dec(data, ptr)
+            decoded = decoded + 1
+            if val and (passFresh or (sid ~= SID_ARMING_FLAGS and sid ~= SID_SYSTEM_STATUS)
+                    or armedStateTrusted(val)) then
+                -- publishSensorValue's own test, asked first so the change can be named.
+                local due = lastPublishedValue[sid] ~= val
+                    or (now - (lastPublishedAt[sid] or 0)) >= FORCE_REFRESH_INTERVAL
+                publishSensorValue(sid, val, sensor, now)
+                if due then
+                    traceChanged[#traceChanged + 1] = tostring(sensor.name or sid) .. "=" .. tostring(val)
+                end
+            end
+        else
+            break
+        end
+    end
+    traceFrame(data, decoded)
 end
 
 -- Which of EdgeTX's sixteen shared-memory slots carries the drain's liveness. The slots are a
@@ -327,7 +465,9 @@ function M.remoteAlive(now)
         remoteValue = value
         remoteMovedAt = now
     end
-    return remoteMovedAt ~= nil and (now - remoteMovedAt) < M.REMOTE_STALE_SECONDS
+    local alive = remoteMovedAt ~= nil and (now - remoteMovedAt) < M.REMOTE_STALE_SECONDS
+    M.lastRemote = alive
+    return alive
 end
 
 -- The two modules a drain pass needs, one load per wakeup; false while either is still missing.
@@ -345,7 +485,7 @@ local function modulesReady(now)
     if not RFSensors then
         if now < loadRetryAt then return false end
         RFSensors = loadModule("lib/rf2tlm_sensors.lua", nil, groupDue)
-        if not RFSensors then loadRetryAt = now + LOAD_RETRY_SECONDS end
+        if RFSensors then loadRecovered("sensor table") else loadFailed("sensor table", now) end
         return false
     end
 
@@ -363,9 +503,10 @@ local function modulesReady(now)
         if now < loadRetryAt then return false end
         CrsfManager = loadModule("lib/crsf.lua")
         if not CrsfManager then
-            loadRetryAt = now + LOAD_RETRY_SECONDS
+            loadFailed("CRSF module", now)
             return false
         end
+        loadRecovered("CRSF module")
     end
     return true
 end
@@ -380,10 +521,14 @@ end
 -- drain leaves the queue full of frames from when it opened, so the frames waiting at the resume
 -- are not fresh. A widget keeps freshFrames across a gap (see freshFrames).
 local function beginPass(now, permanent)
-    if lastWakeAt ~= nil and (now - lastWakeAt) > M.REMOTE_STALE_SECONDS then
+    if lastWakeAt == nil then
+        if debugOn then logf("debug", "decoding starts") end
+    elseif (now - lastWakeAt) > M.REMOTE_STALE_SECONDS then
         resyncPending = true
         adoptPublished = true
         if permanent then freshFrames = false end
+        if debugOn then logf("debug", "decoding resumes after %s s without a pass",
+            string.format("%.1f", now - lastWakeAt)) end
     end
     lastWakeAt = now
     passNow = now
@@ -418,6 +563,7 @@ local keptFrames = {}
 -- -- the radio's script state, where a permanent script runs -- and there dropping the older
 -- frames of a backlog buys nothing. A call billed against a hard per-call ceiling keeps the cap.
 function M.wakeup(now, decodeAll)
+    if now >= logCheckAt then refreshLog(now) end
     if not modulesReady(now) then return 0 end
     beginPass(now, decodeAll)
 
@@ -439,8 +585,17 @@ function M.wakeup(now, decodeAll)
 
     if popped == 0 then return 0 end
 
-    for i = 1, #kept do
-        decodeFrame(kept[i], now)
+    if traceOn then
+        if popped > #kept then
+            logf("trace", "pass: %d frame(s) popped, the newest %d decoded", popped, #kept)
+        end
+        for i = 1, #kept do
+            decodeFrameTraced(kept[i], now)
+        end
+    else
+        for i = 1, #kept do
+            decodeFrame(kept[i], now)
+        end
     end
     for i = #kept, 1, -1 do kept[i] = nil end
     -- Published unconditionally, and that is deliberate: the sibling project creates the
@@ -525,6 +680,7 @@ end
 -- Returns how many frames the pass took off the wire, as M.wakeup does, and which source it
 -- published ("ARM" or "STAT"), or nil.
 function M.wakeupArmingFlags(now)
+    if now >= logCheckAt then refreshLog(now) end
     if not modulesReady(now) then return 0 end
     beginPass(now)
 
@@ -562,6 +718,28 @@ function M.wakeupArmingFlags(now)
     return popped, found
 end
 
+--- One fragment for a host's state line: who decoded since the last call, and what it saw.
+--
+-- `decoder <host>, N frames, G gaps` when this state took frames, `decoder elsewhere` when it
+-- stood aside because another Lua state was draining, `decoder idle` when neither. Counted from
+-- this state's own counters, so the background script's line and the widget's line each say what
+-- their own state did. One caller per state: the counts are the difference since the last call.
+local summaryFrames = 0
+local summarySkips = 0
+
+function M.summary()
+    local frames = telemetryFrameCount - summaryFrames
+    local skips = telemetryFrameSkip - summarySkips
+    if frames < 0 then frames = telemetryFrameCount end
+    if skips < 0 then skips = telemetryFrameSkip end
+    summaryFrames, summarySkips = telemetryFrameCount, telemetryFrameSkip
+    if frames > 0 then
+        return string.format("decoder %s, %d frames, %d gaps", resolveHost(), frames, skips)
+    end
+    if M.lastRemote then return "decoder elsewhere" end
+    return "decoder idle"
+end
+
 -- What a lost link invalidates, and nothing else. The liveness state above is deliberately not
 -- cleared: it is what another Lua state is doing, and that state does not restart because this
 -- one lost its flight controller.
@@ -579,6 +757,12 @@ function M.reset()
     lastGroupFirst = {}
     lastGroupLength = {}
     lastCounterAt = 0
+    if debugOn then logf("debug", "link lost, decoder state reset") end
 end
+
+-- The state lines of the three hosts (functions/rfsbg.lua, widgets/dashboard/runtime.lua,
+-- ui/home.lua) reach the summary through this, rather than each holding the module: the widget's
+-- runtime has no handle on it, and the module is loaded once per Lua state by its host.
+if type(_G.rfsuite) == "table" then _G.rfsuite.telemetryDecoder = M end
 
 return M

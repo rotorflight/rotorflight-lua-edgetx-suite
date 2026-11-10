@@ -105,6 +105,9 @@ local function init()
 
   Log = loadModule("lib/log.lua")
   Preferences = loadModule("lib/preferences.lua")
+  -- Names this Lua state in the decoder's and the teller's log lines. This state has no session
+  -- table, so without it they would take it for the tool.
+  if type(_G.rfsuite) == "table" then _G.rfsuite.decoderHost = "bg" end
   -- This state is the radio's script state, where a call is yielded rather than cut off at an
   -- instruction count, so it is one of the two allowed to bring a card written by an earlier
   -- release across. Said before the first read below, and guarded because an older core has no
@@ -347,7 +350,9 @@ local function reportHeap(now, sink)
   if (not lastStateLine or (now - lastStateLine) >= STATE_LINE_INTERVAL_SECONDS)
     and Log and type(Log.recording) == "function" and Log.recording() then
     lastStateLine = now
-    Log.emitf("rfsuite.functions", "info", "state: %s", Log.resources())
+    -- What the drain in this state did since the last line (telemetry_bg/drain.lua, M.summary).
+    local summary = Drain and type(Drain.summary) == "function" and Drain.summary() or "decoder -"
+    Log.emitf("rfsuite.functions", "info", "state: %s, %s", Log.resources(), summary)
   end
 
   if lastHeapReport and (now - lastHeapReport) < HEAP_REPORT_INTERVAL_SECONDS then return end

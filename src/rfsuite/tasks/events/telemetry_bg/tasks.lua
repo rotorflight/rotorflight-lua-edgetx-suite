@@ -32,13 +32,33 @@ end
 -- `false` for good would leave the MSP gate blind for as long as this Lua state lives.
 local DRAIN_RETRY_SECONDS = 1.0
 local drainRetryAt = 0
+-- A failed load of the drain is logged once per streak, and its recovery once. The drain's own
+-- logger cannot say it, since it is the module that did not load.
+local drainLoadFailing = false
+
+local function logDrainLoad(level, msg)
+    local root = _G.rfsuite
+    local L = root and root.Log
+    if type(L) == "table" and type(L.emit) == "function" then
+        pcall(L.emit, "rfsuite.decoder", msg, level)
+    end
+end
 
 -- Whether this call is spent on the drain's load: the first call, and the first after the wait
 -- that follows a failed one. Shared by both passes, so they share the wait too.
 local function drainLoadStep(now)
     if Drain == false and now < drainRetryAt then return false end
     Drain = loadModule("tasks/events/telemetry_bg/drain.lua") or false
-    if not Drain then drainRetryAt = now + DRAIN_RETRY_SECONDS end
+    if not Drain then
+        drainRetryAt = now + DRAIN_RETRY_SECONDS
+        if not drainLoadFailing then
+            drainLoadFailing = true
+            logDrainLoad("warn", "the telemetry decoder failed to load, asked again every 1 s")
+        end
+    elseif drainLoadFailing then
+        drainLoadFailing = false
+        logDrainLoad("info", "the telemetry decoder loaded after a failed attempt")
+    end
     return true
 end
 
@@ -140,9 +160,15 @@ function M.wakeup(carry)
             end
             local root = _G.rfsuite
             if root then root.adjustmentReport = nil end
+            if type(Drain.logEdge) == "function" then
+                Drain.logEdge("stands aside: another Lua state is decoding, drain and teller paused")
+            end
         end
         tellerAside = true
     else
+        if tellerAside and Drain and type(Drain.logEdge) == "function" then
+            Drain.logEdge("takes over decoding: no other decoder seen for 1 s")
+        end
         tellerAside = false
         if Adjustments and type(Adjustments.wakeup) == "function" then
             Adjustments.wakeup()
