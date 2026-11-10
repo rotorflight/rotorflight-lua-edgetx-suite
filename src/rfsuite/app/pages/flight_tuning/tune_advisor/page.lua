@@ -519,6 +519,7 @@ local function ratesFit(rates, k)
       return false
     end
   end
+  pageLog("trace", "rates scaled by %.3f fit rates_type %d", k, rates.ratesType)
   return true
 end
 
@@ -1176,7 +1177,11 @@ local function validateTune(snapshot, records)
   end
   for _, change in ipairs(snapshot.changes) do
     if records[change.msg][change.field] ~= change.from then return T.changed end
-    if not inRange(change.key, change.to, rates.rates_type) then return T.range end
+    if not inRange(change.key, change.to, rates.rates_type) then
+      pageLog("warn", "%s %s is outside what the flight controller keeps; nothing written", change.field,
+        tostring(change.to))
+      return T.range
+    end
     if change.key == "relaxCutoff" and not relaxCovers(profile.iterm_relax_type, tune.axis) then
       return T.changed
     end
