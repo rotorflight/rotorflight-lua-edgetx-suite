@@ -843,6 +843,7 @@ function M.getHeaderActions()
     -- Switching the override on waits for this visit's read, as Save does (M.canSave below).
     -- Switching it off is always offered.
     star = ui.inOverride or M.canSave(),
+    help = true,
     menu = true
   }
 end
@@ -951,7 +952,9 @@ function M.build(ctx)
       end
     end,
     {
-      active = function() return not ui.inOverride end
+      active = function() return not ui.inOverride end,
+      helpText = pageText(i18n, "help_servo",
+        "The servo output whose settings are shown below.")
     }
   )
 
@@ -978,7 +981,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return tostring(v) .. "us" end,
-      suffix = "us"
+      suffix = "us",
+      helpText = pageText(i18n, "help_center",
+        "Centre position in us; the servo arm should be level there. With * on, a change moves the servo at once.")
     }
   )
 
@@ -998,6 +1003,8 @@ function M.build(ctx)
       end,
       display = function(v) return tostring(v) .. "us" end,
       suffix = "us",
+      helpText = pageText(i18n, "help_minimum",
+        "Lowest point of travel; it limits the negative throw so the servo arm does not bind."),
       active = function() return not ui.inOverride end
     }
   )
@@ -1018,6 +1025,8 @@ function M.build(ctx)
       end,
       display = function(v) return tostring(v) .. "us" end,
       suffix = "us",
+      helpText = pageText(i18n, "help_maximum",
+        "Highest point of travel; it limits the positive throw so the servo arm does not bind."),
       active = function() return not ui.inOverride end
     }
   )
@@ -1038,6 +1047,8 @@ function M.build(ctx)
       end,
       display = function(v) return tostring(v) end,
       suffix = "",
+      helpText = pageText(i18n, "help_scale_negative",
+        "Scaling on the negative side; typically 500 for 1520 us servos and 250 for 760 us servos."),
       active = function() return not ui.inOverride end
     }
   )
@@ -1058,6 +1069,8 @@ function M.build(ctx)
       end,
       display = function(v) return tostring(v) end,
       suffix = "",
+      helpText = pageText(i18n, "help_scale_positive",
+        "Scaling on the positive side; typically 500 for 1520 us servos and 250 for 760 us servos."),
       active = function() return not ui.inOverride end
     }
   )
@@ -1078,6 +1091,8 @@ function M.build(ctx)
       end,
       display = function(v) return tostring(v) .. "ms" end,
       suffix = "ms",
+      helpText = pageText(i18n, "help_speed",
+        "Limits the servo speed: the time in ms for 60 degrees of rotation; 0 means no limit."),
       active = function() return not ui.inOverride end
     }
   )
@@ -1100,7 +1115,9 @@ function M.build(ctx)
       end
     end,
     {
-      active = function() return not ui.inOverride end
+      active = function() return not ui.inOverride end,
+      helpText = pageText(i18n, "help_reverse",
+        "Reverse the servo when it moves the wrong way.")
     }
   )
 
@@ -1123,7 +1140,9 @@ function M.build(ctx)
         end
       end,
       {
-        active = function() return not ui.inOverride end
+        active = function() return not ui.inOverride end,
+        helpText = pageText(i18n, "help_geometry",
+          "Corrects the rotational geometry at the ends of travel; do not use it with linear servos.")
       }
     )
   end

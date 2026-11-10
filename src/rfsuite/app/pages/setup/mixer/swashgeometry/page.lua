@@ -645,6 +645,7 @@ function M.getHeaderActions()
     -- Switching setup mode on waits for this visit's read, as Save does (M.canSave below):
     -- until then the live write sends nothing. Switching it off is always offered.
     star = ui.inOverride or M.canSave(),
+    help = true,
     menu = true
   }
 end
@@ -713,7 +714,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_cyclic_calibration",
+        "Cyclic gain matched to the mechanical gain of the rotor head.")
     }
   )
 
@@ -732,7 +735,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_collective_calibration",
+        "Collective gain matched to the mechanical gain of the rotor head.")
     }
   )
 
@@ -751,7 +756,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_geo_correction",
+        "Adjust until the positive and negative collective deflections are equal.")
     }
   )
 
@@ -770,7 +777,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f°", (tonumber(v) or 0) / 10) end,
-      suffix = "°"
+      suffix = "°",
+      helpText = pageText(i18n, "help_cyclic_pitch_limit",
+        "Most cyclic blade pitch the mixer commands, in degrees.")
     }
   )
 
@@ -789,7 +798,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f°", (tonumber(v) or 0) / 10) end,
-      suffix = "°"
+      suffix = "°",
+      helpText = pageText(i18n, "help_collective_pitch_limit",
+        "Most collective blade pitch the mixer commands, in degrees.")
     }
   )
 
@@ -808,7 +819,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f°", (tonumber(v) or 0) / 10) end,
-      suffix = "°"
+      suffix = "°",
+      helpText = pageText(i18n, "help_swash_pitch_limit",
+        "Most total blade pitch, cyclic and collective together, in degrees.")
     }
   )
 
@@ -827,7 +840,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f°", (tonumber(v) or 0) / 10) end,
-      suffix = "°"
+      suffix = "°",
+      helpText = pageText(i18n, "help_swash_phase",
+        "Phase offset of the swashplate controls, in degrees.")
     }
   )
 
@@ -846,7 +861,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return tostring(v or 0) .. "%" end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_collective_tilt_correction_pos",
+        "At full positive collective, adjust until the swashplate pivot ball stays still while cyclic is added.")
     }
   )
 
@@ -865,7 +882,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return tostring(v or 0) .. "%" end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_collective_tilt_correction_neg",
+        "At full negative collective, adjust until the swashplate pivot ball stays still while cyclic is added.")
     }
   )
 end
