@@ -1344,6 +1344,11 @@ function M.buildGround(children, widget, m, w, h, t, p)
   -- Where the row of two-line cells leaves the primary no taller than the cells, the captions go on
   -- one line each instead, two to a row.
   if rows.needsTwo and primaryH <= secondaryH then rows, secondaryH, primaryH = layout(false) end
+  local Log = requireModule("lib/log.lua")
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.inflight", "trace", "ground actions: %s rows of %s, primary %s, cells %s, two-line %s",
+      #rows, rows.perRow, primaryH, secondaryH, tostring(rows.needsTwo))
+  end
   local action = {small = lineFont, textOff = 0, wrap = true, actionH = primaryH}
 
   local primaryLabel = emptyBoard and t("widgets.dashboard.inflight_fc_setup_action", "Set up suggested functions")
