@@ -1231,12 +1231,34 @@ local function openTuneAdvisorPage(theme, menuId, pagePath, pad, counted, fault)
   return page
 end
 
+-- The helicopter setup wizard is offered from MSP API 12.10 only (its menu entries carry that
+-- minApiVersion), and the simulator replies report 12.9, so its pages open in a world of their own:
+-- the same replies with the API version at 12.10, on a card of this world's own, because the
+-- wizard keeps its completion record per flight controller there.
+local function openApi1210Page(theme, menuId, pagePath, pad, counted, fault, cardName)
+  local versionApi = assert(loadfile(API_DIR .. "/api_version.lua"))()
+  local replies, cardRoot = FC.replies, Stubs.cardRoot
+  FC.replies = {}
+  for command, reply in pairs(replies) do FC.replies[command] = reply end
+  FC.replies[versionApi.command] = { 0, 12, 10 }
+  Stubs.cardRoot = cardRoot .. "/" .. cardName
+  local ok, page = pcall(openToolPageActual, theme, menuId, pagePath, pad, counted, fault)
+  -- Restore the shared replies and card even when opening the page fails.
+  FC.replies = replies
+  Stubs.releaseCard()
+  Stubs.cardRoot = cardRoot
+  if not ok then error(page, 0) end
+  return page
+end
+
 local function openToolPage(theme, menuId, pagePath, pad, counted, fault)
   local protocol, apiName
   -- The ESC families' pages open behind a safety notice; the SRXL2 ESC page has none.
   local safetyNotice = true
   if pagePath == TUNE_ADVISOR_PAGE then
     return openTuneAdvisorPage(theme, menuId, pagePath, pad, counted, fault)
+  elseif string.sub(pagePath, 1, 17) == "helicopter_setup/" then
+    return openApi1210Page(theme, menuId, pagePath, pad, counted, fault, "helicopter-setup-page")
   elseif pagePath == "setup/esc_motors/esc_tools/escmfg/flrtr/page.lua" then
     protocol, apiName = 10, "esc_parameters_flyrotor"
   elseif pagePath == "setup/esc_motors/esc_tools/escmfg/yge/page.lua" then
