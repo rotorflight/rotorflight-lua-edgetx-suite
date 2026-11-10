@@ -485,6 +485,13 @@ return function(h)
     w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(5)
     check(w.confirmExit and w.jumpTarget==5 and w.step==16,"MENU a jump with changes asks to save or discard")
     w:back();check(not w.confirmExit and w.jumpTarget==nil and w.step==16,"MENU Back on the question stays on the step")
+    drain(w);check(next(w.holds)~=nil,"MENU Back on the question sets the card's hold again")
+    w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(5)
+    local question=h.view.new(w,{w=480,h=272},h.diagrams);while not question:step() do end
+    local saveText
+    for _,item in ipairs(question.children) do if item.type=="button" and item.text==L.saveChanges then saveText=true end end
+    check(saveText,"MENU the question of a jump offers Save, not Save & exit")
+    w:back();drain(w)
     w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(5);w:resolveExit(false);drain(w)
     check(w.step==5 and next(w.dirty)==nil,"MENU discarding opens the chosen step")
     -- Leaving to the step list or starting a step ends the menu.
@@ -500,6 +507,18 @@ return function(h)
       local face=set[font==MIDSIZE and "L" or "XS"];local n=0
       for _,code in utf8.codes(tostring(text)) do n=n+assert(face[code],"glyph "..code.." is measured") end
       return n
+    end
+    -- Nothing below the header reaches into the ? button (it stands controlH high from y 2).
+    local function clearOfHelp(scene,label)
+      local help
+      for _,item in ipairs(scene.children) do if item.type=="button" and item.text=="?" then help=item end end
+      if not help then return end
+      for _,item in ipairs(scene.children) do
+        if item~=help and item.x and item.y and item.w and item.h and item.type~="rectangle" and item.y>help.y then
+          local apart=item.x+item.w<=help.x or item.x>=help.x+help.w or item.y>=help.y+help.h or item.y+item.h<=help.y
+          check(apart,string.format("FIT %s: %s at %d,%d clears the ? button",label,tostring(item.type),item.x,item.y))
+        end
+      end
     end
     local saved=lcd.sizeText
     lcd.sizeText=function(text,font) return width(text,font),20 end
@@ -524,6 +543,7 @@ return function(h)
           for c,card in ipairs(cards) do
             w.card=c
             local scene=h.view.new(w,{w=size[1],h=size[2]},h.diagrams);while not scene:step() do end
+            clearOfHelp(scene,string.format("%s %dx%d step %d card %d",locale,size[1],size[2],index,c))
             local named=false
             for _,item in ipairs(scene.children) do
               if item.type=="label" and type(item.text)=="string" and item.y and item.y<20 then
@@ -539,6 +559,7 @@ return function(h)
         -- The step menu's buttons.
         w.step,w.card=5,1;step(w,"rates");w.stepMenu=true
         local scene=h.view.new(w,{w=size[1],h=size[2]},h.diagrams);while not scene:step() do end
+        clearOfHelp(scene,string.format("%s %dx%d step menu",locale,size[1],size[2]))
         local buttons=0
         for _,item in ipairs(scene.children) do
           if item.type=="button" and item.w and item.w<size[1]/2 and type(item.text)=="string" and item.text~="?" and item.text~=LL.back and item.text~=LL.exit then

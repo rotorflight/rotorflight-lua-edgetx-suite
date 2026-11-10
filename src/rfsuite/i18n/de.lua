@@ -831,7 +831,7 @@ return {
         cardReceiverProtocol = "Empfängerprotokoll",
         cardProfileSwitch = "Profilschalter",
         cardTelemetryProtocol = "Telemetrieprotokoll",
-        cardSwashTrims = "Taumelscheiben-Trimmung",
+        cardSwashTrims = "Trimmung",
         cardNoSwash = "Keine Taumelscheibe",
         cardTailMotor = "Heckmotor",
         cardFinishGeometry = "Taumelscheibe und Heck",

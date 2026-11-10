@@ -708,7 +708,14 @@ function M.new(runtime, transport, mathModule, labels)
       self.message = self.L.historyNotSaved
       self:rebuild(); return
     end
-    if self.confirmExit then self.confirmExit, self.exitToSteps, self.backTarget, self.jumpTarget = nil, nil, nil, nil; self:rebuild(); return end
+    if self.confirmExit then
+      self.confirmExit, self.exitToSteps, self.backTarget, self.jumpTarget = nil, nil, nil, nil
+      -- Back to the card the question came from: its entry runs again, so a hold it keeps (a zero
+      -- hold while trimming, a test) is set again rather than left released.
+      if self.cards and self.cards[self.card] and self.ready and not self.transition then self:navigate(self.step, self.card)
+      else self:rebuild() end
+      return
+    end
     -- Back on the step menu returns to the card it was opened from.
     if self.stepMenu then self:closeStepMenu(); return end
     if self.overview then

@@ -41,7 +41,8 @@ function M.new(w, ctx, diagrams)
     and not w.disconnectExit and not w.stepMenu
   local summaryText = cardScene and not card.servo and not attitudeCard and (card.summary or card.detail) or nil
   if summaryText == "" then summaryText = nil end
-  local textY = large and 56 or 30
+  -- Below the header band and the ? button (controlH high from y 2).
+  local textY = large and 56 or controlH+6
   local lineH = large and 24 or height <= 272 and 17 or 18
   local textLines = 2
   if summaryText and type(summaryText) == "string" then
@@ -184,7 +185,7 @@ function M.new(w, ctx, diagrams)
     all[#all+1]=label(12,48,width-24,w.L.disconnectedExitHint);all[#all].h=100;all[#all].color=palette.warning
     button(12,160,width-24,w.L.powerOffLeave,function() w:leaveDisconnected() end)
   elseif w.confirmExit then
-    local leavingStep=w.exitToSteps or w.backTarget
+    local leavingStep=w.exitToSteps or w.backTarget or w.jumpTarget
     all[#all + 1] = label(12, 48, width-24, leavingStep and w.L.leaveStepHint or w.L.exitHint)
     button(12, 100, math.floor(width/2)-18, leavingStep and w.L.saveChanges or w.L.saveExit,
       function() if w.resolveExit then w:resolveExit(true) else w:save(function() w:close() end) end end)
@@ -209,11 +210,11 @@ function M.new(w, ctx, diagrams)
     -- with a mark in the ok colour. Back returns to the card it was opened from.
     local hint = large or height > 272
     if hint then
-      all[#all + 1] = label(10, large and 56 or 30, width-20, w.L.stepMenuOpen)
+      all[#all + 1] = label(10, textY, width-20, w.L.stepMenuOpen)
       all[#all].h, all[#all].color = large and 28 or 18, palette.muted
     end
     local cols, rows = 3, 7
-    local top = large and 90 or hint and 50 or 31
+    local top = hint and textY+(large and 34 or 20) or textY
     local bottom = height-controlH-(large and 40 or 27)-4
     local gap = large and 6 or 2
     local margin = large and 10 or 6
@@ -295,10 +296,10 @@ function M.new(w, ctx, diagrams)
     -- Rows may sit at the foot of the card, under a full-width overview.
     if card.rowsAtFoot then rowY = cardBottom-2-slots*rowH end
     if attitudeCard then
-      all[#all+1]=label(10,large and 58 or 30,width-20,w.L.orientationModelHint)
+      all[#all+1]=label(10,textY,width-20,w.L.orientationModelHint)
       all[#all].h=large and 32 or 23;all[#all].color=palette.muted
-      diagrams.append(all,w,card,10,large and 108 or 56,
-        large and formX-26 or width-20,large and height-controlH-168 or rowY-68)
+      diagrams.append(all,w,card,10,large and 108 or textY+26,
+        large and formX-26 or width-20,large and height-controlH-168 or rowY-textY-38)
     else
     -- The card's name is in the header; its explanation leads the card across the full width.
     local badgeW = 0
