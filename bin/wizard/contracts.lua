@@ -1899,7 +1899,7 @@ return function(h)
     local skip=c[2].rows[3]
     eq(skip.label,L.detectSkip,"W12 the skip button sits with the detection")
     check(not skip.enabled(),"W12 no skip before a detection runs")
-    c[2].rows[1].press();check(w.rx.detect~=nil and skip.enabled(),"W12 skip is offered during a detection")
+    c[2].rows[2].press();check(w.rx.detect~=nil and skip.enabled(),"W12 skip is offered during a detection")
     local first=w.rx.detect.index
     skip.press();eq(w.rx.detect.index,first+1,"W12 skip moves on to the next control")
     for _=1,10 do if w.rx.detect then skip.press() end end
@@ -2033,7 +2033,7 @@ return function(h)
     end
     lines={}
     local w=world();settle(w);w.step=16
-    local c=step(w,"pitch");c[2].enter();drain(w);c[2].rows[1].press()
+    local c=step(w,"pitch");c[3].enter();drain(w);c[3].rows[1].press()
     check(has("trace","hold mixer 1"),"LOG a hold shows at trace")
     w:navigate(15,1)
     check(has("trace","move from"),"LOG a move shows at trace")
@@ -2053,7 +2053,7 @@ return function(h)
     eq(droppedCalls,2,"LOG a dropped callback without an edit still runs")
     -- At the shipped level the page builds no line, a failure included.
     level="off";lines={}
-    w=world();settle(w);w.step=16;c=step(w,"pitch");c[2].enter();drain(w);c[2].rows[1].press();w:navigate(15,1)
+    w=world();settle(w);w.step=16;c=step(w,"pitch");c[3].enter();drain(w);c[3].rows[1].press();w:navigate(15,1)
     w:fail("status","timeout")
     eq(#lines,0,"LOG nothing is built at the shipped level")
     eq(w.logTrace,false,"LOG no trace at the shipped level")
@@ -3578,13 +3578,13 @@ return function(h)
     w.modelPreparationRequired,w.modelPreparationDone,w.activeModelName=true,nil,"Heli"
     check(w:buildModelPreparation(),"CORE the model card is built")
     local rows=w.cards[1].rows
-    eq(rows[3].label,L.fcStatusSensor,"CORE the model card checks the FC status sensor up front")
-    eq(rows[4].label,L.fcConfigSensor,"CORE the model card checks the FC config sensor up front")
+    eq(rows[4].label,L.fcStatusSensor,"CORE the model card checks the FC status sensor up front")
+    eq(rows[5].label,L.fcConfigSensor,"CORE the model card checks the FC config sensor up front")
     w.systemStatus,w.systemConfig,w.systemReads=nil,nil,1
-    eq(rows[3].get(),L.sensorChecking,"CORE a sensor not read yet is still being checked")
+    eq(rows[4].get(),L.sensorChecking,"CORE a sensor not read yet is still being checked")
     w.systemReads=4;w.systemStatus={word=1}
-    eq(rows[3].get(),L.sensorLive,"CORE a decoded status word reads as live")
-    eq(rows[4].get(),L.sensorMissing,"CORE a sensor without value after four reads reads as missing")
+    eq(rows[4].get(),L.sensorLive,"CORE a decoded status word reads as live")
+    eq(rows[5].get(),L.sensorMissing,"CORE a sensor without value after four reads reads as missing")
     check(string.find(w.cards[1].detail,L.sensorsHint,1,true)~=nil,"CORE the help says where to add a missing sensor")
     w.checks.modelReady=true;w.systemStatus,w.systemConfig={word=0},nil;w:next()
     check(w.modelPreparationCard and w.message==L.sensorsRequired,"CORE a missing FC state sensor keeps the steps closed")
@@ -3595,15 +3595,15 @@ return function(h)
     w.data.telemetry_config={buffer=buf};for i=1,40 do w.data.telemetry_config["telem_sensor_slot_"..i]=buf[12+i] end
     eq(w:fcSensorsListed(),false,"CORE an FC list without 120/121 reads as missing")
     w.modelPreparationRequired,w.modelPreparationDone=true,nil;w:buildModelPreparation()
-    local add=w.cards[1].rows[5]
-    eq(add.label(),L.addFcSensors,"CORE the model card offers to add the sensors to the FC")
+    local add=w.cards[1].rows[6]
+    eq(add.label,L.addFcSensors,"CORE the model card offers to add the sensors to the FC")
     check(add.enabled(),"CORE the add button is offered while the FC lacks them")
     q.sent={};add.press();drain(w)
     local written
     for _,m in ipairs(q.sent) do if m.command==74 then written=m.payload end end
     check(written and written[13]==3 and written[14]==4 and written[15]==120 and written[16]==121,
       "CORE adding writes the FC's own buffer with 120/121 in the first free slots")
-    check(w:fcSensorsListed()==true and add.label()==L.fcSensorsListed,"CORE after adding the card reads both listed")
+    check(w:fcSensorsListed()==true and not add.visible() and not add.enabled(),"CORE after adding, the button is gone")
   end)
   case("S14-S15.axis-direction-and-trims",function()
     local w=world();local c=step(w,"direction");c[1].enter()
@@ -3645,46 +3645,46 @@ return function(h)
     w.validate=nil;w.data.mixer_config.swash_type=2
   end)
   case("S16.pitch-calibration-limits-fullstick",function()
-    local w=world();local c=step(w,"pitch");c[2].enter()
-    cardOrder(c,{L.collective,L.cyclic,L.cyclicLimit,L.collectiveLimit,L.totalLimit,L.fullStick,L.bindingTitle},"S16")
+    local w=world();local c=step(w,"pitch");c[3].enter()
+    cardOrder(c,{L.cardBladesBoom,L.collective,L.cyclic,L.cyclicLimit,L.collectiveLimit,L.totalLimit,L.fullStick,L.bindingTitle},"S16")
     w.data.mixer_input.inputs[1].rate=-1000;w.data.mixer_input.inputs[2].rate=1000
-    w.data.mixer_input.inputs[1].max=1000;w.data.mixer_input.inputs[2].max=1000;c=step(w,"pitch");c[2].enter()
+    w.data.mixer_input.inputs[1].max=1000;w.data.mixer_input.inputs[2].max=1000;c=step(w,"pitch");c[3].enter()
     eq(w.pitchAngle,90,"W19 the angle starts at 9 degrees")
-    eq(c[2].rows[1].max,120,"W19 the angle is capped at the stored limit");eq(c[2].rows[1].min,-120,"W19 negative is allowed")
-    check(not c[2].rows[3].enabled(),"W19 Apply is greyed before a hold")
-    c[2].rows[1].press();eq(w.holds.mixer1.value,750,"S16 the cyclic is measured over roll")
-    check(c[2].rows[3].enabled(),"W19 Apply works while holding exactly 9")
-    c[2].rows[1].set(50);eq(w.holds.mixer1.value,H.round(50*750/90),"W19 the FC follows the angle while held")
-    check(not c[2].rows[3].enabled(),"W19 Apply is greyed away from 9")
+    eq(c[3].rows[1].max,120,"W19 the angle is capped at the stored limit");eq(c[3].rows[1].min,-120,"W19 negative is allowed")
+    check(not c[3].rows[3].enabled(),"W19 Apply is greyed before a hold")
+    c[3].rows[1].press();eq(w.holds.mixer1.value,750,"S16 the cyclic is measured over roll")
+    check(c[3].rows[3].enabled(),"W19 Apply works while holding exactly 9")
+    c[3].rows[1].set(50);eq(w.holds.mixer1.value,H.round(50*750/90),"W19 the FC follows the angle while held")
+    check(not c[3].rows[3].enabled(),"W19 Apply is greyed away from 9")
     local rateBefore=w.data.mixer_input.inputs[1].rate
-    c[2].rows[3].press();eq(w.data.mixer_input.inputs[1].rate,rateBefore,"W19 Apply does nothing away from 9")
-    c[2].rows[1].set(-50);eq(w.holds.mixer1.value,H.round(-50*750/90),"W19 a negative angle is held")
-    c[2].rows[1].set(90);eq(w.holds.mixer1.value,750,"W19 back at 9")
+    c[3].rows[3].press();eq(w.data.mixer_input.inputs[1].rate,rateBefore,"W19 Apply does nothing away from 9")
+    c[3].rows[1].set(-50);eq(w.holds.mixer1.value,H.round(-50*750/90),"W19 a negative angle is held")
+    c[3].rows[1].set(90);eq(w.holds.mixer1.value,750,"W19 back at 9")
     eq(w.holds.mixer2.value,0,"S16 the head stays: pitch held zero")
     eq(w.holds.mixer4.value,0,"S16 the head stays: collective held zero")
-    c[2].rows[2].set(180);c[2].rows[3].press()
+    c[3].rows[2].set(180);c[3].rows[3].press()
     eq(w.data.mixer_input.inputs[1].rate,-500,"S16 correction preserves roll sign")
     eq(w.data.mixer_input.inputs[2].rate,500,"S16 one cyclic calibration for both axes")
     eq(w.message,L.calibratedMeasureAgain,"S16 Apply asks to measure again")
-    c[2].rows[1].press();eq(w.holds.mixer1.value,0,"W19 release goes back to 0")
-    eq(c[2].rows[1].holdLabel(),L.holdTest,"W19 the button offers the hold again")
-    c[2].rows[1].set(50);c[2].enter();eq(w.pitchAngle,90,"W19 9 again on entry, never stored")
+    c[3].rows[1].press();eq(w.holds.mixer1.value,0,"W19 release goes back to 0")
+    eq(c[3].rows[1].holdLabel(),L.holdTest,"W19 the button offers the hold again")
+    c[3].rows[1].set(50);c[3].enter();eq(w.pitchAngle,90,"W19 9 again on entry, never stored")
     w.data.mixer_input.inputs[1].max=500;local low=step(w,"pitch")
-    eq(low[2].summary,L.pitchLimitBelowNine,"W19 a limit below 9 degrees is named")
-    low[2].enter();eq(w.pitchAngle,60,"W19 the start stays inside a low limit")
-    low[2].rows[1].press();check(not low[2].rows[3].enabled(),"W19 no Apply below a limit of 9")
+    eq(low[3].summary,L.pitchLimitBelowNine,"W19 a limit below 9 degrees is named")
+    low[3].enter();eq(w.pitchAngle,60,"W19 the start stays inside a low limit")
+    low[3].rows[1].press();check(not low[3].rows[3].enabled(),"W19 no Apply below a limit of 9")
     w:release();drain(w);w.data.mixer_input.inputs[1].max=1000;w.pitchHeld=nil
-    c[3].rows[2].press()
+    c[4].rows[2].press()
     eq(w.data.mixer_input.inputs[1].min,-833,"S16 Use 10 cyclic negative limit")
     eq(w.data.mixer_input.inputs[2].max,833,"S16 Use 10 cyclic positive limit")
-    c[4].rows[2].press();eq(w.data.mixer_input.inputs[4].max,1000,"S16 Use 12 collective limit")
-    c[5].rows[1].set(360);eq(w.data.mixer_config.swash_pitch_limit,3000,"S16 total 36 degree range")
+    c[5].rows[2].press();eq(w.data.mixer_input.inputs[4].max,1000,"S16 Use 12 collective limit")
+    c[6].rows[1].set(360);eq(w.data.mixer_config.swash_pitch_limit,3000,"S16 total 36 degree range")
     -- Per rate profile: rows on a shared switch, else the active profile.
     local ranges=w.data.adjustment_ranges.adjustment_ranges
     ranges[1]=H.mapped(2,1,1000,2000,1,3);ranges[2]=H.mapped(1,1,1000,2000,1,3)
     w.pitchLoaded,w.pitchFull,w.pitchFullChanged=nil,nil,nil
     c=step(w,"pitch")
-    local full=c[6]
+    local full=c[7]
     eq(#full.rows,4,"S16 three rate profiles on the switch and the warning line")
     eq(full.rows[1].label,string.format(L.rateProfileTitle,1),"S16 the row names its rate profile")
     w:release();drain(w)
@@ -3936,9 +3936,9 @@ return function(h)
     local baseline=H.collective(w.saved.rc_tuning)
     local c=step(w,"pitch")
     local active=w.data.status.current_control_rate_profile_index
-    c[6].enter();drain(w)
+    c[7].enter();drain(w)
     baseline=w.pitchFull[active]
-    c[6].rows[1].set(150)
+    c[7].rows[1].set(150)
     check(w.pitchFullChanged,"REVIEW collective edit is staged")
     if h.mutation=="pitch-discard" then
       local original=w.discard
@@ -3948,7 +3948,7 @@ return function(h)
       end
     end
     w:discard(function() end);drain(w)
-    c=step(w,"pitch");c[6].enter();drain(w)
+    c=step(w,"pitch");c[7].enter();drain(w)
     check(not w.pitchFullChanged and w.pitchFull[active]==baseline,"REVIEW discarded pitch draft cannot return")
   end)
   case("REVIEW.back-preserves-commit",function()
@@ -4191,7 +4191,7 @@ return function(h)
       {"direction",{"swash-motion-roll","swash-motion-pitch","swash-motion-collective"}},
       {"gyro",{"gyro-roll","gyro-pitch","gyro-yaw"}},
       {"tail",{"tail-servo","tail-servo-move"}},
-      {"pitch",{"pitch-9","pitch-9"}},
+      {"pitch",{"heli-top-blades-boom","pitch-9","pitch-9"}},
       {"level",{"swash-motion-level","swash-motion-level","swash-motion-level","pitch-0"}},
       {"connect",{"servo"}}
     }) do
@@ -4704,6 +4704,41 @@ return function(h)
     local invalid=Store.new("../another-board");invalid:load()
     check(not invalid.path and not invalid:save(1),"CORE FC identity cannot escape history directory")
     fs:restore()
+  end)
+  case("CORE.prepared-model-and-blades-intro",function()
+    -- The preparation is remembered per FC in a file of its own; the completion record is untouched.
+    local fs=assert(loadfile("bin/wizard/history_fixture.lua"))()();fs:install()
+    local Store=load("app/pages/helicopter_setup/history_store.lua")
+    local a=Store.new("board-P","/user/board-P.lua");a:load()
+    check(a.prepared==false,"CORE a new FC has no remembered preparation")
+    check(a:markPrepared(),"CORE the preparation is remembered")
+    eq(fs.files[a.path],nil,"CORE remembering the preparation leaves the completion record alone")
+    local again=Store.new("board-P","/user/board-P.lua")
+    check(again.prepared==true,"CORE the next visit reads the remembered preparation")
+    check(Store.new("board-Q","/user/board-Q.lua").prepared==false,"CORE another FC is not prepared by it")
+    for _,failure in ipairs({"open","write","short","mkdir"}) do
+      fs.failure=failure
+      local failed=Store.new("board-F","/user/board-F.lua")
+      check(not failed:markPrepared(),"CORE a failed write is not taken for remembered "..failure)
+    end
+    fs.failure=nil;fs:restore()
+    -- A single step on a prepared FC passes the card by itself once both sensors are live;
+    -- Complete setup always asks.
+    local w=world();settle(w)
+    w.singleStep,w.history,w.activeModelName=true,{prepared=true},"Heli"
+    w.modelPreparationRequired,w.modelPreparationDone=true,nil
+    check(w:buildModelPreparation() and w.modelPreparationAuto==true,"CORE a prepared FC's single step may pass the card")
+    w.singleStep=nil;w.modelPreparationRequired,w.modelPreparationDone=true,nil
+    check(w:buildModelPreparation() and not w.modelPreparationAuto,"CORE Complete setup always asks the preparation")
+    -- Blade pitch opens on the blades-along-the-boom card; its confirmation gates the cards after it.
+    w=world();settle(w);w.step=16;w.preparationCard,w.preparationDone=nil,true
+    w:navigate(16,1);drain(w)
+    eq(w.cards[1].title,L.cardBladesBoom,"CORE blade pitch opens on the blades-along-the-boom card")
+    check(next(w.holds)==nil,"CORE the intro card holds nothing")
+    w.statusAt=getTime();w:next();drain(w)
+    check(w.card==1 and w.message==L.confirmCheck,"CORE without the confirmation the step stays on the intro")
+    w.checks.bladesBoom=true;w.statusAt=getTime();w:next();drain(w)
+    eq(w.card,2,"CORE the confirmation opens the collective card")
   end)
   case("CORE.history-lua-record",function()
     local fs=assert(loadfile("bin/wizard/history_fixture.lua"))()();fs:install()
