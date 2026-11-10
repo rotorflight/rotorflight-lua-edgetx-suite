@@ -1,0 +1,5 @@
+- **Swash Geometry, PWM Output and BUS Output share the live override with Tail and Trims (`app/pages/lib/live_override.lua`, `setup/mixer/swashgeometry`, `setup/servos/pwm`, `setup/servos/bus`, `docs/pages/setup/mixer/swashgeometry.md`, `docs/pages/setup/servos/pwm.md`, `docs/pages/setup/servos/bus.md`)**:
+  - The `*` confirmation says so when the flight controller does not report whether it is armed, and the override code is loaded only when `*` is first pressed.
+  - After a save that failed, the page stays unsaved, and leaving it puts back what the flight controller has stored instead of leaving the new values running until its next restart.
+  - On PWM Output and BUS Output, the settings locked while `*` is on are shown as text instead of disabled controls, so EXIT always leaves the page.
+  - The three pages have their own help sheet, a `?` on every row and a documentation page.

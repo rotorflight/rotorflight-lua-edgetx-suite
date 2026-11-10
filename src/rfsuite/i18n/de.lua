@@ -1193,7 +1193,7 @@ return {
         disable_tail_override = "Heck-Override deaktivieren",
         disable_tail_override_message = "Den Heckeingang wieder an den Flugcontroller übergeben.",
         override_armed_unknown = "Der Flugcontroller meldet nicht, ob er scharf ist. Sicherstellen, dass sich die Rotoren nicht drehen können.",
-        help_geometry = "Verstärkungen, Pitch-Grenzen, Phase und Neigungskorrektur der Taumelscheibe, wobei * die Taumelscheibe über den Mischer den Sticks folgen lässt und jede Änderung sofort sendet, bis Speichern sie übernimmt.",
+        help_geometry = "Verstärkungen, Pitch-Grenzen, Phase und Neigungskorrektur der Taumelscheibe; * lässt sie über den Mischer den Sticks folgen und sendet jede Änderung sofort, bis Speichern sie übernimmt.",
         help_cyclic_calibration = "Zyklische Verstärkung, passend zur mechanischen Übersetzung des Rotorkopfs.",
         help_collective_calibration = "Kollektive Verstärkung, passend zur mechanischen Übersetzung des Rotorkopfs.",
         help_geo_correction = "So einstellen, dass positiver und negativer Kollektivausschlag gleich groß sind.",
