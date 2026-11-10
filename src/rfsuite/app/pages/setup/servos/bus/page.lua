@@ -733,6 +733,9 @@ local function queueServoWrite(servoIdx, onDone)
   -- page while the save runs, so the page puts up no overlay of its own.
   -- The override's record, when it is this servo's: the save sends what is on screen, so the live
   -- loop has nothing to send until it changes, and until the save is stored its write counts as sent.
+  -- An override made for another servo earlier in the visit follows this one first: a servo is
+  -- picked only with nothing unsaved, so nothing of the other one is lost by it.
+  syncOverrideServo()
   local override = ui.override
   local overrideRaw = ui.overrideServo
 

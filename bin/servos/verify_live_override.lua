@@ -163,6 +163,18 @@ local function shownText()
   return shown
 end
 
+local function revisit(page)
+  clearQueue()
+  saveRequest = nil
+  savePhase = nil
+  page.wakeup(ctx)
+  answerReads()
+  clearQueue()
+  page.wakeup(ctx)
+  build(page)
+  return page
+end
+
 local function open(name)
   clearQueue()
   saveRequest = nil
@@ -289,6 +301,7 @@ for _, name in ipairs({ "pwm", "bus" }) do
     build(page)
     fields["Center"].opts.set(orig + 15)
     page.onSave({}) -- before the live write was due
+    logged = {}
     finishSave("failed")
     clearQueue()
     page.onClose()
@@ -355,6 +368,48 @@ for _, name in ipairs({ "pwm", "bus" }) do
     page.onClose()
     equal(commands(), "213,196", name .. ": leaving puts that servo's centre back, then releases")
     equal(queue.messages[1] and queue.messages[1].payload[1], raw0 + 1, name .. ": the rollback is for the servo picked")
+  end
+  -- The page module is kept between visits: a second visit of the same module starts clean.
+  do
+    local page = open(name)
+    page.onStar({})
+    clearQueue()
+    build(page)
+    fields["Center"].opts.set(fields["Center"].opts.get() + 15)
+    page.wakeup(ctx)
+    clearQueue()
+    page.onClose()
+    revisit(page)
+    equal(page.canSave(), true, name .. ": a second visit of the same module reads again")
+    check(fields["Servo"] ~= nil, name .. ": a second visit starts with the override off")
+    page.onStar({})
+    equal(commands(), "196", name .. ": a second visit switches the override on again")
+    clearQueue()
+    page.onClose()
+    equal(commands(), "196", name .. ": a second visit with nothing edited only releases")
+  end
+
+  -- An override made earlier for another servo: a save of the servo picked since, which fails,
+  -- still puts that servo's centre back when the page is left.
+  do
+    local page = open(name)
+    page.onStar({})
+    page.onStar({})
+    clearQueue()
+    build(page)
+    fields["Servo"].onSelect(1)
+    answerReads()
+    clearQueue()
+    build(page)
+    local orig = fields["Center"].opts.get()
+    fields["Center"].opts.set(orig + 12)
+    page.onSave({})
+    finishSave("failed")
+    clearQueue()
+    page.onClose()
+    equal(commands(), "213", name .. ": after a failed save of the servo picked since *, leaving puts its centre back")
+    equal(queue.messages[1] and queue.messages[1].payload[1], raw0 + 1, name .. ": for the servo picked")
+    equal(u16(queue.messages[1], 2), orig, name .. ": with its centre read")
   end
 end
 

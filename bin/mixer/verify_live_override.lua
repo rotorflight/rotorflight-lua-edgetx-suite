@@ -485,6 +485,11 @@ do
   finishSave("done")
   page.onClose()
   check(#steps == 4, "geometry: Save writes the mixer configuration and the three inputs")
+  -- The oracle itself, against the read fixture rather than through Save: each input record goes
+  -- back with its index and exactly the bytes it was read with.
+  local api = assert(loadfile("src/rfsuite/tasks/msp/api/get_mixer_input_pitch.lua"))()
+  check(string.find(boardWrite, "171:2," .. table.concat(api.simulatorResponse, ","), 1, true) ~= nil,
+    "geometry: an unchanged save writes the pitch input exactly as read")
 end
 
 do
@@ -535,6 +540,7 @@ do
   equal(commands(), "43,171,171,171", "geometry: an unanswered live write is sent again")
   clearQueue()
 
+  logged = {}
   page.onClose()
   equal(commands(), "43,171,171,171,191,191,191,191",
     "geometry: leaving without Save puts the records back, then releases the four inputs")
@@ -600,6 +606,7 @@ do
   build(page)
   fields["Phase Angle"].opts.set(fields["Phase Angle"].opts.get() + 10)
   page.onSave({}) -- before the live write was due
+  logged = {}
   finishSave("failed")
   clearQueue()
   page.onClose()
@@ -623,6 +630,34 @@ do
   clearQueue()
   page.onClose()
   equal(commands(), "43,171,171,171", "geometry: leaving after * off still puts the records back, with nothing left to release")
+end
+
+-- The page module is kept between visits: a second visit of the same module starts clean.
+do
+  local page = openGeometry()
+  page.onStar({})
+  clearQueue()
+  build(page)
+  fields["Phase Angle"].opts.set(fields["Phase Angle"].opts.get() + 10)
+  page.wakeup(ctx)
+  clearQueue()
+  page.onClose()
+  clearQueue()
+  -- the same module, a new visit
+  page.wakeup(ctx)
+  for _ = 1, 4 do
+    local m = queue.messages[1]
+    if not m then break end
+    reply(m.simulatorResponse)
+  end
+  clearQueue()
+  build(page)
+  equal(page.getHeaderActions().star, true, "geometry: a second visit offers * once its read is done")
+  page.onStar({})
+  equal(commands(), "191,191,191,191", "geometry: a second visit switches setup mode on again")
+  clearQueue()
+  page.onClose()
+  equal(commands(), "191,191,191,191", "geometry: a second visit with nothing edited only releases")
 end
 
 -- A raw value the screen cannot show exactly: a pitch limit of 1001 reads as 12.0 degrees, which
