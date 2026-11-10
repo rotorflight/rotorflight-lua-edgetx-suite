@@ -767,13 +767,19 @@ end
 -- source and kept (`directPlans`, three entries per name: sid, divisor, name; false for a source
 -- with none), so a read is a table lookup and one call per candidate.
 local directPlans = {}
+-- At most DIRECT_PLANS_PER_TICK plans are worked out per clock tick: after a start every value is
+-- read for the first time in the same pass, and that pass is the one closest to the instruction
+-- limit. A value held back is read from the sensors that once and gets its plan on a later read, as
+-- the sensor search spaces its first searches (FIRST_SEARCHES_PER_PASS).
+local DIRECT_PLANS_PER_TICK = 3
+local directPlanTick, directPlansThisTick = nil, 0
 -- Set by the live read (Sensors.getLiveValue), which reads the radio's sensor on purpose -- it asks
 -- whether the sensor is arriving now -- and calls readValue only to have its path resolved.
 local radioOnly = false
 
 local function directPlan(decoder, source, resolved)
   local custom = decoder.customSensor
-  if type(custom) ~= "function" then return false end
+  if type(custom) ~= "function" or type(decoder.directValues) ~= "function" then return false end
   local names = Sensors.search_paths[source] or { resolved or source }
   local plan = {}
   for i = 1, #names do
@@ -793,15 +799,20 @@ local function directValue(source, resolved)
   if not decoder then return nil end
   local plan = directPlans[source]
   if plan == nil then
+    local tick = type(getTime) == "function" and getTime() or 0
+    if tick ~= directPlanTick then directPlanTick, directPlansThisTick = tick, 0 end
+    if directPlansThisTick >= DIRECT_PLANS_PER_TICK then return nil end
+    directPlansThisTick = directPlansThisTick + 1
     plan = directPlan(decoder, source, resolved)
     if plan == nil then return nil end
     directPlans[source] = plan
   end
   if not plan then return nil end
-  local valueBySid = decoder.valueBySid
+  local values = decoder.directValues()
+  if not values then return nil end
   for i = 1, #plan, 3 do
-    local value = valueBySid(plan[i])
-    if value ~= nil then
+    local value = values[plan[i]]
+    if type(value) == "number" then
       local scale = plan[i + 1]
       if scale ~= 1 then value = value / scale end
       return value, plan[i + 2]

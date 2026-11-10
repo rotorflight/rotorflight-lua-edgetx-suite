@@ -9,6 +9,9 @@
 local M = {}
 
 local RFSensors = nil
+-- Sensor name -> sid of the decoder table, built on the pass that loads it (modulesReady): the table
+-- is keyed by sid, and a reader asks by the name the radio shows (M.customSensor).
+local nameToSid = nil
 
 local function loadModule(path, ...)
   local fullPath = _G.rfsuite.paths.core .. "/" .. path
@@ -554,7 +557,17 @@ local function modulesReady(now)
     if not RFSensors then
         if now < loadRetryAt then return false end
         RFSensors = loadModule("lib/rf2tlm_sensors.lua", nil, groupDue)
-        if RFSensors then loadRecovered("sensor table") else loadFailed("sensor table", now) end
+        if RFSensors then
+            loadRecovered("sensor table")
+            -- The name index for M.customSensor, on this pass, which loads and decodes nothing else,
+            -- rather than on the first pass that reads a value.
+            nameToSid = {}
+            for sid, sensor in pairs(RFSensors) do
+                if type(sensor) == "table" and sensor.name then nameToSid[sensor.name] = sid end
+            end
+        else
+            loadFailed("sensor table", now)
+        end
         return false
     end
 
@@ -796,9 +809,6 @@ function M.wakeupArmingFlags(now)
     return popped, found
 end
 
--- Sensor name -> sid of the decoder table, built on the first question: the table is keyed by sid,
--- and a reader asks by the name the radio shows.
-local nameToSid = nil
 local DIRECT_SCALE = { 10, 100, 1000 }
 
 --- The sensor of the custom telemetry a name stands for: its sid and the divisor its precision asks
@@ -806,13 +816,7 @@ local DIRECT_SCALE = { 10, 100, 1000 }
 -- the question is asked again. A reader asks this once per name and keeps the answer, because the
 -- table does not change.
 function M.customSensor(name)
-    if not RFSensors then return nil end
-    if nameToSid == nil then
-        nameToSid = {}
-        for sid, sensor in pairs(RFSensors) do
-            if type(sensor) == "table" and sensor.name then nameToSid[sensor.name] = sid end
-        end
-    end
+    if not RFSensors or not nameToSid then return nil end
     local sid = nameToSid[name]
     if sid == nil then return false end
     local prec = RFSensors[sid].prec or 0
@@ -831,6 +835,15 @@ function M.valueBySid(sid)
     local value = lastPublishedValue[sid]
     if type(value) ~= "number" then return nil end
     return value
+end
+
+--- The same values for a reader that asks for several in one read: the table by sid (a number for
+-- a single-value sensor, a frame for a group -- test with type), or nil while another Lua state is
+-- decoding. One call per read instead of one per candidate name; the table is replaced on a reset
+-- and on a take-over, so it is asked for again on every read, never kept.
+function M.directValues()
+    if remoteLast then return nil end
+    return lastPublishedValue
 end
 
 --- One fragment for a host's state line: who decoded since the last call, and what it saw.
