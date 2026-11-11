@@ -802,23 +802,27 @@ local function directValue(source, resolved)
   local root = _G.rfsuite
   local decoder = root and root.telemetryDecoder
   if not decoder then return nil end
-  -- First, because it is the cheapest way out: nil while another Lua state decodes (the background
-  -- function script), which can last the whole session -- no plan is looked up or worked out then.
+  local plan = directPlans[source]
+  if plan == false then return nil end
+  -- Before a plan is worked out: nil while another Lua state decodes (the background function
+  -- script), which can last the whole session, so no plan is attempted then.
   local values = decoder.directValues()
   if not values then return nil end
-  local plan = directPlans[source]
   if plan == nil then
     local tick = type(getTime) == "function" and getTime() or 0
     if tick ~= directPlanTick then directPlanTick, directPlansThisTick = tick, 0 end
     if directPlansThisTick >= DIRECT_PLANS_PER_TICK then return nil end
     plan = directPlan(decoder, source, resolved)
-    -- nil: the decoder cannot answer yet (its table or name index is still coming); that costs one
-    -- call and no slot, so the slots go to plans that are kept.
-    if plan == nil then return nil end
+    if plan == nil then
+      -- The decoder cannot answer yet (its table or name index is still coming), and it will not
+      -- within this tick: no further attempt until the next one.
+      directPlansThisTick = DIRECT_PLANS_PER_TICK
+      return nil
+    end
     directPlansThisTick = directPlansThisTick + 1
     directPlans[source] = plan
+    if not plan then return nil end
   end
-  if not plan then return nil end
   for i = 1, #plan, 3 do
     local value = values[plan[i]]
     if type(value) == "number" then
