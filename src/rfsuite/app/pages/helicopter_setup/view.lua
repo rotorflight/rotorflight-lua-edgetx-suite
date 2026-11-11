@@ -522,7 +522,7 @@ function M.new(w, ctx, diagrams)
         -- Several controls in one row: the label in the label column on 800x480, the controls
         -- side by side in equal shares of the rest; the 480-wide screens give them the full width.
         local gx = formX + (large and labelW or 0)
-        if large and labelW then all[#all + 1] = label(formX, y+3, labelW-8, r.label) end
+        if large and labelW then all[#all + 1] = label(formX, centredTop(y, rowControlH), labelW-8, r.label) end
         local n, gap = #r.items, large and 8 or 4
         local share = math.floor((formX+formW-gx-(n-1)*gap)/n)
         for k, item in ipairs(r.items) do
