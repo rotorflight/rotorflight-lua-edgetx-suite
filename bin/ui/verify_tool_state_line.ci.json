@@ -1,0 +1,7 @@
+{
+  "id": "tool-state-line",
+  "name": "The standalone tool state line carries the decoder fragment",
+  "commands": [
+    "lua5.3 bin/ui/verify_tool_state_line.lua"
+  ]
+}
