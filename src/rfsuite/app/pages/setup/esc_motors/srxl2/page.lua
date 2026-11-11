@@ -295,16 +295,19 @@ function M.build(ctx)
   label = pageText(i18n, "srxl2_motor2_channel", "Motor 2 Channel")
   cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w, label, {
     helpText = pageText(i18n, "help_srxl2_motor2_channel",
-      "For dual-motor Smart ESCs: the SRXL2 channel that carries motor 2 (motor 1 is always channel 0); the mixer's second motor output drives it. Off for one motor."),
+      "For dual-motor Smart ESCs: the SRXL2 channel that carries motor 2 (motor 1 is always channel 1); the mixer's second motor output drives it. Off for one motor."),
     helpTitle = label,
     onHelp = onRowHelp,
     min = 0,
-    max = 31,
+    max = 32,
     display = offOrNumber(offText),
     edited = afterEdit,
     get = function() return ui.config.motor2_channel end,
     set = function(v)
-      ui.config.motor2_channel = tonumber(v) or 0
+      v = tonumber(v) or 0
+      -- Channel 1 is motor 1: step from Off straight to 2, and from 2 and up back to Off.
+      if v == 1 then v = ((tonumber(ui.config.motor2_channel) or 0) >= 2) and 0 or 2 end
+      ui.config.motor2_channel = v
       ui.dirty = true
     end
   })
