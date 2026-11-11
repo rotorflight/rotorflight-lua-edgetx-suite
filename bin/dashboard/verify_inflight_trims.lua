@@ -145,5 +145,21 @@ local poll=count(function() drive:pollTrims() end)
 drive.live=true; drive.phase="live"; drive.fastAt=nil
 drive.sessionProfiles={pid={[1]=true},rate={[1]=true}}
 local fast=count(function() ticks=ticks+5; drive:fastTick(ticks) end)
+-- A step written to the value variable stamps the time on the suite's root, for the telemetry
+-- drain's report search (drive.lua writeValue, tasks/events/telemetry_bg/drain.lua); the 0 that ends
+-- the pulse does not move the stamp.
+do
+  local d=M.newDrive(radio, settings("rows"))
+  ticks=5000
+  rfsuite.adjustmentStepAt=nil
+  d:writeValue(73, 0)
+  assert(rfsuite.adjustmentStepAt==5000,"a step write stamps rfsuite.adjustmentStepAt: "..tostring(rfsuite.adjustmentStepAt))
+  ticks=5031
+  d:writeValue(0, 0)
+  assert(rfsuite.adjustmentStepAt==5000,"the pulse's 0 leaves the stamp")
+  ticks=5100
+  d:writeValue(-73, 0)
+  assert(rfsuite.adjustmentStepAt==5100,"the next step moves it")
+end
 print(comparisons.." routing/read-count comparisons passed; sliced discovery, settings invalidation and disabled inputs passed")
 print("warm row poll: "..poll.." instructions; idle fastTick: "..fast.." instructions (stubs included)")
