@@ -57,12 +57,13 @@ the first whole line in that part to the end, with older lines left in the file 
 follows the journal back from its newest entries, so a journal past 64 KiB keeps working; archive it by hand only
 if you want a smaller file.
 
-The Tune Advisor page reads the journal when it opens, to find the P you last set yourself: it follows its own
-entries for P on an axis and PID profile back from the current value and stops at any other change. If its own
-changes go back further than the newest 64 KiB, the oldest value read counts as yours, and the current P when
-none of them is read: after that many changes the page's limit of 50 % above your own P counts from that value,
-not from the P you set before them. If the file is there but cannot be read -- it does not open, for example --
-the page raises no P until it can be read again.
+The Tune Advisor page reads the journal when it opens, to find the P, FF and rate values you last set yourself:
+for each, it follows its own entries back from the current value -- P and FF on an axis and PID profile, the rates
+on a row and rate profile -- and stops at any other change. It folds the entries as it reads them and keeps none.
+If its own changes go back further than the newest 64 KiB, the oldest value read counts as yours, and the current
+value when none of them is read: after that many changes the page's limits around your own values count from
+that value, not from the one you set before them. If the file is there but cannot be read -- it does not open,
+for example -- the page raises no P and changes no FF until it can be read again.
 
 ## Reading and repairing
 

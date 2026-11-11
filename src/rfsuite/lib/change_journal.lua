@@ -147,9 +147,12 @@ local function newCollector(job)
 end
 
 --- A read of one flight controller's journal in steps (see M.readStep). `fields`, when given, is a
---- set of field names: only their entries are kept.
-function M.readJob(mcuId, fields)
-  return { phase = "read", mcuId = mcuId, fields = fields }
+--- set of field names: only their entries are kept. `onEntry`, when given, is handed each entry,
+--- oldest first, as soon as the group of lines it is in has been read, and none is kept: a caller
+--- that only folds the entries (lib/tune_history.lua pilotFold) holds no table of them; the
+--- finished read then answers an empty table.
+function M.readJob(mcuId, fields, onEntry)
+  return { phase = "read", mcuId = mcuId, fields = fields, onEntry = onEntry }
 end
 
 --- One step of a job from readJob(): nothing while there is more to do, then what read() answers.
@@ -239,6 +242,13 @@ function M.readStep(job)
             for i = #entries, before + 1, -1 do entries[i] = nil end
           end
         end
+      end
+      -- Handed on only once the group is settled, so a group read again line by line never
+      -- hands an entry on twice
+      local onEntry = job.onEntry
+      if onEntry then
+        for i = count + 1, #entries do onEntry(entries[i]) end
+        for i = #entries, count + 1, -1 do entries[i] = nil end
       end
     end
     job.pos = last + 1

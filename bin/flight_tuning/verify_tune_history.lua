@@ -493,6 +493,65 @@ do
   files[JOURNAL] = nil
 end
 
+print("pilotFold answers what pilotValues answers, without keeping the entries (#1174)")
+do
+  -- Random journals over a few fields, sources and profiles, with chains, breaks and other pages'
+  -- entries: the fold over the entries as they come must answer what the walk back answers.
+  local seed = 12345
+  local function rand(n)
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    return seed % n + 1
+  end
+  local fields = { "pid_0_P", "pid_0_F", "rcRates_1", "rates_1" }
+  local agree, cases, chained = true, 0, 0
+  for _ = 1, 400 do
+    local current = {}
+    for _, f in ipairs(fields) do current[f] = 50 + rand(5) end
+    local entries = {}
+    for _ = 1, rand(30) do
+      local f = fields[rand(#fields)]
+      local source = rand(5) == 1 and "pids" or "tune_advisor"
+      local old = rand(4) == 1 and 50 + rand(9) or current[f]
+      local new = 50 + rand(9)
+      entries[#entries + 1] = { time = 1, source = source, profile = rand(6) == 1 and 2 or 1, field = f, old = old,
+        new = new }
+      if rand(3) > 1 then current[f] = new end
+    end
+    local walked, folded = {}, {}
+    for i, f in ipairs(fields) do
+      walked[i] = { profile = 1, field = f, value = current[f] }
+      folded[i] = { profile = 1, field = f, value = current[f] }
+    end
+    tuneHistory.pilotValues(entries, walked)
+    local add, finish = tuneHistory.pilotFold(folded)
+    for _, e in ipairs(entries) do add(e) end
+    finish()
+    for i = 1, #fields do
+      cases = cases + 1
+      if walked[i].value ~= folded[i].value then agree = false end
+      if walked[i].value ~= current[fields[i]] then chained = chained + 1 end
+    end
+  end
+  check("pilotFold and pilotValues agree on 1600 settings of 400 random journals", agree and cases == 1600,
+    cases .. " settings")
+  check("(control) the random journals hold chains the walk follows back", chained > 100, chained .. " followed")
+
+  -- Through a journal read: the entries handed on as read, none kept
+  reset()
+  files[JOURNAL] = 'e(1,"tune_advisor",1,"pid_0_F",120,96)\ne(2,"tune_advisor",1,"pid_0_F",96,77)\n'
+    .. 'e(3,"tune_advisor",1,"pid_0_F",77,62\n' .. 'e(4,"tune_advisor",1,"pid_1_F",100,80)\n'
+  local wants = { { profile = 1, field = "pid_0_F", value = 77 }, { profile = 1, field = "pid_1_F", value = 80 } }
+  local add, finish = tuneHistory.pilotFold(wants)
+  local job = journal.readJob(MCU, { pid_0_F = true, pid_1_F = true }, add)
+  local got
+  repeat got = journal.readStep(job) until got ~= false
+  finish()
+  check("a read handing its entries to the fold keeps none, skips a broken line, and the fold finds both own F",
+    type(got) == "table" and #got == 0 and wants[1].value == 120 and wants[2].value == 100,
+    tostring(wants[1].value) .. " " .. tostring(wants[2].value))
+  files[JOURNAL] = nil
+end
+
 print("Differences from the Ethos suite: the change journal is read in steps (#980)")
 do
   -- The journal grows with every save; the page reads it a bounded number of lines per step.
