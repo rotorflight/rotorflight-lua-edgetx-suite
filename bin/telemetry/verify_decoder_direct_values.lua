@@ -16,7 +16,10 @@
 --   * a group (attitude) and a link reset fall back to the sensors, and a group supersedes a single row
 --     it also publishes;
 --   * taking over with an unchanged value answers from the decoder at once;
---   * the live read used for configuration feedback still resolves the radio's sensor.
+--   * the live read used for configuration feedback still resolves the radio's sensor;
+--   * the decoder's name index is built over several passes after the first read asks for it: reads
+--     in between come from the sensors, and once it is complete from the decoder (a partial index
+--     answering "not a custom sensor" would keep the sensors for good).
 -- Exit status: 0 green, 1 a FAIL line was printed.
 
 local ROOT = "."
@@ -52,7 +55,11 @@ local PASS_TICKS = 5
 local W = nil
 
 -- The radio's side: a sensor row per name, holding value / 10^prec plus the row's calibration offset.
-local function newWorld()
+-- In every scenario but the index one a reader asks the decoder from its first pass on, as a widget
+-- reading values on every pass does, so the decoder's name index (built over several passes after
+-- that first question) is complete by the time the scenario reads. The question goes to the decoder
+-- directly, not through lib/sensors.lua, so no sensor read is cached before the scenario's own.
+local function newWorld(noEarlyRead)
   W = { ticks = 1000, frames = {}, frameId = 0, rows = {}, offset = { Vbat = 0.2 }, shm = {}, remote = false,
     payload = {} }
   _G.rfsuite = nil
@@ -98,6 +105,7 @@ local function newWorld()
   assert(loadScript(CORE .. "lib/log.lua"))()
   W.tasks = assert(loadScript(CORE .. "tasks/events/telemetry_bg/tasks.lua"))()
   W.sensors = assert(loadScript(CORE .. "lib/sensors.lua"))()
+  W.askEarly = not noEarlyRead
   return W
 end
 
@@ -123,6 +131,8 @@ local function pass(n)
     _G.rfsuite.session.event_context = "widget"
     W.tasks.wakeup()
     _G.rfsuite.session.event_context = nil
+    local decoder = W.askEarly and _G.rfsuite.telemetryDecoder
+    if decoder then decoder.customSensor("Vbat") end
   end
 end
 local function seconds(s) pass(math.floor(s * 100 / PASS_TICKS + 0.5)) end
@@ -250,6 +260,23 @@ scenario("live_read", function()
   S.reset()
   check(near(S.getLiveValue("Esc#"), 7), "live_read: the live read still resolves the radio's sensor",
     S.getLiveValue("Esc#"))
+end)
+
+-- 8. Nobody has read yet: the first read starts the name index and is answered by the sensor; the
+-- index takes several passes (12 names per pass), during which reads still come from the sensor;
+-- once it is complete the same read comes from the decoder.
+scenario("index_window", function()
+  newWorld(true)
+  W.payload = { u16(0x1011, 2240) }
+  seconds(1)
+  local S = W.sensors
+  check(near(S.getValue("voltage"), 22.6), "index_window: the first read comes from the sensor", S.getValue("voltage"))
+  pass(1)
+  check(near(S.getValue("voltage"), 22.6), "index_window: still the sensor while the index is built",
+    S.getValue("voltage"))
+  pass(10)
+  check(near(S.getValue("voltage"), 22.4), "index_window: the decoded value once the index is complete",
+    S.getValue("voltage"))
 end)
 
 print = realPrint

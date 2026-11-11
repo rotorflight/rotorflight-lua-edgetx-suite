@@ -802,9 +802,11 @@ local function directValue(source, resolved)
     local tick = type(getTime) == "function" and getTime() or 0
     if tick ~= directPlanTick then directPlanTick, directPlansThisTick = tick, 0 end
     if directPlansThisTick >= DIRECT_PLANS_PER_TICK then return nil end
-    directPlansThisTick = directPlansThisTick + 1
     plan = directPlan(decoder, source, resolved)
+    -- nil: the decoder cannot answer yet (its table or name index is still coming); that costs one
+    -- call and no slot, so the slots go to plans that are kept.
     if plan == nil then return nil end
+    directPlansThisTick = directPlansThisTick + 1
     directPlans[source] = plan
   end
   if not plan then return nil end

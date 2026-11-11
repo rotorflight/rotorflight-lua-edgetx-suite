@@ -9,9 +9,15 @@
 local M = {}
 
 local RFSensors = nil
--- Sensor name -> sid of the decoder table, built on the pass that loads it (modulesReady): the table
--- is keyed by sid, and a reader asks by the name the radio shows (M.customSensor).
+-- Sensor name -> sid of the decoder table, for M.customSensor: the table is keyed by sid, and a
+-- reader asks by the name the radio shows. Built only once a reader has asked (a state nobody reads
+-- through, such as the background function script's, never builds it), and then INDEX_PER_PASS
+-- entries per drain pass (indexStep), so no single pass carries the whole table -- the pass that
+-- loads the table least of all. `nameToSid` is nil until the last entry is in: a partial index must
+-- not answer that a name is not a custom sensor, because readers keep that answer.
 local nameToSid = nil
+local INDEX_PER_PASS = 12
+local indexWanted, indexPartial, indexKey = false, nil, nil
 
 local function loadModule(path, ...)
   local fullPath = _G.rfsuite.paths.core .. "/" .. path
@@ -542,6 +548,24 @@ function M.remoteAlive(now)
     return alive
 end
 
+-- INDEX_PER_PASS more entries of the name index (see nameToSid). The decoder table is never written
+-- after its load, so a traversal started at the last key resumes where the last pass stopped. Every
+-- entry is a table: lib/rf2tlm_sensors.lua builds them.
+local function indexStep()
+    local partial, n = indexPartial or {}, 0
+    for sid, sensor in next, RFSensors, indexKey do
+        local name = sensor.name
+        if name then partial[name] = sid end
+        n = n + 1
+        if n == INDEX_PER_PASS then
+            indexPartial, indexKey = partial, sid
+            return
+        end
+    end
+    nameToSid, indexWanted, indexPartial, indexKey = partial, false, nil, nil
+    if debugOn then logf("debug", "sensor name index ready") end
+end
+
 -- The two modules a drain pass needs, one load per wakeup; false while either is still missing.
 -- The decoder table gets a wakeup of its own, and a wakeup that loads returns without popping:
 -- loading its top-level chunk costs more than a steady drain pass does, and loading it in the same
@@ -559,12 +583,6 @@ local function modulesReady(now)
         RFSensors = loadModule("lib/rf2tlm_sensors.lua", nil, groupDue)
         if RFSensors then
             loadRecovered("sensor table")
-            -- The name index for M.customSensor, on this pass, which loads and decodes nothing else,
-            -- rather than on the first pass that reads a value.
-            nameToSid = {}
-            for sid, sensor in pairs(RFSensors) do
-                if type(sensor) == "table" and sensor.name then nameToSid[sensor.name] = sid end
-            end
         else
             loadFailed("sensor table", now)
         end
@@ -590,7 +608,10 @@ local function modulesReady(now)
             return false
         end
         loadRecovered("CRSF module")
+        return true
     end
+    -- Not on a pass that loaded a module above: those are the heavier ones already.
+    if indexWanted then indexStep() end
     return true
 end
 
@@ -812,11 +833,15 @@ end
 local DIRECT_SCALE = { 10, 100, 1000 }
 
 --- The sensor of the custom telemetry a name stands for: its sid and the divisor its precision asks
--- for (1 for none); false for a name that is not one; nil while the decoder table is not loaded, so
--- the question is asked again. A reader asks this once per name and keeps the answer, because the
+-- for (1 for none); false for a name that is not one; nil while the decoder table is not loaded or
+-- its name index not yet complete, so the question is asked again -- the first such question starts
+-- the index (see nameToSid). A reader asks this once per name and keeps the answer, because the
 -- table does not change.
 function M.customSensor(name)
-    if not RFSensors or not nameToSid then return nil end
+    if not nameToSid then
+        indexWanted = true
+        return nil
+    end
     local sid = nameToSid[name]
     if sid == nil then return false end
     local prec = RFSensors[sid].prec or 0
