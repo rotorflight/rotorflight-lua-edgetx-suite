@@ -1,0 +1,7 @@
+{
+  "id": "log-level",
+  "name": "Log lines follow the Log Level from the next line on",
+  "commands": [
+    "lua5.3 bin/core/verify_log_level.lua"
+  ]
+}

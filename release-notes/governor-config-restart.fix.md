@@ -1,0 +1,1 @@
+- Setup > Governor: a save on General, Ramp Time, Filters or Bypass Curve that changes a value now restarts the flight controller, because the firmware applies these settings only at start-up; a save that changes nothing does not restart, and Bypass Curve no longer rounds a half-percent point the pilot did not change (setup/governor).

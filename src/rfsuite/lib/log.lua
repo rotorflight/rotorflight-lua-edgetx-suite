@@ -26,35 +26,48 @@ local function normalizeLevel(value)
   return "debug"
 end
 
+-- Every call site passes one of the ladder's names, so the table answers directly and the
+-- string work in normalizeLevel runs only for a level that is mistyped or not a string.
 local function debugLevelRank(level)
-  return RANK[normalizeLevel(level)]
+  return RANK[level] or RANK[normalizeLevel(level)]
 end
 
-local function configuredDebugLevel()
-  local root = _G and _G.rfsuite
-  local prefs = root and root.preferences
-  local general = prefs and prefs.general
-  local value = general and general.debug_level
+local function configuredRankOf(value)
   if value == nil then
-    return "off"
+    return RANK.off
   end
   local text = string.lower(tostring(value))
   if text == "warning" then text = "warn" end
   -- A value this build does not know stays off. normalizeLevel falls back to "debug", which is
   -- right for a message whose level is mistyped and wrong for the switch deciding whether
   -- anything is written at all -- there it would turn an unreadable setting into the loudest one.
-  if RANK[text] == nil then
-    return "off"
+  return RANK[text] or RANK.off
+end
+
+-- The configured level is read on every line, and turning it into a rank is string work. The
+-- rank is kept against the raw preference value it came from, so a line costs one comparison
+-- and a change on the developer settings page still takes effect on the next line. `false` is
+-- never a stored value, so the first read always converts.
+local configuredValue, configuredRank = false, RANK.off
+
+local function configuredDebugRank()
+  local root = _G and _G.rfsuite
+  local prefs = root and root.preferences
+  local general = prefs and prefs.general
+  local value = general and general.debug_level
+  if value ~= configuredValue then
+    configuredRank = configuredRankOf(value)
+    configuredValue = value
   end
-  return text
+  return configuredRank
 end
 
 local function shouldEmitByLevel(messageLevel)
-  local configured = configuredDebugLevel()
-  if configured == "off" then
+  local configured = configuredDebugRank()
+  if configured == RANK.off then
     return false
   end
-  return debugLevelRank(messageLevel) <= debugLevelRank(configured)
+  return debugLevelRank(messageLevel) <= configured
 end
 
 local function isSerialDebugEnabled()
@@ -100,15 +113,13 @@ local function sinkList()
   return type(sink) == "table" and sink or nil
 end
 
-local function addToSink(tag, msg, level)
-  local sink = sinkList()
-  if not sink then return end
-
+-- Both buffers take the strings Log.emit has already made, and the one clock read it took.
+local function addToSink(sink, tag, msg, level, now)
   sink[#sink + 1] = {
-    tag = tostring(tag or "rfsuite"),
-    msg = tostring(msg or ""),
-    level = tostring(level or "debug"),
-    time = getTime and getTime() or 0
+    tag = tag,
+    msg = msg,
+    level = level,
+    time = now
   }
   if #sink > SINK_MAX then
     -- The cap is an overflow guard, not a working size: the sink empties this list every time it
@@ -119,21 +130,18 @@ local function addToSink(tag, msg, level)
   end
 end
 
-local function addToHistory(tag, msg, level)
-  local t = tostring(tag or "rfsuite")
-  local lvl = tostring(level or "debug")
-  local m = tostring(msg or "")
-  
+local function addToHistory(tag, msg, level, now)
+  local m = msg
   if string.len(m) > MAX_MSG_LEN then
     m = string.sub(m, 1, MAX_MSG_LEN - 3) .. "..."
   end
 
   local history = _G.rfsuite.log_history
   table.insert(history, {
-    tag = t,
+    tag = tag,
     msg = m,
-    level = lvl,
-    time = getTime and getTime() or 0
+    level = level,
+    time = now
   })
 
   if #history > MAX_HISTORY then
@@ -148,18 +156,31 @@ end
 -- `enabled` is a console OPT-OUT: false keeps a line off the console while it still reaches
 -- the ring, the sink and serial; nil and true both mean on. It exists for the call sites
 -- that gate console output on a preference of their own, and it decides nothing else.
+--
+-- A line runs inside whichever widget pass or task emits it, and that pass has an instruction
+-- budget the firmware enforces, so the work per line is done once: one level decision, one
+-- clock read, one string conversion, shared by the ring, the sink and the console.
 function Log.emit(tag, msg, level, enabled)
-  local emitByLevel = shouldEmitByLevel(level)
-  
+  local configured = configuredDebugRank()
+  local rank = debugLevelRank(level)
+  local emitByLevel = configured ~= RANK.off and rank <= configured
+
   -- Always buffer important logs (info/warn/error) or if debug is enabled.
   --
   -- Written as a rank comparison rather than as "anything that is not debug": with `trace` below
   -- `debug`, the old test was true for a trace line as well, which would have put every payload
   -- dump into the ring at every setting -- `off` included -- and flooded the page the ring
   -- exists for. The behaviour for the five levels that existed before is identical.
-  if emitByLevel or debugLevelRank(level) <= RANK.info then
-    addToHistory(tag, msg, level)
+  if not (emitByLevel or rank <= RANK.info) then
+    return
   end
+
+  local now = getTime and getTime() or 0
+  local t = tostring(tag or "rfsuite")
+  local lvl = tostring(level or "debug")
+  local m = tostring(msg or "")
+
+  addToHistory(t, m, lvl, now)
 
   -- A sink writing to the card is a second consumer with a different budget, and it takes the
   -- message UNTRUNCATED. See addToSink.
@@ -169,31 +190,32 @@ function Log.emit(tag, msg, level, enabled)
   -- because the important levels reach the ring through the second half of that test and
   -- nothing else is emitted at all. The sink takes what the ring takes, and more when a level
   -- is chosen.
-  if sinkList() and (emitByLevel or debugLevelRank(level) <= RANK.info) then
-    addToSink(tag, msg, level)
+  local sink = sinkList()
+  if sink then
+    addToSink(sink, t, m, lvl, now)
   end
 
-  local emitConsole = (enabled == nil or isTruthy(enabled)) and emitByLevel
-  local emitSerial = isSerialDebugEnabled() and type(serialWrite) == "function" and emitByLevel
+  if not emitByLevel then
+    return
+  end
+
+  local emitConsole = enabled == nil or isTruthy(enabled)
+  local emitSerial = type(serialWrite) == "function" and isSerialDebugEnabled()
 
   if not emitConsole and not emitSerial then
     return
   end
 
-  local t = tag or "rfsuite"
-  local lvl = level or "debug"
-
   -- The history entry already carries a timestamp and session_logs/page.lua renders it, but
   -- the console and serial line was built without one, so the same message could be read with
   -- a time on the radio and without a time everywhere else. Same clock and same format as that
   -- page, and left out when the clock is unavailable, which is what the page does too.
-  local now = getTime and getTime() or 0
   local stamp = ""
   if now > 0 then
     stamp = "[" .. string.format("%0.1f", now / 100) .. "]"
   end
 
-  local line = "[" .. tostring(t) .. "][" .. tostring(lvl) .. "]" .. stamp .. " " .. tostring(msg)
+  local line = "[" .. t .. "][" .. lvl .. "]" .. stamp .. " " .. tostring(msg)
 
   if emitConsole and type(print) == "function" then
     print(line)

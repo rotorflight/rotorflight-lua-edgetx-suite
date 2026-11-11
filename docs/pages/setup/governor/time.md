@@ -30,8 +30,9 @@ initial values below are the page's own before that read, not firmware reset def
 
 ## Notes
 
-- Save writes the five times and stores them on the flight controller; it does not restart it.
-  See [Saving configuration](../../../reference/saving.md).
+- **Save restarts the flight controller when it changes a value** on this page, because the
+  firmware hands the governor these settings only at start-up; a save that changes nothing does
+  not restart it. See [Saving configuration](../../../reference/saving.md).
 - *Startup time* shows its value without the unit; the others show it with `s`.
 
 ## Related

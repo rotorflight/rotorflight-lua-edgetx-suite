@@ -1,0 +1,2 @@
+- **The Logs list appears in the tool opened from the dashboard on a card with many logs (`logs`)**:
+  - Fitting the 25 shown names into their column took more work than one widget call allows, so with more than about fifteen logs the list was stopped and built again without end; the names are now fitted a few per call before the list is built.

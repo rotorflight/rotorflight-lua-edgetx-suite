@@ -193,6 +193,6 @@ right sensor at the next match rather than only when the model is next loaded.
 - [No connection to the flight controller](../troubleshooting/no-connection.md) -- when nothing
   off the flight controller is shown at all, rather than one value.
 - [Collecting logs](../troubleshooting/collecting-logs.md) -- the suite's log names the sensor
-  each value was matched to when the log level is raised.
+  each value was matched to when the log level is raised -- when it is matched, not on every read.
 - [Flight statistics](flight-statistics.md) -- what the flight record keeps, and which values it
   reads through this layer.
