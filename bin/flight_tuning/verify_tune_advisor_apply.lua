@@ -810,10 +810,19 @@ do
     and contains(ui.view.whys, T().whyJournalUnread) and not contains(ui.view.actions, "->"),
     table.concat(ui.view.whys, " | "))
   openFails[Journal.path(MCU)] = nil
+  -- A journal over its read cap of 64 KiB is read from its newest part (#1170): the advisor's own
+  -- raises at its end still cap P, and the page does not call it unreadable
+  files[Journal.path(MCU)] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
+    .. 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\ne(1761900002,"tune_advisor",1,"pid_0_P",60,70)\n'
+  openPage()
+  check("a journal over its read cap still caps P from its newest entries (#1170)",
+    #files[Journal.path(MCU)] > 65536 and not canSave()
+    and contains(ui.view.whys, string.format(T().whyPMaxFmt, 40))
+    and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
   files[Journal.path(MCU)] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
   openPage()
-  check("nor does one over its read cap", #files[Journal.path(MCU)] > 65536 and not canSave()
-    and contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
+  check("(control) one over its read cap with no raise of roll's P raises it", #files[Journal.path(MCU)] > 65536
+    and canSave() and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
 
   -- A long journal (a thousand entries, about 40 kB) is read over many passes, and the walk
   -- still finds the advisor's own raises at its end
