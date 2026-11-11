@@ -54,7 +54,9 @@ do
   check("the raising build's module is there to break", standbyModule ~= nil)
   local realBuild = standbyModule.build
   standbyModule.build = function() error("control", 0) end
+  -- The tree on record is forgotten as well: a cleared key over the standby built for it keeps it.
   widget.built, widget.renderKey = false, nil
+  widget._treeKind, widget._treeKey = nil, nil
   widget._standbyItems, widget._standbyLayout = nil, nil
   local sawSplash = false
   for _ = 1, 40 do
@@ -829,7 +831,14 @@ do
   widget:refresh(0, nil)
   widget:refresh(0, nil)
   widget:refresh(0, nil)
-  local reloadedTree, localizedReactive = Stubs.lvgl.trees[#Stubs.lvgl.trees] or {}, false
+  -- The reload changed nothing the standby is built for, so the standby built above still stands and
+  -- its getters must read the reloaded state. The stub keeps one tree list for every widget, and the
+  -- widgets built since have replaced it there; on a radio each widget keeps its own.
+  local reloadedTree, localizedReactive = Stubs.lvgl.trees[#Stubs.lvgl.trees], false
+  if widget._treeKind == "standby" and widget._treeKey == widget.renderKey and #Stubs.lvgl.trees == 0 then
+    reloadedTree = standbyTree
+  end
+  reloadedTree = reloadedTree or {}
   local expectedRate = enLocale.widgets.dashboard.standby.elrs_packet_rate .. " "
   for i = 1, #reloadedTree do
     local node = reloadedTree[i]
@@ -1386,7 +1395,16 @@ do
     s.passes(1)
   end
   check("each new read of the radio is traced", logged("trace: read: clock ") > readsBefore)
+  -- A cleared key over the standby built for that very key keeps it: nothing about it changed.
   s.widget.renderKey = nil
+  s.passes(1)
+  check("a cleared key over the same standby keeps it",
+    logged("debug: kept: its key was cleared, the screen is already this one: standby|") == 1)
+  check("and builds nothing", (function() s.passes(7); return logged("debug: built: ") == 1 end)())
+  -- With no build of that key on record -- another surface or a dropped build since -- the cleared
+  -- key is still told apart from a changed surface, and builds.
+  s.widget.renderKey = nil
+  s.widget._treeKind, s.widget._treeKey = nil, nil
   s.passes(1)
   check("a cleared key is told apart from a changed surface",
     logged("debug: rebuild: nothing about it changed, its key was cleared: standby|") == 1)

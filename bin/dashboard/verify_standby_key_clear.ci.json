@@ -1,0 +1,9 @@
+{
+  "id": "standby-key-clear",
+  "name": "Dashboard standby key clears",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_standby_key_clear.lua"
+  ],
+  "step": "Check a cleared render key does not rebuild a standby screen that is already the one to show",
+  "rationale": "A connect clears the dashboard's render key several times for the dashboard's own scene, and every clear rebuilt the standing standby screen; each rebuild's lvgl.clear() leaves native memory behind on radios. This runs the real runtime with controls for a new information line, language and zone size."
+}
