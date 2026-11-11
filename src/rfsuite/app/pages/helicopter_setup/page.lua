@@ -134,7 +134,12 @@ function M.wakeup(ctx)
   if w and collectAfterBuild and w.buildCount ~= collectAfterBuild then
     collectAfterBuild = nil
     collectgarbage("collect")
-    if w.logTrace then w:log("trace", "collected after a new scene") end
+    -- Right after the collect the Lua count holds no garbage, so this line, read across a walk,
+    -- says what the wizard keeps per scene (and on a radio what stays free).
+    if w.logDebug then
+      local Log = _G.rfsuite and _G.rfsuite.Log
+      w:log("debug", "collected after scene build %d: %s", w.buildCount or 0, Log and Log.resources() or "-")
+    end
   end
   if ctx and ctx.requestRebuild then context.requestRebuild = ctx.requestRebuild end
   loadingFraction = w and (w.ready and 1 or w.suspended and 0 or 0.2+0.8*(w.progress or 0)/math.max(1,w.loadTotal or 1)) or 0.2*(stage-1)/#deps
