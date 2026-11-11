@@ -7,7 +7,8 @@
 --   no report        a backlog without an adjustment entry publishes none (control);
 --   value bytes      a value whose bytes equal the adjustment id, in a dropped frame: no report
 --                    is invented (the byte search's false hit is sorted out by the walk);
---   rescue cost      instructions of a capped pass with and without the rescue's search, printed.
+--   not awaited      outside the 3 s after a step the cap drops as before (no search);
+--   rescue cost      instructions of a capped pass with and without a step awaited, printed.
 local checks, failures = 0, 0
 local function check(ok, label, detail)
   checks = checks + 1
@@ -110,6 +111,7 @@ end
 scenario("dropped_report", function()
   local h = newDrain()
   local t = h:prime("wakeup", 0.1)
+  h.env.rfsuite.adjustmentStepAt = math.floor(t * 100)
   backlog(h, 14, 3, 11)
   local popped = h.drain.wakeup(t + 0.1)
   check(popped == 14, "dropped_report: one pass takes the backlog", "popped=" .. tostring(popped))
@@ -124,6 +126,7 @@ end)
 scenario("newer_wins", function()
   local h = newDrain()
   local t = h:prime("wakeup", 0.1)
+  h.env.rfsuite.adjustmentStepAt = math.floor(t * 100)
   backlog(h, 14, 3, 11, { [13] = { { ADJ, 12 } } })
   h.drain.wakeup(t + 0.1)
   local adj = h:published_values(ADJ)
@@ -134,6 +137,7 @@ end)
 scenario("no_report", function()
   local h = newDrain()
   local t = h:prime("wakeup", 0.1)
+  h.env.rfsuite.adjustmentStepAt = math.floor(t * 100)
   backlog(h, 14, nil, nil)
   h.drain.wakeup(t + 0.1)
   check(#h:published_values(ADJ) == 0, "no_report: a backlog without a report publishes none")
@@ -148,9 +152,32 @@ scenario("value_bytes", function()
   check(#h:published_values(ADJ) == 0, "value_bytes: no report is invented from a value's bytes")
 end)
 
+scenario("false_hit_newer", function()
+  local h = newDrain()
+  local t = h:prime("wakeup", 0.1)
+  h.env.rfsuite.adjustmentStepAt = math.floor(t * 100)
+  -- An older dropped frame carries the report; a newer dropped frame only has its bytes in values.
+  backlog(h, 14, 3, 11, { [6] = { { OTHER, 0x12 }, { 0x2010, 0x20 } } })
+  h.drain.wakeup(t + 0.1)
+  local adj = h:published_values(ADJ)
+  check(#adj == 1 and adj[1] == 11, "false_hit_newer: a newer look-alike does not hide the older report",
+    table.concat(adj, ","))
+end)
+
+scenario("not_awaited", function()
+  local h = newDrain()
+  local t = h:prime("wakeup", 0.1)
+  -- The last step went out 4 s before this pass: outside the window, no search, no rescue.
+  h.env.rfsuite.adjustmentStepAt = math.floor((t - 4) * 100)
+  backlog(h, 14, 3, 11)
+  h.drain.wakeup(t + 0.1)
+  check(#h:published_values(ADJ) == 0, "not_awaited: outside a step's window the cap drops as before")
+end)
+
 scenario("decode_all_unchanged", function()
   local h = newDrain()
   local t = h:prime("wakeup", 0.1)
+  h.env.rfsuite.adjustmentStepAt = math.floor(t * 100)
   backlog(h, 14, 3, 11)
   h.drain.wakeup(t + 0.1, true)
   local adj = h:published_values(ADJ)
@@ -159,18 +186,21 @@ end)
 
 -- The cost of a capped pass of 15 frames, counted by the VM's instruction hook.
 do
-  local function count(adjAt)
+  local five = {}
+  for i = 1, 15 do five[i] = { { OTHER, i }, { OTHER, i }, { OTHER, i }, { OTHER, i }, { OTHER, i } } end
+  local function count(adjAt, awaited)
     local h = newDrain()
     local t = h:prime("wakeup", 0.1)
-    backlog(h, 15, adjAt, 11)
+    if awaited then h.env.rfsuite.adjustmentStepAt = math.floor(t * 100) end
+    backlog(h, 15, adjAt, 11, five)
     local n = 0
     debug.sethook(function() n = n + 1 end, "", 1)
     h.drain.wakeup(t + 0.1)
     debug.sethook()
     return n
   end
-  print(string.format("capped pass of 15 frames: %d instructions without a report, %d with one in a dropped frame",
-    count(nil), count(3)))
+  print(string.format("capped pass of 15 five-entry frames: %d instructions with no step awaited; while one is: %d without a report, %d with one in a dropped frame",
+    count(nil, false), count(nil, true), count(3, true)))
 end
 
 print(string.format("%d checks, %d failures", checks, failures))

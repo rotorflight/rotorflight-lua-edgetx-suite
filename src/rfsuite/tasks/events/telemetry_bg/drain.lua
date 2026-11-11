@@ -674,6 +674,18 @@ local function mayCarryAdjustment(data)
     return false
 end
 
+-- Whether a step went out recently enough that its report may still be on the way: the in-flight
+-- drive stamps `rfsuite.adjustmentStepAt` (getTime() ticks) on every step it writes. The board
+-- answers within half a second and repeats the report after 3 s, so the window is the 3 s in
+-- between; outside it a backlog pass pays nothing for the rescue. An adjustment the pilot makes
+-- with his own switch, without the drive, is not looked for -- as before the rescue.
+local ADJUSTMENT_AWAIT_SECONDS = 3
+local function adjustmentAwaited(now)
+    local root = _G.rfsuite
+    local at = root and tonumber(root.adjustmentStepAt)
+    return at ~= nil and (now - at / 100) <= ADJUSTMENT_AWAIT_SECONDS
+end
+
 -- Walk one dropped frame to its adjustment entry and decode that entry alone, published as
 -- decodeFrame would; the entries in front are walked with walkOnly so none of them publishes.
 -- Returns whether the entry was found.
@@ -699,6 +711,10 @@ local function rescueAdjustment(data, now)
     walkOnly = false
     return false
 end
+
+-- The dropped frames of one pass that may carry the adjustment pair, oldest first; reused like
+-- keptFrames below and emptied before the pass ends.
+local adjustmentCandidates = {}
 
 -- The frames one pass keeps for decoding. One table for every pass rather than a new one per
 -- wakeup, because the drain is woken on every pass whether or not a frame is waiting. Reusing it
@@ -730,9 +746,15 @@ function M.wakeup(now, decodeAll)
     local kept = keptFrames
     for i = #kept, 1, -1 do kept[i] = nil end
     local popped = 0
-    -- The newest frame the cap drops that may carry the adjustment pair; decoded for that pair
-    -- alone, ahead of the kept frames, so a newer pair among them still lands last.
-    local rescue = nil
+    -- The frames the cap drops that may carry the adjustment pair. The newest one that does is
+    -- decoded for that pair alone, ahead of the kept frames, so a newer pair among them still
+    -- lands last; newest first, so a value whose bytes only look like the id does not hide an
+    -- older real report. The board holds a report for ADJUSTMENT_LATENCY_MS (3 s) before its 0,
+    -- so a report and the 0 that ends it do not fall into one pass.
+    local candidates = adjustmentCandidates
+    for i = #candidates, 1, -1 do candidates[i] = nil end
+    -- Asked once, at the first frame the cap drops: a pass without a backlog never asks.
+    local awaited = nil
     while popped < POP_CAP do
         local data = popAndAccount()
         if not data then freshFrames = true break end
@@ -740,17 +762,21 @@ function M.wakeup(now, decodeAll)
         kept[#kept + 1] = data
         if not decodeAll and #kept > DECODE_CAP then
             local dropped = table.remove(kept, 1)
-            if mayCarryAdjustment(dropped) then rescue = dropped end
+            if awaited == nil then awaited = adjustmentAwaited(now) end
+            if awaited and mayCarryAdjustment(dropped) then candidates[#candidates + 1] = dropped end
         end
     end
 
     if popped == 0 then return 0 end
 
-    if rescue then
-        local found = rescueAdjustment(rescue, now)
-        if found then logf("debug", "pass: the adjustment report taken from a frame the cap dropped (frame %s)", tostring(rescue[3])) end
-        rescue = nil
+    for i = #candidates, 1, -1 do
+        local data = candidates[i]
+        if rescueAdjustment(data, now) then
+            logf("debug", "pass: the adjustment report taken from a frame the cap dropped (frame %s)", tostring(data[3]))
+            break
+        end
     end
+    for i = #candidates, 1, -1 do candidates[i] = nil end
 
     if traceOn then
         if popped > #kept then
