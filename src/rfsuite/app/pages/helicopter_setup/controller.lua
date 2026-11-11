@@ -880,6 +880,8 @@ function M.new(runtime, transport, mathModule, labels)
     -- timeout. Probe each parser with OFF only: valid five bytes must succeed
     -- and invalid four bytes must be explicitly refused, never just time out.
     local servoCandidate,mixerCandidate=false,false
+    -- The two four-byte writes are refused on purpose; the queue logs each refusal as a warning.
+    if self.logDebug then self:log("debug", "override probe: two four-byte OFF writes, a refusal is the expected answer") end
     self:write("servo_override",{servo_id=0,action=2001,timeout=500},function(_,err) servoCandidate=err==nil end,true)
     self:action("servo_override",{0,209,7,0},function(_,err) self.timedServo=servoCandidate and err=="refused" end,true)
     self:write("mixer_override",{index=0,value=2501,timeout=500},function(_,err) mixerCandidate=err==nil end,true)

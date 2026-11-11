@@ -299,7 +299,7 @@ written by opening a card. Existing ESC reboot requirements still apply.
 | Current | Live ESC current in A, or the FC's selected-source analog reading once the source is written. Zero current can be normal at rest. A source not yet written never claims another source's reading. |
 | Different packs | 1-6: how many kinds of flight battery are flown, one battery profile each. Starts at the number of profiles that hold a capacity. |
 | Battery n | One row per battery profile: the cell count from a list, Auto (stored as 0, the FC detects the cells) or 1S-24S, and the capacity, 0-40000 mAh. Editing a row does not activate that profile; the active profile's values are also the FC's current ones. |
-| Firmware Source | SmartFuel OFF (LOCAL), VOLTAGE, CURRENT or COMBINED. VOLTAGE and COMBINED show a warning when the draft Voltage Source is NONE. The three tuning values are preserved. |
+| Firmware Source | SmartFuel OFF (LOCAL), VOLTAGE, CURRENT or COMBINED. A line under the choice says what the chosen mode does: the radio estimates the remaining capacity itself, or the FC estimates it from the pack voltage, counts the used mAh against the capacity, or takes the lower of both. VOLTAGE and COMBINED show a warning when the draft Voltage Source is NONE. The three tuning values are preserved. |
 
 Battery and Sources have no API-version gate in the current Power pages. The
 wizard uses optional, single-message startup reads for battery_config and
@@ -463,8 +463,10 @@ steps. Records are separate, versioned files under `rfsuite.user/wizard-history/
 ## Loading and live feedback
 
 Startup reads adjustment ranges and servo settings one indexed record per request.
-The progress text updates in place while loading. The larger USB bulk replies do
-not fit the firmware telemetry response buffer and are never requested here.
+The progress text updates in place while loading. A reload after a restart shows
+the same count in the status line, under the card that is still on screen, until
+the wizard is ready again. The larger USB bulk replies do not fit the firmware
+telemetry response buffer and are never requested here.
 
 When live System Status (`STAT`) or System Config (`SCFG`) telemetry is available,
 the footer can show FC saving, unsaved changes, restart needed, active override,

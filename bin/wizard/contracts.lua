@@ -5537,12 +5537,14 @@ return function(h)
     check(not w.error and not w.data.analog,"POWER unavailable analog is optional and clears its sample")
     local smart=powerCard(cards,L.smartFuel)
     voltage.rows[1].set(1)
+    local modeLine={[0]=L.smartFuelModeOff,L.smartFuelModeVoltage,L.smartFuelModeCurrent,L.smartFuelModeCombined}
     for mode=0,3 do
       smart.rows[1].set(mode+1)
-      eq(smart.rows[2].get(),(mode==1 or mode==3) and L.powerVoltageWarning or "","POWER only voltage-dependent modes warn with source off")
+      eq(smart.rows[2].get(),modeLine[mode],"POWER the line under the choice says what the chosen mode does")
+      eq(smart.rows[3].get(),(mode==1 or mode==3) and L.powerVoltageWarning or "","POWER only voltage-dependent modes warn with source off")
     end
     voltage.rows[1].set(2)
-    eq(smart.rows[2].get(),"","POWER warning clears with a voltage source")
+    eq(smart.rows[3].get(),"","POWER warning clears with a voltage source")
   end)
   case("S10.back-before-connect-asks-unplugged-again",function()
     local w=world();settle(w);w.step=10;w.rebootPending=nil;w.checks.unplugged=true

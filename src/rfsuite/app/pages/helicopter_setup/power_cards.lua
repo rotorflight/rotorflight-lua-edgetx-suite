@@ -122,6 +122,12 @@ return function(w, cards)
   if w.data.smartfuel_config then
     add(L.smartFuel, L.powerSmartFuelHelp, {
       w:enum("smartfuel_config", "smartfuel_mode", L.firmwareSource, entries(fields.modeOptions(w.i18n))),
+      -- What the chosen mode does, in one line under the choice, so the pilot knows what to expect.
+      {kind = "notice", get = function()
+        local mode = w.data.smartfuel_config.smartfuel_mode
+        return mode == 0 and L.smartFuelModeOff or mode == 1 and L.smartFuelModeVoltage
+          or mode == 2 and L.smartFuelModeCurrent or mode == 3 and L.smartFuelModeCombined or ""
+      end},
       {kind = "notice", get = function()
         return fields.needsVoltage(w.data.smartfuel_config.smartfuel_mode) and battery.voltageMeterSource == 0
           and L.powerVoltageWarning or ""
