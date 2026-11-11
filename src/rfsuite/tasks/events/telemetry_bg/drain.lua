@@ -448,6 +448,10 @@ local remoteMovedAt = nil
 -- state stood aside does not keep reading "elsewhere").
 local remoteLast = nil
 local remoteSeen = false
+-- Whether M.remoteAlive said "another state is decoding" since this state's last drain pass, for
+-- beginPass's resume line: a stretch spent standing aside is not a stretch without a pass. Set
+-- whatever the log level, so a level raised while standing aside still names the resume right.
+local asideSincePass = false
 
 --- Say that this Lua state is TAKING FRAMES OFF THE WIRE, for whoever is watching the slot.
 --
@@ -503,7 +507,10 @@ function M.remoteAlive(now)
         end
         remoteLast = alive
     end
-    if alive then remoteSeen = true end
+    if alive then
+        remoteSeen = true
+        asideSincePass = true
+    end
     return alive
 end
 
@@ -565,9 +572,17 @@ local function beginPass(now, permanent)
         resyncPending = true
         adoptPublished = true
         if permanent then freshFrames = false end
-        if debugOn then logf("debug", "decoding resumes after %s s without a pass",
-            string.format("%.1f", now - lastWakeAt)) end
+        if debugOn then
+            if asideSincePass then
+                logf("debug", "decoding resumes after standing aside for %s s",
+                    string.format("%.1f", now - lastWakeAt))
+            else
+                logf("debug", "decoding resumes after %s s without a pass",
+                    string.format("%.1f", now - lastWakeAt))
+            end
+        end
     end
+    asideSincePass = false
     lastWakeAt = now
     passNow = now
     if resyncPending then

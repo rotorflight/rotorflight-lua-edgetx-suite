@@ -271,7 +271,9 @@ scenario("debug_widget", function()
   check(grep("dash: frame gap: id %d+ %-> %d+, 1 missing") >= 1, "debug_widget: the gap is logged", dump(40))
   check(grep("dash: stands aside") == 1, "debug_widget: standing aside is logged once", dump(60))
   check(grep("dash: takes over decoding") == 1, "debug_widget: taking over is logged once", dump(60))
-  check(grep("dash: decoding resumes after") == 1, "debug_widget: the resume is logged", dump(60))
+  check(grep("dash: decoding resumes after standing aside for [%d.]+ s") == 1,
+    "debug_widget: the resume after the take-over says the state stood aside", dump(60))
+  check(grep("without a pass") == 0, "debug_widget: a take-over is not called a stretch without a pass", dump(60))
   check(grep("dash: frame %d+:") == 0, "debug_widget: no per-frame line at debug")
   -- The lines above came from the real modules, not from a stand-in.
   check(W.loaded["tasks/events/telemetry_bg/drain.lua"] == true, "debug_widget: the real drain ran")
@@ -326,6 +328,26 @@ scenario("debug_connecting", function()
   print = realPrint
   check(grep("dash: stands aside") == 1, "debug_connecting: standing aside is logged", dump(40))
   check(grep("dash: takes over decoding") == 1, "debug_connecting: taking over is logged", dump(40))
+  check(grep("dash: decoding resumes after standing aside for [%d.]+ s") == 1,
+    "debug_connecting: the resume after the take-over says the state stood aside", dump(40))
+  check(grep("without a pass") == 0, "debug_connecting: a take-over is not called a stretch without a pass", dump(40))
+end)
+
+-- 4b'. A stretch without a pass and with no other decoder -- the widget skipped by the radio for
+-- 1.5 s -- is still called one, and a stand-aside earlier in the run does not relabel it.
+scenario("debug_pause", function()
+  newWorld("widget", "debug")
+  seconds(1)
+  W.remote = true
+  seconds(1)
+  W.remote = false
+  seconds(2)
+  W.ticks = W.ticks + 150
+  seconds(1)
+  print = realPrint
+  check(grep("dash: decoding resumes after standing aside") == 1, "debug_pause: the take-over resume, once", dump(60))
+  check(grep("dash: decoding resumes after 1%.%d s without a pass") == 1,
+    "debug_pause: a genuine pause is still logged as one", dump(60))
 end)
 
 -- 4c. A report that arrives while an in-flight selection is being spoken is logged, with the reason
