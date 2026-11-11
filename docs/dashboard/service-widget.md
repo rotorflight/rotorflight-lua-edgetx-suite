@@ -27,8 +27,10 @@ custom sensors are not decoded, no connect events run, and no announcements are 
 
 Which part of the suite is decoding at a given moment -- the dashboard's script, the
 [background decoder](../reference/background-decoder.md) or the tool -- and when one stands aside for
-another, can be read in the log: every state line names it, and from *DEBUG* up each hand-over has a
-line of its own. See [collecting logs](../troubleshooting/collecting-logs.md).
+another, can be read in the log. A part's state line names that part when it decoded since its last
+one; otherwise it says `decoder elsewhere` or `decoder idle`, and the other part's state line or the
+hand-over lines tell who did. From *DEBUG* up each hand-over has a line of its own. See
+[collecting logs](../troubleshooting/collecting-logs.md).
 
 EdgeTX keeps the screen layout per model, so the choice below is made once for every model you fly
 with RFSuite.
