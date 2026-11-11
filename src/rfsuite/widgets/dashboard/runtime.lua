@@ -1504,6 +1504,9 @@ local function standbyJobStep(self)
     self._standbyCache.elrsWidths = self._standbyCache.elrsActiveWidths
     -- The visible tree's battery getter still reads its fill until the new tree swaps in.
     self._standbyCache.batteryWidths = nil
+    -- Its fill is no longer kept up to date, so that tree is not one a cleared key may keep: a
+    -- build dropped before the swap, the layout back where it was, builds it again.
+    if self._treeKind == "standby" then self._treeKind, self._treeKey = nil, nil end
     itemsChanged = true
   end
   prepareStandbyTextCache(self, items)
@@ -5759,6 +5762,9 @@ function Runtime.new(zone, options)
             -- The visible tree's battery getter still reads its fill until the new tree swaps in.
             self._standbyCache.batteryWidths = nil
           end
+          -- As in standbyJobStep: the standing tree's fill is no longer kept up to date, so a
+          -- cleared key may not keep it.
+          if self._treeKind == "standby" then self._treeKind, self._treeKey = nil, nil end
         end
         prepareStandbyTextCache(self, standbyItems)
         local wantsElrs = false
@@ -5846,8 +5852,7 @@ function Runtime.new(zone, options)
           and ("|" .. tostring(dashboardPrefs.standby_layout)
             .. "|overflow=" .. tostring(self._standbyCache and self._standbyCache.valueOverflow == true))
           or "")
-      if self.renderKey ~= splashKey and self.renderKey == nil and useStandby
-          and self._treeKind == "standby" and self._treeKey == splashKey then
+      if self.renderKey == nil and useStandby and self._treeKind == "standby" and self._treeKey == splashKey then
         -- Some other path cleared the key -- the reconnect edge, a theme or preferences reload, the
         -- voltage bounds moving -- while the standby on screen is the one built for exactly this
         -- key, and the key names everything that build reads. Building it again would draw the same

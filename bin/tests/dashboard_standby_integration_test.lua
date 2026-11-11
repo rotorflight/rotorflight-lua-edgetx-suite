@@ -811,6 +811,15 @@ do
   widthWidget:background()
   getTxGPS = savedGetTxGPS
 
+  -- The widgets above share the stub's one tree list (on a radio each widget keeps its own), so this
+  -- widget's standby is built again first: the tree the stub shows is then its own, and the reload
+  -- below must leave that very tree standing.
+  widget._treeKind, widget._treeKey = nil, nil
+  widget.built, widget.renderKey = false, nil
+  for _ = 1, 5 do Stubs.tick(); widget:refresh(0, nil) end
+  local ownTree = Stubs.lvgl.trees[#Stubs.lvgl.trees]
+  check("this widget's standby is the tree on screen before the reload",
+    ownTree ~= nil and widget._treeKind == "standby")
   check("active standby has cached localized texts before global reload",
     type(widget._standbyTexts) == "table"
       and type(widget.renderKey) == "string" and string.sub(widget.renderKey, 1, 8) == "standby|")
@@ -831,13 +840,10 @@ do
   widget:refresh(0, nil)
   widget:refresh(0, nil)
   widget:refresh(0, nil)
-  -- The reload changed nothing the standby is built for, so the standby built above still stands and
-  -- its getters must read the reloaded state. The stub keeps one tree list for every widget, and the
-  -- widgets built since have replaced it there; on a radio each widget keeps its own.
+  -- The reload changed nothing the standby is built for, so the tree built above still stands, and
+  -- its getters must read the reloaded state.
   local reloadedTree, localizedReactive = Stubs.lvgl.trees[#Stubs.lvgl.trees], false
-  if widget._treeKind == "standby" and widget._treeKey == widget.renderKey and #Stubs.lvgl.trees == 0 then
-    reloadedTree = standbyTree
-  end
+  check("the reload leaves this widget's standby standing", reloadedTree ~= nil and reloadedTree == ownTree)
   reloadedTree = reloadedTree or {}
   local expectedRate = enLocale.widgets.dashboard.standby.elrs_packet_rate .. " "
   for i = 1, #reloadedTree do

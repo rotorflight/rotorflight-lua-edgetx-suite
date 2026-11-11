@@ -180,6 +180,27 @@ widget.renderKey = nil
 cycle(widget, 20)
 check(clears > 0, "a cleared key with no standby build on record still builds", clears .. " clears")
 
+-- A layout change whose build is dropped before it swaps in, with the layout then back where it was:
+-- the standing tree's battery fill was let go when the layout changed, so that tree is built again
+-- rather than kept with a fill that no longer moves.
+cycle(widget, 20)
+local layoutBefore = widget.preferences.dashboard.standby_layout
+widget.preferences.dashboard.standby_layout = "clock/date"
+Stubs.tick()
+widget.refresh(widget, 0, nil)
+check(widget._job ~= nil and widget._job.kind == "standby", "the new layout's build is queued",
+  widget._job and widget._job.kind)
+widget.preferences.dashboard.standby_layout = layoutBefore
+widget._job = nil
+widget.built = false
+widget.renderKey = nil
+clears = 0
+cycle(widget, 20)
+check(clears > 0, "a dropped layout change back to the standing layout builds again", clears .. " clears")
+local cacheNow = widget._standbyCache
+check(cacheNow ~= nil and cacheNow.batteryWidths ~= nil and next(cacheNow.batteryWidths) ~= nil,
+  "and the battery fill is registered again")
+
 if failures > 0 then
   print(string.format("standby key clear: %d of %d checks failed", failures, checks))
   os.exit(1)
