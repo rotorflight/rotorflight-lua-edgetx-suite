@@ -43,9 +43,10 @@ is not part of the custom telemetry -- smart fuel, which the suite computes itse
 statistics -- and the values that come as a group, such as the cells, the attitude or the GPS
 position -- and a single value such a group also carries, once the group has come in. After the
 link is lost, and after the dashboard takes the decoding back from the background decoder, the
-sensors are read until the decoder has taken new frames; in the first second or so after the
-dashboard or the tool starts reading, they are read until its decoder has looked up which values
-it carries. The configuration pages that ask whether a
+sensors are read until the decoder has taken new frames. The first time the dashboard or the
+tool decodes for itself -- when it starts, or when it first takes the decoding over from the
+background decoder -- they are also read for about a second more, until its decoder has looked up
+which values it carries. The configuration pages that ask whether a
 sensor is arriving right now (the feedback during the helicopter setup) ask the radio's sensor.
 
 ## Choosing a sensor

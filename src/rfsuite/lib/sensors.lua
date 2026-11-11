@@ -779,8 +779,13 @@ local radioOnly = false
 
 local function directPlan(decoder, source, resolved)
   local custom = decoder.customSensor
-  if type(custom) ~= "function" or type(decoder.directValues) ~= "function" then return false end
-  local names = Sensors.search_paths[source] or { resolved or source }
+  if type(custom) ~= "function" then return false end
+  local names = Sensors.search_paths[source]
+  -- The first name first, before anything is allocated: nil while the decoder's name index is
+  -- still being built, and that is asked again on the next read.
+  local first = names and names[1] or resolved or source
+  if custom(first) == nil then return nil end
+  names = names or { first }
   local plan = {}
   for i = 1, #names do
     local sid, scale = custom(names[i])
@@ -797,6 +802,10 @@ local function directValue(source, resolved)
   local root = _G.rfsuite
   local decoder = root and root.telemetryDecoder
   if not decoder then return nil end
+  -- First, because it is the cheapest way out: nil while another Lua state decodes (the background
+  -- function script), which can last the whole session -- no plan is looked up or worked out then.
+  local values = decoder.directValues()
+  if not values then return nil end
   local plan = directPlans[source]
   if plan == nil then
     local tick = type(getTime) == "function" and getTime() or 0
@@ -810,8 +819,6 @@ local function directValue(source, resolved)
     directPlans[source] = plan
   end
   if not plan then return nil end
-  local values = decoder.directValues()
-  if not values then return nil end
   for i = 1, #plan, 3 do
     local value = values[plan[i]]
     if type(value) == "number" then

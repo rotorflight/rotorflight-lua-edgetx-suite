@@ -9,7 +9,8 @@
 -- What it asserts:
 --   * decoding here: a custom value comes from the decoder, scaled by the table's precision, and the
 --     radio-side offset does not reach it; a raw sensor name answers the same way;
---   * the background script decoding: the sensor is read as before;
+--   * the background script decoding: the sensor is read as before, and no read asks the decoder's
+--     name index meanwhile;
 --   * taking over again: the values this state decodes from then on answer again;
 --   * a source whose list starts with a sensor that is not custom keeps its order (smartfuel);
 --   * a custom sensor the flight controller does not send falls back to the sensor search (VFAS);
@@ -181,6 +182,18 @@ scenario("remote_and_takeover", function()
   W.rows.Vbat = 23.1
   check(near(S.getValue("voltage"), 23.1), "remote: the sensor is read while another state decodes",
     S.getValue("voltage"))
+  -- While another state decodes, a read works out no plan: that state can decode for the whole
+  -- session, and a value read for the first time then must not ask the decoder's name index.
+  local decoder = _G.rfsuite.telemetryDecoder
+  local customWas, asked = decoder.customSensor, 0
+  decoder.customSensor = function(...) asked = asked + 1 return customWas(...) end
+  W.askEarly = false
+  for _, source in ipairs({ "current", "rpm", "fuel", "temp_esc", "Hspd" }) do S.getValue(source) end
+  pass(3)
+  for _, source in ipairs({ "current", "rpm", "fuel", "temp_esc", "Hspd" }) do S.getValue(source) end
+  decoder.customSensor = customWas
+  W.askEarly = true
+  check(asked == 0, "remote: no plan is worked out while another state decodes", asked)
   W.remote = false
   -- Taking over: the frames this state decodes from then on answer again.
   W.payload = { u16(0x1011, 2280) }
@@ -221,13 +234,16 @@ end)
 -- 5. A group that also publishes a single-value row supersedes that row's own earlier value.
 scenario("group_supersedes_row", function()
   newWorld()
+  -- A radio-side offset on Ptch, so a read from the decoder and one from the sensor differ.
+  W.offset.Ptch = 0.5
   W.payload = { u16(0x1101, 10) }
-  seconds(0.5)
+  seconds(1)
   local S = W.sensors
-  check(near(S.getValue("pitch"), 10), "group_supersedes_row: the single row answers first", S.getValue("pitch"))
+  check(near(S.getValue("pitch"), 10), "group_supersedes_row: the single row answers first, from the decoder",
+    S.getValue("pitch"))
   W.payload = { s16x3(0x1100, 200, 0, 0) }
   seconds(0.5)
-  check(near(S.getValue("pitch"), 20), "group_supersedes_row: then the group's pitch, from the sensor",
+  check(near(S.getValue("pitch"), 20.5), "group_supersedes_row: then the group's pitch, from the sensor",
     S.getValue("pitch"))
 end)
 
