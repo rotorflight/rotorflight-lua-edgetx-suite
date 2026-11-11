@@ -1,0 +1,2 @@
+- **The SRXL2 motor 2 channel counts from 1 (`app/pages/setup/esc_motors/srxl2/page.lua`, `docs/pages/setup/esc_motors/srxl2.md`)**:
+  - *Setup* → *ESC & Motors* → *SRXL2 ESC*: Motor 2 Channel is Off or 2 to 32, and motor 1 is always channel 1, as the firmware numbers SRXL2 channels (rotorflight-firmware #537). It was 1 to 31 with motor 1 on channel 0, which set the channel one too high. The row steps from Off straight to 2.

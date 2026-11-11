@@ -2428,7 +2428,7 @@ return {
         help_title_srxl2 = "SRXL2-ESC-Hilfe",
         help_p1_srxl2 = "Einstellungen eines Spektrum Smart ESC am SRXL2-ESC-Port; Speichern startet den Flight Controller neu, und das ? jeder Zeile erklärt ihre Einstellung.",
         help_srxl2_telem_interval = "Wie viele Gas-Frames zwischen zwei Telemetrie-Abfragen beim ESC liegen, 0 bis 255; Aus (0) stellt die Telemetrie-Abfrage ab. Standard 7.",
-        help_srxl2_motor2_channel = "Für Smart ESCs mit zwei Motoren: der SRXL2-Kanal, der Motor 2 trägt (Motor 1 ist immer Kanal 0); ihn steuert der zweite Motorausgang des Mischers. Aus bei einem Motor.",
+        help_srxl2_motor2_channel = "Für Smart ESCs mit zwei Motoren: der SRXL2-Kanal, der Motor 2 trägt (Motor 1 ist immer Kanal 1); ihn steuert der zweite Motorausgang des Mischers. Aus bei einem Motor.",
         srxl2_unsupported = "Diese Flight-Controller-Firmware bietet die SRXL2-ESC-Einstellungen nicht.",
         loading_srxl2 = "Lade SRXL2-ESC-Einstellungen...",
         safety_warning_title = "Sicherheitswarnung",

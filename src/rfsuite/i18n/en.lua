@@ -2428,7 +2428,7 @@ return {
         help_title_srxl2 = "SRXL2 ESC Help",
         help_p1_srxl2 = "Settings of a Spektrum Smart ESC on the SRXL2 ESC port; saving reboots the flight controller, and each row's ? explains its setting.",
         help_srxl2_telem_interval = "How many throttle frames pass between two telemetry requests to the ESC, 0 to 255; Off (0) stops the telemetry polling. Default 7.",
-        help_srxl2_motor2_channel = "For dual-motor Smart ESCs: the SRXL2 channel that carries motor 2 (motor 1 is always channel 0); the mixer's second motor output drives it. Off for one motor.",
+        help_srxl2_motor2_channel = "For dual-motor Smart ESCs: the SRXL2 channel that carries motor 2 (motor 1 is always channel 1); the mixer's second motor output drives it. Off for one motor.",
         srxl2_unsupported = "This flight controller firmware does not offer the SRXL2 ESC settings.",
         loading_srxl2 = "Loading SRXL2 ESC settings...",
         safety_warning_title = "Safety Warning",

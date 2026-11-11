@@ -164,7 +164,7 @@ do
   local interval, motor2 = fields[1], fields[2]
   if interval and motor2 then
     check("Telemetry Interval is 0..255", interval.opts.min == 0 and interval.opts.max == 255)
-    check("Motor 2 Channel is 0..31", motor2.opts.min == 0 and motor2.opts.max == 31)
+    check("Motor 2 Channel is 0..32", motor2.opts.min == 0 and motor2.opts.max == 32)
     check("0 reads as Off", motor2.opts.display(0) == "Off" and interval.opts.display(0) == "Off")
     check("a channel reads as its number", motor2.opts.display(5) == "5")
     check("both rows carry an inline help text",
@@ -183,6 +183,12 @@ do
     if type(motor2.opts.edited) == "function" then motor2.opts.edited() end
     check("a second edit with the notice already shown does not rebuild again", rebuilds == 0, rebuilds)
     check("an edit marks the page unsaved", page.hasUnsavedChanges() == true)
+    -- Channel 1 is motor 1, so the row never rests on 1.
+    motor2.opts.set(1)
+    check("stepping down to 1 lands on Off", motor2.opts.get() == 0, motor2.opts.get())
+    motor2.opts.set(1)
+    check("stepping up from Off lands on 2", motor2.opts.get() == 2, motor2.opts.get())
+    motor2.opts.set(4)
   end
   local ok = trySave()
   local step = saveRequest and saveRequest.steps and saveRequest.steps[1]
