@@ -177,8 +177,9 @@ function M.readStep(job)
     local start, limit = 0, READ_CAP
     if size and size > READ_CAP then
       start, limit = size - READ_CAP - 1, READ_CAP + 1
+      -- EdgeTX's io.seek takes an offset from the start and answers FatFs' result, 0 on success
       local ok, err = pcall(io.seek, f, start) -- luacheck: ignore 143
-      if not ok then
+      if not ok or (err ~= nil and err ~= 0) then
         io.close(f)
         journalLog("debug", "journal %s: seek to %d failed: %s", path, start, tostring(err))
         return nil, "seek"
@@ -204,12 +205,14 @@ function M.readStep(job)
       return nil, "short read"
     end
     local text = table.concat(parts)
+    -- The parse starts after the first line break of a window, without a copy of the text
+    local pos = 1
     if start > 0 then
       local lineEnd = string.find(text, "\n", 1, true)
-      text = lineEnd and string.sub(text, lineEnd + 1) or ""
+      pos = lineEnd and lineEnd + 1 or #text + 1
     end
-    journalLog("trace", "journal %s: %d bytes to parse", path, #text)
-    job.text, job.pos, job.entries = text, 1, {}
+    journalLog("trace", "journal %s: %d bytes to parse", path, #text - pos + 1)
+    job.text, job.pos, job.entries = text, pos, {}
     -- loadScript discards the environment and can create stale bytecode beside the journal.
     job.env = { e = newCollector(job) }
     job.phase = "parse"

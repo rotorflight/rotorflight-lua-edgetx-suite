@@ -483,6 +483,13 @@ do
   fstat = savedFstat -- luacheck: ignore 111
   check("without fstat a journal over the cap is still refused as too big", rows == nil and reason == "too big",
     tostring(reason))
+
+  -- EdgeTX's io.seek answers FatFs' result instead of raising: a failed seek refuses the read
+  local savedSeek = io.seek
+  io.seek = function() return 1 end
+  rows, reason = journal.read(MCU)
+  io.seek = savedSeek
+  check("a seek the card refuses is not read from the wrong place", rows == nil and reason == "seek", tostring(reason))
   files[JOURNAL] = nil
 end
 
