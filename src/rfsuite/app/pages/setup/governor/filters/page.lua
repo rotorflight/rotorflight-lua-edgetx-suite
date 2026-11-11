@@ -15,6 +15,7 @@ local Controls = nil
 local Common = nil
 local MspRuntime = nil
 local GovernorConfigApi = nil
+local SavePipeline = nil
 local LoadingOverlay = nil
 local t = nil
 
@@ -51,6 +52,7 @@ local function ensureDeps()
   if not Controls then Controls = loadModule("ui/controls.lua") end
   if not MspRuntime then MspRuntime = loadModule("tasks/msp/runtime.lua") end
   if not GovernorConfigApi then GovernorConfigApi = loadModule("tasks/msp/api/governor_config.lua") end
+  if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
   if not t then t = Common and Common.pageT("setup_governor") or nil end
 end
@@ -149,22 +151,15 @@ local function queueGovRead(isAutoReload)
   return true, nil
 end
 
-local function queueGovWrite(requestRebuild, ctx)
-  if not MspRuntime or not GovernorConfigApi or type(MspRuntime.getState) ~= "function" then
+local function queueGovWrite(requestRebuild)
+  if not SavePipeline or not GovernorConfigApi then
     return false, "msp_runtime_unavailable"
   end
 
-  local mspState = MspRuntime.getState()
-  local queue = mspState and mspState.queue
-  if not queue or type(queue.add) ~= "function" then
-    return false, "msp_queue_unavailable"
-  end
-
+  -- Built on a copy, so a save that is refused or fails is still compared with what this visit read.
   local writeData = {}
-  if ui.parsedCache then
-    for k, v in pairs(ui.parsedCache) do
-      writeData[k] = v
-    end
+  for k, v in pairs(ui.parsedCache or {}) do
+    writeData[k] = v
   end
 
   writeData.gov_rpm_filter = ui.config.gov_rpm_filter
@@ -173,7 +168,52 @@ local function queueGovWrite(requestRebuild, ctx)
   writeData.gov_ff_filter = ui.config.gov_ff_filter
   writeData.gov_d_filter = ui.config.gov_d_filter
 
-  local payload = GovernorConfigApi.buildWritePayload(writeData)
+  local visit = ui.runtime
+  local ok, err = SavePipeline.start({
+    pageId = "setup_governor_filters",
+    steps = {
+      {
+        label = "MSP_SET_GOVERNOR_CONFIG",
+        command = GovernorConfigApi.writeCommand,
+        payload = GovernorConfigApi.buildWritePayload(writeData)
+      }
+    },
+    -- The firmware copies these values into the running governor only at start-up
+    -- (governorInit()); MSP_SET_GOVERNOR_CONFIG stores them and nothing more. So a save that
+    -- changes one restarts the flight controller, and a save that changes nothing does not.
+    reboot = GovernorConfigApi.payloadDiffers(ui.parsedCache, writeData),
+    onSaved = function()
+      if ui.runtime ~= visit then return end
+      ui.dirty = false
+    end,
+    onDone = function(result)
+      if result.status == "done" then
+        local session = getSession()
+        -- A save whose notice was dismissed reports when this page is entered again, and the
+        -- board on the link may be another one by then: its session holds its own configuration.
+        if session and result.mcuId ~= nil and session.mcu_id == result.mcuId then
+          session.governor_config = writeData
+          session.governorMode = writeData.gov_mode
+        elseif session then
+          local Log = _G.rfsuite and _G.rfsuite.Log
+          if Log and type(Log.emit) == "function" then
+            pcall(Log.emit, "rfsuite.governor", "filters save done, board on the link not known as the one written: session not updated", "info")
+          end
+        end
+      end
+      if ui.runtime ~= visit then return end
+      ui.saving = false
+      if result.status == "done" then
+        ui.parsedCache = writeData
+      else
+        ui.dirty = true
+      end
+      if type(ui.runtime.requestRebuild) == "function" then
+        ui.runtime.requestRebuild()
+      end
+    end
+  })
+  if not ok then return false, err end
 
   ui.saving = true
   ui.progress = 0
@@ -181,80 +221,14 @@ local function queueGovWrite(requestRebuild, ctx)
     requestRebuild()
   end
 
-  queue:add({
-    command = GovernorConfigApi.writeCommand,
-    payload = payload,
-    isWrite = true,
-    simulatorResponse = {},
-    processReply = function()
-      local eepromApi = loadModule("tasks/msp/api/eeprom_write.lua")
-      if eepromApi then
-        queue:add({
-          command = eepromApi.writeCommand,
-          payload = {},
-          isWrite = true,
-          simulatorResponse = {},
-          processReply = function()
-            ui.dirty = false
-            ui.saving = false
-            ui.parsedCache = writeData
-            local session = getSession()
-            if session then
-              session.governor_config = writeData
-              session.governorMode = writeData.gov_mode
-            end
-            if ctx and type(ctx.reportSave) == "function" then
-              ctx.reportSave({
-                ok = true,
-                title = pageText(ctx and ctx.i18n, "saved_title", "Saved"),
-                message = pageText(ctx and ctx.i18n, "saved_message", "Governor settings saved")
-              })
-            end
-            if type(requestRebuild) == "function" then
-              requestRebuild()
-            end
-          end,
-          errorHandler = function()
-            ui.saving = false
-            if type(requestRebuild) == "function" then
-              requestRebuild()
-            end
-          end
-        })
-      else
-        ui.dirty = false
-        ui.saving = false
-        ui.parsedCache = writeData
-        local session = getSession()
-        if session then
-          session.governor_config = writeData
-          session.governorMode = writeData.gov_mode
-        end
-        if ctx and type(ctx.reportSave) == "function" then
-          ctx.reportSave({
-            ok = true,
-            title = pageText(ctx and ctx.i18n, "saved_title", "Saved"),
-            message = pageText(ctx and ctx.i18n, "saved_message", "Governor settings saved")
-          })
-        end
-        if type(requestRebuild) == "function" then
-          requestRebuild()
-        end
-      end
-    end,
-    errorHandler = function()
-      ui.saving = false
-      if type(requestRebuild) == "function" then
-        requestRebuild()
-      end
-    end
-  })
-
   return true, nil
 end
 
 local function ensureLoaded()
   if ui.loaded then return end
+  if SavePipeline and type(SavePipeline.takeResult) == "function" then
+    SavePipeline.takeResult("setup_governor_filters")
+  end
 
   if not ui.runtime then
     ui.runtime = {
@@ -287,6 +261,14 @@ function M.wakeup(ctx)
   ensureLoaded()
 
   ui.runtime.requestRebuild = ctx and ctx.requestRebuild or nil
+
+  -- A save whose notice was dismissed is held for its page instead of reported (save_pipeline.lua
+  -- finish()). While this page is open it claims that result here: one started on this visit would
+  -- otherwise keep the Saving overlay, with Save and Reload refused, and one started before the page
+  -- was entered again, still running then, would stay unreported until the next Save discards it.
+  if SavePipeline and type(SavePipeline.takeResult) == "function" then
+    SavePipeline.takeResult("setup_governor_filters")
+  end
 
   local signature = buildSessionSignature()
   if signature ~= ui.runtime.lastSessionSignature then
@@ -342,11 +324,22 @@ function M.build(ctx)
     cursorY = cursorY + (Controls.STATIC_SECTION_H or 50)
   end
 
+  -- A row's ? opens its line in the tool's help view, titled with the row's label.
+  local openHelp = ctx and ctx.openHelp
+  local function onRowHelp(text, label)
+    if type(openHelp) == "function" and type(text) == "string" and text ~= "" then openHelp(text, label) end
+  end
+
   -- 1. Headspeed Filter Cutoff
+  local rpmLabel = pageText(i18n, "gov_rpm_filter", "Headspeed Filter Cutoff")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_rpm_filter", "Headspeed Filter Cutoff"),
+    rpmLabel,
     {
+      helpText = pageText(i18n, "help_rpm_filter",
+        "Cutoff of the lowpass filter on the headspeed signal the governor regulates on."),
+      helpTitle = rpmLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -363,10 +356,15 @@ function M.build(ctx)
   )
 
   -- 2. Voltage Filter Cutoff
+  local pwrLabel = pageText(i18n, "gov_pwr_filter", "Voltage Filter Cutoff")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_pwr_filter", "Voltage Filter Cutoff"),
+    pwrLabel,
     {
+      helpText = pageText(i18n, "help_pwr_filter",
+        "Cutoff of the lowpass filter on the battery voltage the governor compensates for."),
+      helpTitle = pwrLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -383,10 +381,15 @@ function M.build(ctx)
   )
 
   -- 3. TTA Bandwidth
+  local ttaLabel = pageText(i18n, "gov_tta_filter", "TTA Bandwidth")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_tta_filter", "TTA Bandwidth"),
+    ttaLabel,
     {
+      helpText = pageText(i18n, "help_tta_filter",
+        "Cutoff of the lowpass filter on the Tail Torque Assist input."),
+      helpTitle = ttaLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -403,10 +406,15 @@ function M.build(ctx)
   )
 
   -- 4. Precomp Bandwidth
+  local ffLabel = pageText(i18n, "gov_ff_filter", "Precomp Bandwidth")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_ff_filter", "Precomp Bandwidth"),
+    ffLabel,
     {
+      helpText = pageText(i18n, "help_ff_filter",
+        "Cutoff of the lowpass filter on the cyclic and collective precompensation."),
+      helpTitle = ffLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 25,
       step = 1,
@@ -423,10 +431,15 @@ function M.build(ctx)
   )
 
   -- 5. D-Term Cutoff (stored in 0.1Hz, e.g. 50 = 5.0Hz)
+  local dLabel = pageText(i18n, "gov_d_filter", "D-Term Cutoff")
   cursorY = cursorY + Controls.appendNumberField(
     children, x, cursorY, w,
-    pageText(i18n, "gov_d_filter", "D-Term Cutoff"),
+    dLabel,
     {
+      helpText = pageText(i18n, "help_d_filter",
+        "Cutoff of the lowpass filter on the governor's D-term, in 0.1 Hz steps."),
+      helpTitle = dLabel,
+      onHelp = onRowHelp,
       min = 0,
       max = 250,
       step = 1,
@@ -457,8 +470,9 @@ function M.canSave()
 end
 
 function M.onSave(ctx)
+  if ui.saving then return false end
   if not M.canSave() then return false, "loaded_data_missing" end
-  local ok, err = queueGovWrite(ctx and ctx.requestRebuild, ctx)
+  local ok, err = queueGovWrite(ctx and ctx.requestRebuild)
   if not ok then
     if ctx and type(ctx.reportSave) == "function" then
       ctx.reportSave({
@@ -472,6 +486,7 @@ function M.onSave(ctx)
 end
 
 function M.onReload(ctx)
+  if ui.saving then return true end
   local session = getSession()
   if session then
     ui.dirty = false
@@ -497,10 +512,12 @@ function M.onClose()
       resetDirty = true
     })
   end
+  ui.saving = false
   Controls = nil
   Common = nil
   MspRuntime = nil
   GovernorConfigApi = nil
+  SavePipeline = nil
   LoadingOverlay = nil
   t = nil
 end

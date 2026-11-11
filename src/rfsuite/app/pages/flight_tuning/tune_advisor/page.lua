@@ -88,6 +88,7 @@ local FF_STEP_MAX = 0.2         -- change F (and rates) by at most 20% per step
 
 -- What the flight controller accepts: P, F and B 0-1000 (PID_GAIN_MAX), the I-term relax
 -- cut-off 1-100, and the rate bytes as firmware fc/rc_rates.h and cli/settings.c bound them.
+-- A rate byte's ceiling can be lower for its rates_type (RATE_CEILING below).
 local VALUE_RANGE = {
   P = { 0, 1000 }, F = { 0, 1000 }, B = { 0, 1000 },
   relaxCutoff = { 1, 100 },
@@ -98,6 +99,17 @@ local VALUE_RANGE = {
 local RATE_TYPE_ACTUAL = 4
 local RATE_TYPE_QUICK = 5
 local RATE_TYPE_ROTORFLIGHT = 6
+
+-- The highest roll, pitch and yaw rate byte the flight controller keeps for the rates_types whose
+-- rates this page scales: ratesSettingLimits in firmware fc/rc_rates.c, which
+-- validateAndFixRatesSettings (config/config.c) applies on every EEPROM write. A byte above it is
+-- trimmed by the save, so the read-back would differ from what was written. Rotorflight's sRate
+-- (the shape, limit 100) is never scaled here and needs no entry.
+local RATE_CEILING = {
+  [RATE_TYPE_ACTUAL] = { rcRate = 200, sRate = 200 },
+  [RATE_TYPE_QUICK] = { rcRate = 255, sRate = 200 },
+  [RATE_TYPE_ROTORFLIGHT] = { rcRate = 200 },
+}
 
 -- Which rate columns scale the whole curve linearly, per rates_type. The others (Betaflight,
 -- Raceflight, KISS) get a percentage instead.
@@ -448,11 +460,16 @@ local function clamp(v, lo, hi)
   return v
 end
 
--- Whether value is one the flight controller accepts for that tune key
-local function inRange(key, value)
+-- Whether value is one the flight controller accepts and keeps for that tune key; a rate key is
+-- also held to its rates_type's ceiling.
+local function inRange(key, value, ratesType)
   local range = VALUE_RANGE[key]
-  return range ~= nil and type(value) == "number" and value == math.floor(value)
-    and value >= range[1] and value <= range[2]
+  if range == nil or type(value) ~= "number" or value ~= math.floor(value)
+      or value < range[1] or value > range[2] then
+    return false
+  end
+  local ceiling = RATE_CEILING[ratesType] and RATE_CEILING[ratesType][key]
+  return ceiling == nil or value <= ceiling
 end
 
 -- Where a tune key lives on the flight controller: the reply it is read from and written in, its
@@ -491,14 +508,20 @@ local function rateKey(role)
 end
 
 -- Whether scaling the rate curve by k keeps every scaled byte in the range the flight controller
--- accepts. A percentage-only rates_type has nothing to check.
+-- accepts and keeps for this rates_type. A percentage-only rates_type has nothing to check.
 local function ratesFit(rates, k)
   local roles = LINEAR_ROLES[rates.ratesType]
   if not roles then return true end
   for _, role in ipairs(roles) do
     local key = rateKey(role)
-    if not inRange(key, round(rates[key] * k)) then return false end
+    local scaled = round(rates[key] * k)
+    if not inRange(key, scaled, rates.ratesType) then
+      pageLog("debug", "rate %s %d -> %d is outside what rates_type %d keeps", key, rates[key], scaled,
+        rates.ratesType)
+      return false
+    end
   end
+  pageLog("trace", "rates scaled by %.3f fit rates_type %d", k, rates.ratesType)
   return true
 end
 
@@ -1167,7 +1190,11 @@ local function validateTune(snapshot, records)
   end
   for _, change in ipairs(snapshot.changes) do
     if records[change.msg][change.field] ~= change.from then return T.changed end
-    if not inRange(change.key, change.to) then return T.range end
+    if not inRange(change.key, change.to, rates.rates_type) then
+      pageLog("warn", "%s %s is outside what the flight controller keeps; nothing written", change.field,
+        tostring(change.to))
+      return T.range
+    end
     if change.key == "relaxCutoff" and not relaxCovers(profile.iterm_relax_type, tune.axis) then
       return T.changed
     end

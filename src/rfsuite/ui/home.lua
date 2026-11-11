@@ -2694,14 +2694,16 @@ end
 local function buildScene()
   if lvgl == nil then return end
 
-  ensureBuildDeps()
-  local loadingGrid = nil
-
   -- Before the build, not after it. A build that allocates more than the LVGL pool can give it
   -- does not come back, so a line written afterwards is the one line that would never appear --
-  -- and it is the one naming the screen that could not be built.
+  -- and it is the one naming the screen that could not be built. Before the build's modules are
+  -- loaded too: a page the host opened the tool on is built on the pass after init, so a stop in
+  -- that load would otherwise leave init's last line in the step file.
   local buildingMenuId = state.menu and state.menu.getCurrentMenuId and state.menu.getCurrentMenuId() or nil
   logStep("build menu=" .. tostring(buildingMenuId))
+
+  ensureBuildDeps()
+  local loadingGrid = nil
   -- Whatever this build draws, the root menu's tiles drawn before it are gone; the root branch
   -- below records the new ones.
   state.rootDrawn = nil
@@ -3724,8 +3726,20 @@ function M.init(opts)
       logf("info", "landing %s not offered, the tool opens on its menu", landing)
     end
   end
-  logStep("init: first build", true)
-  M.buildUI()
+  -- A page the host opened the tool on is built on the next pass, not in this one. Hosted, init
+  -- is one widget call under the widget's instruction limit, and by here it has loaded the
+  -- manifest, the menu registry and the preferences; a page's first build on top of that stops at
+  -- the limit, and EdgeTX lets the rest of a call run once it has raised that stop, so a module the
+  -- page loads under a pcall of its own can come back nil and fail later in a reply handler. The
+  -- start screen used to take this pass. With nothing to compile it is left before the first
+  -- build, so the page waits one pass instead; a start screen that still stands is built now.
+  if state.landingMenuId ~= nil and not state.initialLoad then
+    logf("info", "landing %s: first build on the next pass", tostring(state.landingMenuId))
+    scheduleBuildUI(false)
+  else
+    logStep("init: first build", true)
+    M.buildUI()
+  end
   logStep("init: done", true)
 end
 

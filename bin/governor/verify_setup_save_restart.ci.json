@@ -1,0 +1,7 @@
+{
+  "id": "governor-setup-save-restart",
+  "name": "Setup Governor save restart",
+  "commands": [
+    "lua5.3 bin/governor/verify_setup_save_restart.lua"
+  ]
+}

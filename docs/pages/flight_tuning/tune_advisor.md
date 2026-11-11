@@ -164,7 +164,10 @@ profiles they were flown on keep *Save* off as well; fly again.
   journal could not be read, so P is not raised."
 - **A change would go past a setting's limit**: the page does not suggest it, or any change that goes with it
   (FF is never suggested without its rates). Instead, the reasons say "The change needed goes past a setting's
-  limit." Look for the cause outside the tune, for example the mechanics or the head speed.
+  limit." Look for the cause outside the tune, for example the mechanics or the head speed. For a rate the limit
+  is the one the flight controller keeps for the rate type, the same the *Rates* page shows: Center Sens and Max
+  Rate 2000 °/s for Actual, Max Rate 2000 °/s for Quick, Rate 1000 °/s for Rotorflight. A larger value would be cut
+  back by the flight controller when it saves.
 
 ## Polar cyclic
 

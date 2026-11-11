@@ -138,8 +138,9 @@ is waiting for -- *Restarting the flight controller...*, *Waiting for the flight
 
 A save on Configuration, Alignment, GPS, Ports, Radio Config, Setup > Telemetry, and ESC/Motors
 RPM, Telemetry and Throttle restarts the flight controller after writing; on Swash and Tail it does so when the swash
-type or the tail mode differs from what the page read; on Governor General it does so when Mode or
-the governor feature changes. A Save that was refused or did not finish
+type or the tail mode differs from what the page read; on the four Setup > Governor pages it does
+so when the governor settings written differ from what the page read, or, on General, the governor
+feature changes. A Save that was refused or did not finish
 leaves that comparison as it was, so the next Save restarts the flight controller too; the page
 compares with the new values only once a save is done. While the settings are being written the
 page cannot be left.
@@ -461,6 +462,19 @@ write, then one EEPROM write, then a restart, because the flight controller sets
 sensors and the CRSF telemetry mode only at start-up. The page is marked clean only once the flight
 controller has stored the values; a write the flight controller refuses or does not answer is shown
 as a failed save. Save pressed while the save is still running is ignored.
+
+General, Ramp Time, Filters and Bypass Curve under Setup > Governor send their save through the
+tool's shared save: the governor configuration write (on General also the feature configuration,
+when the governor feature changes), then one EEPROM write, then a restart when the written governor
+settings differ from what the page read or, on General, when the governor feature changes, because
+the flight controller hands both to the running governor only at start-up. A save that changes
+nothing does not restart. The page is marked clean only once the flight controller has stored the
+values; a refused or unanswered write is shown as a failed save and leaves the edits unsaved. A Save
+pressed while the save is still running is ignored, and a save is refused while the model is armed.
+The outcome of a save whose notice was put away with Back is shown as soon as the save ends while
+the page is open, also when the page was left and opened again in between. A save that ends after
+another flight controller was connected does not change what the tool holds of that board's
+governor settings.
 
 Battery, Sources and SmartFuel under Setup > Power send their save through the tool's shared save.
 Battery writes the battery profile when it was selected on the page, then the battery

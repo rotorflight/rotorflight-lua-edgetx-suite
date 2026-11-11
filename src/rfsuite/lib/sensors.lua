@@ -824,7 +824,13 @@ readValue = function(source)
 
     local val, readAt = readTelemetryValue(activePath, now)
     if type(val) == "number" then
-      if debugWanted() then debugLog("telemetry-hit-cached:" .. source, "hit " .. activePath .. " = " .. tostring(val)) end
+      -- The steady read path: every source on every read. The line is said once per source, so
+      -- the key is checked before the text is built -- building it only to have debugLog drop it
+      -- cost about twenty instructions per source per pass at a raised log level.
+      if debugWanted() then
+        local key = "telemetry-hit-cached:" .. source
+        if not loggedSources[key] then debugLog(key, "hit " .. activePath .. " = " .. tostring(val)) end
+      end
       return val
     end
     now = now or readAt or nowSeconds()
