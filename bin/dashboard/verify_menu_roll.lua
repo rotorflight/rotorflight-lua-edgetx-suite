@@ -484,12 +484,20 @@ local function run(mutate)
     check("the prompt stands over the default menu", Views.top(w) == "battery_pick" and Views.roll(w, "menu") == r)
     -- A press whose page had not started opening when the prompt covered the menu: the reconnect calls it
     -- off, so the menu showing again does not open the old selection without another press.
-    Roll.openNext(r, "Opening...", function() end)
+    local ran = 0
+    Roll.openNext(r, "Opening...", function() ran = ran + 1 end)
     local kept = Views.acrossReconnect(w)
     check("a reconnect keeps the default menu's place under the prompt, and drops the prompt",
       kept ~= nil and kept.rolls.menu == r and kept.rolls.battery_pick == nil and kept[1] == nil
       and r.levels[1].index == 3)
     check("a reconnect calls off a page that had not started opening", r.opening == nil and r.slots == nil)
+    -- The new connection's session, the prompt gone: the menu shows again and its passes open nothing.
+    w._viewStack = kept
+    w.state.batteryPick = { loaded = true, pending = false, candidates = {} }
+    w._viewId = Views.resolve(w)
+    for _ = 1, 3 do Roll.renderKey(w) end
+    check("the menu showing again after the reconnect opens no page without a press",
+      Views.topRoll(w) == r and ran == 0 and r.levels[1].index == 3)
   end
   do
     -- A view taken off the stack starts over; one merely covered keeps its place.

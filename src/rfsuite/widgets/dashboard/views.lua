@@ -770,7 +770,8 @@ function M.acrossReconnect(widget)
     viewStep("reconnect: the rolling menu keeps its place (%s)", stacked and "on the stack" or "default view")
   end
   -- A page still waiting to open was pressed for under the old connection: called off, so the menu showing
-  -- again does not open it without another press.
+  -- again does not open it without another press. One that has started is not met here: `M.visit` gave the
+  -- widget a new session, and a refused one was called off where it was refused.
   if roll.opening ~= nil then
     roll.opening, roll.slots = nil, nil
     if _G.rfsuite.logSteps then viewStep("reconnect: a page waiting to open is called off") end
