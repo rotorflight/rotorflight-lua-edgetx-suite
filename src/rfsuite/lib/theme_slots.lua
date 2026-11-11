@@ -193,7 +193,10 @@ end
 --- while the slots still hold what it wrote. Calling it again with another scheme rewrites the slots
 --- and keeps the radio's colours. Returns true when the slots carry the scheme.
 function M.apply(name)
-  if not canWrite() then return false end
+  if not canWrite() then
+    log("debug", "theme slots left alone: lcd.setColor or lcd.getColor is not offered")
+    return false
+  end
   local root = _G.rfsuite
   local Schemes = root.require("lib/color_schemes.lua")
   local scheme = Schemes.name(name)
@@ -233,7 +236,9 @@ function M.apply(name)
   -- every slot carries it, so a change that stopped half way is made again by the next one.
   if applied == nil then arm(rows, path) end
   applied = rows
-  writeMarker(path, rows)
+  if not writeMarker(path, rows) then
+    log("warn", "theme slot marker not written: a tool stopped without its finaliser leaves the colours")
+  end
   for i = 1, #rows do
     lcd.setColor(rows[i][1], rows[i][3])
   end
@@ -248,7 +253,10 @@ end
 --- the Lua state finishes the job.
 function M.restore(why)
   local rows = applied
-  if rows == nil then return false end
+  if rows == nil then
+    log("trace", "restore (%s): nothing written in this state", tostring(why or "-"))
+    return false
+  end
   if canWrite() then putBack(rows) end
   applied = nil
   appliedScheme = nil
