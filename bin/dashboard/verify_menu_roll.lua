@@ -482,10 +482,14 @@ local function run(mutate)
     w._viewId = Views.resolve(w)
     req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
     check("the prompt stands over the default menu", Views.top(w) == "battery_pick" and Views.roll(w, "menu") == r)
+    -- A press whose page had not started opening when the prompt covered the menu: the reconnect calls it
+    -- off, so the menu showing again does not open the old selection without another press.
+    Roll.openNext(r, "Opening...", function() end)
     local kept = Views.acrossReconnect(w)
     check("a reconnect keeps the default menu's place under the prompt, and drops the prompt",
       kept ~= nil and kept.rolls.menu == r and kept.rolls.battery_pick == nil and kept[1] == nil
       and r.levels[1].index == 3)
+    check("a reconnect calls off a page that had not started opening", r.opening == nil and r.slots == nil)
   end
   do
     -- A view taken off the stack starts over; one merely covered keeps its place.

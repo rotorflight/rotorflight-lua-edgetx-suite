@@ -144,7 +144,8 @@ from the page comes back to the same place in the roll. The tool's tile home sta
 what the card style's MAIN MENU opens, and what a key set to *Suite: Main menu* opens in either style.
 
 A press that opens a page says *Opening...* under its row at once, in the accent colour, because loading the suite
-holds the screen for a moment; the page follows.
+holds the screen for a moment; the page follows. A press whose page has not started opening when the link
+comes back is called off: the roll keeps its place, and the page needs a new press.
 
 Three places open in the tool with their tiles instead of rolling on, and RTN walks the tool's levels
 before it comes back to the roll: **ESC & Motors**, whose entries depend on the ESC protocol, **Helicopter

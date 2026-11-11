@@ -769,6 +769,12 @@ function M.acrossReconnect(widget)
   if _G.rfsuite.logSteps then
     viewStep("reconnect: the rolling menu keeps its place (%s)", stacked and "on the stack" or "default view")
   end
+  -- A page still waiting to open was pressed for under the old connection: called off, so the menu showing
+  -- again does not open it without another press.
+  if roll.opening ~= nil then
+    roll.opening, roll.slots = nil, nil
+    if _G.rfsuite.logSteps then viewStep("reconnect: a page waiting to open is called off") end
+  end
   local session = { rolls = { [M.DEFAULT_VIEW] = roll } }
   if stacked then session[1] = { id = M.DEFAULT_VIEW } end
   return session
