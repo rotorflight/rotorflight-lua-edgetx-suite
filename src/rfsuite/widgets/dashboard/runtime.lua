@@ -2896,29 +2896,31 @@ local function updateConnectionState(self)
   -- first scene would be built on the theme's defaults and again a moment later.
   -- updateVoltageThemeConfig marks exactly that state (`_voltageBoundsPending`: the defaults in
   -- hand and no count), and the gate's FIRST opening waits for the count -- for at most
-  -- `boundsWaitSeconds` from the moment everything else was ready, so a model that never reports
+  -- five seconds from the moment everything else was ready, so a model that never reports
   -- a pack voltage still gets its dashboard. The wait overlaps the reconnect hold rather than
-  -- adding to it, and a gate that is already open is never shut by it.
-  local boundsWaitSeconds = 5.0
-  local boundsHold = ready and rawReady and self.connectionReady ~= true
-    and self._voltageBoundsPending == true and (now - self.readySince) < boundsWaitSeconds
+  -- adding to it, and a gate that is already open is never shut by it -- nor pays for it: an open
+  -- gate skips the whole block.
   local unheldReady = ready
-  if boundsHold then ready = false end
-  if boundsHold ~= (self._boundsHold == true) then
-    self._boundsHold = boundsHold
-    if Log and type(Log.emitf) == "function" then
-      if boundsHold then
-        Log.emitf("rfsuite.widget", "debug", "first build waits for a cell count (voltage bounds %s/%s)",
-          tostring(self.state.themeConfig and self.state.themeConfig.v_min),
-          tostring(self.state.themeConfig and self.state.themeConfig.v_max))
-      elseif not rawReady then
-        Log.emitf("rfsuite.widget", "trace", "cell count wait left: the gate shut")
-      elseif self._voltageBoundsPending ~= true then
-        Log.emitf("rfsuite.widget", "debug", "cell count in after %.1f s, first build goes ahead",
-          now - (self.readySince or now))
-      else
-        Log.emitf("rfsuite.widget", "info", "no cell count after %.1f s, the dashboard is built on the theme's voltage bounds",
-          now - (self.readySince or now))
+  if self.connectionReady ~= true then
+    local boundsHold = (ready and rawReady and self._voltageBoundsPending == true
+      and (now - self.readySince) < 5.0) == true
+    if boundsHold then ready = false end
+    if boundsHold ~= (self._boundsHold == true) then
+      self._boundsHold = boundsHold
+      if Log and type(Log.emitf) == "function" then
+        if boundsHold then
+          Log.emitf("rfsuite.widget", "debug", "first build waits for a cell count (voltage bounds %s/%s)",
+            tostring(self.state.themeConfig and self.state.themeConfig.v_min),
+            tostring(self.state.themeConfig and self.state.themeConfig.v_max))
+        elseif not rawReady then
+          Log.emitf("rfsuite.widget", "trace", "cell count wait left: the gate shut")
+        elseif self._voltageBoundsPending ~= true then
+          Log.emitf("rfsuite.widget", "debug", "cell count in after %.1f s, first build goes ahead",
+            now - (self.readySince or now))
+        else
+          Log.emitf("rfsuite.widget", "info", "no cell count after %.1f s, the dashboard is built on the theme's voltage bounds",
+            now - (self.readySince or now))
+        end
       end
     end
   end
