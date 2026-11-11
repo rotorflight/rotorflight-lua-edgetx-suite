@@ -201,8 +201,8 @@ function Tiles.append(children, x, y, size, iconFile, text, focused, pressHandle
     w = size - 8,
     text  = formatTileText(text),
     font  = SMLSIZE,
-    color = live and function() return resolveTileTextColor(enabled(), focused == true) end
-      or resolveTileTextColor(isEnabled, focused == true),
+    color = live and function() return resolveTileTextColor(enabled()) end
+      or resolveTileTextColor(isEnabled),
     align = CENTER
   }
 
