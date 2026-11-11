@@ -43,6 +43,7 @@ function M.attach(w, state, sensors)
   function w:feedbackText()
     if self.error or self.historyFailure then return "" end
     if self.disconnectExit then return self.L.disconnected end
+    if self.loadActive and not self.ready and not self.suspended then return self.loadingText or self.L.loading end
     if (self.cleanupPending or 0)>0 then return self.L.releasingTests end
     if self.recoveryRequired then return self.L.recoveryAwaiting end
     if self.historyMode then return self.history.invalid and self.L.historyUnreadable or self.message or "" end

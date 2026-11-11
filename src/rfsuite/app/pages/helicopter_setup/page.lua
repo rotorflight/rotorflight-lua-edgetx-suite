@@ -106,7 +106,10 @@ function M.build(ctx)
   if w then w.requestClose, w.requestRebuild, w.openPage = ctx.requestClose, ctx.requestRebuild, ctx.openPage end
   if w then w.openHelp = ctx.openHelp end
   -- Every build makes new native objects, so a line's first-pass guard counts builds.
-  if w then w.buildCount = (w.buildCount or 0) + 1 end
+  if w then
+    w.buildCount = (w.buildCount or 0) + 1
+    if w.logDebug then w:log("debug", "scene build %d", w.buildCount) end
+  end
   if w and ctx.armed then
     w.canEdit, w.canNext, w.message = false, false, w.L.disconnected
     w:release()

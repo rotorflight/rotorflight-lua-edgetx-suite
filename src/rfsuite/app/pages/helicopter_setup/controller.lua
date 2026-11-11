@@ -68,10 +68,13 @@ function M.new(runtime, transport, mathModule, labels)
         local key = labelKey(shown)
         if not key then
           if shown == self.messageText then key = self.messageKey
+          elseif shown == self.loadingText then key = "loading"
           elseif shown == self.systemHint and self.systemProfiles then key = "fcProfiles"
           elseif shown == self.prerequisiteHint then key = "historyPrerequisites" end
         end
-        self:log("info", "message %s", key or "?")
+        -- The load counter changes with every read; its key is logged once per load.
+        if not (key == "loading" and self.loggedKey == "loading") then self:log("info", "message %s", key or "?") end
+        self.loggedKey = key
       end
     end
     local e = self.error
@@ -392,7 +395,6 @@ function M.new(runtime, transport, mathModule, labels)
     self.bus:dropOverrides()
     local q = self.bus:queue()
     if not q then return end
-    q:clear("helicopter-overrides")
     if not self:allowed() then self.needsRelease = true; return end
     -- These modules are preloaded on entry. The cleanup owner survives the host's page clear.
     local apis = self.bus.apis
@@ -488,8 +490,6 @@ function M.new(runtime, transport, mathModule, labels)
     if self.logTrace then self:log("trace", "motor stop") end
     self.motorHold = nil
     self.bus:dropOverrides()
-    local q = self.bus:queue()
-    if q then q:clear("helicopter-overrides") end
     if self:allowed() then
       for i = 0, 1 do self:write("motor_override", { index = i, value = 0 }) end
     end
@@ -841,6 +841,9 @@ function M.new(runtime, transport, mathModule, labels)
     local mcuId=self:session().mcu_id
     self.recoveryRequired=mcuId~=nil and self:session().helicopterSetupRecovery==mcuId
     self.loadingText, self.loadTotal = self.L.loading, #READS + 66
+    -- The status line shows the load and its count until the load is ready, also over the card a
+    -- restart left on screen, so a reload never reads like the restart still to come.
+    self.loadActive, self.message = true, self.L.loading
     self.locked = false
     self:blockArming()
     self:read("status", function(d)
@@ -938,6 +941,7 @@ function M.new(runtime, transport, mathModule, labels)
       self.savedRebootPending = self.rebootPending
       self.ready, self.transition, self.buildRequested = true, nil, true
       if self.logInfo then self:log("info", "load ready") end
+      self.loadActive = nil
       self.message = self.L.ready
       self:rebuild()
     end)
