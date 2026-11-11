@@ -655,6 +655,51 @@ local function beginPass(now, permanent)
     passFresh = freshFrames
 end
 
+-- The adjustment pair (function, value) the flight controller sends after a step, and the
+-- reason the cap below may not simply drop it. It is a value the board repeats only every few
+-- seconds, not every frame: a pass that pops a backlog after a long one -- a surface build on the
+-- pass before -- keeps the newest DECODE_CAP frames, and a step's report in one of the older ones
+-- would otherwise reach neither the in-flight surface (which reads the AdjF/AdjV sensors) nor the
+-- teller until the board sends it again.
+local SID_ADJUSTMENT = 0x1220
+local ADJ_HI, ADJ_LO = 0x12, 0x20
+
+-- Whether a frame may carry the adjustment entry: its two id bytes anywhere past the header. A
+-- byte search, not a walk, so a frame without them costs a loop over its bytes and no decoder;
+-- a hit can be a value's bytes, which rescueAdjustment's walk then sorts out.
+local function mayCarryAdjustment(data)
+    for i = 4, #data - 1 do
+        if data[i] == ADJ_HI and data[i + 1] == ADJ_LO then return true end
+    end
+    return false
+end
+
+-- Walk one dropped frame to its adjustment entry and decode that entry alone, published as
+-- decodeFrame would; the entries in front are walked with walkOnly so none of them publishes.
+-- Returns whether the entry was found.
+local function rescueAdjustment(data, now)
+    local ptr = 4
+    walkOnly = true
+    decodeNow = now
+    while ptr < #data do
+        local sid
+        sid, ptr = decU16(data, ptr)
+        local sensor = RFSensors[sid]
+        if not sensor or type(sensor.dec) ~= "function" then break end
+        if sid == SID_ADJUSTMENT then
+            walkOnly = false
+            local val
+            val, ptr = sensor.dec(data, ptr)
+            if val then publishSensorValue(sid, val, sensor, now) end
+            return true
+        end
+        local _
+        _, ptr = sensor.dec(data, ptr)
+    end
+    walkOnly = false
+    return false
+end
+
 -- The frames one pass keeps for decoding. One table for every pass rather than a new one per
 -- wakeup, because the drain is woken on every pass whether or not a frame is waiting. Reusing it
 -- is safe because the list never leaves M.wakeup: decodeFrame(kept[i], now) is handed one frame,
@@ -685,17 +730,27 @@ function M.wakeup(now, decodeAll)
     local kept = keptFrames
     for i = #kept, 1, -1 do kept[i] = nil end
     local popped = 0
+    -- The newest frame the cap drops that may carry the adjustment pair; decoded for that pair
+    -- alone, ahead of the kept frames, so a newer pair among them still lands last.
+    local rescue = nil
     while popped < POP_CAP do
         local data = popAndAccount()
         if not data then freshFrames = true break end
         popped = popped + 1
         kept[#kept + 1] = data
         if not decodeAll and #kept > DECODE_CAP then
-            table.remove(kept, 1)
+            local dropped = table.remove(kept, 1)
+            if mayCarryAdjustment(dropped) then rescue = dropped end
         end
     end
 
     if popped == 0 then return 0 end
+
+    if rescue then
+        local found = rescueAdjustment(rescue, now)
+        if found then logf("debug", "pass: the adjustment report taken from a frame the cap dropped (frame %s)", tostring(rescue[3])) end
+        rescue = nil
+    end
 
     if traceOn then
         if popped > #kept then
