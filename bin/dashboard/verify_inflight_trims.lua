@@ -136,15 +136,6 @@ local oldWrites,oldStates=trace(true)
 local newWrites,newStates=trace(false)
 assert(#newWrites>0,"fast-path trace produced no output")
 assert(oldWrites==newWrites and oldStates==newStates,"fast-path pulse or output trace changed")
-mask=0
-local function count(fn)
-  local n=0; debug.sethook(function() n=n+1 end,"",1); fn(); debug.sethook(); return n
-end
-assert(count(function() return {1,2,3,4,5,6,7,8} end)>count(function() end),"instruction control failed")
-local poll=count(function() drive:pollTrims() end)
-drive.live=true; drive.phase="live"; drive.fastAt=nil
-drive.sessionProfiles={pid={[1]=true},rate={[1]=true}}
-local fast=count(function() ticks=ticks+5; drive:fastTick(ticks) end)
 -- A step written to the value variable stamps the time on the suite's root, for the telemetry
 -- drain's report search (drive.lua writeValue, tasks/events/telemetry_bg/drain.lua); the 0 that ends
 -- the pulse does not move the stamp.
@@ -161,5 +152,14 @@ do
   d:writeValue(-73, 0)
   assert(rfsuite.adjustmentStepAt==5100,"the next step moves it")
 end
+mask=0
+local function count(fn)
+  local n=0; debug.sethook(function() n=n+1 end,"",1); fn(); debug.sethook(); return n
+end
+assert(count(function() return {1,2,3,4,5,6,7,8} end)>count(function() end),"instruction control failed")
+local poll=count(function() drive:pollTrims() end)
+drive.live=true; drive.phase="live"; drive.fastAt=nil
+drive.sessionProfiles={pid={[1]=true},rate={[1]=true}}
+local fast=count(function() ticks=ticks+5; drive:fastTick(ticks) end)
 print(comparisons.." routing/read-count comparisons passed; sliced discovery, settings invalidation and disabled inputs passed")
 print("warm row poll: "..poll.." instructions; idle fastTick: "..fast.." instructions (stubs included)")
