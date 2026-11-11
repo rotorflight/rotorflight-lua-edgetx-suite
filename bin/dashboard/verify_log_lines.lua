@@ -415,6 +415,43 @@ do
     check(#find("rfsuite.widget", "tool closed (closed by the pilot)") == 1,
       "tool sample raises: the closed line is written")
   end
+
+  -- A tool that fails: open, its visit from the rolling menu reports "failed" and the menu is put back;
+  -- once fullscreen has been left, the same failure forgets the place, as the close it interrupted would.
+  local function failingCase(leaveFullscreen)
+    local name = leaveFullscreen and "tool fails while closing" or "tool fails while open"
+    world()
+    begin("info", true)
+    control(name, "info")
+    local ToolHost = assert(_G.rfsuite.require("widgets/dashboard/tool_host.lua"))
+    local homePath = _G.rfsuite.paths.core .. "/ui/home.lua"
+    local home = {
+      init = function() end,
+      run = function() error("boom") end,
+      releasePages = function() end,
+    }
+    local realLoadScript = _G.loadScript
+    _G.loadScript = function(path, mode)
+      if path == homePath then return function() return home end end
+      return realLoadScript(path, mode)
+    end
+
+    local widget = { state = {}, preferences = {} }
+    check(ToolHost.request(widget, nil, true) == true, name .. ": the tool is asked for from the rolling menu")
+    ToolHost.step(widget, 0, nil)   -- load
+    ToolHost.step(widget, 0, nil)   -- init
+    -- A pass without an event is fullscreen left.
+    local event = 0
+    if leaveFullscreen then event = nil end
+    ToolHost.step(widget, event, nil)   -- run: raises
+    _G.loadScript = realLoadScript
+
+    check(not ToolHost.isOpen(widget), name .. ": the tool is closed")
+    local outcome = leaveFullscreen and "forget" or "failed"
+    check(#find("rfsuite.widget", "visit ended: " .. outcome) == 1, name .. ": the visit ends as " .. outcome)
+  end
+  failingCase(false)
+  failingCase(true)
 end
 
 -- ---------------------------------------------------------------------------

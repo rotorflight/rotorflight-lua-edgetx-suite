@@ -254,6 +254,12 @@ end
 function M.press(widget)
   local roll = current(widget)
   if roll == nil or roll.source == nil or roll.opening ~= nil then return end
+  -- A ladder's button calls this directly, past the widget's key path: the scene left from before a
+  -- reconnect is not acted on here either.
+  if type(Views) == "table" and type(Views.sceneStale) == "function" and Views.sceneStale(widget) then
+    trace("press on the scene left from before the reconnect, not acted on")
+    return
+  end
   if Log and type(Log.wanted) == "function" and Log.wanted("trace") then
     local after = roll.detentAt ~= nil and ((getTime() - roll.detentAt) * 10) or -1
     trace("press on the " .. sideOf(roll) .. ", " .. tostring(after) .. " ms after the last detent")
@@ -455,6 +461,13 @@ function M.touch(widget, event, touch)
         roll.source.close()
       end
     end
+    return true
+  end
+  if roll.notice ~= nil then
+    -- The details behind the status cover the menu: its geometry is that of the scene under them, so the
+    -- finger acts on none of it. The notice's own button closes it.
+    if event == _G.EVT_TOUCH_BREAK then trace("touch on the status notice, the menu under it not acted on") end
+    roll.touchX, roll.touchY, roll.sliding, roll.slideOn = nil, nil, false, nil
     return true
   end
   if event == _G.EVT_TOUCH_FIRST then

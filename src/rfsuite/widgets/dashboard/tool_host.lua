@@ -323,17 +323,20 @@ function M.abandon(widget, reason)
 end
 
 local function stopped(widget, host, err, phase)
+  -- A tool already closing (fullscreen left, the model armed) forgets the menu's place as a close
+  -- that runs to its end does (runStep): the pilot left, so the menu is not put back.
+  local outcome = host.closing and "forget" or "failed"
   if isCpuLimit(err) then
     host.cpuHits = host.cpuHits + 1
     hostLog("tool " .. phase .. " stopped at the instruction limit (" .. host.cpuHits .. "/" .. CPU_GIVE_UP .. ")",
       host.cpuHits >= CPU_GIVE_UP and "error" or "warn")
     if host.cpuHits >= CPU_GIVE_UP then
-      finish(widget, phase .. " stopped at the instruction limit " .. host.cpuHits .. " times", "failed")
+      finish(widget, phase .. " stopped at the instruction limit " .. host.cpuHits .. " times", outcome)
     end
     return
   end
-  hostLog("tool " .. phase .. " failed: " .. tostring(err), "error")
-  finish(widget, phase .. " failed", "failed")
+  hostLog("tool " .. phase .. " failed: " .. tostring(err) .. (host.closing and " while closing" or ""), "error")
+  finish(widget, phase .. " failed", outcome)
 end
 
 local function loadStep(widget, host)

@@ -759,12 +759,26 @@ end
 function M.acrossReconnect(widget)
   local roll = M.roll(widget, M.DEFAULT_VIEW)
   if roll == nil then return nil end
-  -- Up on its own, or under a view such as the prompt, which goes with the old connection.
+  -- On the stack, or the default view of a theme without a base layer: up on its own or under a view
+  -- such as the prompt, which goes with the old connection and leaves the menu showing again.
   local stacked = indexOf(widget._viewStack, M.DEFAULT_VIEW) ~= nil
-  if not stacked and not (M.top(widget) == nil and widget._viewBase == nil) then return nil end
+  if not stacked and widget._viewBase ~= nil then
+    if _G.rfsuite.logSteps then viewStep("reconnect: the rolling menu is not up, its place goes") end
+    return nil
+  end
+  if _G.rfsuite.logSteps then
+    viewStep("reconnect: the rolling menu keeps its place (%s)", stacked and "on the stack" or "default view")
+  end
   local session = { rolls = { [M.DEFAULT_VIEW] = roll } }
   if stacked then session[1] = { id = M.DEFAULT_VIEW } end
   return session
+end
+
+--- Whether what stands on screen is left from before a reconnect: the theme and the scene go with it
+--- until the board's id has been read, which waits while the model is armed. A press or a finger is not
+--- acted on then; RTN and the other keys carry on, as the way out.
+function M.sceneStale(widget)
+  return widget.theme == nil and widget.built ~= true
 end
 
 --- Open the tool on `menuId` from a rolling menu, keeping where the press stood (a table of the menu's
@@ -1057,11 +1071,9 @@ function M.key(widget, event, touch)
   local rolling = M.topRoll(widget)
   if rolling ~= nil then
     local enter, exitKey = _G.EVT_VIRTUAL_ENTER, _G.EVT_VIRTUAL_EXIT
-    -- A reconnect takes the theme and the scene with it until the board's id has been read, which waits
-    -- while the model is armed: what stands on screen says what held before, so a press or a finger is
-    -- not acted on by it. RTN and the other keys carry on: they are the way out.
-    if widget.theme == nil and widget.built ~= true
-      and (event == enter or (touch ~= nil and event ~= exitKey)) then
+    -- What stands on screen says what held before a reconnect (M.sceneStale): a press or a finger is not
+    -- acted on by it. RTN and the other keys carry on: they are the way out.
+    if M.sceneStale(widget) and (event == enter or (touch ~= nil and event ~= exitKey)) then
       return true
     end
     local own = M.find(widget, rolling.view)

@@ -470,6 +470,24 @@ local function run(mutate)
       w._viewStack ~= session or Views.roll(w, "menu") == nil)
   end
   do
+    -- A reconnect while the prompt stands over the default menu of a theme without a base layer: the prompt
+    -- goes with the old connection, and the menu under it keeps its place, as a menu on the stack does.
+    adds, exits, toolOpened = {}, 0, 0
+    local w = newWidget("rotary")
+    w._viewId = Views.resolve(w)
+    local s = scene(Menu, w)
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 2)
+    w.state.batteryPick = { loaded = true, pending = true, candidates = { { id = "a", name = "Pack A", cap = 3000 } } }
+    w._viewId = Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the prompt stands over the default menu", Views.top(w) == "battery_pick" and Views.roll(w, "menu") == r)
+    local kept = Views.acrossReconnect(w)
+    check("a reconnect keeps the default menu's place under the prompt, and drops the prompt",
+      kept ~= nil and kept.rolls.menu == r and kept.rolls.battery_pick == nil and kept[1] == nil
+      and r.levels[1].index == 3)
+  end
+  do
     -- A view taken off the stack starts over; one merely covered keeps its place.
     local w = open()
     local r = roll(w)
@@ -735,6 +753,52 @@ local function run(mutate)
     local g = geoOf(w)
     tap(w, g.closeX + 2, g.closeY + 2)
     check("a tap on the close box closes the menu", Views.top(w) == nil)
+  end
+  do
+    -- The status notice covers the menu: the finger acts on nothing under it, and the notice's own button
+    -- closes it.
+    local w = open()
+    local r = roll(w)
+    local g = geoOf(w)
+    r.notice = { "Title", "Message" }
+    local s = scene(Menu, w)
+    tap(w, g.closeX + 2, g.closeY + 2)
+    check("a tap where the close box was leaves the menu up under the notice", Views.top(w) == "menu" and r.notice ~= nil)
+    touch(w, EVT_TOUCH_FIRST, { x = g.leftX + 5, y = g.slotY(1) })
+    touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -(g.rowH + 1) })
+    touch(w, EVT_TOUCH_BREAK, { x = g.leftX + 5, y = 0 })
+    check("a swipe under the notice moves nothing", r.levels[1].index == 1)
+    local close
+    local function findPress(node, depth)
+      if close ~= nil or type(node) ~= "table" or depth > 6 then return end
+      if type(node.press) == "function" then close = node.press; return end
+      for _, v in pairs(node) do findPress(v, depth + 1) end
+    end
+    findPress(s.children, 0)
+    check("the notice has its own button", close ~= nil)
+    if close ~= nil then close() end
+    check("which closes the notice, not the menu", r.notice == nil and Views.top(w) == "menu")
+  end
+  do
+    -- A reconnect takes the theme until the board's id has been read: a ladder's button, which calls the press
+    -- itself, does not act on the scene left from before, as the wheel's press through the widget does not.
+    local w, s = open()
+    local r = roll(w)
+    local button
+    for i = 1, #s.forward.children do
+      if button == nil and s.forward.children[i].type == "button" then button = s.forward.children[i] end
+    end
+    local function place() return tostring(r.focus) .. "/" .. tostring(r.base) .. "/" .. tostring(r.opening) end
+    local before = place()
+    w.theme, w.built = nil, false
+    button.press()
+    check("a ladder press on the scene from before the reconnect does nothing",
+      place() == before and toolOpened == 0 and #adds == 0)
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("nor does the wheel's press", place() == before and toolOpened == 0 and #adds == 0)
+    w.theme, w.built = {}, true
+    button.press()
+    check("with the theme back the same press acts", place() ~= before or toolOpened > 0 or #adds > 0)
   end
 
   -- Drawn as buttons, the keys are the buttons' again.
@@ -1147,6 +1211,13 @@ if selfTest then
     end },
     { "the close box does nothing", function(t)
       return (string.gsub(t, "    roll.source.close%(%)\n    return\n", "    return\n"))
+    end },
+    { "the finger acts on the menu under the status notice", function(t)
+      return (string.gsub(t, "  if roll.notice ~= nil then\n    %-%- The details behind the status cover the menu",
+        "  if false then\n    -- The details behind the status cover the menu"))
+    end },
+    { "a ladder press acts on the scene from before a reconnect", function(t)
+      return (string.gsub(t, "and Views.sceneStale%(widget%) then", "and false then"))
     end },
   }
   quiet = true
