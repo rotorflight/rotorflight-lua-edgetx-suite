@@ -33,7 +33,8 @@ flight is saved under the profiles the same way: the sensors, or one request bef
 polar cyclic, Roll flies on the Pitch rates, so for Roll a change of the Pitch rates ends the count too. Combining
 flights adds up the counts and averages each measurement weighted by how much data it came from; the flight
 controller weights its own figures slightly differently, so the combined response is a close estimate rather than
-exact, while the stop figures combine exactly.
+exact, while the stop figures combine exactly. A flight whose numbers a newer saved reading also holds (see *How a
+flight is saved*) is left out as well: it neither counts nor ends the count.
 
 ## How a flight is saved
 
@@ -73,11 +74,16 @@ the flight is saved and its settings are read.
 - **Arming again after the flight is saved but before the clear has gone through** (or after a clear lost to the
   link) leaves that flight in the flight controller, which adds the next flight to it. The radio does not send that
   old clear afterwards, since it would erase the next flight before it is read; the next disarm reads first, saves,
-  and then clears. That reading still holds the earlier flight, which the radio cannot tell from the reply, so that
-  flight is then counted twice.
+  and then clears. That reading holds the earlier flight as well, so it is saved marked as containing it, and the
+  page leaves the earlier flight out instead of counting it twice. Nothing saved is removed for this. The radio
+  marks a reading only when no clear was answered and the link was not lost since that save, and the reading has
+  the same profiles and tune, a longer flight time and no smaller count.
 - **The same holds while the RFSuite widgets do not run for more than 5 seconds** (the configuration tool open):
   the model may have flown meanwhile, so a clear still owed is not sent afterwards, and the flight controller is
-  cleared after the next disarm.
+  cleared after the next disarm. A pack swapped meanwhile is not seen either: a longer next flight on the same
+  profiles and tune is then taken as holding the earlier one, which stays saved but is left out of the advice.
+- **After a lost link** the radio cannot tell a new pack (a restarted flight controller) from the same one. A
+  reading that still holds the earlier flight is then saved beside it unmarked, and that flight counts twice.
 - **A flight that cannot be written to the SD card** (the card is full or write-protected, or the history file is
   over the 16 KiB the page reads) is tried again 5 seconds later, and after three failed writes the radio waits for
   the next disarm. The flight controller is not cleared, so that disarm reads the flight again, together with the
@@ -97,7 +103,8 @@ answer finds measurements nobody saved, *Why* starts with how long they are, for
 flight whose reading failed while the page stayed open, press *Reload* to ask again.
 
 The flights are kept on the radio's SD card in `/SCRIPTS/RFSUITE/user/tune/<mcu id>.lua`, one line per
-flight and axis, newest last; the last 5 flights of each PID and rate profile are kept, at most 20 in all (the 
+flight and axis, newest last, and a line `c(time, seconds)` after a flight that contains the saved flight with that
+time and flight time (see above); the last 5 flights of each PID and rate profile are kept, at most 20 in all (the 
 profiles with the most flights give up their oldest first), and the file is kept under 15 KiB. `<mcu id>` is the flight controller's board ID,
 with characters other than letters, digits, underscores and hyphens replaced by underscores, the same name as its
 [change journal](../../reference/change-journal.md) in `journal/<mcu id>.lua` beside the `tune` folder. Each save

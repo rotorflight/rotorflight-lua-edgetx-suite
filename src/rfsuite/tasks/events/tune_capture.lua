@@ -8,7 +8,10 @@
 -- clear never gets through before the next arm, that next flight also holds this one's data:
 -- the flight controller cannot tell. The clear owed then is not sent after the arm (nor across a
 -- link loss or a stretch with no pass, tasks/events/runtime.lua): it would erase the next flight
--- before it is read.
+-- before it is read. That reading is then saved marked as containing the saved flight, which the
+-- page leaves out rather than counting twice, when this capture can tell: no clear answered and
+-- no new link since that save, the same profiles and tune, more seconds and no count smaller
+-- (containsHeld). Nothing saved is ever removed for it; where it cannot tell, both are kept.
 --
 -- Three files, and the state of a capture in none of them:
 --   * The ondisarm task tasks/events/ondisarm/tasks/tune_history.lua (last in the ondisarm
@@ -309,8 +312,11 @@ local function sendClear(tc, queue)
       if msg.__errorReply then handleError(tc, "nocommand"); return end
       tc.clearPending = false
       -- The statistics are gone from the flight controller: its next flight is a new one, even
-      -- with the same flight time as the one just saved
-      if tc.clearMcu ~= nil then tc.lastSeconds[tc.clearMcu] = nil end
+      -- with the same flight time as the one just saved, and contains none saved before
+      if tc.clearMcu ~= nil then
+        tc.lastSeconds[tc.clearMcu] = nil
+        if tc.held then tc.held[tc.clearMcu] = nil end
+      end
       tc.clearMcu = nil
       TuneAdvisorApi = nil
       waitFor(tc, tc.contextPending and GAP_SECONDS or 0)
@@ -440,6 +446,57 @@ local function readContext(tc, queue, api, onParsed)
   })
 end
 
+-- The counts the flight controller only ever adds to until its statistics are reset
+-- (src/main/flight/tune_advisor.c): a reading that holds a saved flight has none smaller than it.
+-- Not ffCount, which is the count of the best feedforward lag, and that lag can move.
+local GROWING = { "fullCount", "fullSatCount", "releases", "bigRebounds", "shakeCount" }
+
+-- What a later reading is checked against (held): per axis the tune bytes and the counts, in one
+-- array, with the profiles, the radio time and the seconds the flight was saved with
+local function heldOf(replies, tuneKeys, pid, rate, time, seconds)
+  local v, n = {}, 0
+  for axis = 1, AXIS_COUNT do
+    local a = replies[axis].a
+    for _, k in ipairs(tuneKeys) do n = n + 1; v[n] = a[k] end
+    for _, k in ipairs(GROWING) do n = n + 1; v[n] = a[k] or 0 end
+    for i = 1, 3 do
+      n = n + 1; v[n] = a.spBands[i].count
+      n = n + 1; v[n] = a.collBands[i].count
+    end
+  end
+  return { pid = pid, rate = rate, time = time, seconds = seconds, v = v }
+end
+
+-- Whether this reading holds the held flight as well: the flight controller was not cleared
+-- since it was saved (a clear the board answered drops it, and so does a new link -- a pack
+-- swapped restarts the board), it flew on the same profiles and tune (any change restarts its
+-- statistics), it counts more seconds, and none of its counts is smaller. False and the first
+-- test that failed otherwise.
+local function containsHeld(held, replies, tuneKeys, pid, rate, seconds)
+  if not held then return false, "no saved flight held" end
+  if pid == nil or rate == nil or pid ~= held.pid or rate ~= held.rate then return false, "profiles" end
+  if seconds <= held.seconds then return false, "seconds" end
+  local v, n = held.v, 0
+  for axis = 1, AXIS_COUNT do
+    local a = replies[axis].a
+    for _, k in ipairs(tuneKeys) do
+      n = n + 1
+      if a[k] ~= v[n] then return false, "tune" end
+    end
+    for _, k in ipairs(GROWING) do
+      n = n + 1
+      if (a[k] or 0) < v[n] then return false, "count" end
+    end
+    for i = 1, 3 do
+      n = n + 1
+      if a.spBands[i].count < v[n] then return false, "count" end
+      n = n + 1
+      if a.collBands[i].count < v[n] then return false, "count" end
+    end
+  end
+  return true
+end
+
 -- All three axes are in: save them as one flight. Each call is one pass: a module to load, or
 -- the save itself.
 local function finishCapture(tc, mcuId)
@@ -469,7 +526,21 @@ local function finishCapture(tc, mcuId)
       if tc.profilesUnknown then pid, rate = nil, nil end
       local time = ChangeJournal and ChangeJournal.timestamp and ChangeJournal.timestamp() or 0
       ChangeJournal = false       -- its clock was all the save needed of it
-      job = TuneHistory and TuneHistory.saveJob(mcuId, replies, { pidProfile = pid, rateProfile = rate }, time)
+      -- A flight saved before and not cleared off the board since: this reading may hold it too
+      local held = tc.held and tc.held[mcuId]
+      local previous = nil
+      if held then
+        local contains, why = containsHeld(held, replies, TuneHistory.TUNE_KEYS, pid, rate, seconds)
+        if contains then
+          previous = { time = held.time, seconds = held.seconds }
+          log(string.format("reading of %s s holds the saved %s s flight: the board was not cleared", seconds,
+            held.seconds), "debug")
+        else
+          log("the saved flight is not held in this reading (" .. tostring(why) .. ")", "debug")
+        end
+      end
+      job = TuneHistory and TuneHistory.saveJob(mcuId, replies, { pidProfile = pid, rateProfile = rate }, time,
+        previous)
       if not job then
         writeFailed(tc, "module")
         return
@@ -487,6 +558,12 @@ local function finishCapture(tc, mcuId)
       return
     end
     tc.lastSeconds[mcuId] = seconds
+    tc.held = tc.held or {}
+    tc.held[mcuId] = heldOf(replies, TuneHistory.TUNE_KEYS, flown and flown.pidProfile, flown and flown.rateProfile,
+      job.time, seconds)
+    if job.marked then
+      log("flight saved as containing the one before it, which the advice now leaves out", "info")
+    end
     saved = true
   end
   clearReplies(tc)

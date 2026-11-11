@@ -1231,8 +1231,7 @@ do
   asked = boardPump()
   check("a clear owed from before the arm is not sent ahead of the next reading", string.sub(asked, 1, 4) == "roll",
     asked)
-  -- The reading still holds flight one, which is then counted twice: a separate issue, which
-  -- the radio alone cannot tell apart from a board that started again
+  -- The reading still holds flight one: both are kept, and the page leaves flight one out (#1167)
   check("the second flight is read and saved, not erased", savedSeconds() == "140,200" and board.seconds == 0,
     savedSeconds() .. " / board " .. board.seconds)
 end
@@ -1582,6 +1581,268 @@ do
   check("a profiles read dropped five times is still asked again, and the flight saved under the profiles read",
     rolls == 6 and string.sub(asked, -6) == ",clear" and #rig.statusAsked == 6 and savedProfiles() == "2/3",
     asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+end
+
+-- ---------------------------------------------------------------------------
+print("The capture: a reading that holds the saved flight is not counted twice (#1167)")
+-- ---------------------------------------------------------------------------
+-- What the page combines on roll: flights used and their seconds
+local function combined()
+  local _, used, seconds = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+  return used, seconds
+end
+
+local function marks()
+  local n = 0
+  for _, l in ipairs(lines()) do if string.sub(l, 1, 2) == "c(" then n = n + 1 end end
+  return n
+end
+
+-- Optionally a normal flight of 100 s first (`three`); then flight one of 140 s, saved, with its
+-- clear about to go out; then `between` and a second flight of 60 s: the board's second reading
+-- holds 200 s when it was not cleared. The settings reads are answered whenever they are asked.
+local function heldCase(between, three, second)
+  fresh()
+  board.seconds = 0
+  rig.reply.releases, rig.reply.F = nil, 100
+  if three then
+    boardFly(100)
+    boardPump()
+  end
+  boardFly(140)
+  boardPump(between == "givenup" and 3 or nil, between ~= "givenup")
+  if between == "nopass" then
+    -- The widgets run no pass for a while (the configuration tool open)
+    dropQueue()
+    rig.clock = rig.clock + 200
+    boardPump()
+  elseif between == "flicker" then
+    -- A link loss shorter than the radio's hold, which still empties the queue
+    rig.setLink(false)
+    dropQueue()
+    rig.passes(2, 0.5)
+    rig.setLink(true)
+    boardPump()
+  elseif between == "linkloss" then
+    -- A link loss the radio calls one, and the link back: as far as the radio can tell a new pack
+    rig.setLink(false)
+    dropQueue()
+    rig.passes(80, 1)
+    rig.setLink(true)
+    rig.passes(20, 1)
+    boardPump()
+  elseif type(between) == "function" then
+    between()
+  end
+  boardFly(second or 60, 1)
+  boardPump()
+end
+
+local function seen()
+  local used, seconds = combined()
+  return savedSeconds() .. " saved, " .. marks() .. " marks, " .. used .. " flights / " .. seconds .. " s"
+end
+
+local function logged(needle)
+  for _, l in ipairs(rig.logs) do if string.find(l, needle, 1, true) then return true end end
+  return false
+end
+
+do
+  -- The pilot arms again in the moment between the save and the clear. Flight one's settings are
+  -- never read then, so it is never combined: before, the reading that holds it ended the count
+  -- there and the 100 s flight before it was left out too.
+  heldCase(nil, true)
+  local used, seconds = combined()
+  check("a re-arm before the clear: the reading holding flight one is marked, nothing is removed",
+    savedSeconds() == "100,140,200" and marks() == 1 and string.find(lines()[#lines()], ",140)", 1, true) ~= nil,
+    seen())
+  check("a re-arm before the clear: the page counts 100 s and the 200 s reading, 2 flights",
+    used == 2 and seconds == 300, seen())
+  check("the capture says so in the log", logged("containing the one before"))
+
+  heldCase("givenup", true)
+  used, seconds = combined()
+  check("a clear given up after link errors: marked, and the page counts 2 flights / 300 s",
+    savedSeconds() == "100,140,200" and marks() == 1 and used == 2 and seconds == 300, seen())
+
+  -- The settings of flight one are read after the gap: before, both flights were combined, the
+  -- 140 s twice
+  heldCase("nopass")
+  used, seconds = combined()
+  check("no pass while the clear was owed: marked, the page counts 1 flight / 200 s, not 340",
+    savedSeconds() == "140,200" and marks() == 1 and used == 1 and seconds == 200, seen())
+  heldCase("flicker")
+  used, seconds = combined()
+  check("a link flicker under the hold: marked, the page counts 1 flight / 200 s, not 340",
+    savedSeconds() == "140,200" and marks() == 1 and used == 1 and seconds == 200, seen())
+
+  -- Stated, not fixed: a new link drops the evidence (a pack swap restarts the board, and a
+  -- quick unplug after landing must not leave real flights out)
+  heldCase("linkloss")
+  used, seconds = combined()
+  check("(setup) the link came up again in between", logged("session.isConnected=true"))
+  check("a link lost and back: no mark, both flights counted as before (2 / 340)",
+    savedSeconds() == "140,200" and marks() == 0 and used == 2 and seconds == 340, seen())
+
+  -- Stated, not fixed: the pack swapped while the widgets did not run (the configuration tool
+  -- open). The radio never saw the link go, so a restarted board's longer flight on the same tune
+  -- is taken as holding the saved one: that flight is left out of the advice, nothing is removed
+  heldCase(function()
+    dropQueue()
+    rig.clock = rig.clock + 200
+    board.seconds = 0
+    boardPump()
+  end, false, 200)
+  used, seconds = combined()
+  check("a pack swapped unseen while the tool was open: marked, flight one left out, both kept",
+    savedSeconds() == "140,200" and marks() == 1 and used == 1 and seconds == 200, seen())
+end
+
+do
+  -- No mark without the evidence; each twin above marks
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  boardPump()
+  boardFly(60, 1)
+  boardPump()
+  check("(control) a clear answered between the flights: no mark, both flights counted",
+    savedSeconds() == "140,60" and marks() == 0 and select(1, combined()) == 2, seen())
+
+  -- Another tune: the flight controller restarts its statistics, the reading holds only the new flight
+  heldCase(function()
+    board.seconds = 0
+    rig.reply.F = 90
+  end)
+  check("another tune since the save: no mark", savedSeconds() == "140,60" and marks() == 0, seen())
+  rig.reply.F = 100
+
+  -- A count smaller than the saved flight's: the board started again unseen
+  heldCase(function()
+    board.seconds = 0
+    rig.reply.releases = 1
+  end)
+  check("a count smaller than the saved flight's: no mark", savedSeconds() == "140,60" and marks() == 0, seen())
+  rig.reply.releases = nil
+
+  -- Not more seconds than the saved flight: the board started again unseen
+  heldCase(function() board.seconds = 0 end)
+  check("no more seconds than the saved flight: no mark", savedSeconds() == "140,60" and marks() == 0, seen())
+
+  -- The page's erase between the flights: the file's newest flight is not the held one any more
+  heldCase(function() tuneHistory.erase(MCU) end)
+  check("an erase between the flights: no mark on the one flight left", savedSeconds() == "200" and marks() == 0,
+    seen())
+end
+
+print("The history file: the mark (#1167)")
+do
+  -- Saved with and without the evidence; the mark is bound to the newest flight in the file
+  reset()
+  fly(60)
+  local first = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock, { time = first.time, seconds = 60 }))
+  local flights = tuneHistory.read(MCU)
+  local _, used, seconds = tuneHistory.aggregate(flights, 1)
+  check("a flight saved with the evidence is marked and holds the one before", #flights == 2
+    and flights[2].contains ~= nil and flights[1].contains == nil and used == 1 and seconds == 90,
+    #flights .. " flights, used " .. used)
+
+  reset()
+  fly(60)
+  first = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock, { time = first.time, seconds = 59 }))
+  check("evidence about another flight than the file's newest: no mark", marks() == 0)
+
+  -- A clock with a fraction: the file keeps the second rounded, and the evidence still binds
+  reset()
+  clock = clock + 60.6
+  assert(tuneHistory.save(MCU, replies(60, { F = 100 }), CONTEXT, clock))
+  local fractional = clock
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock, { time = fractional, seconds = 60 }))
+  check("a radio time with a fraction: the evidence binds to the rounded second in the file", marks() == 1, marks())
+
+  -- The context job and later saves keep it; the trim to five keeps it with its flight
+  reset()
+  fly(60)
+  first = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock, { time = first.time, seconds = 60 }))
+  check("(setup) marked", marks() == 1)
+  assert(tuneHistory.setContext(MCU, { cyclicPolarity = 0, cyclicRing = 100, relaxType = 2 }))
+  check("the context job keeps the mark with the newest flight", marks() == 1 and string.sub(lines()[#lines()], 1, 2) == "c(",
+    tostring(lines()[#lines()]))
+  fly(30)
+  flights = tuneHistory.read(MCU)
+  check("a later save keeps the mark with its flight", marks() == 1 and flights[2].contains ~= nil
+    and flights[3].contains == nil, marks() .. " marks")
+  fly(31) fly(32) fly(33)
+  flights = tuneHistory.read(MCU)
+  check("trimmed to five: the marked flight is the oldest kept, and still marked", #flights == 5
+    and flights[1].seconds == 90 and flights[1].contains ~= nil and marks() == 1, #flights .. " flights")
+  fly(34)
+  check("trimmed past it: the mark goes with its flight", #tuneHistory.read(MCU) == 5 and marks() == 0, marks())
+
+  -- Chained: each flight holds the one before
+  reset()
+  fly(60)
+  for _, s in ipairs({ 90, 120 }) do
+    local newest = tuneHistory.read(MCU)
+    newest = newest[#newest]
+    clock = clock + 60
+    assert(tuneHistory.save(MCU, replies(s, { F = 100 }), CONTEXT, clock,
+      { time = newest.time, seconds = newest.seconds }))
+  end
+  local _, chainUsed, chainSeconds = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+  check("chained marks: only the newest reading counts", chainUsed == 1 and chainSeconds == 120,
+    chainUsed .. " / " .. chainSeconds)
+
+  -- The mark names its flight: once that flight is trimmed away, nothing else is left out
+  reset()
+  fly(60)
+  local firstFlight = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock,
+    { time = firstFlight.time, seconds = 60 }))
+  for k = 1, 4 do fly(100 + k) end
+  flights = tuneHistory.read(MCU)
+  local _, trimmedUsed = tuneHistory.aggregate(flights, 1)
+  check("a mark whose flight was trimmed away leaves no other flight out", #flights == 5 and flights[1].seconds == 90
+    and flights[1].contains ~= nil and trimmedUsed == 5, #flights .. " flights, used " .. trimmedUsed)
+
+  -- Flights on other profiles between: the marked flight still leaves out only the one it names
+  reset()
+  fly(60)
+  firstFlight = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock,
+    { time = firstFlight.time, seconds = 60 }))
+  local otherCtx = {}
+  for k, v in pairs(CONTEXT) do otherCtx[k] = v end
+  otherCtx.pidProfile = (CONTEXT.pidProfile or 1) + 1
+  fly(50, 100, otherCtx)
+  fly(70)
+  local _, interUsed, interSeconds = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+  check("with another profile's flight between, only the named flight is left out", interUsed == 2
+    and interSeconds == 160, interUsed .. " / " .. interSeconds)
+
+  -- A mark after a line that does not read marks nothing
+  reset()
+  fly(60)
+  fly(90)
+  local text = files[HISTORY]
+  local torn = string.gsub(text, '(f%(%d+,90,"yaw",)', 'f(x,90,"yaw",', 1)
+  files[HISTORY] = torn .. "c(" .. tuneHistory.read(MCU)[1].time .. ",60)\n"
+  flights = tuneHistory.read(MCU)
+  check("a mark after a line that does not read marks nothing", flights[#flights].contains == nil
+    and #flights == 2, tostring(flights[#flights].contains))
+  files[HISTORY] = text .. "c(" .. tuneHistory.read(MCU)[1].time .. ",60)\n"
+  flights = tuneHistory.read(MCU)
+  check("(control) the same mark after a line that reads marks its flight", flights[#flights].contains ~= nil)
 end
 
 -- ---------------------------------------------------------------------------
