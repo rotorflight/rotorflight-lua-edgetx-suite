@@ -98,6 +98,8 @@ end
 -- The ground read switches the board through its profiles; each switch releases and re-asserts the
 -- bank, and the bank channel echoes both writes. That echo is on no surface, so it must not move the
 -- layout epoch the ground key carries (Input.renderKey): it used to rebuild the screen twice per switch.
+-- A profile the PILOT switches to moves it once, since the ground and post-flight surfaces are built
+-- from the active profile's values.
 scenario("bank channel echo of a profile switch does not rebuild the ground surface", function()
   local _, d, writes = fixture(false)
   local pid = 1
@@ -114,7 +116,9 @@ scenario("bank channel echo of a profile switch does not rebuild the ground surf
   end
   for _ = 1, 4 do d:tick(false) end
   check(d.live and d.phase == "ground" and (d.bankWritten or 0) ~= 0, "positive control: the ground drive holds a bank")
+  -- The ground read's own switches: the job holds profileBusy while it walks the profiles.
   local epoch, shown = d.valueEpoch, {}
+  d.profileBusy = true
   for switch = 2, 4 do
     pid = switch
     d:watchProfiles()
@@ -123,13 +127,22 @@ scenario("bank channel echo of a profile switch does not rebuild the ground surf
       shown[#shown + 1] = tostring(d.bankShown)
     end
   end
+  d.profileBusy = nil
   local seenNil, seenBand = false, false
   for _, s in ipairs(shown) do
     if s == "nil" then seenNil = true else seenBand = true end
   end
   check(seenNil and seenBand, "positive control: the channel echo left and re-entered the band ("
     .. table.concat(shown, ",") .. ")")
-  check(d.valueEpoch == epoch, "three profile switches move no layout epoch: " .. epoch .. " -> " .. d.valueEpoch)
+  check(d.valueEpoch == epoch, "three switches of the ground read move no layout epoch: " .. epoch .. " -> " .. d.valueEpoch)
+  -- The pilot's own switches, with no job running: one layout epoch each, the echo adds none.
+  epoch = d.valueEpoch
+  for switch = 1, 2 do
+    pid = switch
+    d:watchProfiles()
+    for _ = 1, 4 do d:tick(false) end
+  end
+  check(d.valueEpoch == epoch + 2, "two switches of the pilot move the layout epoch once each: " .. epoch .. " -> " .. d.valueEpoch)
   -- The reading is still adopted where nothing of ours drives the variable.
   d:cleanup(true)
   d.radio.channelUs = function(ch)
@@ -140,6 +153,7 @@ scenario("bank channel echo of a profile switch does not rebuild the ground surf
   d.bankWritten = 0
   d:tick(false)
   check(d.bankShown == 2, "the channel reading is still taken: " .. tostring(d.bankShown))
+  check(d.bank == 2, "and adopted where nothing of ours drives the variable: bank " .. tostring(d.bank))
 end)
 
 scenario("foreground open takes effect before a pending job", function()

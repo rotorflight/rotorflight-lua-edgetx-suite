@@ -1470,6 +1470,15 @@ function Drive:watchProfiles()
     self:cancelSpeech()
     self:activateProfiles()
     self.reportEpoch = self.reportEpoch + 1
+    -- A profile the PILOT switched to changes what the ground and post-flight surfaces were built
+    -- from (the delta list, the bounds row, the status lines), so there it moves the layout epoch
+    -- once. The live surface reads the profile through closures and its key carries no epoch; a
+    -- switch in the air moves none. The ground read's own switches do not either: the job holds
+    -- `profileBusy` while it walks the profiles, and its end moves the epoch (profiles.lua).
+    if not self.profileBusy and self.phase ~= M.PHASE_LIVE then
+      self.valueEpoch = self.valueEpoch + 1
+      Setup.trace("profile edge pid %s rate %s: layout epoch %d", pid, rate, self.valueEpoch)
+    end
     local teller = announcer()
     if self.phase == M.PHASE_LIVE and not self.profileBusy and teller and type(teller.profile) == "function" then
       local events = (self._radioSource or _G.rfsuite.preferences or {}).audio_events or {}
@@ -1539,7 +1548,7 @@ function Drive:tick(armed)
   -- line is the setup check's to report (setup.lua, checkMixLine).
   local shown = Functions.usToBand(self.radio.channelUs(self.settings.bank_ch), self.bands)
   if shown ~= self.bankShown then
-    Setup.trace("bank channel reads band %s (was %s)", tostring(shown), tostring(self.bankShown))
+    Setup.trace("bank channel reads band %s (was %s)", shown, self.bankShown)
     self.bankShown = shown
   end
   -- The reading is ADOPTED only while the drive has put nothing on the variable itself. Once it
