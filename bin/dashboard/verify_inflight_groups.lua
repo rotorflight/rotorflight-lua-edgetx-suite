@@ -960,6 +960,42 @@ local function nativeScene(nodes, view, counts, tall)
       end
     end
   end
+  -- The firmware's refresh sweep with `visible` getters (LVGL 8.2 / EdgeTX 2.12): every object is
+  -- asked in creation order, a box's scrollTo after its children; hiding the focused object moves the
+  -- focus to the next one shown (hidden objects skipped, wrap to the widget, lv_obj_add_flag ->
+  -- lv_group_focus_next), and focusing a row in a box scrolls it into view.
+  function scene:refsSweep()
+    local objectOf = {}
+    for i, object in ipairs(self.focus) do objectOf[object.node] = i end
+    local function shownAt(i)
+      return not self.focus[i].hidden
+    end
+    local function walk(list)
+      for _, node in ipairs(list) do
+        local i = objectOf[node]
+        if i and type(node.visible) == "function" then
+          local hide = not node.visible()
+          self.focus[i].hidden = hide
+          if hide and self.at == i then
+            local n, j = #self.focus, i
+            repeat
+              j = j + 1
+              if j > n then j = 0 end
+            until j == 0 or shownAt(j)
+            self.refocusMoves = (self.refocusMoves or 0) + 1
+            self:focusAt(j)
+          end
+        end
+        if node.children then walk(node.children) end
+        if node.type == "box" and node.scrollTo then
+          for _, box in ipairs(self.boxes) do
+            if box.node == node then local _, y = node.scrollTo(); self:scroll(box, y) end
+          end
+        end
+      end
+    end
+    walk(nodes)
+  end
   function scene:rotate(direction)
     self:sweep()
     if self.at == 0 then self:focusAt(direction > 0 and 1 or #self.focus)
@@ -1011,8 +1047,21 @@ for _, valueMode in ipairs({true, false}) do
     end
     error("touch control missing: " .. text)
   end
+  -- A completed tap on + or - in value mode: no build, the controls after it hide for one sweep.
+  local function refocused(epoch, key)
+    check(instance.tapSweep ~= nil and instance.tapSweep.state == "hide" and (instance.ladderEpoch or 0) == (epoch or 0),
+      "a completed tap on a step button hides the controls after it for a sweep instead of a rebuild")
+    local scenes = counts.scenes
+    scene:refsSweep()
+    check(scene.at == 0 and instance.tapSweep ~= nil and instance.tapSweep.state == "show",
+      "the hiding sweep takes the focus back to the widget (at " .. tostring(scene.at) .. ")")
+    scene:refsSweep()
+    check(instance.tapSweep == nil and view._inflightSensor.index ~= nil and counts.scenes == scenes
+      and Screen.renderKey(view.state.inflight) == key,
+      "the showing sweep ends it and resets the sensor; nothing was built and the key did not move")
+  end
   local function returned(epoch, key)
-    check(instance.ladderEpoch == epoch + 1 and view._tuningKeyDirty,
+    check(instance.ladderEpoch == (epoch or 0) + 1 and view._tuningKeyDirty,
       "one completed live touch requests exactly one ladder rebuild")
     check(view._inflightSensor.index == nil, "touch still fences the first sensor return")
     render()
@@ -1030,16 +1079,16 @@ for _, valueMode in ipairs({true, false}) do
     Drive.sample(view)
     check(Screen.renderKey(view.state.inflight) == key, "a held touch keeps the live render key")
     plus.release()
-    check(instance.holdRow == nil and instance.valueEpoch == valueEpoch + 1,
-      "release ends the hold and republishes the snapshot once")
-    returned(epoch, key)
+    check(instance.holdRow == nil and instance.valueEpoch == valueEpoch,
+      "release ends the hold without a layout epoch")
+    refocused(epoch, key)
     epoch, key = instance.ladderEpoch, Screen.renderKey(view.state.inflight)
     plus = touch("+")
     check(instance.fired == fired + 1 and instance.stepRefusedReason == "cooling",
       "control: a second held press during the pulse is refused")
     check(instance.ladderEpoch == epoch, "a refused held press also waits for release")
     plus.release()
-    returned(epoch, key)
+    refocused(epoch, key)
     epoch, key = instance.ladderEpoch, Screen.renderKey(view.state.inflight)
     check(not Input.dispatch(view, "step", 1, "touch"), "a plain touch step is refused during cooling")
     returned(epoch, key)
@@ -1104,6 +1153,68 @@ for _, valueMode in ipairs({true, false}) do
   check(not instance.groupPicker and not Input.dispatch(view, "pick", nil, "touch", 1) and instance.group == landed,
     "landing takes the picker down and a late choice does nothing")
   instance:cleanup(false)
+end
+
+-- After a tap's refocus the ladder works as after a build, in both directions, and ENTER on the
+-- widget leaves value mode: it never steps (the focus is not left on a step button).
+do
+  local instance = drive()
+  instance.valueMode = true
+  local view = {_inflight = instance, state = {armed = true}, zone = {w = 480, h = 320}}
+  local counts, nodes, scene = {scenes = 0, sensors = 0, nativeRoot = true}
+  local function render()
+    Drive.sample(view)
+    nodes = {}
+    Screen.buildFullscreen(nodes, view)
+    scene = nativeScene(nodes, view, counts)
+    view._tuningKeyDirty = nil
+  end
+  local function settle()
+    for _ = 1, 4 do ticks = ticks + 31; instance:fastTick(ticks) end
+  end
+  local function tapPlus()
+    for index, object in ipairs(scene.focus) do
+      local node = object.node
+      if node.children and node.children[1] and node.children[1].text == "+" then
+        scene:focusAt(index)
+        node.press()
+        node.release()
+        return
+      end
+    end
+    error("no + button")
+  end
+  render()
+  local scenes = counts.scenes
+  for _, direction in ipairs({1, -1}) do
+    settle(); tapPlus()
+    -- fastTick counts passes for the fallback: the two sweeps come before it would build.
+    scene:refsSweep(); scene:refsSweep()
+    check(instance.tapSweep == nil and scene.at == 0, "refocus " .. direction .. ": focus back on the widget")
+    settle()
+    local fired = instance.fired
+    scene:rotate(direction); scene:sweep()
+    check(instance.fired == fired + 1, "refocus: the first detent " .. (direction > 0 and "forward" or "back")
+      .. " after a tap steps once (fired " .. fired .. " -> " .. instance.fired .. ")")
+    settle()
+  end
+  settle(); tapPlus()
+  scene:refsSweep(); scene:refsSweep()
+  local fired = instance.fired
+  -- Inside the pulse the leave is refused as before (cooling), and nothing steps.
+  scene:press()
+  check(instance.fired == fired and instance.valueMode == true, "refocus: ENTER inside the pulse neither steps nor leaves")
+  settle()
+  scene:press()
+  check(instance.fired == fired and instance.valueMode ~= true, "refocus: ENTER on the widget leaves value mode and does not step")
+  check(counts.scenes == scenes, "refocus: three taps built no scene (" .. (counts.scenes - scenes) .. ")")
+  -- A sweep that never comes: the fallback builds after SWEEP_PASSES passes.
+  render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+  local epoch = instance.ladderEpoch or 0
+  settle(); tapPlus()
+  for _ = 1, 5 do ticks = ticks + 31; instance:fastTick(ticks) end
+  check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epoch + 1,
+    "refocus: a sweep that does not come is ended by a build after a few passes")
 end
 
 for _, surface in ipairs({{"ground", false}, {"ground", true}, {"post", false}, {"post", true}, {"live", false}}) do

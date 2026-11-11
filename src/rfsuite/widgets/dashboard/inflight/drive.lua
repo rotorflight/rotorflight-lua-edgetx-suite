@@ -1323,9 +1323,28 @@ end
 --
 -- Guarded on the radio's own clock, so a pass that runs the whole tick as well as this one does
 -- the work once rather than twice.
+-- How many widget passes a tap's refocus sweep may take (input.lua, M.refocus): one hides, the next
+-- shows. Counted in passes, not time, since a slow pass is no reason. Past it the surface is built,
+-- which ends the sweep the way a tap ended before it, so the encoder is never left without a ladder.
+local SWEEP_PASSES = 3
+
 function Drive:fastTick(now)
   if self.fastAt == now then return end
   self.fastAt = now
+  local sweep = self.tapSweep
+  if sweep ~= nil then
+    sweep.passes = sweep.passes + 1
+    local onValue = self.live == true and self.phase == M.PHASE_LIVE and self.valueMode == true
+    if sweep.passes > SWEEP_PASSES or not onValue then
+      self.tapSweep = nil
+      if onValue then
+        self.ladderEpoch = (self.ladderEpoch or 0) + 1
+        self.valueEpoch = self.valueEpoch + 1
+        logDrive("tap refocus not finished after %d passes in state %s, the surface is built",
+          sweep.passes, tostring(sweep.state))
+      end
+    end
+  end
   local _, refusal = self:watchProfiles()
   local tuning = self.live == true and self.phase == M.PHASE_LIVE and refusal == nil
   if self.stepRefusedUntil ~= nil and now >= self.stepRefusedUntil then

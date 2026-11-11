@@ -492,6 +492,9 @@ local function appendFlight(children, widget, m, w, h, t, p)
   local titleX, titleW = m.pad + arrowW + 4, lineW - arrowW * 2 - 8
   local contentY = groupY + groupH + 4
   local paused = snapshot.profileRefusal ~= nil
+  -- The value surface's step buttons, appended after the group arrows (see there), and the one
+  -- `visible` answer they share with the reverse ladder's rows.
+  local steps, shown = {}, nil
   local picking = snapshot.groupPicker == true and not paused
   local hint, shortHint
   if picking then
@@ -575,18 +578,27 @@ local function appendFlight(children, widget, m, w, h, t, p)
       local forward, reverse = sensor.windows()
       local ladder, previous = {}, {}
       local first, leave = sensor.first, sensor.leave
+      -- The reverse ladder's rows hide for the sweep that takes the focus back to the widget after a
+      -- tap on + or - (Input.refocus); one answer for all of them and for the step buttons.
+      -- Inlined rather than Input.shown(drive): it is asked for every one of these on every pass.
+      shown = function()
+        local sweep = drive.tapSweep
+        return sweep == nil or sweep.state ~= "hide"
+      end
       local color, textColor = p.header, p.text
       -- The transparent resting window still participates in pointer hit testing.
       previous[1] = {
         type = "button", y = first * nameH, w = lineW, h = nameH,
         pos = function() return 0, sensor.positions[first - 1] + nameH * 2 end,
-        color = color, textColor = textColor, font = nameFont, text = nameText, press = leave
+        color = color, textColor = textColor, font = nameFont, text = nameText, press = leave,
+        visible = shown
       }
       local function guard(list, index)
         list[#list + 1] = {
           type = "button", x = 0, y = index * nameH, w = lineW, h = nameH,
           color = p.header, textColor = p.text, font = m.font,
-          text = t("widgets.dashboard.inflight_encoder", "Encoder"), press = sensor.leave
+          text = t("widgets.dashboard.inflight_encoder", "Encoder"), press = sensor.leave,
+          visible = list == previous and shown or nil
         }
       end
       guard(previous, 0)
@@ -597,7 +609,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
         list[#list + 1] = {
           type = "button", y = index * nameH, w = lineW, h = nameH,
           pos = position(index), color = color, textColor = textColor, font = nameFont,
-          text = nameText, press = leave
+          text = nameText, press = leave, visible = list == previous and shown or nil
         }
       end
       guard(ladder, ladderRows + 1)
@@ -660,7 +672,11 @@ local function appendFlight(children, widget, m, w, h, t, p)
         node.press = function() Input.dispatch(widget, "step", direction, "touch_hold") end
         node.release = function() Input.dispatch(widget, "release", nil, "touch_hold") end
       else node.press = action("step", direction) end
-      children[#children + 1] = node
+      node.visible = shown
+      -- Created after the group arrows, just before the reverse ladder: in the walk nothing but
+      -- the reverse rows follows them, so hiding those and the step buttons for one sweep takes the
+      -- focus from a tapped step button back to the widget without hiding the arrows.
+      steps[#steps + 1] = node
     end
   else
     local rows = snapshot.groupRows or {}
@@ -804,6 +820,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
   button(children, m.pad, groupY, arrowW, groupH, "<", action("function", -1), p.accent)
   button(children, titleX, groupY, titleW, groupH, title, function() openGroupPicker(widget) end)
   button(children, w - m.pad - arrowW, groupY, arrowW, groupH, ">", action("function", 1), p.accent)
+  for i = 1, #steps do children[#children + 1] = steps[i] end
 end
 
 local appendBusy, busyStepText
