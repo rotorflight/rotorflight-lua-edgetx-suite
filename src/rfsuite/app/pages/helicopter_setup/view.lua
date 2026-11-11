@@ -37,6 +37,18 @@ function M.new(w, ctx, diagrams)
     return math.floor(#text * (font == MIDSIZE and (large and 14 or 10) or font == BUTTON_FONT and font ~= SMLSIZE
       and (large and 12 or 9) or (large and 10 or 7.5)) + 0.5)
   end
+  -- A label draws its text from the top of its box, so a label beside a control has to be placed
+  -- by where its capital letters sit in that box: measured on the radios' own screens, the middle
+  -- of a capital is 6 px below the top of a small-font label on a 480-wide screen, 11 px on
+  -- 800x480, and 21 px in an 800x480 MIDSIZE label. A label is centred on a band or a control by
+  -- putting that middle on the middle of the band.
+  local function capMid(font)
+    if font == MIDSIZE and large then return 21 end
+    return large and 11 or 6
+  end
+  local function centredTop(top, h, font)
+    return math.max(top, top + math.floor(h / 2) - capMid(font))
+  end
   -- A card's explanation runs across the full width at the top; the rows start below it. It takes the lines it needs, two at least and three at most, the third
   -- only where the rows still fit above the status line; the ? sheet carries the whole text.
   -- The servo grid and the attitude view lay out their own.
@@ -102,7 +114,8 @@ function M.new(w, ctx, diagrams)
   elseif counted then headCard = string.format(w.L.cardPlace, headCard, w.card, #w.cards) end
   all[#all + 1] = { type = "rectangle", x = 0, y = 0, w = width, h = height, filled = true, color = palette.page }
   if card then
-    local cardY = large and 50 or 27
+    -- The card starts below the header band and the ? button, which are controlH high from y 2.
+    local cardY = large and 50 or controlH+3
     all[#all + 1] = { type = "rectangle", x = 6, y = cardY, w = width-12,
       h = height-controlH-(large and 40 or 27)-cardY, filled = true, color = palette.card }
   end
@@ -119,7 +132,8 @@ function M.new(w, ctx, diagrams)
     button(math.floor((width-exitW)/2), height-controlH-6, exitW, w.L.exit, function() w:requestSteps() end,
       function() return w.canEdit == true end)
   end
-  local headH, headFont = large and 44 or 24, large and MIDSIZE or SMLSIZE
+  -- The header band is as high as the ? button beside it, so the two end on one line.
+  local headH, headFont = controlH, large and MIDSIZE or SMLSIZE
   local headRight = width-controlH-12
   -- A step's card opens the step menu from its header; the labels above the button take no taps.
   local menuHeader = stepCard and not w.preparationCard and w.openStepMenu ~= nil
@@ -150,10 +164,11 @@ function M.new(w, ctx, diagrams)
   local counterW = counter and textWidth(counter, SMLSIZE) or 0
   local counterX = chevronX-(chevronW > 0 and 6 or 0)-counterW
   local headNameW = math.min(textWidth(headStep, headFont), (counter and counterX or headRight)-8-nameX)
+  -- The step name is centred on the band, like the ? on its button and the two drawn chevrons.
   -- The card name and the counter sit on the step name's baseline: below the large step font
   -- the small text moves down by the difference (measured on the radio: baseline at 33 px in a
   -- MIDSIZE label, 18 px in a SMLSIZE one).
-  local nameY = large and (headFont == MIDSIZE and 7 or 13) or 3
+  local nameY = centredTop(2, headH, headFont)
   local smallY = headFont == MIDSIZE and nameY + 15 or nameY
   all[#all + 1] = label(nameX, nameY, headNameW, headStep, headFont)
   all[#all].h, all[#all].color = large and 32 or 20, menuHeader and palette.accentInk or palette.text
@@ -507,13 +522,17 @@ function M.new(w, ctx, diagrams)
           editW = large and 270 or math.min(formW-labelW, 190)
           editX, textW = formX+labelW, labelW-8
         end
+        local bandH = r.kind == "value" and (card.link=="overview" or card.dense or fitRows)
+          and math.min(rowControlH,rowH-3) or rowControlH
         if attitudeCard then
           all[#all+1]=label(formX,y-(large and 34 or 22),formW,r.label)
           editW, editX = formW, formX
         elseif r.fullWidth then
           editW, editX = formW, formX
         else
-        all[#all + 1] = label(formX, y+3, textW, illustrated and compact[r.label] or r.label)
+        -- The row's label is centred on the row's control, whatever that control is; a value row
+        -- on a dense card is as high as the row really is, not as a control.
+        all[#all + 1] = label(formX, centredTop(y, bandH), textW, illustrated and compact[r.label] or r.label)
         end
         -- A plain yes/no or off/on answer is a switch. A choice that can be unknown (not read yet,
         -- or servos of one group that disagree) keeps its list while it is, so no answer is implied.
@@ -522,13 +541,17 @@ function M.new(w, ctx, diagrams)
           ((answers[1] == w.L.no and answers[2] == w.L.yes) or (answers[1] == w.L.off and answers[2] == w.L.on))
         local switch = yesNo and (r.kind == "toggle" or (r.kind == "choice" and not (r.allowUnset and r.get() == 0)))
         if r.kind == "value" then
-          all[#all + 1] = label(editX, y+3, editW, function() return tostring(r.get() or "--") end)
-          all[#all].h=(card.link=="overview" or card.dense or fitRows) and math.min(rowControlH,rowH-3) or rowControlH
+          local top = centredTop(y, bandH)
+          all[#all + 1] = label(editX, top, editW, function() return tostring(r.get() or "--") end)
+          all[#all].h = bandH - (top - y)
           -- A value row may name a palette role for its live state, e.g. a switch that is on.
           if r.color then all[#all].color=function() return palette[r.color()] or palette.text end end
         elseif switch then
-          -- Every switch has the same size, whatever the row height of its card.
-          local sw, sh = large and 64 or 48, large and 32 or 24
+          -- Every switch has the same size, whatever the row height of its card. EdgeTX gives a
+          -- Lua switch its own fixed size and ignores w and h (its lua_lvgl_widget.cpp builds the
+          -- ToggleSwitch with a 0 x 0 rectangle): measured, 72 x 44 on 800x480 and 48 x 28 on the
+          -- 480-wide screens. It is centred on the row with that size, like its label.
+          local sw, sh = large and 72 or 48, large and 44 or 28
           all[#all + 1] = { type = "toggle", x = editX, y = y+math.floor((rowControlH-sh)/2), w = sw, h = sh,
             get = function() return r.get() == 2 end,
             set = function(v)
@@ -603,7 +626,7 @@ function M.new(w, ctx, diagrams)
             -- Two counts of one gear pair side by side, "a : b".
             local half = math.floor((editW - 12) / 2)
             numberField(editX, half, r.left)
-            all[#all + 1] = label(editX+half, y+3, 12, ":")
+            all[#all + 1] = label(editX+half, centredTop(y, rowControlH), 12, ":")
             numberField(editX+editW-half, half, r.right)
           else
             numberField(editX, editW, r)
