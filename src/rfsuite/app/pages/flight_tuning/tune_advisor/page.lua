@@ -996,7 +996,8 @@ local function probe()
       local unsaved = reply and tonumber(reply.seconds) or 0
       local changed = unsaved ~= (ui.unsavedSeconds or 0)
       ui.unsavedSeconds = unsaved
-      pageLog("trace", "probe reply: supported %s, board seconds %d", tostring(supported), unsaved)
+      pageLog("trace", "probe reply: supported %s, newer layout %s, board seconds %d", tostring(supported),
+        tostring(newer), unsaved)
       if supported == ui.unsupported or changed or newer ~= ui.newerLayout then
         ui.unsupported = not supported
         ui.newerLayout = newer
