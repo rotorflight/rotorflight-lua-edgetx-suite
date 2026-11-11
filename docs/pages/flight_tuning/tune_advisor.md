@@ -234,14 +234,14 @@ and writes: P, F, B, the rates and the I-term relax cut-off per axis, and the PI
 applies an adjustment straight away and saves it when you disarm.
 
 - **Adjusting during a flight starts the measurements again.** On firmware with rotorflight-firmware pull request
-  #607, a profile switch, or an adjustment that changes a P, I, D, F or B gain, the I-term relax cut-off, the rate
-  type, a rate or an expo, makes the flight controller drop everything it has measured so far and start again on the new
-  tune. That flight is then saved with only the part flown after the last change; a change shortly before landing
+  #607, a profile switch, or an adjustment that changes a P, I, D, F, B or O gain, the I-term relax cut-off, the
+  rate type, a rate or an expo, makes the flight controller drop everything it has measured so far and start again
+  on the new tune. That flight is then saved with only the part flown after the last change; a change shortly before landing
   leaves too little, or nothing, and a flight with no acro flight time is not saved. A flight not saved yet (see
   *How a flight is saved*) is dropped with it. Leave these adjustments alone while collecting flights for the
   advisor.
-- **On older firmware, adjusting during a flight mixes two tunes.** Without that pull request the flight
-  controller checks the tune only when you arm, so a flight where you adjusted one of these settings (or switched
+- **On older firmware, adjusting during a flight mixes two tunes.** On a 4.7 development build from before that
+  pull request the flight controller checks the tune only when you arm, so a flight where you adjusted one of these settings (or switched
   profile) is measured partly on the old value and saved as if flown on the value you ended on. If you did use
   one, press *\** and fly again.
 - **Adjusting between flights is fine.** A *STEPPED* adjustment is saved at disarm, so the next flight is on a new
