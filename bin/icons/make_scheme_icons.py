@@ -19,6 +19,10 @@ A set says which pictures it makes, at what size and where they go:
          manifest's own icon with its path joined, else the menu it opens, whose source is the page's own
          icon. The menus the rolling menu opens in the tool with their tiles are not rolled through, so
          their entries need none.
+  pages  the tool's tile icons (app/icons/<scheme>/), named by their path under app/pages, so
+         app/pages/setup/mixer/icon.png is setup_mixer_icon.png, the name the rolling menu gives it too.
+  themes every shipped dashboard theme's pictures (widgets/dashboard/theme_icons/<scheme>/), named by their
+         path under widgets/dashboard/themes, so grid/icons/look.png is grid_icons_look.png.
 """
 import argparse
 import io
@@ -118,7 +122,55 @@ def roll_set():
     }
 
 
-SETS = {"roll": roll_set}
+# --- sets: pages and themes ----------------------------------------------------------------------------
+
+# Each set keeps its pictures in one folder per scheme, named by the source's path with "/" joined to "_",
+# the rule the rolling menu's names already follow: a folder per picture would double the directories the
+# compile pass lists after an install (lib/precompile.lua lists every one).
+
+PAGES_OUT = os.path.join(CORE, "app", "icons")
+THEMES = os.path.join(CORE, "widgets", "dashboard", "themes")
+# Beside themes/, not in it: every folder in themes/ is taken for a theme.
+THEMES_OUT = os.path.join(CORE, "widgets", "dashboard", "theme_icons")
+
+# The tool's pictures that are not a page's own icon.png.
+PAGES_EXTRA = ("tools/copy.png", "tools/diagnostics.png", "tools/select_profile.png")
+
+
+def joined_set(root, out, sources):
+    """A set whose pictures are named by their path under root."""
+    pictures = {}
+    for source in sources:
+        rel = os.path.relpath(source, root).replace(os.sep, "/")
+        pictures[rel[:-len(".png")].replace("/", "_")] = source
+    return {
+        "size": 40,
+        "pictures": pictures,
+        "target": lambda name, scheme: os.path.join(out, scheme, name + ".png"),
+        "folders": lambda scheme: [os.path.join(out, scheme)],
+        "note": "from {}".format(os.path.relpath(root, ROOT).replace(os.sep, "/")),
+    }
+
+
+def pages_set():
+    """The tool's tile icons: every page's icon.png, and the few pictures a tile takes from elsewhere."""
+    sources = []
+    for folder, _, files in os.walk(PAGES):
+        if "icon.png" in files:
+            sources.append(os.path.join(folder, "icon.png"))
+    sources += [os.path.join(PAGES, *rel.split("/")) for rel in PAGES_EXTRA]
+    return joined_set(PAGES, PAGES_OUT, sorted(sources))
+
+
+def themes_set():
+    """Every picture of every shipped dashboard theme: its icon in the theme list and its settings pages'."""
+    sources = []
+    for folder, _, files in os.walk(THEMES):
+        sources += [os.path.join(folder, name) for name in files if name.endswith(".png")]
+    return joined_set(THEMES, THEMES_OUT, sorted(sources))
+
+
+SETS = {"roll": roll_set, "pages": pages_set, "themes": themes_set}
 
 
 # --- rendering ---------------------------------------------------------------------------------------
