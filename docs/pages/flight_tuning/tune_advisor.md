@@ -82,8 +82,9 @@ is skipped, and the rest of the file still counts.
 Needs MSP API 12.10; greyed out on an older flight controller, and it cannot be opened while the model is armed.
 The page and the saving both need firmware that sends the packed tune advisor reply (payload version 3, added to
 the firmware by rotorflight-firmware pull request #570). A flight controller without it, or with an older reply
-layout, shows "Needs newer firmware" on this page, and its flights are not saved; *Reload* asks again, and so
-does connecting another flight controller while the page is open.
+layout, shows "Needs newer firmware" on this page. One whose firmware sends a newer reply layout than this suite
+reads shows "Needs newer RFSuite": the suite needs updating, not the firmware. In both cases its flights are not
+saved; *Reload* asks again, and so does connecting another flight controller while the page is open.
 
 The page does not poll the flight controller. It reads the flights saved for the connected model when it opens
 and on *Reload*, and asks the flight controller once, then, whether it has the tune advisor at all. Through a link
