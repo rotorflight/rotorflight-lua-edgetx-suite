@@ -395,10 +395,13 @@ glyph. The full-width name remains the
 one-row encoder sensor. The footer gives PAGE, encoder and RTN hints. Reports update snapshot
 text without rebuilding the scene.
 
-After a touch action in browse or value mode, the live scene is rebuilt to return encoder
-focus to the tuning sensor. A held plus/minus target waits until release before rebuilding.
-This also applies when a touch step is refused during a pulse or cooldown; the next encoder
-detent uses the tuning sensor again and remains subject to the same pulse/cooldown rules.
+After a touch action the encoder focus returns to the tuning sensor. For the plus/minus buttons
+of value mode that happens without a rebuild: after the release the two buttons blink out for one
+screen refresh while the focus goes back, so the value keeps updating and the screen does not stand
+still after a tap. Other touch actions in browse or value mode rebuild the live scene for it. A
+held plus/minus target waits until release. This also applies when a touch step is refused during
+a pulse or cooldown; the next encoder detent uses the tuning sensor again and remains subject to
+the same pulse/cooldown rules.
 
 **PAGE up/down** selects the previous/next group in browse. In value mode it selects the previous/next function within the current group, keeps value mode, and announces the new name and current value. Group ends give an end tone without wrapping. PAGE during a step, pulse or cooldown is refused and spent, never queued. Function navigation and value reports retain the scene.
 **RTN** leaves value mode. While the model is armed it does nothing more, and no tuning surface
