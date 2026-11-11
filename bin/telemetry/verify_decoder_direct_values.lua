@@ -171,6 +171,29 @@ scenario("decoding_here", function()
 end)
 
 -- 2. The background script decodes; then the widget takes over again.
+-- At DEBUG a source read from the decoder says so once, however often it is read.
+scenario("debug_line_once", function()
+  newWorld()
+  local lines = {}
+  _G.rfsuite.Log = {
+    wanted = function() return true end,
+    emit = function() end,
+    emitf = function() end,
+    recording = function() return false end,
+    tagged = function() return function(msg) lines[#lines + 1] = tostring(msg) end end,
+  }
+  W.payload = { u16(0x1011, 2240) }
+  seconds(1)
+  local S = W.sensors
+  for _ = 1, 20 do S.getValue("voltage") end
+  local n = 0
+  for _, line in ipairs(lines) do
+    if string.find(line, "voltage read from the decoder (Vbat)", 1, true) then n = n + 1 end
+  end
+  check(near(S.getValue("voltage"), 22.4), "debug_line_once: voltage is the decoded value at DEBUG", S.getValue("voltage"))
+  check(n == 1, "debug_line_once: the decoder line is written once for 21 reads", n)
+end)
+
 scenario("remote_and_takeover", function()
   newWorld()
   W.payload = { u16(0x1011, 2240) }

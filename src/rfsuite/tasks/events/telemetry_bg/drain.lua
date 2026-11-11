@@ -254,7 +254,7 @@ local function groupDue(sid, data, first, last)
     if traceOn then traceGroup(sid, frame, data, first, last) end
     -- The group publishes these single-value sensors too, so a value one of them published on its
     -- own earlier is not current any more: forgotten, and read from the radio's sensor
-    -- (M.valueBySid). It is published again when its own row comes in a frame.
+    -- (M.directValues). It is published again when its own row comes in a frame.
     local members = GROUP_MEMBERS[sid]
     if members then
         for i = 1, #members do lastPublishedValue[members[i]] = nil end
@@ -524,7 +524,7 @@ function M.remoteAlive(now)
     if alive ~= remoteLast then
         -- Taking the decoding over: what this state published before it stood aside is older than
         -- what the other state published since, so it is forgotten, as a lost link forgets it
-        -- (M.reset). The next frame then publishes every value it carries again, and M.valueBySid
+        -- (M.reset). The next frame then publishes every value it carries again, and M.directValues
         -- hands out only what this state decoded after the take-over.
         if remoteLast and not alive then
             lastPublishedValue = {}
@@ -848,24 +848,15 @@ function M.customSensor(name)
     return sid, prec > 0 and (DIRECT_SCALE[prec] or 10 ^ prec) or 1
 end
 
---- The value this state decoded last for a sensor of the custom telemetry, by its sid, unscaled, as
--- the decoder took it from the frame: before any setting of the radio's own sensor page (ratio,
--- offset, filter, unit) -- those belong to the radio's sensor, and the flight controller is where a
--- value is calibrated. nil while another Lua state is decoding (this state's values are then not
--- current), for a value published before this state last took over (forgotten then), for a group (cells, GPS,
--- attitude, ...: a group's values are published by its decoder and only its frame is kept here),
--- and before the first frame.
-function M.valueBySid(sid)
-    if remoteLast then return nil end
-    local value = lastPublishedValue[sid]
-    if type(value) ~= "number" then return nil end
-    return value
-end
-
---- The same values for a reader that asks for several in one read: the table by sid (a number for
--- a single-value sensor, a frame for a group -- test with type), or nil while another Lua state is
--- decoding. One call per read instead of one per candidate name; the table is replaced on a reset
--- and on a take-over, so it is asked for again on every read, never kept.
+--- The values this state decoded last, by sid: a number for a single-value sensor, unscaled, as the
+-- decoder took it from the frame -- before any setting of the radio's own sensor page (ratio,
+-- offset, filter, unit), which belong to the radio's sensor; the flight controller is where a value
+-- is calibrated --, and a frame for a group (cells, GPS, attitude, ...: a group's values are
+-- published by its decoder and only its frame is kept here), so a reader tests with type. A value
+-- published before this state last took over, or before a reset, is not in it (forgotten then).
+-- nil while another Lua state is decoding: this state's values are then not current. One call per
+-- read instead of one per candidate name; the table is replaced on a reset and on a take-over, so
+-- it is asked for again on every read, never kept.
 function M.directValues()
     if remoteLast then return nil end
     return lastPublishedValue

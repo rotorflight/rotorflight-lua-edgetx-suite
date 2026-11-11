@@ -754,7 +754,7 @@ function Sensors.getValue(source)
 end
 
 -- The value the telemetry decoder in this Lua state decoded for a source, when this state is the one
--- decoding (tasks/events/telemetry_bg/drain.lua, valueBySid); nil to read the radio's sensors as
+-- decoding (tasks/events/telemetry_bg/drain.lua, directValues); nil to read the radio's sensors as
 -- before. A source with a search list is walked in its order for as long as the names are sensors of
 -- the custom telemetry: a name the decoder has a value for answers; a custom name it has not seen
 -- is passed over, as the sensor search passes over a sensor that is not arriving; the first name
@@ -881,7 +881,11 @@ readValue = function(source)
   -- While this Lua state decodes the custom telemetry itself, its own decoded value answers.
   local direct, directName = directValue(source, resolved)
   if direct ~= nil then
-    if debugWanted() then debugLog("direct:" .. source, source .. " read from the decoder (" .. directName .. ")") end
+    -- Said once per source; the key is checked before the text is built, as on the steady path below.
+    if debugWanted() then
+      local key = "direct:" .. source
+      if not loggedSources[key] then debugLog(key, source .. " read from the decoder (" .. directName .. ")") end
+    end
     return direct
   end
 
