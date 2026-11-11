@@ -1117,6 +1117,59 @@ do
   _G.rfsuite.session.mcu_id = MCU
 end
 
+print("A reply layout newer than this suite reads")
+do
+  -- The probe's reply as the simulator sends it, with the payload version byte replaced
+  local function probeVersion(version)
+    local buf = {}
+    for i, v in ipairs(Api.simulatorResponseFor(1)) do buf[i] = v end
+    buf[1] = version
+    return function(m) if m.command == Api.command then return buf end end
+  end
+  -- The firmware's error reply, as the queue hands it on: the bytes are the board's and say
+  -- nothing, the flag the queue sets on the message does
+  local function errorReply(bytes)
+    return function(m)
+      if m.command ~= Api.command then return nil end
+      m.__errorReply = true
+      m.processReply(m, bytes)
+      return "handled"
+    end
+  end
+  local NEWER = "Needs newer RFSuite"
+
+  openPage()
+  Page.onReload()
+  pump(probeVersion(Api.PAYLOAD_VERSION + 1))
+  check("a newer payload version says the suite needs updating, not the firmware",
+    shown(NEWER) and not shown("Needs newer firmware") and not canSave(), ui.view.data)
+
+  Page.onReload()
+  pump(probeVersion(Api.PAYLOAD_VERSION - 1))
+  check("an older payload version still says the firmware needs updating",
+    shown("Needs newer firmware") and not shown(NEWER) and not canSave(), ui.view.data)
+
+  Page.onReload()
+  pump(errorReply({ Api.PAYLOAD_VERSION + 2 }))
+  check("the error reply needs newer firmware whatever its bytes",
+    shown("Needs newer firmware") and not shown(NEWER) and not canSave(), ui.view.data)
+
+  local wrongLength = {}
+  for i, v in ipairs(Api.simulatorResponseFor(1)) do wrongLength[i] = v end
+  wrongLength[#wrongLength + 1] = 0
+  Page.onReload()
+  pump(function(m) if m.command == Api.command then return wrongLength end end)
+  check("a version-3 reply of another length still needs newer firmware",
+    shown("Needs newer firmware") and not shown(NEWER), ui.view.data)
+
+  Page.onReload()
+  pump(probeVersion(Api.PAYLOAD_VERSION + 1))
+  Page.onReload()
+  pump()
+  check("(control) after a newer reply, Reload answered in this suite's layout shows the flights again",
+    not ui.unsupported and not shown(NEWER) and not shown("Needs newer firmware") and canSave(), ui.view.data)
+end
+
 print("No flight saved")
 do
   -- The probe's reply with the board's seconds set: what the flight controller measured since it

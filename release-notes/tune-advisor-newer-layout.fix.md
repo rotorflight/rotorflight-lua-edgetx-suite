@@ -1,0 +1,2 @@
+- **Tune Advisor tells a flight controller newer than the suite from an older one (`flight_tuning/tune_advisor`)**:
+  - A flight controller whose tune advisor reply has a newer layout than the suite reads (payload version 4 or later) shows "Needs newer RFSuite" instead of "Needs newer firmware", since it is the suite that needs updating. A firmware without the command, its error reply, or an older layout still shows "Needs newer firmware" (#1171).
