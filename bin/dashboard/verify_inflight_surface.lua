@@ -95,6 +95,53 @@ do
   job(widget); widget:refresh(nil, nil)
 end
 
+-- The ground read switches the board through its profiles; each switch releases and re-asserts the
+-- bank, and the bank channel echoes both writes. That echo is on no surface, so it must not move the
+-- layout epoch the ground key carries (Input.renderKey): it used to rebuild the screen twice per switch.
+scenario("bank channel echo of a profile switch does not rebuild the ground surface", function()
+  local _, d, writes = fixture(false)
+  local pid = 1
+  local bankIndex = d.settings.bank_gvar - 1
+  d.radio.sensor = function(name)
+    if name == "AdjF" then return 0 elseif name == "PID#" then return pid elseif name == "RTE#" then return 1 end
+  end
+  -- The mixer echo: the channel carries the last value written to the bank variable.
+  d.radio.channelUs = function(ch)
+    if ch ~= d.settings.bank_ch then return 1500 end
+    local value = 0
+    for i = 1, #writes do if writes[i][1] == bankIndex then value = writes[i][3] end end
+    return 1500 + math.floor(value * 5.12)
+  end
+  for _ = 1, 4 do d:tick(false) end
+  check(d.live and d.phase == "ground" and (d.bankWritten or 0) ~= 0, "positive control: the ground drive holds a bank")
+  local epoch, shown = d.valueEpoch, {}
+  for switch = 2, 4 do
+    pid = switch
+    d:watchProfiles()
+    for _ = 1, 4 do
+      d:tick(false)
+      shown[#shown + 1] = tostring(d.bankShown)
+    end
+  end
+  local seenNil, seenBand = false, false
+  for _, s in ipairs(shown) do
+    if s == "nil" then seenNil = true else seenBand = true end
+  end
+  check(seenNil and seenBand, "positive control: the channel echo left and re-entered the band ("
+    .. table.concat(shown, ",") .. ")")
+  check(d.valueEpoch == epoch, "three profile switches move no layout epoch: " .. epoch .. " -> " .. d.valueEpoch)
+  -- The reading is still adopted where nothing of ours drives the variable.
+  d:cleanup(true)
+  d.radio.channelUs = function(ch)
+    if ch ~= d.settings.bank_ch then return 1500 end
+    local band = d.bands[2]
+    return band and math.floor((band.min + band.max) / 2) or 1500
+  end
+  d.bankWritten = 0
+  d:tick(false)
+  check(d.bankShown == 2, "the channel reading is still taken: " .. tostring(d.bankShown))
+end)
+
 scenario("foreground open takes effect before a pending job", function()
   local widget, d = fixture(true)
   d.live, d.open, d.phase = false, false, "ground"
