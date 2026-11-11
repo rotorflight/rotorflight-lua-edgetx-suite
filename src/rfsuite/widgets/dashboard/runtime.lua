@@ -1505,8 +1505,9 @@ local function standbyJobStep(self)
     -- The visible tree's battery getter still reads its fill until the new tree swaps in.
     self._standbyCache.batteryWidths = nil
     -- Its fill is no longer kept up to date, so that tree is not one a cleared key may keep: a
-    -- build dropped before the swap, the layout back where it was, builds it again.
-    if self._treeKind == "standby" then self._treeKind, self._treeKey = nil, nil end
+    -- build dropped before the swap, the layout back where it was, builds it again. Only the key
+    -- goes; the kind stays, so a release still clears the tree (releaseStandby).
+    if self._treeKind == "standby" then self._treeKey = nil end
     itemsChanged = true
   end
   prepareStandbyTextCache(self, items)
@@ -5763,8 +5764,8 @@ function Runtime.new(zone, options)
             self._standbyCache.batteryWidths = nil
           end
           -- As in standbyJobStep: the standing tree's fill is no longer kept up to date, so a
-          -- cleared key may not keep it.
-          if self._treeKind == "standby" then self._treeKind, self._treeKey = nil, nil end
+          -- cleared key may not keep it; the kind stays for releaseStandby.
+          if self._treeKind == "standby" then self._treeKey = nil end
         end
         prepareStandbyTextCache(self, standbyItems)
         local wantsElrs = false

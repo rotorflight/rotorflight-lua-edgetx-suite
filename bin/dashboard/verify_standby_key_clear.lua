@@ -201,6 +201,19 @@ local cacheNow = widget._standbyCache
 check(cacheNow ~= nil and cacheNow.batteryWidths ~= nil and next(cacheNow.batteryWidths) ~= nil,
   "and the battery fill is registered again")
 
+-- The same layout change, then the widget goes to the background before the new build swaps in: the
+-- standing tree is still the standby's, so the release clears it rather than leaving it on a cache
+-- that is let go of.
+cycle(widget, 20)
+widget.preferences.dashboard.standby_layout = "clock/date"
+Stubs.tick()
+widget.refresh(widget, 0, nil)
+clears = 0
+widget.background(widget)
+check(clears > 0 and widget._treeKind == nil, "a release after a layout change still clears the standby",
+  clears .. " clears, tree " .. tostring(widget._treeKind))
+widget.preferences.dashboard.standby_layout = layoutBefore
+
 if failures > 0 then
   print(string.format("standby key clear: %d of %d checks failed", failures, checks))
   os.exit(1)
