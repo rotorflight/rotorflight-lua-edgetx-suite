@@ -100,6 +100,8 @@ local PAIRS = {
   { "warning", "raised", 3 },
   -- A disabled tile: its text on its face.
   { "tileOffText", "tileOff", 3 },
+  -- A field being edited: the radio draws its text in the card colour on the accent (theme_slots EDIT).
+  { "card", "accent", 4.5 },
   -- A progress bar: the fill on its track, and the empty track on the page.
   { "accent", "rule", 2.4 }, { "rule", "page", 1.4 },
 }
