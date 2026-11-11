@@ -519,6 +519,7 @@ do
   end
   local finished = hasWidgetApi(Precompile) and not Precompile.isRunning()
   close()
+  collectReports(record)
   check("scheme picture folders: the pass finishes on its own, not at the step cap", finished and steps < 10000,
     steps .. " steps")
   check("scheme picture folders: it compiles both sources, each once, and reports nothing",
