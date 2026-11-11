@@ -154,7 +154,15 @@ local function endSession(session)
   session.flightcount = 0
   -- A flight controller that answered the Tune Advisor with "no such command" is asked again on
   -- the next connection: it may have been flashed in between.
-  if type(session.tuneCapture) == "table" then session.tuneCapture.noCommand = nil end
+  -- And a flight it saved is no longer taken to be held by the board's next reading: a fresh pack
+  -- restarted the board, so that reading is saved beside it as before (tasks/events/tune_capture.lua).
+  if type(session.tuneCapture) == "table" then
+    session.tuneCapture.noCommand = nil
+    if session.tuneCapture.held ~= nil and Log and type(Log.emit) == "function" then
+      pcall(Log.emit, "rfsuite.events", "tune capture: new link, saved flights no longer taken as held", "debug")
+    end
+    session.tuneCapture.held = nil
+  end
   if FlightRecord and type(FlightRecord.reset) == "function" then
     pcall(FlightRecord.reset)
   end
