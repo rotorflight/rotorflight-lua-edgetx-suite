@@ -1532,12 +1532,15 @@ function Drive:tick(armed)
   end
 
   -- What the enable channel is actually doing. Read rather than assumed, so a six-position switch
-  -- wired straight to it shows the right bank without the overlay having written anything, and a
-  -- missing mixer line is visible as a bank that does not move.
+  -- wired straight to it selects the right bank without the overlay having written anything.
+  -- The reading itself is on no surface, so its change moves no epoch: the ground and post-flight
+  -- surfaces are keyed on the layout epoch, and the channel's echo of every bank write -- twice per
+  -- profile the ground read switches through -- would rebuild them for nothing. A missing mixer
+  -- line is the setup check's to report (setup.lua, checkMixLine).
   local shown = Functions.usToBand(self.radio.channelUs(self.settings.bank_ch), self.bands)
   if shown ~= self.bankShown then
+    Setup.trace("bank channel reads band %s (was %s)", tostring(shown), tostring(self.bankShown))
     self.bankShown = shown
-    self.valueEpoch = self.valueEpoch + 1
   end
   -- The reading is ADOPTED only while the drive has put nothing on the variable itself. Once it
   -- has, the selection is what the wire is being driven from and the channel is an echo of it --
@@ -1545,8 +1548,7 @@ function Drive:tick(armed)
   -- Adopting that echo would let a lagging frame drag the selection back into the band it has just
   -- left, and the assertion below would then write the wrong bank rather than repair it. So the two
   -- do not overlap: the wire is believed where nothing of ours drives it, the selection everywhere
-  -- else. `bankShown` is unaffected either way -- what the channel carries is still shown, which is
-  -- how a missing mixer line stays visible.
+  -- else. `bankShown` is unaffected either way: it records what the channel carries.
   if shown ~= nil and shown ~= self.bank and (self.bankWritten or 0) == 0 then
     self.bank = shown
   end
