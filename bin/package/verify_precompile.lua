@@ -220,6 +220,18 @@ local function installGlobals(card)
   return record
 end
 
+-- What the pass logged, read into the record the start returned. What it reports as a fault is a
+-- warning; its account of itself (how much it checked and compiled, and why) is kept apart, so a
+-- clean pass still reports nothing.
+local function collectReports(record)
+  for _, entry in ipairs(_G.rfsuite.log_history or {}) do
+    if entry.tag == "rfsuite.precompile" then
+      local list = (entry.level == "warn" or entry.level == "error") and record.warnings or record.notes
+      list[#list + 1] = entry.level .. " " .. entry.msg
+    end
+  end
+end
+
 -- One start of the configuration tool: a fresh module, run until it reports finished.
 local function launch(card)
   local record = installGlobals(card)
@@ -239,14 +251,7 @@ local function launch(card)
   end
   _G.print = hostPrint
   _G.io = hostIo
-  for _, entry in ipairs(_G.rfsuite.log_history or {}) do
-    if entry.tag == "rfsuite.precompile" then
-      -- What the pass reports as a fault is a warning; its account of itself (how much it checked
-      -- and compiled, and why) is kept apart, so a clean pass still reports nothing.
-      local list = (entry.level == "warn" or entry.level == "error") and record.warnings or record.notes
-      list[#list + 1] = entry.level .. " " .. entry.msg
-    end
-  end
+  collectReports(record)
   return record
 end
 
@@ -454,6 +459,7 @@ do
   end
   local finished = hasWidgetApi(Precompile) and not Precompile.isRunning()
   close()
+  collectReports(record)
   check("picture folders: the pass finishes on its own, not at the step cap", finished and steps < 10000,
     steps .. " steps")
   check("picture folders: it compiles both sources, each once, and reports nothing",
