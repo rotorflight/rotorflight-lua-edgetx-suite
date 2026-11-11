@@ -774,9 +774,10 @@ function M.acrossReconnect(widget)
   return session
 end
 
---- Whether what stands on screen is left from before a reconnect: the theme and the scene go with it
---- until the board's id has been read, which waits while the model is armed. A press or a finger is not
---- acted on then; RTN and the other keys carry on, as the way out.
+--- Whether what stands on screen is not this theme's scene: no theme is loaded and nothing was built for
+--- it, as after a reconnect until the read of the board's id has settled (which waits while the model is
+--- armed), or while a theme loads. A press or a finger is not acted on then; RTN and the other keys carry
+--- on, as the way out.
 function M.sceneStale(widget)
   return widget.theme == nil and widget.built ~= true
 end

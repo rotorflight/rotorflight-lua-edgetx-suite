@@ -416,8 +416,9 @@ do
       "tool sample raises: the closed line is written")
   end
 
-  -- A tool that fails: open, its visit from the rolling menu reports "failed" and the menu is put back;
-  -- once fullscreen has been left, the same failure forgets the place, as the close it interrupted would.
+  -- A tool that fails: open, its visit from the rolling menu ends as "failed" (views.lua puts a menu back
+  -- on that); once fullscreen has been left, the same failure ends as "forget", as the close it interrupted
+  -- would. What the case reads is the outcome the visit's end logs.
   local function failingCase(leaveFullscreen)
     local name = leaveFullscreen and "tool fails while closing" or "tool fails while open"
     world()
