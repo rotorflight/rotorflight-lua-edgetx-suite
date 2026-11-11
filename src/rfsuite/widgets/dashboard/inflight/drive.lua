@@ -1332,7 +1332,8 @@ function Drive:fastTick(now)
   if self.fastAt == now then return end
   self.fastAt = now
   local sweep = self.tapSweep
-  if sweep ~= nil then
+  if sweep ~= nil and self.holdRow == nil then
+    -- A pass with a step button held does not count: the sweep waits for the release.
     sweep.passes = sweep.passes + 1
     local onValue = self.live == true and self.phase == M.PHASE_LIVE and self.valueMode == true
     if sweep.passes > SWEEP_PASSES or not onValue then

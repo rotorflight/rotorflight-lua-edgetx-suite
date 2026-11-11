@@ -581,9 +581,11 @@ local function appendFlight(children, widget, m, w, h, t, p)
       -- The reverse ladder's rows hide for the sweep that takes the focus back to the widget after a
       -- tap on + or - (Input.refocus); one answer for all of them and for the step buttons.
       -- Inlined rather than Input.shown(drive): it is asked for every one of these on every pass.
+      -- Never while a step button is held (the runtime never builds then either): a press that lands
+      -- between the release and the sweep keeps its button until its own release starts a new one.
       shown = function()
         local sweep = drive.tapSweep
-        return sweep == nil or sweep.state ~= "hide"
+        return sweep == nil or sweep.state ~= "hide" or drive.holdRow ~= nil
       end
       local color, textColor = p.header, p.text
       -- The transparent resting window still participates in pointer hit testing.

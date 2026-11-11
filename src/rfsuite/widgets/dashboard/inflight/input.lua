@@ -46,7 +46,7 @@ end
 -- The one answer for the step buttons and the reverse ladder's rows.
 function M.shown(drive)
   local sweep = drive and drive.tapSweep
-  return sweep == nil or sweep.state ~= "hide"
+  return sweep == nil or sweep.state ~= "hide" or drive.holdRow ~= nil
 end
 
 -- The same close is used by the touch box and RTN. Cancel a pending build before leaving: a
@@ -266,6 +266,8 @@ function M.sensor(widget, rowHeight, count, valueMode)
     local function sweepAt(side)
       local sweep = drive.tapSweep
       if side ~= "reverse" or sweep == nil then return end
+      -- A held step button hid nothing this sweep: the hiding is still to come.
+      if sweep.state == "hide" and drive.holdRow ~= nil then return end
       if sweep.state == "hide" then
         sweep.state = "show"
         trace("tap refocus hidden", sweep.swallowed, "scroll calls passed by")

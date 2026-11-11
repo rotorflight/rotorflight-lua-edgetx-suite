@@ -1208,6 +1208,28 @@ do
   scene:press()
   check(instance.fired == fired and instance.valueMode ~= true, "refocus: ENTER on the widget leaves value mode and does not step")
   check(counts.scenes == scenes, "refocus: three taps built no scene (" .. (counts.scenes - scenes) .. ")")
+  -- A press that lands between a release and its sweep: the held button is not hidden and keeps the
+  -- focus; its own release starts the sweep again, which then takes the focus back.
+  instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+  settle()
+  local plusAt, plusNode
+  for index, object in ipairs(scene.focus) do
+    local node = object.node
+    if node.children and node.children[1] and node.children[1].text == "+" then plusAt, plusNode = index, node end
+  end
+  scene:focusAt(plusAt); plusNode.press(); plusNode.release()
+  ticks = ticks + 31; instance:fastTick(ticks)
+  ticks = ticks + 16; instance:fastTick(ticks)
+  local heldFired = instance.fired
+  scene:focusAt(plusAt); plusNode.press()
+  check(instance.holdRow ~= nil and instance.fired == heldFired + 1, "refocus: a second press before the sweep is accepted and held")
+  scene:refsSweep()
+  check(scene.at == plusAt and not scene.focus[plusAt].hidden and instance.tapSweep ~= nil and instance.tapSweep.state == "hide",
+    "refocus: a held step button is not hidden by a pending sweep and keeps the focus")
+  plusNode.release()
+  scene:refsSweep(); scene:refsSweep()
+  check(instance.holdRow == nil and instance.tapSweep == nil and scene.at == 0,
+    "refocus: after the held button's release the sweep takes the focus back")
   -- A sweep that never comes: the fallback builds after SWEEP_PASSES passes.
   render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
   local epoch = instance.ladderEpoch or 0
