@@ -29,7 +29,9 @@ in** ([what each level adds](#what-each-level-adds)). The background decoder's f
 exception that needs both, because the decoder only starts writing at *DEBUG* or higher.
 
 Switch both back off once the report is sent. The card write is small but it is permanent, and
-*TRACE* left on costs a measurable part of every pass.
+a raised log level adds work to every pass that writes a line -- *TRACE* writes in most passes,
+*DEBUG* in fewer. That work comes on top of the dashboard's heaviest moments, such as the passes
+right after a disarm, when the flight is logged and the post-flight screen is loaded.
 
 ## What each level adds
 

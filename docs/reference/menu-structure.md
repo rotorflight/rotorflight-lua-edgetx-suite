@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**142 entries, 120 of them open a page, 94 of those pages are documented.**
+**142 entries, 120 of them open a page, 96 of those pages are documented.**
 
 ## Diagrams
 
@@ -251,9 +251,9 @@ flowchart LR
   n51 --> n52
   n53["Ramp Time"]:::documented
   n51 --> n53
-  n54["Filters"]:::undocumented
+  n54["Filters"]:::documented
   n51 --> n54
-  n55["Bypass Curve"]:::undocumented
+  n55["Bypass Curve"]:::documented
   n51 --> n55
   n56["Model"]:::documented
   n0 --> n56
@@ -515,8 +515,8 @@ Section `configuration`.
 | Setup &rsaquo; Governor | `governor` | `governor_menu` | menu, 4 entries | &mdash; | &mdash; |
 | Setup &rsaquo; Governor &rsaquo; General | `general` | `setup_governor_general_page` | `setup/governor/general` | [setup/governor/general.md](../pages/setup/governor/general.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Governor &rsaquo; Ramp Time | `time` | `setup_governor_time_page` | `setup/governor/time` | [setup/governor/time.md](../pages/setup/governor/time.md) | `lockedWhileArmed = true` |
-| Setup &rsaquo; Governor &rsaquo; Filters | `filters` | `setup_governor_filters_page` | `setup/governor/filters` | **none** | `lockedWhileArmed = true` |
-| Setup &rsaquo; Governor &rsaquo; Bypass Curve | `curves` | `setup_governor_curves_page` | `setup/governor/curves` | **none** | `lockedWhileArmed = true` |
+| Setup &rsaquo; Governor &rsaquo; Filters | `filters` | `setup_governor_filters_page` | `setup/governor/filters` | [setup/governor/filters.md](../pages/setup/governor/filters.md) | `lockedWhileArmed = true` |
+| Setup &rsaquo; Governor &rsaquo; Bypass Curve | `curves` | `setup_governor_curves_page` | `setup/governor/curves` | [setup/governor/curves.md](../pages/setup/governor/curves.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Model | `model` | `setup_model_page` | `setup/model` | [setup/model.md](../pages/setup/model.md) | `enabledWhen = "fblConnected"`, `lockedWhileArmed = true` |
 | Setup &rsaquo; GPS | `gps` | `setup_gps_page` | `setup/gps` | **none** | `lockedWhileArmed = true` |
 | Wizards | `wizards` | `wizards_menu` | menu, 1 entry | &mdash; | `enabledWhen = "fblConnected"`, `visibleWhen = "previewSetupWizard"`, `lockedWhileArmed = true` |

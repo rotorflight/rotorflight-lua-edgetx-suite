@@ -107,8 +107,8 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 | ESC & Motors → SRXL2 ESC | [setup/esc_motors/srxl2.md](setup/esc_motors/srxl2.md) | yes | read-only while armed, needs MSP API 12.10, lit for the SRXL2 ESC telemetry protocol | written |
 | Governor → General | [setup/governor/general.md](setup/governor/general.md) | yes | read-only while armed | written |
 | Governor → Ramp Time | [setup/governor/time.md](setup/governor/time.md) | yes | read-only while armed | written |
-| Governor → Filters | `setup/governor/filters.md` | yes | read-only while armed | to write |
-| Governor → Bypass Curve | `setup/governor/curves.md` | yes | read-only while armed | to write |
+| Governor → Filters | [setup/governor/filters.md](setup/governor/filters.md) | yes | read-only while armed | written |
+| Governor → Bypass Curve | [setup/governor/curves.md](setup/governor/curves.md) | yes | read-only while armed | written |
 | Model | [setup/model.md](setup/model.md) | yes | needs the flight controller, read-only while armed | written |
 | GPS | `setup/gps.md` | yes | read-only while armed | to write |
 

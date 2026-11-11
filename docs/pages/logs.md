@@ -36,7 +36,10 @@ do only a limited amount of work each time it draws. There the search, the readi
 its summary and the drawing of its graph are done in smaller steps than in the tool started from
 the radio's menu, so on a card with many logs, or for a long log, they take longer.
 Putting the found logs in order is split up the same way, so a card with several hundred logs
-is listed there too.
+is listed there too. Fitting the model and file names of the 25 logs on screen into their column
+is split up as well, so the search notice stays up a moment after the search has ended, and after
+*Previous* or *Next* a notice shows *Select Log File* with which logs it is preparing, out of how
+many, before the list appears.
 
 The list shows 25 logs at a time. Scroll it by touch, or turn the rotary encoder to step through
 the logs' *View* and *Graph* buttons. Where there are more logs, *Previous* above the list and *Next*

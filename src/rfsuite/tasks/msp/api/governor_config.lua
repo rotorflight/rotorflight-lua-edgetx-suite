@@ -118,4 +118,17 @@ function Api.buildWritePayload(data)
   return p
 end
 
+--- Does writing `write` store anything other than what `read` holds? Both records are compared as
+-- the bytes MSP_SET_GOVERNOR_CONFIG would carry, so a field no page shows and a value the builder
+-- normalises count exactly as they would on the wire.
+function Api.payloadDiffers(read, write)
+  local a = Api.buildWritePayload(read)
+  local b = Api.buildWritePayload(write)
+  if #a ~= #b then return true end
+  for i = 1, #a do
+    if a[i] ~= b[i] then return true end
+  end
+  return false
+end
+
 return Api

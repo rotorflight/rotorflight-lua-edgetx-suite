@@ -465,10 +465,12 @@ return {
     ["page.setup_esc_motors_telemetry_page.build"] = { target = 4000, measured = 3190 },
     ["page.setup_esc_motors_throttle_page.build"] = { target = 4250, measured = 3379 },
     ["page.setup_governor_curves_page.build"] = { target = 3850, measured = 3070 },
-    ["page.setup_governor_filters_page.build"] = { target = 3550, measured = 2833 },
+    -- Filters, Ramp Time and Bypass Curve load the shared save pipeline as General does, +174 each
+    -- (Filters 3048 -> 3222, Ramp Time 3233 -> 3407 measured); targets at measured +25 %, rounded up to 50.
+    ["page.setup_governor_filters_page.build"] = { target = 4050, measured = 3222, proposed = 3550 },
     -- Six rows gained an inline ? (help text and title per row): 3522 -> 4231 measured; target as --emit gives.
     ["page.setup_governor_general_page.build"] = { target = 5300, measured = 4231, proposed = 4000 },
-    ["page.setup_governor_time_page.build"] = { target = 3550, measured = 2833 },
+    ["page.setup_governor_time_page.build"] = { target = 4300, measured = 3407, proposed = 3550 },
     ["page.setup_gps_page.build"] = { target = 3950, measured = 3158 },
     ["page.setup_mixer_swash_page.build"] = { target = 4500, measured = 3565 },
     ["page.setup_mixer_swashgeometry_page.build"] = { target = 4650, measured = 3688 },

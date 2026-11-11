@@ -572,13 +572,97 @@ end
 
 print("Ethos suite: Advice past a setting's limit is not given")
 do
-  -- Max rate 220: F 120 -> 96 would need it at 275, past the FC's 255
+  -- Max rate 220: F 120 -> 96 would need it at 275, past the byte's 255
   resetFc()
   fc.rates.rates_1 = 220
   flightRoll = { sRate = 220 }
   openPage()
   check("neither F nor the rates are offered", not canSave())
   resetFlights()
+end
+
+-- The flight controller keeps less than the byte for some rates_types: ratesSettingLimits in
+-- firmware fc/rc_rates.c, applied on every EEPROM write. A larger value is trimmed by the save, so
+-- the advice must not offer it (#1142). Every case scales by F 120 -> 96, so by 1.25.
+print("Differences from the Ethos suite: a rate stays within what its rates_type keeps (#1142)")
+do
+  local QUICK, ROTORFLIGHT = 5, 6
+  -- What the page proposes for one starting rate: Save, the limit reason, and every change as
+  -- field=value
+  local function advise(ratesType, field, key, raw)
+    resetFc()
+    if ratesType then
+      fc.rates.rates_type = ratesType
+      flightRatesType = ratesType
+    end
+    fc.rates[field] = raw
+    flightRoll = { [key] = raw }
+    openPage()
+    local writes = {}
+    for _, c in ipairs(ui.view.changes) do writes[#writes + 1] = c.field .. "=" .. tostring(c.to) end
+    table.sort(writes)
+    local r = { offered = canSave(), limit = contains(ui.view.whys, T().whyLimit),
+      writes = "," .. table.concat(writes, ",") .. "," }
+    resetFlights()
+    return r
+  end
+  local function refused(label, ratesType, field, key, raw)
+    local r = advise(ratesType, field, key, raw)
+    check(label, not r.offered and r.writes == ",," and r.limit, r.writes)
+  end
+  local function offered(label, ratesType, field, key, raw, to)
+    local r = advise(ratesType, field, key, raw)
+    check(label, r.offered and not r.limit and string.find(r.writes, ",pid_0_F=96,", 1, true) ~= nil
+      and string.find(r.writes, "," .. field .. "=" .. to .. ",", 1, true) ~= nil, r.writes)
+  end
+
+  -- Actual keeps rc rate and max rate at 200 (2000 deg/s)
+  refused("Actual: max rate 190 -> 238 is not offered, past the 200 it keeps", nil, "rates_1", "sRate", 190)
+  offered("Actual: max rate 150 -> 188 is offered with F 96, within 200", nil, "rates_1", "sRate", 150, 188)
+  refused("Actual: center sensitivity 170 -> 213 is not offered, past the 200 it keeps", nil, "rcRates_1", "rcRate", 170)
+  offered("Actual: center sensitivity 150 -> 188 is offered with F 96, within 200", nil, "rcRates_1", "rcRate", 150, 188)
+
+  -- Quick keeps max rate at 200 and rc rate at the byte's 255
+  refused("Quick: max rate 190 -> 238 is not offered, past the 200 it keeps", QUICK, "rates_1", "sRate", 190)
+  offered("Quick: max rate 150 -> 188 is offered with F 96, within 200", QUICK, "rates_1", "sRate", 150, 188)
+  offered("Quick: rc rate 190 -> 238 is offered with F 96, within the 255 it keeps", QUICK, "rcRates_1", "rcRate",
+    190, 238)
+
+  -- Rotorflight keeps its rate at 200 (1000 deg/s)
+  refused("Rotorflight: rate 170 -> 213 is not offered, past the 200 it keeps", ROTORFLIGHT, "rcRates_1", "rcRate", 170)
+  offered("Rotorflight: rate 150 -> 188 is offered with F 96, within 200", ROTORFLIGHT, "rcRates_1", "rcRate", 150, 188)
+
+  -- The check before the write holds the same ceiling: a confirmed change raised past it after
+  -- the confirm writes nothing (201 still fits the byte, so only the ceiling refuses it)
+  resetFc()
+  fc.rates.rates_1 = 150
+  flightRoll = { sRate = 150 }
+  openPage()
+  local before = snapshot()
+  check("the write check: a valid proposal to start from", Page.getSaveConfirm(ctx) ~= nil and ui.snapshot ~= nil)
+  local raised = false
+  for _, c in ipairs(ui.snapshot and ui.snapshot.changes or {}) do
+    if c.field == "rates_1" then c.to = 201; raised = true end
+  end
+  Page.onSave(ctx)
+  local sent = pump()
+  check("the write check: Actual max rate 201 after the confirm is refused, nothing written", raised
+    and lastReport().message == T().range and changedFields(before) == ""
+    and not has(sent, codecs.rates.writeCommand) and not has(sent, EEPROM),
+    tostring(lastReport().message) .. " / " .. changedFields(before) .. " / " .. table.concat(sent, ","))
+  resetFlights()
+
+  -- At the ceiling, Apply writes what the flight controller keeps and the read-back matches
+  resetFc()
+  fc.rates.rates_1 = 160
+  flightRoll = { sRate = 160 }
+  openPage()
+  applyNow()
+  check("Actual: max rate 160 -> 200 is written and read back as saved", fc.rates.rates_1 == 200
+    and lastReport().ok == true and lastReport().message == string.format(T().saved, 3),
+    tostring(fc.rates.rates_1) .. " " .. tostring(lastReport().message))
+  resetFlights()
+  journal({})
 end
 
 print("Ethos suite: A full-stick rate cut is limited to one step")
@@ -761,23 +845,24 @@ end
 
 print("Differences from the Ethos suite: polar cyclic rate limits (#981)")
 do
-  -- Roll's own max rate 220 would need 275; under polar cyclic the flight controller uses the
+  -- Roll's own max rate 200 would need 250, past the 200 Actual keeps; under polar cyclic the flight controller uses the
   -- Pitch rates (24), which have room
   resetFc()
-  fc.rates.rates_1, fc.rates.cyclic_polarity = 220, 1
-  flightRoll = { sRate = 220 }
+  fc.rates.rates_1, fc.rates.cyclic_polarity = 200, 1
+  flightRoll = { sRate = 200 }
   openPage()
   check("F and the Cyclic rates are offered", canSave()
     and contains(ui.view.actions, T().ratesCyclic), table.concat(ui.view.actions, " | "))
   local before = snapshot()
   applyNow()
   check("the Pitch rate bytes are written, the Roll bytes left", changedFields(before) == "pid_0_F,rates_2,rcRates_2"
-    and fc.rates.rcRates_2 == 23 and fc.rates.rates_2 == 30 and fc.rates.rates_1 == 220, changedFields(before))
+    and fc.rates.rcRates_2 == 23 and fc.rates.rates_2 == 30 and fc.rates.rates_1 == 200, changedFields(before))
   journal({})
 
   resetFc()
-  fc.rates.rates_2, fc.rates.cyclic_polarity = 220, 1
-  flightAxes[2] = { sRate = 220 }
+  -- Pitch max rate 190 would need 238, past the 200 Actual keeps
+  fc.rates.rates_2, fc.rates.cyclic_polarity = 190, 1
+  flightAxes[2] = { sRate = 190 }
   openPage()
   check("roll under polar cyclic is refused when the Pitch rates have no room", not canSave()
     and contains(ui.view.whys, T().whyLimit), table.concat(ui.view.whys, " | "))
@@ -883,7 +968,7 @@ print("From the review")
 -- ---------------------------------------------------------------------------
 do
   -- F 100 hot at 1.53 on Actual 36/100: F 100 -> 80 with 36 -> 45 and 100 -> 125. Every line the
-  -- screen shows is one Save writes. (Inside the flight controller's 255 the rates fit.)
+  -- screen shows is one Save writes. (Within the 200 Actual keeps the rates fit.)
   resetFc()
   fc.tuning.pid_0_F, fc.rates.rcRates_1, fc.rates.rates_1 = 100, 36, 100
   flightRoll = { F = 100, ffGain = 1.53, rcRate = 36, sRate = 100 }
@@ -893,10 +978,10 @@ do
   check("hot F at its limit, F100, gain 1.53, Actual 36/100: the screen shows exactly what Save writes",
     lines == #ui.view.changes and #ui.view.changes == 3, lines .. " lines, " .. #ui.view.changes .. " changes")
   resetFc()
-  fc.tuning.pid_0_F, fc.rates.rcRates_1, fc.rates.rates_1 = 100, 36, 220
-  flightRoll = { F = 100, ffGain = 1.53, rcRate = 36, sRate = 220 }
+  fc.tuning.pid_0_F, fc.rates.rcRates_1, fc.rates.rates_1 = 100, 36, 170
+  flightRoll = { F = 100, ffGain = 1.53, rcRate = 36, sRate = 170 }
   openPage()
-  check("hot F with no room in the rates, F100, gain 1.53, Actual 36/220: no proposal", not canSave()
+  check("hot F with no room in the rates, F100, gain 1.53, Actual 36/170: no proposal", not canSave()
     and not contains(ui.view.actions, "->") and contains(ui.view.whys, T().whyLimit))
 
   resetFc()
