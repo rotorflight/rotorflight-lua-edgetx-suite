@@ -5870,6 +5870,11 @@ function Runtime.new(zone, options)
         -- that some other path cleared says nothing, so the last one is kept to tell the two apart.
         -- One cleared while the standby on screen is not the build for this key -- a build that
         -- was dropped or had not finished, another surface since -- still builds.
+        if self.renderKey == nil and useStandby and self._surfaceKey == splashKey
+            and Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+          Log.emitf("rfsuite.widget.standby", "trace", "not kept: the tree on record is %s, %s",
+            tostring(self._treeKind), tostring(self._treeKey))
+        end
         if Log and type(Log.emitf) == "function" then
           if self.renderKey == nil and self._surfaceKey == splashKey then
             Log.emitf("rfsuite.widget.standby", "debug", "rebuild: nothing about it changed, its key was cleared: %s", splashKey)

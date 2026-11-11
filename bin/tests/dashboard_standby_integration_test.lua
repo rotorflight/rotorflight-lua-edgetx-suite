@@ -1408,6 +1408,7 @@ do
   s.passes(1)
   check("a cleared key is told apart from a changed surface",
     logged("debug: rebuild: nothing about it changed, its key was cleared: standby|") == 1)
+  check("and the trace says why it was not kept", logged("trace: not kept: the tree on record is nil, nil") == 1)
   s.passes(4)
   check("the cleared key rebuilt it once", (function() s.passes(3); return logged("debug: built: ") == 2 end)())
   for _ = 1, 3 do Stubs.tick(); s.widget:background() end
