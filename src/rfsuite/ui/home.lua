@@ -267,8 +267,6 @@ local function logf(level, fmt, ...)
   end
 end
 
-logf("debug", "header icon %s (screen width %s)", APP_ICON, tostring(LCD_W))
-
 -- What was being started. Written to a file of its own that is closed again immediately, so it
 -- is on the card even when the call it names never returns.
 local function logStep(label, force, key)
@@ -3610,6 +3608,7 @@ function M.init(opts)
   state.rootRefreshOwed = false
   ensureVersion()
   logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
+  logf("debug", "header icon %s (screen width %s)", APP_ICON, tostring(LCD_W))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader
   -- when a page first needs it, and the tool opens on its menu without a start screen -- meant for
   -- automated runs on a card that starts without bytecode each time. Like the rest of the
