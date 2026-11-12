@@ -237,7 +237,6 @@ return {
         releasingTests = "Releasing test outputs...",
         memoryLow = "Radio memory is low: save and leave soon.",
         memoryStop = "Not enough radio memory to go on. All tests were released. Leave the wizard and restart the radio.",
-        errMemory = "radio memory too low",
         closeWizard = "Close",
         recoveryRequired = "Previous session interrupted. Power-cycle the FC.",
 

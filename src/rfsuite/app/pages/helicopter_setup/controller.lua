@@ -149,8 +149,7 @@ function M.new(runtime, transport, mathModule, labels)
   local reasons = { ["lock lost"] = "errLockLost", ["not active"] = "errLockNotActive", ["servo count"] = "errServoCount",
     configuration = "errConfiguration", timeout = "errTimeout", reply = "errReply", decode = "errDecode",
     payload = "errPayload", cleared = "errCleared", cancelled = "errCancelled", max_retries = "errMaxRetries",
-    ["short status"] = "errShortStatus", link = "errLink", arming = "errArming", armed = "errArmedFirst",
-    memory = "errMemory" }
+    ["short status"] = "errShortStatus", link = "errLink", arming = "errArming", armed = "errArmedFirst" }
   function w:errorText()
     local e = self.error
     if type(e) ~= "string" then return "" end
@@ -204,14 +203,15 @@ function M.new(runtime, transport, mathModule, labels)
   end
   -- Read once per new scene, right after the page's post-build collect, when the figure holds no
   -- garbage. Below the warn level the status line says so; below the stop level every test is
-  -- released and the visit ends on the stop screen. A save or load in progress finishes first.
+  -- released and the visit ends on the stop screen. A save, load or ESC transaction in progress
+  -- finishes first.
   function w:checkMemory()
     if self.memoryStop then return end
     local kb = self:freeMemoryKb()
     if not kb then return end
     if self.logTrace then self:log("trace", "free memory %s kB", kb) end
     if kb < MEMORY_STOP_KB then
-      if self.transition then
+      if self.transition or self.escBusy then
         if not self.memoryOwed then self:log("warn", "radio memory low, free %s kB: stop after the running operation", kb) end
         self.memoryOwed = kb
       else self:stopForMemory(kb) end
@@ -1108,7 +1108,7 @@ function M.new(runtime, transport, mathModule, labels)
     end
     if not self.active then return end
     if self.memoryStop then self:memoryStopTick()
-    elseif self.memoryOwed and not self.transition then self:stopForMemory(self.memoryOwed) end
+    elseif self.memoryOwed and not self.transition and not self.escBusy then self:stopForMemory(self.memoryOwed) end
     if not self:allowed() then
       if not self.suspended then
         self:log("warn", "link lost or armed, tests stopped")

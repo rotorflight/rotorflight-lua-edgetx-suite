@@ -783,6 +783,11 @@ do
   check(not w.memoryStop and w.memoryOwed,"a running operation is not cut off")
   w.transition=nil;w:tick()
   eq(w.memoryStop,"releasing","the owed stop follows the operation")
+  w=world();w.escBusy=true
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  check(not w.memoryStop and w.memoryOwed,"an ESC transaction is not cut off")
+  w.escBusy=nil;w:tick()
+  eq(w.memoryStop,"releasing","the owed stop follows the ESC transaction")
   getAvailableMemory=savedFree
 end
 -- Whole-table work is generated one record per pass, with EEPROM last.
