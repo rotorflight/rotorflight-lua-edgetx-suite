@@ -34,11 +34,16 @@ end
 -- hidden objects and the children of hidden ones, with wrap. So the sweep runs in three passes:
 --   prehide  the reverse ladder's box hides (one getter on the box, created last); the focus is on
 --            the tapped step button, outside it;
---   hide     the two step buttons hide: the focus leaves the tapped one, skips the other and the
---            hidden box's rows, and wraps to the widget -- the state a build leaves;
+--   hide     the group row and the two step buttons hide: the focus leaves whichever of them it is
+--            on (a detent between the release and this pass can have moved it from the tapped
+--            button to '>'), skips the hidden box's rows, and wraps to the widget -- the state a
+--            build leaves;
 --   show     all shown again, and the sensor is reset to its built state (sensor.reset).
--- The box's own getter drives the states, as it is asked after the step buttons on every pass. A
--- sweep that does not come within SWEEP_PASSES widget passes builds after all (Drive:fastTick).
+-- The box's own getter drives the states and counts the passes, as it is asked once on every
+-- refresh, after the other controls. A ladder scroll during the sweep is a detent that moved the
+-- focus into a ladder, and a sweep still unfinished after SWEEP_PASSES refreshes is one that went
+-- wrong: both end in a build instead of the reset. A sweep whose getter is never asked is ended by
+-- Drive:fastTick's backstop.
 function M.refocus(widget)
   local drive = widget._inflight
   if not (drive and drive.live == true and drive.phase == "live") then return end
@@ -154,6 +159,10 @@ function M.renderKey(snapshot)
 end
 
 M.LADDER_ROWS = 64
+-- How many refreshes a tap's refocus sweep may take (M.refocus): it needs three (the reverse ladder
+-- hides, the group row and the step buttons hide, all show), one more is margin. Counted by the
+-- reverse box's getter, which the firmware asks once per refresh; past it the surface is built.
+M.SWEEP_PASSES = 4
 
 function M.ready(widget)
   local sensor = widget._inflightSensor
@@ -283,6 +292,13 @@ function M.sensor(widget, rowHeight, count, valueMode)
     local function reverseShown()
       local sweep = drive.tapSweep
       if sweep == nil or drive.holdRow ~= nil then return true end
+      sweep.passes = sweep.passes + 1
+      if sweep.passes > M.SWEEP_PASSES then
+        drive.tapSweep = nil
+        if Log then Log.emit("rfsuite.inflight.input", "tap refocus not finished after " .. sweep.passes .. " refreshes, the surface is built", "info") end
+        M.rebuild(widget)
+        return true
+      end
       if sweep.state == "prehide" then
         sweep.state = "hide"
         return false
@@ -293,6 +309,11 @@ function M.sensor(widget, rowHeight, count, valueMode)
         return false
       end
       drive.tapSweep = nil
+      if sweep.moved then
+        trace("tap refocus shown", sweep.passes, "passes, a detent moved the focus during it: the surface is built")
+        M.rebuild(widget)
+        return true
+      end
       sensor.reset()
       sensor.restScrolls = sensor.scrolls
       trace("tap refocus shown", sweep.passes, "passes")
@@ -309,10 +330,12 @@ function M.sensor(widget, rowHeight, count, valueMode)
         end,
         scrolled = function(x, y)
           y = y - rowHeight
-          -- A scroll during a refocus sweep is the sweep's own focus move or a detent in the pass the
-          -- focus is not on the widget yet: no step either way.
+          -- The sweep itself scrolls no ladder (the reverse box is hidden while it runs), so a scroll
+          -- during it is a detent that moved the focus into a ladder: no step, and the sweep ends in
+          -- a build rather than in a reset that would misstate where the focus is.
           if drive.tapSweep ~= nil then
             drive.tapSweep.swallowed = drive.tapSweep.swallowed + 1
+            drive.tapSweep.moved = true
             return
           end
           if window.pending ~= nil and y == window.pending then

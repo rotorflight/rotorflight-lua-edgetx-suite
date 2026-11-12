@@ -397,7 +397,7 @@ text without rebuilding the scene.
 
 After a touch action the encoder focus returns to the tuning sensor. For the plus/minus buttons
 of value mode that happens without a rebuild: on the screen refresh after the release the two
-buttons blink out once while the focus goes back, so
+buttons and the group row above them blink out once while the focus goes back, so
 the value keeps updating and the screen does not stand still after a tap. The first tap after the encoder was
 turned rebuilds the live scene once instead; taps in a row after it do not. Other touch actions in browse or value mode rebuild the live scene for it. A
 held plus/minus target waits until release. This also applies when a touch step is refused during

@@ -1298,13 +1298,44 @@ do
   plusNode.release()
   check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epochHeld + 1,
     "refocus: a release after the ladder moved while held builds instead of hiding the box over the focus")
+  -- A detent in the refresh between a tap's release and its sweep moves the focus from the tapped
+  -- button to its neighbour in the walk -- back, the group arrow '>' -- which no ladder scroll reports.
+  -- The sweep must still end with the focus on the widget, and ENTER must leave value mode.
+  for _, direction in ipairs({-1, -2, -3, 1}) do
+    render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+    settle()
+    local entryBefore, epochBefore = instance.entry, instance.ladderEpoch or 0
+    tapPlus()
+    for _ = 1, math.abs(direction) do scene:rotate(direction > 0 and 1 or -1) end
+    for _ = 1, 4 do scene:refsSweep() end
+    -- Only a build the drive asked for (the layout epoch moved) rebuilds the scene here.
+    if (instance.ladderEpoch or 0) ~= epochBefore then render() end
+    check(scene.at == 0, "refocus: a detent " .. direction .. " before the sweep still ends with the focus on the widget (at "
+      .. tostring(scene.at) .. ")")
+    settle()
+    scene:press()
+    check(instance.valueMode ~= true and instance.entry == entryBefore,
+      "refocus: ENTER after a detent " .. direction .. " before the sweep leaves value mode and changes no function")
+  end
   -- A sweep that never comes: the fallback builds after SWEEP_PASSES passes.
   render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
   local epoch = instance.ladderEpoch or 0
   settle(); tapPlus()
-  for _ = 1, 5 do ticks = ticks + 31; instance:fastTick(ticks) end
+  for _ = 1, 13 do ticks = ticks + 31; instance:fastTick(ticks) end
   check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epoch + 1,
-    "refocus: a sweep that does not come is ended by a build after a few passes")
+    "refocus: a sweep whose getter is never asked is ended by a build (fastTick's backstop)")
+  -- fastTick runs on the fast sampler AND on the logic tick, so one refresh can carry two calls; a
+  -- sweep that the box's getter drives through its three refreshes must not be cut short by them.
+  render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+  epoch = instance.ladderEpoch or 0
+  settle(); tapPlus()
+  for _ = 1, 3 do
+    ticks = ticks + 11; instance:fastTick(ticks)
+    ticks = ticks + 11; instance:fastTick(ticks)
+    scene:refsSweep()
+  end
+  check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epoch and scene.at == 0,
+    "refocus: two fastTick calls per refresh do not turn a three-refresh sweep into a build")
 end
 
 for _, surface in ipairs({{"ground", false}, {"ground", true}, {"post", false}, {"post", true}, {"live", false}}) do

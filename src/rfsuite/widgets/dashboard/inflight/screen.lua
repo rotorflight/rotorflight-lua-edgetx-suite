@@ -492,8 +492,8 @@ local function appendFlight(children, widget, m, w, h, t, p)
   local titleX, titleW = m.pad + arrowW + 4, lineW - arrowW * 2 - 8
   local contentY = groupY + groupH + 4
   local paused = snapshot.profileRefusal ~= nil
-  -- The value surface's step buttons, appended after the group arrows (see there), and their
-  -- `visible` answer for a tap's refocus sweep (Input.refocus).
+  -- The value surface's step buttons, appended after the group arrows (see there), and the
+  -- `visible` answer they share with the group row for a tap's refocus sweep (Input.refocus).
   local steps, shown = {}, nil
   local picking = snapshot.groupPicker == true and not paused
   local hint, shortHint
@@ -578,9 +578,9 @@ local function appendFlight(children, widget, m, w, h, t, p)
       local forward, reverse = sensor.windows()
       local ladder, previous = {}, {}
       local first, leave = sensor.first, sensor.leave
-      -- The step buttons hide for one pass of the sweep that takes the focus back to the widget after
-      -- a tap on + or - (Input.refocus); the reverse ladder hides as a whole, by its box's getter.
-      -- Inlined rather than Input.shown(drive): it is asked for both buttons on every pass. Never
+      -- The step buttons and the group row hide for one pass of the sweep that takes the focus back
+      -- to the widget after a tap on + or - (Input.refocus); the reverse ladder hides as a whole, by
+      -- its box's getter. Inlined rather than Input.shown(drive): asked five times a pass. Never
       -- while a step button is held (the runtime never builds then either): a press that lands
       -- between the release and the sweep keeps its button until its own release starts a new one.
       shown = function()
@@ -821,6 +821,12 @@ local function appendFlight(children, widget, m, w, h, t, p)
   button(children, m.pad, groupY, arrowW, groupH, "<", action("function", -1), p.accent)
   button(children, titleX, groupY, titleW, groupH, title, function() openGroupPicker(widget) end)
   button(children, w - m.pad - arrowW, groupY, arrowW, groupH, ">", action("function", 1), p.accent)
+  -- In value mode the group row hides with the step buttons: a detent in the refresh between a tap's
+  -- release and its sweep moves the focus from the tapped button onto '>' (or further back), and
+  -- only an object that hides while focused hands the focus on (Input.refocus).
+  if shown then
+    for i = #children - 2, #children do children[i].visible = shown end
+  end
   for i = 1, #steps do children[#children + 1] = steps[i] end
 end
 
