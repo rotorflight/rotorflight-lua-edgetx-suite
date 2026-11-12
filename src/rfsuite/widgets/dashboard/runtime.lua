@@ -456,10 +456,13 @@ local function traceInstructionUsage(self)
   -- second read behind and the line says -1 rather than guessing: killed by the instruction limit
   -- is exactly the case worth telling apart.
   --
-  -- The cost on an ordinary pass is one field read, one field write and one comparison; the
-  -- arithmetic and the formatting are inside the branch, which on a healthy radio is never taken.
+  -- The cost on an ordinary pass is one field read, two field writes, a subtraction and one comparison; the
+  -- formatting is inside the branch, which on a healthy radio is never taken.
   local lastPassAt = self._passAt
   self._passAt = now
+  -- The hole in front of THIS pass, for work that can wait a pass (menu_roll.lua, a rest of the
+  -- wheel): a pass after a long hole catches up on what the hole held back, and that is billed here.
+  self._passGap = lastPassAt and (now - lastPassAt) or 0
   if lastPassAt and (now - lastPassAt) > PASS_GAP_REPORT
     and Log and type(Log.emitf) == "function" then
     local endAt = self._passEndAt

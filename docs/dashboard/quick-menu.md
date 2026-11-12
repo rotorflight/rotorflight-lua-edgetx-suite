@@ -411,7 +411,7 @@ draws a description, a table of a title, the rows, what a row leads to and what 
 descriptions of the quick menu and the picker are `widgets/dashboard/menu_roll_sources.lua`, whose
 head lists the fields. Another menu is another description. A menu hands `Roll.build` a function that makes
 its description rather than the description: when the wheel rests the roll keeps its scene and makes the
-description again, so what the menu says (a value in a question, which entries are offered) is read as a build reads it. The place is held as a path of levels,
+description again, so what the menu says (a value in a question, which entries are offered) is read as a build reads it. A rest that falls due in a pass after a hole of a second or more waits for the next pass, twice at most: that pass catches up on what the hole held back, and the sweep that hides the wheel's ladders runs after `refresh` on the same instruction budget. The place is held as a path of levels,
 two of which are on screen: `base` is the level on the left, and `focus` says which column has the
 wheel. Each view has its own roll on the session (`Views.roll`), so a menu keeps its place under a picker.
 `widgets/dashboard/menu_tree.lua` reads `widgets/dashboard/menu_list.lua` for MAIN MENU, outside the module cache and for
