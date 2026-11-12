@@ -935,8 +935,6 @@ local function syncActivePageModule()
       reportHookCrash("PageRegistry.endVisits", currentMenuId, ended)
     elseif type(ended) == "number" and ended > 0 then
       logf("debug", "page area left for %s: %d visit(s) ended, %d chunk(s) let go", tostring(currentMenuId), ended, chunks or 0)
-    else
-      logf("trace", "page area unchanged for %s", tostring(currentMenuId))
     end
   end
 
