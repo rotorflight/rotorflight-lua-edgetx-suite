@@ -139,6 +139,32 @@ equal(state.pendingLayout, nil, "hosted: the close drops it")
 state.isClosing = false
 state.closeTicks = nil
 
+-- A first build stopped at the instruction limit is built again on the next pass (the build guard),
+-- and that build, still the page's first, is drawn on the pass after it.
+local stops = 0
+registry.byMenuId.test_draw_stop = {
+  build = function(ctx)
+    if stops == 0 then
+      stops = 1
+      error("CPU limit")
+    end
+    ctx.children[#ctx.children + 1] = { type = "choice", title = MARK, values = { "a", "b" },
+      get = function() return 1 end, set = function() end }
+  end,
+  getHeaderActions = function() return {} end
+}
+current = "test_draw_stop"
+state.pendingBuildUI = false
+M.buildUI()
+equal(stops, 1, "hosted: the first build of the page was stopped")
+equal(state.pageBuildFailed, "test_draw_stop", "hosted: the stopped build is latched for a retry")
+equal(state.pendingLayout, nil, "hosted: a stopped build keeps no layout")
+local passes = 0
+while not drawn() and passes < 4 do pass(); passes = passes + 1 end
+equal(drawn(), true, "hosted: a page whose first build was stopped is drawn once a build completes")
+equal(passes, 2, "hosted: built again on the next pass, drawn on the pass after it")
+equal(state.pendingLayout, nil, "hosted: nothing is left waiting after the retried page is drawn")
+
 -- Control: the tool run as a tool script draws an opened page in the pass that builds it.
 state.hosted = false
 current = "test_draw_a"
