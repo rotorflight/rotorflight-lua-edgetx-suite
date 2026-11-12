@@ -2710,8 +2710,8 @@ end
 -- disabled ("CPU limit", "foreground calRefs error"). A page whose first build takes most of a
 -- pass -- the pass that opens it also releases the page before and loads the new one's modules --
 -- leaves the widgets it makes too little of that pass. So that pass makes the page's layout,
--- where a stop is caught, and shows a notice that calls nothing; the next pass, which starts with
--- the whole limit, makes the widgets from that layout. Only the first build of a visit is moved: a page rebuilt
+-- where a stop is caught, and shows a notice that calls nothing; the next pass, with a fresh limit,
+-- makes the widgets from that layout before its other work. Only the first build of a visit is moved: a page rebuilt
 -- while it is open has its modules loaded and nothing to release, and a notice in its place
 -- would blink on every change. The tool run as a tool script has no such limit and draws at once.
 
@@ -2744,21 +2744,27 @@ local function lastCallUsage()
 end
 
 -- Draws the layout the previous pass built (see the note above), unless the menu has moved on
--- since, in which case the screen is built again for where the menu is now.
+-- since, in which case the screen is built again for where the menu is now. The scene stays owed
+-- until the draw is through, as it does for a build (M.buildUI): a pass stopped before the widgets
+-- are made has already let the layout go, so the next pass builds the page again, and that build,
+-- still the visit's first, is drawn on the pass after it.
 local function drawPendingPage()
+  state.sceneBuildOwed = true
   local lyt, menuId = state.pendingLayout, state.pendingLayoutMenuId
   state.pendingLayout = nil
   state.pendingLayoutMenuId = nil
   local onScreen = state.menu and state.menu.getCurrentMenuId and state.menu.getCurrentMenuId() or nil
   if menuId ~= onScreen then
     logf("trace", "layout of %s dropped, the menu is on %s", tostring(menuId), tostring(onScreen))
+    state.sceneBuildOwed = false
     scheduleBuildUI(false)
     return false
   end
-  state.firstDrawMenuId = nil
   logStep("draw page=" .. tostring(menuId))
   if type(lvgl.clear) == "function" then lvgl.clear() end
   lvgl.build(lyt)
+  state.sceneBuildOwed = false
+  state.firstDrawMenuId = nil
   -- Both passes' usage, so a log says how much room each one left: the build pass's now, the
   -- drawing pass's at the top of the next one (M.run).
   logf("debug", "page %s drawn, the pass that built it used %s%%", tostring(menuId), tostring(lastCallUsage()))

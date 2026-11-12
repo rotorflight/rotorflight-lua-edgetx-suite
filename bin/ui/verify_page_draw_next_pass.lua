@@ -165,6 +165,32 @@ equal(drawn(), true, "hosted: a page whose first build was stopped is drawn once
 equal(passes, 2, "hosted: built again on the next pass, drawn on the pass after it")
 equal(state.pendingLayout, nil, "hosted: nothing is left waiting after the retried page is drawn")
 
+-- A pass stopped while it draws a waiting layout -- here lvgl.build raises once, as the host's step
+-- would catch a stop -- has let the layout go; the page is built again and drawn, not left blank.
+current = "test_draw_a"
+state.activePageMenuId = nil
+state.pendingBuildUI = false
+M.buildUI()
+equal(state.pendingLayout ~= nil, true, "hosted: the reopened page waits to be drawn")
+local realBuild = lvgl.build
+local raised = 0
+lvgl.build = function(tree)
+  if raised == 0 and holds(tree, 0) then
+    raised = 1
+    error("CPU limit")
+  end
+  return realBuild(tree)
+end
+local okPass = pcall(pass)
+equal(okPass, false, "hosted: the drawing pass was stopped")
+equal(raised, 1, "hosted: the stop landed in the draw")
+lvgl.build = realBuild
+passes = 0
+while not drawn() and passes < 4 do pass(); passes = passes + 1 end
+equal(drawn(), true, "hosted: a page whose draw was stopped is built again and drawn")
+equal(passes, 2, "hosted: built again on the next pass, drawn on the pass after it")
+equal(state.sceneBuildOwed, false, "hosted: nothing is owed once the page is drawn")
+
 -- Control: the tool run as a tool script draws an opened page in the pass that builds it.
 state.hosted = false
 current = "test_draw_a"

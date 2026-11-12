@@ -426,7 +426,7 @@ neither a view, the base layer nor the dashboard's own work runs beside it:
   radio's event loop between calls, on what the last call left, and the reactive sweep after the
   pass calls every function a property is bound to, all under EdgeTX's own `pcall`, which disables
   the widget on a stop. So the first build of a page after it is opened makes only
-  the layout and shows *Loading...*; the next pass, starting with the whole limit, makes the widgets
+  the layout and shows *Loading...*; the next pass, with a fresh limit, makes the widgets first
   from that layout. A rebuild of the page while it is open is drawn in the pass that builds it.
 - **Closing** is the tool's own sequence: the back key at the top of its menu, or on the page
   `openTool:<menuId>` opened it on while that page is still the one up, or
