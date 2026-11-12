@@ -1490,6 +1490,17 @@ do
     sentWhileDown .. " sent while down / " .. after .. " / " .. #rig.statusAsked .. " status after / saved "
       .. savedProfiles())
 
+  -- A status reply cut short before the profile bytes (their parser reads a missing byte as 0):
+  -- the session's profiles, not PID 1 / rates 1
+  fresh()
+  rig.session.activeProfile, rig.session.activeRateProfile = 2, 1
+  rig.status.bytes = 20
+  asked = flyThrough(120)
+  check("a status reply too short for the profiles keeps the session's, not profile 1",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 1 and savedProfiles() == "3/2",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+  rig.status.bytes = nil
+
   -- Dropped again and again: not a link error, so not given up on
   fresh()
   rig.status.pid, rig.status.rate = 1, 2

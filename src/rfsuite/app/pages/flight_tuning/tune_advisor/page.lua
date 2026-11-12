@@ -936,6 +936,11 @@ local function settleProfiles(pid, rate, how)
   pageLog("debug", "active profiles PID %s, rates %s (%s)", tostring(pid), tostring(rate), how)
 end
 
+-- The rate profile index is byte 26 of MSP_STATUS (tasks/msp/api/status.lua). Its parser reads a
+-- missing byte as 0, so a reply cut shorter would name PID 1 and rates 1: it is taken as not
+-- understood instead.
+local STATUS_PROFILE_BYTES = 26
+
 local function readActiveProfiles()
   local pid, rate = liveProfiles()
   if pid ~= nil then settleProfiles(pid, rate, "telemetry"); return end
@@ -955,7 +960,7 @@ local function readActiveProfiles()
     simulatorResponse = api.simulatorResponse,
     processReply = function(_, buf)
       if generation ~= ui.generation then return end
-      local parsed = api.parse(buf)
+      local parsed = type(buf) == "table" and #buf >= STATUS_PROFILE_BYTES and api.parse(buf) or nil
       local p = parsed and tonumber(parsed.current_pid_profile_index)
       local r = parsed and tonumber(parsed.current_control_rate_profile_index)
       if p and r then

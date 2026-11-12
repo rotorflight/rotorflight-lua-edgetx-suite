@@ -353,6 +353,11 @@ end
 -- transmitter. A read the queue dropped (a link loss, however short) is asked again, the axes
 -- already read kept, as the settings reads are. A read that fails leaves the session's profiles,
 -- as before, and is not asked again for this flight.
+-- The rate profile index is byte 26 of MSP_STATUS (tasks/msp/api/status.lua). Its parser reads a
+-- missing byte as 0, so a reply cut shorter would name PID 1 and rates 1: it is taken as not
+-- understood instead.
+local STATUS_PROFILE_BYTES = 26
+
 local function readProfiles(tc, queue)
   tc.busy = true
   local api = StatusApi
@@ -362,7 +367,7 @@ local function readProfiles(tc, queue)
     maxRetries = 2,
     simulatorResponse = api.simulatorResponse,
     processReply = function(_, buf)
-      local p = api.parse(buf)
+      local p = type(buf) == "table" and #buf >= STATUS_PROFILE_BYTES and api.parse(buf) or nil
       local pid = p and tonumber(p.current_pid_profile_index)
       local rate = p and tonumber(p.current_control_rate_profile_index)
       if pid and rate then

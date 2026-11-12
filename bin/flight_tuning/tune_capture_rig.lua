@@ -180,6 +180,8 @@ function Rig.new(opts)
       local s = _G.rfsuite.session
       buf[24] = h.status.pid or s.activeProfile or 0
       buf[26] = h.status.rate or s.activeRateProfile or 0
+      -- h.status.bytes: a reply cut short after that many bytes
+      if h.status.bytes then for i = #buf, h.status.bytes + 1, -1 do buf[i] = nil end end
       return buf
     end
     if msg.command ~= READ then return msg.simulatorResponse end

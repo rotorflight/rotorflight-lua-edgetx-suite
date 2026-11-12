@@ -115,6 +115,7 @@ _G.rfsuite = { palette = { text = 0, border = 0 }, session = { mcu_id = MCU } }
 _G.rfsuite.paths = dofile(ROOT .. "lib/paths.lua")
 
 local profiles = { pid = 1, rate = 1 }
+local statusBytes = nil
 local dialogs = {}
 local axisSetter = nil
 
@@ -192,6 +193,8 @@ local function statusReply()
   local buf = {}
   for i, b in ipairs(codecs.status.simulatorResponse) do buf[i] = b end
   buf[24], buf[26] = profiles.pid - 1, profiles.rate - 1
+  -- statusBytes: a reply cut short after that many bytes
+  if statusBytes then for i = #buf, statusBytes + 1, -1 do buf[i] = nil end end
   return buf
 end
 
@@ -947,6 +950,13 @@ do
   openPage(true)
   check("(control) with that PID profile active its flight is shown", ui.view.data ~= noteFor(2, 1)
     and shown(string.format(T().profileFmt, 2, 1)) and string.find(ui.view.data, "1/5", 1, true) ~= nil, ui.view.data)
+  -- A status reply cut short before the profile bytes: their parser reads a missing byte as 0, so
+  -- it would name PID 1, rates 1; the session's profiles are kept instead
+  statusBytes = 20
+  openPage(true)
+  check("a status reply too short for the profiles keeps the session's (PID 2), not PID 1", ui.view.data ~= noteFor(1, 1)
+    and shown(string.format(T().profileFmt, 2, 1)), ui.view.data)
+  statusBytes = nil
   profiles.pid = 1
 
   -- The same values on both profiles: still another profile
