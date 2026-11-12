@@ -5396,6 +5396,9 @@ function Runtime.new(zone, options)
   -- for theme loads into a structural rule for every build.
   function widget.refresh(self, event, touchState)
     traceInstructionUsage(self)
+    -- The sensor searches count their per-pass caps against this call, however many clock ticks
+    -- it spans (lib/sensors.lua, Sensors.passBegins).
+    if Sensors and Sensors.passBegins then Sensors.passBegins() end
 
     -- The firmware calls refresh() for the widget the pilot is looking at and background() for
     -- every other one, so this is where "on screen" is known. The overlay drives only from here.
@@ -6106,6 +6109,7 @@ function Runtime.new(zone, options)
   end
 
   function widget.background(self)
+    if Sensors and Sensors.passBegins then Sensors.passBegins() end
     -- Off screen. The overlay's own tick refuses to drive from here and cleans up instead, which
     -- is what makes a widget scrolled away stop writing the two variables.
     if self._foreground == true and self._shmOn then

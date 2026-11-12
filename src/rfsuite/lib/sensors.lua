@@ -719,12 +719,52 @@ end
 local SEARCH_MISS_SECONDS = 2.0
 local SEARCH_MISS_MAX_SECONDS = 30.0
 -- How many sources may start their FIRST search in one pass; see the throttle in Sensors.getValue.
--- Like the repeated-search throttle beside it, the count is keyed on the clock reading, so a pass
--- that outlasts one 10 ms clock tick gets a fresh count for the rest of it.
+-- Like the repeated-search throttle beside it, the count is kept per widget pass where the widget
+-- marks one, and per clock reading otherwise (see passKey below).
 local FIRST_SEARCHES_PER_PASS = 4
 -- Module-local, like fieldInfoCache and valueMisses above and unlike Sensors.active_paths: it is
 -- a timer of this file's own and nothing outside reads it. Sensors.reset() clears it.
 local searchWaits = {}
+
+-- What "one pass" is for the two search throttles in Sensors.getValue.
+--
+-- The throttles used to be keyed on the clock reading alone, so a pass that outlasts one 10 ms
+-- tick got a fresh count with every tick it spanned. On a radio a widget pass that searches runs
+-- for 100 ms and more -- the searches themselves are most of it -- so the caps were spent again
+-- and again inside the one call the firmware bills: right after Sensors.reset(), when every
+-- source searches its whole list, the link-lost edge reached the instruction limit on the
+-- standby screen. A widget therefore says where its pass begins (Sensors.passBegins), and the
+-- throttles count against that pass, however many ticks it spans.
+--
+-- A host that does not mark keeps the clock key, as before: the configuration tool, whose calls
+-- are not billed against a per-call limit, and the service widget. A mark older than
+-- PASS_MARK_SECONDS is treated as no mark, so a state whose marking widget went away -- the
+-- dashboard taken off the model, the service widget carrying on -- does not keep one pass number
+-- for ever, which would hold every repeated search back for good.
+local PASS_MARK_SECONDS = 1.0
+local passMark = 0
+local passMarkAt = nil
+local passKeyed = nil  -- which key the throttles last used, for the one line when it changes
+
+--- Mark the start of a widget pass, for the search throttles in Sensors.getValue.
+function Sensors.passBegins()
+  passMark = passMark + 1
+  passMarkAt = nowSeconds()
+end
+
+-- The key the search throttles count against at clock reading `now`.
+local function passKey(now)
+  local marked = passMarkAt ~= nil and now - passMarkAt < PASS_MARK_SECONDS and now >= passMarkAt
+  if marked ~= passKeyed then
+    passKeyed = marked
+    if debugWanted() then
+      debugLog(nil, marked and "search throttles count per widget pass"
+        or "search throttles count per clock tick (no widget pass mark)")
+    end
+  end
+  if marked then return passMark end
+  return now
+end
 
 local readValue
 
@@ -863,14 +903,22 @@ readValue = function(source)
   -- the widget asks for it after five others, so a cap would delay the arming state by a read
   -- after every reset. Its list is short, and before the limit it was searched on the first read.
   if previousWait ~= nil then
-    if Sensors.last_search == now then return nil end
-    Sensors.last_search = now
+    local key = passKey(now)
+    if Sensors.last_search == key then return nil end
+    Sensors.last_search = key
   elseif source ~= "armflags" then
-    if Sensors.first_search_at ~= now then
-      Sensors.first_search_at = now
+    local key = passKey(now)
+    if Sensors.first_search_at ~= key then
+      Sensors.first_search_at = key
       Sensors.first_searches = 0
     end
-    if Sensors.first_searches >= FIRST_SEARCHES_PER_PASS then return nil end
+    if Sensors.first_searches >= FIRST_SEARCHES_PER_PASS then
+      if debugWanted() then
+        debugLog("held:" .. source, source .. ": first search waits for the next pass ("
+          .. FIRST_SEARCHES_PER_PASS .. " per pass)")
+      end
+      return nil
+    end
     Sensors.first_searches = Sensors.first_searches + 1
   end
 
