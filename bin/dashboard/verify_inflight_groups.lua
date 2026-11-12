@@ -952,45 +952,62 @@ local function nativeScene(nodes, view, counts, tall)
       elseif y + object.node.h > box.y + box.h then self:scroll(box, y + object.node.h - box.h) end
     end
   end
+  -- Hidden itself or below a hidden box: LVGL's focus walk skips it (lv_group.c focus_next_core).
+  function scene:hiddenUp(object)
+    while object do
+      if object.hidden then return true end
+      object = object.parent
+    end
+    return false
+  end
   function scene:sweep()
     for _, box in ipairs(self.boxes) do
-      if box.node.scrollTo then
+      if box.node.scrollTo and not self:hiddenUp(box) then
         local _, y = box.node.scrollTo()
         self:scroll(box, y)
       end
     end
   end
-  -- The firmware's refresh sweep with `visible` getters (LVGL 8.2 / EdgeTX 2.12): every object is
-  -- asked in creation order, a box's scrollTo after its children; hiding the focused object moves the
-  -- focus to the next one shown (hidden objects skipped, wrap to the widget, lv_obj_add_flag ->
-  -- lv_group_focus_next), and focusing a row in a box scrolls it into view.
+  -- The firmware's refresh pass with `visible` getters (EdgeTX v2.12.5 / 2.12 head, LVGL pin
+  -- 5f129c54): every object is asked in creation order (LvglWidgetObjectBase::callRefs); a hidden
+  -- object's children are not asked, and a box asks its scrollTo after its children and only while
+  -- shown (LvglWidgetBox::callRefs). Hiding moves the focus only off an object that is itself focused
+  -- (lv_obj_add_flag -> lv_group_focus_next): a focused child of a box that hides keeps the focus.
+  -- The next object focused skips hidden ones and the children of hidden ones, with wrap to the
+  -- widget; focusing a row in a box scrolls it into view.
+  function scene:nextShown(i, direction)
+    local n, j = #self.focus, i
+    repeat
+      j = j + direction
+      if counts.nativeRoot then
+        if j > n then j = 0 elseif j < 0 then j = n end
+        if j == 0 then return 0 end
+      else
+        j = (j - 1) % n + 1
+      end
+    until j == i or not self:hiddenUp(self.focus[j])
+    return j
+  end
   function scene:refsSweep()
-    local objectOf = {}
+    local objectOf, boxOf = {}, {}
     for i, object in ipairs(self.focus) do objectOf[object.node] = i end
-    local function shownAt(i)
-      return not self.focus[i].hidden
-    end
+    for _, box in ipairs(self.boxes) do boxOf[box.node] = box end
     local function walk(list)
       for _, node in ipairs(list) do
-        local i = objectOf[node]
-        if i and type(node.visible) == "function" then
-          local hide = not node.visible()
-          self.focus[i].hidden = hide
-          if hide and self.at == i then
-            local n, j = #self.focus, i
-            repeat
-              j = j + 1
-              if j > n then j = 0 end
-            until j == 0 or shownAt(j)
+        local i, box = objectOf[node], boxOf[node]
+        local object = i and self.focus[i] or box
+        local shown = true
+        if object and type(node.visible) == "function" then
+          object.hidden = not node.visible()
+          shown = not object.hidden
+          if object.hidden and i and self.at == i then
             self.refocusMoves = (self.refocusMoves or 0) + 1
-            self:focusAt(j)
+            self:focusAt(self:nextShown(i, 1))
           end
         end
-        if node.children then walk(node.children) end
-        if node.type == "box" and node.scrollTo then
-          for _, box in ipairs(self.boxes) do
-            if box.node == node then local _, y = node.scrollTo(); self:scroll(box, y) end
-          end
+        if shown then
+          if node.children then walk(node.children) end
+          if box and node.scrollTo then local _, y = node.scrollTo(); self:scroll(box, y) end
         end
       end
     end
@@ -998,8 +1015,11 @@ local function nativeScene(nodes, view, counts, tall)
   end
   function scene:rotate(direction)
     self:sweep()
-    if self.at == 0 then self:focusAt(direction > 0 and 1 or #self.focus)
-    else self:focusAt(self.at + direction) end
+    if self.at == 0 then
+      local j = direction > 0 and 1 or #self.focus
+      if self:hiddenUp(self.focus[j]) then j = self:nextShown(j, direction) end
+      self:focusAt(j)
+    else self:focusAt(self:nextShown(self.at, direction)) end
   end
   function scene:press()
     if self.at == 0 then return Input.key(view, EVT_VIRTUAL_ENTER) end
@@ -1047,14 +1067,17 @@ for _, valueMode in ipairs({true, false}) do
     end
     error("touch control missing: " .. text)
   end
-  -- A completed tap on + or - in value mode: no build, the controls after it hide for one sweep.
+  -- A completed tap on + or - in value mode: no build; the reverse ladder hides, then the step buttons.
   local function refocused(epoch, key)
-    check(instance.tapSweep ~= nil and instance.tapSweep.state == "hide" and (instance.ladderEpoch or 0) == (epoch or 0),
-      "a completed tap on a step button hides the controls after it for a sweep instead of a rebuild")
-    local scenes = counts.scenes
+    check(instance.tapSweep ~= nil and instance.tapSweep.state == "prehide" and (instance.ladderEpoch or 0) == (epoch or 0),
+      "a completed tap on a step button starts a refocus sweep instead of a rebuild")
+    local scenes, at = counts.scenes, scene.at
+    scene:refsSweep()
+    check(scene.at == at and scene.reverse.hidden and instance.tapSweep ~= nil and instance.tapSweep.state == "hide",
+      "the first pass hides the reverse ladder's box while the focus stays on the tapped button")
     scene:refsSweep()
     check(scene.at == 0 and instance.tapSweep ~= nil and instance.tapSweep.state == "show",
-      "the hiding sweep takes the focus back to the widget (at " .. tostring(scene.at) .. ")")
+      "the second pass hides the step buttons and the focus wraps to the widget (at " .. tostring(scene.at) .. ")")
     scene:refsSweep()
     check(instance.tapSweep == nil and view._inflightSensor.index ~= nil and counts.scenes == scenes
       and Screen.renderKey(view.state.inflight) == key,
@@ -1188,8 +1211,8 @@ do
   local scenes = counts.scenes
   for _, direction in ipairs({1, -1}) do
     settle(); tapPlus()
-    -- fastTick counts passes for the fallback: the two sweeps come before it would build.
-    scene:refsSweep(); scene:refsSweep()
+    -- fastTick counts passes for the fallback: the three passes come before it would build.
+    scene:refsSweep(); scene:refsSweep(); scene:refsSweep()
     check(instance.tapSweep == nil and scene.at == 0, "refocus " .. direction .. ": focus back on the widget")
     settle()
     local fired = instance.fired
@@ -1199,7 +1222,7 @@ do
     settle()
   end
   settle(); tapPlus()
-  scene:refsSweep(); scene:refsSweep()
+  scene:refsSweep(); scene:refsSweep(); scene:refsSweep()
   local fired = instance.fired
   -- Inside the pulse the leave is refused as before (cooling), and nothing steps.
   scene:press()
@@ -1224,12 +1247,29 @@ do
   scene:focusAt(plusAt); plusNode.press()
   check(instance.holdRow ~= nil and instance.fired == heldFired + 1, "refocus: a second press before the sweep is accepted and held")
   scene:refsSweep()
-  check(scene.at == plusAt and not scene.focus[plusAt].hidden and instance.tapSweep ~= nil and instance.tapSweep.state == "hide",
+  check(scene.at == plusAt and not scene.focus[plusAt].hidden and not scene.reverse.hidden
+    and instance.tapSweep ~= nil and instance.tapSweep.state == "prehide",
     "refocus: a held step button is not hidden by a pending sweep and keeps the focus")
   plusNode.release()
-  scene:refsSweep(); scene:refsSweep()
+  scene:refsSweep(); scene:refsSweep(); scene:refsSweep()
   check(instance.holdRow == nil and instance.tapSweep == nil and scene.at == 0,
     "refocus: after the held button's release the sweep takes the focus back")
+  -- A detent turned while + is held can put the focus on a reverse row; hiding the box would strand it
+  -- there (LVGL does not move a focused child), so that release builds instead of sweeping.
+  render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+  settle()
+  for index, object in ipairs(scene.focus) do
+    local node = object.node
+    if node.children and node.children[1] and node.children[1].text == "+" then plusAt, plusNode = index, node end
+  end
+  local epochHeld, scrollsHeld = instance.ladderEpoch or 0, view._inflightSensor.scrolls
+  scene:focusAt(plusAt); plusNode.press()
+  scene:rotate(1); scene:rotate(1); scene:rotate(1)
+  check(view._inflightSensor.scrolls > scrollsHeld and scene.focus[scene.at].parent == scene.reverse,
+    "control: three detents while + is held put the focus on a reverse row and scroll the ladder")
+  plusNode.release()
+  check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epochHeld + 1,
+    "refocus: a release after the ladder moved while held builds instead of hiding the box over the focus")
   -- A sweep that never comes: the fallback builds after SWEEP_PASSES passes.
   render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
   local epoch = instance.ladderEpoch or 0

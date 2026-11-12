@@ -1323,10 +1323,11 @@ end
 --
 -- Guarded on the radio's own clock, so a pass that runs the whole tick as well as this one does
 -- the work once rather than twice.
--- How many widget passes a tap's refocus sweep may take (input.lua, M.refocus): one hides, the next
--- shows. Counted in passes, not time, since a slow pass is no reason. Past it the surface is built,
--- which ends the sweep the way a tap ended before it, so the encoder is never left without a ladder.
-local SWEEP_PASSES = 3
+-- How many widget passes a tap's refocus sweep may take (input.lua, M.refocus): it needs three (the
+-- reverse ladder hides, the step buttons hide, all show), one more is margin. Counted in passes, not
+-- time, since a slow pass is no reason. Past it the surface is built, which ends the sweep the way a
+-- tap ended before it, so the encoder is never left without a ladder.
+local SWEEP_PASSES = 4
 
 function Drive:fastTick(now)
   if self.fastAt == now then return end

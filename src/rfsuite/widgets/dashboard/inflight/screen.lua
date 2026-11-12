@@ -492,8 +492,8 @@ local function appendFlight(children, widget, m, w, h, t, p)
   local titleX, titleW = m.pad + arrowW + 4, lineW - arrowW * 2 - 8
   local contentY = groupY + groupH + 4
   local paused = snapshot.profileRefusal ~= nil
-  -- The value surface's step buttons, appended after the group arrows (see there), and the one
-  -- `visible` answer they share with the reverse ladder's rows.
+  -- The value surface's step buttons, appended after the group arrows (see there), and their
+  -- `visible` answer for a tap's refocus sweep (Input.refocus).
   local steps, shown = {}, nil
   local picking = snapshot.groupPicker == true and not paused
   local hint, shortHint
@@ -578,10 +578,10 @@ local function appendFlight(children, widget, m, w, h, t, p)
       local forward, reverse = sensor.windows()
       local ladder, previous = {}, {}
       local first, leave = sensor.first, sensor.leave
-      -- The reverse ladder's rows hide for the sweep that takes the focus back to the widget after a
-      -- tap on + or - (Input.refocus); one answer for all of them and for the step buttons.
-      -- Inlined rather than Input.shown(drive): it is asked for every one of these on every pass.
-      -- Never while a step button is held (the runtime never builds then either): a press that lands
+      -- The step buttons hide for one pass of the sweep that takes the focus back to the widget after
+      -- a tap on + or - (Input.refocus); the reverse ladder hides as a whole, by its box's getter.
+      -- Inlined rather than Input.shown(drive): it is asked for both buttons on every pass. Never
+      -- while a step button is held (the runtime never builds then either): a press that lands
       -- between the release and the sweep keeps its button until its own release starts a new one.
       shown = function()
         local sweep = drive.tapSweep
@@ -592,15 +592,13 @@ local function appendFlight(children, widget, m, w, h, t, p)
       previous[1] = {
         type = "button", y = first * nameH, w = lineW, h = nameH,
         pos = function() return 0, sensor.positions[first - 1] + nameH * 2 end,
-        color = color, textColor = textColor, font = nameFont, text = nameText, press = leave,
-        visible = shown
+        color = color, textColor = textColor, font = nameFont, text = nameText, press = leave
       }
       local function guard(list, index)
         list[#list + 1] = {
           type = "button", x = 0, y = index * nameH, w = lineW, h = nameH,
           color = p.header, textColor = p.text, font = m.font,
-          text = t("widgets.dashboard.inflight_encoder", "Encoder"), press = sensor.leave,
-          visible = list == previous and shown or nil
+          text = t("widgets.dashboard.inflight_encoder", "Encoder"), press = sensor.leave
         }
       end
       guard(previous, 0)
@@ -611,7 +609,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
         list[#list + 1] = {
           type = "button", y = index * nameH, w = lineW, h = nameH,
           pos = position(index), color = color, textColor = textColor, font = nameFont,
-          text = nameText, press = leave, visible = list == previous and shown or nil
+          text = nameText, press = leave
         }
       end
       guard(ladder, ladderRows + 1)
@@ -627,7 +625,8 @@ local function appendFlight(children, widget, m, w, h, t, p)
       widget._inflightReverseNode = {
         type = "box", x = m.pad, y = contentY, w = lineW, h = nameH, borderPad = 0,
         scrollDir = (lvgl and lvgl.SCROLL_VER) or 12, scrollBar = false, color = p.bg,
-        scrolled = reverse.scrolled, scrollTo = reverse.scrollTo, opacity = reverse.opacity, children = previous
+        scrolled = reverse.scrolled, scrollTo = reverse.scrollTo, opacity = reverse.opacity,
+        visible = reverse.visible, children = previous
       }
     else
       appendLabel(children, m.pad, contentY, lineW, nameText, p.text, nameFont, CENTER)
