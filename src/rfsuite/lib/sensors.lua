@@ -1025,7 +1025,9 @@ end
 -- edge lands on the passes that already carry the link-down work -- the event runtime publishes
 -- the disconnect DISCONNECT_STABLE_SECONDS (also 2 s) after the same edge, and every source
 -- searches again. A sensor added while the link is down is still found by rewalkIfTableGrew, and
--- the reset at the reconnect walks the table afresh.
+-- the reset at the reconnect walks the table afresh. Where no walk has happened yet -- the link
+-- went within two seconds of coming up -- none is started until that reconnect either, and the
+-- labels are read as they are before any walk.
 function Sensors.reset(reason)
   -- The level is asked again after a reset, so a level changed on the radio reaches these lines at
   -- the next connect rather than at the next start.
@@ -1074,6 +1076,11 @@ function Sensors.reset(reason)
   duplicateNames = nil
   firstEmptySlot = nil
   slotWalkAt = nil
+  if reason == "link_lost" then
+    -- No walk on record: none until the reconnect's reset, which clears this.
+    slotWalkAt = math.huge
+    if debugWanted() then debugLog(nil, "reset on link loss: no slot walk yet, it waits for the reconnect") end
+  end
 end
 
 -- Get all 4-char sensor names (for tool enumeration)

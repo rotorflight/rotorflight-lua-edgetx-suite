@@ -123,6 +123,42 @@ walkReads = 0
 seconds(5, function() last = readCurrent() end)
 check(walkReads > 0, "the slot walk runs again after a plain reset", walkReads .. " slot read(s)")
 
+-- 3b. The link goes within two seconds of a connect, before any walk: none is started until the
+-- reconnect's reset.
+Sensors.reset()
+walkReads = 0
+seconds(1, readCurrent)
+linkUp = false
+Sensors.reset("link_lost")
+seconds(4, readCurrent)
+check(walkReads == 0, "a link lost before the first walk starts none while it is down", walkReads .. " slot read(s)")
+linkUp = true
+Sensors.reset()
+seconds(5, readCurrent)
+check(walkReads > 0, "and the reconnect's reset walks the table", walkReads .. " slot read(s)")
+
+-- 3c. The dashboard's own link-lost edge asks for that reset.
+do
+  local reasons = {}
+  local realReset = Sensors.reset
+  Sensors.reset = function(reason)
+    reasons[#reasons + 1] = tostring(reason)
+    return realReset(reason)
+  end
+  local savedRssi = _G.getRSSI
+  _G.getRSSI = function() return 0 end
+  local DashboardRuntime = assert(loadfile(ROOT .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
+  local widget = DashboardRuntime.new({ x = 0, y = 0, w = 800, h = 458 }, {})
+  widget.lastFblConnected = true
+  for _ = 1, 3 do Stubs.tick(); widget.background(widget) end
+  local linkLost = 0
+  for i = 1, #reasons do if reasons[i] == "link_lost" then linkLost = linkLost + 1 end end
+  check(linkLost == 1, "the dashboard's link-lost edge resets the sensors with \"link_lost\"",
+    "reasons: " .. table.concat(reasons, ","))
+  Sensors.reset = realReset
+  _G.getRSSI = savedRssi
+end
+
 -- 4. The event runtime: the model name restore is not in the call that publishes the disconnect.
 do
   local Events = _G.rfsuite.require("tasks/events/runtime.lua")
