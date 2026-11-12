@@ -2909,7 +2909,8 @@ local function updateConnectionState(self)
       self._boundsHold = boundsHold
       if Log and type(Log.emitf) == "function" then
         if boundsHold then
-          Log.emitf("rfsuite.widget", "debug", "first build waits for a cell count (voltage bounds %s/%s)",
+          Log.emitf("rfsuite.widget", "debug", "first build waits for a cell count (in hand %s from %s, voltage bounds %s/%s)",
+            tostring(self.state.batteryCellCount), tostring(self.state.batteryCellSource),
             tostring(self.state.themeConfig and self.state.themeConfig.v_min),
             tostring(self.state.themeConfig and self.state.themeConfig.v_max))
         elseif not rawReady then
@@ -4243,9 +4244,16 @@ local function readTelemetry(state, audioState)
     state.mainPowerLost = DashboardAudio.mainPowerLost(state, audioState)
   end
 
+  -- Where the count in use came from, kept beside it: "sensor", "config" or "voltage". A count
+  -- from the voltage is a guess, and the gate's first opening waits for the sensor's answer on a
+  -- model whose sensor has answered before (`cellSensorSeen`, kept across connections, see
+  -- updateVoltageThemeConfig). Logged when the count or its source changes, never per pass.
+  local cellsBefore, cellSourceBefore = state.batteryCellCount, state.batteryCellSource
   local batteryCellCountValue = getSensor("battery_cell_count")
   if type(batteryCellCountValue) == "number" and batteryCellCountValue > 0 then
     setField("batteryCellCount", roundInt(batteryCellCountValue, state.batteryCellCount or 0))
+    state.batteryCellSource = "sensor"
+    state.cellSensorSeen = true
   elseif type(voltageValue) == "number" and voltageValue > 0 then
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
     local batteryConfig = session and (session.batteryConfig or session.battery_config) or nil
@@ -4257,6 +4265,7 @@ local function readTelemetry(state, audioState)
     local configuredCells = tonumber(batteryConfig and batteryConfig.batteryCellCount)
     if configuredCells and configuredCells > 0 then
       setField("batteryCellCount", roundInt(configuredCells, state.batteryCellCount or 0))
+      state.batteryCellSource = "config"
     else
       -- Otherwise infer it from the battery config's max cell voltage. A voltage below half a
       -- cell is not a 1S pack but no pack at all -- a meter with nothing on it, or a pack that is
@@ -4269,14 +4278,27 @@ local function readTelemetry(state, audioState)
         local existingCells = tonumber(state.batteryCellCount)
         if not existingCells or existingCells <= 0 then
           setField("batteryCellCount", inferredCells)
+          state.batteryCellSource = "voltage"
         else
           local perCell = voltageValue / existingCells
           -- Reconnect-safe: replace stale cell count if implied per-cell voltage is implausible.
           if perCell < 2.5 or perCell > 4.5 then
             setField("batteryCellCount", inferredCells)
+            state.batteryCellSource = "voltage"
           end
         end
       end
+    end
+  end
+  if (state.batteryCellCount ~= cellsBefore or state.batteryCellSource ~= cellSourceBefore) and Log then
+    if state.batteryCellSource == "voltage" then
+      Log.emitf("rfsuite.widget", "debug", "cell count %s guessed from the pack voltage (%s V, %s before)",
+        tostring(state.batteryCellCount), tostring(voltageValue), tostring(cellsBefore))
+    else
+      Log.emitf("rfsuite.widget", "debug", "cell count %s from the %s (%s before)",
+        tostring(state.batteryCellCount),
+        state.batteryCellSource == "sensor" and "cell count sensor" or "flight controller's battery config",
+        tostring(cellsBefore))
     end
   end
 
@@ -4618,17 +4640,19 @@ function Runtime.new(zone, options)
   -- The old flat names of the record answer through this, and nothing else does: __index is
   -- reached only for a key the state table does not hold.
 
+  -- The count the bounds are derived for, and whether it is a guess from the pack voltage rather
+  -- than the cell count sensor's or the flight controller's count.
   local function resolveVoltageCellCount(state)
     local cells = tonumber(state and state.batteryCellCount)
     if cells and cells > 0 then
-      return math.floor(cells + 0.5)
+      return math.floor(cells + 0.5), state.batteryCellSource == "voltage"
     end
 
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
     local batteryConfig = session and (session.batteryConfig or session.battery_config) or nil
     local sessionCells = tonumber(batteryConfig and batteryConfig.batteryCellCount)
     if sessionCells and sessionCells > 0 then
-      return math.floor(sessionCells + 0.5)
+      return math.floor(sessionCells + 0.5), false
     end
 
     local voltage = tonumber(state and state.voltage)
@@ -4636,7 +4660,7 @@ function Runtime.new(zone, options)
     -- The same rule as readTelemetry's: a voltage below half a cell gives no count.
     if type(voltage) == "number" and voltage > 0 and maxCellVoltage > 0 then
       local implied = math.floor((voltage / maxCellVoltage) + 0.5)
-      if implied > 0 then return implied end
+      if implied > 0 then return implied, true end
     end
 
     return nil
@@ -4682,9 +4706,12 @@ function Runtime.new(zone, options)
 
   local function logVoltageThemeDecision(self, reason, cells, inMin, inMax, outMin, outMax)
     if not shouldLogAudio(self) then return end
+    -- Whether `cells` is a guess from the pack voltage, set by updateVoltageThemeConfig beside it.
+    local guessed = self._voltageCellsGuessed == true
     local key = table.concat({
       tostring(reason or "?"),
       tostring(cells or "x"),
+      guessed and "g" or "k",
       tostring(inMin or "x"),
       tostring(inMax or "x"),
       tostring(outMin or "x"),
@@ -4697,7 +4724,8 @@ function Runtime.new(zone, options)
       "voltage theme normalize reason=" .. tostring(reason)
         .. " cells=" .. tostring(cells)
         .. " in=" .. tostring(inMin) .. "/" .. tostring(inMax)
-        .. " out=" .. tostring(outMin) .. "/" .. tostring(outMax),
+        .. " out=" .. tostring(outMin) .. "/" .. tostring(outMax)
+        .. (guessed and " (count guessed from the pack voltage)" or ""),
       "debug"
     )
   end
@@ -4715,17 +4743,23 @@ function Runtime.new(zone, options)
     -- exactly what it computed before.
     local curMin = tonumber(currentConfig.v_min)
     local curMax = tonumber(currentConfig.v_max)
-    -- Whether the bounds in hand are the theme's unnormalized defaults with no cell count to
-    -- normalize them yet: the one state in which a count arriving is certain to rewrite them.
-    -- updateConnectionState holds the scene's first build on it. Set only on the two no-cells
-    -- returns below, so every other outcome of this call leaves it clear.
+    -- Whether the bounds in hand are about to be rewritten by a count still on its way: the
+    -- theme's unnormalized defaults with no cell count to normalize them yet, or bounds for a
+    -- count guessed from the pack voltage on a model whose cell count sensor has answered before
+    -- (a part-charged 6-cell pack reads as 5 cells until the sensor answers). updateConnectionState
+    -- holds the scene's first build on it. Set only on those outcomes below, so every other
+    -- outcome of this call leaves it clear. A model with no such sensor is never held for a
+    -- guess: nothing would ever replace it.
     self._voltageBoundsPending = nil
+    self._voltageCellsGuessed = nil
     if curMin ~= nil and curMax ~= nil then
       if currentConfig._customVoltage == true then
         logVoltageThemeDecision(self, "custom-config", nil, currentConfig.v_min, currentConfig.v_max, curMin, curMax)
         return
       end
-      local cells = resolveVoltageCellCount(self.state)
+      local cells, guessed = resolveVoltageCellCount(self.state)
+      self._voltageCellsGuessed = guessed
+      if guessed and self.state.cellSensorSeen == true then self._voltageBoundsPending = true end
       if not cells or cells <= 0 then
         if math.abs(curMin - 18.0) <= 0.01 and math.abs(curMax - 25.2) <= 0.01 then
           self._voltageBoundsPending = true
@@ -4775,7 +4809,9 @@ function Runtime.new(zone, options)
 
     local defaultMin = 18.0
     local defaultMax = 25.2
-    local cells = resolveVoltageCellCount(self.state)
+    local cells, guessed = resolveVoltageCellCount(self.state)
+    self._voltageCellsGuessed = guessed
+    if guessed and self.state.cellSensorSeen == true then self._voltageBoundsPending = true end
     if not cells or cells <= 0 then
       applyThemeConfig(self, nextConfig)
       if math.abs(nextConfig.v_min - defaultMin) <= 0.01 and math.abs(nextConfig.v_max - defaultMax) <= 0.01 then
@@ -5158,6 +5194,7 @@ function Runtime.new(zone, options)
       -- a new flight controller is a new answer to that question.
       self.state.armedSeen = false
       self.state.batteryCellCount = 0
+      self.state.batteryCellSource = nil
       -- What the link sources derived for the last session. The diversity latch above all:
       -- it only ever rises, so carrying it over would report a second antenna on a receiver
       -- that has none. The packet-rate memo goes with it so that the first pass of the new
