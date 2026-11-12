@@ -834,6 +834,52 @@ page.onClose()
 local storedHistory=load(PATH.."history_store.lua").new("test-board")
 storedHistory:load()
 eq(storedHistory.mask,(1<<19)-1,"actual complete run persists every validated step")
+-- The host builds only when asked (ui/home.lua coalesces requests to one build per pass). Walked
+-- that way, a card move shows the loading scene in one build, not two: the request the controller
+-- makes once the new cards are set is dropped while the loading scene is shown, and the publish
+-- request always passes. BENCH counts the same on the simulator.
+do
+  local scheduled=load(PATH.."page.lua")
+  local pending=true
+  local sctx={children={},x=0,y=0,w=480,h=272,menu={getCurrentMenuId=function() return "helicopter_setup_page" end},
+    requestRebuild=function() pending=true end,requestClose=function() end}
+  local loadingRun,maxLoadingRun,scenes,builds,presses,paused=0,0,0,0,0,false
+  local hint="@i18n(app.modules.helicopter_setup.loadingHint)@"
+  for _=1,3000 do
+    scheduled.wakeup(sctx)
+    if pending then
+      pending=false;sctx.children={};scheduled.build(sctx);builds=builds+1
+      local loading=false
+      for _,item in ipairs(sctx.children) do if item.text==hint then loading=true end end
+      if loading then loadingRun=loadingRun+1;if loadingRun>maxLoadingRun then maxLoadingRun=loadingRun end
+      elseif loadingRun>0 or scenes==0 then loadingRun=0;scenes=scenes+1 end
+    end
+    resolve(sctx.children)
+    pump();ticks=ticks+5
+    if scenes>1 and presses>=12 then break end
+    for _,item in ipairs(sctx.children) do
+      local active=type(item.active)~="function" or item.active()
+      if active and item.type=="toggle" and item.get and not item.get() and not settingSwitch(sctx.children,item) then
+        if not paused then ticks=ticks+400;paused=true end
+        item.set(true)
+      end
+      local caption=item.type=="button" and (type(item.text)=="function" and item.text() or item.text)
+      local key=type(caption)=="string" and string.match(caption,"^@i18n%(app%.modules%.helicopter_setup%.([%w_]+)%)@$")
+      if active and item.press and (key=="no" or caption==L.no) then
+        if not paused then ticks=ticks+400;paused=true end
+        item.press()
+      end
+      if active and item.press and (key=="continue" or key=="nextStep" or key=="completeSetup" or
+        caption==L.continue or caption==L.nextStep or caption==L.completeSetup) then
+        presses=presses+1;item.press();break
+      end
+    end
+  end
+  scheduled.onClose()
+  check(presses>=12,"scheduled walk moves through twelve cards ("..presses..")")
+  check(scenes>=12,"scheduled walk publishes a scene after each move ("..scenes..")")
+  eq(maxLoadingRun,1,"a card move shows the loading scene in one build")
+end
 historyFiles:restore()
 getValue,getFieldInfo,getSourceValue,model=originalSources.getValue,originalSources.getFieldInfo,originalSources.getSourceValue,originalSources.model
 
