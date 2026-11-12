@@ -28,6 +28,13 @@ SMLSIZE, MIDSIZE = 0, 1
 LCD_W, LCD_H = 480, 272
 local armed = false
 _G.rfsuite = { paths = PATHS, session = { fblConnected = true, mcu_id = "test-board", apiVersion = "12.10" } }
+-- The tool's loader that keeps nothing: a step's file goes through it, so the step's code leaves
+-- with its cards. Counted, so the controller's step build is seen taking that route.
+local uncachedStepLoads = 0
+_G.rfsuite.utils = { loadScriptUncached = function(path, mode)
+  if string.find(path, "/steps/", 1, true) then uncachedStepLoads = uncachedStepLoads + 1 end
+  return loadScript(path, mode)
+end }
 local q = { messages = {}, sent = {}, pending = nil }
 function q:add(m) self.messages[#self.messages + 1] = m end
 function q:clear(client)
@@ -1253,5 +1260,6 @@ for _,locale in ipairs({"en","de"}) do
   check(not string.find(block,"\226\128\148",1,true) and not string.find(block,"\226\128\166",1,true),
     "I18N "..locale.." wizard strings use glyphs the radio fonts have")
 end
+check(uncachedStepLoads>0,"STEP files are read past the tool's chunk cache")
 print(string.format("Wizard: %d assertions, %d failures",assertions,failures))
 if failures>0 then os.exit(1) end
