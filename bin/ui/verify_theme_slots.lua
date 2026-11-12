@@ -272,6 +272,30 @@ do
   check(Shared.restore("next pass") == true and radioColours(), "the owed restore finishes it")
 end
 
+-- 15. The same close while the widget is off screen (widgets/dashboard/runtime.lua, background, abandons
+--     the hosted tool): the widget's next background pass finishes the owed restore, with no refresh
+--     in between (src/widgets/rfsuite/main.lua, background).
+do
+  local savedLvgl = lvgl
+  lvgl = lvgl or {}
+  local Wrapper = assert(loadfile("src/widgets/rfsuite/main.lua"))()
+  lvgl = savedLvgl
+  local Host = assert(loadfile("src/rfsuite/widgets/dashboard/tool_host.lua"))()
+  local Shared = rfsuite.require("lib/theme_slots.lua")
+  Shared.apply("dark")
+  local widget = { _toolHost = {} }
+  widget.background = function(w)
+    if w._toolHost ~= nil then Host.abandon(w, "widget in the background"); w._toolHost = nil end
+  end
+  failAfter = 2
+  Wrapper.background(widget)
+  failAfter = nil
+  check(widget._themeRestoreOwed == true and Shared.holding(), "control: the background close's restore stopped and is owed")
+  Wrapper.background(widget)
+  check(radioColours() and not Shared.holding(), "the next background pass puts the radio's colours back")
+  check(widget._themeRestoreOwed == nil, "and owes nothing more")
+end
+
 -- 9. Without lcd.setColor (a desktop runner, an old radio) nothing is attempted.
 local saved = lcd.setColor
 lcd.setColor = nil
