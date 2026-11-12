@@ -801,9 +801,10 @@ end
 
 -- 11. The first connect after the radio is switched on. The widget takes its first look at the
 -- preferences with no board identified, so its stamp has no per-model half; the board's file
--- joins the stamp once the UID is read. The radio's file has not moved, so the reload that the new
--- half signals reads the model's file alone -- unless the reload request moved in the same look,
--- which names no file: then both are read. Either way the model's theme is the one on screen.
+-- joins the stamp once the UID is read. The radio's file has not moved and the session already
+-- holds what the model's file says (the UID read loaded it), so the new half is taken as the
+-- baseline and nothing is read again -- unless the reload request moved in the same look, which
+-- names no file: then both are read. Either way the model's theme is the one on screen.
 for _, bump in ipairs({ false, true }) do
   local tag = bump and "first connect, reload request moved with the model's file"
     or "first connect after power-on"
@@ -840,13 +841,14 @@ for _, bump in ipairs({ false, true }) do
   local stamp = world.w._lastPrefsStamp
   expect(type(stamp) == "string" and string.find(stamp, "|", 1, true) ~= nil,
     "control: the model's file joined the stamp (" .. tag .. ")", tostring(stamp))
-  expect(world.prefReloads == 1, tag .. ": the preferences are reloaded once", world.prefReloads .. " reload(s)")
   if bump then
+    expect(world.prefReloads == 1, tag .. ": the preferences are reloaded once", world.prefReloads .. " reload(s)")
     expect(loads.model == 1 and loads.global == 1, tag .. ": both files are read",
       "model " .. loads.model .. ", radio " .. loads.global)
   else
-    expect(loads.model == 1 and loads.global == 0, tag .. ": only the model's file is read",
-      "model " .. loads.model .. ", radio " .. loads.global)
+    expect(world.prefReloads == 0 and loads.model == 0 and loads.global == 0,
+      tag .. ": nothing is read again", world.prefReloads .. " reload(s), model " .. loads.model
+        .. ", radio " .. loads.global)
   end
   expect(world.w.themePath == "system/urban", tag .. ": the model's theme is on screen",
     tostring(world.w.themePath))

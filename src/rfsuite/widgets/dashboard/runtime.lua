@@ -2384,7 +2384,8 @@ end
 -- and reading the global file again there re-parses bytes nobody wrote, in the pass the connect
 -- work already fills. It is marked `appeared`, because no timestamp of the model's proves the
 -- clock is running here: the caller withdraws it when the reload request moved in the same look,
--- which is the signal a same-size save with a stopped clock leaves.
+-- which is the signal a same-size save with a stopped clock leaves, and takes the stamp as the
+-- baseline without reading anything where the session already holds that file's preferences.
 local function stampTime(half)
   return string.match(half or "", "^[^:]*:(.*)$")
 end
@@ -2537,9 +2538,20 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
       -- A model file that has only just appeared in the stamp says nothing about the global file
       -- by its own clock (see changedHalves). A save names no file when the reload request moves
       -- with it, so both are read then, as before.
+      -- Where nothing moved but the model's file joining the stamp, the session already holds what
+      -- that file says: the board's UID read loaded the preferences and set the path together, from
+      -- the same read, and every writer of that file moves the reload request. That is the state a
+      -- reconnect is in, which reloads nothing, so the stamp is taken as the baseline here too
+      -- rather than read again in the pass the connect work already fills.
       if seqMoved and halves and halves.appeared then
         halves = nil
         logGv("reloadPreferencesIfNeeded: the reload request moved with the model's file appearing, both files are read")
+      elseif halves and halves.appeared and type(session) == "table"
+        and type(session.modelPreferences) == "table" and session.modelPreferencesFile ~= nil then
+        self._lastPrefsStamp = stamp
+        signalReload = false
+        halves = nil
+        logGv("reloadPreferencesIfNeeded: the model's file joined the stamp with its preferences in hand, taken as the baseline")
       end
     else
       logGv("reloadPreferencesIfNeeded: fstat unavailable")
