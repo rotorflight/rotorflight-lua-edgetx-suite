@@ -21,7 +21,9 @@ flight controller connects, the theme is chosen once it has identified itself, s
 theme of its own goes straight back to it; one that does not identify itself gets the radio's
 theme. Where no post-flight screen is standing — the radio switched on with the model, say — the
 switch to a model's own theme happens while the connecting screen is still up, so the first screen
-the pilot sees after it is already the model's.
+the pilot sees after it is already the model's. On that first connect the dashboard reads only the
+model's settings file once the model has identified itself; the radio's file, read at switch-on,
+is read again only when a setting has been saved since.
 
 A theme's own settings, such as the voltage range its gauges span, are under
 *System* → *Settings* → *Dashboard* → *Settings*, one tile per theme
