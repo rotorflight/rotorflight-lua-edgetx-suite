@@ -720,7 +720,7 @@ local SEARCH_MISS_SECONDS = 2.0
 local SEARCH_MISS_MAX_SECONDS = 30.0
 -- How many sources may start their FIRST search in one pass; see the throttle in Sensors.getValue.
 -- Like the repeated-search throttle beside it, the count is kept per widget pass where the widget
--- marks one, and per clock reading otherwise (see passKey below).
+-- marks one, and per clock reading otherwise (see Sensors.passBegins below).
 local FIRST_SEARCHES_PER_PASS = 4
 -- Module-local, like fieldInfoCache and valueMisses above and unlike Sensors.active_paths: it is
 -- a timer of this file's own and nothing outside reads it. Sensors.reset() clears it.
@@ -743,28 +743,13 @@ local searchWaits = {}
 local PASS_MARK_SECONDS = 1.0
 local passMark = 0
 local passMarkAt = nil  -- in clock ticks (getTime), read raw: this runs at the top of every pass
-local passKeyed = nil  -- which key the throttles last used, for the one line when it changes
 
 --- Mark the start of a widget pass, for the search throttles in Sensors.getValue.
 function Sensors.passBegins()
+  if passMarkAt == nil and debugWanted() then debugLog(nil, "search throttles count per widget pass") end
   passMark = passMark + 1
   local clock = getTime
   passMarkAt = clock and clock() or nil
-end
-
--- The key the search throttles count against at clock reading `now` (seconds).
-local function passKey(now)
-  local age = passMarkAt and now - passMarkAt / 100
-  local marked = age ~= nil and age >= 0 and age < PASS_MARK_SECONDS
-  if marked ~= passKeyed then
-    passKeyed = marked
-    if debugWanted() then
-      debugLog(nil, marked and "search throttles count per widget pass"
-        or "search throttles count per clock tick (no widget pass mark)")
-    end
-  end
-  if marked then return passMark end
-  return now
 end
 
 local readValue
@@ -903,12 +888,14 @@ readValue = function(source)
   -- `armflags` is not held back. It is the one source whose absence reads as "not armed", and
   -- the widget asks for it after five others, so a cap would delay the arming state by a read
   -- after every reset. Its list is short, and before the limit it was searched on the first read.
+  -- The pass the throttles count against (see Sensors.passBegins): inline, because after a reset
+  -- this runs once for every source the caps hold back, in the same pass.
+  local key = now
+  if passMarkAt and now - passMarkAt / 100 < PASS_MARK_SECONDS then key = passMark end
   if previousWait ~= nil then
-    local key = passKey(now)
     if Sensors.last_search == key then return nil end
     Sensors.last_search = key
   elseif source ~= "armflags" then
-    local key = passKey(now)
     if Sensors.first_search_at ~= key then
       Sensors.first_search_at = key
       Sensors.first_searches = 0
