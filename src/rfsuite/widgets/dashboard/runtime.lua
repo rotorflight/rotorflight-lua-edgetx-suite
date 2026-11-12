@@ -135,14 +135,15 @@ local function releaseStandby(self, reason)
   cancelStandbyElrs(self, reason)
   if self._job and self._job.kind == "standby" then self._job = nil end
   if self._treeKind == "standby" then
-    -- The record first: a stop between the clear and it would leave an empty screen marked as
-    -- built, or on record as the standby, and the entry point keeps `built` after a stop that
-    -- interrupted no job.
+    -- Built, key and the record's key first: a stop between the clear and them would leave an
+    -- empty screen marked as built, or on record as the build for this key, and the entry point
+    -- keeps `built` after a stop that interrupted no job. The kind stays until after the clear,
+    -- so the next release still clears a tree that a stop before the clear left standing.
     self.built = false
     self.renderKey = nil
-    self._treeKind = nil
     self._treeKey = nil
     if lvgl and type(lvgl.clear) == "function" then lvgl.clear() end
+    self._treeKind = nil
   end
   local module = self._standbyModule
   self._standbyModule = nil

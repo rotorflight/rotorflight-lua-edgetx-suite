@@ -17,8 +17,8 @@
 --                        surface is built again once;
 --   job, inside step     a step stopped at the instruction limit still rebuilds;
 --   one-shot job         a stop in a one-shot job's pass over a finished tree still rebuilds;
---   release              a stop right after the standby's tree is cleared on leaving the screen
---                        leaves it marked unbuilt, so it is built again on return;
+--   release              a stop right after, or right before, the standby's tree is cleared on
+--                        leaving the screen leaves it marked unbuilt and still to be cleared;
 --   log                  the stop line names the pass's last work; a rebuild after a stop says so,
 --                        and a stop that keeps the tree does not claim one.
 --
@@ -96,10 +96,11 @@ local function recordLog()
 end
 
 -- Builds, counted at the stub radio's lvgl.build: the stub's tree list is emptied by every clear.
-local builds = 0
+local builds, standbyBuilds = 0, 0
 local realBuild = lvgl.build
 lvgl.build = function(...)
   builds = builds + 1
+  if widget._job and widget._job.kind == "standby" then standbyBuilds = standbyBuilds + 1 end
   return realBuild(...)
 end
 
@@ -279,6 +280,36 @@ rideOut()
 built = builds - trees
 check("release: back on screen, the standby is built again, once", built == 1, built)
 check("release: it stands built afterwards", widget.built == true and widget._job == nil)
+
+-- The same release stopped just BEFORE the clear: the tree still stands, so the record must still
+-- say there is a standby to clear, or the next release (the next pass off screen) skips the clear
+-- and the tree is held until something else builds.
+check("the standby stands again before the early-stop release case", settle())
+local earlyFired, clears = false, 0
+lvgl.clear = function(...)
+  if not earlyFired then
+    earlyFired = true
+    error("CPU limit", 0)
+  end
+  clears = clears + 1
+  return realClear(...)
+end
+local standbyBefore = standbyBuilds
+Stubs.tick()
+Entry.background(widget)
+check("release, early stop: the stop happened before the clear", earlyFired and clears == 0)
+check("release, early stop: the standing tree is not marked built", widget.built == false)
+for _ = 1, 10 do
+  Stubs.tick()
+  Entry.background(widget)
+end
+lvgl.clear = realClear
+check("release, early stop: a later pass off screen clears the tree", clears >= 1, clears)
+rideOut()
+-- Counted as standby builds: by now the stub flight controller has connected, so the dashboard's
+-- scene follows the standby within these passes.
+built = standbyBuilds - standbyBefore
+check("release, early stop: back on screen, the standby is built again, once", built == 1, built)
 
 for Log, realEmit in pairs(wrapped) do Log.emit = realEmit end
 lvgl.build = realBuild
