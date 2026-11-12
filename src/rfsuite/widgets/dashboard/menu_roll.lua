@@ -639,7 +639,9 @@ function M.renderKey(widget)
       .. " ms hole, the rest waits a pass (" .. tostring(roll.restWaits) .. " of " .. tostring(STALL_WAITS) .. ")")
   elseif roll.steppedAt ~= nil and recentre == nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS then
     if roll.restWaits ~= nil then
-      debugLog("the rest that waited " .. tostring(roll.restWaits) .. " pass(es) runs now")
+      -- The share read at the top of this pass is the pass that waited: the catch-up alone.
+      debugLog("the rest that waited " .. tostring(roll.restWaits) .. " pass(es) runs now; the pass it waited out took "
+        .. tostring(widget._usageLast) .. " % of the instruction budget")
       roll.restWaits = nil
     end
     roll.steppedAt = nil
