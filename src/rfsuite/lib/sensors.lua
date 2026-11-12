@@ -774,12 +774,15 @@ function Sensors.getValue(source)
 
   local derived = DERIVED[source]
   if not derived then return nil end
-  local word = readValue(derived.word)
+  -- The arming state's packed fallback is exempt from the first-search cap like `armflags` itself
+  -- (see the throttle in readValue): a board that sends no ARM row has its armed bit only there.
+  local word = readValue(derived.word, source == "armflags")
   if type(word) ~= "number" then return nil end
   return bit32.band(bit32.rshift(math.floor(word), derived.shift), derived.mask)
 end
 
-readValue = function(source)
+-- `uncapped`: the source's first search is not held back by FIRST_SEARCHES_PER_PASS.
+readValue = function(source, uncapped)
   if type(source) ~= "string" then return nil end
 
   if not loggedSimulatorState then
@@ -895,7 +898,7 @@ readValue = function(source)
   if previousWait ~= nil then
     if Sensors.last_search == key then return nil end
     Sensors.last_search = key
-  elseif source ~= "armflags" then
+  elseif source ~= "armflags" and not uncapped then
     if Sensors.first_search_at ~= key then
       Sensors.first_search_at = key
       Sensors.first_searches = 0

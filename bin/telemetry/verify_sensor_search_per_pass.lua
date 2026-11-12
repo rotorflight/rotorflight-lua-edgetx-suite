@@ -17,6 +17,8 @@
 --   no mark           a host that never marks keeps the clock key, so its searches still run;
 --   stale mark        a mark older than a second is no mark: searches resume instead of being
 --                     held by a pass number that no longer moves;
+--   arming fallback   with the cap spent, the arming state is still read from the System Status
+--                     word when the board sends no ARM row;
 --   the dashboard     the real dashboard runtime marks a pass in refresh() and in background().
 -- Exit status: 0 green, 1 failed expectations, 2 invalid arguments.
 
@@ -149,6 +151,23 @@ if type(Sensors.passBegins) == "function" then
   for _ = 1, 10 do searched = searched + pass(false) end
   check(searched == #SOURCES, "a mark older than a second no longer holds the searches",
     searched .. " of " .. #SOURCES)
+end
+
+-- 3b. The arming state through its packed fallback is not held back by the cap. The board sends
+-- no ARM row, only the System Status word (STAT, bit 0 = armed); four other sources have already
+-- started their first search in this pass. `armflags` itself is exempt from the cap, and so must
+-- be the System Status search it falls back to, or the armed bit reads as nothing for a pass.
+if type(Sensors.passBegins) == "function" then
+  Sensors.reset()
+  Stubs.sensors["STAT"] = 1
+  Stubs.tick()
+  Sensors.passBegins()
+  for _, source in ipairs({ "rpm", "link", "pid_profile", "rate_profile" }) do Sensors.getValue(source) end
+  local armed = Sensors.getValue("armflags")
+  check(armed == 1, "the armed bit is read from STAT in a pass whose first-search cap is spent",
+    "armflags = " .. tostring(armed))
+  Stubs.sensors["STAT"] = nil
+  Sensors.reset()
 end
 
 -- 4. The dashboard marks its passes, on screen and off.
