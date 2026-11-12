@@ -330,6 +330,30 @@ for _,size in ipairs({{480,272},{480,320},{800,480}}) do
   while not failure.done do failure:step() end
   exported[#exported+1]={step=0,name="status-error",task="status-error",width=size[1],height=size[2],children=resolve(failure.children)}
   historyPreview.error,historyPreview.statusFailure=nil,nil
+  -- The memory stop: with unsaved changes, without, and with a release not confirmed. Everything
+  -- stays on the screen and its buttons end above the footer's Back.
+  local savedDirty=historyPreview.dirty
+  for _,variant in ipairs({{"memory-stop-changes",{motor_config=true}},{"memory-stop",{}},{"memory-stop-cleanup",{},true}}) do
+    historyPreview.error,historyPreview.memoryStop=variant[3] and "cleanup: x" or "memory",true
+    historyPreview.dirty,historyPreview.cleanupFailed=variant[2],variant[3]
+    local stop=view.new(historyPreview,{w=size[1],h=size[2]},diagrams)
+    while not stop.done do stop:step() end
+    local nodes=resolve(stop.children)
+    local backY,lowest,inside=nil,0,true
+    for _,node in ipairs(nodes) do
+      if node.x and node.y and node.w and node.h then
+        if node.x<0 or node.y<0 or node.x+node.w>size[1] or node.y+node.h>size[2] then inside=false end
+      end
+      if node.type=="button" and node.text==L.back then backY=node.y end
+      if node.type=="button" and (node.text==L.saveExit or node.text==L.discardExit or node.text==L.closeWizard) then
+        lowest=math.max(lowest,node.y+node.h)
+      end
+    end
+    check(inside,variant[1].." stays on a "..size[1].."x"..size[2].." screen")
+    check(backY and lowest>0 and lowest<backY,variant[1].." buttons end above Back on "..size[1].."x"..size[2])
+    exported[#exported+1]={step=0,name=variant[1],task=variant[1],width=size[1],height=size[2],children=nodes}
+  end
+  historyPreview.error,historyPreview.memoryStop,historyPreview.dirty,historyPreview.cleanupFailed=nil,nil,savedDirty,nil
   historyPreview.recoveryRequired=true;historyPreview:buildModelPreparation()
   local recovery=view.new(historyPreview,{w=size[1],h=size[2]},diagrams)
   while not recovery.done do recovery:step() end
@@ -723,15 +747,29 @@ do
   for _=1,6 do w:tick();pump();ticks=ticks+1 end
   check(next(w.holds)~=nil,"tests are held before the stop")
   w.buildRequested=true
+  -- The stop fires on the exit question, with a profile loop cut off half way.
+  w.confirmExit,w.restoreProfile=true,2
+  local inputs={}
+  local fields={"step","card","cards","confirmExit","disconnectExit","overview","historyFailure","error","stepMenu"}
+  for i,name in ipairs(fields) do inputs[i]=w[name] end
   q.sent={}
   getAvailableMemory=function() return 200*1024 end;w:checkMemory()
   eq(w.memoryStop,"releasing","below the stop level the wizard stops")
+  local unchanged=true
+  for i,name in ipairs(fields) do if inputs[i]~=w[name] then unchanged=false end end
+  check(unchanged,"the stop changes no scene input until the releases are answered")
   check(next(w.holds)==nil and w.motorHold==nil,"the stop drops every held test")
   check(w.buildRequested==nil,"the stop drops a card build still owed")
   check(not w.error,"the stop screen waits for the releases")
   for _=1,60 do w:tick();pump();ticks=ticks+1;if w.memoryStop==true then break end end
   eq(w.memoryStop,true,"the stop screen follows the releases")
   eq(w.error,"memory","the stop is shown as the visit's end")
+  check(not w.confirmExit and w.restoreProfile==nil,"the stop screen replaces the exit question")
+  local reselected=false
+  for _,m in ipairs(q.sent) do
+    if m.command==api("set_pid_profile").command and m.payload[1]==2 then reselected=true end
+  end
+  check(reselected,"a profile loop cut off by the stop selects its profile again")
   local offs={}
   for _,m in ipairs(q.sent) do offs[m.command]=(offs[m.command] or 0)+1 end
   eq(offs[api("servo_override").writeCommand],8,"every servo override released")

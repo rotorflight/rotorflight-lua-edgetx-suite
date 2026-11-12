@@ -17,8 +17,8 @@ end
 local function now() return getTime() end
 local TAG = "rfsuite.helicopter_setup"
 -- Free radio memory, in kB, below which the wizard warns and below which it stops. Running out
--- closes the whole Lua state, and a servo override held at that moment stays active with nothing
--- left to release it. One card change was seen to take about 100 kB on a radio; the levels leave
+-- closes the whole Lua state; a motor test held at that moment, or a servo or mixer test on
+-- firmware without the override timeout, stays active with nothing left to release it. One card change was seen to take about 100 kB on a radio; the levels leave
 -- room for that and for the stop screen.
 local MEMORY_WARN_KB, MEMORY_STOP_KB = 350, 250
 -- A reading this small is not a heap about to run out: the simulator answers a constant 1000 bytes.
@@ -223,21 +223,31 @@ function M.new(runtime, transport, mathModule, labels)
   -- Nothing new is started: the transport is cancelled, every override is released, a card build
   -- still owed is dropped. The stop screen is built once the releases are answered, so no new
   -- scene competes with them for memory.
+  -- Scene inputs are left as they are until the stop screen is built, so the releases run with
+  -- no new scene; a profile loop cut off here selects the profile it started from again.
   function w:stopForMemory(kb)
     self:log("error", "radio memory too low, free %s kB (stop below %s kB): tests released, visit stopped", kb, MEMORY_STOP_KB)
     self.memoryStop, self.memoryLow, self.memoryOwed = "releasing", true, nil
     self.escBusy = nil
     self.bus:cancel()
+    local dropped = self.pendingEditDropped
+    self.statusQueued, self.pendingEdit, self.pendingEditDropped = nil, nil, nil
+    if dropped then dropped() end
     self.buildRequested, self.keptCards = nil, nil
-    self.confirmExit, self.exitToSteps, self.backTarget, self.jumpTarget = nil, nil, nil, nil
     self.canEdit, self.canNext = false, false
     self:release(true)
+    if self.restoreProfile and self:allowed() then
+      if self.logInfo then self:log("info", "profile %s selected again after the stop", self.restoreProfile) end
+      self.bus:add({ api = "set_pid_profile", write = true, payload = { self.restoreProfile }, optional = true })
+      self.restoreProfile = nil
+    end
     self.transition = nil
   end
   -- The stop screen, once no release is outstanding. A failed release is shown on it, not as Retry.
   function w:memoryStopTick()
-    if self.memoryStop ~= "releasing" or (self.cleanupPending or 0) > 0 then return end
+    if self.memoryStop ~= "releasing" or (self.cleanupPending or 0) > 0 or not self.bus:idle() then return end
     self.memoryStop, self.error = true, "memory"
+    self.confirmExit, self.exitToSteps, self.backTarget, self.jumpTarget, self.stepMenu = nil, nil, nil, nil, nil
     if self.logInfo then self:log("info", "memory stop shown, unsaved changes %s", tostring(next(self.dirty) ~= nil)) end
     self:rebuild()
   end
