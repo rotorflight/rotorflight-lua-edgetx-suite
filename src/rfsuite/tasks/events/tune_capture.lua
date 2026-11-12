@@ -40,7 +40,8 @@
 -- capture stays off until the next connection.
 --
 -- Without the PID# and RTE# telemetry sensors, MSP_STATUS is read once after the axes and before
--- the save, so the flight is saved under the profiles the flight controller flies now (readProfiles).
+-- the save, so the flight is saved under the profiles the flight controller flies now (readProfiles);
+-- a read the queue dropped is asked again.
 --
 -- After the flight is saved and the clear has gone through, RC_TUNING and PID_PROFILE are read
 -- and the cyclic polarity, the cyclic ring and the I-term relax type are added to the flight,
@@ -349,8 +350,9 @@ end
 -- Without the profile sensors: one MSP_STATUS read after the axes and before the save, so the
 -- flight is saved under the profiles the flight controller flies now, and the session -- what
 -- the Tune Advisor page takes for the active profiles -- follows a switch made on the
--- transmitter. A read that fails or is dropped leaves the session's profiles, as before, and is
--- not asked again for this flight.
+-- transmitter. A read the queue dropped (a link loss, however short) is asked again, the axes
+-- already read kept, as the settings reads are. A read that fails leaves the session's profiles,
+-- as before, and is not asked again for this flight.
 local function readProfiles(tc, queue)
   tc.busy = true
   local api = StatusApi
@@ -380,9 +382,15 @@ local function readProfiles(tc, queue)
       publishState(tc)
     end,
     errorHandler = function(_, reason)
+      StatusApi = nil
+      if reason == "cleared" then
+        log("profile read dropped by the queue; asked again", "debug")
+        waitFor(tc, RETRY_SECONDS)
+        publishState(tc)
+        return
+      end
       log("profile read failed (" .. tostring(reason) .. "); the session's profiles are used", "info")
       tc.profilesRead = true
-      StatusApi = nil
       waitFor(tc, GAP_SECONDS)
       publishState(tc)
     end,

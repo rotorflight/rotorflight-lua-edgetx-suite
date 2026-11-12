@@ -1450,6 +1450,57 @@ do
   asked = pump({ status = { n = 1, reason = "timeout" } })
   check("a failed profiles read falls back to the session's and the flight is saved", asked == "roll,pitch,yaw,clear"
     and #rig.statusAsked == 1 and savedProfiles() == "1/1", asked .. " / saved " .. savedProfiles())
+
+  -- The queue drops the read (a link loss, however short): asked again, the axes already read kept
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump({ status = { n = 1, reason = "cleared" } })
+  check("a profiles read the queue dropped is asked again and the flight saved under the profiles read",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 2 and savedProfiles() == "2/3",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+
+  -- The same through a real link loss: the read goes out, the link drops and the queue with it,
+  -- nothing is sent while it is down, and once it is back the read is asked again
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump(nil, 3)
+  local statusMsg
+  for _ = 1, 40 do
+    rig.clock = rig.clock + 0.5
+    rig.pass()
+    if rig.requests[1] and rig.name(rig.requests[1]) == "status" then statusMsg = rig.take(); break end
+  end
+  check("(setup) the profiles read goes out after the three axes", asked == "roll,pitch,yaw" and statusMsg ~= nil, asked)
+  rig.setLink(false)
+  if statusMsg then statusMsg.errorHandler(statusMsg, "cleared") end
+  rig.passes(40, 0.5)
+  local sentWhileDown = #rig.requests
+  rig.setLink(true)
+  local after = pump()
+  check("a profiles read dropped by a link loss is asked again once the link is back, and the flight saved under them",
+    sentWhileDown == 0 and after == "clear" and #rig.statusAsked == 1 and savedProfiles() == "2/3",
+    sentWhileDown .. " sent while down / " .. after .. " / " .. #rig.statusAsked .. " status after / saved "
+      .. savedProfiles())
+
+  -- Dropped again and again: not a link error, so not given up on
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump({ status = { n = 5, reason = "cleared" } }, nil, 60)
+  check("a profiles read dropped five times is still asked again, and the flight saved under the profiles read",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 6 and savedProfiles() == "2/3",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
 end
 
 -- ---------------------------------------------------------------------------
