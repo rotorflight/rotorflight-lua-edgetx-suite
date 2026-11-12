@@ -93,6 +93,11 @@ ground: the darkness becomes transparency in the scheme's colour. It reads the c
 `text` in light, as dark as the pictures are today; `accentInk` in dark, the role for a glyph. Run it after changing either
 value; `--check` says where a picture is missing, stale or left over.
 
+The page header's icon is the exception: the firmware tints it itself, with the header's title colour,
+and reads only the picture's darkness as its shape. So it is the Rotorflight "RF" in black on white,
+one file per header height and none per scheme: `assets/icon.png` (30 px, 480-wide screens, also the
+model template's screens) and `assets/icon_800.png` (40 px, 800-wide screens), picked in `ui/home.lua`.
+
 ## What a scheme cannot reach
 
 Directly, nothing: `toggle`, `choice` and `numberEdit` parse `color` and ignore it, and the header of

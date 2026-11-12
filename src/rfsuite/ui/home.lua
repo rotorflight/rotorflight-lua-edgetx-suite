@@ -76,7 +76,10 @@ local MEM_LOW_CLEAR_KB = 96
 -- here" and neither warns nor is logged.
 local MEM_FREE_MIN_KB = 4
 
-local APP_ICON  = _G.rfsuite.paths.core .. "/assets/icon.png"
+-- The page header's icon. EdgeTX draws it at the file's own size, centred in the header's corner
+-- and tinted with the header's title colour (a mask from the picture's darkness), so there is one
+-- file per header height: 45 px on a 480-wide screen, 62 px on an 800-wide one.
+local APP_ICON  = _G.rfsuite.paths.core .. (((LCD_W or 480) >= 800) and "/assets/icon_800.png" or "/assets/icon.png")
 
 local M = {}
 
@@ -263,6 +266,8 @@ local function logf(level, fmt, ...)
     Log.emitf("rfsuite.ui", level, fmt, ...)
   end
 end
+
+logf("debug", "header icon %s (screen width %s)", APP_ICON, tostring(LCD_W))
 
 -- What was being started. Written to a file of its own that is closed again immediately, so it
 -- is on the card even when the call it names never returns.
