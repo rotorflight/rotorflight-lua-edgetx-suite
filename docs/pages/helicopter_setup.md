@@ -147,7 +147,10 @@ The Suite menu offers **Complete setup**, each of the 19 individual steps, and
 **Setup history**. All entry points share the same lazy-loaded page: only the
 selected step definition is loaded. Complete setup starts at step 1 in the original
 order. An individual step starts directly, using current FC settings, and returns
-to the Suite menu after completion. The step title also returns to that menu after
+to the Suite menu after completion. The wizard's code stays in memory while you move between
+these entries; once you leave the Helicopter Setup menu for another menu or page, it is let go,
+and the next opening reads it from the card again, which takes a little longer than a reopening
+inside the menu. A step's own file is read each time the step is entered. The step title also returns to that menu after
 saving or discarding pending changes. RTN/EXIT follows the same Back route.
 
 Direct configuration steps ask for blades removed and servos unplugged; direct

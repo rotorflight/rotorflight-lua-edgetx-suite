@@ -1099,7 +1099,16 @@ function M.new(runtime, transport, mathModule, labels)
         self.cards, self.validate, self.onLive, self.commit = kept, model.validate, model.onLive, model.commit
         if self.logDebug then self:log("debug", "cards %s kept", key) end
       else
-        self.cards = assert(loadScript(BASE .. "app/pages/helicopter_setup/steps/" .. key .. ".lua", "t"))()(self)
+        -- A step's file is read past the tool's chunk cache, so its code leaves with the step's
+        -- cards rather than staying until the wizard's area is left; a step entered again reads
+        -- its file from the card again. The uncached loader takes the suite's load mode itself.
+        local root = _G.rfsuite
+        local uncached = root and root.utils and root.utils.loadScriptUncached
+        local stepPath = BASE .. "app/pages/helicopter_setup/steps/" .. key .. ".lua"
+        local stepChunk
+        if type(uncached) == "function" then stepChunk = uncached(stepPath, root.loadMode or "t")
+        else stepChunk = loadScript(stepPath, "t") end
+        self.cards = assert(stepChunk)()(self)
         self.cards.model = { step = self.step, edits = self.edits, rebootPending = self.rebootPending,
           validate = self.validate, onLive = self.onLive, commit = self.commit }
         if self.logDebug then self:log("debug", "cards %s built, %s", key, #self.cards) end

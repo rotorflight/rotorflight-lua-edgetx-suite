@@ -84,3 +84,32 @@ time -- from the card, unless the tool already holds its compiled chunk (see bel
 - `rfsuite.clearModule(path)` drops one entry and `rfsuite.clearAllModules()` drops all of them;
   the next `rfsuite.require` runs the module again. In the tool, `loadScript` keeps the compiled
   chunk of most files (`src/main.lua`), so that run need not read the card.
+
+## Chunks a page lets go when the pilot leaves its area
+
+The tool's `loadScript` keeps a compiled chunk until the tool closes, except a page's own
+`page.lua` -- in the tool started from the Tools menu (`src/main.lua`) and in the tool opened from
+the dashboard (`widgets/dashboard/tool_host.lua`). A page module can ask for the chunks under its
+own folder to go earlier, by naming the menu its entries sit in:
+
+```lua
+local M = { visitMenu = "helicopter_setup_menu" }
+```
+
+When the page is released, the page registry (`app/pages/init.lua`) notes the page's folder. On
+every change of menu or page the tool then calls `registry.endVisits(currentMenuId)`
+(`ui/home.lua`): while the pilot is on that menu or on a page whose file is in that folder, the
+chunks stay; once neither holds, the registry calls `rfsuite.utils.releaseChunksUnder(folder)`,
+which both loaders publish for their own cache, and the next visit reads the files from the card
+again. So several menu entries that open the same page keep its code while the pilot moves between
+them.
+
+Only chunks under the page's folder go. Files it loads from elsewhere -- MSP APIs, libraries other
+pages use too -- stay cached, and no module instance is touched: the page drops its own in its
+`onClose`, and a module someone else still holds keeps its code alive. Nothing is collected at that
+moment, because the old scene is still on screen until the next build replaces it; the memory comes
+back with the collector's normal work. With the debug log level, the tool writes a line
+`page area left for <menu>: N visit(s) ended, M chunk(s) let go`.
+
+The helicopter setup is the page that uses it; it also reads each step's file past the cache
+(`rfsuite.utils.loadScriptUncached`), so a step's code goes with the step's cards.

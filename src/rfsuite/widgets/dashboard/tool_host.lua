@@ -159,6 +159,26 @@ local function installLoader(host)
   host.chunks = chunks
   host.originalLoadScript = original
   _G.loadScript = load
+
+  -- The page registry's hook for letting go of a page area's chunks (visitMenu in
+  -- app/pages/init.lua), for this loader's cache; src/main.lua publishes the same function for
+  -- the tool started from the Tools menu. Taken back in removeLoader.
+  local utils = _G.rfsuite and _G.rfsuite.utils
+  if type(utils) == "table" then
+    local function releaseChunksUnder(prefix)
+      local released = 0
+      if type(prefix) ~= "string" or prefix == "" then return released end
+      for path in pairs(chunks) do
+        if string.sub(path, 1, #prefix) == prefix then
+          chunks[path] = nil
+          released = released + 1
+        end
+      end
+      return released
+    end
+    host.releaseChunksUnder = releaseChunksUnder
+    utils.releaseChunksUnder = releaseChunksUnder
+  end
 end
 
 -- Puts back the function installLoader replaced, unless something has been put over it since;
@@ -175,6 +195,11 @@ local function removeLoader(host)
   for path in pairs(chunks) do
     chunks[path] = nil
   end
+  local utils = _G.rfsuite and _G.rfsuite.utils
+  if type(utils) == "table" and host.releaseChunksUnder ~= nil and utils.releaseChunksUnder == host.releaseChunksUnder then
+    utils.releaseChunksUnder = nil
+  end
+  host.releaseChunksUnder = nil
 end
 
 local function dropToolModules()

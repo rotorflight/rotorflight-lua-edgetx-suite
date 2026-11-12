@@ -926,6 +926,18 @@ local function syncActivePageModule()
     end
   end
 
+  -- A page that asked for its code to leave once the pilot has left its area (visitMenu in
+  -- app/pages/init.lua) has its chunks let go here, on the transition out of that area. Nothing
+  -- is collected now: the old scene is still on screen until the next build replaces it.
+  if PageRegistry and type(PageRegistry.endVisits) == "function" then
+    local okEnd, ended, chunks = pcall(PageRegistry.endVisits, currentMenuId)
+    if not okEnd then
+      reportHookCrash("PageRegistry.endVisits", currentMenuId, ended)
+    elseif type(ended) == "number" and ended > 0 then
+      logf("debug", "page area left for %s: %d visit(s) ended, %d chunk(s) let go", tostring(currentMenuId), ended, chunks or 0)
+    end
+  end
+
   -- With what is left at that moment, read after the previous page was released: the line
   -- before and the line after a visit say what the visit kept. Only built at a level that
   -- writes the line.

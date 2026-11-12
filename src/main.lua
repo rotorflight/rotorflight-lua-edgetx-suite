@@ -13,6 +13,23 @@ _G.rfsuite.utils.clearChunkCache = function()
   _G.loadScript = originalLoadScript
 end
 
+-- Lets go of every kept chunk whose path starts with `prefix` and returns how many went. The page
+-- registry calls it when the pilot has left the area of a page that asks for it (visitMenu in
+-- app/pages/init.lua). A module instance made from such a chunk is not touched: whoever holds it
+-- keeps it, and the next load of the file reads it from the card again. The tool opened from the
+-- dashboard publishes the same function for its own loader (widgets/dashboard/tool_host.lua).
+_G.rfsuite.utils.releaseChunksUnder = function(prefix)
+  local released = 0
+  if type(prefix) ~= "string" or prefix == "" then return released end
+  for path in pairs(chunkCache) do
+    if string.sub(path, 1, #prefix) == prefix then
+      chunkCache[path] = nil
+      released = released + 1
+    end
+  end
+  return released
+end
+
 -- A page's own module file. Whoever loaded it -- the page cache in app/pages/init.lua, or a
 -- page that uses another page's functions -- holds the module for as long as it wants it, and
 -- the chunk is not kept beyond that: kept here, the bytecode of every page ever opened would

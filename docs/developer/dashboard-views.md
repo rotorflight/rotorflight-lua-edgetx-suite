@@ -406,7 +406,8 @@ neither a view, the base layer nor the dashboard's own work runs beside it:
 - **Loading**, from the first of those passes until the tool closes, `loadScript` is the tool
   script's loader (`src/main.lua`) for the suite's own files: the suite's load mode in place of
   the one a caller passes, so a current `.luac` beside a file is read rather than its source, and
-  every chunk but a page's own module kept until the tool closes. The widget's global table is
+  every chunk but a page's own module kept until the tool closes, or until the pilot leaves the
+  area of a page that asks for it ([module loader](../reference/module-loader.md)). The widget's global table is
   shared with every other widget on the radio, so any other path reaches the radio's loader as it
   was asked for.
 - **Running**, the tool's `run(event, touchState)` is called under the widget's event context, so
