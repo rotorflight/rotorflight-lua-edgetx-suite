@@ -529,7 +529,9 @@ local function finishCapture(tc, mcuId)
       -- A flight saved before and not cleared off the board since: this reading may hold it too
       local held = tc.held and tc.held[mcuId]
       local previous = nil
-      if held then
+      -- Without the history module (it did not load) there is nothing to compare with: the save
+      -- below fails as a write does
+      if held and TuneHistory then
         local contains, why = containsHeld(held, replies, TuneHistory.TUNE_KEYS, pid, rate, seconds)
         if contains then
           previous = { time = held.time, seconds = held.seconds }
