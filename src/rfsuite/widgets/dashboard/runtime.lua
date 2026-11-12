@@ -2888,6 +2888,43 @@ local function updateConnectionState(self)
   -- appear for one frame, vanish, and come back a second later.
   local holdSeconds = self.everReady and SPLASH_READY_HOLD_SECONDS or 0
   local ready = (rawReady and self.readySince ~= nil and (now - self.readySince) >= holdSeconds) or softTimeoutReady
+
+  -- The theme's voltage bounds are part of what its scene is built from -- a gauge keeps the range
+  -- it was built with -- and they move to the pack's bounds once a cell count is known, which
+  -- clears the render key and builds the whole scene again. The battery test above can pass on a
+  -- fuel reading alone, before this connection has heard a pack voltage or a cell count, so the
+  -- first scene would be built on the theme's defaults and again a moment later.
+  -- updateVoltageThemeConfig marks exactly that state (`_voltageBoundsPending`: the defaults in
+  -- hand and no count), and the gate's FIRST opening waits for the count -- for at most
+  -- five seconds from the moment everything else was ready, so a model that never reports
+  -- a pack voltage still gets its dashboard. The wait overlaps the reconnect hold rather than
+  -- adding to it, and a gate that is already open is never shut by it -- nor pays for it: an open
+  -- gate skips the whole block.
+  local unheldReady = ready
+  if self.connectionReady ~= true then
+    local boundsHold = (ready and rawReady and self._voltageBoundsPending == true
+      and (now - self.readySince) < 5.0) == true
+    if boundsHold then ready = false end
+    if boundsHold ~= (self._boundsHold == true) then
+      self._boundsHold = boundsHold
+      if Log and type(Log.emitf) == "function" then
+        if boundsHold then
+          Log.emitf("rfsuite.widget", "debug", "first build waits for a cell count (voltage bounds %s/%s)",
+            tostring(self.state.themeConfig and self.state.themeConfig.v_min),
+            tostring(self.state.themeConfig and self.state.themeConfig.v_max))
+        elseif not rawReady then
+          Log.emitf("rfsuite.widget", "trace", "cell count wait left: the gate shut")
+        elseif self._voltageBoundsPending ~= true then
+          Log.emitf("rfsuite.widget", "debug", "cell count in after %.1f s, first build goes ahead",
+            now - (self.readySince or now))
+        else
+          Log.emitf("rfsuite.widget", "info", "no cell count after %.1f s, the dashboard is built on the theme's voltage bounds",
+            now - (self.readySince or now))
+        end
+      end
+    end
+  end
+
   local t = (self.i18n and type(self.i18n.t) == "function") and self.i18n.t or nil
 
   local statusLine, standbyInfoKind = nil, nil
@@ -3016,7 +3053,8 @@ local function updateConnectionState(self)
   -- announcing the model may not, because the announcement needs the name that chain reads.
   -- This is the condition `ready` itself carried before the chain left the gate above, soft
   -- timeout included, so the audio path sees no change at all.
-  self.startupComplete = ready and (tasksDone or softTimeoutReady)
+  -- The wait for a cell count above holds the scene only, not the announcement.
+  self.startupComplete = unheldReady and (tasksDone or softTimeoutReady)
   return ready, statusLine
 end
 
@@ -4677,6 +4715,11 @@ function Runtime.new(zone, options)
     -- exactly what it computed before.
     local curMin = tonumber(currentConfig.v_min)
     local curMax = tonumber(currentConfig.v_max)
+    -- Whether the bounds in hand are the theme's unnormalized defaults with no cell count to
+    -- normalize them yet: the one state in which a count arriving is certain to rewrite them.
+    -- updateConnectionState holds the scene's first build on it. Set only on the two no-cells
+    -- returns below, so every other outcome of this call leaves it clear.
+    self._voltageBoundsPending = nil
     if curMin ~= nil and curMax ~= nil then
       if currentConfig._customVoltage == true then
         logVoltageThemeDecision(self, "custom-config", nil, currentConfig.v_min, currentConfig.v_max, curMin, curMax)
@@ -4684,6 +4727,9 @@ function Runtime.new(zone, options)
       end
       local cells = resolveVoltageCellCount(self.state)
       if not cells or cells <= 0 then
+        if math.abs(curMin - 18.0) <= 0.01 and math.abs(curMax - 25.2) <= 0.01 then
+          self._voltageBoundsPending = true
+        end
         logVoltageThemeDecision(self, "no-cells", cells, currentConfig.v_min, currentConfig.v_max, curMin, curMax)
         return
       end
@@ -4732,6 +4778,9 @@ function Runtime.new(zone, options)
     local cells = resolveVoltageCellCount(self.state)
     if not cells or cells <= 0 then
       applyThemeConfig(self, nextConfig)
+      if math.abs(nextConfig.v_min - defaultMin) <= 0.01 and math.abs(nextConfig.v_max - defaultMax) <= 0.01 then
+        self._voltageBoundsPending = true
+      end
       logVoltageThemeDecision(self, "no-cells", cells, currentConfig.v_min, currentConfig.v_max, nextConfig.v_min, nextConfig.v_max)
       return
     end
