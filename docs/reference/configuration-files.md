@@ -183,7 +183,7 @@ copies your data over by itself on the first start:
 
 - `journal/<mcu id>.lua` — the append-only [change journal](change-journal.md), recording each value committed by the Tune Advisor.
 - `tune/<mcu id>.lua` — the [Tune Advisor](../pages/flight_tuning/tune_advisor.md)'s saved flights, the last 5 per
-  flight controller, written by the dashboard or the service widget after each disarm. Lua data read with an
+  PID and rate profile and at most 20 in all, written by the dashboard or the service widget after each disarm. Lua data read with an
   environment of its own, never run as a script: a version line `v(1)`, then one `f(...)` line per flight and axis.
   Each save writes `<mcu id>.lua.new` beside it, checks its size and renames it into place, keeping the previous
   file as `<mcu id>.lua.bak` until the next save. If a save is cut short after the old file was renamed to `.bak`
