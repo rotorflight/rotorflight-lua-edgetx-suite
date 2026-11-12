@@ -43,10 +43,13 @@ function M.refocus(widget)
   local drive = widget._inflight
   if not (drive and drive.live == true and drive.phase == "live") then return end
   local sensor = widget._inflightSensor
-  -- A detent turned while the button was held can have put the focus on a reverse row. Hiding the box
-  -- would strand it there (a focused child is not moved off), so that case builds as before.
-  if sensor == nil or drive.pressScrolls == nil or sensor.scrolls ~= drive.pressScrolls then
-    trace("tap refocus", nil, "the ladder moved while held: the surface is built")
+  -- A tap takes the focus only when its button is not the one pressed last (LVGL's click focus skips
+  -- `last_pressed`, cleared only when the object is deleted): a repeat tap leaves the focus where it
+  -- was. Once the ladder has scrolled since the last build or refocus, that can be a ladder row --
+  -- one this sweep would not move (a focused child of the hidden box is not moved off), and one the
+  -- reset below would misstate. So that tap builds as before; taps in a row after it do not.
+  if sensor == nil or sensor.scrolls ~= sensor.restScrolls then
+    trace("tap refocus", nil, "the ladder moved since the last build or refocus: the surface is built")
     return M.rebuild(widget)
   end
   -- Every ladder row carries the same name, so the forward box shows it while the reverse one is
@@ -71,8 +74,6 @@ function M.dispatch(widget, action, direction, source, index)
   -- first sensor return even when that control's action is refused by the pulse owner.
   local sensor = widget._inflightSensor
   if sensor and (source == "touch" or source == "touch_hold") then sensor.index = nil end
-  -- The ladder's scroll count at the press, so the release can tell whether a detent came between.
-  if source == "touch_hold" and action == "step" then drive.pressScrolls = sensor and sensor.scrolls end
   local armed = widget.state and widget.state.armed == true
   if drive.fcSetupOpen and drive.fcSurface and not armed then
     if action == "back" then
@@ -163,7 +164,7 @@ end
 function M.sensor(widget, rowHeight, count, valueMode)
   local drive = widget._inflight
   local start = valueMode and math.floor(count / 2) or drive.entry
-  local sensor = { row = start, index = start, y = (start - 1) * rowHeight, scrolls = 0,
+  local sensor = { row = start, index = start, y = (start - 1) * rowHeight, scrolls = 0, restScrolls = 0,
     building = true, positions = {}, indices = {} }
   widget._inflightSensor = sensor
   -- A build ends any refocus sweep: its focus is on the widget already.
@@ -293,6 +294,7 @@ function M.sensor(widget, rowHeight, count, valueMode)
       end
       drive.tapSweep = nil
       sensor.reset()
+      sensor.restScrolls = sensor.scrolls
       trace("tap refocus shown", sweep.passes, "passes")
       return true
     end

@@ -1021,6 +1021,15 @@ local function nativeScene(nodes, view, counts, tall)
       self:focusAt(j)
     else self:focusAt(self:nextShown(self.at, direction)) end
   end
+  -- A pointer press on a focusable object: LVGL focuses it unless it is the object pressed last
+  -- (lv_indev.c indev_click_focus, LVGL pin 5f129c54; `last_pressed` is cleared only when the object
+  -- is deleted, i.e. by a build -- a new scene here). A repeat tap on the same button keeps the focus.
+  function scene:click(index)
+    local object = self.focus[index]
+    if self.lastPressed ~= object then self:focusAt(index) end
+    self.lastPressed = object
+    return object.node
+  end
   function scene:press()
     if self.at == 0 then return Input.key(view, EVT_VIRTUAL_ENTER) end
     return self.focus[self.at].node.press()
@@ -1060,7 +1069,7 @@ for _, valueMode in ipairs({true, false}) do
     for index, object in ipairs(scene.focus) do
       local node = object.node
       if node.text == text or (node.children and node.children[1] and node.children[1].text == text) then
-        scene:focusAt(index)
+        scene:click(index)
         node.press()
         return node
       end
@@ -1199,7 +1208,7 @@ do
     for index, object in ipairs(scene.focus) do
       local node = object.node
       if node.children and node.children[1] and node.children[1].text == "+" then
-        scene:focusAt(index)
+        scene:click(index)
         node.press()
         node.release()
         return
@@ -1209,20 +1218,38 @@ do
   end
   render()
   local scenes = counts.scenes
-  for _, direction in ipairs({1, -1}) do
+  -- A tap with the ladder at rest (just built, or a refocus since its last scroll) sweeps, and taps in
+  -- a row keep sweeping. The first tap after the encoder moved the ladder builds once: a repeat tap
+  -- does not take the focus (LVGL's last_pressed), so it can still be on a ladder row.
+  local builds = 0
+  local function tapAndSettle(expectBuild, label)
+    local epochBefore = instance.ladderEpoch or 0
     settle(); tapPlus()
-    -- fastTick counts passes for the fallback: the three passes come before it would build.
-    scene:refsSweep(); scene:refsSweep(); scene:refsSweep()
-    check(instance.tapSweep == nil and scene.at == 0, "refocus " .. direction .. ": focus back on the widget")
+    if expectBuild then
+      check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epochBefore + 1,
+        "refocus: " .. label .. " builds once (the focus may be on a ladder row)")
+      render(); builds = builds + 1
+    else
+      check(instance.tapSweep ~= nil and (instance.ladderEpoch or 0) == epochBefore,
+        "refocus: " .. label .. " sweeps instead of building")
+      -- fastTick counts passes for the fallback: the three passes come before it would build.
+      scene:refsSweep(); scene:refsSweep(); scene:refsSweep()
+    end
+    check(instance.tapSweep == nil and scene.at == 0, "refocus: " .. label .. ": focus back on the widget")
+  end
+  for _, case in ipairs({{1, false, "the first tap after a build"}, {-1, true, "a tap after a detent forward"},
+                         {1, true, "a tap after a detent back"}}) do
+    tapAndSettle(case[2], case[3])
     settle()
     local fired = instance.fired
-    scene:rotate(direction); scene:sweep()
-    check(instance.fired == fired + 1, "refocus: the first detent " .. (direction > 0 and "forward" or "back")
-      .. " after a tap steps once (fired " .. fired .. " -> " .. instance.fired .. ")")
+    scene:rotate(case[1]); scene:sweep()
+    check(instance.fired == fired + 1, "refocus: the first detent " .. (case[1] > 0 and "forward" or "back")
+      .. " after " .. case[3] .. " steps once (fired " .. fired .. " -> " .. instance.fired .. ")")
     settle()
   end
-  settle(); tapPlus()
-  scene:refsSweep(); scene:refsSweep(); scene:refsSweep()
+  tapAndSettle(true, "a tap after the last detent")
+  tapAndSettle(false, "a repeat tap with the ladder at rest")
+  tapAndSettle(false, "a third tap in a row")
   local fired = instance.fired
   -- Inside the pulse the leave is refused as before (cooling), and nothing steps.
   scene:press()
@@ -1230,7 +1257,8 @@ do
   settle()
   scene:press()
   check(instance.fired == fired and instance.valueMode ~= true, "refocus: ENTER on the widget leaves value mode and does not step")
-  check(counts.scenes == scenes, "refocus: three taps built no scene (" .. (counts.scenes - scenes) .. ")")
+  check(counts.scenes == scenes + builds, "refocus: taps built only where the ladder had moved ("
+    .. (counts.scenes - scenes) .. " builds, " .. builds .. " expected)")
   -- A press that lands between a release and its sweep: the held button is not hidden and keeps the
   -- focus; its own release starts the sweep again, which then takes the focus back.
   instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
@@ -1240,11 +1268,11 @@ do
     local node = object.node
     if node.children and node.children[1] and node.children[1].text == "+" then plusAt, plusNode = index, node end
   end
-  scene:focusAt(plusAt); plusNode.press(); plusNode.release()
+  scene:click(plusAt); plusNode.press(); plusNode.release()
   ticks = ticks + 31; instance:fastTick(ticks)
   ticks = ticks + 16; instance:fastTick(ticks)
   local heldFired = instance.fired
-  scene:focusAt(plusAt); plusNode.press()
+  scene:click(plusAt); plusNode.press()
   check(instance.holdRow ~= nil and instance.fired == heldFired + 1, "refocus: a second press before the sweep is accepted and held")
   scene:refsSweep()
   check(scene.at == plusAt and not scene.focus[plusAt].hidden and not scene.reverse.hidden
@@ -1263,7 +1291,7 @@ do
     if node.children and node.children[1] and node.children[1].text == "+" then plusAt, plusNode = index, node end
   end
   local epochHeld, scrollsHeld = instance.ladderEpoch or 0, view._inflightSensor.scrolls
-  scene:focusAt(plusAt); plusNode.press()
+  scene:click(plusAt); plusNode.press()
   scene:rotate(1); scene:rotate(1); scene:rotate(1)
   check(view._inflightSensor.scrolls > scrollsHeld and scene.focus[scene.at].parent == scene.reverse,
     "control: three detents while + is held put the focus on a reverse row and scroll the ladder")
