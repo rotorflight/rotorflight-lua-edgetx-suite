@@ -133,7 +133,10 @@ end
 local REFRESH_PAUSE_S = 2
 -- Only a marker on the card loads the module, and it is let go again unless this state holds colours
 -- of its own, so a pause costs one fstat and keeps nothing. Never while the tool is open in this widget:
--- that tool owns the marker and the module instance (widgets/dashboard/tool_host.lua).
+-- that tool owns the marker and the module instance (widgets/dashboard/tool_host.lua). A recover that
+-- stops part way (the instruction limit) leaves the marker, and is tried again on the next passes, at
+-- most RECOVER_TRIES times per pause, so one that keeps stopping does not load the module every pass.
+local RECOVER_TRIES = 3
 local function recoverThemeSlots(widget)
   local root = _G.rfsuite
   local user = root and root.paths and root.paths.user
@@ -142,7 +145,17 @@ local function recoverThemeSlots(widget)
   if fstat(user .. "/theme_slots.txt") == nil then return end
   local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
   if ok and type(ThemeSlots) == "table" and type(ThemeSlots.recover) == "function" then
-    pcall(ThemeSlots.recover)
+    local done, err = pcall(ThemeSlots.recover)
+    if not done and fstat(user .. "/theme_slots.txt") ~= nil then
+      local tries = (widget._themeRecoverTries or 0) + 1
+      widget._themeRecoverTries = tries
+      if tries < RECOVER_TRIES then widget._themeRecoverOwed = true end
+      local Log = root.Log
+      if type(Log) == "table" and type(Log.emit) == "function" then
+        pcall(Log.emit, "rfsuite.widget", "theme slot recovery stopped (try " .. tries .. " of " .. RECOVER_TRIES
+          .. "): " .. tostring(err), "warn")
+      end
+    end
     if not ThemeSlots.holding() and type(root.clearModule) == "function" then
       root.clearModule("lib/theme_slots.lua")
     end
@@ -173,6 +186,7 @@ local function refresh(widget, event, touchState)
     widget._lastRefreshAt = now
     if last == nil or now - last > REFRESH_PAUSE_S then
       widget._themeRecoverOwed = true
+      widget._themeRecoverTries = nil
     end
     local backoffUntil = tonumber(widget._cpuBackoffUntil) or 0
     if backoffUntil > 0 and now < backoffUntil then
