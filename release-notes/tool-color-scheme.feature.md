@@ -3,3 +3,4 @@
   - While the tool is open, the radio's own switches, number fields, choices and page header take the scheme's colors too. The radio's theme colors come back when the tool closes, also after a long press of RTN or an error; should that fail, the dashboard puts them back once it is shown again, the tool when it is next closed.
   - A saved change of the scheme shows at once.
   - A tile that cannot be opened yet is greyed in light and an empty frame with a faded icon in dark.
+  - The icon in the page header's corner is the plain Rotorflight "RF", sized for the screen, instead of the small helicopter drawing.
