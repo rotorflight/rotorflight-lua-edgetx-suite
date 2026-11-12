@@ -78,6 +78,7 @@ local SavePipeline = nil
 local Cache = nil
 local Armed = nil
 local ChangeJournal = nil
+local JournalCompact = nil
 local t = nil
 
 local AXIS_ROLL, AXIS_PITCH, AXIS_YAW = 1, 2, 3
@@ -274,6 +275,33 @@ local function pageLog(level, fmt, ...)
   if type(Log) == "table" and type(Log.emitf) == "function" then
     pcall(Log.emitf, "rfsuite.tune_advisor", level, fmt, ...)
   end
+end
+
+-- A change journal above ChangeJournal.ROTATE_AT starts afresh (lib/journal_compact.lua): on the
+-- open, before it is read, and after a Save that left it there. One step per pass; true once
+-- there is nothing (more) to do. A journal it could not start afresh is tried again on the next
+-- open or Save, and is read meanwhile from its newest part.
+local function compactPass()
+  if not ui.compactJob then
+    if not ui.compactOwed then return true end
+    ui.compactOwed = false
+    if not ChangeJournal then ChangeJournal = loadModule("lib/change_journal.lua") end
+    if not JournalCompact then JournalCompact = loadModule("lib/journal_compact.lua") end
+    if not (ChangeJournal and JournalCompact) then
+      pageLog("debug", "change journal due to start afresh, but its modules did not load")
+      return true
+    end
+    pageLog("trace", "change journal: starting it afresh")
+    ui.compactJob = JournalCompact.job(ChangeJournal, ui.mcu)
+    return false
+  end
+  -- A step that raises ends the start afresh as failed, so the page never stays on it
+  local ok, done, reason = pcall(JournalCompact.step, ui.compactJob)
+  if not ok then done, reason = nil, tostring(done) end
+  if done == false then return false end
+  pageLog(done and "info" or "debug", "change journal started afresh: %s", tostring(done or reason))
+  ui.compactJob, JournalCompact = nil, nil
+  return true
 end
 
 local function ensureDeps()
@@ -945,6 +973,7 @@ local function queueHistoryRead()
   ui.mcu = sessionMcu()
   ui.axes, ui.axesBuilt, ui.flights, ui.readJob, ui.journalJob = nil, nil, nil, nil, nil
   ui.journalFinish = nil
+  ui.compactJob, ui.compactOwed = nil, nil
   for axis = AXIS_ROLL, AXIS_YAW do ui.applied[axis] = nil end
   local session = getSession()
   local capture = session and session.tuneCapture
@@ -997,6 +1026,14 @@ local function readHistoryStep()
     -- table of them is kept.
     if not ui.journalJob then
       if not ChangeJournal then ChangeJournal = loadModule("lib/change_journal.lua") end
+      -- A journal above the size it starts afresh at does so first, so it is read whole. One left
+      -- only as `.bak` by a start afresh cut short is put back under its name first, so it does too.
+      if ChangeJournal and ui.compactOwed == nil then
+        if type(ChangeJournal.restore) == "function" then ChangeJournal.restore(ui.mcu) end
+        local size = type(ChangeJournal.size) == "function" and ChangeJournal.size(ui.mcu) or nil
+        ui.compactOwed = size ~= nil and size > ChangeJournal.ROTATE_AT
+      end
+      if not compactPass() then return end
       if ChangeJournal and type(ChangeJournal.readJob) == "function" then
         local pid, rate = currentProfiles()
         local wants, fields = {}, {}
@@ -1414,7 +1451,10 @@ function M.onSave(ctx)
           local profile = change.profileKind == "pid" and snapshot.tune.pidProfile or snapshot.tune.rateProfile
           entries[i] = { source = "tune_advisor", profile = profile, field = change.field, old = change.from, new = change.to }
         end
-        local appended = journal and journal.append(snapshot.tune.mcu, entries)
+        local appended, due = false, false
+        if journal then appended, due = journal.append(snapshot.tune.mcu, entries) end
+        -- Started afresh on a later pass of this visit (wakeup)
+        if appended and due and generation == ui.generation then ui.compactOwed = true end
         if active then
           journalFailed = not appended
           render()
@@ -1466,6 +1506,10 @@ function M.wakeup(ctx)
 
   if ui.loadStep then
     readHistoryStep()
+    return
+  end
+  if ui.compactOwed or ui.compactJob then
+    compactPass()
     return
   end
   if ui.probeOwed and not ui.probing and ui.mcu then
@@ -1623,6 +1667,7 @@ function M.onClose()
   ui.applyGeneration = ui.applyGeneration + 1
   ui.mcu, ui.loadStep, ui.readJob, ui.journalJob, ui.flights, ui.axes = nil, nil, nil, nil, nil, nil
   ui.journalFinish = nil
+  ui.compactJob, ui.compactOwed = nil, nil
   ui.axesBuilt = nil
   ui.probeOwed, ui.probing, ui.unsupported, ui.unsavedSeconds, ui.flightCount = false, false, false, 0, 0
   ui.captureState, ui.seenSaved, ui.profileKey = nil, nil, nil
@@ -1646,7 +1691,7 @@ function M.onClose()
   TuneHistory = nil
   RcTuningApi, PidTuningApi, PidProfileApi, SavePipeline = nil, nil, nil, nil
   StatusApi = nil
-  Cache, Armed, ChangeJournal = nil, nil, nil
+  Cache, Armed, ChangeJournal, JournalCompact = nil, nil, nil, nil
   t = nil
 end
 

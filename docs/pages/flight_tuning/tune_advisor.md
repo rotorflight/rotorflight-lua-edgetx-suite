@@ -152,9 +152,9 @@ profiles they were flown on keep *Save* off as well; fly again.
   page follows the [change journal](../../reference/change-journal.md) back through its own changes to P on that
   axis and PID profile, and stops at any other change. A P set by hand on the *PIDs* page starts the count again.
   If stops still bounce back after that, the reasons say "P is already ...% above your setting. Check the
-  mechanics." More P will not fix it. With no journal yet, your current P counts as your own. Of a journal over
-  64 KiB only its newest 64 KiB are read, which holds the last 1400 or so changes; a change of the page's own
-  older than that is not seen, so the oldest value read counts as yours (for FF and the rates as well). A journal
+  mechanics." More P will not fix it. With no journal yet, your current P counts as your own. The journal starts
+  afresh once it passes 16 KiB and keeps your own P, FF and rates, so the limits count from your own values however
+  many saves lie between (see [change journal](../../reference/change-journal.md#starting-afresh)). A journal
   that is there but cannot be read (it does not open, for example) raises no P and changes no FF at all, and the
   reasons say "The change journal could not be read, so P is not raised and FF is not changed." A full-stick cut
   is still suggested then.
@@ -222,6 +222,11 @@ older flights out. Each value written is added to the flight controller's
 [change journal](../../reference/change-journal.md), with the profile, the old and the new value, so you can see
 what the advisor changed and set it back by hand. A journal failure is reported with the save result; the changes
 already stored on the flight controller stay stored. *\** does not erase the journal.
+
+When a save leaves the journal above 16 KiB, about 350 changes, the page starts it afresh on the passes after the
+save. If you leave the page before then, it does so the next time the page opens, before it reads the journal; with
+a large journal from an earlier version, that one opening takes a few seconds longer. Nothing is shown for it: the
+advice and the limits stay as they were.
 
 ## Adjustment functions
 

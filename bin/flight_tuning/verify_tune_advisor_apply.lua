@@ -61,6 +61,7 @@ local PIPELINE_PATH = "tasks/msp/save_pipeline.lua"
 -- luacheck: globals io
 local files = {}
 local openFails = {}           -- path -> true: opening it for reading answers nil
+local renameFails = {}         -- source path -> true: renaming it answers an error
 io.open = function(path, mode)
   mode = mode or "r"
   local m = string.sub(mode, 1, 1)
@@ -92,6 +93,7 @@ end
 function mkdir() return 0 end
 function del(path) files[path] = nil; return 0 end
 function rename(from, to)
+  if renameFails[from] then return 1 end
   if files[from] == nil or files[to] ~= nil then return 8 end
   files[to], files[from] = files[from], nil
   return 0
@@ -151,16 +153,34 @@ local stubs = {
 local real = {
   [PAGE_PATH] = true, [PIPELINE_PATH] = true,
   ["lib/tune_history.lua"] = true, ["lib/change_journal.lua"] = true, ["lib/atomic_file.lua"] = true,
+  ["lib/journal_compact.lua"] = true,
   ["lib/api_version.lua"] = true,
   ["tasks/msp/api/tune_advisor.lua"] = true, ["tasks/msp/api/status.lua"] = true,
   ["tasks/msp/api/pid_tuning.lua"] = true, ["tasks/msp/api/pid_profile.lua"] = true,
   ["tasks/msp/api/rc_tuning.lua"] = true, ["tasks/msp/api/eeprom_write.lua"] = true,
 }
+-- Each step of the change journal's start afresh, as the page takes it: whether a save was in
+-- progress then, and `compactRaises` makes the step raise
+local compactSteps = { applying = 0, total = 0 }
+local compactRaises = false
+local ui
 function loadScript(path)
   local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
   if stubs[relative] then local mod = stubs[relative]; return function() return mod end end
   assert(real[relative], "unexpected module: " .. tostring(path))
-  return assert(loadfile(ROOT .. relative))
+  local chunk = assert(loadfile(ROOT .. relative))
+  if relative ~= "lib/journal_compact.lua" then return chunk end
+  return function()
+    local mod = chunk()
+    local step = mod.step
+    mod.step = function(job)
+      compactSteps.total = compactSteps.total + 1
+      if ui and ui.applying then compactSteps.applying = compactSteps.applying + 1 end
+      if compactRaises then error("step raised") end
+      return step(job)
+    end
+    return mod
+  end
 end
 
 
@@ -233,7 +253,8 @@ end
 -- Journal entries of this suite's change journal: {source, profile, field, old, new}
 local function journal(entries)
   local path = Journal.path(MCU)
-  files[path] = nil
+  -- The earlier generation too: a journal standing only as `.bak` is put back by the next append
+  files[path], files[path .. ".bak"], files[path .. ".new"] = nil, nil, nil
   if #entries > 0 then assert(Journal.append(MCU, entries), "journal append failed") end
 end
 
@@ -242,7 +263,6 @@ end
 -- ---------------------------------------------------------------------------
 local Page = assert(loadfile(ROOT .. PAGE_PATH))()
 local Pipeline = assert(loadfile(ROOT .. PIPELINE_PATH))()
-local ui
 for i = 1, 40 do
   local name, value = debug.getupvalue(Page.canSave, i)
   if name == "ui" then ui = value; break end
@@ -317,6 +337,7 @@ local function pump(reply)
   for _ = 1, 400 do
     local busy = pass(reply, sent)
     local idle = not busy and ui.loadStep == nil and not ui.probeOwed and not ui.applying and not wantBuild
+      and not ui.compactOwed and not ui.compactJob
     quiet = idle and quiet + 1 or 0
     if quiet >= 3 then break end
   end
@@ -810,36 +831,87 @@ do
     and contains(ui.view.whys, T().whyJournalUnread) and not contains(ui.view.actions, "->"),
     table.concat(ui.view.whys, " | "))
   openFails[Journal.path(MCU)] = nil
-  -- A journal over its read cap of 64 KiB is read from its newest part (#1170): the advisor's own
-  -- raises at its end still cap P, and the page does not call it unreadable
-  files[Journal.path(MCU)] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
-    .. 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\ne(1761900002,"tune_advisor",1,"pid_0_P",60,70)\n'
+  -- A journal above the size it starts afresh at (over 64 KiB here, past what was read before)
+  -- starts afresh when the page opens, before it is read: the advisor's own raises are carried
+  -- into the new journal as one line, and cap P from the pilot's own P wherever they stood.
+  local JPATH = Journal.path(MCU)
+  local padding = string.rep('e(1761900003,"pids",1,"pid_2_P",1,2)\n', 2000)
+  local function whys() return table.concat(ui.view.whys, " | ") end
+  local function capped() return not canSave() and contains(ui.view.whys, string.format(T().whyPMaxFmt, 40))
+    and not contains(ui.view.whys, T().whyJournalUnread) end
+  local CARRIED = 'e(1761900004,"tune_advisor",1,"pid_0_P",50,70)\n'
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
+    .. 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\ne(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
+  local before = files[JPATH]
   openPage()
-  check("a journal over its read cap still caps P from its newest entries (#1170)",
-    #files[Journal.path(MCU)] > 65536 and not canSave()
-    and contains(ui.view.whys, string.format(T().whyPMaxFmt, 40))
-    and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
-  -- The advisor's own raises older than the newest 64 KiB are not read, and the oldest value read
-  -- counts as the pilot's: with both raises before the window P 70 is the pilot's, and with the
-  -- first one cut off P 60 is (cap 90). The documented trade-off of reading only the newest part.
-  files[Journal.path(MCU)] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
-    .. 'e(1761900002,"tune_advisor",1,"pid_0_P",60,70)\n'
-    .. string.rep('e(1761900003,"pids",1,"pid_2_P",1,2)\n', 2000)
+  check("own raises at the end of a large journal cap P; the journal starts afresh holding only them",
+    #before > 65536 and capped() and files[JPATH] == CARRIED and files[JPATH .. ".bak"] == before, whys())
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. 'e(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n' .. padding
+  before = files[JPATH]
   openPage()
-  check("own raises older than the newest 64 KiB are not read: P 70 counts as the pilot's",
-    #files[Journal.path(MCU)] > 65536 and canSave()
-    and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
-  files[Journal.path(MCU)] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
-    .. string.rep('e(1761900003,"pids",1,"pid_2_P",1,2)\n', 2000)
+  check("own raises older than 64 KiB of other entries still cap P from the pilot's own P 50",
+    #before > 65536 and capped() and files[JPATH] == CARRIED and files[JPATH .. ".bak"] == before, whys())
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n' .. padding
     .. 'e(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
   openPage()
-  check("a chain of own raises cut by the window counts from the oldest value read (P 60)",
-    #files[Journal.path(MCU)] > 65536 and canSave()
-    and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
-  files[Journal.path(MCU)] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
+  check("a chain of own raises with 64 KiB of other fields between them still counts from P 50",
+    capped() and files[JPATH] == CARRIED, whys())
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = padding
   openPage()
-  check("(control) one over its read cap with no raise of roll's P raises it", #files[Journal.path(MCU)] > 65536
-    and canSave() and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
+  check("(control) one with no raise of roll's P raises it, and starts afresh empty",
+    canSave() and not contains(ui.view.whys, T().whyJournalUnread) and files[JPATH] == "", whys())
+  -- The other profile's chain and the other fields' chains are carried too, each as one line
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = 'e(1761900001,"tune_advisor",2,"pid_0_P",40,44)\ne(1761900002,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. 'e(1761900005,"tune_advisor",2,"pid_0_P",44,48)\n' .. padding
+    .. 'e(1761900006,"tune_advisor",1,"rcRates_1",40,50)\ne(1761900007,"tune_advisor",1,"pid_0_P",60,70)\n'
+  openPage()
+  check("every open chain is carried, each with the time of its last change: profile 2's P, profile 1's P, the rate",
+    capped() and files[JPATH] == 'e(1761900005,"tune_advisor",2,"pid_0_P",40,48)\n'
+      .. 'e(1761900007,"tune_advisor",1,"pid_0_P",50,70)\n'
+      .. 'e(1761900006,"tune_advisor",1,"rcRates_1",40,50)\n', tostring(files[JPATH]))
+
+  -- A start afresh that cannot be put in place leaves the journal as it was, and the page reads
+  -- its newest part instead: the raises at its end still cap P. The next open tries again.
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = padding .. 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\ne(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
+  before = files[JPATH]
+  renameFails[JPATH] = true
+  openPage()
+  check("a start afresh that fails leaves the journal whole, read from its newest part: P still capped",
+    capped() and files[JPATH] == before and files[JPATH .. ".bak"] == nil, whys())
+  renameFails[JPATH] = nil
+  files[JPATH .. ".new"] = nil
+  openPage()
+  check("the next open starts it afresh", capped() and files[JPATH] == CARRIED, whys())
+  -- Cut short between its two renames: only the `.bak` stands, and it is a large journal (a start
+  -- afresh only runs above the size). The open puts it back under its name and starts it afresh
+  -- first, so own raises at its start still cap P.
+  local parked = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\ne(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
+    .. padding
+  files[JPATH .. ".bak"] = parked
+  files[JPATH] = nil
+  openPage()
+  check("only a large .bak standing, own raises at its start: put back and started afresh, P still capped from 50",
+    capped() and files[JPATH] == CARRIED and files[JPATH .. ".bak"] == parked, whys())
+  -- (control) the same lone .bak read as it stands: from its newest part, the raises are not seen
+  files[JPATH .. ".bak"], files[JPATH] = parked, nil
+  local realLoadScript = loadScript
+  loadScript = function(path, ...)
+    local chunk = realLoadScript(path, ...)
+    if not string.find(path, "lib/change_journal.lua", 1, true) then return chunk end
+    return function() local m = chunk(); m.restore = nil; return m end
+  end
+  openPage()
+  loadScript = realLoadScript
+  check("(control) without putting it back first, the lone .bak is read from its newest part: P raised",
+    canSave() and files[JPATH] == nil, whys())
+  files[JPATH .. ".bak"] = nil
 
   -- A long journal (a thousand entries, about 40 kB) is read over many passes, and the walk
   -- still finds the advisor's own raises at its end
@@ -1185,6 +1257,56 @@ do
     and contains(ui.view.whys, T().whyJournalUnread) and not contains(ui.view.actions, "->"), reasons())
   openFails[Journal.path(MCU)] = nil
   journal({})
+  resetFlights()
+end
+
+print("The change journal starts afresh after a Save that leaves it above its size")
+do
+  local JPATH = Journal.path(MCU)
+  local function reasons() return table.concat(ui.view.whys, " | ") end
+  resetFc()
+  journal({})
+  files[JPATH .. ".bak"] = nil
+  openPage()
+  applyNow()
+  -- Other pages' entries up to just under the size it starts afresh at
+  local line = 'e(1761900003,"pids",1,"pid_2_P",1,2)\n'
+  local pad = (Journal.ROTATE_AT - #files[JPATH]) // #line
+  files[JPATH] = files[JPATH] .. string.rep(line, pad)
+  local beforeSave = #files[JPATH]
+  flightRoll = { F = 96, rcRate = 23, sRate = 30 }
+  openPage()
+  local unchangedOnOpen = #files[JPATH] == beforeSave and files[JPATH .. ".bak"] == nil
+  applyNow()
+  local text = files[JPATH] or ""
+  check("the Save's append passes the size; on the next passes the journal starts afresh with F and both rates",
+    unchangedOnOpen and beforeSave <= Journal.ROTATE_AT and fc.tuning.pid_0_F == 77
+    and #(files[JPATH .. ".bak"] or "") > Journal.ROTATE_AT and lineCount(text) == 3
+    and string.find(text, '"pid_0_F",120,77)', 1, true) and string.find(text, '"rcRates_1",18,29)', 1, true)
+    and string.find(text, '"rates_1",24,37)', 1, true), text)
+  check("no step of it ran while the save was in progress", compactSteps.total > 10 and compactSteps.applying == 0,
+    compactSteps.applying .. " of " .. compactSteps.total .. " steps while applying")
+  flightRoll = { F = 77, rcRate = 29, sRate = 37, releases = 20, meanRebound = 0.2, meanIterm = 0 }
+  openPage()
+  check("the next open bounds F from the pilot's own 120 as before: no third step",
+    not canSave() and contains(ui.view.whys, string.format(T().whyFBelowFmt, 36, T().pidsPage)), reasons())
+
+  -- A step that raises ends the start afresh as failed: the open still finishes, reading the
+  -- journal's newest part, and the journal is left as it was
+  journal({})
+  resetFc()
+  flightRoll = { ffGain = 1.0, fullCount = 0, releases = 20, meanRebound = 0.2, meanIterm = 0 }
+  files[JPATH] = string.rep(line, 600) .. 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. 'e(1761900002,"tune_advisor",1,"pid_0_P",60,70)\n'
+  local big = files[JPATH]
+  compactRaises = true
+  openPage()
+  compactRaises = false
+  check("a start afresh that raises does not hold the open: the read finishes from the newest part",
+    ui.runtime.historyRead == true and ui.compactJob == nil and files[JPATH] == big
+    and not canSave() and contains(ui.view.whys, string.format(T().whyPMaxFmt, 40)), reasons())
+  journal({})
+  files[JPATH .. ".bak"] = nil
   resetFlights()
 end
 
