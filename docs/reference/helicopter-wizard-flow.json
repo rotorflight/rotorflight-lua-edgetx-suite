@@ -17,7 +17,7 @@
     "src/rfsuite/app/pages/helicopter_setup/labels.lua": "8d0fe25010eb761af326ed8799c9cb5d8e82e4ed2e27278490e8cd8ee98e09ad",
     "src/rfsuite/app/pages/helicopter_setup/math.lua": "f125cbdc577a170e8060688d69552d248e5ed6b092852c03139cc2d11d05b1a0",
     "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "d918fbcb0ebad8d9e3a23b2c0388d64d0b155b76a6f491633e9c170e8f6ef6b0",
-    "src/rfsuite/app/pages/helicopter_setup/page.lua": "1347c1e5c3aad03c06f6c00dba5ea19eaa3b3cc518a2a0c150207597f66e4eb3",
+    "src/rfsuite/app/pages/helicopter_setup/page.lua": "148d44338f53b1c1d3b3c6e6a2a52208ecd8eeff884fcec4ce5fe3b440dc1201",
     "src/rfsuite/app/pages/helicopter_setup/power_cards.lua": "2ba4097e9b25d9f4b4a9c19ab692f9b11165a04d48f4a91b5e067546b615aa05",
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",
     "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "82e04684846ddad8bbcd76b00b77292aaffa7c12907e048d482fb20f07850076",
