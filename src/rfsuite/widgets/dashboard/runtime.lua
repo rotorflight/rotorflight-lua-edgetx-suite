@@ -4293,13 +4293,12 @@ local function readTelemetry(state, audioState)
   end
   if (state.batteryCellCount ~= cellsBefore or state.batteryCellSource ~= cellSourceBefore) and Log then
     if state.batteryCellSource == "voltage" then
-      Log.emitf("rfsuite.widget", "debug", "cell count %s guessed from the pack voltage (%s V, %s before)",
+      Log.emitf("rfsuite.widget", "debug", "cell count guessed from the pack voltage: %s (%s V, %s before)",
         tostring(state.batteryCellCount), tostring(voltageValue), tostring(cellsBefore))
     else
-      Log.emitf("rfsuite.widget", "debug", "cell count %s from the %s (%s before)",
-        tostring(state.batteryCellCount),
+      Log.emitf("rfsuite.widget", "debug", "cell count from the %s: %s (%s before)",
         state.batteryCellSource == "sensor" and "cell count sensor" or "flight controller's battery config",
-        tostring(cellsBefore))
+        tostring(state.batteryCellCount), tostring(cellsBefore))
     end
   end
 
