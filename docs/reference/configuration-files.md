@@ -219,9 +219,10 @@ eload.req — a few bytes the tool writes when you save, so the dashboard widget
 - `theme_slots.txt` — the radio theme's colours while the tool is open, written when it opens and
   deleted when it closes: the tool draws the radio's own controls in the suite's color scheme and
   puts the theme's colours back on the way out. Found later, it means a tool ended without that
-  (memory exhausted, say); the next start of the tool, or the dashboard once it is shown again,
-  puts the colours back and deletes it — unless a radio theme was applied since, which it leaves
-  alone. Deleting it by hand loses nothing a restart of the radio would not put back.
+  (memory exhausted, say). The dashboard, once it is shown again, puts the colours back and deletes
+  it; the next start of the tool keeps the colours it holds and puts them back when that tool
+  closes. A radio theme applied since is left alone either way. Deleting it by hand loses nothing a
+  restart of the radio would not put back.
 - `preferences.lua.tmp`, `<mcu id>.lua.tmp` or `model_name_restore.lua.tmp` — a save that was
   interrupted, by a power cut at exactly the wrong moment. The next read finishes it; you should
   never see one for long. If a write fails or the card is full, the temporary file is removed

@@ -16,9 +16,10 @@
 --     metamethod before it frees anything (Lua 5.3, lgc.c luaC_freeallobjects). The guard below holds
 --     the radio's colours and lcd.setColor as upvalues, since by then the suite's globals may be gone.
 --   * A marker file holding the radio's colours and the ones written. Should neither of the above run
---     (memory exhausted, an error inside the finaliser), the next start of the tool or the dashboard
---     widget finds it and puts the radio's colours back -- only while the slots still hold what the
---     suite wrote, since a theme the pilot applied in between is the radio's own and is left alone.
+--     (memory exhausted, an error inside the finaliser), the dashboard widget finds it and puts the
+--     radio's colours back (recover), and the next start of the tool takes the radio's colours from it
+--     and puts them back when it closes (apply) -- only while the slots still hold what the suite
+--     wrote, since a theme the pilot applied in between is the radio's own and is left alone.
 --   * A restart of the radio, which reloads the theme from the card.
 
 local M = {}
