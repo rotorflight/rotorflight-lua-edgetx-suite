@@ -251,7 +251,9 @@ pack only counts once its profile has reached the flight controller:
 - **A pack in force that has lost its profile stays in force**, marked and paler, until another
   answer replaces it.
 
-With that setting off, every pack can be picked and the picker closes at once.
+With that setting off, every pack can be picked and the picker closes at once. The profile a pack
+shows is then only what the pack would get: the pick does not send it, and the flight controller
+stays on the battery profile it is on.
 
 ## Closing it
 
