@@ -500,6 +500,37 @@ local function run(mutate)
       Views.topRoll(w) == r and ran == 0 and r.levels[1].index == 3)
   end
   do
+    -- After a reconnect the theme loads a pass before the scene is built: until the menu is built again, what
+    -- stands on screen is still not its scene, so a press or a finger is not acted on -- an ordinary rebuild,
+    -- with no reconnect in between, is no reason to drop one.
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 2)
+    local function place() return tostring(r.focus) .. "/" .. tostring(r.base) .. "/" .. tostring(r.opening) end
+    local before = place()
+    local kept = Views.acrossReconnect(w)
+    w._viewStack = kept
+    w.theme, w.built = {}, false
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("a press after a reconnect, the theme loaded but the menu not built yet, does nothing",
+      place() == before and toolOpened == 0 and #adds == 0)
+    Roll.press(w)
+    check("nor does a ladder's press then", place() == before and toolOpened == 0 and #adds == 0)
+    scene(Menu, w)
+    w.built = true
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("once the menu is built again the same press acts", place() ~= before or toolOpened > 0 or #adds > 0)
+    local w2, s2 = open()
+    local r2 = roll(w2)
+    detent(s2.forward, s2.forward.h, 2)
+    local before2 = tostring(r2.focus) .. "/" .. tostring(r2.base) .. "/" .. tostring(r2.opening)
+    w2.built = false
+    Views.key(w2, EVT_VIRTUAL_ENTER)
+    check("a press during an ordinary rebuild, with no reconnect, acts",
+      (tostring(r2.focus) .. "/" .. tostring(r2.base) .. "/" .. tostring(r2.opening)) ~= before2
+      or toolOpened > 0 or #adds > 0)
+  end
+  do
     -- A view taken off the stack starts over; one merely covered keeps its place.
     local w = open()
     local r = roll(w)
@@ -1230,6 +1261,9 @@ if selfTest then
     end },
     { "a ladder press acts on the scene from before a reconnect", function(t)
       return (string.gsub(t, "and Views.sceneStale%(widget%) then", "and false then"))
+    end },
+    { "the menu built again after a reconnect still ignores presses", function(t)
+      return (string.gsub(t, "    roll.staleScene = nil\n", ""))
     end },
   }
   quiet = true

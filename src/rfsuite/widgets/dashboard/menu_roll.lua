@@ -939,6 +939,11 @@ function M.build(children, widget, make, colors)
   roll.source, roll.make = source, make
   refreshLists(roll, source)
   roll.recentre = nil
+  -- The scene a reconnect left (views.lua, M.acrossReconnect) is replaced by this one.
+  if roll.staleScene then
+    roll.staleScene = nil
+    trace("built again after the reconnect, presses are acted on")
+  end
 
   local W, H = widget.zone.w, widget.zone.h
 

@@ -776,6 +776,9 @@ function M.acrossReconnect(widget)
     roll.opening, roll.slots = nil, nil
     if _G.rfsuite.logSteps then viewStep("reconnect: a page waiting to open is called off") end
   end
+  -- What stands on screen is the old connection's until the menu is built again: the theme loads a pass
+  -- before that build, so `widget.theme` alone does not say it (M.sceneStale). Menu_roll's build clears it.
+  roll.staleScene = true
   local session = { rolls = { [M.DEFAULT_VIEW] = roll } }
   if stacked then session[1] = { id = M.DEFAULT_VIEW } end
   return session
@@ -783,10 +786,13 @@ end
 
 --- Whether what stands on screen is not this theme's scene: no theme is loaded and nothing was built for
 --- it, as after a reconnect until the read of the board's id has settled (which waits while the model is
---- armed), or while a theme loads. A press or a finger is not acted on then; RTN and the other keys carry
---- on, as the way out.
+--- armed), or while a theme loads; or the rolling menu a reconnect kept has not been built again since (the
+--- theme loads a pass before that build). A press or a finger is not acted on then; RTN and the other keys
+--- carry on, as the way out. An ordinary rebuild is no reason: `built` goes false for every one of those.
 function M.sceneStale(widget)
-  return widget.theme == nil and widget.built ~= true
+  if widget.theme == nil and widget.built ~= true then return true end
+  local roll = M.topRoll(widget)
+  return roll ~= nil and roll.staleScene == true
 end
 
 --- Open the tool on `menuId` from a rolling menu, keeping where the press stood (a table of the menu's
