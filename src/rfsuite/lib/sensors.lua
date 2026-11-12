@@ -730,12 +730,11 @@ local searchWaits = {}
 -- What "one pass" is for the two search throttles in Sensors.getValue.
 --
 -- The throttles used to be keyed on the clock reading alone, so a pass that outlasts one 10 ms
--- tick got a fresh count with every tick it spanned. On a radio a widget pass that searches runs
--- for 100 ms and more -- the searches themselves are most of it -- so the caps were spent again
--- and again inside the one call the firmware bills: right after Sensors.reset(), when every
--- source searches its whole list, the link-lost edge reached the instruction limit on the
--- standby screen. A widget therefore says where its pass begins (Sensors.passBegins), and the
--- throttles count against that pass, however many ticks it spans.
+-- tick got a fresh count with every tick it spanned, and the caps no longer bounded the one call
+-- the firmware bills. That matters most right after Sensors.reset(), when every source searches
+-- its whole list -- the link-lost edge among those resets. A widget therefore says where its pass
+-- begins (Sensors.passBegins), and the throttles count against that pass, however many ticks it
+-- spans.
 --
 -- A host that does not mark keeps the clock key, as before: the configuration tool, whose calls
 -- are not billed against a per-call limit, and the service widget. A mark older than
