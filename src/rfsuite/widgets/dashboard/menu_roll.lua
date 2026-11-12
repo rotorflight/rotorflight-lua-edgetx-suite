@@ -60,6 +60,12 @@ local function trace(msg)
   end
 end
 
+local function debugLog(msg)
+  if Log and type(Log.wanted) == "function" and Log.wanted("debug") then
+    Log.emit(TAG, msg, "debug")
+  end
+end
+
 local function info(msg)
   if Log and type(Log.emit) == "function" then Log.emit(TAG, msg, "info") end
 end
@@ -85,6 +91,14 @@ local REST_TICKS = 60
 -- time, since a slow pass is no reason; a sweep that never ends the hiding would leave the wheel nothing to
 -- move to, so past this the scene is built instead.
 local HIDDEN_PASSES = 3
+
+-- A rest that falls due in a pass after a hole this long (seconds) waits for the next pass, at most
+-- STALL_WAITS times. Such a pass catches up on what the hole held back -- telemetry, a decoder taking
+-- over -- and the sweep that hides the ladders runs in the firmware's call of the objects' functions
+-- after refresh, on the same instruction budget: both in one pass can run out of it, and the firmware
+-- then disables the widget. A wheel at rest through a hole makes the rest due in exactly that pass.
+local STALL_GAP = 1.0
+local STALL_WAITS = 2
 
 -- How long a press may wait to open its page. Longer means the menu was covered, and the press is over.
 local OPENING_TICKS = 300
@@ -247,6 +261,7 @@ local function stepped(widget, roll, delta)
   roll.couldNotOpen = nil
   roll.steppedAt = getTime()
   roll.detentAt = roll.steppedAt
+  roll.restWaits = nil
   if math.abs(roll.position) >= LADDER - LADDER_MARGIN then rebuild(widget, roll) end
 end
 
@@ -538,7 +553,9 @@ local function viewport(widget, roll, windows, name, other, children, x, y, w, h
           trace("recentre: ladders hidden, " .. tostring(recentre.swallowed) .. " scroll calls passed by")
         else
           roll.recentre = nil
-          trace("recentre: ladders shown again")
+          -- The runtime reads the last pass's share at the top of this one: the pass that hid them.
+          trace("recentre: ladders shown again, the hiding pass took " .. tostring(widget._usageLast)
+            .. " % of the instruction budget")
         end
       end
       return 0, window.y
@@ -615,7 +632,16 @@ function M.renderKey(widget)
     roll.recentre = nil
     roll.epoch = roll.epoch + 1
     roll.steppedAt = nil
+  elseif roll.steppedAt ~= nil and recentre == nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS
+    and type(widget._passGap) == "number" and widget._passGap >= STALL_GAP and (roll.restWaits or 0) < STALL_WAITS then
+    roll.restWaits = (roll.restWaits or 0) + 1
+    debugLog("the wheel rested in a pass after a " .. tostring(math.floor(widget._passGap * 1000 + 0.5))
+      .. " ms hole, the rest waits a pass (" .. tostring(roll.restWaits) .. " of " .. tostring(STALL_WAITS) .. ")")
   elseif roll.steppedAt ~= nil and recentre == nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS then
+    if roll.restWaits ~= nil then
+      debugLog("the rest that waited " .. tostring(roll.restWaits) .. " pass(es) runs now")
+      roll.restWaits = nil
+    end
     roll.steppedAt = nil
     trace("the wheel rested, the focus goes back to the widget")
     local started = getTime()
