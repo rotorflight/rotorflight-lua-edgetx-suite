@@ -912,13 +912,9 @@ readValue = function(source)
       Sensors.first_search_at = key
       Sensors.first_searches = 0
     end
-    if Sensors.first_searches >= FIRST_SEARCHES_PER_PASS then
-      if debugWanted() then
-        debugLog("held:" .. source, source .. ": first search waits for the next pass ("
-          .. FIRST_SEARCHES_PER_PASS .. " per pass)")
-      end
-      return nil
-    end
+    -- No line for a source held here: after a reset most sources are, in the same pass, and the
+    -- line's text was built before the logger's own cap dropped it.
+    if Sensors.first_searches >= FIRST_SEARCHES_PER_PASS then return nil end
     Sensors.first_searches = Sensors.first_searches + 1
   end
 
