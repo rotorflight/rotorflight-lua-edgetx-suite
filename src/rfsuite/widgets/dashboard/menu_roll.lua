@@ -554,8 +554,10 @@ local function viewport(widget, roll, windows, name, other, children, x, y, w, h
         else
           roll.recentre = nil
           -- The runtime reads the last pass's share at the top of this one: the pass that hid them.
-          trace("recentre: ladders shown again, the hiding pass took " .. tostring(widget._usageLast)
-            .. " % of the instruction budget")
+          if Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+            trace("recentre: ladders shown again, the hiding pass took " .. tostring(widget._usageLast)
+              .. " % of the instruction budget")
+          end
         end
       end
       return 0, window.y
@@ -633,10 +635,16 @@ function M.renderKey(widget)
     roll.epoch = roll.epoch + 1
     roll.steppedAt = nil
   elseif roll.steppedAt ~= nil and recentre == nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS
-    and type(widget._passGap) == "number" and widget._passGap >= STALL_GAP and (roll.restWaits or 0) < STALL_WAITS then
-    roll.restWaits = (roll.restWaits or 0) + 1
-    debugLog("the wheel rested in a pass after a " .. tostring(math.floor(widget._passGap * 1000 + 0.5))
-      .. " ms hole, the rest waits a pass (" .. tostring(roll.restWaits) .. " of " .. tostring(STALL_WAITS) .. ")")
+    and type(widget._passGap) == "number" and widget._passGap >= STALL_GAP
+    and ((roll.restWaits or 0) < STALL_WAITS or (widget._passAt ~= nil and roll.restWaitPass == widget._passAt)) then
+    -- Counted once per pass (`_passAt` marks it): a pass that builds asks for the key twice, and the second ask
+    -- must neither count a wait nor run the rest in the pass it waits out.
+    if widget._passAt == nil or roll.restWaitPass ~= widget._passAt then
+      roll.restWaitPass = widget._passAt
+      roll.restWaits = (roll.restWaits or 0) + 1
+      debugLog("the wheel rested in a pass after a " .. tostring(math.floor(widget._passGap * 1000 + 0.5))
+        .. " ms hole, the rest waits a pass (" .. tostring(roll.restWaits) .. " of " .. tostring(STALL_WAITS) .. ")")
+    end
   elseif roll.steppedAt ~= nil and recentre == nil and roll.touchX == nil and getTime() - roll.steppedAt >= REST_TICKS then
     if roll.restWaits ~= nil then
       -- The share read at the top of this pass is the pass that waited: the catch-up alone.

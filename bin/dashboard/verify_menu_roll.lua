@@ -806,6 +806,27 @@ local function run(mutate)
     check("after a detent a rest after a hole waits again", r.recentre == nil and r.steppedAt ~= nil)
   end
   do
+    -- A pass that builds asks for the key more than once: the waits count passes, not asks, and a second ask
+    -- in the pass a rest waits out does not run it there.
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 1)
+    now = now + 100
+    w._passGap = 1.5
+    w._passAt = 1
+    Menu.renderKey(w)
+    Menu.renderKey(w)
+    Menu.renderKey(w)
+    check("three asks in one pass are one wait", r.restWaits == 1 and r.recentre == nil)
+    w._passAt = 2
+    Menu.renderKey(w)
+    Menu.renderKey(w)
+    check("the second wait holds for every ask of its pass", r.restWaits == 2 and r.recentre == nil)
+    w._passAt = 3
+    Menu.renderKey(w)
+    check("the third pass after holes runs it", r.recentre ~= nil and r.recentre.state == "hide")
+  end
+  do
     -- A touch arrives relative to the object it lands on: over the touch box, only labels, pictures and dots
     -- (which take none) and a rectangle starting at the same corner may lie.
     local _, s = open()
@@ -1313,6 +1334,12 @@ if selfTest then
     end },
     { "a rest waits for as long as the holes last", function(t)
       return (string.gsub(t, "%(roll.restWaits or 0%) < STALL_WAITS", "true"))
+    end },
+    { "the waits count asks, not passes", function(t)
+      return (string.gsub(t, "if widget._passAt == nil or roll.restWaitPass ~= widget._passAt then", "if true then"))
+    end },
+    { "a second ask in a waited-out pass runs the rest", function(t)
+      return (string.gsub(t, " or %(widget._passAt ~= nil and roll.restWaitPass == widget._passAt%)%)", ")"))
     end },
     { "a detent keeps the waits of the rest before", function(t)
       return (string.gsub(t, "roll.detentAt = roll.steppedAt\n  roll.restWaits = nil\n", "roll.detentAt = roll.steppedAt\n"))
