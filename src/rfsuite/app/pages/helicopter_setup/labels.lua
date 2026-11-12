@@ -188,6 +188,10 @@ local L = {
 
   cleanupFailed = "@i18n(app.modules.helicopter_setup.cleanupFailed)@",
   releasingTests = "@i18n(app.modules.helicopter_setup.releasingTests)@",
+  memoryLow = "@i18n(app.modules.helicopter_setup.memoryLow)@",
+  memoryStop = "@i18n(app.modules.helicopter_setup.memoryStop)@",
+  errMemory = "@i18n(app.modules.helicopter_setup.errMemory)@",
+  closeWizard = "@i18n(app.modules.helicopter_setup.closeWizard)@",
   recoveryRequired = "@i18n(app.modules.helicopter_setup.recoveryRequired)@",
 
   statusUnavailable = "@i18n(app.modules.helicopter_setup.statusUnavailable)@",

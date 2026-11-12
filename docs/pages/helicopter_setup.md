@@ -571,21 +571,38 @@ then use the Suite's Receiver, Modes, Adjustments, Rates, Mixer, Servos, Governo
 Motor or Power pages. The wizard's **?** opens the complete current task text.
 It does not jump out of an active bench test through a web-style tab shortcut.
 
+## When radio memory runs low
+
+Each new card takes some of the radio's memory, and a radio that runs out stops all of its Lua
+scripts at once. A servo, mixer or motor test held at that moment would stay active, and the flight
+controller refuses to arm while one is. So after each new card the wizard reads how much memory the
+radio has left:
+
+- below 350 kB the status line says *Radio memory is low: save and leave soon.* Nothing else
+  changes; finish the card, save and leave the wizard;
+- below 250 kB the wizard stops. It releases every test first, then shows *Not enough radio memory
+  to go on* with **Save & exit** and **Discard & exit** when there are unsaved changes, otherwise
+  **Close**. Back closes it when nothing is unsaved. No other card opens from this screen. Restart
+  the radio before opening the wizard again.
+
+A save or a restart already running finishes before the stop. Where the radio does not report its
+free memory (the EdgeTX simulator), the wizard does not check it.
+
 ## Session Logs
 
 For troubleshooting, the wizard writes short English lines under the tag
 `rfsuite.helicopter_setup` once *Debug Level* in the developer settings is above *OFF*; at
-*OFF* it writes nothing. *ERROR* records a failed MSP step with its reason. *WARN* adds what
-degrades and carries on: an edit dropped, a late status, a lost link, an override cleanup not confirmed, a refused
+*OFF* it writes nothing. *ERROR* records a failed MSP step with its reason, and a stop for low radio memory with the free figure. *WARN* adds what
+degrades and carries on: low radio memory, an edit dropped, a late status, a lost link, an override cleanup not confirmed, a refused
 tail pin move with the firmware's result code, a trial that found nothing, a missing output. *INFO* records loading (start, ready, or the error with the MSP name
 and reason), each step and card entered, every change of the status line as it is shown (the
 wizard's own messages, the flight controller hints and the cleanup and recovery notices) by its
 label key, where a line filled in from a template is named by the template's key, save, discard,
-live writes, restart and reconnect, what a step queues for the flight controller (a mode's range, a calibrated rate, collective and styles per
+live writes, restart and reconnect, the memory stop screen shown, what a step queues for the flight controller (a mode's range, a calibrated rate, collective and styles per
 profile, an ESC range or mode), and closing. *DEBUG* adds the picture file shown, the helpers loaded and released on
 demand, whether a step's cards were reused or built anew, the profile loops, a refused Next and a
 reversal. *TRACE* adds the flow, for reading live over the serial port: each move between cards, a hold and its
-release, an edit, an answer given, a gear or servo centre change, the published scene and a build request
+release, an edit, an answer given, a gear or servo centre change, the published scene, the free memory read after it, and a build request
 left out while the loading view is shown. The lines appear under *Session
 Logs* and, with *Log Session To Card* on, in the card log; the level is read when the wizard
 opens.

@@ -27,7 +27,7 @@ function M.attach(w, ctx)
     self:rebuild()
   end
   function w:requestSteps()
-    if not self.ready or self.transition then return end
+    if not self.ready or self.transition or self.memoryStop then return end
     self:release()
     if next(self.dirty) then
       self.confirmExit, self.exitToSteps = true, not self.returnToSuite; self:rebuild()
@@ -38,7 +38,7 @@ function M.attach(w, ctx)
   -- step as it is (cards, checks, staged changes), so Back returns to the same card and a jump
   -- leaves through the same save/discard question as Exit.
   function w:openStepMenu()
-    if not self.ready or self.transition or not self.cards or self.stepMenu then return end
+    if not self.ready or self.transition or self.memoryStop or not self.cards or self.stepMenu then return end
     if self.modelPreparationCard or self.recoveryCard or self.preparationCard or self.entryRebootGate then return end
     -- Not while an ESC read or write runs: its replies belong to this visit, as Back waits for them too.
     if self.escBusy then

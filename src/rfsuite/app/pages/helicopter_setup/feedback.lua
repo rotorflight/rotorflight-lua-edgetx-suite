@@ -51,6 +51,9 @@ function M.attach(w, state, sensors)
     local m = self.message
     if self.legacyHold and (m == nil or m == self.L.persistent or m == self.L.holding or m == self.L.neutralHold or
       m == self.L.ready or m == self.L.saved) then return self.L.persistent end
+    -- Low radio memory replaces the plain state messages, never an answer to what the pilot did.
+    if self.memoryLow and not self.transition and (m == self.L.ready or m == self.L.saved or
+      m == self.L.pendingSave or m == self.L.liveApplied) then return self.L.memoryLow end
     if not self.error and not self.transition and (self.message == self.L.ready or self.message == self.L.saved) then
       if self.systemHint and not self.systemProfiles then return self.systemHint end
       return self.prerequisiteHint or self.historyHint or self.systemHint or self.message

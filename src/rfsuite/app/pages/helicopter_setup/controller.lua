@@ -16,6 +16,13 @@ local function copy(v)
 end
 local function now() return getTime() end
 local TAG = "rfsuite.helicopter_setup"
+-- Free radio memory, in kB, below which the wizard warns and below which it stops. Running out
+-- closes the whole Lua state, and a servo override held at that moment stays active with nothing
+-- left to release it. One card change was seen to take about 100 kB on a radio; the levels leave
+-- room for that and for the stop screen.
+local MEMORY_WARN_KB, MEMORY_STOP_KB = 350, 250
+-- A reading this small is not a heap about to run out: the simulator answers a constant 1000 bytes.
+local MEMORY_FLOOR_KB = 4
 -- Equal values in an equal shape. A value equal to its counterpart needs no call of its own,
 -- which keeps a whole configuration block within one pass.
 local function same(a, b)
@@ -142,7 +149,8 @@ function M.new(runtime, transport, mathModule, labels)
   local reasons = { ["lock lost"] = "errLockLost", ["not active"] = "errLockNotActive", ["servo count"] = "errServoCount",
     configuration = "errConfiguration", timeout = "errTimeout", reply = "errReply", decode = "errDecode",
     payload = "errPayload", cleared = "errCleared", cancelled = "errCancelled", max_retries = "errMaxRetries",
-    ["short status"] = "errShortStatus", link = "errLink", arming = "errArming", armed = "errArmedFirst" }
+    ["short status"] = "errShortStatus", link = "errLink", arming = "errArming", armed = "errArmedFirst",
+    memory = "errMemory" }
   function w:errorText()
     local e = self.error
     if type(e) ~= "string" then return "" end
@@ -186,8 +194,55 @@ function M.new(runtime, transport, mathModule, labels)
   end
   function w:run(fn) self.bus:add({ run = fn }) end
   function w:rebuild() if self.requestRebuild then self.requestRebuild() end end
+  -- Free radio memory in kB, or nil where the platform does not report it.
+  function w:freeMemoryKb()
+    if type(getAvailableMemory) ~= "function" then return nil end
+    local ok, bytes = pcall(getAvailableMemory)
+    local kb = ok and type(bytes) == "number" and math.floor(bytes / 1024 + 0.5) or nil
+    if kb and kb >= MEMORY_FLOOR_KB then return kb end
+    return nil
+  end
+  -- Read once per new scene, right after the page's post-build collect, when the figure holds no
+  -- garbage. Below the warn level the status line says so; below the stop level every test is
+  -- released and the visit ends on the stop screen. A save or load in progress finishes first.
+  function w:checkMemory()
+    if self.memoryStop then return end
+    local kb = self:freeMemoryKb()
+    if not kb then return end
+    if self.logTrace then self:log("trace", "free memory %s kB", kb) end
+    if kb < MEMORY_STOP_KB then
+      if self.transition then
+        if not self.memoryOwed then self:log("warn", "radio memory low, free %s kB: stop after the running operation", kb) end
+        self.memoryOwed = kb
+      else self:stopForMemory(kb) end
+    elseif kb < MEMORY_WARN_KB and not self.memoryLow then
+      self.memoryLow = true
+      self:log("warn", "radio memory low, free %s kB (warn below %s kB)", kb, MEMORY_WARN_KB)
+    end
+  end
+  -- Nothing new is started: the transport is cancelled, every override is released, a card build
+  -- still owed is dropped. The stop screen is built once the releases are answered, so no new
+  -- scene competes with them for memory.
+  function w:stopForMemory(kb)
+    self:log("error", "radio memory too low, free %s kB (stop below %s kB): tests released, visit stopped", kb, MEMORY_STOP_KB)
+    self.memoryStop, self.memoryLow, self.memoryOwed = "releasing", true, nil
+    self.escBusy = nil
+    self.bus:cancel()
+    self.buildRequested, self.keptCards = nil, nil
+    self.confirmExit, self.exitToSteps, self.backTarget, self.jumpTarget = nil, nil, nil, nil
+    self.canEdit, self.canNext = false, false
+    self:release(true)
+    self.transition = nil
+  end
+  -- The stop screen, once no release is outstanding. A failed release is shown on it, not as Retry.
+  function w:memoryStopTick()
+    if self.memoryStop ~= "releasing" or (self.cleanupPending or 0) > 0 then return end
+    self.memoryStop, self.error = true, "memory"
+    if self.logInfo then self:log("info", "memory stop shown, unsaved changes %s", tostring(next(self.dirty) ~= nil)) end
+    self:rebuild()
+  end
   function w:usable()
-    return self.ready and self.locked and not self.error and not self.transition and (self.cleanupPending or 0)==0 and self:allowed()
+    return self.ready and self.locked and not self.error and not self.memoryStop and not self.transition and (self.cleanupPending or 0)==0 and self:allowed()
       and now() - (self.statusAt or 0) <= 300
   end
   function w:acceptStatus(d)
@@ -262,6 +317,7 @@ function M.new(runtime, transport, mathModule, labels)
     self:write("arming_disable", { disabled = true })
   end
   function w:retry()
+    if self.memoryStop then return end
     if not self.bus:idle() or not self:allowed() or (self.cleanupPending or 0)>0 then return end
     if self.logInfo then self:log("info", "retry") end
     if self.cleanupFailed or self.needsRelease then self:release(true) end
@@ -546,7 +602,8 @@ function M.new(runtime, transport, mathModule, labels)
     -- Snapshot one API block per wakeup; never clone the whole configuration in a reply. A block
     -- the save did not mark keeps its saved table while that still holds the data's values;
     -- a marked block is copied without comparing, so no pass compares and copies a large one.
-    for _, api in ipairs(READS) do
+    -- After a memory stop the visit only closes: no copy of the configuration is taken.
+    for _, api in ipairs(self.memoryStop and {} or READS) do
       local name = api
       self:run(function()
         if (written and written[name]) or not same(self.saved[name], self.data[name]) then
@@ -599,7 +656,7 @@ function M.new(runtime, transport, mathModule, labels)
     if step == 2 and self.rx then self.rx.travel, self.rx.travelSig, self.rx.advanced = nil, nil, nil end
   end
   function w:navigate(step, card)
-    if self.transition or not self.ready then return end
+    if self.transition or not self.ready or self.memoryStop then return end
     if self.logTrace then self:log("trace", "move from %s card %s to %s card %s", STEPS[self.step], self.card, STEPS[step], card or 1) end
     -- Back in front of Connect servos, a later restart asks again whether the servos are out.
     if self.step >= 10 and step <= 9 then self.checks.unplugged = nil end
@@ -699,6 +756,12 @@ function M.new(runtime, transport, mathModule, labels)
       self:release();self.disconnectExit=true;self:rebuild();return
     end
     if self.escBusy then return end
+    -- On the memory stop Back starts nothing: without unsaved changes it closes, otherwise the
+    -- stop screen's own buttons decide.
+    if self.memoryStop then
+      if self.memoryStop == true and not self.transition and not next(self.dirty) then self:close() end
+      return
+    end
     if not self.ready then
       self.bus:cancel();self.transition=nil
       -- Nothing to take back, and a release sent to a silent board would only wait for its reply.
@@ -1044,6 +1107,8 @@ function M.new(runtime, transport, mathModule, labels)
         self.active and self.ready and self.locked and not self.transition and not self.error and self:allowed())
     end
     if not self.active then return end
+    if self.memoryStop then self:memoryStopTick()
+    elseif self.memoryOwed and not self.transition then self:stopForMemory(self.memoryOwed) end
     if not self:allowed() then
       if not self.suspended then
         self:log("warn", "link lost or armed, tests stopped")

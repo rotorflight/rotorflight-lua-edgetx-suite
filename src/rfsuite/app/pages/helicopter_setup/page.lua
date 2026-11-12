@@ -157,6 +157,8 @@ function M.wakeup(ctx)
       local Log = _G.rfsuite and _G.rfsuite.Log
       w:log("debug", "collected after scene build %d: %s", w.buildCount or 0, Log and Log.resources() or "-")
     end
+    -- The same point, without garbage, decides whether there is memory left for the next card.
+    w:checkMemory()
   end
   if ctx and ctx.requestRebuild then context.requestRebuild = ctx.requestRebuild end
   loadingFraction = w and (w.ready and 1 or w.suspended and 0 or 0.2+0.8*(w.progress or 0)/math.max(1,w.loadTotal or 1)) or 0.2*(stage-1)/#deps
