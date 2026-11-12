@@ -5207,8 +5207,10 @@ function Runtime.new(zone, options)
       self.state.packNotFull = nil
       self.state.previousSessionFuel = self.state.fuel
       self.state.fuel = 0.0
+      -- "link_lost" keeps the model's slot walk: the sensor table has not changed, and a walk two
+      -- seconds from now would share a pass with the event runtime's link-down work.
       if Sensors and type(Sensors.reset) == "function" then
-        Sensors.reset()
+        Sensors.reset("link_lost")
       end
       -- The link is gone, so nothing can report what the board is doing with what the overlay
       -- last wrote. Both variables go back to 0 here rather than being left for the next tuning pass.
