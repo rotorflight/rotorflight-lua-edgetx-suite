@@ -252,6 +252,10 @@ after a flight, off screen, or for the UID) is not looked for again until the re
 reload then checks the files once and reads only the one that moved since the last reload, as an
 undeferred reload does; both where both moved, the check cannot tell which, or a change was
 signalled only by the reload request, which names no file -- when it was found, or while it waited.
+The first connect after the radio is switched on reads one file as well: the widget's first look
+was taken with no board identified, so the model's file joins the check only once the UID is read,
+and since the radio's file has not moved, the reload that follows reads the model's file alone --
+both files where the reload request moved in the same look.
 A battery picked on the dashboard is saved to the model's preferences and moves the reload request
 like any save, so that the tool and the other widgets read it. The dashboard that saved it already
 holds what it wrote: it looks at the files just before and just after its own save, and where they

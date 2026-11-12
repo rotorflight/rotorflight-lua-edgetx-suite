@@ -799,6 +799,59 @@ for _, case in ipairs({ "model", "both", "seq", "seqafter" }) do
     tag .. ": the stamp adopted is the files' stamp as they stand", tostring(world.w._lastPrefsStamp))
 end
 
+-- 11. The first connect after the radio is switched on. The widget takes its first look at the
+-- preferences with no board identified, so its stamp has no per-model half; the board's file
+-- joins the stamp once the UID is read. The radio's file has not moved, so the reload that the new
+-- half signals reads the model's file alone -- unless the reload request moved in the same look,
+-- which names no file: then both are read. Either way the model's theme is the one on screen.
+for _, bump in ipairs({ false, true }) do
+  local tag = bump and "first connect, reload request moved with the model's file"
+    or "first connect after power-on"
+  if trace then print("scenario: " .. tag) end
+  local world = newWorld()
+  local loads = { global = 0, model = 0 }
+  local loadPreferences, gi = upvalue(world.prefsFn, "loadPreferences")
+  debug.setupvalue(world.prefsFn, gi, function(...)
+    if world.inPrefs then loads.global = loads.global + 1 end
+    return loadPreferences(...)
+  end)
+  local MP, mi = upvalue(world.prefsFn, "ModelPreferences")
+  debug.setupvalue(world.prefsFn, mi, setmetatable({ loadByMcuId = function(...)
+    if world.inPrefs then loads.model = loads.model + 1 end
+    return MP.loadByMcuId(...)
+  end }, { __index = MP }))
+  world.linkUp = false
+  passes(world, 30, "down")
+  local first = world.w._lastPrefsStamp
+  expect(type(first) == "string" and not string.find(first, "|", 1, true),
+    "control: the first stamp carries no model half (" .. tag .. ")", tostring(first))
+  world.holdUid = true
+  world.linkUp = true
+  passes(world, 30, "held")
+  expect(_G.rfsuite.session.mcu_id == nil, "control: no board is identified while the UID is held (" .. tag .. ")",
+    tostring(_G.rfsuite.session.mcu_id))
+  loads.global, loads.model, world.prefReloads = 0, 0, 0
+  if bump then
+    local paths = upvalue(world.prefsFn, "reloadRequestPaths")()
+    for i = 1, #paths do world.stats[paths[i]] = { size = 7 } end
+  end
+  world.releaseUid()
+  passes(world, 60, "uid")
+  local stamp = world.w._lastPrefsStamp
+  expect(type(stamp) == "string" and string.find(stamp, "|", 1, true) ~= nil,
+    "control: the model's file joined the stamp (" .. tag .. ")", tostring(stamp))
+  expect(world.prefReloads == 1, tag .. ": the preferences are reloaded once", world.prefReloads .. " reload(s)")
+  if bump then
+    expect(loads.model == 1 and loads.global == 1, tag .. ": both files are read",
+      "model " .. loads.model .. ", radio " .. loads.global)
+  else
+    expect(loads.model == 1 and loads.global == 0, tag .. ": only the model's file is read",
+      "model " .. loads.model .. ", radio " .. loads.global)
+  end
+  expect(world.w.themePath == "system/urban", tag .. ": the model's theme is on screen",
+    tostring(world.w.themePath))
+end
+
 -- The memory probe's own control: an allocation it must see.
 do
   collectgarbage("collect")

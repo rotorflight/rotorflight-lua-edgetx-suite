@@ -1,0 +1,2 @@
+- **The first connect after switching the radio on reads only the model's preferences file (`widgets/dashboard`)**:
+  - The model's file joining the preferences check once the board's UID is read no longer re-reads the unchanged radio preferences file and rebuilds the language context in the same pass, which took about 3 000 of the 20 000 instructions a widget pass may use, in the connect pass that already ran close to that limit; both files are still read when the reload request moved with it.
