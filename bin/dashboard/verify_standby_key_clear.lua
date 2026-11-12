@@ -214,6 +214,52 @@ check(clears > 0 and widget._treeKind == nil, "a release after a layout change s
   clears .. " clears, tree " .. tostring(widget._treeKind))
 widget.preferences.dashboard.standby_layout = layoutBefore
 
+-- A release stopped by the instruction limit at any point after its clear and its built flag, then
+-- the widget back on the standby with the same key: the screen is built again, never kept empty.
+-- The stop is raised at the n-th hook event after the clear has emptied the screen, for every n
+-- until the release completes; the host's refresh clears the job and built flag after a stop, as
+-- main.lua does. A stop before the built flag is cleared leaves the screen as master does and is
+-- not counted here.
+local function hostRefresh(w)
+  Stubs.tick()
+  local ok = pcall(w.refresh, w, 0, nil)
+  if not ok then w._job = nil; w.built = false end
+end
+local cleared, stopsTried, emptyKept = false, 0, 0
+local clearForStop = lvgl.clear
+lvgl.clear = function(...)
+  local result = clearForStop(...)
+  cleared = true
+  return result
+end
+for n = 1, 200 do
+  for _ = 1, 20 do hostRefresh(widget) end
+  if widget._treeKind ~= "standby" then break end
+  cleared = false
+  local events, stopped = 0, false
+  debug.sethook(function()
+    if cleared then
+      events = events + 1
+      if events == n then
+        stopped = true
+        debug.sethook()
+        error("CPU limit")
+      end
+    end
+  end, "", 1)
+  pcall(widget.background, widget)
+  debug.sethook()
+  if not stopped then break end
+  local counted = widget.built == false
+  if counted then stopsTried = stopsTried + 1 end
+  for _ = 1, 20 do hostRefresh(widget) end
+  if counted and #shownLines(Stubs.lvgl.trees, {}) == 0 then emptyKept = emptyKept + 1 end
+end
+lvgl.clear = clearForStop
+check(stopsTried > 0, "a release can be stopped after its clear", stopsTried .. " stops")
+check(emptyKept == 0, "a release stopped after its clear never leaves an empty standby kept",
+  emptyKept .. " of " .. stopsTried .. " stops")
+
 if failures > 0 then
   print(string.format("standby key clear: %d of %d checks failed", failures, checks))
   os.exit(1)
