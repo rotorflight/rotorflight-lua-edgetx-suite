@@ -492,6 +492,9 @@ local function appendFlight(children, widget, m, w, h, t, p)
   local titleX, titleW = m.pad + arrowW + 4, lineW - arrowW * 2 - 8
   local contentY = groupY + groupH + 4
   local paused = snapshot.profileRefusal ~= nil
+  -- The value surface's step buttons, appended after the group arrows (see there), and the
+  -- `visible` answer they share with the group row for a tap's refocus sweep (Input.refocus).
+  local steps, shown = {}, nil
   local picking = snapshot.groupPicker == true and not paused
   local hint, shortHint
   if picking then
@@ -575,6 +578,15 @@ local function appendFlight(children, widget, m, w, h, t, p)
       local forward, reverse = sensor.windows()
       local ladder, previous = {}, {}
       local first, leave = sensor.first, sensor.leave
+      -- The step buttons and the group row hide for one pass of the sweep that takes the focus back
+      -- to the widget after a tap on + or - (Input.refocus); the reverse ladder hides as a whole, by
+      -- its box's getter. Inlined rather than Input.shown(drive): asked five times a pass. Never
+      -- while a step button is held (the runtime never builds then either): a press that lands
+      -- between the release and the sweep keeps its button until its own release starts a new one.
+      shown = function()
+        local sweep = drive.tapSweep
+        return sweep == nil or sweep.state ~= "hide" or drive.holdRow ~= nil
+      end
       local color, textColor = p.header, p.text
       -- The transparent resting window still participates in pointer hit testing.
       previous[1] = {
@@ -613,7 +625,8 @@ local function appendFlight(children, widget, m, w, h, t, p)
       widget._inflightReverseNode = {
         type = "box", x = m.pad, y = contentY, w = lineW, h = nameH, borderPad = 0,
         scrollDir = (lvgl and lvgl.SCROLL_VER) or 12, scrollBar = false, color = p.bg,
-        scrolled = reverse.scrolled, scrollTo = reverse.scrollTo, opacity = reverse.opacity, children = previous
+        scrolled = reverse.scrolled, scrollTo = reverse.scrollTo, opacity = reverse.opacity,
+        visible = reverse.visible, children = previous
       }
     else
       appendLabel(children, m.pad, contentY, lineW, nameText, p.text, nameFont, CENTER)
@@ -660,7 +673,11 @@ local function appendFlight(children, widget, m, w, h, t, p)
         node.press = function() Input.dispatch(widget, "step", direction, "touch_hold") end
         node.release = function() Input.dispatch(widget, "release", nil, "touch_hold") end
       else node.press = action("step", direction) end
-      children[#children + 1] = node
+      node.visible = shown
+      -- Created after the group arrows, just before the reverse ladder: in the walk nothing but
+      -- the reverse rows follows them, so hiding those and the step buttons for one sweep takes the
+      -- focus from a tapped step button back to the widget without hiding the arrows.
+      steps[#steps + 1] = node
     end
   else
     local rows = snapshot.groupRows or {}
@@ -804,6 +821,13 @@ local function appendFlight(children, widget, m, w, h, t, p)
   button(children, m.pad, groupY, arrowW, groupH, "<", action("function", -1), p.accent)
   button(children, titleX, groupY, titleW, groupH, title, function() openGroupPicker(widget) end)
   button(children, w - m.pad - arrowW, groupY, arrowW, groupH, ">", action("function", 1), p.accent)
+  -- In value mode the group row hides with the step buttons: a detent in the refresh between a tap's
+  -- release and its sweep moves the focus from the tapped button onto '>' (or further back), and
+  -- only an object that hides while focused hands the focus on (Input.refocus).
+  if shown then
+    for i = #children - 2, #children do children[i].visible = shown end
+  end
+  for i = 1, #steps do children[#children + 1] = steps[i] end
 end
 
 local appendBusy, busyStepText

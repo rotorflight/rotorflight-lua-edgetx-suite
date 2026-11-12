@@ -1323,9 +1323,31 @@ end
 --
 -- Guarded on the radio's own clock, so a pass that runs the whole tick as well as this one does
 -- the work once rather than twice.
+-- A tap's refocus sweep (input.lua, M.refocus) counts its refreshes in the reverse ladder box's
+-- getter, asked once per refresh, and normally ends there after three. This is the backstop for a
+-- sweep whose getter is not asked at all: fastTick runs on the fast sampler and on the logic tick,
+-- which can be two calls in one refresh, so its limit leaves room for that and still builds within
+-- a few refreshes rather than leave the encoder's scrolls swallowed.
+local SWEEP_TICKS = 12
+
 function Drive:fastTick(now)
   if self.fastAt == now then return end
   self.fastAt = now
+  local sweep = self.tapSweep
+  if sweep ~= nil and self.holdRow == nil then
+    -- A call with a step button held does not count: the sweep waits for the release.
+    sweep.ticks = (sweep.ticks or 0) + 1
+    local onValue = self.live == true and self.phase == M.PHASE_LIVE and self.valueMode == true
+    if sweep.ticks > SWEEP_TICKS or not onValue then
+      self.tapSweep = nil
+      if onValue then
+        self.ladderEpoch = (self.ladderEpoch or 0) + 1
+        self.valueEpoch = self.valueEpoch + 1
+        logDrive("tap refocus not finished after %d ticks in state %s, the surface is built",
+          sweep.ticks, tostring(sweep.state))
+      end
+    end
+  end
   local _, refusal = self:watchProfiles()
   local tuning = self.live == true and self.phase == M.PHASE_LIVE and refusal == nil
   if self.stepRefusedUntil ~= nil and now >= self.stepRefusedUntil then

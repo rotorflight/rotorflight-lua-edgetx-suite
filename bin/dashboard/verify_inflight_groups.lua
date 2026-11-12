@@ -952,18 +952,83 @@ local function nativeScene(nodes, view, counts, tall)
       elseif y + object.node.h > box.y + box.h then self:scroll(box, y + object.node.h - box.h) end
     end
   end
+  -- Hidden itself or below a hidden box: LVGL's focus walk skips it (lv_group.c focus_next_core).
+  function scene:hiddenUp(object)
+    while object do
+      if object.hidden then return true end
+      object = object.parent
+    end
+    return false
+  end
   function scene:sweep()
     for _, box in ipairs(self.boxes) do
-      if box.node.scrollTo then
+      if box.node.scrollTo and not self:hiddenUp(box) then
         local _, y = box.node.scrollTo()
         self:scroll(box, y)
       end
     end
   end
+  -- The firmware's refresh pass with `visible` getters (EdgeTX v2.12.5 / 2.12 head, LVGL pin
+  -- 5f129c54): every object is asked in creation order (LvglWidgetObjectBase::callRefs); a hidden
+  -- object's children are not asked, and a box asks its scrollTo after its children and only while
+  -- shown (LvglWidgetBox::callRefs). Hiding moves the focus only off an object that is itself focused
+  -- (lv_obj_add_flag -> lv_group_focus_next): a focused child of a box that hides keeps the focus.
+  -- The next object focused skips hidden ones and the children of hidden ones, with wrap to the
+  -- widget; focusing a row in a box scrolls it into view.
+  function scene:nextShown(i, direction)
+    local n, j = #self.focus, i
+    repeat
+      j = j + direction
+      if counts.nativeRoot then
+        if j > n then j = 0 elseif j < 0 then j = n end
+        if j == 0 then return 0 end
+      else
+        j = (j - 1) % n + 1
+      end
+    until j == i or not self:hiddenUp(self.focus[j])
+    return j
+  end
+  function scene:refsSweep()
+    local objectOf, boxOf = {}, {}
+    for i, object in ipairs(self.focus) do objectOf[object.node] = i end
+    for _, box in ipairs(self.boxes) do boxOf[box.node] = box end
+    local function walk(list)
+      for _, node in ipairs(list) do
+        local i, box = objectOf[node], boxOf[node]
+        local object = i and self.focus[i] or box
+        local shown = true
+        if object and type(node.visible) == "function" then
+          object.hidden = not node.visible()
+          shown = not object.hidden
+          if object.hidden and i and self.at == i then
+            self.refocusMoves = (self.refocusMoves or 0) + 1
+            self:focusAt(self:nextShown(i, 1))
+          end
+        end
+        if shown then
+          if node.children then walk(node.children) end
+          if box and node.scrollTo then local _, y = node.scrollTo(); self:scroll(box, y) end
+        end
+      end
+    end
+    walk(nodes)
+  end
   function scene:rotate(direction)
     self:sweep()
-    if self.at == 0 then self:focusAt(direction > 0 and 1 or #self.focus)
-    else self:focusAt(self.at + direction) end
+    if self.at == 0 then
+      local j = direction > 0 and 1 or #self.focus
+      if self:hiddenUp(self.focus[j]) then j = self:nextShown(j, direction) end
+      self:focusAt(j)
+    else self:focusAt(self:nextShown(self.at, direction)) end
+  end
+  -- A pointer press on a focusable object: LVGL focuses it unless it is the object pressed last
+  -- (lv_indev.c indev_click_focus, LVGL pin 5f129c54; `last_pressed` is cleared only when the object
+  -- is deleted, i.e. by a build -- a new scene here). A repeat tap on the same button keeps the focus.
+  function scene:click(index)
+    local object = self.focus[index]
+    if self.lastPressed ~= object then self:focusAt(index) end
+    self.lastPressed = object
+    return object.node
   end
   function scene:press()
     if self.at == 0 then return Input.key(view, EVT_VIRTUAL_ENTER) end
@@ -1004,15 +1069,31 @@ for _, valueMode in ipairs({true, false}) do
     for index, object in ipairs(scene.focus) do
       local node = object.node
       if node.text == text or (node.children and node.children[1] and node.children[1].text == text) then
-        scene:focusAt(index)
+        scene:click(index)
         node.press()
         return node
       end
     end
     error("touch control missing: " .. text)
   end
+  -- A completed tap on + or - in value mode: no build; the reverse ladder hides, then the step buttons.
+  local function refocused(epoch, key)
+    check(instance.tapSweep ~= nil and instance.tapSweep.state == "prehide" and (instance.ladderEpoch or 0) == (epoch or 0),
+      "a completed tap on a step button starts a refocus sweep instead of a rebuild")
+    local scenes, at = counts.scenes, scene.at
+    scene:refsSweep()
+    check(scene.at == at and scene.reverse.hidden and instance.tapSweep ~= nil and instance.tapSweep.state == "hide",
+      "the first pass hides the reverse ladder's box while the focus stays on the tapped button")
+    scene:refsSweep()
+    check(scene.at == 0 and instance.tapSweep ~= nil and instance.tapSweep.state == "show",
+      "the second pass hides the step buttons and the focus wraps to the widget (at " .. tostring(scene.at) .. ")")
+    scene:refsSweep()
+    check(instance.tapSweep == nil and view._inflightSensor.index ~= nil and counts.scenes == scenes
+      and Screen.renderKey(view.state.inflight) == key,
+      "the showing sweep ends it and resets the sensor; nothing was built and the key did not move")
+  end
   local function returned(epoch, key)
-    check(instance.ladderEpoch == epoch + 1 and view._tuningKeyDirty,
+    check(instance.ladderEpoch == (epoch or 0) + 1 and view._tuningKeyDirty,
       "one completed live touch requests exactly one ladder rebuild")
     check(view._inflightSensor.index == nil, "touch still fences the first sensor return")
     render()
@@ -1030,16 +1111,16 @@ for _, valueMode in ipairs({true, false}) do
     Drive.sample(view)
     check(Screen.renderKey(view.state.inflight) == key, "a held touch keeps the live render key")
     plus.release()
-    check(instance.holdRow == nil and instance.valueEpoch == valueEpoch + 1,
-      "release ends the hold and republishes the snapshot once")
-    returned(epoch, key)
+    check(instance.holdRow == nil and instance.valueEpoch == valueEpoch,
+      "release ends the hold without a layout epoch")
+    refocused(epoch, key)
     epoch, key = instance.ladderEpoch, Screen.renderKey(view.state.inflight)
     plus = touch("+")
     check(instance.fired == fired + 1 and instance.stepRefusedReason == "cooling",
       "control: a second held press during the pulse is refused")
     check(instance.ladderEpoch == epoch, "a refused held press also waits for release")
     plus.release()
-    returned(epoch, key)
+    refocused(epoch, key)
     epoch, key = instance.ladderEpoch, Screen.renderKey(view.state.inflight)
     check(not Input.dispatch(view, "step", 1, "touch"), "a plain touch step is refused during cooling")
     returned(epoch, key)
@@ -1104,6 +1185,157 @@ for _, valueMode in ipairs({true, false}) do
   check(not instance.groupPicker and not Input.dispatch(view, "pick", nil, "touch", 1) and instance.group == landed,
     "landing takes the picker down and a late choice does nothing")
   instance:cleanup(false)
+end
+
+-- After a tap's refocus the ladder works as after a build, in both directions, and ENTER on the
+-- widget leaves value mode: it never steps (the focus is not left on a step button).
+do
+  local instance = drive()
+  instance.valueMode = true
+  local view = {_inflight = instance, state = {armed = true}, zone = {w = 480, h = 320}}
+  local counts, nodes, scene = {scenes = 0, sensors = 0, nativeRoot = true}
+  local function render()
+    Drive.sample(view)
+    nodes = {}
+    Screen.buildFullscreen(nodes, view)
+    scene = nativeScene(nodes, view, counts)
+    view._tuningKeyDirty = nil
+  end
+  local function settle()
+    for _ = 1, 4 do ticks = ticks + 31; instance:fastTick(ticks) end
+  end
+  local function tapPlus()
+    for index, object in ipairs(scene.focus) do
+      local node = object.node
+      if node.children and node.children[1] and node.children[1].text == "+" then
+        scene:click(index)
+        node.press()
+        node.release()
+        return
+      end
+    end
+    error("no + button")
+  end
+  render()
+  local scenes = counts.scenes
+  -- A tap with the ladder at rest (just built, or a refocus since its last scroll) sweeps, and taps in
+  -- a row keep sweeping. The first tap after the encoder moved the ladder builds once: a repeat tap
+  -- does not take the focus (LVGL's last_pressed), so it can still be on a ladder row.
+  local builds = 0
+  local function tapAndSettle(expectBuild, label)
+    local epochBefore = instance.ladderEpoch or 0
+    settle(); tapPlus()
+    if expectBuild then
+      check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epochBefore + 1,
+        "refocus: " .. label .. " builds once (the focus may be on a ladder row)")
+      render(); builds = builds + 1
+    else
+      check(instance.tapSweep ~= nil and (instance.ladderEpoch or 0) == epochBefore,
+        "refocus: " .. label .. " sweeps instead of building")
+      -- fastTick counts passes for the fallback: the three passes come before it would build.
+      scene:refsSweep(); scene:refsSweep(); scene:refsSweep()
+    end
+    check(instance.tapSweep == nil and scene.at == 0, "refocus: " .. label .. ": focus back on the widget")
+  end
+  for _, case in ipairs({{1, false, "the first tap after a build"}, {-1, true, "a tap after a detent forward"},
+                         {1, true, "a tap after a detent back"}}) do
+    tapAndSettle(case[2], case[3])
+    settle()
+    local fired = instance.fired
+    scene:rotate(case[1]); scene:sweep()
+    check(instance.fired == fired + 1, "refocus: the first detent " .. (case[1] > 0 and "forward" or "back")
+      .. " after " .. case[3] .. " steps once (fired " .. fired .. " -> " .. instance.fired .. ")")
+    settle()
+  end
+  tapAndSettle(true, "a tap after the last detent")
+  tapAndSettle(false, "a repeat tap with the ladder at rest")
+  tapAndSettle(false, "a third tap in a row")
+  local fired = instance.fired
+  -- Inside the pulse the leave is refused as before (cooling), and nothing steps.
+  scene:press()
+  check(instance.fired == fired and instance.valueMode == true, "refocus: ENTER inside the pulse neither steps nor leaves")
+  settle()
+  scene:press()
+  check(instance.fired == fired and instance.valueMode ~= true, "refocus: ENTER on the widget leaves value mode and does not step")
+  check(counts.scenes == scenes + builds, "refocus: taps built only where the ladder had moved ("
+    .. (counts.scenes - scenes) .. " builds, " .. builds .. " expected)")
+  -- A press that lands between a release and its sweep: the held button is not hidden and keeps the
+  -- focus; its own release starts the sweep again, which then takes the focus back.
+  instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+  settle()
+  local plusAt, plusNode
+  for index, object in ipairs(scene.focus) do
+    local node = object.node
+    if node.children and node.children[1] and node.children[1].text == "+" then plusAt, plusNode = index, node end
+  end
+  scene:click(plusAt); plusNode.press(); plusNode.release()
+  ticks = ticks + 31; instance:fastTick(ticks)
+  ticks = ticks + 16; instance:fastTick(ticks)
+  local heldFired = instance.fired
+  scene:click(plusAt); plusNode.press()
+  check(instance.holdRow ~= nil and instance.fired == heldFired + 1, "refocus: a second press before the sweep is accepted and held")
+  scene:refsSweep()
+  check(scene.at == plusAt and not scene.focus[plusAt].hidden and not scene.reverse.hidden
+    and instance.tapSweep ~= nil and instance.tapSweep.state == "prehide",
+    "refocus: a held step button is not hidden by a pending sweep and keeps the focus")
+  plusNode.release()
+  scene:refsSweep(); scene:refsSweep(); scene:refsSweep()
+  check(instance.holdRow == nil and instance.tapSweep == nil and scene.at == 0,
+    "refocus: after the held button's release the sweep takes the focus back")
+  -- A detent turned while + is held can put the focus on a reverse row; hiding the box would strand it
+  -- there (LVGL does not move a focused child), so that release builds instead of sweeping.
+  render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+  settle()
+  for index, object in ipairs(scene.focus) do
+    local node = object.node
+    if node.children and node.children[1] and node.children[1].text == "+" then plusAt, plusNode = index, node end
+  end
+  local epochHeld, scrollsHeld = instance.ladderEpoch or 0, view._inflightSensor.scrolls
+  scene:click(plusAt); plusNode.press()
+  scene:rotate(1); scene:rotate(1); scene:rotate(1)
+  check(view._inflightSensor.scrolls > scrollsHeld and scene.focus[scene.at].parent == scene.reverse,
+    "control: three detents while + is held put the focus on a reverse row and scroll the ladder")
+  plusNode.release()
+  check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epochHeld + 1,
+    "refocus: a release after the ladder moved while held builds instead of hiding the box over the focus")
+  -- A detent in the refresh between a tap's release and its sweep moves the focus from the tapped
+  -- button to its neighbour in the walk -- back, the group arrow '>' -- which no ladder scroll reports.
+  -- The sweep must still end with the focus on the widget, and ENTER must leave value mode.
+  for _, direction in ipairs({-1, -2, -3, 1}) do
+    render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+    settle()
+    local entryBefore, epochBefore = instance.entry, instance.ladderEpoch or 0
+    tapPlus()
+    for _ = 1, math.abs(direction) do scene:rotate(direction > 0 and 1 or -1) end
+    for _ = 1, 4 do scene:refsSweep() end
+    -- Only a build the drive asked for (the layout epoch moved) rebuilds the scene here.
+    if (instance.ladderEpoch or 0) ~= epochBefore then render() end
+    check(scene.at == 0, "refocus: a detent " .. direction .. " before the sweep still ends with the focus on the widget (at "
+      .. tostring(scene.at) .. ")")
+    settle()
+    scene:press()
+    check(instance.valueMode ~= true and instance.entry == entryBefore,
+      "refocus: ENTER after a detent " .. direction .. " before the sweep leaves value mode and changes no function")
+  end
+  -- A sweep that never comes: the fallback builds after SWEEP_PASSES passes.
+  render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+  local epoch = instance.ladderEpoch or 0
+  settle(); tapPlus()
+  for _ = 1, 13 do ticks = ticks + 31; instance:fastTick(ticks) end
+  check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epoch + 1,
+    "refocus: a sweep whose getter is never asked is ended by a build (fastTick's backstop)")
+  -- fastTick runs on the fast sampler AND on the logic tick, so one refresh can carry two calls; a
+  -- sweep that the box's getter drives through its three refreshes must not be cut short by them.
+  render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+  epoch = instance.ladderEpoch or 0
+  settle(); tapPlus()
+  for _ = 1, 3 do
+    ticks = ticks + 11; instance:fastTick(ticks)
+    ticks = ticks + 11; instance:fastTick(ticks)
+    scene:refsSweep()
+  end
+  check(instance.tapSweep == nil and (instance.ladderEpoch or 0) == epoch and scene.at == 0,
+    "refocus: two fastTick calls per refresh do not turn a three-refresh sweep into a build")
 end
 
 for _, surface in ipairs({{"ground", false}, {"ground", true}, {"post", false}, {"post", true}, {"live", false}}) do

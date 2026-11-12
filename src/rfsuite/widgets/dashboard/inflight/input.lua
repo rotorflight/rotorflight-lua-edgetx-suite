@@ -27,6 +27,49 @@ function M.rebuild(widget, row)
   trace("ladder rebuild row=" .. tostring(row), row, "requested")
 end
 
+-- The focus back to the fullscreen widget without a build, after a tap on + or -. The firmware asks
+-- every object of the scene its `visible` in creation order on each pass; a hidden box's children and
+-- its scrollTo are not asked at all. LVGL moves the focus off a hidden object only when that object
+-- itself is focused (lv_obj_add_flag -> lv_group_focus_next), and the next object it picks skips
+-- hidden objects and the children of hidden ones, with wrap. So the sweep runs in three passes:
+--   prehide  the reverse ladder's box hides (one getter on the box, created last); the focus is on
+--            the tapped step button, outside it;
+--   hide     the group row and the two step buttons hide: the focus leaves whichever of them it is
+--            on (a detent between the release and this pass can have moved it from the tapped
+--            button to '>'), skips the hidden box's rows, and wraps to the widget -- the state a
+--            build leaves;
+--   show     all shown again, and the sensor is reset to its built state (sensor.reset).
+-- The box's own getter drives the states and counts the passes, as it is asked once on every
+-- refresh, after the other controls. A ladder scroll during the sweep is a detent that moved the
+-- focus into a ladder, and a sweep still unfinished after SWEEP_PASSES refreshes is one that went
+-- wrong: both end in a build instead of the reset. A sweep whose getter is never asked is ended by
+-- Drive:fastTick's backstop.
+function M.refocus(widget)
+  local drive = widget._inflight
+  if not (drive and drive.live == true and drive.phase == "live") then return end
+  local sensor = widget._inflightSensor
+  -- A tap takes the focus only when its button is not the one pressed last (LVGL's click focus skips
+  -- `last_pressed`, cleared only when the object is deleted): a repeat tap leaves the focus where it
+  -- was. Once the ladder has scrolled since the last build or refocus, that can be a ladder row --
+  -- one this sweep would not move (a focused child of the hidden box is not moved off), and one the
+  -- reset below would misstate. So that tap builds as before; taps in a row after it do not.
+  if sensor == nil or sensor.scrolls ~= sensor.restScrolls then
+    trace("tap refocus", nil, "the ladder moved since the last build or refocus: the surface is built")
+    return M.rebuild(widget)
+  end
+  -- Every ladder row carries the same name, so the forward box shows it while the reverse one is
+  -- hidden: the name row does not blink.
+  sensor.side = nil
+  drive.tapSweep = { state = "prehide", passes = 0, swallowed = 0 }
+  trace("tap refocus", nil, "the reverse ladder hides, then the step buttons, one pass each")
+end
+
+-- The one answer for the two step buttons.
+function M.shown(drive)
+  local sweep = drive and drive.tapSweep
+  return sweep == nil or sweep.state ~= "hide" or drive.holdRow ~= nil
+end
+
 -- The same close is used by the touch box and RTN. Cancel a pending build before leaving: a
 -- build-job pass can otherwise draw the overlay again after its input has already closed it.
 function M.dispatch(widget, action, direction, source, index)
@@ -51,8 +94,15 @@ function M.dispatch(widget, action, direction, source, index)
   local ok, reason = drive:dispatch(action, direction, source, index, armed)
   if ok then widget._tuningKeyDirty = true end
   -- Touch moves native focus out of the ladder even when the action is refused. Keep a held
-  -- button alive until release; rebuilding then returns focus to the fullscreen widget.
-  if source == "touch" or (source == "touch_hold" and action == "release") then M.rebuild(widget) end
+  -- button alive until release; then the focus goes back to the fullscreen widget. On the value
+  -- surface's + and - that is a sweep that hides the controls after them (M.refocus), not a build:
+  -- a build of the ~90-object surface stood the screen still for most of a second in flight, and
+  -- the flight controller's report of the step fell into the backlog it left. Other touches build.
+  if source == "touch_hold" and action == "release" and drive.valueMode and widget._inflightSensor then
+    M.refocus(widget)
+  elseif source == "touch" or (source == "touch_hold" and action == "release") then
+    M.rebuild(widget)
+  end
   if drive.closeRequested then
     drive.closeRequested = nil
     widget.inflightFullscreen = nil
@@ -109,6 +159,10 @@ function M.renderKey(snapshot)
 end
 
 M.LADDER_ROWS = 64
+-- How many refreshes a tap's refocus sweep may take (M.refocus): it needs three (the reverse ladder
+-- hides, the group row and the step buttons hide, all show), one more is margin. Counted by the
+-- reverse box's getter, which the firmware asks once per refresh; past it the surface is built.
+M.SWEEP_PASSES = 4
 
 function M.ready(widget)
   local sensor = widget._inflightSensor
@@ -119,9 +173,11 @@ end
 function M.sensor(widget, rowHeight, count, valueMode)
   local drive = widget._inflight
   local start = valueMode and math.floor(count / 2) or drive.entry
-  local sensor = { row = start, index = start, y = (start - 1) * rowHeight,
+  local sensor = { row = start, index = start, y = (start - 1) * rowHeight, scrolls = 0, restScrolls = 0,
     building = true, positions = {}, indices = {} }
   widget._inflightSensor = sensor
+  -- A build ends any refocus sweep: its focus is on the widget already.
+  drive.tapSweep = nil
   local group, groups = drive.group, drive.groups
   local positions, indices = sensor.positions, sensor.indices
   for index = 1, count do
@@ -141,6 +197,12 @@ function M.sensor(widget, rowHeight, count, valueMode)
   -- ladder starts in the middle again, and the first detent after a build lands on a half's entry
   -- row. The rows left before the end absorb the detents that arrive while the build is pending.
   sensor.first = start + 1
+  -- The state a build leaves, set again after a tap's refocus sweep (M.refocus): the focus is back on
+  -- the widget, so the ladder starts from its entry rows as after a build.
+  sensor.reset = function()
+    sensor.row, sensor.index, sensor.y, sensor.side = start, start, (start - 1) * rowHeight, nil
+    if sensor.resetWindows then sensor.resetWindows() end
+  end
   sensor.scrollTo = function() return 0, sensor.y end
   sensor.position = function(index)
     return function() return 0, sensor.positions[index] end
@@ -173,6 +235,10 @@ function M.sensor(widget, rowHeight, count, valueMode)
     end
     if not current() then return result("stale") end
     if sensor.building then return result("building") end
+    if drive.tapSweep ~= nil then
+      drive.tapSweep.swallowed = drive.tapSweep.swallowed + 1
+      return false, "sweep"
+    end
     -- Fractional touch drags and elastic overscroll are not focus moves to full rows.
     if x ~= 0 or row < 0 or row > count + 2 or y ~= (row - 1) * rowHeight then
       -- Retain the raw viewport position so scrollTo does not fight a finger dragging the list.
@@ -215,22 +281,70 @@ function M.sensor(widget, rowHeight, count, valueMode)
       forward = {y = sensor.y}, reverse = {y = start * rowHeight}
     }
     local entered
+    sensor.resetWindows = function()
+      windows.forward.y, windows.forward.pending = sensor.y, nil
+      windows.reverse.y, windows.reverse.pending = start * rowHeight, nil
+      entered = nil
+    end
+    -- The reverse ladder box's `visible`, asked on every pass after the step buttons (the box is the
+    -- last object of the scene): it drives the refocus sweep (M.refocus). While a step button is held
+    -- nothing advances and the box stays shown; that button's release starts a new sweep.
+    local function reverseShown()
+      local sweep = drive.tapSweep
+      if sweep == nil or drive.holdRow ~= nil then return true end
+      sweep.passes = sweep.passes + 1
+      if sweep.passes > M.SWEEP_PASSES then
+        drive.tapSweep = nil
+        if Log then Log.emit("rfsuite.inflight.input", "tap refocus not finished after " .. sweep.passes .. " refreshes, the surface is built", "info") end
+        M.rebuild(widget)
+        return true
+      end
+      if sweep.state == "prehide" then
+        sweep.state = "hide"
+        return false
+      end
+      if sweep.state == "hide" then
+        sweep.state = "show"
+        trace("tap refocus hidden", sweep.swallowed, "scroll calls passed by")
+        return false
+      end
+      drive.tapSweep = nil
+      if sweep.moved then
+        trace("tap refocus shown", sweep.passes, "passes, a detent moved the focus during it: the surface is built")
+        M.rebuild(widget)
+        return true
+      end
+      sensor.reset()
+      sensor.restScrolls = sensor.scrolls
+      trace("tap refocus shown", sweep.passes, "passes")
+      return true
+    end
     local function view(side, other, entry, direction)
       local window = windows[side]
       return {
         scrollTo = function() return 0, window.y + rowHeight end,
+        visible = side == "reverse" and reverseShown or nil,
         opacity = function() return (sensor.side or "forward") == side and 255 or 0 end,
         position = function(index)
           return function() return 0, sensor.positions[index] + rowHeight end
         end,
         scrolled = function(x, y)
           y = y - rowHeight
+          -- The sweep itself scrolls no ladder (the reverse box is hidden while it runs), so a scroll
+          -- during it is a detent that moved the focus into a ladder: no step, and the sweep ends in
+          -- a build rather than in a reset that would misstate where the focus is.
+          if drive.tapSweep ~= nil then
+            drive.tapSweep.swallowed = drive.tapSweep.swallowed + 1
+            drive.tapSweep.moved = true
+            return
+          end
           if window.pending ~= nil and y == window.pending then
             window.pending = nil
             return
           end
           if window.y == y then return end
           window.y = y
+          sensor.scrolls = sensor.scrolls + 1
           if not current() or sensor.building then return end
           if not entered and direction < 0 and y == sensor.positions[start] then
             sensor.row = math.floor(y / rowHeight) + 2
