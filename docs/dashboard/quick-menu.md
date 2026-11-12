@@ -168,7 +168,9 @@ closed. It is reached three ways, all of them only while the model is disarmed:
   up, so the tool is there for a model that does not connect.
 
 While it is open the tool works as it does when started from the radio's tool list, on the
-widget's own connection to the flight controller. The return key at the top of its menu closes
+widget's own connection to the flight controller. That includes memory: the helicopter setup's code
+is let go once you leave the Helicopter Setup menu, not only when the tool closes (see
+[Helicopter Setup](../pages/helicopter_setup.md)). The return key at the top of its menu closes
 it, and so does the return key on the *Flight Log* page where *FLIGHT LOG* opened it there. Arming the model closes it as well, because while it is open the dashboard does not run and
 nothing is announced. So does leaving full screen with a long press on the return key. In both
 cases the tool's own closing sequence runs, so a page's changes that were already sent still
