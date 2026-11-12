@@ -538,6 +538,12 @@ end
 
 local EventsRuntime = requireModule("tasks/events/runtime.lua")
 
+-- The helpers of the MSP tick are local to this block. A local ends at its block's `end`, so they
+-- do not count against the main chunk's limit of 200 active locals (MAXVARS in lparser.c); only the
+-- names declared on the next line are visible after it. The body keeps its indentation, so the
+-- block shows only at its edges.
+local compileStatusLine, tickMspRuntime
+do
 -- A save started in the tool opened from this widget (widgets/dashboard/tool_host.lua) outlives
 -- the tool. Its messages are filed under the save's own client, which the tool's close leaves on
 -- the queue, so the replies keep advancing it on this widget's MSP tick: the writes, the EEPROM
@@ -639,7 +645,7 @@ end
 -- The line while the pass runs, and the request to restart once it has finished. It names the work
 -- the way the tool's start screen does: a bar shows how far it is, because a count of files means
 -- nothing to whoever is holding the radio. The bar reads _compileFill through its own size.
-local function compileStatusLine(self, t)
+compileStatusLine = function(self, t)
   if Compile and Compile.needsRestart() then
     self._compileFill, self._compileRestart = nil, true
     if _G.rfsuite.paths.moveFailed then
@@ -654,7 +660,7 @@ local function compileStatusLine(self, t)
   return (t and t("app.preparing")) or "Preparing suite"
 end
 
-local function tickMspRuntime(self, carry)
+tickMspRuntime = function(self, carry)
   -- The mark the service widget stands down on while this widget drives the work below, the
   -- compile pass included: on a model that carries both, the work otherwise runs twice per tick.
   -- See Events.markDriving.
@@ -706,6 +712,7 @@ local function tickMspRuntime(self, carry)
     MspRuntime.pump()
   end
 end
+end -- of the block scoping the MSP tick's helpers
 
 local function buildConnectionSplash(zone, statusLine, title, progress, scheme)
   if DashboardSplash and type(DashboardSplash.build) == "function" then
@@ -2252,6 +2259,10 @@ local function failedLabelJobStep(self)
   return true
 end
 
+-- The helpers of the preference reload are local to this block, for the reason given at the MSP
+-- tick's block above; only the names declared on the next line are visible after it.
+local preferencesLook, buildI18nContext, reloadPreferencesIfNeeded
+do
 --- What the preference files look like right now: size and mtime, as one string.
 --
 -- `fstat` is a global in this firmware and returns { size, attrib, time }. Comparing that
@@ -2346,7 +2357,7 @@ end
 
 -- The files as they stand now: the stamp above and the reload request's sizes, the same two looks
 -- reloadPreferencesIfNeeded takes. Nil where the stamp cannot be established.
-local function preferencesLook(keptStamp)
+preferencesLook = function(keptStamp)
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
   local stamp = preferencesStamp(session and session.modelPreferencesFile, keptStamp)
   if not stamp then return nil end
@@ -2437,7 +2448,7 @@ local function invalidateLocale(prefs)
 end
 
 --- The widget's i18n context for the language as it stands now.
-local function buildI18nContext()
+buildI18nContext = function()
   if not (I18nModule and type(I18nModule.new) == "function") then return nil end
   local mod = localeModule()
   local locale = nil
@@ -2452,7 +2463,7 @@ local function buildI18nContext()
   return nil
 end
 
-local function reloadPreferencesIfNeeded(self, force, isBackground)
+reloadPreferencesIfNeeded = function(self, force, isBackground)
   local now = nowSeconds()
 
   -- The stamp and sequences that a completed reload will adopt. Held back on purpose -- see the armed
@@ -2751,6 +2762,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   self.preferencesLastLoadedAt = now
   return true
 end
+end -- of the block scoping the preference reload's helpers
 
 local function updateConnectionState(self)
   local runtimeState = nil
@@ -3419,6 +3431,10 @@ end
 -- loaded -- a theme load is also what the arm and disarm edges pay for -- but on the first
 -- fullscreen pass after the theme on screen has changed, keyed on the theme module itself.
 
+-- The helpers of the theme mode and of the zone views are local to this block, for the reason given
+-- at the MSP tick's block above; only the names declared on the next line are visible after it.
+local takeFullscreenMode, resolveThemeMode
+do
 -- Holds the theme module the mode was last taken for, without keeping a module that has since
 -- been replaced alive until the next fullscreen pass.
 local WEAK_VALUES = { __mode = "v" }
@@ -3473,7 +3489,7 @@ end
 -- The same read takes the theme's `views`: the fullscreen view registry is made anew from the
 -- core views and those of a free-form theme -- only a module that builds its own tree can draw a
 -- view -- and a view of the previous theme's that is still on the stack is taken off it.
-local function takeFullscreenMode(self)
+takeFullscreenMode = function(self)
   local holder = self._fullscreenModeOf
   if holder == nil then
     holder = setmetatable({}, WEAK_VALUES)
@@ -3556,7 +3572,7 @@ end
 --- The fullscreen pass of a theme-mode widget: put the key route in place, and resolve the
 --- surface. Returns the view id and the render key, as views.resolve() does, with the base layer's
 --- key where no view is on top.
-local function resolveThemeMode(self, viewId, viewKey)
+resolveThemeMode = function(self, viewId, viewKey)
   if self.refresh ~= themeModeRefresh then
     self._ownRefresh = self.refresh
     self.refresh = themeModeRefresh
@@ -3688,6 +3704,7 @@ zoneViewFor = function(self)
   if type(view.renderKey) == "function" then self._zoneViewKey = view.renderKey(self.zone, self.state) end
   return view
 end
+end -- of the block scoping the theme mode's and the zone views' helpers
 
 -- A stored path is a selection only if it names a theme: an empty select is written as the
 -- string "nil", and an absent one is empty or missing altogether.
@@ -3958,6 +3975,10 @@ local function modelPreferencesSignature(modelPrefs)
   return table.concat(parts, "\n")
 end
 
+-- The helpers of the telemetry read are local to this block, for the reason given at the MSP tick's
+-- block above; only the names declared on the next line are visible after it.
+local countSharedPass, readTelemetry
+do
 -- Hoisted out of readTelemetry, which runs on the display's 2 Hz cadence: the per-pass cache
 -- and the two helpers below were rebuilt each time, and they are almost everything the pass
 -- allocates.
@@ -3985,7 +4006,7 @@ local telemetryChanged = false
 local sharedRead = nil
 
 --- Count this pass for the record, before the event runtimes are driven.
-local function countSharedPass(now, reads)
+countSharedPass = function(now, reads)
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session
   if type(session) ~= "table" then
     sharedRead = nil
@@ -4064,7 +4085,7 @@ local function armFlagsRefused(value)
   return true
 end
 
-local function readTelemetry(state, audioState)
+readTelemetry = function(state, audioState)
   if not (Sensors and type(Sensors.getValue) == "function") then return end
   telemetryTarget = state
   telemetryChanged = false
@@ -4325,6 +4346,7 @@ local function readTelemetry(state, audioState)
   if telemetryChanged then updateDerivedFlightState(state) end
   readFlightRecord(state)
 end
+end -- of the block scoping the telemetry read's helpers
 
 local function computeFlightMode(state)
   local isArmed = state.armed == true
