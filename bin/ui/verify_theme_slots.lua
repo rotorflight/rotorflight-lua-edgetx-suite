@@ -296,6 +296,44 @@ do
   check(widget._themeRestoreOwed == nil, "and owes nothing more")
 end
 
+-- 16. The widget's marker recovery after a pause (src/widgets/rfsuite/main.lua, recoverThemeSlots): a
+--     recover that stops part way is tried again on the next pass while the marker is still there, and
+--     given up after three tries until the next pause, so a recover that keeps failing does not load the
+--     module on every pass.
+do
+  local savedLvgl = lvgl
+  lvgl = lvgl or {}
+  local Wrapper = assert(loadfile("src/widgets/rfsuite/main.lua"))()
+  lvgl = savedLvgl
+  local function freshMarker()
+    local T = load()
+    T.apply("dark")
+    modules["lib/theme_slots.lua"] = load()   -- the widget's own instance holds nothing
+  end
+  freshMarker()
+  local widget = { refresh = function() end }
+  Wrapper.refresh(widget)                          -- first pass: the pause is seen
+  check(widget._themeRecoverOwed == true, "control: the first pass owes a recovery")
+  failAfter = 2
+  Wrapper.refresh(widget)                          -- recover stops after two writes
+  failAfter = nil
+  check(not radioColours() and exists(MARKER), "control: the stopped recover left colours and marker")
+  Wrapper.refresh(widget)
+  check(radioColours() and not exists(MARKER), "the next pass finishes the recovery")
+  freshMarker()
+  widget = { refresh = function() end }
+  Wrapper.refresh(widget)
+  local stops = 0
+  for _ = 1, 5 do
+    failAfter = 0
+    Wrapper.refresh(widget)
+    if failAfter == nil then stops = stops + 1 end
+    failAfter = nil
+  end
+  check(stops == 3, "a recover that keeps stopping is tried three times, not on every pass (" .. stops .. ")")
+  rfsuite.require("lib/theme_slots.lua").recover()
+end
+
 -- 9. Without lcd.setColor (a desktop runner, an old radio) nothing is attempted.
 local saved = lcd.setColor
 lcd.setColor = nil
