@@ -54,13 +54,15 @@ journal never holds up the radio.
 
 The append-only file grows without limit. The suite reads at most its newest 64 KiB, some 1400 entries: from
 the first whole line in that part to the end, with older lines left in the file but not read. The Tune Advisor
-only needs the newest entries, so a journal past 64 KiB works as before; archive it by hand only if you want a
-smaller file.
+follows the journal back from its newest entries, so a journal past 64 KiB keeps working; archive it by hand only
+if you want a smaller file.
 
 The Tune Advisor page reads the journal when it opens, to find the P you last set yourself: it follows its own
 entries for P on an axis and PID profile back from the current value and stops at any other change. If its own
-changes go back further than the newest 64 KiB, the oldest value read counts as yours. If the file is there but
-cannot be read -- it does not open, for example -- the page raises no P until it can be read again.
+changes go back further than the newest 64 KiB, the oldest value read counts as yours, and the current P when
+none of them is read: after that many changes the page's limit of 50 % above your own P counts from that value,
+not from the P you set before them. If the file is there but cannot be read -- it does not open, for example --
+the page raises no P until it can be read again.
 
 ## Reading and repairing
 

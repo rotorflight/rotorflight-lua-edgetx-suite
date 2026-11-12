@@ -819,6 +819,23 @@ do
     #files[Journal.path(MCU)] > 65536 and not canSave()
     and contains(ui.view.whys, string.format(T().whyPMaxFmt, 40))
     and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
+  -- The advisor's own raises older than the newest 64 KiB are not read, and the oldest value read
+  -- counts as the pilot's: with both raises before the window P 70 is the pilot's, and with the
+  -- first one cut off P 60 is (cap 90). The documented trade-off of reading only the newest part.
+  files[Journal.path(MCU)] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. 'e(1761900002,"tune_advisor",1,"pid_0_P",60,70)\n'
+    .. string.rep('e(1761900003,"pids",1,"pid_2_P",1,2)\n', 2000)
+  openPage()
+  check("own raises older than the newest 64 KiB are not read: P 70 counts as the pilot's",
+    #files[Journal.path(MCU)] > 65536 and canSave()
+    and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
+  files[Journal.path(MCU)] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. string.rep('e(1761900003,"pids",1,"pid_2_P",1,2)\n', 2000)
+    .. 'e(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
+  openPage()
+  check("a chain of own raises cut by the window counts from the oldest value read (P 60)",
+    #files[Journal.path(MCU)] > 65536 and canSave()
+    and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
   files[Journal.path(MCU)] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
   openPage()
   check("(control) one over its read cap with no raise of roll's P raises it", #files[Journal.path(MCU)] > 65536

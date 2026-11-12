@@ -143,9 +143,10 @@ profiles they were flown on keep *Save* off as well; fly again.
   axis and PID profile, and stops at any other change. A P set by hand on the *PIDs* page starts the count again.
   If stops still bounce back after that, the reasons say "P is already ...% above your setting. Check the
   mechanics." More P will not fix it. With no journal yet, your current P counts as your own. Of a journal over
-  64 KiB only its newest 64 KiB are read, which holds the last 1400 or so changes. A journal that is there but
-  cannot be read (it does not open, for example) raises no P at all, and the reasons say "The change journal could
-  not be read, so P is not raised."
+  64 KiB only its newest 64 KiB are read, which holds the last 1400 or so changes; a raise of the page's own
+  older than that is not seen, so the oldest P read counts as yours. A journal that is
+  there but cannot be read (it does not open, for example) raises no P at all, and the reasons say "The change
+  journal could not be read, so P is not raised."
 - **A change would go past a setting's limit**: the page does not suggest it, or any change that goes with it
   (FF is never suggested without its rates). Instead, the reasons say "The change needed goes past a setting's
   limit." Look for the cause outside the tune, for example the mechanics or the head speed. For a rate the limit
