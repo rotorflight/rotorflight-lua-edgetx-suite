@@ -420,7 +420,14 @@ neither a view, the base layer nor the dashboard's own work runs beside it:
   pass, so a page that spreads its work over its wakeups keeps each one within what a pass leaves:
   hosted, the Logs page reads one unit of a log per wakeup and bounds its search by a count of
   entries rather than by the clock. A stop that escapes the tool is caught by the host, which runs
-  the tool again on the next pass, and twelve such stops in a row give the tool up.
+  the tool again on the next pass, and twelve such stops in a row give the tool up. A stop that
+  lands in Lua called by EdgeTX itself is not caught by any of these: a choice, a number field or a
+  switch reads its value through its `get` function when `lvgl.build` makes it and again from the
+  radio's event loop between calls, on what the last call left, and the reactive sweep after the
+  pass calls every function a property is bound to, all under EdgeTX's own `pcall`, which disables
+  the widget on a stop. So the first build of a page after it is opened makes only
+  the layout and shows *Loading...*; the next pass, starting with the whole limit, makes the widgets
+  from that layout. A rebuild of the page while it is open is drawn in the pass that builds it.
 - **Closing** is the tool's own sequence: the back key at the top of its menu, or on the page
   `openTool:<menuId>` opened it on while that page is still the one up, or
   `requestClose()`, which the host calls on the first pass without an event (full screen has

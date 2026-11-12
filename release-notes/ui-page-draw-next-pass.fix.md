@@ -1,0 +1,2 @@
+- **Opening a page in the tool from the dashboard no longer disables the widget (`ui/home`)**:
+  - Opened from the dashboard, a page the tool has just opened shows *Loading...* for one frame and is drawn on the next, with the whole instruction limit for making its controls. Before, a page that took most of a frame to build, such as Settings > Audio > Events > Link, could leave its controls too little of that frame, and EdgeTX disabled the widget (`CPU limit` or `foreground calRefs error`) (#1192).

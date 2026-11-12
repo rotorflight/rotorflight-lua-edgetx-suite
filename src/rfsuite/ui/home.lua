@@ -627,6 +627,13 @@ state = {
   -- How many builds in a row of the page on screen were stopped at the instruction limit; see
   -- BUILD_LIMIT_RETRIES. Counted per visit, like the latch.
   buildLimitStops = 0,
+  -- The page that has been opened and not drawn yet, and, once its build has run, the layout
+  -- that build made, waiting for the next pass to draw it (see drawPendingPage).
+  firstDrawMenuId = nil,
+  pendingLayout = nil,
+  pendingLayoutMenuId = nil,
+  -- The page the previous pass drew from such a layout, whose usage the next pass logs.
+  drawnMenuId = nil,
   helpContent = nil,
   helpPageTitle = nil,
   helpPageSubtitle = nil,
@@ -940,6 +947,8 @@ local function syncActivePageModule()
   -- The latch belongs to the page that is leaving. Re-entering it is a fresh attempt.
   state.pageBuildFailed = nil
   state.buildLimitStops = 0
+  -- The page that has just come up has not been drawn yet (see drawPendingPage).
+  state.firstDrawMenuId = currentMenuId
 
   -- From here everything queued belongs to the page that is up, without the page saying so: the
   -- pages hold the queue itself and none of them names a client.
@@ -2689,6 +2698,74 @@ local function appendMenuPendingNotice(children, contentX, contentY, contentW, b
   }
 end
 
+-- A page opened in the tool that runs inside the dashboard widget is drawn on the pass after the
+-- one that builds it. Every pass there is a widget call, stopped at the widget's instruction
+-- limit, and where the stop lands decides what it does. In the suite's own Lua it is caught --
+-- by the page build's guard, or by the host's step -- and the page is built again on the next
+-- pass. But EdgeTX calls into Lua itself: a choice, a number field or a switch reads its value
+-- through the page's `get` function when lvgl.build makes it and again from the radio's own
+-- event loop between calls, on what the last call left, and the reactive sweep that follows the
+-- pass calls every function a widget property is bound to. EdgeTX runs those calls under its own
+-- pcall, and a stop that lands in one of them is not passed back to the script: the widget is
+-- disabled ("CPU limit", "foreground calRefs error"). A page whose first build takes most of a
+-- pass -- the pass that opens it also releases the page before and loads the new one's modules --
+-- leaves the widgets it makes too little of that pass. So that pass makes the page's layout,
+-- where a stop is caught, and shows a notice that calls nothing; the next pass, which starts with
+-- the whole limit, makes the widgets from that layout. Only the first build of a visit is moved: a page rebuilt
+-- while it is open has its modules loaded and nothing to release, and a notice in its place
+-- would blink on every change. The tool run as a tool script has no such limit and draws at once.
+
+-- The notice the pass that builds a page shows in its place. Nothing in it calls back into Lua.
+local function pageDrawNotice()
+  return {
+    {
+      type = "rectangle",
+      x = 0, y = 0, w = LCD_W or 320, h = LCD_H or 240,
+      color = Palette.panel,
+      filled = true
+    },
+    {
+      type = "label",
+      x = 0, y = (LCD_H or 240) / 2 - 10, w = LCD_W or 320,
+      text = MENU_PENDING_TEXT,
+      color = Palette.panelText,
+      align = CENTER,
+      font = MIDSIZE
+    }
+  }
+end
+
+-- What the radio says the previous widget call used, in percent of the instruction limit, or nil
+-- where it does not say.
+local function lastCallUsage()
+  if type(getUsage) ~= "function" then return nil end
+  local ok, percent = pcall(getUsage)
+  return ok and tonumber(percent) or nil
+end
+
+-- Draws the layout the previous pass built (see the note above), unless the menu has moved on
+-- since, in which case the screen is built again for where the menu is now.
+local function drawPendingPage()
+  local lyt, menuId = state.pendingLayout, state.pendingLayoutMenuId
+  state.pendingLayout = nil
+  state.pendingLayoutMenuId = nil
+  local onScreen = state.menu and state.menu.getCurrentMenuId and state.menu.getCurrentMenuId() or nil
+  if menuId ~= onScreen then
+    logf("trace", "layout of %s dropped, the menu is on %s", tostring(menuId), tostring(onScreen))
+    scheduleBuildUI(false)
+    return false
+  end
+  state.firstDrawMenuId = nil
+  logStep("draw page=" .. tostring(menuId))
+  if type(lvgl.clear) == "function" then lvgl.clear() end
+  lvgl.build(lyt)
+  -- Both passes' usage, so a log says how much room each one left: the build pass's now, the
+  -- drawing pass's at the top of the next one (M.run).
+  logf("debug", "page %s drawn, the pass that built it used %s%%", tostring(menuId), tostring(lastCallUsage()))
+  state.drawnMenuId = menuId
+  return true
+end
+
 -- Builds the scene. Answers the grid build whose notice it drew, if it drew one (see
 -- GRID_TILES_PER_STEP); M.buildUI keeps that, and only once the build is through.
 local function buildScene()
@@ -2704,6 +2781,11 @@ local function buildScene()
 
   ensureBuildDeps()
   local loadingGrid = nil
+  -- A layout still waiting to be drawn belongs to the screen this build replaces.
+  state.pendingLayout = nil
+  state.pendingLayoutMenuId = nil
+  -- Whether this build is a page's first after it was opened, to be drawn on the next pass.
+  local drawNextPass = false
   -- Whatever this build draws, the root menu's tiles drawn before it are gone; the root branch
   -- below records the new ones.
   state.rootDrawn = nil
@@ -3336,6 +3418,7 @@ local function buildScene()
       if ok then
         state.pageBuildFailed = nil
         state.buildLimitStops = 0
+        drawNextPass = state.hosted == true and state.firstDrawMenuId == currentMenuId
       else
         -- Stopped at the instruction limit, which happens only where the tool runs inside the
         -- dashboard widget. EdgeTX raises that stop once per call and lets the rest of the call
@@ -3477,6 +3560,13 @@ local function buildScene()
 
   if lvgl and type(lvgl.clear) == "function" then
     lvgl.clear()
+  end
+  if drawNextPass then
+    state.pendingLayout = lyt
+    state.pendingLayoutMenuId = currentMenuId
+    lvgl.build(pageDrawNotice())
+    logf("debug", "page %s built, drawn on the next pass", tostring(currentMenuId))
+    return loadingGrid
   end
   lvgl.build(lyt)
   return loadingGrid
@@ -3851,6 +3941,11 @@ function M.run(event, touchState)
     local deferBackground = false
     local builtThisPass = false
 
+    if state.drawnMenuId ~= nil then
+      logf("debug", "the pass that drew page %s used %s%%", tostring(state.drawnMenuId), tostring(lastCallUsage()))
+      state.drawnMenuId = nil
+    end
+
     local armed = isModelArmed()
 
 
@@ -3931,6 +4026,9 @@ function M.run(event, touchState)
         logToFile("Closing sequence started (Tick 0).")
         logStep("closing tick 0", true)
         state.closeTicks = 0
+        -- A page built and not drawn yet is not drawn any more.
+        state.pendingLayout = nil
+        state.pendingLayoutMenuId = nil
         -- Tick 0: ONLY build the UI overlay. Do NOT do any cleanup or GC yet.
         -- This ensures the Lua VM yields immediately and EdgeTX can draw the screen.
         if lvgl and lvgl.clear then
@@ -4069,7 +4167,11 @@ function M.run(event, touchState)
     if state.sceneBuildOwed and not state.isClosing then
       state.pendingBuildUI = true
     end
-    if state.pendingBuildUI and not state.isClosing then
+    -- A page the previous pass built is drawn first, in a pass of its own: a build asked for
+    -- meanwhile waits for the next pass rather than sharing this one (see drawPendingPage).
+    if state.pendingLayout ~= nil and not state.isClosing and drawPendingPage() then
+      builtThisPass = true
+    elseif state.pendingBuildUI and not state.isClosing then
       state.pendingBuildUI = false
       local doGc = state.pendingGcAfterBuild == true
       state.pendingGcAfterBuild = false
