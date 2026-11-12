@@ -150,7 +150,8 @@ local function recoverThemeSlots(widget)
 end
 
 -- A restore the hosted tool's close could not finish (the instruction limit): called again, pass by
--- pass, until it goes through.
+-- pass, until it goes through -- on a background pass too, since a close while the widget is off
+-- screen would otherwise leave the radio's own screens in the scheme until it is shown again.
 local function finishThemeRestore(widget)
   local root = _G.rfsuite
   local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
@@ -203,6 +204,9 @@ end
 local function background(widget)
   if widget and widget.background then
     local now = nowSeconds()
+    if widget._themeRestoreOwed and widget._toolHost == nil then
+      finishThemeRestore(widget)
+    end
     local backoffUntil = tonumber(widget._cpuBackoffUntil) or 0
     if backoffUntil > 0 and now < backoffUntil then
       letGoWhileBackedOff(widget)
