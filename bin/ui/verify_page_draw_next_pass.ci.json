@@ -1,0 +1,7 @@
+{
+  "id": "page-draw-next-pass",
+  "name": "A page opened in the dashboard's tool is drawn on the pass after its build",
+  "commands": [
+    "lua5.3 bin/ui/verify_page_draw_next_pass.lua"
+  ]
+}

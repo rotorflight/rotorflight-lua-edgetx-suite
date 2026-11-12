@@ -1114,8 +1114,10 @@ local function openToolPageActual(theme, menuId, pagePath, pad, counted, fault, 
     local before = builds.count
     local n = pass(counted)
     -- The ESC settings are behind a safety notice. Press its real button so the row
-    -- includes the settings build rather than pricing only the notice.
-    if not noticeAccepted and builds.count > 0 then
+    -- includes the settings build rather than pricing only the notice. Opened from the
+    -- dashboard, a page is drawn on the pass after its build (ui/home.lua, drawPendingPage),
+    -- so the button is looked for once nothing waits to be drawn.
+    if not noticeAccepted and builds.count > 0 and state.pendingLayout == nil then
       local tree = Stubs.lvgl.trees[#Stubs.lvgl.trees]
       local children = tree and tree[1] and tree[1].children or {}
       for _, node in ipairs(children) do

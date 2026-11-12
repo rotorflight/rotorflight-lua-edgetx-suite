@@ -199,6 +199,10 @@ if case == "landing" then
   -- A build that raised still builds a scene (the page's build error), so the page's own build is checked too.
   expect(state.pageBuildFailed == nil and state.activePageMenuId == PAGE,
     "the landing's page did not build: failed " .. tostring(state.pageBuildFailed) .. ", active " .. tostring(state.activePageMenuId))
+  -- Hosted, the pass that builds an opened page shows a notice and the next pass draws the page.
+  expect(lastTexts["Reading the flight log"] == nil, "the pass that builds the landing's page also drew it")
+  runFor(1)
+  expect(builds == 2, "the second pass after init drew " .. builds .. " scene(s) instead of the landing's page")
   -- The page being active says which module is current, not that its build drew anything: the
   -- Flight Log's own first scene is its read overlay, and no other page draws that line.
   expect(lastTexts["Reading the flight log"] == true, "the first scene does not show the Flight Log page's own content")

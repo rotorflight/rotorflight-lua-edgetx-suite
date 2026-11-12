@@ -73,7 +73,11 @@ time -- from the card, unless the tool already holds its compiled chunk (see bel
   that is its decoder table (`lib/rf2tlm_sensors.lua`) and `lib/crsf.lua`; while one is missing it
   takes nothing off the link. A load can fail without the file being broken -- the loader's
   `pcall` also catches the radio's instruction limit when it stops a pass while the module's chunk
-  runs -- so a failure that does not last costs about a second.
+  runs -- so a failure that does not last costs about a second. A stop that lands in Lua EdgeTX
+  calls itself -- a widget's `get` function, the reactive sweep -- reaches no `pcall` of the
+  suite's and disables the widget; that is why the tool opened from the dashboard makes a page's
+  widgets on the pass after the one that loads and builds it (see
+  [Dashboard views](../developer/dashboard-views.md)).
 - The background function script (`functions/rfsbg.lua`) waits the same second before it asks
   again for the adjustment teller, which it loads only while *Adjustment events* is on.
 
