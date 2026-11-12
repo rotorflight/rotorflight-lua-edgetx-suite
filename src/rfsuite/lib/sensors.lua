@@ -742,18 +742,20 @@ local searchWaits = {}
 -- for ever, which would hold every repeated search back for good.
 local PASS_MARK_SECONDS = 1.0
 local passMark = 0
-local passMarkAt = nil
+local passMarkAt = nil  -- in clock ticks (getTime), read raw: this runs at the top of every pass
 local passKeyed = nil  -- which key the throttles last used, for the one line when it changes
 
 --- Mark the start of a widget pass, for the search throttles in Sensors.getValue.
 function Sensors.passBegins()
   passMark = passMark + 1
-  passMarkAt = nowSeconds()
+  local clock = getTime
+  passMarkAt = clock and clock() or nil
 end
 
--- The key the search throttles count against at clock reading `now`.
+-- The key the search throttles count against at clock reading `now` (seconds).
 local function passKey(now)
-  local marked = passMarkAt ~= nil and now - passMarkAt < PASS_MARK_SECONDS and now >= passMarkAt
+  local age = passMarkAt and now - passMarkAt / 100
+  local marked = age ~= nil and age >= 0 and age < PASS_MARK_SECONDS
   if marked ~= passKeyed then
     passKeyed = marked
     if debugWanted() then
