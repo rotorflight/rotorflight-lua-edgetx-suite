@@ -39,6 +39,9 @@
 -- is owed. A flight controller that answers with an MSP error reply has no such command: the
 -- capture stays off until the next connection.
 --
+-- Without the PID# and RTE# telemetry sensors, MSP_STATUS is read once after the axes and before
+-- the save, so the flight is saved under the profiles the flight controller flies now (readProfiles).
+--
 -- After the flight is saved and the clear has gone through, RC_TUNING and PID_PROFILE are read
 -- and the cyclic polarity, the cyclic ring and the I-term relax type are added to the flight,
 -- since they change what its numbers mean; a value that could not be read stays unknown.
@@ -65,6 +68,7 @@ local CORE = _G.rfsuite.paths.core .. "/"
 -- module once the capture is idle. Held together they would be most of what the capture costs
 -- in memory, for steps that never need more than one of them.
 local TuneAdvisorApi, TuneHistory, ChangeJournal, RcTuningApi, PidProfileApi = nil, nil, nil, nil, nil
+local StatusApi = nil
 
 local function nowSeconds()
   if type(getTime) == "function" then
@@ -169,6 +173,7 @@ end
 
 local function clearReplies(tc)
   tc.replies = {}
+  tc.profilesRead = nil
   tc.saveDue = false
   tc.job = nil
 end
@@ -328,6 +333,60 @@ local function activeProfiles()
   local okP, pid = pcall(Profile.getActivePidProfile)
   local okR, rate = pcall(Profile.getActiveRateProfile)
   return okP and pid or nil, okR and rate or nil
+end
+
+-- Whether both profiles come from the telemetry right now (PID#, RTE#). Without these sensors
+-- the session holds what the flight controller reported at connect, which a switch on the
+-- transmitter does not change.
+local function profilesLive()
+  local Profile = loadShared("lib/profile.lua")
+  if type(Profile) ~= "table" or type(Profile.getLive) ~= "function" then return false end
+  local okP, pid = pcall(Profile.getLive, "pid")
+  local okR, rate = pcall(Profile.getLive, "rate")
+  return okP and pid ~= nil and okR and rate ~= nil
+end
+
+-- Without the profile sensors: one MSP_STATUS read after the axes and before the save, so the
+-- flight is saved under the profiles the flight controller flies now, and the session -- what
+-- the Tune Advisor page takes for the active profiles -- follows a switch made on the
+-- transmitter. A read that fails or is dropped leaves the session's profiles, as before, and is
+-- not asked again for this flight.
+local function readProfiles(tc, queue)
+  tc.busy = true
+  local api = StatusApi
+  queue:add({
+    command = api.command,
+    isWrite = false,
+    maxRetries = 2,
+    simulatorResponse = api.simulatorResponse,
+    processReply = function(_, buf)
+      local p = api.parse(buf)
+      local pid = p and tonumber(p.current_pid_profile_index)
+      local rate = p and tonumber(p.current_control_rate_profile_index)
+      if pid and rate then
+        local Profile = loadShared("lib/profile.lua")
+        if type(Profile) == "table" then
+          pcall(Profile.setSessionPidProfile, pid)
+          pcall(Profile.setSessionRateProfile, rate)
+        end
+        log(string.format("profiles read for the save: PID %s, rates %s", tostring(pid + 1), tostring(rate + 1)),
+          "debug")
+      else
+        log("profile read not understood; the session's profiles are used", "warn")
+      end
+      tc.profilesRead = true
+      StatusApi = nil
+      waitFor(tc, GAP_SECONDS)
+      publishState(tc)
+    end,
+    errorHandler = function(_, reason)
+      log("profile read failed (" .. tostring(reason) .. "); the session's profiles are used", "info")
+      tc.profilesRead = true
+      StatusApi = nil
+      waitFor(tc, GAP_SECONDS)
+      publishState(tc)
+    end,
+  })
 end
 
 -- The settings are read from the active profiles, so they are the flight's only while those are
@@ -511,7 +570,17 @@ function M.tick(tc, mspState, linkUp, now)
       tc.mcuId = mcuId
     end
     if tc.saveDue or #tc.replies >= AXIS_COUNT then
-      finishCapture(tc, tc.mcuId)
+      if tc.profilesRead or profilesLive() then
+        finishCapture(tc, tc.mcuId)
+      elseif StatusApi == nil then
+        StatusApi = loadPlain("tasks/msp/api/status.lua")
+      elseif StatusApi then
+        readProfiles(tc, queue)
+      else
+        -- No status module: the session's profiles, as before
+        tc.profilesRead = true
+        StatusApi = nil
+      end
     else
       requestAxis(tc, queue, #tc.replies + 1)
     end

@@ -1328,6 +1328,8 @@ return {
         not_read = "Last flight not read. It is read at the next disarm.",
         not_saved = "Last flight not saved to the card. Check the card before the next flight; the next disarm tries again.",
         no_flight = "No flight saved yet",
+        no_flight_profile_fmt = "No flight saved on PID %d, rates %d yet",
+        reading_profiles = "Reading the active profiles...",
         act_no_flight = "Fly in acro mode with the RFSuite dashboard or Service widget on this model, then disarm.",
         why_no_flight = "The dashboard or Service widget saves each flight after the disarm. The tool alone saves none.",
         why_no_flight_arm = "It sees the disarm through the model's ARM sensor. Discover the sensors if it is missing.",
@@ -1361,6 +1363,7 @@ return {
         why_slow = "The heli turns slower than the stick asks for.",
         why_keep_feel = "Changing FF and the rates together keeps the stick feel.",
         why_no_f = "This axis has no FF, so its PID gains set the response.",
+        why_other_profiles = "Flights on other profiles are kept for those profiles.",
         why_full_fmt = "Full stick asks %d deg/s but the heli tops out at %d.",
         why_coll_high_fmt = "It turns %d%% faster at high collective than at low.",
         why_coll_low_fmt = "It turns %d%% faster at low collective than at high.",
@@ -1397,7 +1400,7 @@ return {
         applied = "Changes saved to the flight controller. Fly again to check the new tune.",
         help_title = "Tune Advisor",
         help_axis = "Roll, Pitch or Yaw: the flight data, the advice and Save below are for this axis only.",
-        help_message = "Fly in acro mode; the dashboard or service widget saves each flight at disarm.\nAxis: Roll, Pitch or Yaw; all lines are for this axis.\nFlight data: acro time combined, and how many of the last 5 flights.\nProfiles: PID and rate profile of the newest flight.\nResponse: heli turn rate compared with the stick.\nStops: bounce-back after centring the stick, or shaking.\nSuggested changes: what to change, by page and setting.\nWhy: reason for each change.\n*: erases saved flights and the flight controller's statistics after asking.\nSave (header): writes suggested changes for this axis after you confirm."
+        help_message = "Fly in acro mode; the dashboard or service widget saves each flight at disarm.\nAxis: Roll, Pitch or Yaw; all lines are for this axis.\nFlight data: acro time combined, and how many of the last 5 flights.\nProfiles: the active ones; only their flights count.\nResponse: heli turn rate compared with the stick.\nStops: bounce-back after centring the stick, or shaking.\nSuggested changes: what to change, by page and setting.\nWhy: reason for each change.\n*: erases saved flights and the flight controller's statistics after asking.\nSave (header): writes suggested changes for this axis after you confirm."
       },
       flight_tuning_rates_advanced_cyclic_behaviour = {
         save_error_title = "Error",

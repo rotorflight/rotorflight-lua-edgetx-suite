@@ -17,24 +17,34 @@ hovering counts nothing. Time in Angle, Horizon, Trainer, Altitude hold, Rescue,
 ten seconds of rolls, flips and pirouettes with the stick centred after each one, which one flight may or may not
 give.
 
-The page combines up to the last 5 flights flown on the same tune as the newest one. Counting back from the
-newest flight, the first flight with a different P, F, B, I-term relax cut-off, rate type or rates on that axis
-ends the count, because the advice is worked out against the tune you fly now. So does a flight with a different
-cyclic polarity, cyclic ring or I-term relax type, or one where any of these three is not known. Under polar
-cyclic, Roll flies on the Pitch rates, so for Roll a change of the Pitch rates ends the count too. Combining flights
-adds up the counts and averages each measurement weighted by how much data it came from; the flight controller
-weights its own figures slightly differently, so the combined response is a close estimate rather than exact,
-while the stop figures combine exactly.
+The page shows the flights of the PID and rate profile active on the flight controller, so that each setup gets its
+own advice and *Save* writes to the profiles the flights were flown on. It combines up to the last 5 flights flown
+on those profiles and on the same tune as the newest of them. Counting back from that flight, a flight on other
+profiles, or one that does not say which profiles it was flown on, is passed over: it neither counts nor ends the
+count, and stays saved for its own profiles. The first flight on these profiles with a different P, F, B, I-term
+relax cut-off, rate type or rates on that axis ends the count, because the advice is worked out against the tune
+you fly now. So does a flight with a different cyclic polarity, cyclic ring or I-term relax type, or one where any
+of these three is not known. When flights on other profiles are saved too, the first line under *Why* reads
+"Flights on other profiles are kept for those profiles."; with no flight on the active profiles the page says, for
+example, "No flight saved on PID 2, rates 1 yet". The active profiles come from the *PID#* and *RTE#* telemetry
+sensors; without them the page asks the flight controller when it opens and on *Reload*, only while disarmed
+("Reading the active profiles..." meanwhile), and otherwise uses the ones the flight controller reported last. A
+flight is saved under the profiles the same way: the sensors, or one request before the save without them. Under
+polar cyclic, Roll flies on the Pitch rates, so for Roll a change of the Pitch rates ends the count too. Combining
+flights adds up the counts and averages each measurement weighted by how much data it came from; the flight
+controller weights its own figures slightly differently, so the combined response is a close estimate rather than
+exact, while the stop figures combine exactly.
 
 ## How a flight is saved
 
 After each disarm the radio reads all three axes from the flight controller, saves them as one flight, then clears
 the flight controller's measurements so the next flight is measured on its own. It starts 5 seconds after the
 disarm and waits 2 seconds after each answer before the next request, so telemetry sensors keep updating; the
-flight is saved about 10 seconds after the disarm. Then it reads the cyclic polarity, the cyclic ring and the
-I-term relax type and adds them to the saved flight, since they change what its numbers mean. A value that could
-not be read stays unknown, and so do all three if you switch the PID or rate profile before they are read: the
-values read then would belong to the other profile.
+flight is saved about 10 seconds after the disarm (2 seconds later without the *PID#* and *RTE#* sensors, when the
+profiles are asked for first). Then it reads the cyclic polarity, the cyclic ring and the I-term relax type and
+adds them to the saved flight, since they change what its numbers mean. A value that could not be read stays
+unknown, and so do all three if you switch the PID or rate profile before they are read: the values read then would
+belong to the other profile.
 
 - **The saving is done by the RFSuite dashboard widget or the RFSuite Service widget**, whether or not this page
   is open (see [Service widget](../../dashboard/service-widget.md)). With neither of them on the model, no flight
@@ -84,7 +94,8 @@ answer finds measurements nobody saved, *Why* starts with how long they are, for
 flight whose reading failed while the page stayed open, press *Reload* to ask again.
 
 The flights are kept on the radio's SD card in `/SCRIPTS/RFSUITE/user/tune/<mcu id>.lua`, one line per
-flight and axis, newest last; only the last 5 flights are kept. `<mcu id>` is the flight controller's board ID,
+flight and axis, newest last; the last 5 flights of each PID and rate profile are kept, at most 20 in all (the 
+profiles with the most flights give up their oldest first), and the file is kept under 15 KiB. `<mcu id>` is the flight controller's board ID,
 with characters other than letters, digits, underscores and hyphens replaced by underscores, the same name as its
 [change journal](../../reference/change-journal.md) in `journal/<mcu id>.lua` beside the `tune` folder. Each save
 replaces the whole file, so a save that is cut short leaves the previous file in place (or as `<mcu id>.lua.bak`,
@@ -119,21 +130,21 @@ not saved to the card. Check the card before the next flight; the next disarm tr
 | Line | What it shows |
 | --- | --- |
 | Axis | Roll, Pitch or Yaw. Everything below is for the chosen axis. |
-| Flight data | Minutes and seconds of acro flight in the flights combined, and how many of the last 5 that is, for example "2m 12s, 3/5 flights". "No flight saved yet" when none is saved for this flight controller (see *How a flight is saved*). |
-| Profiles | The PID profile and rate profile the newest flight was flown on, for example "PID 1, rates 1". |
+| Flight data | Minutes and seconds of acro flight in the flights combined, and how many of the last 5 on the active profiles that is, for example "2m 12s, 3/5 flights". "No flight saved yet" when none is saved for this flight controller (see *How a flight is saved*), "No flight saved on PID 2, rates 1 yet" when none is saved on the active profiles. |
+| Profiles | The PID profile and rate profile active on the flight controller, for example "PID 1, rates 1". Only flights flown on these profiles are combined. |
 | Response | How fast the heli turns compared with the rate the stick asks for, for example "53% faster than asked". "Needs more flying" shows how much data is still needed; "Too uneven to judge" means the response varies too much. |
 | Stops | How much the heli bounces back after you centre the stick, as a share of the turn rate. Needs 10 stops. "Shaking 49 deg/s" instead means the heli oscillates with the stick centred (see the rules below). |
 | Suggested changes | Up to three changes, each named by the page, row and column to change and in the units that page shows, for example *PIDs > Roll > FF: 100 -> 80* and *Rates > Roll > Max Rate: 720 -> 900*. When there is something *Save* can write, a last line says so. |
 | Why | The reason for each change, and a fact worth knowing when there is room (for example how much faster the heli turns at high collective). |
 | * (header) | Erases this model's saved flights and resets the flight controller's current measurements, after asking to confirm. The change journal is kept. |
 | Save (header) | Writes the suggested changes for the shown axis to the flight controller. Available while connected and disarmed, with a known board ID, at least one change it can write and no save already running. See *Applying the changes* below. |
-| Reload (header) | Reads the saved flights again and asks the flight controller again whether it has the tune advisor. |
+| Reload (header) | Reads the active profiles and the saved flights again and asks the flight controller again whether it has the tune advisor. |
 
 **The profiles the flights were flown on.** The advice uses the cyclic polarity, cyclic ring and I-term relax type
-saved with the newest flight only while the active PID and rate profile are the ones that flight was flown on.
-Otherwise the first line under *Suggested changes* reads, for example, "Flown on PID profile 2 and rate profile 1.
-Switch to them to save." and *Save* stays off: switch to those profiles to save. Flights that do not say which
-profiles they were flown on keep *Save* off as well; fly again.
+saved with the newest flight on the active profiles. If the active profiles change while the page is open (a switch
+on the transmitter, seen through the *PID#* and *RTE#* sensors), the first line under *Suggested changes* reads,
+for example, "Flown on PID profile 2 and rate profile 1. Switch to them to save." and *Save* stays off: switch
+back, or press *Reload* to see the flights of the new profiles.
 
 ## The rules
 

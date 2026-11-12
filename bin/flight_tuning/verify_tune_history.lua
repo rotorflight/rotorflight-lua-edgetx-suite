@@ -396,6 +396,96 @@ do
   check("another cyclic polarity is not combined", pairUsed(base, with("cyclicPolarity", 1)) == 1)
   check("another cyclic ring is not combined", pairUsed(base, with("cyclicRing", 80)) == 1)
   check("another relax type is not combined", pairUsed(base, with("relaxType", 1)) == 1)
+
+  -- #1166: the PID and rate profile too, and per profile: flights on other profiles are passed
+  -- over, not ended at. aggregate's fourth value says the list also holds flights on other known
+  -- profiles.
+  local function pairOthers(ctxOld, ctxNew, fOld)
+    reset()
+    fly(60, fOld or 100, ctxOld)
+    fly(60, 100, ctxNew)
+    local _, n, _, others = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+    return n, others
+  end
+  local n, others = pairOthers(base, base)
+  check("(control) the same profiles: combined, no other profiles", n == 2 and not others,
+    tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(with("pidProfile", 2), base)
+  check("another PID profile is not combined, and other profiles are said to be kept", n == 1 and others == true,
+    tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(with("rateProfile", 2), base)
+  check("another rate profile is not combined, and other profiles are said to be kept", n == 1 and others == true,
+    tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(with("pidProfile", nil), base)
+  check("an older flight of unknown PID profile is not combined, and is no other known profile",
+    n == 1 and not others, tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(base, with("rateProfile", nil))
+  check("a newest flight of unknown rate profile counts alone", n == 1, tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(with("cyclicRing", 80), base)
+  check("ended by another setting on the same profiles: no other profiles", n == 1 and not others,
+    tostring(n) .. " " .. tostring(others))
+  local _, none, _, noneOthers = tuneHistory.aggregate({}, 1)
+  check("no flights: nothing combined, no other profiles", none == 0 and not noneOthers)
+
+  -- Per profile: P1, P2, P1 -- the flight on P2 is passed over
+  local P2 = with("pidProfile", 2)
+  reset()
+  fly(60, 100, base)
+  fly(70, 100, P2)
+  fly(80, 100, base)
+  local flights = tuneHistory.read(MCU)
+  local _, usedP1, secP1 = tuneHistory.aggregate(flights, 1, 1, 1)
+  check("P1, P2, P1: both P1 flights are combined, the P2 flight passed over", usedP1 == 2 and secP1 == 140,
+    usedP1 .. " / " .. secP1)
+  local aP2, usedP2, secP2 = tuneHistory.aggregate(flights, 1, 2, 1)
+  check("with P2 active its own flight is shown", usedP2 == 1 and secP2 == 70 and aP2.pidProfile == 2,
+    usedP2 .. " / " .. secP2)
+  local _, usedP3, _, othersP3 = tuneHistory.aggregate(flights, 1, 3, 1)
+  check("with a profile no flight was flown on: nothing combined, other profiles kept", usedP3 == 0 and othersP3,
+    usedP3)
+  local _, usedNewest = tuneHistory.aggregate(flights, 1)
+  check("(control) without profiles the newest flight's are used", usedNewest == 2, usedNewest)
+
+  -- At most five combined per profile, counted over other profiles' flights
+  reset()
+  for k = 1, 6 do fly(60 + k, 100, base); fly(30, 100, P2) end
+  local _, usedMax = tuneHistory.aggregate(tuneHistory.read(MCU), 1, 1, 1)
+  check("at most 5 flights of one profile are combined, with others between", usedMax == 5, usedMax)
+
+  -- Kept per profile: a burst on P2 does not push P1's flights out
+  reset()
+  for _ = 1, 3 do fly(60, 100, base) end
+  for _ = 1, 6 do fly(30, 100, P2) end
+  flights = tuneHistory.read(MCU)
+  local p1, p2 = 0, 0
+  for _, f in ipairs(flights) do
+    if f.pidProfile == 1 then p1 = p1 + 1 elseif f.pidProfile == 2 then p2 = p2 + 1 end
+  end
+  check("kept per profile: six P2 flights leave P1's three, and keep P2's newest five", p1 == 3 and p2 == 5,
+    p1 .. " P1, " .. p2 .. " P2")
+
+  -- At most 20 in the file: the profile with the most flights gives up its oldest
+  reset()
+  for pidp = 1, 5 do
+    for _ = 1, 5 do fly(40 + pidp, 100, with("pidProfile", pidp)) end
+  end
+  flights = tuneHistory.read(MCU)
+  local per = {}
+  for _, f in ipairs(flights) do per[f.pidProfile] = (per[f.pidProfile] or 0) + 1 end
+  check("at most 20 flights in the file; the profiles with the most flights give up their oldest, so five profiles keep four each",
+    #flights == 20 and per[1] == 4 and per[2] == 4 and per[3] == 4 and per[4] == 4 and per[5] == 4,
+    #flights .. " flights, P1 " .. tostring(per[1]) .. ", P5 " .. tostring(per[5]))
+  check("the file stays under the read cap", #files[HISTORY] < 16384, #files[HISTORY])
+
+  -- Read with the active profiles: other profiles' flights come back without axis tables
+  reset()
+  fly(60, 100, base)
+  fly(70, 100, P2)
+  flights = tuneHistory.read(MCU, 1, 1)
+  check("a read for P1 builds no axis tables for P2's flight", #flights == 2 and flights[2].axes[1] == nil
+    and flights[2].pidProfile == 2 and flights[1].axes[1] ~= nil, #flights)
+  local _, filtered = tuneHistory.aggregate(flights, 1, 1, 1)
+  check("(control) and still combines P1's flight", filtered == 1, filtered)
 end
 
 print("Differences from the Ethos suite: under polar cyclic Roll flies on Pitch's rates (#981)")
@@ -561,7 +651,9 @@ local function pump(fail, limit, seconds)
     while rig.requests[1] and not (limit and #asked >= limit) do
       local msg = rig.take()
       local name = rig.name(msg)
-      if name == "rc_tuning" or name == "pid_profile" then
+      if name == "status" then
+        rig.statusAsked[#rig.statusAsked + 1] = name
+      elseif name == "rc_tuning" or name == "pid_profile" then
         rig.contextAsked[#rig.contextAsked + 1] = name
       else
         asked[#asked + 1] = name
@@ -755,7 +847,7 @@ do
     while rig.requests[1] do
       local msg = rig.take()
       local name = rig.name(msg)
-      if name ~= "rc_tuning" and name ~= "pid_profile" then asked[#asked + 1] = name end
+      if name ~= "rc_tuning" and name ~= "pid_profile" and name ~= "status" then asked[#asked + 1] = name end
       rig.answer(msg)
     end
   end
@@ -1002,7 +1094,7 @@ local function pumpWrongPitch(wrong, seconds)
     while rig.requests[1] do
       local msg = rig.take()
       local name = rig.name(msg)
-      if name ~= "rc_tuning" and name ~= "pid_profile" then asked[#asked + 1] = name end
+      if name ~= "rc_tuning" and name ~= "pid_profile" and name ~= "status" then asked[#asked + 1] = name end
       if name == "pitch" and wrong > 0 then
         wrong = wrong - 1
         msg.__errorReply = false
@@ -1066,7 +1158,7 @@ local function boardPump(failClear, stopAtClear)
       if msg.sendIf and msg.sendIf(msg) ~= true then
         msg.errorHandler(msg, "withheld")
       else
-        if name ~= "rc_tuning" and name ~= "pid_profile" then asked[#asked + 1] = name end
+        if name ~= "rc_tuning" and name ~= "pid_profile" and name ~= "status" then asked[#asked + 1] = name end
         if name == "clear" and (failClear or 0) > 0 then
           failClear = failClear - 1
           msg.errorHandler(msg, "timeout")
@@ -1118,7 +1210,7 @@ local function boardPumpUntilSaved()
     while rig.requests[1] do
       local msg = rig.take()
       local name = rig.name(msg)
-      if name ~= "rc_tuning" and name ~= "pid_profile" then asked[#asked + 1] = name end
+      if name ~= "rc_tuning" and name ~= "pid_profile" and name ~= "status" then asked[#asked + 1] = name end
       rig.reply.seconds = board.seconds
       rig.answer(msg)
     end
@@ -1310,6 +1402,57 @@ do
 end
 
 -- ---------------------------------------------------------------------------
+print("The capture: the profiles a flight is saved under (#1166)")
+-- ---------------------------------------------------------------------------
+do
+  local function savedProfiles()
+    local flights = tuneHistory.read(MCU)
+    local a = flights[#flights] and flights[#flights].axes[1]
+    return a and (tostring(a.pidProfile) .. "/" .. tostring(a.rateProfile)) or "-"
+  end
+
+  -- No PID#/RTE# sensors; the flight controller flies PID 2 / rates 3, the session still says 1 / 1
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  local asked = flyThrough(120)
+  check("without the profile sensors the profiles are read once before the save and the flight is saved under them",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 1 and savedProfiles() == "2/3",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+  check("the session follows, so the page sees the profiles flown", rig.session.activeProfile == 1
+    and rig.session.activeRateProfile == 2, tostring(rig.session.activeProfile) .. "/" .. tostring(rig.session.activeRateProfile))
+
+  -- A switch on the transmitter between two flights, no sensors: not combined
+  fresh()
+  flyThrough(120)
+  rig.status.pid = 1
+  flyThrough(90)
+  local _, used = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+  check("a profile switch between two flights without the sensors: the flights are not combined", used == 1
+    and savedProfiles() == "2/1", used .. " flights, newest " .. savedProfiles())
+  rig.status.pid = nil
+
+  -- With the sensors: no read, their values
+  fresh()
+  rig.sensors.pid_profile, rig.sensors.rate_profile = 4, 5
+  asked = flyThrough(120)
+  check("with the PID# and RTE# sensors nothing more is read, the flight is saved under their profiles",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 0 and savedProfiles() == "4/5",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+  rig.sensors.pid_profile, rig.sensors.rate_profile = nil, nil
+
+  -- The read fails: the session's profiles, as before, and the flight is still saved
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump({ status = { n = 1, reason = "timeout" } })
+  check("a failed profiles read falls back to the session's and the flight is saved", asked == "roll,pitch,yaw,clear"
+    and #rig.statusAsked == 1 and savedProfiles() == "1/1", asked .. " / saved " .. savedProfiles())
+end
+
+-- ---------------------------------------------------------------------------
 print("Differences from the Ethos suite: owed work stays with its flight controller (#988)")
 -- ---------------------------------------------------------------------------
 do
@@ -1326,6 +1469,8 @@ do
     if rig.capture().clearPending then break end
     rig.clock = rig.clock + 0.5
     rig.pass()
+    -- The profiles read before the save (no PID#/RTE# here) is answered; the clear is not
+    if rig.requests[1] and rig.name(rig.requests[1]) == "status" then rig.answer(rig.take()) end
   end
   check("(setup) A's flight is saved and its clear owed", rig.capture().clearPending == true and #lines() == 4)
   rig.session.mcu_id = OTHER
@@ -1371,7 +1516,8 @@ do
   fresh()
   update(true)
   update(false)
-  asked = pump({ clear = { n = 3, reason = "timeout" } })
+  -- 40 s: the profiles read before the save adds one paced request
+  asked = pump({ clear = { n = 3, reason = "timeout" } }, nil, 40)
   check("(setup) a saved flight whose clear never gets through", asked == "roll,pitch,yaw,clear,clear,clear"
     and #tuneHistory.read(MCU) == 1, asked)
   update(true)
@@ -1493,7 +1639,7 @@ do
   fresh()
   update(true)
   update(false)
-  pump({ clear = { n = 3, reason = "timeout" } })
+  pump({ clear = { n = 3, reason = "timeout" } }, nil, 40)
   check("it is told too when the capture gives up before the settings are read",
     rig.capture().saved == 1 and rig.capture().contextPending == false and #rig.contextAsked == 0)
 end

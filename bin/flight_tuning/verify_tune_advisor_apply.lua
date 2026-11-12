@@ -935,12 +935,19 @@ end
 
 print("Differences from the Ethos suite: the profiles the flights were flown on")
 do
+  -- Since #1166 the page shows the flights of the ACTIVE profiles; a flight on others is kept for them
+  local function noteFor(pid, rate) return string.format(ui.text.noFlightProfileFmt or "?", pid, rate) end
   resetFc()
   flightContext = { pidProfile = 2, rateProfile = 1 }
   openPage()
-  check("flown on another PID profile: the page says which, and Save is off", not canSave()
-    and ui.view.actions[1] == string.format(T().profileSwitchFmt, 2, 1), ui.view.actions[1])
-  check("the profiles are named", shown(string.format(T().profileFmt, 2, 1)))
+  check("flown on another PID profile: no flight on the active ones, the page says so and Save is off",
+    not canSave() and ui.view.data == noteFor(1, 1), ui.view.data)
+  check("the active profiles are named", shown(string.format(T().profileFmt, 1, 1)))
+  profiles.pid = 2
+  openPage(true)
+  check("(control) with that PID profile active its flight is shown", ui.view.data ~= noteFor(2, 1)
+    and shown(string.format(T().profileFmt, 2, 1)) and string.find(ui.view.data, "1/5", 1, true) ~= nil, ui.view.data)
+  profiles.pid = 1
 
   -- The same values on both profiles: still another profile
   resetFc()
@@ -953,13 +960,47 @@ do
   flightContext = { pidProfile = 2, rateProfile = 2, cyclicPolarity = 1 }
   openPage()
   check("polar cyclic of another profile is not used", not contains(ui.view.actions, T().ratesCyclic)
-    and contains(ui.view.actions, T().ratesAxis[1]), table.concat(ui.view.actions, " | "))
+    and ui.view.data == noteFor(1, 1), table.concat(ui.view.actions, " | "))
 
   resetFc()
   flightContext = { unknownProfile = true }
   openPage()
-  check("flights of unknown profiles: Save is off and the page says why", not canSave()
-    and ui.view.actions[1] == T().profileUnknown, ui.view.actions[1])
+  check("flights of unknown profiles are not shown: Save is off and the page says no flight is on the active ones",
+    not canSave() and ui.view.data == noteFor(1, 1), ui.view.data)
+  resetFlights()
+end
+
+print("Differences from the Ethos suite: flights per PID and rate profile (#1166)")
+do
+  local OTHER = "Flights on other profiles are kept for those profiles."
+  -- An older flight with `older` as its context overrides, then the newest on profile 1 / 1
+  local function twoFlights(older)
+    resetFc()
+    resetFlights()
+    files[TuneHistory.path(MCU)] = nil
+    files[TuneHistory.path(MCU) .. ".bak"] = nil
+    flightContext = older
+    saveFlight()
+    flightContext = nil
+    saveFlight()
+    openPage(true)
+  end
+  local function seen() return ui.view.data .. " | " .. table.concat(ui.view.whys, " | ") end
+  twoFlights(nil)
+  check("(control) two flights on the same profiles: combined, no line about other profiles",
+    shown("2/5") and not contains(ui.view.whys, OTHER), seen())
+  twoFlights({ pidProfile = 2 })
+  check("an older flight on another PID profile is not combined, and the first reason says it is kept",
+    shown("1/5") and ui.view.whys[1] == OTHER, seen())
+  twoFlights({ rateProfile = 2 })
+  check("an older flight on another rate profile is not combined, and the first reason says it is kept",
+    shown("1/5") and ui.view.whys[1] == OTHER, seen())
+  twoFlights({ unknownProfile = true })
+  check("an older flight of unknown profiles is not combined, without the line", shown("1/5")
+    and not contains(ui.view.whys, OTHER), seen())
+  twoFlights({ cyclicRing = 80 })
+  check("an older flight ended by another setting on the same profiles: no line about profiles", shown("1/5")
+    and not contains(ui.view.whys, OTHER), seen())
   resetFlights()
 end
 

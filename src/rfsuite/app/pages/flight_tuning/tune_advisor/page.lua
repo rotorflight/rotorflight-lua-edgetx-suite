@@ -811,6 +811,11 @@ local function render()
   elseif captureState() == "reading" then
     -- The advice would change in a few seconds: show none until it does
     view.data = T.readingFlight
+  elseif ui.profilesReading then
+    if not T.readingProfiles then
+      T.readingProfiles = pageText(ui.i18n, "reading_profiles", "Reading the active profiles...")
+    end
+    view.data = T.readingProfiles
   elseif ui.axes and (ui.flightCount or 0) == 0 then
     -- Nothing saved for this flight controller. A zero time and "needs more flying" would read as
     -- a flight that was not counted, so say what saves a flight instead. The probe's own reply
@@ -825,6 +830,21 @@ local function render()
     local note = captureNote(T)
     if note then table.insert(view.actions, 1, note) end
     pageLog("debug", "no flight saved for %s; the board holds %d s not saved", tostring(ui.mcu), unsaved)
+  elseif ui.axes and not ui.hasActiveFlight then
+    -- Flights saved, none on the active profiles: say so rather than show another profile's
+    if not T.noFlightProfileFmt then
+      T.noFlightProfileFmt = pageText(ui.i18n, "no_flight_profile_fmt", "No flight saved on PID %d, rates %d yet")
+    end
+    view.data = string.format(T.noFlightProfileFmt, math.floor(tonumber(ui.activePid) or 0),
+      math.floor(tonumber(ui.activeRate) or 0))
+    if ui.activePid ~= nil and ui.activeRate ~= nil then
+      view.profile = string.format(T.profileFmt, ui.activePid, ui.activeRate)
+    end
+    view.actions = { T.actNoFlight }
+    local note = captureNote(T)
+    if note then table.insert(view.actions, 1, note) end
+    pageLog("debug", "no flight saved on PID %s, rates %s; %d on other profiles", tostring(ui.activePid),
+      tostring(ui.activeRate), ui.flightCount or 0)
   elseif ui.axes then
     local axis = ui.selected
     local entry = ui.axes[axis]
@@ -851,6 +871,15 @@ local function render()
       view.actions = { T.applied }
     else
       view.actions, view.whys = actions, whys
+      if entry.others then
+        -- First, so no reason for a change can push it out: it says why fewer flights count than
+        -- the file holds. Resolved only when shown, not with the texts every opening resolves.
+        if not T.whyOtherProfiles then
+          T.whyOtherProfiles = pageText(ui.i18n, "why_other_profiles",
+            "Flights on other profiles are kept for those profiles.")
+        end
+        table.insert(view.whys, 1, T.whyOtherProfiles)
+      end
       if blocked then
         table.insert(view.actions, 1, blocked)
       elseif #view.changes > 0 then
@@ -883,14 +912,73 @@ local function queueHistoryRead()
   local session = getSession()
   local capture = session and session.tuneCapture
   ui.seenSaved = capture and capture.saved or nil
-  ui.loadStep = ui.mcu and "read" or nil
+  ui.loadStep = ui.mcu and "profiles" or nil
+  ui.activePid, ui.activeRate, ui.profilesReading = nil, nil, false
   ui.unsavedSeconds, ui.flightCount = 0, 0
   ui.probeOwed = true
 end
 
+-- The profiles the page shows the flights of: the active ones on the flight controller. From the
+-- PID# and RTE# sensors when they report; otherwise one MSP_STATUS read, only while disarmed, which
+-- sets the session's profiles too; armed, without a queue, or when the read fails, the session's.
+local function liveProfiles()
+  if not Profile or type(Profile.getLive) ~= "function" then return nil, nil end
+  local okP, pid = pcall(Profile.getLive, "pid")
+  local okR, rate = pcall(Profile.getLive, "rate")
+  if okP and okR and pid ~= nil and rate ~= nil then return pid, rate end
+  return nil, nil
+end
+
+local function settleProfiles(pid, rate, how)
+  if pid == nil or rate == nil then pid, rate = currentProfiles() end
+  ui.activePid, ui.activeRate, ui.profilesReading = pid, rate, false
+  ui.loadStep = "read"
+  pageLog("debug", "active profiles PID %s, rates %s (%s)", tostring(pid), tostring(rate), how)
+end
+
+local function readActiveProfiles()
+  local pid, rate = liveProfiles()
+  if pid ~= nil then settleProfiles(pid, rate, "telemetry"); return end
+  local state = MspRuntime and MspRuntime.getState()
+  if not Armed then Armed = loadModule("lib/armed.lua") end
+  local armed = (state and state.lastArmed == true) or (Armed and Armed.isArmed())
+  local queue = getQueue()
+  local api = not armed and queue and loadModule("tasks/msp/api/status.lua") or nil
+  if not api then settleProfiles(nil, nil, armed and "session, armed" or "session"); return end
+  ui.profilesReading = true
+  render()
+  local generation = ui.generation
+  queue:add({
+    command = api.command,
+    isWrite = false,
+    maxRetries = 2,
+    simulatorResponse = api.simulatorResponse,
+    processReply = function(_, buf)
+      if generation ~= ui.generation then return end
+      local parsed = api.parse(buf)
+      local p = parsed and tonumber(parsed.current_pid_profile_index)
+      local r = parsed and tonumber(parsed.current_control_rate_profile_index)
+      if p and r then
+        pcall(Profile.setSessionPidProfile, p)
+        pcall(Profile.setSessionRateProfile, r)
+        settleProfiles(p + 1, r + 1, "read")
+      else
+        settleProfiles(nil, nil, "session, read not understood")
+      end
+    end,
+    errorHandler = function(_, reason)
+      if generation ~= ui.generation then return end
+      settleProfiles(nil, nil, "session, read " .. tostring(reason))
+    end
+  })
+end
+
 local function readHistoryStep()
   local step = ui.loadStep
-  if step == "read" then
+  if step == "profiles" then
+    if not ui.profilesReading then readActiveProfiles() end
+    return
+  elseif step == "read" then
     -- The module on one pass and the file on the next: together they were the dearest step
     if not TuneHistory then
       TuneHistory = loadModule("lib/tune_history.lua")
@@ -899,7 +987,7 @@ local function readHistoryStep()
     end
     ui.maxFlights = TuneHistory.MAX_FLIGHTS or ui.maxFlights
     -- The file on one pass, then at most one flight's lines per pass
-    if not ui.readJob then ui.readJob = TuneHistory.readJob(ui.mcu) end
+    if not ui.readJob then ui.readJob = TuneHistory.readJob(ui.mcu, ui.activePid, ui.activeRate) end
     local flights = TuneHistory.readStep(ui.readJob)
     if flights == nil then return end
     ui.flights, ui.readJob = flights, nil
@@ -911,14 +999,24 @@ local function readHistoryStep()
     if not axes then
       axes = {}
       ui.axesBuilt = axes
-      local newest = flights[#flights]
+      -- The newest flight on the active profiles: the one the advice is built from
+      local newest = nil
+      for i = #flights, 1, -1 do
+        if flights[i].pidProfile == ui.activePid and flights[i].rateProfile == ui.activeRate then
+          newest = flights[i]
+          break
+        end
+      end
       ui.newestHasPitch = newest ~= nil and newest.axes[AXIS_PITCH] ~= nil
+      ui.hasActiveFlight = newest ~= nil
       -- An axis can count no flight because a line of it does not read; the flights still exist
       ui.flightCount = #flights
     end
     local axis = #axes + 1
-    local a, used, seconds = TuneHistory.aggregate(flights, axis)
-    axes[axis] = { a = a, used = used, seconds = seconds, pilotP = a.P }
+    local a, used, seconds, others = TuneHistory.aggregate(flights, axis, ui.activePid, ui.activeRate)
+    axes[axis] = { a = a, used = used, seconds = seconds, pilotP = a.P, others = others == true }
+    pageLog("debug", "axis %d: %d of %d flights combined on PID %s, rates %s, %s s%s", axis, used, #flights,
+      tostring(ui.activePid), tostring(ui.activeRate), seconds, others and "; flights on other profiles kept" or "")
     if axis < AXIS_YAW then return end
     ui.axes, ui.axesBuilt, ui.flights = axes, nil, nil
     ui.loadStep = "journal"
