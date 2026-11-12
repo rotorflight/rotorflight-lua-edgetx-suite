@@ -1697,6 +1697,15 @@ do
   used, seconds = combined()
   check("a pack swapped unseen while the tool was open: marked, flight one left out, both kept",
     savedSeconds() == "140,200" and marks() == 1 and used == 1 and seconds == 200, seen())
+
+  -- The history module cannot be loaded (low memory) at the save of a reading while a saved flight
+  -- is held: the save fails as a write would, no error, and after three tries the flight is unsaved
+  heldCase(function() rig.shared["lib/tune_history.lua"] = false end)
+  rig.shared["lib/tune_history.lua"] = nil
+  local cap = rig.capture()
+  check("the history module not loading while a saved flight is held: no error, the flight reported unsaved",
+    not logged("tune capture error") and cap.state == "unsaved" and savedSeconds() == "140",
+    tostring(cap.state) .. " / " .. seen() .. (logged("tune capture error") and " / error logged" or ""))
 end
 
 do
