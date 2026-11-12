@@ -4245,15 +4245,16 @@ local function readTelemetry(state, audioState)
   end
 
   -- Where the count in use came from, kept beside it: "sensor", "config" or "voltage". A count
-  -- from the voltage is a guess, and the gate's first opening waits for the sensor's answer on a
-  -- model whose sensor has answered before (`cellSensorSeen`, kept across connections, see
-  -- updateVoltageThemeConfig). Logged when the count or its source changes, never per pass.
+  -- from the voltage is a guess; the last count the sensor gave is kept across connections
+  -- (`cellSensorCount`), and a guess that differs from it holds the gate's first opening for the
+  -- sensor's answer (updateVoltageThemeConfig). Logged when the count or its source changes,
+  -- never per pass.
   local cellsBefore, cellSourceBefore = state.batteryCellCount, state.batteryCellSource
   local batteryCellCountValue = getSensor("battery_cell_count")
   if type(batteryCellCountValue) == "number" and batteryCellCountValue > 0 then
     setField("batteryCellCount", roundInt(batteryCellCountValue, state.batteryCellCount or 0))
     state.batteryCellSource = "sensor"
-    state.cellSensorSeen = true
+    state.cellSensorCount = state.batteryCellCount
   elseif type(voltageValue) == "number" and voltageValue > 0 then
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
     local batteryConfig = session and (session.batteryConfig or session.battery_config) or nil
@@ -4745,10 +4746,11 @@ function Runtime.new(zone, options)
     local curMax = tonumber(currentConfig.v_max)
     -- Whether the bounds in hand are about to be rewritten by a count still on its way: the
     -- theme's unnormalized defaults with no cell count to normalize them yet, or bounds for a
-    -- count guessed from the pack voltage on a model whose cell count sensor has answered before
-    -- (a part-charged 6-cell pack reads as 5 cells until the sensor answers). updateConnectionState
-    -- holds the scene's first build on it. Set only on those outcomes below, so every other
-    -- outcome of this call leaves it clear. A model with no such sensor is never held for a
+    -- count guessed from the pack voltage that differs from the last count the cell count sensor
+    -- gave (a part-charged 6-cell pack reads as 5 cells until the sensor answers).
+    -- updateConnectionState holds the scene's first build on it. Set only on those outcomes
+    -- below, so every other outcome of this call leaves it clear. A guess that matches the
+    -- sensor's last count is not held, and a model with no such sensor is never held for a
     -- guess: nothing would ever replace it.
     self._voltageBoundsPending = nil
     self._voltageCellsGuessed = nil
@@ -4759,7 +4761,8 @@ function Runtime.new(zone, options)
       end
       local cells, guessed = resolveVoltageCellCount(self.state)
       self._voltageCellsGuessed = guessed
-      if guessed and self.state.cellSensorSeen == true then self._voltageBoundsPending = true end
+      local sensorCells = self.state.cellSensorCount
+      if guessed and sensorCells and cells ~= sensorCells then self._voltageBoundsPending = true end
       if not cells or cells <= 0 then
         if math.abs(curMin - 18.0) <= 0.01 and math.abs(curMax - 25.2) <= 0.01 then
           self._voltageBoundsPending = true
@@ -4811,7 +4814,8 @@ function Runtime.new(zone, options)
     local defaultMax = 25.2
     local cells, guessed = resolveVoltageCellCount(self.state)
     self._voltageCellsGuessed = guessed
-    if guessed and self.state.cellSensorSeen == true then self._voltageBoundsPending = true end
+    local sensorCells = self.state.cellSensorCount
+    if guessed and sensorCells and cells ~= sensorCells then self._voltageBoundsPending = true end
     if not cells or cells <= 0 then
       applyThemeConfig(self, nextConfig)
       if math.abs(nextConfig.v_min - defaultMin) <= 0.01 and math.abs(nextConfig.v_max - defaultMax) <= 0.01 then

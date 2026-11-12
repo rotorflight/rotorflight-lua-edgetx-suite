@@ -67,9 +67,10 @@ once those five seconds are over.
 
 A count estimated from the pack voltage can be one cell short: a part-charged 6S pack at a
 4.3 V maximum cell voltage reads as 5 cells. On a model whose cell count sensor has already
-reported a count since the widget started, an estimated count is treated like a missing one
-after a connect: the dashboard waits for the sensor, for the same five seconds at most. A model
-without a cell count sensor gets no wait for an estimate, because nothing would replace it.
+reported a count since the widget was loaded, an estimate that differs from that count is
+treated like a missing one after a connect: the dashboard waits for the sensor, for the same
+five seconds at most. An estimate that matches the sensor's last count is used at once, and a
+model without a cell count sensor gets no wait for an estimate, because nothing would replace it.
 
 ## The shipped themes
 
