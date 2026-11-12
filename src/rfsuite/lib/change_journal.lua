@@ -13,6 +13,14 @@ function M.path(mcuId)
   return DATA_DIR .. "/" .. id .. ".lua"
 end
 
+-- One line to the suite's log; nothing is built when the log does not want this level
+local function journalLog(level, fmt, ...)
+  local Log = _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.change_journal", level, fmt, ...)
+  end
+end
+
 local function makeDir(path)
   if type(mkdir) ~= "function" then return end
   if type(path) ~= "string" or path == "" then return end
@@ -119,7 +127,7 @@ function M.append(mcuId, entries)
   return true
 end
 
--- The journal grows with every save and may be read up to READ_CAP. Parsed in one go, a
+-- The journal grows with every save; its newest READ_CAP bytes are read. Parsed in one go, a
 -- journal of a thousand entries cost over a hundred thousand Lua instructions, far more than a
 -- page's wakeup may take, so it is read as a job: the file on one step, then LINES_PER_STEP lines
 -- per step. Each group of lines is loaded in one go; when that fails anywhere -- a line torn by a
@@ -153,24 +161,58 @@ function M.readStep(job)
     local path = M.path(job.mcuId)
     if not path then return nil, "mcu id" end
     local size = fileSize(path)
-    if size and size > READ_CAP then return nil, "too big" end
     local f = io.open(path, "r")
     if not f then
-      if size ~= nil then return nil, "open" end
+      if size ~= nil then
+        journalLog("debug", "journal %s: %d bytes but it does not open", path, size)
+        return nil, "open"
+      end
       return {}
+    end
+    -- Past READ_CAP only the newest part is read: the readers follow it back from its end, and
+    -- the file itself is never rewritten. The window starts one byte early, so a window that
+    -- begins on a line start is told from one that begins mid-line; everything up to the first
+    -- line break is dropped. Without fstat the size and so the window are unknown, and a journal
+    -- over READ_CAP stays refused.
+    local start, limit = 0, READ_CAP
+    if size and size > READ_CAP then
+      start, limit = size - READ_CAP - 1, READ_CAP + 1
+      -- EdgeTX's io.seek takes an offset from the start and answers FatFs' result, 0 on success
+      local ok, err = pcall(io.seek, f, start) -- luacheck: ignore 143
+      if not ok or (err ~= nil and err ~= 0) then
+        io.close(f)
+        journalLog("debug", "journal %s: seek to %d failed: %s", path, start, tostring(err))
+        return nil, "seek"
+      end
+      journalLog("info", "journal %s is %d bytes; reading its newest %d", path, size, READ_CAP)
     end
     local parts, total = {}, 0
     while true do
-      local ok, chunk = pcall(io.read, f, math.min(READ_CHUNK, READ_CAP + 1 - total))
+      local ok, chunk = pcall(io.read, f, math.min(READ_CHUNK, limit + 1 - total))
       if not ok then io.close(f); return nil, tostring(chunk) end
       if chunk == nil or chunk == "" then break end
       total = total + #chunk
-      if total > READ_CAP then io.close(f); return nil, "too big" end
+      if total > limit then
+        io.close(f)
+        journalLog("debug", "journal %s: over %d bytes and its size is unknown", path, READ_CAP)
+        return nil, "too big"
+      end
       parts[#parts + 1] = chunk
     end
     io.close(f)
-    if size ~= nil and total ~= size then return nil, "short read" end
-    job.text, job.pos, job.entries = table.concat(parts), 1, {}
+    if size ~= nil and total ~= size - start then
+      journalLog("debug", "journal %s: read %d of %d bytes", path, total, size - start)
+      return nil, "short read"
+    end
+    local text = table.concat(parts)
+    -- The parse starts after the first line break of a window, without a copy of the text
+    local pos = 1
+    if start > 0 then
+      local lineEnd = string.find(text, "\n", 1, true)
+      pos = lineEnd and lineEnd + 1 or #text + 1
+    end
+    journalLog("trace", "journal %s: %d bytes to parse", path, #text - pos + 1)
+    job.text, job.pos, job.entries = text, pos, {}
     -- loadScript discards the environment and can create stale bytecode beside the journal.
     job.env = { e = newCollector(job) }
     job.phase = "parse"
@@ -208,8 +250,9 @@ function M.readStep(job)
   return nil, "done"
 end
 
---- The whole journal, oldest first: a table of entries ({} when there is no journal), or nil and
---- a reason when it is there but cannot be read ("too big", "open", "short read", ...).
+--- The journal, oldest first: a table of entries ({} when there is no journal), or nil and a
+--- reason when it is there but cannot be read ("open", "short read", ...). A journal over READ_CAP
+--- gives the entries of its newest READ_CAP bytes ("too big" only where its size is unknown).
 function M.read(mcuId)
   local job = M.readJob(mcuId)
   while true do

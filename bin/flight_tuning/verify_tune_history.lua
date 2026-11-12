@@ -434,6 +434,65 @@ do
   files[JOURNAL] = nil
 end
 
+print("The change journal past its read cap of 64 KiB: its newest part is read (#1170)")
+do
+  -- Lines of 64 bytes, so the 65536-byte window starts exactly on a line start
+  local function line64(i)
+    local s = string.format('e(%d,"tune_advisor",1,"pid_0_P",%d,%d)', 1761900000 + i, 100 + i, 101 + i)
+    return s .. string.rep(" ", 63 - #s) .. "\n"
+  end
+  reset()
+  local text = {}
+  for i = 1, 1100 do text[i] = line64(i) end
+  files[JOURNAL] = table.concat(text)
+  local before = files[JOURNAL]
+  local rows, reason = journal.read(MCU)
+  check("a journal over the cap is read from its newest 64 KiB, the first line whole on a line start",
+    #before == 1100 * 64 and type(rows) == "table" and #rows == 1024 and rows[1].time == 1761900000 + 77
+    and rows[1024].time == 1761900000 + 1100, tostring(rows and #rows or reason))
+  check("reading it leaves the file as it was", files[JOURNAL] == before)
+
+  -- Lines of 45 bytes: the window starts mid-line, and the torn first line is dropped, not read
+  reset()
+  text = {}
+  for i = 1, 2000 do
+    text[i] = string.format('e(%d,"tune_advisor",1,"pid_0_P",%d,%d)\n', 1761000000 + i, 10 + i % 7, 11 + i % 7)
+  end
+  files[JOURNAL] = table.concat(text)
+  local size = #files[JOURNAL]
+  local whole = math.floor(65536 / #text[1])
+  rows, reason = journal.read(MCU)
+  check("a window that starts mid-line drops the torn line and keeps every whole one after it",
+    65536 % #text[1] ~= 0 and size > 65536 and type(rows) == "table" and #rows == whole
+    and rows[1].time == 1761000000 + 2000 - whole + 1 and rows[#rows].time == 1761000000 + 2000,
+    tostring(rows and #rows or reason) .. " of " .. whole)
+
+  -- Control: a journal under the cap is read whole, as before
+  reset()
+  files[JOURNAL] = table.concat(text, "", 1, 100)
+  rows = journal.read(MCU)
+  check("(control) a journal under the cap is read whole", type(rows) == "table" and #rows == 100
+    and rows[1].time == 1761000001)
+
+  -- Without fstat the size is unknown, so the newest part cannot be found: refused as before
+  reset()
+  files[JOURNAL] = table.concat(text)
+  local savedFstat = fstat
+  fstat = nil -- luacheck: ignore 111
+  rows, reason = journal.read(MCU)
+  fstat = savedFstat -- luacheck: ignore 111
+  check("without fstat a journal over the cap is still refused as too big", rows == nil and reason == "too big",
+    tostring(reason))
+
+  -- EdgeTX's io.seek answers FatFs' result instead of raising: a failed seek refuses the read
+  local savedSeek = io.seek
+  io.seek = function() return 1 end
+  rows, reason = journal.read(MCU)
+  io.seek = savedSeek
+  check("a seek the card refuses is not read from the wrong place", rows == nil and reason == "seek", tostring(reason))
+  files[JOURNAL] = nil
+end
+
 print("Differences from the Ethos suite: the change journal is read in steps (#980)")
 do
   -- The journal grows with every save; the page reads it a bounded number of lines per step.
@@ -478,10 +537,15 @@ do
   end
   check("pilotValues walks once and answers what pilotValue answers per field", agree)
 
+  -- Over its read cap (#1170) the job reads the newest part in steps, as read() does
   files[JOURNAL] = string.rep('e(1,"pids",1,"pid_0_P",1,2)\n', 3000)
-  local none, why = journal.read(MCU)
-  check("a journal over its read cap still answers nothing and the reason", none == nil and why == "too big",
-    tostring(why))
+  local tail = journal.read(MCU)
+  local capped = journal.readJob(MCU)
+  steps = 0
+  repeat got = journal.readStep(capped); steps = steps + 1 until got ~= false
+  check("a journal over its read cap is read in steps from its newest part, as read() reads it",
+    type(got) == "table" and type(tail) == "table" and #got == #tail and #got == math.floor(65536 / 28)
+    and steps > 16, tostring(got and #got) .. " entries in " .. steps .. " steps")
   files[JOURNAL] = nil
 end
 
