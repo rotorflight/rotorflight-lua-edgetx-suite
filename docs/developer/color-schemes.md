@@ -130,10 +130,11 @@ so the radio's colours are put back on every way the tool can end:
   holds the radio's colours and `lcd.setColor` as upvalues, since the suite's globals may be gone by
   then.
 - A marker file, `theme_slots.txt` in the user folder, written before the first slot. Should neither
-  of the above run, the next start of the tool, or the dashboard widget's first refresh after a pause
-  (EdgeTX stops widget refresh while a tool window is open), puts the radio's colours back -- only
-  while each slot holds the radio's colour or one a scheme writes there, so a theme applied since is
-  left alone. Never while the tool is open in that widget.
+  of the above run, the dashboard widget's first refresh after a pause (EdgeTX stops widget refresh
+  while a tool window is open) puts the radio's colours back and deletes it; the next start of the
+  tool takes the radio's colours from it instead of from the slots, writes it again and puts them
+  back when it closes. Both only while each slot holds the radio's colour or one a scheme writes
+  there, so a theme applied since is left alone. Never while the tool is open in that widget.
 - A restart of the radio, which reloads the theme.
 
 `bin/ui/verify_theme_slots.lua` drives the module against a stub of the colour table, every way out

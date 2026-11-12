@@ -39,8 +39,8 @@ Always available.
 - **While the tool is open, the radio's own controls take the scheme too.** EdgeTX draws its switches,
   number fields, choices and the page header in the radio theme's colors, so the tool writes those
   colors from the scheme when it opens and puts the radio theme's back when it closes -- also when it
-  is closed with a long press of RTN or ends with an error. Should that ever fail, the next start of the
-  tool or the dashboard puts them back, and a restart of the radio always does.
+  is closed with a long press of RTN or ends with an error. Should that ever fail, the dashboard puts
+  them back once it is shown again, the tool when it is next closed, and a restart of the radio always does.
 - **A menu tile that cannot be opened yet** -- such as the configuration tiles before the flight controller
   answers -- is grey with a grey label in *Light*, and an empty frame with a faded icon and a grey label
   in *Dark*.
