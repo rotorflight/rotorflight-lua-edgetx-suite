@@ -4,7 +4,8 @@
 --   log rows      a warn row in Session Logs is not drawn like an error row (error rows draw in warning);
 --   3D model      the Alignment page's outlines, light and mid faces, boom ring and discs read 3:1 on the
 --                 page, its darkest face differs from the page (it is outlined);
---   log curves    the four curves of the Logs graph read 3:1 on the page and stay four colours.
+--   log curves    the four curves of the Logs graph read 3:1 on the page and stay four colours;
+--   tile icons    a page picture with no scheme picture is drawn as it is, not as a blank tile.
 local checks, failures = 0, 0
 local function check(ok, label)
   checks = checks + 1
@@ -81,6 +82,20 @@ for _, name in ipairs({ "light", "dark" }) do
       seen[c] = true
     end
   end
+end
+
+-- Tile icons: the scheme picture where it exists, the page's own picture where it does not.
+do
+  local core = _G.rfsuite.paths.core
+  local present = { [core .. "/app/icons/light/setup_mixer_icon.png"] = true }
+  _G.fstat = function(path) if present[path] then return { size = 1 } end return nil end
+  Palette.apply("light")
+  check(Palette.iconPath(core .. "/app/pages/setup/mixer/icon.png") == core .. "/app/icons/light/setup_mixer_icon.png",
+    "tile icons: a page picture is drawn from its scheme set")
+  check(Palette.iconPath(core .. "/app/pages/setup/newpage/icon.png") == core .. "/app/pages/setup/newpage/icon.png",
+    "tile icons: a page picture with no scheme picture is drawn as it is")
+  check(Palette.iconPath("/WIDGETS/mine/icon.png") == "/WIDGETS/mine/icon.png", "tile icons: a picture of the pilot's own is drawn as it is")
+  _G.fstat = nil
 end
 
 print(string.format("%d checks, %d failures", checks, failures))

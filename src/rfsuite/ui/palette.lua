@@ -90,7 +90,9 @@ local ICON_SETS = {
 }
 
 --- The tile icon to draw for `file` in the current scheme. A picture from anywhere else -- a pilot's
---- own dashboard theme -- is drawn as it is.
+--- own dashboard theme -- is drawn as it is, and so is one whose scheme picture is missing (a page
+--- added without running bin/icons/make_scheme_icons.py): its own picture rather than a blank tile.
+--- The check is one fstat per picture and scheme; the answer is kept until the scheme changes.
 function palette.iconPath(file)
   local hit = iconCache[file]
   if hit then return hit end
@@ -103,6 +105,13 @@ function palette.iconPath(file)
     if string.sub(file, 1, #from) == from then
       local joined = string.gsub(string.sub(file, #from + 1), "/", "_")
       result = core .. ICON_SETS[i][2] .. palette.scheme .. "/" .. joined
+      if type(fstat) == "function" and fstat(result) == nil then
+        local Log = root.Log
+        if Log and type(Log.emit) == "function" then
+          Log.emit("rfsuite.ui", "no " .. tostring(palette.scheme) .. " picture for " .. file .. ", drawn as it is", "warn")
+        end
+        result = file
+      end
       break
     end
   end
