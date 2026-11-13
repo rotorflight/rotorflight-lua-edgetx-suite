@@ -686,6 +686,14 @@ local function adjustmentAwaited(now)
     return at ~= nil and (now - at / 100) <= ADJUSTMENT_AWAIT_SECONDS
 end
 
+-- At most RESCUE_WALKS byte hits are walked in one pass, newest first. A value whose bytes look
+-- like the id (a pack at 46.40 V reads 0x1220) can sit in every dropped frame, and walking all of
+-- them would cost about what decoding them would, which is what the cap is there to avoid. Past
+-- the bound the report waits for the board's repeat, as it did without the search. Every dropped
+-- frame is still byte-searched: the report can sit in an older one (a board's frames come about
+-- ten a second, a report half a second after the step, the backlog pass a second after it).
+local RESCUE_WALKS = 2
+
 -- Walk one dropped frame to its adjustment entry and decode that entry alone, published as
 -- decodeFrame would; the entries in front are walked with walkOnly so none of them publishes.
 -- Returns whether the entry was found.
@@ -746,7 +754,7 @@ function M.wakeup(now, decodeAll)
     local kept = keptFrames
     for i = #kept, 1, -1 do kept[i] = nil end
     local popped = 0
-    -- The frames the cap drops that may carry the adjustment pair. The newest one that does is
+    -- The frames the cap drops while a step's report is awaited. The newest one that carries it is
     -- decoded for that pair alone, ahead of the kept frames, so a newer pair among them still
     -- lands last; newest first, so a value whose bytes only look like the id does not hide an
     -- older real report. The board holds a report for ADJUSTMENT_LATENCY_MS (3 s) before its 0,
@@ -763,17 +771,28 @@ function M.wakeup(now, decodeAll)
         if not decodeAll and #kept > DECODE_CAP then
             local dropped = table.remove(kept, 1)
             if awaited == nil then awaited = adjustmentAwaited(now) end
-            if awaited and mayCarryAdjustment(dropped) then candidates[#candidates + 1] = dropped end
+            if awaited then candidates[#candidates + 1] = dropped end
         end
     end
 
     if popped == 0 then return 0 end
 
+    local walked = 0
     for i = #candidates, 1, -1 do
-        local data = candidates[i]
-        if rescueAdjustment(data, now) then
-            logf("debug", "pass: the adjustment report taken from a frame the cap dropped (frame %s)", tostring(data[3]))
+        if walked >= RESCUE_WALKS then
+            if traceOn then
+                logf("trace", "pass: the adjustment search stopped after %d walks, %d dropped frame(s) left",
+                    walked, i)
+            end
             break
+        end
+        local data = candidates[i]
+        if mayCarryAdjustment(data) then
+            walked = walked + 1
+            if rescueAdjustment(data, now) then
+                logf("debug", "pass: the adjustment report taken from a frame the cap dropped (frame %s)", tostring(data[3]))
+                break
+            end
         end
     end
     for i = #candidates, 1, -1 do candidates[i] = nil end

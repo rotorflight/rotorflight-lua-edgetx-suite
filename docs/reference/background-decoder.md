@@ -11,7 +11,8 @@ dashboard does that on its own, in the widget, and it works — but a widget cal
 fixed instruction count, so when frames arrive faster than the widget can decode them the older
 part of the backlog is dropped. One value is kept even then: for three seconds after an in-flight
 tuning step, the flight controller's answer to that step is looked for in the dropped frames, so
-the new value and its announcement do not wait for the flight controller to send it again.
+the new value and its announcement do not wait for the flight controller to send it again. At most
+two frames that look as if they carry it are read in full per pass; past them it waits as before.
 
 The suite can move that work into a small script the radio runs outside the widgets:
 `SCRIPTS/FUNCTIONS/rfsbg.lua`. A call there is paused and continued on the next turn instead of
