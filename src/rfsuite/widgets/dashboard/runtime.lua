@@ -2888,6 +2888,56 @@ local function updateConnectionState(self)
   -- appear for one frame, vanish, and come back a second later.
   local holdSeconds = self.everReady and SPLASH_READY_HOLD_SECONDS or 0
   local ready = (rawReady and self.readySince ~= nil and (now - self.readySince) >= holdSeconds) or softTimeoutReady
+
+  -- The theme's voltage bounds are part of what its scene is built from -- a gauge keeps the range
+  -- it was built with -- and they move to the pack's bounds once a cell count is known, which
+  -- clears the render key and builds the whole scene again. The battery test above can pass on a
+  -- fuel reading alone, before this connection has heard a pack voltage or a cell count, so the
+  -- first scene would be built on the theme's defaults and again a moment later.
+  -- updateVoltageThemeConfig marks exactly that state (`_voltageBoundsPending`: the defaults in
+  -- hand and no count), and the gate's FIRST opening waits for the count -- for at most
+  -- five seconds from the moment everything else was ready, so a model that never reports
+  -- a pack voltage still gets its dashboard. The wait overlaps the reconnect hold rather than
+  -- adding to it, and a gate that is already open is never shut by it -- nor pays for it: an open
+  -- gate skips the whole block.
+  local unheldReady = ready
+  if self.connectionReady ~= true then
+    local boundsHold = (ready and rawReady and self._voltageBoundsPending == true
+      and (now - self.readySince) < 5.0) == true
+    if boundsHold then ready = false end
+    if boundsHold ~= (self._boundsHold == true) then
+      self._boundsHold = boundsHold
+      if Log and type(Log.emitf) == "function" then
+        if boundsHold then
+          Log.emitf("rfsuite.widget", "debug", "first build waits for a cell count (in hand %s from %s, voltage bounds %s/%s)",
+            tostring(self.state.batteryCellCount), tostring(self.state.batteryCellSource),
+            tostring(self.state.themeConfig and self.state.themeConfig.v_min),
+            tostring(self.state.themeConfig and self.state.themeConfig.v_max))
+        elseif not rawReady then
+          Log.emitf("rfsuite.widget", "trace", "cell count wait left: the gate shut")
+        elseif self._voltageBoundsPending ~= true then
+          Log.emitf("rfsuite.widget", "debug", "cell count in after %.1f s, first build goes ahead",
+            now - (self.readySince or now))
+        else
+          Log.emitf("rfsuite.widget", "info", "no cell count after %.1f s, the dashboard is built on the theme's voltage bounds",
+            now - (self.readySince or now))
+        end
+      end
+      -- A wait that ran out on a guessed count: the cell count sensor did not answer, so the count
+      -- it gave on an earlier connection is forgotten. Another flight controller on this model, or
+      -- one that no longer sends the sensor, would otherwise hold every later connect for the full
+      -- five seconds; the next connect waits again only once the sensor has answered.
+      if not boundsHold and rawReady and self._voltageBoundsPending == true
+        and self.state.batteryCellSource == "voltage" and self.state.cellSensorCount ~= nil then
+        if Log and type(Log.emitf) == "function" then
+          Log.emitf("rfsuite.widget", "debug", "cell count sensor silent through the wait, its last count %s is forgotten",
+            tostring(self.state.cellSensorCount))
+        end
+        self.state.cellSensorCount = nil
+      end
+    end
+  end
+
   local t = (self.i18n and type(self.i18n.t) == "function") and self.i18n.t or nil
 
   local statusLine, standbyInfoKind = nil, nil
@@ -3016,7 +3066,8 @@ local function updateConnectionState(self)
   -- announcing the model may not, because the announcement needs the name that chain reads.
   -- This is the condition `ready` itself carried before the chain left the gate above, soft
   -- timeout included, so the audio path sees no change at all.
-  self.startupComplete = ready and (tasksDone or softTimeoutReady)
+  -- The wait for a cell count above holds the scene only, not the announcement.
+  self.startupComplete = unheldReady and (tasksDone or softTimeoutReady)
   return ready, statusLine
 end
 
@@ -4205,9 +4256,17 @@ local function readTelemetry(state, audioState)
     state.mainPowerLost = DashboardAudio.mainPowerLost(state, audioState)
   end
 
+  -- Where the count in use came from, kept beside it: "sensor", "config" or "voltage". A count
+  -- from the voltage is a guess; the last count the sensor gave is kept across connections
+  -- (`cellSensorCount`, forgotten when a wait for it runs out), and a guess that differs from it
+  -- holds the gate's first opening for the sensor's answer (updateVoltageThemeConfig). Logged when the count or its source changes,
+  -- never per pass.
+  local cellsBefore, cellSourceBefore = state.batteryCellCount, state.batteryCellSource
   local batteryCellCountValue = getSensor("battery_cell_count")
   if type(batteryCellCountValue) == "number" and batteryCellCountValue > 0 then
     setField("batteryCellCount", roundInt(batteryCellCountValue, state.batteryCellCount or 0))
+    state.batteryCellSource = "sensor"
+    state.cellSensorCount = state.batteryCellCount
   elseif type(voltageValue) == "number" and voltageValue > 0 then
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
     local batteryConfig = session and (session.batteryConfig or session.battery_config) or nil
@@ -4219,6 +4278,7 @@ local function readTelemetry(state, audioState)
     local configuredCells = tonumber(batteryConfig and batteryConfig.batteryCellCount)
     if configuredCells and configuredCells > 0 then
       setField("batteryCellCount", roundInt(configuredCells, state.batteryCellCount or 0))
+      state.batteryCellSource = "config"
     else
       -- Otherwise infer it from the battery config's max cell voltage. A voltage below half a
       -- cell is not a 1S pack but no pack at all -- a meter with nothing on it, or a pack that is
@@ -4231,14 +4291,26 @@ local function readTelemetry(state, audioState)
         local existingCells = tonumber(state.batteryCellCount)
         if not existingCells or existingCells <= 0 then
           setField("batteryCellCount", inferredCells)
+          state.batteryCellSource = "voltage"
         else
           local perCell = voltageValue / existingCells
           -- Reconnect-safe: replace stale cell count if implied per-cell voltage is implausible.
           if perCell < 2.5 or perCell > 4.5 then
             setField("batteryCellCount", inferredCells)
+            state.batteryCellSource = "voltage"
           end
         end
       end
+    end
+  end
+  if (state.batteryCellCount ~= cellsBefore or state.batteryCellSource ~= cellSourceBefore) and Log then
+    if state.batteryCellSource == "voltage" then
+      Log.emitf("rfsuite.widget", "debug", "cell count guessed from the pack voltage: %s (%s V, %s before)",
+        tostring(state.batteryCellCount), tostring(voltageValue), tostring(cellsBefore))
+    else
+      Log.emitf("rfsuite.widget", "debug", "cell count from the %s: %s (%s before)",
+        state.batteryCellSource == "sensor" and "cell count sensor" or "flight controller's battery config",
+        tostring(state.batteryCellCount), tostring(cellsBefore))
     end
   end
 
@@ -4580,17 +4652,19 @@ function Runtime.new(zone, options)
   -- The old flat names of the record answer through this, and nothing else does: __index is
   -- reached only for a key the state table does not hold.
 
+  -- The count the bounds are derived for, and whether it is a guess from the pack voltage rather
+  -- than the cell count sensor's or the flight controller's count.
   local function resolveVoltageCellCount(state)
     local cells = tonumber(state and state.batteryCellCount)
     if cells and cells > 0 then
-      return math.floor(cells + 0.5)
+      return math.floor(cells + 0.5), state.batteryCellSource == "voltage"
     end
 
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
     local batteryConfig = session and (session.batteryConfig or session.battery_config) or nil
     local sessionCells = tonumber(batteryConfig and batteryConfig.batteryCellCount)
     if sessionCells and sessionCells > 0 then
-      return math.floor(sessionCells + 0.5)
+      return math.floor(sessionCells + 0.5), false
     end
 
     local voltage = tonumber(state and state.voltage)
@@ -4598,7 +4672,7 @@ function Runtime.new(zone, options)
     -- The same rule as readTelemetry's: a voltage below half a cell gives no count.
     if type(voltage) == "number" and voltage > 0 and maxCellVoltage > 0 then
       local implied = math.floor((voltage / maxCellVoltage) + 0.5)
-      if implied > 0 then return implied end
+      if implied > 0 then return implied, true end
     end
 
     return nil
@@ -4644,9 +4718,12 @@ function Runtime.new(zone, options)
 
   local function logVoltageThemeDecision(self, reason, cells, inMin, inMax, outMin, outMax)
     if not shouldLogAudio(self) then return end
+    -- Whether `cells` is a guess from the pack voltage, set by updateVoltageThemeConfig beside it.
+    local guessed = self._voltageCellsGuessed == true
     local key = table.concat({
       tostring(reason or "?"),
       tostring(cells or "x"),
+      guessed and "g" or "k",
       tostring(inMin or "x"),
       tostring(inMax or "x"),
       tostring(outMin or "x"),
@@ -4659,7 +4736,8 @@ function Runtime.new(zone, options)
       "voltage theme normalize reason=" .. tostring(reason)
         .. " cells=" .. tostring(cells)
         .. " in=" .. tostring(inMin) .. "/" .. tostring(inMax)
-        .. " out=" .. tostring(outMin) .. "/" .. tostring(outMax),
+        .. " out=" .. tostring(outMin) .. "/" .. tostring(outMax)
+        .. (guessed and " (count guessed from the pack voltage)" or ""),
       "debug"
     )
   end
@@ -4677,13 +4755,29 @@ function Runtime.new(zone, options)
     -- exactly what it computed before.
     local curMin = tonumber(currentConfig.v_min)
     local curMax = tonumber(currentConfig.v_max)
+    -- Whether the bounds in hand are about to be rewritten by a count still on its way: the
+    -- theme's unnormalized defaults with no cell count to normalize them yet, or bounds for a
+    -- count guessed from the pack voltage that differs from the last count the cell count sensor
+    -- gave (a part-charged 6-cell pack reads as 5 cells until the sensor answers).
+    -- updateConnectionState holds the scene's first build on it. Set only on those outcomes
+    -- below, so every other outcome of this call leaves it clear. A guess that matches the
+    -- sensor's last count is not held, and a model with no such sensor is never held for a
+    -- guess: nothing would ever replace it.
+    self._voltageBoundsPending = nil
+    self._voltageCellsGuessed = nil
     if curMin ~= nil and curMax ~= nil then
       if currentConfig._customVoltage == true then
         logVoltageThemeDecision(self, "custom-config", nil, currentConfig.v_min, currentConfig.v_max, curMin, curMax)
         return
       end
-      local cells = resolveVoltageCellCount(self.state)
+      local cells, guessed = resolveVoltageCellCount(self.state)
+      self._voltageCellsGuessed = guessed
+      local sensorCells = self.state.cellSensorCount
+      if guessed and sensorCells and cells ~= sensorCells then self._voltageBoundsPending = true end
       if not cells or cells <= 0 then
+        if math.abs(curMin - 18.0) <= 0.01 and math.abs(curMax - 25.2) <= 0.01 then
+          self._voltageBoundsPending = true
+        end
         logVoltageThemeDecision(self, "no-cells", cells, currentConfig.v_min, currentConfig.v_max, curMin, curMax)
         return
       end
@@ -4729,9 +4823,15 @@ function Runtime.new(zone, options)
 
     local defaultMin = 18.0
     local defaultMax = 25.2
-    local cells = resolveVoltageCellCount(self.state)
+    local cells, guessed = resolveVoltageCellCount(self.state)
+    self._voltageCellsGuessed = guessed
+    local sensorCells = self.state.cellSensorCount
+    if guessed and sensorCells and cells ~= sensorCells then self._voltageBoundsPending = true end
     if not cells or cells <= 0 then
       applyThemeConfig(self, nextConfig)
+      if math.abs(nextConfig.v_min - defaultMin) <= 0.01 and math.abs(nextConfig.v_max - defaultMax) <= 0.01 then
+        self._voltageBoundsPending = true
+      end
       logVoltageThemeDecision(self, "no-cells", cells, currentConfig.v_min, currentConfig.v_max, nextConfig.v_min, nextConfig.v_max)
       return
     end
@@ -5109,6 +5209,7 @@ function Runtime.new(zone, options)
       -- a new flight controller is a new answer to that question.
       self.state.armedSeen = false
       self.state.batteryCellCount = 0
+      self.state.batteryCellSource = nil
       -- What the link sources derived for the last session. The diversity latch above all:
       -- it only ever rises, so carrying it over would report a second antenna on a receiver
       -- that has none. The packet-rate memo goes with it so that the first pass of the new

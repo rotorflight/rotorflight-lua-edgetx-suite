@@ -1,0 +1,2 @@
+- **A connect builds the dashboard once when the cell count comes late (`widgets/dashboard/runtime.lua`, `docs/dashboard/themes.md`)**:
+  - When the battery is reported before its pack voltage or cell count, the dashboard waits up to five seconds for the count, so its gauges first appear on the pack's voltage range and the whole dashboard is not built a second time a moment later; with no count it is built on the default range after that wait.
