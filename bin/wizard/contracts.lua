@@ -556,21 +556,36 @@ return function(h)
               end
             end
             check(named or card.title==LL.steps[index] and #cards==1,string.format("FIT %s %dx%d step %d card %d header names the card or its place",locale,size[1],size[2],index,c))
-            -- Below the header: a one-line label or value holds its text, and a button's caption fits
-            -- inside the button's padding, so nothing wraps into the next row or the status line.
+            -- Below the header: a label or value may wrap, but its wrapped lines must end before
+            -- the next control below it (or the status line), and a button's caption must fit inside
+            -- the button's padding. Measured with the radio's font widths; a label wraps word by
+            -- word like an EdgeTX label, one line SMLSIZE being 17 px on the 480-wide screens.
             local pad=size[1]>=700 and 20 or 16
+            local lineH=size[1]>=700 and 23 or 17
+            local statusTop=size[2]-(size[1]>=700 and 44 or 32)-(size[1]>=700 and 40 or 27)
             for _,item in ipairs(scene.children) do
               local text=item.text
               if type(text)=="function" then text=text() end
-              -- A row label carries no height of its own (one line); a text this test cannot resolve
-              -- (another page's i18n key) is not measured.
               if type(text)=="string" and text~="" and item.y and item.w and item.y>=(size[1]>=700 and 30 or 20)
-                and not string.find(text,string.char(10),1,true) and not string.find(text,"@i18n(",1,true) then
-                if item.type=="label" and (item.h or 0)<34 then
-                  local need=width(text,item.font)
-                  check(need<=item.w,string.format("FIT %s %dx%d step %d card %d label '%s' %d fits %d",locale,size[1],size[2],index,c,text,need,item.w))
+                and not string.find(text,"@i18n(",1,true) then
+                local font=item.font or SMLSIZE
+                if item.type=="label" and not string.find(text,string.char(10),1,true) and width(text,font)>item.w then
+                  local lines,line=1,""
+                  for word in string.gmatch(text,"%S+") do
+                    local joined=line=="" and word or line.." "..word
+                    if width(joined,font)<=item.w then line=joined else lines,line=lines+1,word end
+                  end
+                  local room=statusTop-item.y
+                  for _,other in ipairs(scene.children) do
+                    if other~=item and other.type~="rectangle" and other.y and other.y>item.y+2 and other.x and other.w
+                      and other.x<item.x+item.w and other.x+other.w>item.x then
+                      room=math.min(room,other.y-item.y)
+                    end
+                  end
+                  check(lines*lineH<=room+2,string.format("FIT %s %dx%d step %d card %d label '%s' wraps to %d line(s) in %d px, room %d",
+                    locale,size[1],size[2],index,c,text,lines,item.w,room))
                 elseif item.type=="button" and text~="?" then
-                  local need=width(text,item.font or SMLSIZE)+pad
+                  local need=width(text,font)+pad
                   check(need<=item.w,string.format("FIT %s %dx%d step %d card %d button '%s' %d fits %d",locale,size[1],size[2],index,c,text,need,item.w))
                 end
               end
