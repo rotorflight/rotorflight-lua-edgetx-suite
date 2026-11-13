@@ -12,6 +12,7 @@
 --   no job, CPU limit    a pass that stops while the standby stands finished (no job pending) keeps
 --                        it: after the 1.2 s back-off no tree is built and `built` stays set;
 --   no job, other error  the same for an ordinary raise, which the entry point used to treat alike;
+--   job queued in pass   a state pass that queues a job and then stops gives the tree up and rebuilds;
 --   job, outside step    a raise in a job pass outside the step (the queue pump) drops the job and
 --                        the tree, so the widget is not pinned in the job branch (#280), and the
 --                        surface is built again once;
@@ -45,10 +46,6 @@ local Stubs = assert(loadfile(ROOT .. "/bin/accounting/stubs/edgetx.lua"))()
 local FC = assert(loadfile(ROOT .. "/bin/accounting/stubs/fc.lua"))()
 
 Stubs.clearCard()
-Stubs.install(ROOT)
-FC.install(Stubs)
-Stubs.reset()
-FC.reset()
 
 local failures = 0
 local checks = 0
@@ -70,16 +67,39 @@ local function logged(part)
   return false
 end
 
-local Entry = assert(loadfile(ROOT .. "/src/widgets/rfsuite/main.lua"))()
-assert(type(Entry) == "table" and type(Entry.refresh) == "function", "widget entry point did not load")
-local Runtime = assert(loadfile(ROOT .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
-local MspRuntime = assert(_G.rfsuite.require("tasks/msp/runtime.lua"))
+local Entry, Runtime, MspRuntime, widget
+-- Builds, counted at the stub radio's lvgl.build: the stub's tree list is emptied by every clear.
+local builds, standbyBuilds = 0, 0
+local realBuild
 
-local widget = Runtime.new({ x = 0, y = 0, w = 480, h = 320 }, {})
-widget.preferences.dashboard = widget.preferences.dashboard or {}
-widget.preferences.dashboard.standby_intro_seen = true
-widget.state.fblConnected, widget.state.armed = false, false
-widget.state.hadInflightFlight, widget.flightMode = false, "preflight"
+-- A world of its own: the stubs installed afresh, as bin/accounting/measure.lua does between worlds,
+-- and the entry point, the runtime and a widget loaded into it. The stub flight controller connects
+-- after a number of passes, and the standby makes way for the dashboard then, so a case that needs
+-- the standby on screen and comes late takes a world of its own rather than the passes left over.
+local function newWorld()
+  Stubs.install(ROOT)
+  FC.install(Stubs)
+  Stubs.reset()
+  FC.reset()
+  Entry = assert(loadfile(ROOT .. "/src/widgets/rfsuite/main.lua"))()
+  assert(type(Entry) == "table" and type(Entry.refresh) == "function", "widget entry point did not load")
+  Runtime = assert(loadfile(ROOT .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
+  MspRuntime = assert(_G.rfsuite.require("tasks/msp/runtime.lua"))
+
+  widget = Runtime.new({ x = 0, y = 0, w = 480, h = 320 }, {})
+  widget.preferences.dashboard = widget.preferences.dashboard or {}
+  widget.preferences.dashboard.standby_intro_seen = true
+  widget.state.fblConnected, widget.state.armed = false, false
+  widget.state.hadInflightFlight, widget.flightMode = false, "preflight"
+
+  realBuild = lvgl.build
+  lvgl.build = function(...)
+    builds = builds + 1
+    if widget._job and widget._job.kind == "standby" then standbyBuilds = standbyBuilds + 1 end
+    return realBuild(...)
+  end
+end
+newWorld()
 
 -- Every line given to the logger the entry point reaches (`rfsuite.Log`), whatever the level. That
 -- table is replaced while the dashboard loads, so it is wrapped again before every pass.
@@ -93,15 +113,6 @@ local function recordLog()
     lines[#lines + 1] = tostring(level) .. " " .. tostring(tag) .. ": " .. tostring(msg)
     return realEmit(tag, msg, level, ...)
   end
-end
-
--- Builds, counted at the stub radio's lvgl.build: the stub's tree list is emptied by every clear.
-local builds, standbyBuilds = 0, 0
-local realBuild = lvgl.build
-lvgl.build = function(...)
-  builds = builds + 1
-  if widget._job and widget._job.kind == "standby" then standbyBuilds = standbyBuilds + 1 end
-  return realBuild(...)
 end
 
 local function pass()
@@ -310,6 +321,36 @@ rideOut()
 -- scene follows the standby within these passes.
 built = standbyBuilds - standbyBefore
 check("release, early stop: back on screen, the standby is built again, once", built == 1, built)
+
+-- A job queued in the state pass that then stops: nothing was pending when the pass began, so only
+-- the job left behind tells the entry point that the tree may be about to be replaced.
+lvgl.build = realBuild
+newWorld()
+check("a fresh world: the standby stands before the queued-in-pass case", settle())
+do
+  local module = widget._standbyModule
+  local realSnapshot = module.snapshot
+  local queued = false
+  module.snapshot = function(...)
+    if not queued then
+      queued = true
+      widget._job = { kind = "queued_probe", step = function() return true end }
+      error("CPU limit", 0)
+    end
+    return realSnapshot(...)
+  end
+  lines = {}
+  local standbyBefore = standbyBuilds
+  pass()
+  module.snapshot = realSnapshot
+  check("job queued in the pass: the stop happened after the job was queued", queued)
+  check("job queued in the pass: the job is dropped", widget._job == nil)
+  check("job queued in the pass: the tree is given up", widget.built == false)
+  check("job queued in the pass: the rebuild says why", logged("rebuild: after a stopped pass, job queued_probe"))
+  rideOut()
+  local rebuilt = standbyBuilds - standbyBefore
+  check("job queued in the pass: the standby is built again, once", rebuilt == 1, rebuilt)
+end
 
 for Log, realEmit in pairs(wrapped) do Log.emit = realEmit end
 lvgl.build = realBuild
