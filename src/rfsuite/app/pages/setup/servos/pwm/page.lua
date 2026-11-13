@@ -287,18 +287,25 @@ local function rollbackServo(raw)
       changed = true
     end
   end
+  local sent = false
   if ui.override and ui.overrideServo == raw then
     local queue = getQueue()
-    local sent = queue and ui.override:rollback(function(record)
-      queueCentre(queue, record.raw, record.mid)
-      return true
-    end)
+    if queue then
+      ui.override:rollback(function(record)
+        queueCentre(queue, record.raw, record.mid)
+        sent = true
+        return true
+      end)
+    end
     if sent then changed = true end
-  elseif ui.runtime and ui.runtime.saveFailed and ui.runtime.saveFailed[raw] then
-    local queue = getQueue()
+  end
+  -- Also when an override was made only after the failed save: its record then says nothing went
+  -- out live, while the board may still run the failed save's centre.
+  if ui.runtime and ui.runtime.saveFailed and ui.runtime.saveFailed[raw] then
+    ui.runtime.saveFailed[raw] = nil
+    local queue = not sent and getQueue() or nil
     if queue then
       queueCentre(queue, raw, orig.mid)
-      ui.runtime.saveFailed[raw] = nil
       logf("info", "servo %d: the stored centre %s sent back after a save that was not stored", raw, tostring(orig.mid))
       changed = true
     end

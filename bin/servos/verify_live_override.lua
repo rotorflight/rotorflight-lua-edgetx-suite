@@ -346,6 +346,24 @@ for _, name in ipairs({ "pwm", "bus" }) do
       page.onClose()
       equal(commands(), "", name .. ": a failed save stored by a second Save sends nothing back on leaving")
     end
+    do
+      -- * switched on after the failed save, then left at once: the override has sent nothing of
+      -- its own, and the board may still run the failed save's centre, so it is sent back.
+      local page = open(name)
+      local orig = fields["Center"].opts.get()
+      build(page)
+      fields["Center"].opts.set(orig + 15)
+      page.wakeup(ctx)
+      clearQueue()
+      page.onSave({})
+      finishSave("failed")
+      page.onStar({})
+      clearQueue()
+      page.onClose()
+      local cmds = commands()
+      check(string.find(cmds, "213", 1, true) == 1, name .. ": a failed save, then *, then leaving sends the stored centre first", cmds)
+      equal(u16(queue.messages[1], 2), orig, name .. ": that write carries the centre read")
+    end
   end
 
   -- Reload without Save puts the centre back before it reads again.
