@@ -96,8 +96,9 @@ When a group of lines does not compile or run -- a half-written last line, or a 
 reader reads that group again line by line and skips only the lines that do not read; every other line still counts.
 A later append starts on a new line and leaves the broken fragment in place, where it is skipped again until the
 journal starts afresh, which leaves it out. A file above 16 KiB is read from its newest 16 KiB; a line cut in two
-by the start of that part is not read. A single line of more than 8 KiB is not one the suite wrote: a journal
-holding one is not started afresh until it is removed by hand.
+by the start of that part is not read. A single line of more than 4 KiB is not one the suite wrote: depending on
+where it falls in the file it can stop the start afresh, and one of more than 8 KiB always does, until it is removed
+by hand.
 
 There is no journal viewer or undo button in the UI. This is a record for undoing a change by hand: select
 the recorded profile and put the old value back on the appropriate settings page, then save it.
