@@ -170,6 +170,27 @@ if type(Sensors.passBegins) == "function" then
   Sensors.reset()
 end
 
+-- 3c. The exemption is the arming fallback's alone, and it does not outlive that one read. The
+-- fallback is answered from a path already adopted (it returns before any search), then the
+-- sensors are reset, and an independent System Status read opens the next pass: it counts against
+-- the cap like any other first search, so the fourth source after it is held back.
+if type(Sensors.passBegins) == "function" then
+  Sensors.reset()
+  Stubs.sensors["STAT"] = 1
+  for _ = 1, 3 do Stubs.tick(); Sensors.passBegins(); Sensors.getValue("armflags") end
+  Sensors.reset()
+  Stubs.tick()
+  Sensors.passBegins()
+  Sensors.getValue("system_status")
+  -- Sources with no packed fallback of their own, so each read is exactly one first search.
+  for _, source in ipairs({ "rpm", "link", "voltage", "current" }) do Sensors.getValue(source) end
+  local searched = Sensors.search_misses and Sensors.search_misses["current"] ~= nil
+  check(not searched, "an independent System Status search counts against the cap after the fallback was cached",
+    searched and "five first searches in one pass" or "current held back")
+  Stubs.sensors["STAT"] = nil
+  Sensors.reset()
+end
+
 -- 4. The dashboard marks its passes, on screen and off.
 do
   _G.getTime = stubGetTime
