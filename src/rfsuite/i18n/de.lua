@@ -436,7 +436,7 @@ return {
         linkTitle = "ELRS-Verbindung",
         linkSettings = "ELRS-Einstellungen",
         linkQuick = "FC und Modul vergleichen.\nBeide Seiten werden automatisch ausgelesen.",
-        linkHint = "FC-Linkrate und Telemetrieverhältnis müssen zum ExpressLRS-Modul passen, sonst stockt die Telemetrie oder Bandbreite bleibt ungenutzt. Beide Seiten werden automatisch gelesen.\nAngleichen: eine Seite übernimmt die Werte der anderen. Andere Werte: in den zwei Listen wählen, dann schreibt Auf beiden setzen erst das Modul, dann den FC.\nJede Änderung fragt zuerst: Die Verbindung kann kurz abbrechen. Wizard-Änderungen vorher speichern; Erweitert ist nicht nötig. Servos abgesteckt lassen.",
+        linkHint = "FC-Linkrate und Telemetrieverhältnis müssen zum ExpressLRS-Modul passen, sonst stockt die Telemetrie oder Bandbreite bleibt ungenutzt. Beide Seiten werden automatisch gelesen.\nAngleichen: eine Seite übernimmt die Werte der anderen. Andere Werte: in den zwei Listen wählen, dann schreibt Auf beiden setzen erst das Modul, dann den FC.\nJede Änderung fragt zuerst: Die Verbindung kann kurz abbrechen. Wizard-Änderungen vorher speichern; Erweitert ist nicht nötig. Servos abgesteckt lassen, Modell entschärft halten.",
         linkNeedsCrsf = "Kein CRSF-Empfänger/Link",
         linkUnknown = "Noch nicht gelesen",
         linkFc = "Flugsteuerung",

@@ -436,7 +436,7 @@ return {
         linkTitle = "ELRS link",
         linkSettings = "ELRS link settings",
         linkQuick = "Compare FC and module settings.\nBoth sides are read automatically.",
-        linkHint = "The FC link rate and telemetry ratio must match the ExpressLRS module, or telemetry can lag or waste bandwidth. Both sides are read automatically.\nMake them match: one side takes the other's values. Other values: choose in the two lists, then Set on both writes the module and then the FC.\nEvery change asks first: the link may drop briefly. Save wizard changes first; Advanced is not required. Keep servos unplugged.",
+        linkHint = "The FC link rate and telemetry ratio must match the ExpressLRS module, or telemetry can lag or waste bandwidth. Both sides are read automatically.\nMake them match: one side takes the other's values. Other values: choose in the two lists, then Set on both writes the module and then the FC.\nEvery change asks first: the link may drop briefly. Save wizard changes first; Advanced is not required. Keep servos unplugged and the model disarmed.",
         linkNeedsCrsf = "Not a CRSF receiver/link",
         linkUnknown = "Not read yet",
         linkFc = "Flight controller",
