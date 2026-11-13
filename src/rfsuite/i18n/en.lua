@@ -1326,6 +1326,7 @@ return {
         no_aircraft = "Connect to a model first",
         reading_flight = "Reading the last flight...",
         not_read = "Last flight not read. It is read at the next disarm.",
+        not_saved = "Last flight not saved to the card. Check the card before the next flight; the next disarm tries again.",
         no_flight = "No flight saved yet",
         act_no_flight = "Fly in acro mode with the RFSuite dashboard or Service widget on this model, then disarm.",
         why_no_flight = "The dashboard or Service widget saves each flight after the disarm. The tool alone saves none.",

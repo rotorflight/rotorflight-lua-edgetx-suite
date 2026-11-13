@@ -6,7 +6,9 @@
 -- the flight controller so the next flight is measured on its own. The Tune Advisor page works
 -- from the saved flights. Nothing is saved for a flight with no acro flight (seconds 0). If the
 -- clear never gets through before the next arm, that next flight also holds this one's data:
--- the flight controller cannot tell.
+-- the flight controller cannot tell. The clear owed then is not sent after the arm (nor across a
+-- link loss or a stretch with no pass, tasks/events/runtime.lua): it would erase the next flight
+-- before it is read.
 --
 -- Three files, and the state of a capture in none of them:
 --   * The ondisarm task tasks/events/ondisarm/tasks/tune_history.lua (last in the ondisarm
@@ -27,8 +29,11 @@
 -- pilot is reading the landing numbers, and the flight statistics are read first), each later
 -- request waits GAP_SECONDS after the answer before it, a failed axis is asked again on its own,
 -- and after MAX_FAILURES link errors the capture waits for the next disarm. The flight
--- controller keeps the numbers, so that disarm still saves them. Every step that loads a module
--- or writes the card is a pass of its own.
+-- controller keeps the numbers, so that disarm still saves them. A reply that names another axis
+-- than the one asked for is not stored and counts as such an error. A flight that cannot be
+-- written to the card is tried again RETRY_SECONDS later, and after MAX_FAILURES failed writes
+-- the capture waits for the next disarm too, without clearing the flight controller. Every step
+-- that loads a module or writes the card is a pass of its own.
 --
 -- Only from MSP API 12.10, the first with the command; an unknown version waits and keeps what
 -- is owed. A flight controller that answers with an MSP error reply has no such command: the
@@ -40,7 +45,9 @@
 --
 -- What the widget state can see of it, in rfsuite.session.tuneCapture:
 --   state   "reading" disarmed with this flight not saved yet, or its clear still to go
---           "failed"  gave up after MAX_FAILURES; the next disarm reads it
+--           "failed"  gave up after MAX_FAILURES link errors; the next disarm reads it
+--           "unsaved" gave up after MAX_FAILURES failed writes to the card; the next disarm
+--                     reads it again, with the next flight added
 --           "idle"    anything else
 --   saved   how many flights were saved and complete (their settings added or given up), so a
 --           reader can notice a new one; savedMcu: whose
@@ -50,6 +57,7 @@ local M = {}
 local GAP_SECONDS = 2             -- between one answered request and the next
 local RETRY_SECONDS = 5           -- after a link error, before asking again
 local MAX_FAILURES = 3            -- link errors per disarm before waiting for the next one
+local UNSEEN_SECONDS = 5          -- passes further apart than this: the craft may have flown unseen
 local AXIS_COUNT = 3
 local CORE = _G.rfsuite.paths.core .. "/"
 
@@ -89,10 +97,10 @@ local function session()
   return type(root) == "table" and type(root.session) == "table" and root.session or nil
 end
 
-local function log(message)
+local function log(message, level)
   local Log = loadShared("lib/log.lua")
   if type(Log) == "table" and type(Log.emit) == "function" then
-    pcall(Log.emit, "rfsuite.tasks.tune_history", message, "info")
+    pcall(Log.emit, "rfsuite.tasks.tune_history", message, level or "info")
   end
 end
 
@@ -127,7 +135,11 @@ end
 local function publishState(tc)
   local now
   if tc.pending then
-    now = tc.nextAt == math.huge and "failed" or "reading"
+    if tc.nextAt ~= math.huge then
+      now = "reading"
+    else
+      now = tc.unsaved and "unsaved" or "failed"
+    end
   elseif tc.clearPending and not tc.refusedOnFc and tc.nextAt ~= math.huge then
     now = "reading"
   else
@@ -159,6 +171,27 @@ local function clearReplies(tc)
   tc.replies = {}
   tc.saveDue = false
   tc.job = nil
+end
+
+-- A flight that could not be written: the replies are kept and only the write is tried again,
+-- RETRY_SECONDS later. The flight controller is not cleared, so an arm before it succeeds still
+-- leaves the numbers for the next disarm. After MAX_FAILURES failed writes (a full or
+-- write-protected card, or a history file the reader refuses) nothing more until the next
+-- disarm, which reads the flight controller again.
+local function writeFailed(tc, why)
+  tc.writeFailures = (tc.writeFailures or 0) + 1
+  ChangeJournal = nil         -- the next try takes the clock again
+  if tc.writeFailures >= MAX_FAILURES then
+    log("cannot write the flight history: " .. tostring(why) .. "; given up until the next disarm", "warn")
+    clearReplies(tc)
+    TuneHistory = nil
+    tc.unsaved = true
+    tc.busy = false
+    tc.nextAt = math.huge
+    return
+  end
+  log("cannot write the flight history: " .. tostring(why) .. "; tried again shortly", "warn")
+  waitFor(tc, RETRY_SECONDS)
 end
 
 -- The four answers a request can end in, and only the last is worth repeating.
@@ -221,6 +254,14 @@ local function requestAxis(tc, queue, axis)
       if msg.__errorReply then handleError(tc, "nocommand"); return end
       local data = api.parse(buf)
       if not data then handleError(tc, "refused"); return end
+      -- A reply carries only the command number, so a late answer to an earlier request can
+      -- arrive here: stored, it would put another axis's numbers under this one
+      if data.axis ~= axis then
+        log(string.format("reply names axis %s, asked for %d: not stored, asked again", tostring(data.axis), axis), "warn")
+        failed(tc)
+        publishState(tc)
+        return
+      end
       local replies = tc.replies
       replies[#replies + 1] = data
       if #replies < AXIS_COUNT then
@@ -245,6 +286,16 @@ local function sendClear(tc, queue)
     isWrite = true,
     completeOnErrorReplyAttempt = 1,
     simulatorResponse = {},
+    -- Asked before every send of it: only while still owed (an arm or a link loss drops it,
+    -- tasks/events/runtime.lua), and not after a stretch with no pass or a clock that went back.
+    -- The queue ticks before the events runtime, so on the first pass after such a pause only this
+    -- can stop a retry.
+    sendIf = function()
+      local seen = tc.seenAt
+      if seen == nil then return tc.clearPending == true end
+      local age = nowSeconds() - seen
+      return tc.clearPending == true and age >= 0 and age <= UNSEEN_SECONDS
+    end,
     processReply = function(msg)
       if msg.__errorReply then handleError(tc, "nocommand"); return end
       tc.clearPending = false
@@ -257,6 +308,15 @@ local function sendClear(tc, queue)
       publishState(tc)
     end,
     errorHandler = function(_, reason)
+      -- Withheld (see sendIf), or dropped by the queue (an arm, a link loss however short): the
+      -- craft may fly before it could be sent again, so it is not owed any more
+      if reason == "withheld" or reason == "cleared" then
+        log("clear " .. tostring(reason) .. ": not sent again; the next disarm reads first", "debug")
+        tc.clearPending, tc.clearMcu = false, nil
+        waitFor(tc, tc.contextPending and GAP_SECONDS or 0)
+        publishState(tc)
+        return
+      end
       handleError(tc, reason == "refused" and "nocommand" or reason)
     end,
   })
@@ -330,9 +390,7 @@ local function finishCapture(tc, mcuId)
       ChangeJournal = false       -- its clock was all the save needed of it
       job = TuneHistory and TuneHistory.saveJob(mcuId, replies, { pidProfile = pid, rateProfile = rate }, time)
       if not job then
-        log("cannot write the flight history: module")
-        ChangeJournal = nil
-        waitFor(tc, RETRY_SECONDS)
+        writeFailed(tc, "module")
         return
       end
       tc.job = job
@@ -343,12 +401,8 @@ local function finishCapture(tc, mcuId)
     tc.job = nil
     flown = job.context
     if not ok then
-      -- The replies are kept and only the write is tried again: no MSP, so not counted against
-      -- MAX_FAILURES. The flight controller is not cleared, so an arm before it succeeds still
-      -- leaves the numbers for the next disarm.
-      log("cannot write the flight history: " .. tostring(why))
-      ChangeJournal = nil         -- the next try takes the clock again
-      waitFor(tc, RETRY_SECONDS)
+      -- No MSP, so not counted against the link errors' MAX_FAILURES; its own count instead
+      writeFailed(tc, why)
       return
     end
     tc.lastSeconds[mcuId] = seconds
