@@ -121,12 +121,13 @@ function M.build(children, widget)
     local Roll = rollModule()
     local Sources = Roll and requireModule("widgets/dashboard/menu_roll_sources.lua") or nil
     if Roll and type(Sources) == "table" then
-      Roll.build(children, widget, Sources.pick(widget, t), Look.colors(widget))
+      Roll.build(children, widget, function() return Sources.pick(widget, t) end, Look.colors(widget))
       return
     end
   end
   -- Drawn as buttons: a rolling picker from before has stopped answering the wheel.
-  if widget._viewStack ~= nil then widget._viewStack.roll = nil end
+  local Views = requireModule("widgets/dashboard/views.lua")
+  if type(Views) == "table" and type(Views.dropRoll) == "function" then Views.dropRoll(widget, "battery_pick") end
 
   local dW, dH = widget.zone.w, widget.zone.h
   local entry = record(widget)

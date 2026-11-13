@@ -302,7 +302,7 @@ string:
 | --- | --- |
 | `openView:<id>` | Open that view, or return to it where it is already on the stack. |
 | `closeView` | Close the view on top; what is under it shows again. |
-| `done` | The interaction is finished: the stack is emptied. With no base layer that leaves full screen; with one, the base layer — the theme — shows again. |
+| `done` | The interaction is finished: the stack is emptied. With no base layer that leaves full screen; with one, the base layer — the theme — shows again. From a view that rose by itself over a rolling menu, the battery prompt, it closes that view only, and the menu's place shows again. |
 | `exitFullscreen` | Empty the stack and leave full screen, base layer or not. |
 | `openTool` | Open the suite's tool inside the widget, where the model is disarmed. The tool takes full screen until it is closed; see [The tool](#the-tool). The stack is emptied as for `done`, keeping what the theme's views' conditions last answered, so once the tool is closed the base layer shows, or with none the quick menu, and a theme's view whose condition still holds is not opened again. |
 | `openTool:<menuId>` | The same, with the tool opened on that page instead of on its menu; the back key there closes the tool again, because the pilot came from the widget. Only for a page `views.lua` lists in `TOOL_LANDINGS` — `tools_flight_log_page`, while `flightLogOffered` holds — and nothing at all otherwise, so a key bound to it does nothing while the page is not offered. |
@@ -319,7 +319,7 @@ built, so the next pass builds the view now on top. The shipped buttons:
 | Quick menu | ERASE BLACKBOX | `done` — behind a [`confirm`](#confirmations): the press is held, and this is what runs once it is agreed to |
 | Quick menu | IN-FLIGHT TUNING | `none` — its press raises the tuning surface's own flag |
 | Quick menu | BATTERY | `openView:battery_pick` |
-| Quick menu | MAIN MENU | `openTool` |
+| Quick menu | MAIN MENU | `openTool` in the card style; in the rotary style it leads on through the menu, and a page opens with `Views.visit` |
 | Quick menu | FLIGHT LOG, where the pilot has put it in the menu | `openTool:tools_flight_log_page` |
 | Quick menu | BATTERY PROFILE | `openView:battery_profile` |
 | Quick menu | the header's X | `done` |

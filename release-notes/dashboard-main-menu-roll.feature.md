@@ -1,0 +1,1 @@
+- **The rotary quick menu leads on into the suite's whole menu, and a page opens inside the widget (`widgets/dashboard`)**
