@@ -17,17 +17,27 @@ local MixerInputPitchApi = nil
 local MixerInputRollApi = nil
 local MixerInputCollectiveApi = nil
 local LoadingOverlay = nil
-local ConfirmDialog = nil
-local ApiVersion = nil
+local LiveOverride = nil
 local SavePipeline = nil
 local t = nil
 
-local MIXER_OVERRIDE_OFF = 2501
-local MIXER_OVERRIDE_ON = 0
-local MIXER_OVERRIDE_PASSTHROUGH = 2502
+-- Reached through the global lib/log.lua publishes; absent logger, absent lines.
+local function logf(level, fmt, ...)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.geometry", level, fmt, ...)
+  end
+end
 
-local lastChangeTime = 0
-local liveUpdateInterval = 0.20 -- 200 ms
+local MSP_SET_MIXER_OVERRIDE = 191
+local MIXER_OVERRIDE_OFF = 2501
+-- Passthrough: the sticks still move the swashplate through the mixer, so the geometry can be
+-- watched while it is set. The firmware has it from API 12.0.8; the suite connects from 12.09.
+local MIXER_OVERRIDE_PASSTHROUGH = 2502
+-- Roll, pitch, yaw and collective.
+local OVERRIDE_INPUTS = { 1, 2, 3, 4 }
+-- A changed value is sent at most every 200 ms while setup mode is on.
+local LIVE_INTERVAL = 0.20
 
 local function u16_to_s16(u)
   if u >= 0x8000 then
@@ -50,32 +60,12 @@ local function dirSign(d)
   return (d == 0) and -1 or 1
 end
 
-local function writeU16(val)
-  local lo = val % 256
-  local hi = math.floor(val / 256) % 256
-  return lo, hi
-end
-
-local function nowSeconds()
-  if getTime then
-    local ok, value = pcall(getTime)
-    if ok and type(value) == "number" then
-      return value / 100
-    end
-  end
-  if os and type(os.clock) == "function" then
-    return os.clock()
-  end
-  return 0
-end
-
 local ui = {
   loaded = false,
   dirty = false,
   loading = false,
   progress = 0,
   baseTitle = nil,
-  inOverride = false,
   config = {
     cyclic_calibration = 400,
     collective_calibration = 400,
@@ -90,16 +80,14 @@ local ui = {
     ele_direction = 1,
     col_direction = 1
   },
+  -- The four records as the board holds them: this visit's read, or the last save that reached
+  -- EEPROM. A write -- live or saved -- goes out as fresh copies (recordsFor below), so these stay
+  -- what leaving without Save puts back.
   apiData = {},
-  -- What the board holds as far as this page knows: the geometry and its four records (mixer
-  -- configuration, pitch, roll and collective inputs) of this visit's read, or of the last save
-  -- that reached EEPROM. A value sent live in setup mode is a trial until Save, and this is what
-  -- leaving without Save puts back.
-  original = nil,
-  -- Whether a live write was queued since the snapshot, and the geometry it last sent, so the live
-  -- loop sends a change once rather than on every pass while the page is dirty.
-  liveSent = false,
-  liveConfig = nil,
+  -- The override, from app/pages/lib/live_override.lua, created the first time * is pressed in a
+  -- visit: it holds what the board has as far as this page knows and what went out live. A visit
+  -- that never presses * never loads it.
+  override = nil,
   runtime = {
     readPending = false,
     requestRebuild = nil
@@ -117,25 +105,6 @@ local function copyFlat(src)
   return out
 end
 
-local function sameFlat(a, b)
-  if type(a) ~= "table" or type(b) ~= "table" then return false end
-  for k, v in pairs(a) do
-    if b[k] ~= v then return false end
-  end
-  for k, v in pairs(b) do
-    if a[k] ~= v then return false end
-  end
-  return true
-end
-
-local function takeSnapshot()
-  local snap = { config = copyFlat(ui.config) }
-  for i = 1, #RECORDS do
-    snap[RECORDS[i]] = copyFlat(ui.apiData[RECORDS[i]])
-  end
-  return snap
-end
-
 local function getSession()
   local root = _G and _G.rfsuite
   return root and root.session or nil
@@ -150,8 +119,6 @@ local function ensureDeps()
   if not MixerInputRollApi then MixerInputRollApi = loadModule("tasks/msp/api/get_mixer_input_roll.lua") end
   if not MixerInputCollectiveApi then MixerInputCollectiveApi = loadModule("tasks/msp/api/get_mixer_input_collective.lua") end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
-  if not ConfirmDialog then ConfirmDialog = loadModule("ui/confirm_dialog.lua") end
-  if not ApiVersion then ApiVersion = loadModule("lib/api_version.lua") end
   if not t then t = Common and Common.pageT("setup_mixer") or nil end
 
   if type(ui.runtime) ~= "table" then
@@ -221,171 +188,173 @@ local function saveToSession()
   rcConfig.apiData = ui.apiData
 end
 
-local function isAtLeastVersion(req)
-  local session = getSession()
-  local rawApiVersion = session and session.apiVersion
-  if not rawApiVersion or rawApiVersion == "" or tostring(rawApiVersion) == "0" then
-    return false
-  end
-  return ApiVersion and ApiVersion.isAtLeast and ApiVersion.isAtLeast(rawApiVersion, req)
-end
-
-local function mixerOverrideOnValue()
-  if isAtLeastVersion({12, 0, 8}) then
-    return MIXER_OVERRIDE_PASSTHROUGH
-  end
-  return MIXER_OVERRIDE_ON
-end
-
-local function setOverride(enabled)
-  if not MspRuntime then return end
+local function getQueue()
+  if not MspRuntime or type(MspRuntime.getState) ~= "function" then return nil end
   local mspState = MspRuntime.getState()
   local queue = mspState and mspState.queue
-  if not queue or type(queue.add) ~= "function" then return end
-
-  local val = MIXER_OVERRIDE_OFF
-  if enabled then
-    val = mixerOverrideOnValue()
-  end
-
-  local lo, hi = writeU16(val)
-  for i = 1, 4 do
-    queue:add({
-      command = 191, -- MSP_SET_MIXER_OVERRIDE
-      payload = { i, lo, hi },
-      isWrite = true,
-      processReply = function() end
-    })
-  end
+  if not queue or type(queue.add) ~= "function" then return nil end
+  return queue
 end
 
-local function copyConfigToApi()
-  local config = ui.config
-  local apiData = ui.apiData
-
-  local pConfig = apiData.MIXER_CONFIG
-  local pPitch = apiData.GET_MIXER_INPUT_PITCH
-  local pRoll = apiData.GET_MIXER_INPUT_ROLL
-  local pColl = apiData.GET_MIXER_INPUT_COLLECTIVE
-
-  if not pConfig or not pPitch or not pRoll or not pColl then
-    return false
+local function haveRecords(records)
+  for i = 1, #RECORDS do
+    if type(records[RECORDS[i]]) ~= "table" then return false end
   end
-
-  local cyclicRate = math.floor(config.cyclic_calibration + 0.5)
-  local collRate = math.floor(config.collective_calibration + 0.5)
-
-  local cyclicMax_raw = math.floor((config.cyclic_pitch_limit or 0) * 100 / 12 + 0.5)
-  local collMax_raw   = math.floor((config.collective_pitch_limit or 0) * 100 / 12 + 0.5)
-
-  -- MIXER_CONFIG
-  pConfig.swash_geo_correction = math.floor((config.geo_correction or 0) / 2 + 0.5)
-  pConfig.swash_pitch_limit = math.floor((config.swash_pitch_limit or 0) * 100 / 12 + 0.5)
-  pConfig.swash_phase = math.floor(config.swash_phase or 0)
-  pConfig.collective_tilt_correction_pos = math.floor(config.collective_tilt_correction_pos or 0)
-  pConfig.collective_tilt_correction_neg = math.floor(config.collective_tilt_correction_neg or 0)
-
-  -- PITCH
-  local pitchVal = cyclicRate * dirSign(ui.config.ele_direction)
-  pPitch.rate_stabilized_pitch = s16_to_u16(pitchVal)
-  pPitch.max_stabilized_pitch = s16_to_u16(math.abs(cyclicMax_raw))
-  pPitch.min_stabilized_pitch = s16_to_u16(-math.abs(cyclicMax_raw))
-
-  -- ROLL
-  local rollVal = cyclicRate * dirSign(ui.config.ail_direction)
-  pRoll.rate_stabilized_roll = s16_to_u16(rollVal)
-  pRoll.max_stabilized_roll = s16_to_u16(math.abs(cyclicMax_raw))
-  pRoll.min_stabilized_roll = s16_to_u16(-math.abs(cyclicMax_raw))
-
-  -- COLLECTIVE
-  local collVal = collRate * dirSign(ui.config.col_direction)
-  pColl.rate_stabilized_collective = s16_to_u16(collVal)
-  pColl.max_stabilized_collective = s16_to_u16(math.abs(collMax_raw))
-  pColl.min_stabilized_collective = s16_to_u16(-math.abs(collMax_raw))
-
   return true
 end
 
-local function triggerLiveWrite()
-  if not MspRuntime then return end
-  local mspState = MspRuntime.getState()
-  local queue = mspState and mspState.queue
-  if not queue or type(queue.add) ~= "function" then return end
-
-  if not queue:isProcessed() then return end
-
-  if not M.canSave() then return end
-  -- The board already has what is on screen.
-  if ui.liveConfig and sameFlat(ui.liveConfig, ui.config) then return end
-  if not copyConfigToApi() then return end
-
-  local mixerCfgPayload = MixerConfigApi.buildWritePayload(ui.apiData.MIXER_CONFIG)
-  local pitchPayload = MixerInputPitchApi.buildWritePayload(ui.apiData.GET_MIXER_INPUT_PITCH)
-  local rollPayload = MixerInputRollApi.buildWritePayload(ui.apiData.GET_MIXER_INPUT_ROLL)
-  local collectivePayload = MixerInputCollectiveApi.buildWritePayload(ui.apiData.GET_MIXER_INPUT_COLLECTIVE)
-
-  ui.liveSent = true
-  ui.liveConfig = copyFlat(ui.config)
-
-  -- All four queued at once rather than each from the reply before it: a rollback or a read
-  -- queued while a chain was still running would otherwise land between its links, and the
-  -- rest of the trial would reach the board after it. The acknowledgements leave the page
-  -- dirty: the values are in the board's RAM only, and they stay a trial until Save writes them
-  -- to EEPROM. A write that went unanswered or was dropped is sent again on the next pass; one
-  -- the board refused is not repeated until the value changes.
-  local writes = {
-    { MixerConfigApi.writeCommand, mixerCfgPayload },
-    { MixerInputPitchApi.writeCommand, pitchPayload },
-    { MixerInputRollApi.writeCommand, rollPayload },
-    { MixerInputCollectiveApi.writeCommand, collectivePayload }
+-- The values on screen that the board's records stand for, derived the way the page shows them.
+local function valuesFrom(records)
+  local cfg = records.MIXER_CONFIG
+  local pitch = records.GET_MIXER_INPUT_PITCH
+  local roll = records.GET_MIXER_INPUT_ROLL
+  local coll = records.GET_MIXER_INPUT_COLLECTIVE
+  return {
+    geo_correction = cfg.swash_geo_correction * 2,
+    swash_pitch_limit = math.floor(cfg.swash_pitch_limit * 12 / 100 + 0.5),
+    swash_phase = cfg.swash_phase,
+    collective_tilt_correction_pos = cfg.collective_tilt_correction_pos,
+    collective_tilt_correction_neg = cfg.collective_tilt_correction_neg,
+    ele_direction = rateToDir(pitch.rate_stabilized_pitch),
+    cyclic_calibration = math.abs(u16_to_s16(pitch.rate_stabilized_pitch)),
+    cyclic_pitch_limit = math.floor(math.abs(u16_to_s16(pitch.max_stabilized_pitch)) * 12 / 100 + 0.5),
+    ail_direction = rateToDir(roll.rate_stabilized_roll),
+    col_direction = rateToDir(coll.rate_stabilized_collective),
+    collective_calibration = math.abs(u16_to_s16(coll.rate_stabilized_collective)),
+    collective_pitch_limit = math.floor(math.abs(u16_to_s16(coll.max_stabilized_collective)) * 12 / 100 + 0.5)
   }
-  for i = 1, #writes do
+end
+
+-- The records a write carries: the board's records, as fresh tables, with the fields of the values
+-- that differ from what those records stand for. A field whose value is unchanged keeps its raw
+-- record value: the screen holds the limits in 0.1 degree and the geo correction in steps of two,
+-- so writing every field back from the screen would move raw values nobody changed -- and putting
+-- the original screen values back would not put those raw values back.
+local function recordsFor(values)
+  if not haveRecords(ui.apiData) then return nil end
+  local board = valuesFrom(ui.apiData)
+  local function changed(...)
+    for i = 1, select("#", ...) do
+      local k = select(i, ...)
+      if values[k] ~= board[k] then return true end
+    end
+    return false
+  end
+  local pConfig = copyFlat(ui.apiData.MIXER_CONFIG)
+  local pPitch = copyFlat(ui.apiData.GET_MIXER_INPUT_PITCH)
+  local pRoll = copyFlat(ui.apiData.GET_MIXER_INPUT_ROLL)
+  local pColl = copyFlat(ui.apiData.GET_MIXER_INPUT_COLLECTIVE)
+
+  local cyclicRate = math.floor(values.cyclic_calibration + 0.5)
+  local collRate = math.floor(values.collective_calibration + 0.5)
+
+  local cyclicMax_raw = math.floor((values.cyclic_pitch_limit or 0) * 100 / 12 + 0.5)
+  local collMax_raw   = math.floor((values.collective_pitch_limit or 0) * 100 / 12 + 0.5)
+
+  -- MIXER_CONFIG
+  if changed("geo_correction") then
+    pConfig.swash_geo_correction = math.floor((values.geo_correction or 0) / 2 + 0.5)
+  end
+  if changed("swash_pitch_limit") then
+    pConfig.swash_pitch_limit = math.floor((values.swash_pitch_limit or 0) * 100 / 12 + 0.5)
+  end
+  if changed("swash_phase") then pConfig.swash_phase = math.floor(values.swash_phase or 0) end
+  if changed("collective_tilt_correction_pos") then
+    pConfig.collective_tilt_correction_pos = math.floor(values.collective_tilt_correction_pos or 0)
+  end
+  if changed("collective_tilt_correction_neg") then
+    pConfig.collective_tilt_correction_neg = math.floor(values.collective_tilt_correction_neg or 0)
+  end
+
+  -- PITCH and ROLL share the cyclic gain and limit; each has its own direction.
+  if changed("cyclic_calibration", "ele_direction") then
+    pPitch.rate_stabilized_pitch = s16_to_u16(cyclicRate * dirSign(values.ele_direction))
+  end
+  if changed("cyclic_calibration", "ail_direction") then
+    pRoll.rate_stabilized_roll = s16_to_u16(cyclicRate * dirSign(values.ail_direction))
+  end
+  if changed("cyclic_pitch_limit") then
+    pPitch.max_stabilized_pitch = s16_to_u16(math.abs(cyclicMax_raw))
+    pPitch.min_stabilized_pitch = s16_to_u16(-math.abs(cyclicMax_raw))
+    pRoll.max_stabilized_roll = s16_to_u16(math.abs(cyclicMax_raw))
+    pRoll.min_stabilized_roll = s16_to_u16(-math.abs(cyclicMax_raw))
+  end
+
+  -- COLLECTIVE
+  if changed("collective_calibration", "col_direction") then
+    pColl.rate_stabilized_collective = s16_to_u16(collRate * dirSign(values.col_direction))
+  end
+  if changed("collective_pitch_limit") then
+    pColl.max_stabilized_collective = s16_to_u16(math.abs(collMax_raw))
+    pColl.min_stabilized_collective = s16_to_u16(-math.abs(collMax_raw))
+  end
+
+  return {
+    MIXER_CONFIG = pConfig,
+    GET_MIXER_INPUT_PITCH = pPitch,
+    GET_MIXER_INPUT_ROLL = pRoll,
+    GET_MIXER_INPUT_COLLECTIVE = pColl
+  }
+end
+
+local function writeApis()
+  return { MixerConfigApi, MixerInputPitchApi, MixerInputRollApi, MixerInputCollectiveApi }
+end
+
+-- All four queued at once rather than each from the reply before it: a rollback or a read queued
+-- meanwhile would otherwise land between them, and the rest would reach the board after it.
+local function queueRecords(queue, records, errorHandler)
+  local apis = writeApis()
+  for i = 1, #RECORDS do
     queue:add({
-      command = writes[i][1],
-      payload = writes[i][2],
+      command = apis[i].writeCommand,
+      payload = apis[i].buildWritePayload(records[RECORDS[i]]),
       isWrite = true,
       processReply = function() end,
-      errorHandler = function(_, reason) if reason ~= "refused" then ui.liveConfig = nil end end
+      errorHandler = errorHandler
     })
   end
 end
 
---- Leaving without Save, or Reload: geometry sent live in setup mode goes back to the snapshot on
---- the board, on screen and in the session copy. Only a record that differs from the snapshot is
---- written, all of them queued at once, so they are ahead of whatever is queued after this call.
---- Nothing is sent when no live write went out since the snapshot. The payloads are built here,
---- not in a reply, because onClose drops this page's modules right after.
+-- The page is kept between visits and loadFromSession() puts the last records read back into
+-- ui.apiData before this visit's read is even queued, so "the records are there" says nothing
+-- about this visit. ui.runtime is dropped by resetPageState() on close, which makes this flag
+-- the visit's own: set only when every read of the chain parsed, cleared when a read starts.
+-- The live write in setup mode is held back by it too: it sends the same whole records.
+function M.canSave()
+  return ui.runtime ~= nil and ui.runtime.readComplete == true and not ui.runtime.readPending
+end
+
+-- One live write. The acknowledgements leave the page dirty: the values are in the board's RAM
+-- only, and they stay a trial until Save writes them to EEPROM.
+local function sendLive(values)
+  local queue = getQueue()
+  if not queue or not MixerConfigApi then return false end
+  if type(queue.isProcessed) == "function" and not queue:isProcessed() then return false end
+  if not M.canSave() then return false end
+  local records = recordsFor(values)
+  if not records then return false end
+  local override = ui.override
+  queueRecords(queue, records, function(_, reason) if override then override:writeFailed(reason) end end)
+  return true
+end
+
+--- Leaving without Save, or Reload: geometry sent live in setup mode goes back to the board's
+--- records, on the board, on screen and in the session copy. The payloads are built here, not in
+--- a reply, because onClose drops this page's modules right after.
 local function rollbackLiveChanges()
-  local orig = ui.original
-  local sent = ui.liveSent
-  ui.liveSent = false
-  ui.liveConfig = nil
-  if not sent or type(orig) ~= "table" then return false end
-  if not MspRuntime or type(MspRuntime.getState) ~= "function" then return false end
-  local mspState = MspRuntime.getState()
-  local queue = mspState and mspState.queue
-  if not queue or type(queue.add) ~= "function" then return false end
-
-  local apis = { MixerConfigApi, MixerInputPitchApi, MixerInputRollApi, MixerInputCollectiveApi }
-  local changed = false
+  if not ui.override or not MixerConfigApi then return false end
+  local queue = getQueue()
+  if not queue then return false end
+  local orig = ui.override:rollback(function(records)
+    queueRecords(queue, records)
+    return true
+  end)
+  if not orig then return false end
   for i = 1, #RECORDS do
-    local key = RECORDS[i]
-    local api = apis[i]
-    local rec = orig[key]
-    if api and type(rec) == "table" and not sameFlat(ui.apiData[key], rec) then
-      queue:add({
-        command = api.writeCommand,
-        payload = api.buildWritePayload(rec),
-        isWrite = true,
-        processReply = function() end
-      })
-      ui.apiData[key] = copyFlat(rec)
-      changed = true
-    end
+    ui.apiData[RECORDS[i]] = copyFlat(orig.record[RECORDS[i]])
   end
-  if not changed then return false end
-
-  for k, v in pairs(orig.config) do ui.config[k] = v end
+  for k, v in pairs(orig.values) do ui.config[k] = v end
   saveToSession()
   return true
 end
@@ -404,10 +373,18 @@ local function queueGeometryRead(isAutoReload)
   end
 
   ui.runtime.readPending = true
-  ui.original = nil
   if not isAutoReload then
     ui.loading = true
     ui.progress = 0
+    if type(ui.runtime.requestRebuild) == "function" then
+      ui.runtime.requestRebuild()
+    end
+  end
+
+  local function readFailed()
+    logf("warn", "read of the swashplate geometry failed")
+    ui.runtime.readPending = false
+    ui.loading = false
     if type(ui.runtime.requestRebuild) == "function" then
       ui.runtime.requestRebuild()
     end
@@ -420,14 +397,7 @@ local function queueGeometryRead(isAutoReload)
     processReply = function(self, buf)
       local parsed = MixerConfigApi.parse(buf)
       if type(parsed) ~= "table" then return Common.failPageRead(ui) end
-      if parsed then
-        ui.apiData.MIXER_CONFIG = parsed
-        ui.config.geo_correction = parsed.swash_geo_correction * 2
-        ui.config.swash_pitch_limit = math.floor(parsed.swash_pitch_limit * 12 / 100 + 0.5)
-        ui.config.swash_phase = parsed.swash_phase
-        ui.config.collective_tilt_correction_pos = parsed.collective_tilt_correction_pos
-        ui.config.collective_tilt_correction_neg = parsed.collective_tilt_correction_neg
-      end
+      ui.apiData.MIXER_CONFIG = parsed
 
       ui.progress = 25
       if type(ui.runtime.requestRebuild) == "function" then
@@ -442,14 +412,7 @@ local function queueGeometryRead(isAutoReload)
         processReply = function(self, buf)
           local parsed = MixerInputPitchApi.parse(buf)
           if type(parsed) ~= "table" then return Common.failPageRead(ui) end
-          if parsed then
-            ui.apiData.GET_MIXER_INPUT_PITCH = parsed
-            ui.config.ele_direction = rateToDir(parsed.rate_stabilized_pitch)
-            local cyclic_cal = u16_to_s16(parsed.rate_stabilized_pitch)
-            ui.config.cyclic_calibration = math.abs(cyclic_cal)
-            local cyclic_lim = u16_to_s16(parsed.max_stabilized_pitch)
-            ui.config.cyclic_pitch_limit = math.floor(math.abs(cyclic_lim) * 12 / 100 + 0.5)
-          end
+          ui.apiData.GET_MIXER_INPUT_PITCH = parsed
 
           ui.progress = 50
           if type(ui.runtime.requestRebuild) == "function" then
@@ -464,10 +427,7 @@ local function queueGeometryRead(isAutoReload)
             processReply = function(self, buf)
               local parsed = MixerInputRollApi.parse(buf)
               if type(parsed) ~= "table" then return Common.failPageRead(ui) end
-              if parsed then
-                ui.apiData.GET_MIXER_INPUT_ROLL = parsed
-                ui.config.ail_direction = rateToDir(parsed.rate_stabilized_roll)
-              end
+              ui.apiData.GET_MIXER_INPUT_ROLL = parsed
 
               ui.progress = 75
               if type(ui.runtime.requestRebuild) == "function" then
@@ -482,23 +442,21 @@ local function queueGeometryRead(isAutoReload)
                 processReply = function(self, buf)
                   local parsed = MixerInputCollectiveApi.parse(buf)
                   if type(parsed) ~= "table" then return Common.failPageRead(ui) end
-                  if parsed then
-                    ui.apiData.GET_MIXER_INPUT_COLLECTIVE = parsed
-                    ui.config.col_direction = rateToDir(parsed.rate_stabilized_collective)
-                    local coll_cal = u16_to_s16(parsed.rate_stabilized_collective)
-                    ui.config.collective_calibration = math.abs(coll_cal)
-                    local coll_lim = u16_to_s16(parsed.max_stabilized_collective)
-                    ui.config.collective_pitch_limit = math.floor(math.abs(coll_lim) * 12 / 100 + 0.5)
-                  end
+                  ui.apiData.GET_MIXER_INPUT_COLLECTIVE = parsed
 
+                  -- The screen shows what the four records stand for, all four read.
+                  local values = valuesFrom(ui.apiData)
+                  for k, v in pairs(values) do ui.config[k] = v end
                   saveToSession()
 
                   -- Taken here rather than at each parse: nothing changes the four records
                   -- between their parse and this line, because the live write and Save wait for
                   -- canSave(), false while readPending.
-                  ui.original = takeSnapshot()
-                  ui.liveSent = false
-                  ui.liveConfig = nil
+                  if ui.override then
+                    local records = {}
+                    for i = 1, #RECORDS do records[RECORDS[i]] = copyFlat(ui.apiData[RECORDS[i]]) end
+                    ui.override:snapshot(records, values)
+                  end
 
                   ui.runtime.readPending = false
                   ui.runtime.readComplete = true
@@ -509,59 +467,39 @@ local function queueGeometryRead(isAutoReload)
                     ui.runtime.requestRebuild()
                   end
                 end,
-                errorHandler = function()
-                  ui.runtime.readPending = false
-                  ui.loading = false
-                  if type(ui.runtime.requestRebuild) == "function" then
-                    ui.runtime.requestRebuild()
-                  end
-                end
+                errorHandler = readFailed
               })
             end,
-            errorHandler = function()
-              ui.runtime.readPending = false
-              ui.loading = false
-              if type(ui.runtime.requestRebuild) == "function" then
-                ui.runtime.requestRebuild()
-              end
-            end
+            errorHandler = readFailed
           })
         end,
-          errorHandler = function()
-          ui.runtime.readPending = false
-          ui.loading = false
-          if type(ui.runtime.requestRebuild) == "function" then
-            ui.runtime.requestRebuild()
-          end
-        end
+        errorHandler = readFailed
       })
     end,
-    errorHandler = function()
-      ui.runtime.readPending = false
-      ui.loading = false
-      if type(ui.runtime.requestRebuild) == "function" then
-        ui.runtime.requestRebuild()
-      end
-    end
+    errorHandler = readFailed
   })
 
   return true, nil
 end
 
-local function queueGeometryWrite()
+--- `hadEdit` is the unsaved flag before Save cleared it: a save that does not reach EEPROM puts it
+--- back, so leaving then still takes back what the save's writes left in the board's RAM.
+local function queueGeometryWrite(hadEdit)
   if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
   if not SavePipeline or not MixerConfigApi or not MixerInputPitchApi or not MixerInputRollApi or not MixerInputCollectiveApi then
     return false, "msp_runtime_unavailable"
   end
 
-  if not M.canSave() or not copyConfigToApi() then
+  local values = copyFlat(ui.config)
+  local records = M.canSave() and recordsFor(values) or nil
+  if not records then
     return false, "loaded_data_missing"
   end
 
-  local stored = takeSnapshot()
   -- The visit this save belongs to. The page's close sets ui.runtime to nil and its next visit
-  -- creates a new table, so the hook below changes this visit's state only.
+  -- creates a new table, so the hooks below change this visit's state only.
   local visit = ui.runtime
+  local override = ui.override
 
   -- The writes and the EEPROM commit belong to the pipeline, not to this page: the page can be
   -- left while they are on the wire, and its close releases ui.runtime and the module handles
@@ -570,21 +508,30 @@ local function queueGeometryWrite()
     pageId = "setup_mixer_swashgeometry",
     steps = {
       { label = "MSP_SET_MIXER_CONFIG", command = MixerConfigApi.writeCommand,
-        payload = MixerConfigApi.buildWritePayload(ui.apiData.MIXER_CONFIG) },
+        payload = MixerConfigApi.buildWritePayload(records.MIXER_CONFIG) },
       { label = "MSP_SET_MIXER_INPUT", command = MixerInputPitchApi.writeCommand,
-        payload = MixerInputPitchApi.buildWritePayload(ui.apiData.GET_MIXER_INPUT_PITCH) },
+        payload = MixerInputPitchApi.buildWritePayload(records.GET_MIXER_INPUT_PITCH) },
       { label = "MSP_SET_MIXER_INPUT", command = MixerInputRollApi.writeCommand,
-        payload = MixerInputRollApi.buildWritePayload(ui.apiData.GET_MIXER_INPUT_ROLL) },
+        payload = MixerInputRollApi.buildWritePayload(records.GET_MIXER_INPUT_ROLL) },
       { label = "MSP_SET_MIXER_INPUT", command = MixerInputCollectiveApi.writeCommand,
-        payload = MixerInputCollectiveApi.buildWritePayload(ui.apiData.GET_MIXER_INPUT_COLLECTIVE) }
+        payload = MixerInputCollectiveApi.buildWritePayload(records.GET_MIXER_INPUT_COLLECTIVE) }
     },
     reboot = false,
     onSaved = function()
       -- Stored: from now on this is what leaving without Save puts back.
-      if ui.runtime == visit then ui.original = stored end
-    end,
-    onDone = function()
+      if override then override:stored(records, values) end
       if ui.runtime ~= visit then return end
+      for i = 1, #RECORDS do ui.apiData[RECORDS[i]] = copyFlat(records[RECORDS[i]]) end
+      saveToSession()
+    end,
+    onDone = function(result)
+      local saved = type(result) == "table" and result.saved == true
+      if not saved and override then override:saveFailed() end
+      if ui.runtime ~= visit then return end
+      if not saved and hadEdit then
+        logf("info", "save not stored: the page stays unsaved")
+        ui.dirty = true
+      end
       if type(ui.runtime.requestRebuild) == "function" then
         ui.runtime.requestRebuild()
       end
@@ -592,8 +539,9 @@ local function queueGeometryWrite()
   })
   if not ok then return false, err end
 
-  -- The save sends what is on screen, so the live loop has nothing to send until it changes.
-  ui.liveConfig = copyFlat(ui.config)
+  -- The save sends what is on screen, so the live loop has nothing to send until it changes, and
+  -- until the save is stored its writes count as sent.
+  if override then override:markSent(values) end
   return true, nil
 end
 
@@ -610,10 +558,41 @@ local function ensureLoaded()
   loadFromSession()
   ui.loaded = true
   ui.dirty = false
-  ui.inOverride = false
   ui.runtime.lastSessionSignature = buildSessionSignature()
   ui.baseTitle = getBaseTitle()
   queueGeometryRead(false)
+end
+
+local function overrideActive()
+  return ui.override ~= nil and ui.override.active == true
+end
+
+local function ensureOverride()
+  if ui.override then return ui.override end
+  if not haveRecords(ui.apiData) then return nil end
+  if not LiveOverride then LiveOverride = loadModule("app/pages/lib/live_override.lua") end
+  if not LiveOverride then return nil end
+  ui.override = LiveOverride.new({
+    command = MSP_SET_MIXER_OVERRIDE,
+    inputs = OVERRIDE_INPUTS,
+    on = MIXER_OVERRIDE_PASSTHROUGH,
+    off = MIXER_OVERRIDE_OFF,
+    cadence = "periodic",
+    interval = LIVE_INTERVAL
+  })
+  logf("debug", "setup mode: override created")
+  -- The records read stay as read (writes go out as copies), so they are what the board holds,
+  -- even when values were edited on screen before *.
+  local records = {}
+  for i = 1, #RECORDS do records[RECORDS[i]] = copyFlat(ui.apiData[RECORDS[i]]) end
+  ui.override:snapshot(records, valuesFrom(records))
+  return ui.override
+end
+
+-- Whether leaving or Reload has to put back what went out live: only with an override in this
+-- visit, and not while a save is still writing, whose steps a rollback would land between.
+local function rollbackDue()
+  return ui.dirty and ui.override ~= nil and LiveOverride ~= nil and not LiveOverride.saveWriting()
 end
 
 function M.wakeup(ctx)
@@ -629,12 +608,8 @@ function M.wakeup(ctx)
     queueGeometryRead(false)
   end
 
-  if ui.inOverride and ui.dirty then
-    local now = nowSeconds()
-    if (now - lastChangeTime) >= liveUpdateInterval then
-      lastChangeTime = now
-      triggerLiveWrite()
-    end
+  if overrideActive() and ui.dirty then
+    ui.override:tick(ui.config, sendLive)
   end
 end
 
@@ -642,20 +617,12 @@ function M.getHeaderActions()
   return {
     save = true,
     reload = true,
-    -- Switching setup mode on waits for this visit's read, as Save does (M.canSave below):
+    -- Switching setup mode on waits for this visit's read, as Save does (M.canSave above):
     -- until then the live write sends nothing. Switching it off is always offered.
-    star = ui.inOverride or M.canSave(),
+    star = overrideActive() or M.canSave(),
+    help = true,
     menu = true
   }
-end
-
--- The page is kept between visits and loadFromSession() puts the last records read back into
--- ui.apiData before this visit's read is even queued, so "the records are there" says nothing
--- about this visit. ui.runtime is dropped by resetPageState() on close, which makes this flag
--- the visit's own: set only when every read of the chain parsed, cleared when a read starts.
--- The live write in setup mode is held back by it too: it sends the same whole records.
-function M.canSave()
-  return ui.runtime ~= nil and ui.runtime.readComplete == true and not ui.runtime.readPending
 end
 
 function M.build(ctx)
@@ -682,7 +649,7 @@ function M.build(ctx)
   end
 
   local displayTitle = ui.baseTitle or getBaseTitle()
-  if ui.inOverride then
+  if overrideActive() then
     displayTitle = displayTitle .. " *"
   end
 
@@ -713,7 +680,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_cyclic_calibration",
+        "Cyclic gain matched to the mechanical gain of the rotor head.")
     }
   )
 
@@ -732,7 +701,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_collective_calibration",
+        "Collective gain matched to the mechanical gain of the rotor head.")
     }
   )
 
@@ -751,7 +722,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f%%", (tonumber(v) or 0) / 10) end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_geo_correction",
+        "Adjust until the positive and negative collective deflections are equal.")
     }
   )
 
@@ -770,7 +743,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f°", (tonumber(v) or 0) / 10) end,
-      suffix = "°"
+      suffix = "°",
+      helpText = pageText(i18n, "help_cyclic_pitch_limit",
+        "Most cyclic blade pitch the mixer commands, in degrees.")
     }
   )
 
@@ -789,7 +764,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f°", (tonumber(v) or 0) / 10) end,
-      suffix = "°"
+      suffix = "°",
+      helpText = pageText(i18n, "help_collective_pitch_limit",
+        "Most collective blade pitch the mixer commands, in degrees.")
     }
   )
 
@@ -808,7 +785,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f°", (tonumber(v) or 0) / 10) end,
-      suffix = "°"
+      suffix = "°",
+      helpText = pageText(i18n, "help_swash_pitch_limit",
+        "Most total blade pitch, cyclic and collective together, in degrees.")
     }
   )
 
@@ -827,7 +806,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return string.format("%.1f°", (tonumber(v) or 0) / 10) end,
-      suffix = "°"
+      suffix = "°",
+      helpText = pageText(i18n, "help_swash_phase",
+        "Phase offset of the swashplate controls, in degrees.")
     }
   )
 
@@ -846,7 +827,9 @@ function M.build(ctx)
         end
       end,
       display = function(v) return tostring(v or 0) .. "%" end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_collective_tilt_correction_pos",
+        "At full positive collective, adjust until the swashplate pivot ball stays still while cyclic is added.")
     }
   )
 
@@ -865,13 +848,16 @@ function M.build(ctx)
         end
       end,
       display = function(v) return tostring(v or 0) .. "%" end,
-      suffix = "%"
+      suffix = "%",
+      helpText = pageText(i18n, "help_collective_tilt_correction_neg",
+        "At full negative collective, adjust until the swashplate pivot ball stays still while cyclic is added.")
     }
   )
 end
 
 function M.onSave(ctx)
-  local ok, err = queueGeometryWrite()
+  local hadEdit = ui.dirty
+  local ok, err = queueGeometryWrite(hadEdit)
   if not ok then
     if ctx and type(ctx.reportSave) == "function" then
       ctx.reportSave({
@@ -882,7 +868,8 @@ function M.onSave(ctx)
     return false
   end
 
-  -- The shared save's notice reports how the save ended; the page has nothing to add to it.
+  -- The shared save's notice reports how the save ended; the page has nothing to add to it. A
+  -- save that does not reach EEPROM puts the unsaved flag back (queueGeometryWrite).
   ui.dirty = false
   return true
 end
@@ -891,7 +878,7 @@ function M.onReload(ctx)
   local session = getSession()
   if session then
     -- Before the read, so the read is queued behind the rollback and shows the board's values.
-    if ui.dirty then rollbackLiveChanges() end
+    if rollbackDue() then rollbackLiveChanges() end
     loadFromSession()
     ui.dirty = false
     queueGeometryRead(false)
@@ -900,14 +887,14 @@ function M.onReload(ctx)
 end
 
 function M.onStar(ctx)
-  if not ConfirmDialog then return false end
-  if not ui.inOverride and not M.canSave() then return false end
+  if not overrideActive() and not M.canSave() then return false end
+  if not ensureOverride() then return false end
 
   local i18n = ctx and ctx.i18n
   local title
   local message
 
-  if not ui.inOverride then
+  if not overrideActive() then
     title = pageText(i18n, "enable_swash_override", "Enable swash setup mode")
     message = pageText(i18n, "enable_swash_override_message", "Enable passthrough mixer override so you can move the sticks while adjusting swash geometry. \n\nLive changes from this page are sent to the flight controller.")
   else
@@ -915,20 +902,22 @@ function M.onStar(ctx)
     message = pageText(i18n, "disable_swash_override_message", "Disable swash setup mode and return mixer control to the flight controller.")
   end
 
-  ConfirmDialog.show({
+  ui.override:confirm({
     title = title,
     message = message,
+    uncertainText = pageText(i18n, "override_armed_unknown",
+      "The flight controller does not report whether it is armed. Make sure the rotors cannot spin."),
     onConfirm = function()
-      if not ui.inOverride then
+      local override = ui.override
+      if not override then return end
+      if not override.active then
         -- Checked again: Yes comes later than the press, and the page may have closed since.
         if not M.canSave() then return end
-        setOverride(true)
-        ui.inOverride = true
+        override:enable(getQueue())
       else
-        setOverride(false)
-        ui.inOverride = false
+        override:disable(getQueue())
       end
-      if type(ui.runtime.requestRebuild) == "function" then
+      if ui.runtime and type(ui.runtime.requestRebuild) == "function" then
         ui.runtime.requestRebuild()
       end
     end
@@ -942,12 +931,16 @@ function M.onClose()
   -- Unsaved geometry sent live is taken back first, while setup mode is still on. Queued ahead of
   -- the override writes on purpose: should the close end before every write is out, a lost
   -- override write leaves a board that refuses to arm, a lost rollback a trial geometry the model
-  -- would fly with. Save clears dirty, so a save still on its way is not undone here.
-  if ui.dirty then rollbackLiveChanges() end
-  if ui.inOverride then
-    setOverride(false)
-    ui.inOverride = false
+  -- would fly with. A save still writing is not undone here (rollbackDue above).
+  if rollbackDue() then
+    rollbackLiveChanges()
+  elseif ui.dirty and ui.override then
+    logf("debug", "close: a save is still writing, nothing put back")
   end
+  if overrideActive() then
+    ui.override:disable(getQueue())
+  end
+  ui.override = nil
   if Common and type(Common.resetPageState) == "function" then
     Common.resetPageState(ui, {
       resetLoaded = true,
@@ -962,8 +955,7 @@ function M.onClose()
   MixerInputRollApi = nil
   MixerInputCollectiveApi = nil
   LoadingOverlay = nil
-  ConfirmDialog = nil
-  ApiVersion = nil
+  LiveOverride = nil
   SavePipeline = nil
   t = nil
 end

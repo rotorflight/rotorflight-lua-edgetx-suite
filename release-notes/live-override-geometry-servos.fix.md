@@ -1,0 +1,1 @@
+- **Swash Geometry, PWM Output and BUS Output share the live override with Tail and Trims (`app/pages/setup`)**

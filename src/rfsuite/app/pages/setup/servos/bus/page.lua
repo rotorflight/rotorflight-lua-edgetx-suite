@@ -13,13 +13,26 @@ local Controls = nil
 local Common = nil
 local MspRuntime = nil
 local LoadingOverlay = nil
-local ConfirmDialog = nil
+local LiveOverride = nil
 local ApiVersion = nil
 local SavePipeline = nil
 local t = nil
 
-local lastChangeTime = 0
-local liveUpdateInterval = 0.20 -- 200 ms
+-- Reached through the global lib/log.lua publishes; absent logger, absent lines.
+local function logf(level, fmt, ...)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.servos.bus", level, fmt, ...)
+  end
+end
+
+local MSP_SET_SERVO_OVERRIDE_ALL = 196
+local MSP_SET_SERVO_CENTER = 213
+-- 0 holds every servo at its centre; 2001 hands them back to the flight controller.
+local SERVO_OVERRIDE_CENTER = 0
+local SERVO_OVERRIDE_OFF = 2001
+-- A changed centre is sent at most every 200 ms while the override is on.
+local LIVE_INTERVAL = 0.20
 
 local function writeU8(payload, val)
   payload[#payload + 1] = val % 256
@@ -36,33 +49,23 @@ local function writeS16(payload, val)
   writeU16(payload, unsigned)
 end
 
-local function nowSeconds()
-  if getTime then
-    local ok, value = pcall(getTime)
-    if ok and type(value) == "number" then
-      return value / 100
-    end
-  end
-  if os and type(os.clock) == "function" then
-    return os.clock()
-  end
-  return 0
-end
-
 local ui = {
   loaded = false,
   dirty = false,
   loading = false,
   progress = 0,
   baseTitle = nil,
-  inOverride = false,
+  -- The override, from app/pages/lib/live_override.lua, created the first time * is pressed in a
+  -- visit. It holds the centre the board has for one servo, `overrideServo` (a raw index), and what
+  -- went out live for it: the override holds every servo, but the selector is locked while it is
+  -- on, so only the selected servo's centre is ever sent. A visit that never presses * never loads it.
+  override = nil,
+  overrideServo = nil,
   selectedServoIndex = 0, -- 0-indexed for editing (0 to 15), defaults to 0
   -- Per raw servo index: what the board holds as far as this page knows -- this visit's read, or
   -- the last save that reached EEPROM. A centre sent live under the override is a trial until
   -- Save, and this is what leaving without Save, Reload and Discard put back.
   originalServos = nil,
-  -- Per raw servo index: the centre last sent live since its snapshot.
-  liveSent = nil,
   config = {
     servos = {}
   },
@@ -90,7 +93,6 @@ local function ensureDeps()
   if not Controls then Controls = loadModule("ui/controls.lua") end
   if not MspRuntime then MspRuntime = loadModule("tasks/msp/runtime.lua") end
   if not LoadingOverlay then LoadingOverlay = loadModule("ui/loading_overlay.lua") end
-  if not ConfirmDialog then ConfirmDialog = loadModule("ui/confirm_dialog.lua") end
   if not ApiVersion then ApiVersion = loadModule("lib/api_version.lua") end
   if not t then t = Common and Common.pageT("setup_servos") or nil end
 
@@ -170,7 +172,6 @@ end
 --- After a save has reached EEPROM the board holds the saved values, so those are put back later.
 local function renewOriginalServo(raw)
   if ui.originalServos then ui.originalServos[raw] = nil end
-  if ui.liveSent then ui.liveSent[raw] = nil end
   backupOriginalServo(raw)
 end
 
@@ -211,39 +212,6 @@ local function getServoTitle(i18n, idx)
   return pageText(i18n, "servo", "Servo") .. " " .. idx
 end
 
-local function setOverride(enabled)
-  if not MspRuntime or type(MspRuntime.getState) ~= "function" then return end
-  local mspState = MspRuntime.getState()
-  local queue = mspState and mspState.queue
-  if not queue or type(queue.add) ~= "function" then return end
-
-  local session = getSession()
-  local apiVersion = session and session.apiVersion
-  local isAtLeast1209 = ApiVersion and ApiVersion.isAtLeast and ApiVersion.isAtLeast(apiVersion, {12, 0, 9})
-
-  local val = enabled and 0 or 2001
-  local lo = val % 256
-  local hi = math.floor(val / 256) % 256
-
-  if isAtLeast1209 then
-    queue:add({
-      command = 196,
-      payload = { lo, hi },
-      isWrite = true,
-      processReply = function() end
-    })
-  else
-    for i = 8, 23 do
-      queue:add({
-        command = 193,
-        payload = { i, lo, hi },
-        isWrite = true,
-        processReply = function() end
-      })
-    end
-  end
-end
-
 --- The firmware speaks about servos in TWO index spaces, and this page addresses both.
 ---
 --- `servoParams()` is indexed 0 .. MAX_SUPPORTED_SERVOS-1, with the bus servos starting at
@@ -281,82 +249,75 @@ local function packedServoIndex(busIdx)
   return pwmServoCount() + busIdx
 end
 
-local function triggerLiveWrite(explicitIdx)
-  if not MspRuntime or type(MspRuntime.getState) ~= "function" then return end
+local function getQueue()
+  if not MspRuntime or type(MspRuntime.getState) ~= "function" then return nil end
   local mspState = MspRuntime.getState()
   local queue = mspState and mspState.queue
-  if not queue or type(queue.add) ~= "function" then return end
-
-  local servoIdx = explicitIdx or ui.selectedServoIndex
-  if not servoIdx then return end
-
-  local config = ui.config.servos and ui.config.servos[rawServoIndex(servoIdx)]
-  if not config then return end
-
-  local mid = math.floor(config.mid or 1500)
-
-  local session = getSession()
-  local apiVersion = session and session.apiVersion
-  local isIndexed = ApiVersion and ApiVersion.isAtLeast and ApiVersion.isAtLeast(apiVersion, {12, 0, 9})
-
-  -- MSP_SET_SERVO_CENTER takes the RAW servoParams index, unlike the configuration write below.
-  local writeIndex = rawServoIndex(servoIdx)
-
-  if isIndexed then
-    local lo = mid % 256
-    local hi = math.floor(mid / 256) % 256
-    queue:add({
-      command = 213,
-      payload = { writeIndex, lo, hi },
-      isWrite = true,
-      processReply = function() end
-    })
-  else
-    local reverse = tonumber(config.reverse) or 0
-    local geometry = tonumber(config.geometry) or 0
-    local flags = 0
-    if reverse == 0 and geometry == 0 then
-      flags = 0
-    elseif reverse == 1 and geometry == 0 then
-      flags = 1
-    elseif reverse == 0 and geometry == 1 then
-      flags = 2
-    elseif reverse == 1 and geometry == 1 then
-      flags = 3
-    end
-
-    local payload = {}
-    writeU8(payload, writeIndex)
-    writeU16(payload, mid)
-    writeS16(payload, config.min or 0)
-    writeS16(payload, config.max or 0)
-    writeU16(payload, config.scaleNeg or 500)
-    writeU16(payload, config.scalePos or 500)
-    writeU16(payload, 333) -- Rate is mapped to 333
-    writeU16(payload, config.speed or 0)
-    writeU16(payload, flags)
-
-    queue:add({
-      command = 212,
-      payload = payload,
-      isWrite = true,
-      processReply = function() end
-    })
-  end
-  ui.liveSent = ui.liveSent or {}
-  ui.liveSent[writeIndex] = mid
+  if not queue or type(queue.add) ~= "function" then return nil end
+  return queue
 end
 
---- Puts servo `raw`'s snapshot back on the screen and in the session copy, and, where a live write
---- went out for it since the snapshot, sends it to the board the way the live write does. Returns
---- whether anything was put back.
+local function overrideActive()
+  return ui.override ~= nil and ui.override.active == true
+end
+
+-- MSP_SET_SERVO_CENTER takes the RAW servoParams index and the centre alone (API 12.09, the oldest
+-- the suite connects to), so it changes nothing else of the servo's record.
+local function queueCentre(queue, raw, mid, errorHandler)
+  mid = math.floor(tonumber(mid) or 1500)
+  queue:add({
+    command = MSP_SET_SERVO_CENTER,
+    payload = { raw, mid % 256, math.floor(mid / 256) % 256 },
+    isWrite = true,
+    processReply = function() end,
+    errorHandler = errorHandler
+  })
+end
+
+-- The override's record is one servo's centre as the board holds it: the snapshot of the selected
+-- servo. Taken again whenever the selected servo is another one than the record is about, which
+-- can only happen with nothing unsaved (the selector asks first) and the override off (the
+-- selector is locked while it is on).
+local function syncOverrideServo()
+  if not ui.override then return false end
+  local raw = rawServoIndex(ui.selectedServoIndex)
+  if ui.overrideServo == raw then return true end
+  local orig = ui.originalServos and ui.originalServos[raw]
+  if not orig then return false end
+  ui.override:snapshot({ raw = raw, mid = orig.mid }, { mid = orig.mid })
+  ui.overrideServo = raw
+  logf("debug", "override follows servo %s", tostring(raw))
+  return true
+end
+
+-- One live write of the selected servo's centre. The acknowledgement leaves the page dirty: the
+-- centre is in the board's RAM only, and it stays a trial until Save writes it to EEPROM.
+local function sendLive(values)
+  local queue = getQueue()
+  if not queue or not ui.overrideServo then return false end
+  if type(queue.isProcessed) == "function" and not queue:isProcessed() then return false end
+  local override = ui.override
+  queueCentre(queue, ui.overrideServo, values.mid, function(_, reason)
+    if override then override:writeFailed(reason) end
+  end)
+  return true
+end
+
+-- Reused for every live pass, so the loop allocates nothing while nothing changes.
+local liveValues = {}
+local function selectedCentre()
+  local s = ui.config.servos and ui.config.servos[rawServoIndex(ui.selectedServoIndex)]
+  liveValues.mid = s and math.floor(tonumber(s.mid) or 1500) or nil
+  return liveValues
+end
+
+--- Puts servo `raw`'s snapshot back on the screen and in the session copy, and, where a centre
+--- went out live for it since the board's record was taken, sends that record's centre back.
+--- Returns whether anything was put back.
 local function rollbackServo(raw)
   local orig = ui.originalServos and ui.originalServos[raw]
   local current = ui.config.servos and ui.config.servos[raw]
   if not orig or not current then return false end
-  -- The centre last sent live. From API 12.09, the oldest the suite connects to, the live write
-  -- sends the centre alone, so that is what has to match the snapshot.
-  local sent = ui.liveSent and ui.liveSent[raw]
   local changed = false
   for k, v in pairs(orig) do
     if current[k] ~= v then
@@ -364,12 +325,14 @@ local function rollbackServo(raw)
       changed = true
     end
   end
-  if sent ~= nil and sent ~= math.floor(orig.mid or 1500) then
-    triggerLiveWrite(raw - BUS_SERVO_OFFSET)
-    changed = true
+  if ui.override and ui.overrideServo == raw then
+    local queue = getQueue()
+    local sent = queue and ui.override:rollback(function(record)
+      queueCentre(queue, record.raw, record.mid)
+      return true
+    end)
+    if sent then changed = true end
   end
-  -- Cleared after the write, which marks the servo as sent again.
-  if ui.liveSent then ui.liveSent[raw] = nil end
   return changed
 end
 
@@ -380,6 +343,29 @@ local function rollbackChanges()
     if rollbackServo(raw) then changed = true end
   end
   if changed then saveToSession() end
+end
+
+-- Whether leaving or Reload may put back what is unsaved: not while a save is still writing, whose
+-- steps a rollback would land between. Without an override in this visit nothing went out live.
+local function rollbackDue()
+  if not ui.dirty then return false end
+  return not (ui.override ~= nil and LiveOverride ~= nil and LiveOverride.saveWriting())
+end
+
+local function ensureOverride()
+  if ui.override then return ui.override end
+  if not LiveOverride then LiveOverride = loadModule("app/pages/lib/live_override.lua") end
+  if not LiveOverride then return nil end
+  ui.override = LiveOverride.new({
+    command = MSP_SET_SERVO_OVERRIDE_ALL,
+    on = SERVO_OVERRIDE_CENTER,
+    off = SERVO_OVERRIDE_OFF,
+    cadence = "periodic",
+    interval = LIVE_INTERVAL
+  })
+  ui.overrideServo = nil
+  syncOverrideServo()
+  return ui.override
 end
 
 --- Whether this firmware has the per-servo read.
@@ -499,7 +485,8 @@ local function queueServosRead(isAutoReload)
   if ui.runtime.readPending then return false, "read_pending" end
   -- Dropped only when a read is really queued: the one already running keeps its snapshot.
   ui.originalServos = nil
-  ui.liveSent = nil
+  -- The override takes its record again from what this read brings.
+  ui.overrideServo = nil
   if not MspRuntime or type(MspRuntime.getState) ~= "function" then
     return false, "msp_runtime_unavailable"
   end
@@ -744,19 +731,31 @@ local function queueServoWrite(servoIdx, onDone)
   -- The write and the EEPROM commit belong to the pipeline, not to this page: the page can be
   -- left while they are on the wire, and its close releases ui.runtime. Its notice covers the
   -- page while the save runs, so the page puts up no overlay of its own.
-  return SavePipeline.start({
+  -- The override's record, when it is this servo's: the save sends what is on screen, so the live
+  -- loop has nothing to send until it changes, and until the save is stored its write counts as sent.
+  -- An override made for another servo earlier in the visit follows this one first: a servo is
+  -- picked only with nothing unsaved, so nothing of the other one is lost by it.
+  syncOverrideServo()
+  local override = ui.override
+  local overrideRaw = ui.overrideServo
+
+  local ok, err = SavePipeline.start({
     pageId = "setup_servos_bus",
     steps = {
       { label = "MSP_SET_SERVO_CONFIGURATION", command = 212, payload = payload }
     },
     reboot = false,
     onSaved = function()
+      if override and overrideRaw == raw then
+        override:stored({ raw = raw, mid = mid }, { mid = mid })
+      end
       if ui.runtime ~= visit then return end
       ui.dirty = false
       renewOriginalServo(raw)
       saveToSession()
     end,
     onDone = function(result)
+      if result.saved ~= true and override and overrideRaw == ui.overrideServo then override:saveFailed() end
       if ui.runtime ~= visit then return end
       if type(onDone) == "function" then onDone(result.saved == true) end
       if type(ui.runtime.requestRebuild) == "function" then
@@ -764,6 +763,8 @@ local function queueServoWrite(servoIdx, onDone)
       end
     end
   })
+  if ok and override and overrideRaw == raw then override:markSent({ mid = mid }) end
+  return ok, err
 end
 
 --- Makes servo `val` the one on screen, reading its record first where it has not been read on
@@ -827,12 +828,8 @@ function M.wakeup(ctx)
     queueServosRead(false)
   end
 
-  if ui.inOverride and ui.dirty and M.canSave() then
-    local now = nowSeconds()
-    if (now - lastChangeTime) >= liveUpdateInterval then
-      lastChangeTime = now
-      triggerLiveWrite()
-    end
+  if overrideActive() and ui.dirty and M.canSave() and syncOverrideServo() then
+    ui.override:tick(selectedCentre(), sendLive)
   end
 end
 
@@ -842,7 +839,8 @@ function M.getHeaderActions()
     reload = true,
     -- Switching the override on waits for this visit's read, as Save does (M.canSave below).
     -- Switching it off is always offered.
-    star = ui.inOverride or M.canSave(),
+    star = overrideActive() or M.canSave(),
+    help = true,
     menu = true
   }
 end
@@ -884,7 +882,12 @@ function M.build(ctx)
 
   -- Determine display title
   local title = pageText(i18n, "bus", "BUS Output")
-  if ui.inOverride then
+  -- While the override is on only Center is a control. The other settings and the servo selector
+  -- are drawn as text, not as disabled controls: a disabled control still takes the focus (the
+  -- first control does after every rebuild, and the rotary reaches the others), and one holding
+  -- the focus keeps EXIT from the tool, so the page could not be left until the rotary was turned.
+  local locked = overrideActive()
+  if locked then
     title = title .. " *"
   end
 
@@ -896,6 +899,32 @@ function M.build(ctx)
   if Controls and type(Controls.appendStaticSectionHeader) == "function" then
     Controls.appendStaticSectionHeader(children, x, cursorY, w, title)
     cursorY = cursorY + (Controls.STATIC_SECTION_H or 50)
+  end
+
+  local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+  local rowH = Controls.ROW_H or 40
+  local valueX = x + math.floor(w * 0.6)
+  -- A setting the override holds still: its label and value as text, nothing that takes the focus.
+  local function lockedRow(labelText, valueText)
+    local labelY = type(Controls.labelY) == "function" and Controls.labelY(cursorY, rowH) or cursorY
+    local muted = Palette and Palette.muted or nil
+    children[#children + 1] = {
+      type = "label", x = x, y = labelY, w = valueX - x - 8,
+      text = labelText, color = muted, font = SMLSIZE
+    }
+    children[#children + 1] = {
+      type = "label", x = valueX, y = labelY, w = x + w - valueX - 10,
+      text = valueText, color = muted, font = SMLSIZE, align = RIGHT
+    }
+    children[#children + 1] = {
+      type = "rectangle", x = x, y = cursorY + rowH, w = w, h = 1,
+      color = Palette and Palette.border or nil, filled = true
+    }
+    return rowH + 1
+  end
+  local function yesNo(value)
+    if value == 1 then return pageText(i18n, "tbl_yes", "YES") end
+    return pageText(i18n, "tbl_no", "NO")
   end
 
   -- Sixteen, not BUS_SERVO_CHANNELS: the firmware's 18 is an SBUS frame's 16 proportional
@@ -915,45 +944,50 @@ function M.build(ctx)
   end
 
   -- 1) Active Servo Dropdown
-  cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
-    pageText(i18n, "servo", "Servo"),
-    servoOptions,
-    ui.selectedServoIndex,
-    function(val)
-      if ui.selectedServoIndex == val then return end
-      if not ui.dirty then
-        selectServo(val)
-        return
-      end
-      -- Save writes the selected servo only, so an edit left on this one would be dropped by
-      -- the pick. The host's unsaved-changes question comes first: Save stores this servo and
-      -- then picks, Discard puts back what the board holds and then picks, Stay keeps both.
-      -- Where it cannot be asked, the pick does not happen and the selector shows this servo.
-      -- The answers act only on this visit: ui.runtime is dropped on close and made anew on the
-      -- next visit, so a write that completes after the page has gone picks nothing.
-      local from = ui.selectedServoIndex
-      local visit = ui.runtime
-      local asked = type(visit.askUnsavedChanges) == "function" and visit.askUnsavedChanges({
-        message = pageText(i18n, "switch_unsaved_msg",
-          "This servo has changes that are not saved. Picking another servo discards them."),
-        saved = function()
-          if ui.runtime == visit and ui.selectedServoIndex == from then selectServo(val) end
-        end,
-        discard = function()
-          if ui.runtime == visit and ui.selectedServoIndex == from then
-            discardServo(from)
-            selectServo(val)
-          end
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "servo", "Servo"), getServoTitle(i18n, ui.selectedServoIndex + 1))
+  else
+    cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+      pageText(i18n, "servo", "Servo"),
+      servoOptions,
+      ui.selectedServoIndex,
+      function(val)
+        if ui.selectedServoIndex == val then return end
+        if not ui.dirty then
+          selectServo(val)
+          return
         end
-      })
-      if not asked and type(ui.runtime.requestRebuild) == "function" then
-        ui.runtime.requestRebuild()
-      end
-    end,
-    {
-      active = function() return not ui.inOverride end
-    }
-  )
+        -- Save writes the selected servo only, so an edit left on this one would be dropped by
+        -- the pick. The host's unsaved-changes question comes first: Save stores this servo and
+        -- then picks, Discard puts back what the board holds and then picks, Stay keeps both.
+        -- Where it cannot be asked, the pick does not happen and the selector shows this servo.
+        -- The answers act only on this visit: ui.runtime is dropped on close and made anew on the
+        -- next visit, so a write that completes after the page has gone picks nothing.
+        local from = ui.selectedServoIndex
+        local visit = ui.runtime
+        local asked = type(visit.askUnsavedChanges) == "function" and visit.askUnsavedChanges({
+          message = pageText(i18n, "switch_unsaved_msg",
+            "This servo has changes that are not saved. Picking another servo discards them."),
+          saved = function()
+            if ui.runtime == visit and ui.selectedServoIndex == from then selectServo(val) end
+          end,
+          discard = function()
+            if ui.runtime == visit and ui.selectedServoIndex == from then
+              discardServo(from)
+              selectServo(val)
+            end
+          end
+        })
+        if not asked and type(ui.runtime.requestRebuild) == "function" then
+          ui.runtime.requestRebuild()
+        end
+      end,
+      {
+        helpText = pageText(i18n, "help_servo",
+          "The servo output whose settings are shown below.")
+      }
+    )
+  end
 
   -- Everything below is the selected servo's own record, so it is drawn only once that
   -- record has been read. Editing what an unfinished read left behind would write it back.
@@ -978,144 +1012,151 @@ function M.build(ctx)
         end
       end,
       display = function(v) return tostring(v) .. "us" end,
-      suffix = "us"
+      suffix = "us",
+      helpText = pageText(i18n, "help_center",
+        "Centre position in us; the servo arm should be level there. With * on, a change moves the servo at once.")
     }
   )
 
   -- 3) Minimum
-  cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
-    pageText(i18n, "minimum", "Minimum"),
-    {
-      min = -500,
-      max = -1,
-      step = 1,
-      get = function() return s.min or -500 end,
-      set = function(val)
-        if s.min ~= val then
-          s.min = val
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return tostring(v) .. "us" end,
-      suffix = "us",
-      active = function() return not ui.inOverride end
-    }
-  )
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "minimum", "Minimum"), tostring(s.min or -500) .. "us")
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "minimum", "Minimum"),
+      {
+        min = -500,
+        max = -1,
+        step = 1,
+        get = function() return s.min or -500 end,
+        set = function(val)
+          if s.min ~= val then
+            s.min = val
+            ui.dirty = true
+          end
+        end,
+        display = function(v) return tostring(v) .. "us" end,
+        suffix = "us",
+        helpText = pageText(i18n, "help_minimum",
+          "Lowest point of travel; it limits the negative throw so the servo arm does not bind.")
+      }
+    )
+  end
 
   -- 4) Maximum
-  cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
-    pageText(i18n, "maximum", "Maximum"),
-    {
-      min = 1,
-      max = 500,
-      step = 1,
-      get = function() return s.max or 500 end,
-      set = function(val)
-        if s.max ~= val then
-          s.max = val
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return tostring(v) .. "us" end,
-      suffix = "us",
-      active = function() return not ui.inOverride end
-    }
-  )
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "maximum", "Maximum"), tostring(s.max or 500) .. "us")
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "maximum", "Maximum"),
+      {
+        min = 1,
+        max = 500,
+        step = 1,
+        get = function() return s.max or 500 end,
+        set = function(val)
+          if s.max ~= val then
+            s.max = val
+            ui.dirty = true
+          end
+        end,
+        display = function(v) return tostring(v) .. "us" end,
+        suffix = "us",
+        helpText = pageText(i18n, "help_maximum",
+          "Highest point of travel; it limits the positive throw so the servo arm does not bind.")
+      }
+    )
+  end
 
   -- 5) Scale Negative
-  cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
-    pageText(i18n, "scale_negative", "Scale Negative"),
-    {
-      min = 100,
-      max = 1000,
-      step = 1,
-      get = function() return s.scaleNeg or 500 end,
-      set = function(val)
-        if s.scaleNeg ~= val then
-          s.scaleNeg = val
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return tostring(v) end,
-      suffix = "",
-      active = function() return not ui.inOverride end
-    }
-  )
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "scale_negative", "Scale Negative"), tostring(s.scaleNeg or 500))
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "scale_negative", "Scale Negative"),
+      {
+        min = 100,
+        max = 1000,
+        step = 1,
+        get = function() return s.scaleNeg or 500 end,
+        set = function(val)
+          if s.scaleNeg ~= val then
+            s.scaleNeg = val
+            ui.dirty = true
+          end
+        end,
+        display = function(v) return tostring(v) end,
+        suffix = "",
+        helpText = pageText(i18n, "help_scale_negative",
+          "Scaling on the negative side; typically 500 for 1520 us servos and 250 for 760 us servos.")
+      }
+    )
+  end
 
   -- 6) Scale Positive
-  cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
-    pageText(i18n, "scale_positive", "Scale Positive"),
-    {
-      min = 100,
-      max = 1000,
-      step = 1,
-      get = function() return s.scalePos or 500 end,
-      set = function(val)
-        if s.scalePos ~= val then
-          s.scalePos = val
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return tostring(v) end,
-      suffix = "",
-      active = function() return not ui.inOverride end
-    }
-  )
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "scale_positive", "Scale Positive"), tostring(s.scalePos or 500))
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "scale_positive", "Scale Positive"),
+      {
+        min = 100,
+        max = 1000,
+        step = 1,
+        get = function() return s.scalePos or 500 end,
+        set = function(val)
+          if s.scalePos ~= val then
+            s.scalePos = val
+            ui.dirty = true
+          end
+        end,
+        display = function(v) return tostring(v) end,
+        suffix = "",
+        helpText = pageText(i18n, "help_scale_positive",
+          "Scaling on the positive side; typically 500 for 1520 us servos and 250 for 760 us servos.")
+      }
+    )
+  end
 
   -- 7) Speed
-  cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
-    pageText(i18n, "speed", "Speed"),
-    {
-      min = 0,
-      max = 60000,
-      step = 1,
-      get = function() return s.speed or 0 end,
-      set = function(val)
-        if s.speed ~= val then
-          s.speed = val
-          ui.dirty = true
-        end
-      end,
-      display = function(v) return tostring(v) .. "ms" end,
-      suffix = "ms",
-      active = function() return not ui.inOverride end
-    }
-  )
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "speed", "Speed"), tostring(s.speed or 0) .. "ms")
+  else
+    cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w,
+      pageText(i18n, "speed", "Speed"),
+      {
+        min = 0,
+        max = 60000,
+        step = 1,
+        get = function() return s.speed or 0 end,
+        set = function(val)
+          if s.speed ~= val then
+            s.speed = val
+            ui.dirty = true
+          end
+        end,
+        display = function(v) return tostring(v) .. "ms" end,
+        suffix = "ms",
+        helpText = pageText(i18n, "help_speed",
+          "Limits the servo speed: the time in ms for 60 degrees of rotation; 0 means no limit.")
+      }
+    )
+  end
 
   -- 8) Reverse
-  cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
-    pageText(i18n, "reverse", "Reverse"),
-    {
-      { label = pageText(i18n, "tbl_no", "NO"), value = 0 },
-      { label = pageText(i18n, "tbl_yes", "YES"), value = 1 }
-    },
-    s.reverse or 0,
-    function(val)
-      if s.reverse ~= val then
-        s.reverse = val
-        ui.dirty = true
-        if type(ui.runtime.requestRebuild) == "function" then
-          ui.runtime.requestRebuild()
-        end
-      end
-    end,
-    {
-      active = function() return not ui.inOverride end
-    }
-  )
-
-  -- 9) Geometry (only shown for first 8 outputs)
-  if idx <= 7 then
+  if locked then
+    cursorY = cursorY + lockedRow(pageText(i18n, "reverse", "Reverse"), yesNo(s.reverse))
+  else
     cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
-      pageText(i18n, "geometry", "Geometry"),
+      pageText(i18n, "reverse", "Reverse"),
       {
         { label = pageText(i18n, "tbl_no", "NO"), value = 0 },
         { label = pageText(i18n, "tbl_yes", "YES"), value = 1 }
       },
-      s.geometry or 0,
+      s.reverse or 0,
       function(val)
-        if s.geometry ~= val then
-          s.geometry = val
+        if s.reverse ~= val then
+          s.reverse = val
           ui.dirty = true
           if type(ui.runtime.requestRebuild) == "function" then
             ui.runtime.requestRebuild()
@@ -1123,9 +1164,39 @@ function M.build(ctx)
         end
       end,
       {
-        active = function() return not ui.inOverride end
+        helpText = pageText(i18n, "help_reverse",
+          "Reverse the servo when it moves the wrong way.")
       }
     )
+  end
+
+  -- 9) Geometry (only shown for first 8 outputs)
+  if idx <= 7 then
+    if locked then
+      cursorY = cursorY + lockedRow(pageText(i18n, "geometry", "Geometry"), yesNo(s.geometry))
+    else
+      cursorY = cursorY + Controls.appendComboSelect(children, x, cursorY, w,
+        pageText(i18n, "geometry", "Geometry"),
+        {
+          { label = pageText(i18n, "tbl_no", "NO"), value = 0 },
+          { label = pageText(i18n, "tbl_yes", "YES"), value = 1 }
+        },
+        s.geometry or 0,
+        function(val)
+          if s.geometry ~= val then
+            s.geometry = val
+            ui.dirty = true
+            if type(ui.runtime.requestRebuild) == "function" then
+              ui.runtime.requestRebuild()
+            end
+          end
+        end,
+        {
+          helpText = pageText(i18n, "help_geometry",
+            "Corrects the rotational geometry at the ends of travel; do not use it with linear servos.")
+        }
+      )
+    end
   end
 end
 
@@ -1138,6 +1209,7 @@ function M.onSave(ctx)
   local hadEdit = ui.dirty
   local ok, err = queueServoWrite(ui.selectedServoIndex, function(stored)
     if not stored then
+      if hadEdit then logf("info", "save not stored: the page stays unsaved") end
       ui.dirty = hadEdit
     elseif type(onSaved) == "function" then
       onSaved()
@@ -1162,7 +1234,7 @@ function M.onReload(ctx)
   local session = getSession()
   if session then
     -- Before the read, so the read is queued behind the rollback and shows the board's centre.
-    if ui.dirty then rollbackChanges() end
+    if rollbackDue() then rollbackChanges() end
     loadFromSession()
     ui.dirty = false
     queueServosRead(false)
@@ -1171,14 +1243,14 @@ function M.onReload(ctx)
 end
 
 function M.onStar(ctx)
-  if not ConfirmDialog then return false end
-  if not ui.inOverride and not M.canSave() then return false end
+  if not overrideActive() and not M.canSave() then return false end
+  if not ensureOverride() then return false end
 
   local i18n = ctx and ctx.i18n
   local title
   local message
 
-  if not ui.inOverride then
+  if not overrideActive() then
     title = pageText(i18n, "enable_servo_override", "Enable servo override")
     message = pageText(i18n, "enable_servo_override_msg", "Servo override allows you to 'trim' your servo center point in real time.")
   else
@@ -1186,20 +1258,22 @@ function M.onStar(ctx)
     message = pageText(i18n, "disable_servo_override_msg", "Return control of the servos to the flight controller.")
   end
 
-  ConfirmDialog.show({
+  ui.override:confirm({
     title = title,
     message = message,
+    uncertainText = pageText(i18n, "override_armed_unknown",
+      "The flight controller does not report whether it is armed. Make sure the rotors cannot spin."),
     onConfirm = function()
-      if not ui.inOverride then
+      local override = ui.override
+      if not override then return end
+      if not override.active then
         -- Checked again: Yes comes later than the press, and the page may have closed since.
-        if not M.canSave() then return end
-        setOverride(true)
-        ui.inOverride = true
+        if not M.canSave() or not syncOverrideServo() then return end
+        override:enable(getQueue())
       else
-        setOverride(false)
-        ui.inOverride = false
+        override:disable(getQueue())
       end
-      if type(ui.runtime.requestRebuild) == "function" then
+      if ui.runtime and type(ui.runtime.requestRebuild) == "function" then
         ui.runtime.requestRebuild()
       end
     end
@@ -1213,12 +1287,18 @@ function M.onClose()
   -- An unsaved centre sent live is taken back first, while the override still holds the servos.
   -- Queued ahead of the override write on purpose: should the close end before every write is out,
   -- a lost override write leaves a board that refuses to arm, a lost rollback a trial centre the
-  -- model would fly with. Save clears dirty, so a save still on its way is not undone here.
-  if ui.dirty then rollbackChanges() end
-  if ui.inOverride then
-    setOverride(false)
-    ui.inOverride = false
+  -- model would fly with. A save still writing is not undone here (rollbackDue above).
+  if rollbackDue() then
+    rollbackChanges()
+  elseif ui.dirty then
+    logf("debug", "close: a save is still writing, nothing put back")
   end
+  if overrideActive() then
+    ui.override:disable(getQueue())
+  end
+  ui.override = nil
+  ui.overrideServo = nil
+  ui.dirty = false
   if Common and type(Common.resetPageState) == "function" then
     Common.resetPageState(ui, {
       resetLoaded = true,
@@ -1231,7 +1311,7 @@ function M.onClose()
   Common = nil
   MspRuntime = nil
   LoadingOverlay = nil
-  ConfirmDialog = nil
+  LiveOverride = nil
   ApiVersion = nil
   SavePipeline = nil
   t = nil
