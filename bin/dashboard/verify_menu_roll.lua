@@ -409,6 +409,37 @@ local function run(mutate)
     check("ENTER is no longer the roll's", Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and roll(w) == nil)
   end
   do
+    -- The same after a reconnect: the kept roll's scene is not the theme's until the theme's look is built, and
+    -- then ENTER reaches the look -- the roll's own build, which clears the reconnect's mark, never comes.
+    local w = open()
+    local kept = Views.acrossReconnect(w)
+    w._viewStack = kept
+    local entry = Views.find(w, "menu")
+    entry.load = function() return {} end
+    w.theme, w.built = {}, false
+    check("before the theme's look is built a press does nothing",
+      Views.key(w, EVT_VIRTUAL_ENTER) == true and toolOpened == 0 and roll(w) ~= nil)
+    w.built = true
+    check("once it is built ENTER is no longer the roll's",
+      Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and roll(w) == nil)
+  end
+  do
+    -- A rest whose refresh moves the levels has the scene built again on a later pass; until then the old
+    -- ladders stand where they stood, so the count keeps their position and the next detent moves one row.
+    local w, s = open()
+    local r = roll(w)
+    local h = s.forward.h
+    detent(s.forward, h, 1)
+    local index = r.levels[1].index
+    -- A right list that has gone: the rest's refresh takes the focus back left, which a build lays out.
+    r.focus = 2
+    r.levels[r.base + 1] = nil
+    check("such a rest asks for a build and keeps the ladder position", Roll.rested(r) == true and r.position == 1)
+    -- Back up the ladder: counted from a position of 0 this detent would come to nothing.
+    detent(s.forward, h, 0)
+    check("a detent back on the scene still standing moves one row", r.levels[1].index == index - 1)
+  end
+  do
     local w = toProfile()
     Views.key(w, EVT_VIRTUAL_ENTER)
     adds[1].errorHandler(adds[1], "timeout")
@@ -1264,6 +1295,9 @@ if selfTest then
     end },
     { "the menu built again after a reconnect still ignores presses", function(t)
       return (string.gsub(t, "    roll.staleScene = nil\n", ""))
+    end },
+    { "a rest that asks for a build drops the ladder position of the scene still standing", function(t)
+      return (string.gsub(t, "    roll.position = position\n", ""))
     end },
   }
   quiet = true

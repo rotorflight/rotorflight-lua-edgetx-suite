@@ -792,7 +792,12 @@ end
 function M.sceneStale(widget)
   if widget.theme == nil and widget.built ~= true then return true end
   local roll = M.topRoll(widget)
-  return roll ~= nil and roll.staleScene == true
+  if roll == nil or roll.staleScene ~= true then return false end
+  -- A theme's look that took the view over is built in place of the roll, whose own build never comes: its
+  -- scene stands once the widget has built.
+  local own = M.find(widget, roll.view)
+  if own ~= nil and own.load ~= nil then return widget.built ~= true end
+  return true
 end
 
 --- Open the tool on `menuId` from a rolling menu, keeping where the press stood (a table of the menu's
