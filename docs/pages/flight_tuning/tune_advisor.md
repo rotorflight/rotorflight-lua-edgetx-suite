@@ -131,9 +131,10 @@ profiles they were flown on keep *Save* off as well; fly again.
   advice.
 - **FF and the rates stay within 60% to 167% of your own values**, which is about two steps either way. Your own FF
   and rates are found the same way as your own P (below), for FF on the axis and PID profile, for the rates on their
-  row and rate profile. With Actual, Quick and Rotorflight rates a step that would take FF or a rate value outside
-  that range is not suggested (with Betaflight, Raceflight and KISS rates the page only names the change and *Save*
-  does not write it, so neither is bounded); the reasons say how far it already is, for example "FF is already 36%
+  row and rate profile. A step that would take FF or a rate value outside that range is not suggested. With Betaflight, Raceflight and KISS rates the page only names the change and *Save*
+  does not write it, so nothing of it is recorded: the range then counts from the values you have now, or from your
+  own values recorded by an earlier *Save* with Actual, Quick or Rotorflight rates. The reasons say how far it
+  already is, for example "FF is already 36%
   below your setting. Set it on the PIDs page to go further." This counts every change on a rate row: under polar
   cyclic the roll and pitch FF steps both move the one *Cyclic* row, and full-stick cuts lower it too. A step back toward your own value
   is never held back by this range. With FF held there, the stops are not told to fix FF first, and P is not raised.
