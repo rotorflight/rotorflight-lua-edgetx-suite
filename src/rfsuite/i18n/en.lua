@@ -808,7 +808,7 @@ return {
         gyroRollHint = "No overrides. Tilt right: swash must correct left, against the movement.",
         gyroPitchHint = "Lower the nose: swash must correct rearward, against the movement.",
         gyroYawHint = "Turn the nose right: tail must command nose left, against the movement.",
-        againstMovement = "Corrects against movement",
+        againstMovement = "Counters movement",
         withMovement = "Moves with model: orientation",
         finishHint = "Review the setup. Finish saves settings and releases all bench overrides.",
         finishSafetyHint = "Plug the motor back in and fit the blades. Arming stays blocked until exit. Check failsafe, governor and every control before flight, and keep the first hover careful.",
