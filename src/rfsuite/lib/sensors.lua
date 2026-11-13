@@ -742,14 +742,17 @@ local searchWaits = {}
 -- for ever, which would hold every repeated search back for good.
 local PASS_MARK_SECONDS = 1.0
 local passMark = 0
-local passMarkAt = nil  -- in clock ticks (getTime), read raw: this runs at the top of every pass
+-- Until when, in the seconds of nowSeconds(), the current mark counts: worked out once per pass so
+-- that a read held back by the caps -- after a reset, most of them in the same pass -- makes one
+-- comparison. -1 before the first mark, so the comparison needs no nil test either.
+local passMarkUntil = -1
 
 --- Mark the start of a widget pass, for the search throttles in Sensors.getValue.
 function Sensors.passBegins()
-  if passMarkAt == nil and debugWanted() then debugLog(nil, "search throttles count per widget pass") end
+  if passMarkUntil < 0 and debugWanted() then debugLog(nil, "search throttles count per widget pass") end
   passMark = passMark + 1
   local clock = getTime
-  passMarkAt = clock and clock() or nil
+  if clock then passMarkUntil = clock() / 100 + PASS_MARK_SECONDS end
 end
 
 local readValue
@@ -904,9 +907,12 @@ readValue = function(source)
   -- The pass the throttles count against (see Sensors.passBegins): inline, because after a reset
   -- this runs once for every source the caps hold back, in the same pass.
   local key = now
-  if passMarkAt and now - passMarkAt / 100 < PASS_MARK_SECONDS then key = passMark end
-  local exempt = capExemptSource == source
-  capExemptSource = nil
+  if now < passMarkUntil then key = passMark end
+  local exempt = false
+  if capExemptSource then
+    exempt = capExemptSource == source
+    capExemptSource = nil
+  end
   if previousWait ~= nil then
     if Sensors.last_search == key then return nil end
     Sensors.last_search = key
