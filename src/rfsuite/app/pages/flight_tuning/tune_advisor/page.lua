@@ -1528,7 +1528,8 @@ function M.wakeup(ctx)
     if key ~= ui.profileKey then
       local seen = ui.profileKey
       ui.profileKey = key
-      if seen ~= nil then
+      -- The first look after a read also counts: the profiles may have changed while it ran
+      if seen ~= nil or pid ~= ui.activePid or rate ~= ui.activeRate then
         -- Other profiles than the ones the flights were read for: read theirs, as Reload would
         -- (a save already running finds the switch itself and stops)
         if not ui.applying and (pid ~= ui.activePid or rate ~= ui.activeRate) then

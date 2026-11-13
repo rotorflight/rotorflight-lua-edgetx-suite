@@ -1095,6 +1095,28 @@ do
   pump()
   check("switched back to PID 1: the page reads PID 1 again", ui.activePid == 1 and ui.view.data == noP1,
     "PID " .. tostring(ui.activePid) .. " / " .. tostring(ui.view.data))
+
+  -- The switch while the flights are still being read (the profiles settled, the axes not built
+  -- yet): the first look at the profiles after the read finds the switch too
+  if opened then Page.onClose() end
+  queue.entries = {}
+  build()
+  opened = true
+  for _ = 1, 40 do
+    ticks = ticks + 5
+    Page.wakeup(ctx)
+    local m = table.remove(queue.entries, 1)
+    if m and m.command == codecs.status.command then m.processReply(m, statusReply())
+    elseif m and m.command == Api.command then m.processReply(m, Api.simulatorResponseFor(1)) end
+    if ui.activePid ~= nil and not ui.axes then break end
+  end
+  local midRead = ui.activePid == 1 and not ui.axes
+  profiles.pid = 2
+  pump()
+  check("switched to PID 2 while the flights are read: PID 2's flight is shown once the read ends",
+    midRead and ui.activePid == 2 and string.find(ui.view.data or "", "1/5", 1, true) ~= nil,
+    tostring(midRead) .. " / PID " .. tostring(ui.activePid) .. " / " .. tostring(ui.view.data))
+  profiles.pid = 1
   resetFlights()
 end
 
