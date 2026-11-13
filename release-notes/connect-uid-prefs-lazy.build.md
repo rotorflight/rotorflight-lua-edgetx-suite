@@ -1,1 +1,1 @@
-- **The UID connect task loads the model preferences module only when it needs it (`tasks/events/onconnect/tasks/uid.lua`)**: on the ordinary connect the MSP runtime has already put the preferences into the session, and the task no longer loads and builds `lib/model_preferences.lua` only to drop it. Where the preferences are missing it still loads and resolves them; the resolved flag and the task's completion are unchanged (#1065).
+- **The connect no longer loads the model preferences again when they are already in hand (`tasks/events/onconnect/tasks/uid`)** (#1065)

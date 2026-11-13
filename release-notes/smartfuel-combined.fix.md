@@ -1,2 +1,1 @@
-- **Local SmartFuel COMBINED uses the lower estimate (`tasks/events/telemetry_bg/smart.lua`)**:
-  - Compute both voltage and current estimates and use the lower available percentage, falling back to either when the other is unavailable (#705).
+- **SmartFuel COMBINED uses the lower of the voltage and current estimates (`tasks/events/telemetry_bg/smart`)** (#705)

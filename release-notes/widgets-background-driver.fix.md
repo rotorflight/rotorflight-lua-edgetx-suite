@@ -1,2 +1,1 @@
-- **Dashboard and service widget on one model no longer run the background work twice (`widgets/dashboard`, `widgets/service`)**:
-  - The service widget stands down while the dashboard drives the MSP and event runtimes, and takes them over within about half a second once the dashboard is taken off the model or stops; the dashboard writes the log to the card whenever it drives, so the log keeps reaching the card after the service widget is removed (#455, #958).
+- **Dashboard and service widget on one model no longer run the background work twice (`widgets/service`)** (#455, #958)

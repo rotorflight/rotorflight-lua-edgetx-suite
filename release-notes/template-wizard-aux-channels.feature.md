@@ -1,5 +1,1 @@
-- **The Rotorflight model template asks for the blackbox and backup switches and the module slot, and refuses one switch on two functions (`templates/5.Rotorflight/Rotorflight.lua`, `templates/5.Rotorflight/Rotorflight.yml`, `docs/reference/model-template.md`)**:
-  - The dialog after creating a model has a second screen: an optional switch for CH9 Blackbox and for CH10 Backup, and the CRSF module on the internal or the external slot. A channel left without a switch stays at `MIN` instead of following a preset switch.
-  - A switch picked for two functions is refused with a sentence naming both; the governor and the profiles may share a switch, and so may the hold and the governor.
-  - The closing screen and the template's description point to Configuration → Setup to set up the flight controller, instead of the setup assistant.
-  - A new model starts with the radio's telemetry alarms off. RFSuite's link announcements are off by default as well; they are switched on under Settings → Audio → Events → Link.
+- **The Rotorflight model template asks for blackbox and backup switches and the module slot, and refuses one switch on two functions (`templates`)**

@@ -1,4 +1,1 @@
-- **The configuration tool opens its menu without waiting for the flight controller (`ui/home.lua`, `docs/reference/connection-status.md`)**:
-  - The start screen stands only while the suite compiles after an install or an update, or moves the pilot's data to a new folder; otherwise the menu -- or, opened from the dashboard, the page it was opened on -- is the first screen, with or without a model connected.
-  - The connection runs behind the menu, as it does when a flight controller appears after the tool was opened: the header's status button shows how far it is, and the tiles that need the flight controller stay greyed out until it answers, then become usable where they stand, without the menu being drawn again, so the tile the wheel is on keeps the focus (`ui/tiles.lua`).
-  - When an earlier start could not move the pilot's data, the tool says so once over the menu.
+- **The configuration tool opens its menu without waiting for the flight controller (`ui/home`)**

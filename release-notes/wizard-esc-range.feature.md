@@ -1,1 +1,1 @@
-- Add explicit OpenYGE throttle-range synchronization and YGE/Hobbywing V5 operating-mode checks to ESC telemetry, with complete-block transactions, readback verification, battery-restart guidance and distinct pilot/calibration/link confirmations (helicopter_setup).
+- **Helicopter Setup syncs the OpenYGE throttle range and checks the YGE and Hobbywing V5 operating modes (`helicopter_setup`)**

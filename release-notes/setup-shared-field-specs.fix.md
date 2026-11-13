@@ -1,5 +1,1 @@
-- **Setup pages take their editor limits and choice lists from one place, the SmartFuel mode names are translated, the Ports page knows boards by name, and Ramp Time and Throttle explain each row (`lib/power_fields.lua`, `lib/governor_fields.lua`, `lib/port_labels.lua`, `tasks/msp/api/motor_config.lua`, `app/pages/setup/power/battery`, `app/pages/setup/power/sources`, `app/pages/setup/power/smartfuel`, `app/pages/setup/governor/time`, `app/pages/setup/esc_motors/throttle`, `app/pages/setup/ports`, `docs/pages/setup/governor/time.md`)**:
-  - The capacity and cell-count limits, the voltage and current source list, the SmartFuel mode list, the governor ramp-time limits and the three throttle pulse limits are defined once instead of in each page; the pages show and accept exactly what they did.
-  - The SmartFuel *Firmware Source* names follow the radio's language instead of always being English.
-  - The Ports page also names a board's ports by the board name it reports, where its design does not name them; the first entry is `FLYDRAGON_V2_2`.
-  - Setup > Governor > Ramp Time and Setup > ESC & Motors > Throttle have a `?` on every row and a one-line page `?`; Ramp Time has its documentation page.
+- **SmartFuel mode names are translated, the Ports page knows boards by name, and Ramp Time and Throttle explain each row (`setup`)**

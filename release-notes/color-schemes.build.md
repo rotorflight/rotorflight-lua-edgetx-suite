@@ -1,1 +1,1 @@
-- Added one file holding a light and a dark colour scheme by role, taken from the Rotorflight Configurator's tokens, for the tool and the dashboard widget to read (lib/color_schemes). The widget's menu pages read it.
+- **A light and a dark color scheme taken from the Rotorflight Configurator, read by the dashboard widget's menu pages (`lib/color_schemes`)**

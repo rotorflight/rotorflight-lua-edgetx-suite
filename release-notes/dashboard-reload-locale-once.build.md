@@ -1,2 +1,1 @@
-- **A settings change reads the radio's settings file once on the dashboard (`widgets/dashboard/runtime.lua`, `lib/system_locale.lua`)**:
-  - When a saved setting makes the dashboard reload its preferences, the language those settings resolve to is handed to the language lookup as it is reset, so the dashboard no longer reads the same file a second time to find it. With *Automatic* the language handed over is the one the package or the radio gives, as before; nothing changes in which language is used.
+- **A settings change makes the dashboard read the radio's settings file once instead of twice (`widgets/dashboard/runtime`)**

@@ -1,1 +1,1 @@
-- **Leaving in-flight tuning builds the dashboard once (`widgets/dashboard/runtime.lua`)**: when something moved the dashboard's layout while the tuning surface was up -- the voltage bounds following a new cell count, a theme reload -- the zone dashboard or the full-screen theme the pilot returned to was built under the key left from before, then a second time up to half a second later. It is now keyed in the pass it is built, and built once (#465).
+- **Leaving in-flight tuning builds the dashboard once instead of twice (`widgets/dashboard/runtime`)** (#465)

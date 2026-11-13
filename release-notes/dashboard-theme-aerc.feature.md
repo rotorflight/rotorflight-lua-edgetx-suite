@@ -1,2 +1,1 @@
-- **@AERC and @AERC Nitro themes in full screen, with tile choices and keys (`widgets/dashboard/themes/@aerc`, `widgets/dashboard/themes/@aerc-n`)**:
-  - Both take the full screen like Default, and their settings open Look, Before flight, In flight, Statistics and Keys: choose what each plain value tile shows and bind the full-screen keys.
+- **The @AERC and @AERC Nitro themes take the full screen, with tile choices and keys (`widgets/dashboard/themes`)**

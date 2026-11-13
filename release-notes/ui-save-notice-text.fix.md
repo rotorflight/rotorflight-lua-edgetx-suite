@@ -1,2 +1,1 @@
-- **The save notice no longer shows an MSP command name (`ui/home`)**:
-  - While a save writes its settings, the notice reads the translated *Applying settings* instead of the internal name of the write being sent (such as `MSP_SET_PID_PROFILE`); the bar still counts the writes (#1000).
+- **The save notice reads Applying settings instead of an MSP command name (`ui/home`)** (#1000)

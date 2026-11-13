@@ -1,2 +1,1 @@
-- **Rates above 1000 deg/s are shown as the flight controller holds them (`flight_tuning/rates`)**:
-  - Roll, Pitch and Yaw cells of the Actual, Quick and Raceflight rate types reach the flight controller's own limit of 2000 deg/s instead of stopping at 1000, so a rate set over the CLI or by the Tune Advisor's Apply no longer reads as 1000 and can be edited from its real value (#991).
+- **Rates above 1000 deg/s are shown and edited as the flight controller holds them (`flight_tuning/rates`)** (#991)

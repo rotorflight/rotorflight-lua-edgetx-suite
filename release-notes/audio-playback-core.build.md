@@ -1,3 +1,1 @@
-- **Adjustment announcements play through a small playback module (`lib/audio_playback.lua`, `lib/audio.lua`, `tasks/events/telemetry_bg/adjustments.lua`, `docs/developer/audio-announcements.md`)**:
-  - Finding a file of the sound pack, the volume level it is played at and the window in which an alarm keeps the adjustment voices quiet move out of `lib/audio.lua` into `lib/audio_playback.lua`, which `lib/audio.lua` plays through. The adjustment teller loads only that module, so the background script, which runs the teller and no announcement of its own, no longer loads the whole of `lib/audio.lua` (#960).
-  - What is spoken does not change: the same files from the same folders, the same numbers, at the same level.
+- **The background script loads less code for adjustment announcements; what is spoken does not change (`lib/audio_playback`)** (#960)

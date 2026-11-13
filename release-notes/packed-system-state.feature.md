@@ -1,4 +1,1 @@
-- **One decoder for the packed System Status and System Config sensors, and a strict live sensor read (`lib/system_state.lua`, `lib/sensors.lua`, `app/pages/tools/diagnostics/system_status/page.lua`, `docs/developer/packed-system-state.md`)**:
-  - `lib/system_state.lua` holds the bit layout of both packed words, and the System Status diagnostics page now decodes through it instead of its own copy; its rows and its own-sensor comparison are unchanged. A value outside 0 to `0x7FFFFFFF` is no longer decoded there.
-  - `Sensors.getLiveValue(source)` returns a sensor's value only while EdgeTX reports it current, and `nil` for a held, stopped or unknown reading; `Sensors.getValue` is unchanged. Nothing in the suite reads through it yet.
-  - `bin/telemetry/verify_system_state.lua --self-test` checks both offline and runs in CI.
+- **The System Status page decodes through one shared decoder; its rows are unchanged (`lib/system_state`)**

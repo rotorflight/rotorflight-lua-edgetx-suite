@@ -1,6 +1,1 @@
-- **A new test no longer edits a shared workflow file (`.github/workflows/checks.yml`, `.github/workflows/pr.yml`, `bin/ci/test_jobs.py`)**:
-  - A plain Lua test script has a `<stem>.ci.json` beside it, and a first job starts one job per file. The test scripts inside `instruction-budget` stay written out.
-  - That job goes red, and no registered test runs, on a bad file, on too few jobs, and on a test script no job runs.
-  - `pr.yml` calls `checks.yml`, so a pull request, a push and a tag run one list of gates; checks show as `Gates / <name>` on a pull request.
-  - Jobs that ran several test scripts are one job per test script, and `verify_gauge_render.lua` now runs on pull requests too.
-  - Six checks that no job ran now run: `verify_inflight_fcsetup.lua`, `verify_link_rates.lua`, `verify_yge_serial.lua`, `verify_rxfail_config.lua`, `verify_galt_precision.lua` and `verify_save_scope.lua`.
+- **Each test script runs as its own CI job, and six checks that no job ran now run (`bin/ci/test_jobs`)**

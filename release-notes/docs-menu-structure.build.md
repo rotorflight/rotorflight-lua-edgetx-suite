@@ -1,4 +1,1 @@
-- **A generated map of the configuration tool's menus (`bin/docs/menu_structure.py`, `bin/docs/lua_source.py`, `docs/reference/menu-structure.md`)**:
-  - `docs/reference/menu-structure.md` lists every menu entry in the order the tool shows it, with its English title, its menu id, the page file it opens, the documentation file of that page (or that there is none yet) and the conditions the menu definition gives it. It is generated from `app/manifest.lua` and `app/pages/init.lua` without running any Lua.
-  - CI regenerates the page and fails with a diff when it no longer matches the menu definition; `python3 bin/docs/menu_structure.py` rewrites it.
-  - The non-executing Lua source reader it uses lives in `bin/docs/lua_source.py`, for other documentation generators to share.
+- **The documentation gains a generated map of the configuration tool's menus, kept current by CI (`bin/docs/menu_structure`)**
