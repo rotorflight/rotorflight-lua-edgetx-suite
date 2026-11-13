@@ -208,6 +208,11 @@ Take the card out and copy the whole `logs` folder. If that is too much, the use
 - **A stop at the instruction limit is written only where something catches it.** One that reaches
   the dashboard's own drawing and background calls gives the `.log` a `widget.refresh stopped: …`
   line (or `.background`, `.update`) and an `rfsuite.fault` line, and the `.step` file the fault.
+  Once the dashboard has named the work of a pass, the `widget.refresh` line ends with
+  `(last work …)`, the word a `long pass` line carries; the work is named part way into a pass, so
+  a stop early in one names the work of the pass before. At *DEBUG*, a stop that interrupted a build, or left one queued,
+  is followed by `rebuild: after a stopped pass, job …`, and the screen is built again; a stop with
+  no build pending leaves the screen as it stands.
   One caught further in, while a theme loads for example, is that part's own warning or error.
   Where the radio stops the widget outside them, the widget cannot write that this happened, so
   the last thing in its `.log` is the approach to the fault. The background decoder's files are not affected: its script is paused and

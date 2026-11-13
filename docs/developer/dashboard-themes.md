@@ -301,7 +301,9 @@ build the radio stops at its instruction limit. The widget tries that build thre
 times in a row, then stops trying and shows *Dashboard error* in its place; the error is in
 the log, and the first of the three goes to the card as a fault when *Log to card* is on (a
 stop at the instruction limit goes to the card every time, as the widget's own `widget.refresh`
-fault, and the widget waits 1.2 s before the next try). A
+fault, and the widget waits 1.2 s before the next try). A stop that falls outside a build, while
+the widget reads values onto a screen that is already drawn, leaves that screen standing: only a
+build that was under way, or queued, is started again. A
 build that is stopped at the limit only sometimes is drawn again as soon as one try completes,
 which starts the count over; one that is stopped three times in a row stays *Dashboard error*. A
 theme reload starts over: choosing a theme, any change to the preferences (a battery picked on the

@@ -1,0 +1,8 @@
+{
+  "id": "stopped-pass-rebuild",
+  "name": "Dashboard screen after a stopped pass",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_stopped_pass_rebuild.lua"
+  ],
+  "step": "Check what a stopped refresh pass does to the screen on show"
+}

@@ -73,10 +73,18 @@ end
 -- module is loaded here rather than at the top of the file because this one is read for every
 -- widget at boot and a fault is not the common case; lib/log_sink.lua then makes the same check
 -- again itself and writes nothing while the option is off.
-local function logFault(context, err)
+--
+-- `work`, where given, is the work class the dashboard last named for the pass (its `_passWork`,
+-- the word its `long pass:` and `pass gap` lines carry), so the line says where the pass stopped and
+-- not only why. The dashboard names it part way into a pass, so a stop before that point names the
+-- previous pass's work; hence "last work". Only the log line carries it: the card's fault record
+-- keeps the error text as it was.
+local function logFault(context, err, work)
   local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
   if type(Log) == "table" and type(Log.emit) == "function" then
-    pcall(Log.emit, "rfsuite.widget", tostring(context) .. " stopped: " .. tostring(err), "error")
+    local line = tostring(context) .. " stopped: " .. tostring(err)
+    if work ~= nil then line = line .. " (last work " .. tostring(work) .. ")" end
+    pcall(Log.emit, "rfsuite.widget", line, "error")
   end
 
   local fn = type(_G) == "table" and _G.rfsuite and _G.rfsuite.logFault
@@ -134,17 +142,34 @@ local function refresh(widget, event, touchState)
       return
     end
 
+    -- Read before the call: a job step that raises has its job dropped by the dashboard before the
+    -- error reaches this point.
+    local jobBefore = widget._job
     local ok, err = pcall(widget.refresh, widget, event, touchState)
     if not ok then
-      logFault("widget.refresh", err)
+      logFault("widget.refresh", err, widget._passWork)
       if isCpuLimitError(err) then
         widget._cpuBackoffUntil = now + 1.2
         letGoWhileBackedOff(widget)
       end
       -- Clear any pending job so the widget cannot be pinned in the JOB branch
       -- for ever when a job step raises and unwinds past refresh (see #280).
-      widget._job   = nil
-      widget.built  = false
+      --
+      -- The tree is given up only when a job was pending, before the pass or after it: that is
+      -- the case where what stands on screen may be half built. A pass that stopped with no job
+      -- in front of it was reading values onto a finished tree, which is still whole; clearing
+      -- `built` there made the next pass build the same surface again -- the standby screen after
+      -- a stop on connect, for one -- for nothing but the memory a rebuild costs. A path that takes
+      -- a tree down outside a job clears `built` itself before it does.
+      local job = jobBefore or widget._job
+      widget._job = nil
+      if job ~= nil then
+        widget.built = false
+        local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+        if type(Log) == "table" and type(Log.emit) == "function" then
+          pcall(Log.emit, "rfsuite.widget", "rebuild: after a stopped pass, job " .. tostring(job.kind), "debug")
+        end
+      end
     end
   end
 end
