@@ -24,7 +24,7 @@ local ROLES = {
   { "panelText", "text" },
   { "headingText", "text" },      -- a group title on a page
   { "settingsText", "text" },
-  { "logWarning", "text" },       -- a warn row in Session Logs; an error row draws in warning
+  { "logWarning", "warning" },    -- a warn row in Session Logs; an error row draws in error
   { "strongBorder", "text" },      -- a frame that has to stand out
   { "wizardBorder", "accent" },
   { "grid", "rule" },      -- the log graph's grid lines
