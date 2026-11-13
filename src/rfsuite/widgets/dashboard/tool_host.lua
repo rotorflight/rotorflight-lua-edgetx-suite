@@ -287,6 +287,9 @@ local function finish(widget, reason, outcome)
   end
 
   local dropped = dropToolModules()
+  -- ui/palette.lua publishes itself as rfsuite.palette for the tool's pages; nothing of the
+  -- dashboard reads it, so the closed tool's palette and its icon cache go with its modules.
+  if root then root.palette = nil end
   if _G.rfsuite.logSteps then hostStep("tool modules dropped: " .. tostring(dropped)) end
 
   widget._job = nil

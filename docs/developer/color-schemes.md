@@ -94,7 +94,7 @@ The firmware cannot tint a picture, so a picture that follows the scheme exists 
 `bin/icons/make_scheme_icons.py` makes them from the suite's own icons, which are dark on an opaque
 ground: the darkness becomes transparency in the scheme's colour. It reads the colour from `lib/color_schemes.lua`:
 `text` in light, as dark as the pictures are today; `accentInk` in dark, the role for a glyph. Run it after changing either
-value; `--check` says where a picture is missing, stale or left over.
+value; `--check` says where a picture is missing, stale or left over. A page whose scheme picture is missing is drawn with its own picture (`palette.iconPath`, one `fstat` per picture and scheme, logged at warn), so a forgotten run shows the old icon rather than a blank tile.
 
 The page header's icon is the exception: the firmware tints it itself, with the header's title colour,
 and reads only the picture's darkness as its shape. So it is the Rotorflight "RF" in black on white,
