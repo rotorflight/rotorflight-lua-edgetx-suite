@@ -753,8 +753,8 @@ function Sensors.passBegins()
 end
 
 local readValue
--- The one source whose next first search is exempt from FIRST_SEARCHES_PER_PASS: set by
--- Sensors.getValue for the arming state's fallback word, cleared by the throttle in readValue.
+-- The one source whose next read is exempt from FIRST_SEARCHES_PER_PASS: set by Sensors.getValue
+-- for the arming state's fallback word right before that read, and taken by readValue on entry.
 local capExemptSource = nil
 
 -- Readings the packed status words also carry (rotorflight-firmware
@@ -787,6 +787,10 @@ end
 
 readValue = function(source)
   if type(source) ~= "string" then return nil end
+  -- The cap exemption belongs to the one read that follows Sensors.getValue's marking, whatever
+  -- path that read takes, so it is taken here before any of them can return.
+  local exempt = capExemptSource == source
+  capExemptSource = nil
 
   if not loggedSimulatorState then
     loggedSimulatorState = true
@@ -898,12 +902,10 @@ readValue = function(source)
   -- this runs once for every source the caps hold back, in the same pass.
   local key = now
   if passMarkAt and now - passMarkAt / 100 < PASS_MARK_SECONDS then key = passMark end
-  local exempt = capExemptSource
-  capExemptSource = nil
   if previousWait ~= nil then
     if Sensors.last_search == key then return nil end
     Sensors.last_search = key
-  elseif source ~= "armflags" and source ~= exempt then
+  elseif source ~= "armflags" and not exempt then
     if Sensors.first_search_at ~= key then
       Sensors.first_search_at = key
       Sensors.first_searches = 0
