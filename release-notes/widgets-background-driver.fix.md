@@ -1,1 +1,1 @@
-- **Dashboard and service widget on one model no longer run the background work twice (`widgets/service`)** (#455)
+- **Dashboard and service widget on one model no longer run the background work twice (`widgets/service`)** (#455, #958)

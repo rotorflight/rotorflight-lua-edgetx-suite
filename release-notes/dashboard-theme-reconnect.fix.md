@@ -1,1 +1,1 @@
-- **A reconnect or a link loss no longer reloads the model's dashboard theme from the SD card (`widgets/dashboard/runtime`)** (#1008)
+- **A reconnect or a link loss no longer reloads the model's dashboard theme from the SD card (`widgets/dashboard/runtime`)** (#1008, #1009, #1043)

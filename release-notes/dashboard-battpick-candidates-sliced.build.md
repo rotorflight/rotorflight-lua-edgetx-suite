@@ -1,1 +1,1 @@
-- **The dashboard's battery prompt is no longer stopped at the instruction limit with a few dozen packs in the registry (`lib/battery_pick`)** (#1067)
+- **The dashboard's battery prompt is no longer stopped at the instruction limit with a few dozen packs in the registry (`lib/battery_pick`)** (#1067, #1081)

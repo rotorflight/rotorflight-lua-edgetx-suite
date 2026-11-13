@@ -1,1 +1,1 @@
-- **Battery, Sources and SmartFuel report Saved only once the flight controller stored the values, and SmartFuel follows a new cell voltage at once (`setup/power`)** (#594)
+- **Battery, Sources and SmartFuel report Saved only once the flight controller stored the values, and SmartFuel follows a new cell voltage at once (`setup/power`)** (#594, #996)

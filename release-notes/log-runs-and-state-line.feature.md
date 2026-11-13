@@ -1,1 +1,1 @@
-- **Card logs are grouped by power-up and carry memory figures, and Debug Level is now Log Level (`developer/developer_settings`)** (#815)
+- **Card logs are grouped by power-up and carry memory figures, and Debug Level is now Log Level (`developer/developer_settings`)** (#815, #608)

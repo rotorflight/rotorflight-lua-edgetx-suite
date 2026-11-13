@@ -1,1 +1,1 @@
-- **The Logs list and graph load faster and no longer fail at the instruction limit in the tool opened from the dashboard (`logs`)** (#607)
+- **The Logs list and graph load faster and no longer fail at the instruction limit in the tool opened from the dashboard (`logs`)** (#607, #966, #962, #961, #967, #963, #794, #970, #973, #971)
