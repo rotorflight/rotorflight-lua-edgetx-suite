@@ -409,6 +409,37 @@ local function run(mutate)
     check("ENTER is no longer the roll's", Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and roll(w) == nil)
   end
   do
+    -- The same after a reconnect: the kept roll's scene is not the theme's until the theme's look is built, and
+    -- then ENTER reaches the look -- the roll's own build, which clears the reconnect's mark, never comes.
+    local w = open()
+    local kept = Views.acrossReconnect(w)
+    w._viewStack = kept
+    local entry = Views.find(w, "menu")
+    entry.load = function() return {} end
+    w.theme, w.built = {}, false
+    check("before the theme's look is built a press does nothing",
+      Views.key(w, EVT_VIRTUAL_ENTER) == true and toolOpened == 0 and roll(w) ~= nil)
+    w.built = true
+    check("once it is built ENTER is no longer the roll's",
+      Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and roll(w) == nil)
+  end
+  do
+    -- A rest whose refresh moves the levels has the scene built again on a later pass; until then the old
+    -- ladders stand where they stood, so the count keeps their position and the next detent moves one row.
+    local w, s = open()
+    local r = roll(w)
+    local h = s.forward.h
+    detent(s.forward, h, 1)
+    local index = r.levels[1].index
+    -- A right list that has gone: the rest's refresh takes the focus back left, which a build lays out.
+    r.focus = 2
+    r.levels[r.base + 1] = nil
+    check("such a rest asks for a build and keeps the ladder position", Roll.rested(r) == true and r.position == 1)
+    -- Back up the ladder: counted from a position of 0 this detent would come to nothing.
+    detent(s.forward, h, 0)
+    check("a detent back on the scene still standing moves one row", r.levels[1].index == index - 1)
+  end
+  do
     local w = toProfile()
     Views.key(w, EVT_VIRTUAL_ENTER)
     adds[1].errorHandler(adds[1], "timeout")
@@ -498,6 +529,37 @@ local function run(mutate)
     for _ = 1, 3 do Roll.renderKey(w) end
     check("the menu showing again after the reconnect opens no page without a press",
       Views.topRoll(w) == r and ran == 0 and r.levels[1].index == 3)
+  end
+  do
+    -- After a reconnect the theme loads a pass before the scene is built: until the menu is built again, what
+    -- stands on screen is still not its scene, so a press or a finger is not acted on -- an ordinary rebuild,
+    -- with no reconnect in between, is no reason to drop one.
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 2)
+    local function place() return tostring(r.focus) .. "/" .. tostring(r.base) .. "/" .. tostring(r.opening) end
+    local before = place()
+    local kept = Views.acrossReconnect(w)
+    w._viewStack = kept
+    w.theme, w.built = {}, false
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("a press after a reconnect, the theme loaded but the menu not built yet, does nothing",
+      place() == before and toolOpened == 0 and #adds == 0)
+    Roll.press(w)
+    check("nor does a ladder's press then", place() == before and toolOpened == 0 and #adds == 0)
+    scene(Menu, w)
+    w.built = true
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("once the menu is built again the same press acts", place() ~= before or toolOpened > 0 or #adds > 0)
+    local w2, s2 = open()
+    local r2 = roll(w2)
+    detent(s2.forward, s2.forward.h, 2)
+    local before2 = tostring(r2.focus) .. "/" .. tostring(r2.base) .. "/" .. tostring(r2.opening)
+    w2.built = false
+    Views.key(w2, EVT_VIRTUAL_ENTER)
+    check("a press during an ordinary rebuild, with no reconnect, acts",
+      (tostring(r2.focus) .. "/" .. tostring(r2.base) .. "/" .. tostring(r2.opening)) ~= before2
+      or toolOpened > 0 or #adds > 0)
   end
   do
     -- A view taken off the stack starts over; one merely covered keeps its place.
@@ -1230,6 +1292,12 @@ if selfTest then
     end },
     { "a ladder press acts on the scene from before a reconnect", function(t)
       return (string.gsub(t, "and Views.sceneStale%(widget%) then", "and false then"))
+    end },
+    { "the menu built again after a reconnect still ignores presses", function(t)
+      return (string.gsub(t, "    roll.staleScene = nil\n", ""))
+    end },
+    { "a rest that asks for a build drops the ladder position of the scene still standing", function(t)
+      return (string.gsub(t, "    roll.position = position\n", ""))
     end },
   }
   quiet = true

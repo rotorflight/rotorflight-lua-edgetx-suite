@@ -1,5 +1,1 @@
-- **The rotary quick menu rolls on through the suite's menu to any page (`widgets/dashboard`, `ui/home.lua`)**:
-  - In the rotary style MAIN MENU leads on, in the same two columns, level by level, with the path in the header; a page opens inside the widget and RTN comes back to the same place. ESC & Motors, Helicopter Setup and the dashboard theme settings open in the tool with their tiles.
-  - A row that cannot work now stays, grey, and says why: no flight controller, or armed. What is not set up is not listed. The place stays through a lost link and a reconnect.
-  - The header shows how the connection stands, and a tap on it shows the details; the middle rows carry pictures. The card style and the tool's tile home are unchanged.
-  - The compile pass after an install takes a folder of pictures over several calls (`lib/precompile.lua`), so the menu's two picture folders cannot bring one call near the limit.
+- **The rotary quick menu leads on into the suite's whole menu, and a page opens inside the widget (`widgets/dashboard`)**

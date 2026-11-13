@@ -914,9 +914,15 @@ function M.rested(roll)
   local base, focus = roll.base, roll.focus
   local right = roll.levels[base + 1]
   local said = questionText(right and right.question or nil)
+  -- The ladders stand where they stood until the build this may ask for: the count keeps their position, and
+  -- the build starts it over (M.build).
+  local position = roll.position
   refreshLists(roll, source)
   local now = roll.levels[roll.base + 1]
-  if roll.base ~= base or roll.focus ~= focus or questionText(now and now.question or nil) ~= said then return true end
+  if roll.base ~= base or roll.focus ~= focus or questionText(now and now.question or nil) ~= said then
+    roll.position = position
+    return true
+  end
   roll.recentre = { state = "hide", at = getTime(), passes = 0, swallowed = 0 }
   local windows = roll.windows
   if windows ~= nil then
@@ -939,6 +945,11 @@ function M.build(children, widget, make, colors)
   roll.source, roll.make = source, make
   refreshLists(roll, source)
   roll.recentre = nil
+  -- The scene a reconnect left (views.lua, M.acrossReconnect) is replaced by this one.
+  if roll.staleScene then
+    roll.staleScene = nil
+    trace("built again after the reconnect, presses are acted on")
+  end
 
   local W, H = widget.zone.w, widget.zone.h
 
