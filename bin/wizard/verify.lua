@@ -28,6 +28,28 @@ SMLSIZE, MIDSIZE = 0, 1
 LCD_W, LCD_H = 480, 272
 local armed = false
 _G.rfsuite = { paths = PATHS, session = { fblConnected = true, mcu_id = "test-board", apiVersion = "12.10" } }
+-- The tool's loader that keeps nothing: a step's file goes through it, so the step's code leaves
+-- with its cards. Counted, so the controller's step build is seen taking that route.
+local uncachedStepLoads = 0
+-- What each step build returned, held weakly: once the walk has moved on, a left step's cards
+-- (and with them the code they were built from) must be collectable.
+local stepCards = setmetatable({}, { __mode = "k" })
+local stepBuilds = 0
+_G.rfsuite.utils = { loadScriptUncached = function(path, mode)
+  local chunk, err = loadScript(path, mode)
+  if not string.find(path, "/steps/", 1, true) or not chunk then return chunk, err end
+  uncachedStepLoads = uncachedStepLoads + 1
+  return function(...)
+    local build = chunk(...)
+    if type(build) ~= "function" then return build end
+    return function(w)
+      local cards = build(w)
+      stepBuilds = stepBuilds + 1
+      if type(cards) == "table" then stepCards[cards] = true end
+      return cards
+    end
+  end
+end }
 local q = { messages = {}, sent = {}, pending = nil }
 function q:add(m) self.messages[#self.messages + 1] = m end
 function q:clear(client)
@@ -1252,6 +1274,19 @@ for _,locale in ipairs({"en","de"}) do
   check(#block>1000,"I18N "..locale.." wizard strings found")
   check(not string.find(block,"\226\128\148",1,true) and not string.find(block,"\226\128\166",1,true),
     "I18N "..locale.." wizard strings use glyphs the radio fonts have")
+end
+check(uncachedStepLoads>0,"STEP files are read past the tool's chunk cache")
+-- A card set rebuilt on the same step runs the held chunk again and reads nothing from the card.
+check(stepBuilds > uncachedStepLoads, string.format("STEP rebuilds on the same step reuse the held file (%d builds, %d reads)", stepBuilds, uncachedStepLoads))
+do
+  -- A table held here on purpose is the control: it must survive the same collections.
+  local held = setmetatable({}, { __mode = "k" }); local control = {}; held[control] = true
+  collectgarbage("collect"); collectgarbage("collect")
+  local alive = 0; for _ in pairs(stepCards) do alive = alive + 1 end
+  check(held[control] == true, "STEP collectability control: a held table survives the collections")
+  -- A few controllers of this file stay reachable to its end, each with the cards of its current step; every
+  -- other build must be gone. With the step file read past the cache, nothing else keeps that code alive.
+  check(uncachedStepLoads >= 20 and alive <= 5, string.format("STEP cards of left steps are collectable (%d builds, %d alive)", stepBuilds, alive))
 end
 print(string.format("Wizard: %d assertions, %d failures",assertions,failures))
 if failures>0 then os.exit(1) end

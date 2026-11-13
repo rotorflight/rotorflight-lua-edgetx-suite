@@ -1,11 +1,17 @@
 -- TNS|RFSuite|TNE
 local originalLoadScript = loadScript
 local chunkCache = {}
+-- The kept chunks of files under app/pages/, the only ones releaseChunksUnder ever lets go: its
+-- walk stays as short as a page area's own files, whatever else the cache holds.
+local pageChunkPaths = {}
 _G.rfsuite = _G.rfsuite or {}
 _G.rfsuite.utils = _G.rfsuite.utils or {}
 _G.rfsuite.utils.clearChunkCache = function()
   for k in pairs(chunkCache) do
     chunkCache[k] = nil
+  end
+  for k in pairs(pageChunkPaths) do
+    pageChunkPaths[k] = nil
   end
   if _G.rfsuite and _G.rfsuite.clearAllModules then
     _G.rfsuite.clearAllModules()
@@ -13,15 +19,30 @@ _G.rfsuite.utils.clearChunkCache = function()
   _G.loadScript = originalLoadScript
 end
 
+-- Lets go of every kept chunk whose path starts with `prefix` and returns how many went. The page
+-- registry calls it when the pilot has left the area of a page that asks for it (visitMenu in
+-- app/pages/init.lua). A module instance made from such a chunk is not touched: whoever holds it
+-- keeps it, and the next load of the file reads it from the card again. The tool opened from the
+-- dashboard publishes the same function for its own loader (widgets/dashboard/tool_host.lua).
+_G.rfsuite.utils.releaseChunksUnder = function(prefix)
+  local released = 0
+  if type(prefix) ~= "string" or prefix == "" then return released end
+  for path in pairs(pageChunkPaths) do
+    if string.sub(path, 1, #prefix) == prefix then
+      pageChunkPaths[path] = nil
+      chunkCache[path] = nil
+      released = released + 1
+    end
+  end
+  return released
+end
+
 -- A page's own module file. Whoever loaded it -- the page cache in app/pages/init.lua, or a
 -- page that uses another page's functions -- holds the module for as long as it wants it, and
 -- the chunk is not kept beyond that: kept here, the bytecode of every page ever opened would
--- stay until the tool closes. The other files under app/pages/ stay cached.
-local function isPageModule(path)
-  return type(path) == "string"
-    and string.sub(path, -9) == "/page.lua"
-    and string.find(path, "/app/pages/", 1, true) ~= nil
-end
+-- stay until the tool closes. The other files under app/pages/ stay cached, and are listed in
+-- pageChunkPaths for releaseChunksUnder. One search for "/app/pages/" answers both, so a file
+-- costs the cache no more than the page-module test alone did.
 
 _G.loadScript = function(path, mode)
   local cached = chunkCache[path]
@@ -31,8 +52,12 @@ _G.loadScript = function(path, mode)
   -- lib/require.lua publishes the load mode the whole suite uses; until it has been
   -- loaded, the mode the caller asked for still applies.
   local chunk, err = originalLoadScript(path, _G.rfsuite.loadMode or mode)
-  if chunk and not isPageModule(path) then
-    chunkCache[path] = chunk
+  if chunk and type(path) == "string" then
+    local inPages = string.find(path, "/app/pages/", 1, true) ~= nil
+    if not (inPages and string.sub(path, -9) == "/page.lua") then
+      chunkCache[path] = chunk
+      if inPages then pageChunkPaths[path] = true end
+    end
   end
   return chunk, err
 end

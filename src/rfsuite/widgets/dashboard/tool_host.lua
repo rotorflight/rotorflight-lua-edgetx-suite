@@ -129,10 +129,8 @@ end
 
 -- A page's own module file. The page registry holds the module for as long as it wants it, so
 -- its chunk is not kept: kept, the bytecode of every page opened would stay until the tool
--- closes. The same rule as the tool script's loader (src/main.lua).
-local function isPageModule(path)
-  return string.sub(path, -9) == "/page.lua" and string.find(path, "/app/pages/", 1, true) ~= nil
-end
+-- closes. The same rule as the tool script's loader (src/main.lua); the other files under
+-- app/pages/ are kept and listed for releaseChunksUnder, both answered by one search.
 
 -- The tool script's loader, for as long as the tool is open: the suite's load mode in place of
 -- the one a caller passed, and every chunk but a page's kept until the tool closes. The global
@@ -143,6 +141,8 @@ end
 local function installLoader(host)
   local original = _G.loadScript
   local chunks = {}
+  -- The kept chunks of files under app/pages/: releaseChunksUnder walks only these.
+  local pageChunkPaths = {}
   local function load(path, mode)
     if host.loader ~= load or type(path) ~= "string" or string.sub(path, 1, #BASE_PATH) ~= BASE_PATH then
       return original(path, mode)
@@ -152,13 +152,40 @@ local function installLoader(host)
     local root = _G.rfsuite
     local err
     chunk, err = original(path, (root and root.loadMode) or mode)
-    if chunk and not isPageModule(path) then chunks[path] = chunk end
+    if chunk then
+      local inPages = string.find(path, "/app/pages/", 1, true) ~= nil
+      if not (inPages and string.sub(path, -9) == "/page.lua") then
+        chunks[path] = chunk
+        if inPages then pageChunkPaths[path] = true end
+      end
+    end
     return chunk, err
   end
   host.loader = load
   host.chunks = chunks
   host.originalLoadScript = original
   _G.loadScript = load
+
+  -- The page registry's hook for letting go of a page area's chunks (visitMenu in
+  -- app/pages/init.lua), for this loader's cache; src/main.lua publishes the same function for
+  -- the tool started from the Tools menu. Taken back in removeLoader.
+  local utils = _G.rfsuite and _G.rfsuite.utils
+  if type(utils) == "table" then
+    local function releaseChunksUnder(prefix)
+      local released = 0
+      if type(prefix) ~= "string" or prefix == "" then return released end
+      for path in pairs(pageChunkPaths) do
+        if string.sub(path, 1, #prefix) == prefix then
+          pageChunkPaths[path] = nil
+          chunks[path] = nil
+          released = released + 1
+        end
+      end
+      return released
+    end
+    host.releaseChunksUnder = releaseChunksUnder
+    utils.releaseChunksUnder = releaseChunksUnder
+  end
 end
 
 -- Puts back the function installLoader replaced, unless something has been put over it since;
@@ -175,6 +202,11 @@ local function removeLoader(host)
   for path in pairs(chunks) do
     chunks[path] = nil
   end
+  local utils = _G.rfsuite and _G.rfsuite.utils
+  if type(utils) == "table" and host.releaseChunksUnder ~= nil and utils.releaseChunksUnder == host.releaseChunksUnder then
+    utils.releaseChunksUnder = nil
+  end
+  host.releaseChunksUnder = nil
 end
 
 local function dropToolModules()
