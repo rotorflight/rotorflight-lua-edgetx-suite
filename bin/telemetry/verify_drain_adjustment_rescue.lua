@@ -8,6 +8,8 @@
 --   value bytes      a value whose bytes equal the adjustment id, in a dropped frame: no report
 --                    is invented (the byte search's false hit is sorted out by the walk);
 --   not awaited      outside the 3 s after a step the cap drops as before (no search);
+--   walk bound       look-alike values in every newer dropped frame: at most two hits are walked,
+--                    so the report behind them waits for the board's repeat (red without the bound);
 --   rescue cost      instructions of a capped pass with and without a step awaited, printed.
 local checks, failures = 0, 0
 local function check(ok, label, detail)
@@ -27,7 +29,7 @@ local bit32 = {
   btest = function(a, b) return (a & b) ~= 0 end,
 }
 
-local ARM, STAT, ADJ, BOOM = 0x1202, 0x1230, 0x1220, 0x12FF
+local ARM, STAT, ADJ = 0x1202, 0x1230, 0x1220
 
 -- One custom telemetry frame: destination, origin, frame id, then (sensor id, one byte) entries.
 local function frame(id, entries)
@@ -62,7 +64,6 @@ local function newDrain()
       if type(report) == "table" then report[1], report[2] = data[pos], data[pos] end
       return data[pos], pos + 1
     end },
-    [BOOM] = { name = "BOOM", dec = function() error("decoder raised") end },
     [0x1210] = { name = "OTHR", dec = oneByte },
     [0x2010] = { name = "OTH2", dec = oneByte },
   }
@@ -146,6 +147,8 @@ end)
 scenario("value_bytes", function()
   local h = newDrain()
   local t = h:prime("wakeup", 0.1)
+  -- A step is awaited, so the search runs and finds the bytes; only the walk can refuse them.
+  h.env.rfsuite.adjustmentStepAt = math.floor(t * 100)
   -- (OTHER, 0x12), (OTHER, 0x20): the bytes 0x12 0x20 appear, no adjustment entry exists.
   backlog(h, 14, nil, nil, { [2] = { { OTHER, 0x12 }, { 0x2010, 0x20 } } })
   h.drain.wakeup(t + 0.1)
@@ -162,6 +165,26 @@ scenario("false_hit_newer", function()
   local adj = h:published_values(ADJ)
   check(#adj == 1 and adj[1] == 11, "false_hit_newer: a newer look-alike does not hide the older report",
     table.concat(adj, ","))
+end)
+
+scenario("walk_bound", function()
+  local h = newDrain()
+  local t = h:prime("wakeup", 0.1)
+  h.env.rfsuite.adjustmentStepAt = math.floor(t * 100)
+  -- The report in frame 3; frames 5, 6 and 7, newer and dropped too, each hold the id's bytes as
+  -- values. Walked newest first, the two walks the bound allows are spent on 7 and 6.
+  local lookalike = { { OTHER, 0x12 }, { 0x2010, 0x20 } }
+  backlog(h, 14, 3, 11, { [5] = lookalike, [6] = lookalike, [7] = lookalike })
+  h.drain.wakeup(t + 0.1)
+  check(#h:published_values(ADJ) == 0, "walk_bound: three newer look-alikes spend the walks, the older report waits")
+  -- Positive control: one newer look-alike leaves the second walk for the report.
+  h = newDrain()
+  t = h:prime("wakeup", 0.1)
+  h.env.rfsuite.adjustmentStepAt = math.floor(t * 100)
+  backlog(h, 14, 3, 11, { [7] = lookalike })
+  h.drain.wakeup(t + 0.1)
+  local adj = h:published_values(ADJ)
+  check(#adj == 1 and adj[1] == 11, "walk_bound: one newer look-alike still lets the report through", table.concat(adj, ","))
 end)
 
 scenario("not_awaited", function()
@@ -201,6 +224,9 @@ do
   end
   print(string.format("capped pass of 15 five-entry frames: %d instructions with no step awaited; while one is: %d without a report, %d with one in a dropped frame",
     count(nil, false), count(nil, true), count(3, true)))
+  -- Worst case: the id's bytes as a value in every frame, no report.
+  for i = 1, 15 do five[i][1] = { OTHER, 0x12 }; five[i][2] = { 0x2010, 0x20 } end
+  print(string.format("  with a look-alike value in every frame: %d instructions while a step is awaited", count(nil, true)))
 end
 
 print(string.format("%d checks, %d failures", checks, failures))
