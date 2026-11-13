@@ -161,8 +161,8 @@ scenario("armed_walk", function()
   check(seen == "1230=1 1202=1", "armed_walk: the word and the flags, nothing in front of them", seen)
 end)
 
--- Control: a frame with an entry the table does not know stops the walk there, in every walk the
--- same way -- the entries in front are published, the ones behind are not.
+-- Control: in the full decode, an entry the table does not know stops the walk there -- the
+-- entry in front is published, the one behind is not.
 scenario("unknown_entry", function()
   local h = newDrain(false)
   local t = h:prime("wakeup", 0.1)
