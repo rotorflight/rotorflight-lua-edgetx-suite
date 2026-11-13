@@ -4107,7 +4107,7 @@ return {
         help_message = "Lists the flights logged on the card, their totals per model and the battery registry; every switch and number has its own ?.",
         help_row_capacity = "The pack's capacity in whole mAh, matched exactly against the flight controller's profiles; 0 leaves it out of the file.",
         help_row_cells = "Must also equal the profile's cell count where the flight controller keeps one per profile; 0 leaves it out.",
-        help_row_profile = "The flight controller's battery profile for this pack, 1 to 6; it wins over the capacity match. 0 leaves it out of the file.",
+        help_row_profile = "The flight controller's battery profile, 1 to 6; wins over the capacity match, shown in the picker, sent only with Set the pack's battery profile on. Leave 0 where profile capacities differ.",
         help_row_cycles = "How many charges the pack has seen; its first flight of a session counts one. Set it here for a pack already in use.",
         help_row_models_all = "Offer the pack for every model; switch single models on below to offer it only for those.",
         help_row_model = "Offer the pack for this model in the dashboard's battery choice; with no model switched on it is offered for every model.",

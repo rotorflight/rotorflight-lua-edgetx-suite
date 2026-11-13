@@ -4101,7 +4101,7 @@ return {
         help_message = "Zeigt die auf der Karte aufgezeichneten Flüge, ihre Summen je Modell und die Akkuliste; jeder Schalter und jede Zahl hat ein eigenes ?.",
         help_row_capacity = "Kapazität des Akkus in ganzen mAh, exakt mit den Profilen des Flugcontrollers verglichen; 0 lässt sie in der Datei weg.",
         help_row_cells = "Muss auch zur Zellenzahl des Profils passen, wo der Flugcontroller eine je Profil hat; 0 lässt sie weg.",
-        help_row_profile = "Akkuprofil des Flugcontrollers für diesen Akku, 1 bis 6; es geht vor dem Kapazitätsvergleich. 0 lässt es in der Datei weg.",
+        help_row_profile = "Akkuprofil des Flugcontrollers, 1 bis 6; geht vor dem Kapazitätsvergleich, steht in der Auswahl, gesendet nur mit „Akkuprofil des Akkus setzen“. Bei verschiedenen Profilkapazitäten 0 lassen.",
         help_row_cycles = "Wie viele Ladungen der Akku hinter sich hat; sein erster Flug einer Sitzung zählt eine. Hier setzen für einen schon benutzten Akku.",
         help_row_models_all = "Akku für jedes Modell anbieten; einzelne Modelle darunter einschalten, um ihn nur für diese anzubieten.",
         help_row_model = "Akku für dieses Modell in der Akkuwahl des Dashboards anbieten; ist kein Modell eingeschaltet, gilt er für jedes Modell.",
