@@ -308,10 +308,10 @@ flowchart LR
     S16 --> S17
     subgraph S18["18. Gyro check"]
       direction TB
-      S18c0["<b>Roll</b><br/>confirms: Corrects against movement<br/>reads: MSP status, MSP servo"]:::k2
-      S18c1["<b>Pitch</b><br/>confirms: Corrects against movement"]:::k2
+      S18c0["<b>Roll</b><br/>confirms: Counters movement<br/>reads: MSP status, MSP servo"]:::k2
+      S18c1["<b>Pitch</b><br/>confirms: Counters movement"]:::k2
       S18c0 --> S18c1
-      S18c2["<b>Yaw</b><br/>confirms: Corrects against movement<br/>blocks until: Corrects against movement"]:::k2
+      S18c2["<b>Yaw</b><br/>confirms: Counters movement<br/>blocks until: Counters movement"]:::k2
       S18c1 --> S18c2
     end
     S17 --> S18
@@ -360,7 +360,7 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | 15. Level the swash | No swashplate<br/>Motor unplugged<br/>Swash trims<br/>Check swash level<br/>Blades at zero | Roll<br/>Pitch<br/>Collective | Motor unplugged<br/>Swash is level<br/>Blade pitch is 0 degrees | status<br/>servo | mixer_override<br/>mixer_config.swash_trim_0<br/>mixer_config.swash_trim_1<br/>mixer_config.swash_trim_2 | same |
 | 16. Blade pitch | Collective<br/>Cyclic<br/>Cyclic (deg)<br/>Collective (deg)<br/>Total (deg)<br/>Full-stick collective<br/>End stops | Degrees<br/>Measured (deg)<br/>Mixer rate (%)<br/>Cyclic (deg)<br/>Collective (deg)<br/>Total (deg)<br/>Rate profile {n} | Full travel without binding | rc_tuning<br/>status<br/>servo | mixer_input<br/>mixer_input.rate<br/>mixer_override<br/>set_pid_profile<br/>rc_tuning<br/>mixer_input.min<br/>mixer_input.max<br/>mixer_config.swash_pitch_limit | same |
 | 17. Tail rotor | Tail motor<br/>Tail motor idle<br/>Tail centre<br/>Tail control direction<br/>Tail pitch calibration<br/>Tail pitch limits | Power (%)<br/>Idle (%)<br/>Centre trim (deg)<br/>Mixer rate (%)<br/>CW limit (deg)<br/>CCW limit (deg) | All blades removed<br/>Tail neutral pitch checked<br/>Direction is correct | status<br/>servo<br/>motor<br/>rc_command | motor_override.index<br/>motor_override.value<br/>mixer_override<br/>mixer_input<br/>mixer_input.rate<br/>mixer_config.tail_motor_idle<br/>mixer_config.tail_center_trim | same |
-| 18. Gyro check | Roll<br/>Pitch<br/>Yaw | — | Corrects against movement | status<br/>servo | — | same |
+| 18. Gyro check | Roll<br/>Pitch<br/>Yaw | — | Counters movement | status<br/>servo | — | same |
 | 19. Finish | Swashplate and tail<br/>Motor and governor<br/>Safety check<br/>Before the first flight<br/>Throttle range | — | Final checks understood | status<br/>servo | — | same |
 
 Diagram: 106 nodes; 19 numbered steps plus the model card.

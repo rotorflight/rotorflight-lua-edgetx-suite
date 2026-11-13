@@ -20,7 +20,7 @@
     "src/rfsuite/app/pages/helicopter_setup/page.lua": "6c4d084ad85809bd7e282a6de002fd872cd881d4abe4d61623465cca318b09f1",
     "src/rfsuite/app/pages/helicopter_setup/power_cards.lua": "734db46a2307e95eae81ded09d3ef077dedde2f10123004f53a0edac6a341744",
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",
-    "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "402a27a702d7eba6e7748693d9b2e80574e8aad67d2b80ffd8ed3ee6e42e8a6f",
+    "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "82e04684846ddad8bbcd76b00b77292aaffa7c12907e048d482fb20f07850076",
     "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua": "a423aa3c4712965c5d12a0a265d0476c82c8a6beda2b714284b80c3ba83548b2",
     "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "29f8b1d34e1eb2135cdca2d3337d05079be09aad687f36f3de5bda4d2ec980ad",
     "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua": "5eba2b19b6852afbfc4cb0f36543bfc74a2449725ba4a98f73cbda94ee987889",
@@ -46,7 +46,7 @@
     "src/rfsuite/app/pages/setup/power/battery/page.lua": "bb94e95ab8cac06d560110554faf9ba0b4ab634abc0eb8bba9fde032a6468949",
     "src/rfsuite/app/pages/setup/power/smartfuel/page.lua": "70eac48cbea056fe6b0644e7d4f980bd2af16f229e16a888330bbcbfcf2a5d5f",
     "src/rfsuite/app/pages/setup/power/sources/page.lua": "ff0846f7298aefacba5e522a01f2945e8111fe94110344dad9e4832c5cbc724e",
-    "src/rfsuite/i18n/en.lua": "eec85e052ee9ea0f0d71c274ea75b36c2f87b2d8d4b65021691bd352951b4a9d",
+    "src/rfsuite/i18n/en.lua": "ba8d3f7fa0652e241fd4194f3ff396133b5922703da580b29b4b4baad63da683",
     "src/rfsuite/lib/esc_params.lua": "2a9f2fb0fd6f762ef396ed20da5a48081a5583687bb2803b870a34ca2635eeaf",
     "src/rfsuite/lib/governor_fields.lua": "2c7407a6d75e7b00de9002dbb4be49696a6a3468b2d76013e1998549a2932a3c",
     "src/rfsuite/lib/power_fields.lua": "2204f3bd87281732a784d9aacd45a432d91cd3ab99a7a649c5976192c345c41e",
@@ -12919,7 +12919,7 @@
           "rows": [
             {
               "kind": "pilot confirms",
-              "label": "Corrects against movement",
+              "label": "Counters movement",
               "api": null,
               "field": "gyro1",
               "deviation": false,
@@ -12979,7 +12979,7 @@
           "rows": [
             {
               "kind": "pilot confirms",
-              "label": "Corrects against movement",
+              "label": "Counters movement",
               "api": null,
               "field": "gyro2",
               "deviation": false,
@@ -13009,7 +13009,7 @@
           "rows": [
             {
               "kind": "pilot confirms",
-              "label": "Corrects against movement",
+              "label": "Counters movement",
               "api": null,
               "field": "gyro3",
               "deviation": false,
