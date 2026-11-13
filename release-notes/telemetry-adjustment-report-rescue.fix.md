@@ -1,1 +1,1 @@
-- **In-flight tuning: the flight controller's answer to a touch step is no longer lost after a long widget pass (`tasks/events/telemetry_bg`)** (#1210)
+- **In-flight tuning: the answer to a step is looked for in the telemetry the dashboard skips after a long pass (`tasks/events/telemetry_bg`)** (#1210)
