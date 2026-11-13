@@ -165,18 +165,51 @@ local GROUP_VECTORS = {
 local GROUP = {
   [0x102F] = {
     { pos = 4, calls = { "4128,0,0,0,RAW,0,Cel#" } },
-    { pos = 7, calls = { "4128,0,0,3,RAW,0,Cel#", "4143,0,0,50331648,CELLS,2,Cels", "4143,0,0,50397594,CELLS,2,Cels", "4143,0,0,50463175,CELLS,2,Cels" } },
+    { pos = 7, calls = {
+        "4128,0,0,3,RAW,0,Cel#",
+        "4143,0,0,50331648,CELLS,2,Cels",
+        "4143,0,0,50397594,CELLS,2,Cels",
+        "4143,0,0,50463175,CELLS,2,Cels",
+      } },
     { pos = 6, calls = { "4128,0,0,2,RAW,0,Cel#", "4143,0,0,33554760,CELLS,2,Cels", "4143,0,0,33620169,CELLS,2,Cels" } },
   },
   [0x1030] = {
-    { pos = 9, calls = { "4144,0,0,0,RAW,0,Ctrl", "4145,0,0,0,DEGREE,2,CPtc", "4146,0,0,0,DEGREE,2,CRol", "4147,0,0,0,DEGREE,2,CYaw", "4148,0,0,0,DEGREE,2,CCol" } },
-    { pos = 9, calls = { "4144,0,0,0,RAW,0,Ctrl", "4145,0,0,564,DEGREE,2,CPtc", "4146,0,0,342,DEGREE,2,CRol", "4147,0,0,-5682,DEGREE,2,CYaw", "4148,0,0,1980,DEGREE,2,CCol" } },
-    { pos = 9, calls = { "4144,0,0,0,RAW,0,Ctrl", "4145,0,0,-1,DEGREE,2,CPtc", "4146,0,0,-1,DEGREE,2,CRol", "4147,0,0,-6144,DEGREE,2,CYaw", "4148,0,0,-1920,DEGREE,2,CCol" } },
+    { pos = 9, calls = {
+        "4144,0,0,0,RAW,0,Ctrl",
+        "4145,0,0,0,DEGREE,2,CPtc",
+        "4146,0,0,0,DEGREE,2,CRol",
+        "4147,0,0,0,DEGREE,2,CYaw",
+        "4148,0,0,0,DEGREE,2,CCol",
+      } },
+    { pos = 9, calls = {
+        "4144,0,0,0,RAW,0,Ctrl",
+        "4145,0,0,564,DEGREE,2,CPtc",
+        "4146,0,0,342,DEGREE,2,CRol",
+        "4147,0,0,-5682,DEGREE,2,CYaw",
+        "4148,0,0,1980,DEGREE,2,CCol",
+      } },
+    { pos = 9, calls = {
+        "4144,0,0,0,RAW,0,Ctrl",
+        "4145,0,0,-1,DEGREE,2,CPtc",
+        "4146,0,0,-1,DEGREE,2,CRol",
+        "4147,0,0,-6144,DEGREE,2,CYaw",
+        "4148,0,0,-1920,DEGREE,2,CCol",
+      } },
   },
   [0x1100] = {
     { pos = 9, calls = { "4352,0,0,0,DEGREE,1,Attd", "4353,0,0,0,DEGREE,1,Ptch", "4354,0,0,0,DEGREE,1,Roll", "4355,0,0,0,DEGREE,1,Yaw" } },
-    { pos = 9, calls = { "4352,0,0,0,DEGREE,1,Attd", "4353,0,0,4660,DEGREE,1,Ptch", "4354,0,0,22136,DEGREE,1,Roll", "4355,0,0,-25924,DEGREE,1,Yaw" } },
-    { pos = 9, calls = { "4352,0,0,0,DEGREE,1,Attd", "4353,0,0,-32768,DEGREE,1,Ptch", "4354,0,0,32767,DEGREE,1,Roll", "4355,0,0,-1,DEGREE,1,Yaw" } },
+    { pos = 9, calls = {
+        "4352,0,0,0,DEGREE,1,Attd",
+        "4353,0,0,4660,DEGREE,1,Ptch",
+        "4354,0,0,22136,DEGREE,1,Roll",
+        "4355,0,0,-25924,DEGREE,1,Yaw",
+      } },
+    { pos = 9, calls = {
+        "4352,0,0,0,DEGREE,1,Attd",
+        "4353,0,0,-32768,DEGREE,1,Ptch",
+        "4354,0,0,32767,DEGREE,1,Roll",
+        "4355,0,0,-1,DEGREE,1,Yaw",
+      } },
   },
   [0x1110] = {
     { pos = 9, calls = { "4368,0,0,0,G,2,Accl", "4369,0,0,0,G,2,AccX", "4370,0,0,0,G,2,AccY", "4371,0,0,0,G,2,AccZ" } },
@@ -204,7 +237,13 @@ local GROUP = {
 -- What discovery registers for those rows: it calls each decoder once on zero bytes.
 local DISCOVERY_GROUP = {
   [0x102F] = { "4128,0,0,0,RAW,0,Cel#" },
-  [0x1030] = { "4144,0,0,0,RAW,0,Ctrl", "4145,0,0,0,DEGREE,2,CPtc", "4146,0,0,0,DEGREE,2,CRol", "4147,0,0,0,DEGREE,2,CYaw", "4148,0,0,0,DEGREE,2,CCol" },
+  [0x1030] = {
+      "4144,0,0,0,RAW,0,Ctrl",
+      "4145,0,0,0,DEGREE,2,CPtc",
+      "4146,0,0,0,DEGREE,2,CRol",
+      "4147,0,0,0,DEGREE,2,CYaw",
+      "4148,0,0,0,DEGREE,2,CCol",
+    },
   [0x1100] = { "4352,0,0,0,DEGREE,1,Attd", "4353,0,0,0,DEGREE,1,Ptch", "4354,0,0,0,DEGREE,1,Roll", "4355,0,0,0,DEGREE,1,Yaw" },
   [0x1110] = { "4368,0,0,0,G,2,Accl", "4369,0,0,0,G,2,AccX", "4370,0,0,0,G,2,AccY", "4371,0,0,0,G,2,AccZ" },
   [0x1125] = { "4389,0,0,0,GPS,0,GPS", "4389,0,0,0.0f,44", "4389,0,0,0.0f,43" },

@@ -16,7 +16,8 @@ end
 
 -- Up to three bytes are joined by arithmetic rather than bit32: the result stays below 2^24, so
 -- it is the same integer on a desktop Lua and on EdgeTX, which builds Lua with 32-bit integers.
--- The four-byte decoders keep bit32, since a value past 2^31 does not fit that integer type.
+-- The four-byte decoders are left on bit32 as they were: their values can pass 2^31, which
+-- that integer type does not hold, so plain arithmetic would not give the same result there.
 local function decU16(data, pos)
     return data[pos]*256 + data[pos+1], pos+2
 end
