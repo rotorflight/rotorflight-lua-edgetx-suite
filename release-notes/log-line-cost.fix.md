@@ -1,1 +1,1 @@
-- **A raised Log Level costs the dashboard less, where it could be stopped by EdgeTX after a disarm (`lib/log`)** (#785)
+- **A raised Log Level costs the dashboard less of its instruction budget (`lib/log`)** (#785)

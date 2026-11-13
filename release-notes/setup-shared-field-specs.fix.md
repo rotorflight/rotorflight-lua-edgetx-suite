@@ -1,1 +1,1 @@
-- **SmartFuel mode names are translated, the Ports page knows boards by name, and Ramp Time and Throttle explain each row (`setup/power/smartfuel`)**
+- **SmartFuel mode names are translated, the Ports page knows boards by name, and Ramp Time and Throttle explain each row (`setup`)**
