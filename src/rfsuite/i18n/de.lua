@@ -102,7 +102,7 @@ return {
         holdTest = "Halten",
         pitchLimitBelowNine = "Das gespeicherte Limit liegt unter 9 Grad: zum Kalibrieren auf der Limit-Karte anheben.",
         detectSkip = "Diese Steuerung überspringen",
-        throttleAuto = "Automatischer Gasbereich",
+        throttleAuto = "Auto-Gasbereich",
         throttleAutoRange = "Bereich (us)",
         throttleAutoValue = "%d bis %d",
         throttleDefaults = "Automatisch",
