@@ -142,9 +142,9 @@ not saved to the card. Check the card before the next flight; the next disarm tr
 
 **The profiles the flights were flown on.** The advice uses the cyclic polarity, cyclic ring and I-term relax type
 saved with the newest flight on the active profiles. If the active profiles change while the page is open (a switch
-on the transmitter, seen through the *PID#* and *RTE#* sensors), the first line under *Suggested changes* reads,
-for example, "Flown on PID profile 2 and rate profile 1. Switch to them to save." and *Save* stays off: switch
-back, or press *Reload* to see the flights of the new profiles.
+on the transmitter, seen through the *PID#* and *RTE#* sensors), the page reads the flights of the new profiles
+again by itself, as *Reload* does, and *Save* stays off until they are read; a save already running stops
+instead.
 
 ## The rules
 

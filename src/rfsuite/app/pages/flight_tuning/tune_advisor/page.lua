@@ -1526,8 +1526,19 @@ function M.wakeup(ctx)
     local pid, rate = currentProfiles()
     local key = pid * 16 + rate
     if key ~= ui.profileKey then
-      if ui.profileKey ~= nil then render() end
+      local seen = ui.profileKey
       ui.profileKey = key
+      if seen ~= nil then
+        -- Other profiles than the ones the flights were read for: read theirs, as Reload would
+        -- (a save already running finds the switch itself and stops)
+        if not ui.applying and (pid ~= ui.activePid or rate ~= ui.activeRate) then
+          pageLog("debug", "active profiles now PID %s, rates %s: their flights are read", tostring(pid), tostring(rate))
+          ui.snapshot = nil
+          queueHistoryRead()
+          ui.probeOwed = false
+        end
+        render()
+      end
     end
   end
 end

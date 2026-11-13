@@ -1071,6 +1071,31 @@ do
     tostring(first ~= nil) .. "/" .. tostring(second ~= nil) .. " / PID " .. tostring(ui.activePid) .. " / "
       .. tostring(ui.view.data))
   resetFlights()
+
+  -- A profile switch while the page is open (the sensors, here the session): the flights of the
+  -- new profiles are read without Reload, and the way back reads the first ones again
+  resetFc()
+  files[TuneHistory.path(MCU)] = nil
+  files[TuneHistory.path(MCU) .. ".bak"] = nil
+  flightContext = { pidProfile = 2, rateProfile = 1 }
+  saveFlight()
+  flightContext = nil
+  profiles.pid = 1
+  openPage(true)
+  local noP1 = string.format(ui.text.noFlightProfileFmt or "?", 1, 1)
+  check("(setup) opened on PID 1 with flights only on PID 2: no flight on the active profiles", ui.view.data == noP1,
+    ui.view.data)
+  profiles.pid = 2
+  pump()
+  check("switched to PID 2 while the page is open: its flight is read and shown without Reload",
+    ui.activePid == 2 and string.find(ui.view.data or "", "1/5", 1, true) ~= nil
+      and shown(string.format(T().profileFmt, 2, 1)),
+    "PID " .. tostring(ui.activePid) .. " / " .. tostring(ui.view.data))
+  profiles.pid = 1
+  pump()
+  check("switched back to PID 1: the page reads PID 1 again", ui.activePid == 1 and ui.view.data == noP1,
+    "PID " .. tostring(ui.activePid) .. " / " .. tostring(ui.view.data))
+  resetFlights()
 end
 
 -- ---------------------------------------------------------------------------
