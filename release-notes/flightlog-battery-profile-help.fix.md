@@ -1,1 +1,1 @@
-- **A pack's *Battery profile* says it acts only while *Set the pack's battery profile* is on (`tools/flight_log`)**
+- **A pack's *Battery profile* help says it is sent only while *Set the pack's battery profile* is on (`tools/flight_log`)**
