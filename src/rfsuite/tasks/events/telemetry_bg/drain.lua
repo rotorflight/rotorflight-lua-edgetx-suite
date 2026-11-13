@@ -664,12 +664,17 @@ end
 local SID_ADJUSTMENT = 0x1220
 local ADJ_HI, ADJ_LO = 0x12, 0x20
 
--- Whether a frame may carry the adjustment entry: its two id bytes anywhere past the header. A
--- byte search, not a walk, so a frame without them costs a loop over its bytes and no decoder;
--- a hit can be a value's bytes, which rescueAdjustment's walk then sorts out.
+-- Whether a frame may carry the adjustment entry: its two id bytes anywhere past the header, with
+-- the whole entry still in the frame (id, a 16-bit function, a 32-bit value: eight bytes) and the
+-- function's high byte 0 -- the function ids are below 256, while the byte after a value that only
+-- looks like the id is the next sensor id's high byte, never 0 (0x10, 0x11, 0x12 or 0xDB in
+-- lib/rf2tlm_sensors.lua). A byte search, not a walk, so a frame without them costs a loop over its
+-- bytes and no decoder; a hit that passes can still be a value's bytes, which rescueAdjustment's walk
+-- then sorts out.
 local function mayCarryAdjustment(data)
-    for i = 4, #data - 1 do
-        if data[i] == ADJ_HI and data[i + 1] == ADJ_LO then return true end
+    local last = #data
+    for i = 4, last - 7 do
+        if data[i] == ADJ_HI and data[i + 1] == ADJ_LO and data[i + 2] == 0 then return true end
     end
     return false
 end
