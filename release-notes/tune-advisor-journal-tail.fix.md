@@ -1,2 +1,1 @@
-- **The Tune Advisor reads a change journal past 64 KiB (`lib/change_journal.lua`, `docs/reference/change-journal.md`, `docs/pages/flight_tuning/tune_advisor.md`)**:
-  - A change journal over its read cap of 64 KiB is read from its newest 64 KiB instead of being refused, so the Tune Advisor keeps following P back to your own value and raising it; before, the page stopped raising P for good once the journal reached that size. The file is never rewritten. Fixes #1170.
+- **Tune Advisor keeps raising P after the change journal grows past 64 KiB (`flight_tuning/tune_advisor`)** (#1170)
