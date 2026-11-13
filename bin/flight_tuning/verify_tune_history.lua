@@ -1451,20 +1451,23 @@ do
   check("a failed profiles read falls back to the session's and the flight is saved", asked == "roll,pitch,yaw,clear"
     and #rig.statusAsked == 1 and savedProfiles() == "1/1", asked .. " / saved " .. savedProfiles())
 
-  -- The queue drops the read (a link loss, however short): asked again, the axes already read kept
+  -- The queue drops the read (a link loss, however short): the flight controller may have flown or
+  -- restarted meanwhile, so the axes are read again with it, as after a dropped axis read
   fresh()
   rig.status.pid, rig.status.rate = 1, 2
   rig.reply.seconds = 120
   rig.clock = rig.clock + 60
   update(true)
   update(false)
-  asked = pump({ status = { n = 1, reason = "cleared" } })
-  check("a profiles read the queue dropped is asked again and the flight saved under the profiles read",
-    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 2 and savedProfiles() == "2/3",
+  asked = pump({ status = { n = 1, reason = "cleared" } }, nil, 60)
+  check("a profiles read the queue dropped: the axes and the profiles are read again, the flight saved under them",
+    asked == "roll,pitch,yaw,roll,pitch,yaw,clear" and #rig.statusAsked == 2 and savedProfiles() == "2/3",
     asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
 
   -- The same through a real link loss: the read goes out, the link drops and the queue with it,
-  -- nothing is sent while it is down, and once it is back the read is asked again
+  -- nothing is sent while it is down, and once it is back the axes and the profiles are read again.
+  -- A flight flown unseen while the link was down is what the board holds then: that is saved, and
+  -- the clear after it erases nothing unsaved
   fresh()
   rig.status.pid, rig.status.rate = 1, 2
   rig.reply.seconds = 120
@@ -1483,12 +1486,17 @@ do
   if statusMsg then statusMsg.errorHandler(statusMsg, "cleared") end
   rig.passes(40, 0.5)
   local sentWhileDown = #rig.requests
+  rig.reply.seconds = 200
   rig.setLink(true)
   local after = pump()
-  check("a profiles read dropped by a link loss is asked again once the link is back, and the flight saved under them",
-    sentWhileDown == 0 and after == "clear" and #rig.statusAsked == 1 and savedProfiles() == "2/3",
+  local flights = tuneHistory.read(MCU)
+  local savedSecs = {}
+  for i = 1, #flights do savedSecs[#savedSecs + 1] = tostring(flights[i].seconds) end
+  check("a profiles read dropped by a link loss: once the link is back the axes are read again and what the board holds is saved",
+    sentWhileDown == 0 and after == "roll,pitch,yaw,clear" and #rig.statusAsked == 1 and savedProfiles() == "2/3"
+      and table.concat(savedSecs, ",") == "200",
     sentWhileDown .. " sent while down / " .. after .. " / " .. #rig.statusAsked .. " status after / saved "
-      .. savedProfiles())
+      .. savedProfiles() .. " / seconds " .. table.concat(savedSecs, ","))
 
   -- A status reply cut short before the profile bytes (their parser reads a missing byte as 0):
   -- the session's profiles, not PID 1 / rates 1
@@ -1508,9 +1516,10 @@ do
   rig.clock = rig.clock + 60
   update(true)
   update(false)
-  asked = pump({ status = { n = 5, reason = "cleared" } }, nil, 60)
+  asked = pump({ status = { n = 5, reason = "cleared" } }, nil, 120)
+  local rolls = select(2, string.gsub(asked, "roll", ""))
   check("a profiles read dropped five times is still asked again, and the flight saved under the profiles read",
-    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 6 and savedProfiles() == "2/3",
+    rolls == 6 and string.sub(asked, -6) == ",clear" and #rig.statusAsked == 6 and savedProfiles() == "2/3",
     asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
 end
 

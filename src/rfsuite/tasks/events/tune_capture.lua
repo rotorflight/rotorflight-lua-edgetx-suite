@@ -41,7 +41,7 @@
 --
 -- Without the PID# and RTE# telemetry sensors, MSP_STATUS is read once after the axes and before
 -- the save, so the flight is saved under the profiles the flight controller flies now (readProfiles);
--- a read the queue dropped is asked again.
+-- a read the queue dropped starts the reading again from the first axis.
 --
 -- After the flight is saved and the clear has gone through, RC_TUNING and PID_PROFILE are read
 -- and the cyclic polarity, the cyclic ring and the I-term relax type are added to the flight,
@@ -350,9 +350,10 @@ end
 -- Without the profile sensors: one MSP_STATUS read after the axes and before the save, so the
 -- flight is saved under the profiles the flight controller flies now, and the session -- what
 -- the Tune Advisor page takes for the active profiles -- follows a switch made on the
--- transmitter. A read the queue dropped (a link loss, however short) is asked again, the axes
--- already read kept, as the settings reads are. A read that fails leaves the session's profiles,
--- as before, and is not asked again for this flight.
+-- transmitter. A read the queue dropped (a link loss, however short) is "cleared" as a dropped axis
+-- read is (handleError): the flight controller may have flown or restarted meanwhile, so the axes
+-- are read again before anything is saved or cleared. A read that fails leaves the session's
+-- profiles, as before, and is not asked again for this flight.
 -- The rate profile index is byte 26 of MSP_STATUS (tasks/msp/api/status.lua). Its parser reads a
 -- missing byte as 0, so a reply cut shorter would name PID 1 and rates 1: it is taken as not
 -- understood instead.
@@ -389,9 +390,8 @@ local function readProfiles(tc, queue)
     errorHandler = function(_, reason)
       StatusApi = nil
       if reason == "cleared" then
-        log("profile read dropped by the queue; asked again", "debug")
-        waitFor(tc, RETRY_SECONDS)
-        publishState(tc)
+        log("profile read dropped by the queue; the axes are read again", "debug")
+        handleError(tc, "cleared")
         return
       end
       log("profile read failed (" .. tostring(reason) .. "); the session's profiles are used", "info")
