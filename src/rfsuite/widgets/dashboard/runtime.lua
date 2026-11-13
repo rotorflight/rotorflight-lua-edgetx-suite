@@ -135,11 +135,14 @@ local function releaseStandby(self, reason)
   cancelStandbyElrs(self, reason)
   if self._job and self._job.kind == "standby" then self._job = nil end
   if self._treeKind == "standby" then
+    -- The key is forgotten before the clear: a pass stopped between the two must not leave a
+    -- record that lets a cleared key keep an empty screen. The kind stays until after the clear,
+    -- so the next release still clears a tree that a stop left standing.
+    self._treeKey = nil
     if lvgl and type(lvgl.clear) == "function" then lvgl.clear() end
     self.built = false
     self.renderKey = nil
     self._treeKind = nil
-    self._treeKey = nil
   end
   local module = self._standbyModule
   self._standbyModule = nil
@@ -1504,6 +1507,10 @@ local function standbyJobStep(self)
     self._standbyCache.elrsWidths = self._standbyCache.elrsActiveWidths
     -- The visible tree's battery getter still reads its fill until the new tree swaps in.
     self._standbyCache.batteryWidths = nil
+    -- Its fill is no longer kept up to date, so that tree is not one a cleared key may keep: a
+    -- build dropped before the swap, the layout back where it was, builds it again. Only the key
+    -- goes; the kind stays, so a release still clears the tree (releaseStandby).
+    if self._treeKind == "standby" then self._treeKey = nil end
     itemsChanged = true
   end
   prepareStandbyTextCache(self, items)
@@ -5759,6 +5766,9 @@ function Runtime.new(zone, options)
             -- The visible tree's battery getter still reads its fill until the new tree swaps in.
             self._standbyCache.batteryWidths = nil
           end
+          -- As in standbyJobStep: the standing tree's fill is no longer kept up to date, so a
+          -- cleared key may not keep it; the kind stays for releaseStandby.
+          if self._treeKind == "standby" then self._treeKey = nil end
         end
         prepareStandbyTextCache(self, standbyItems)
         local wantsElrs = false
@@ -5835,15 +5845,45 @@ function Runtime.new(zone, options)
         and self._standbyIntroClosed ~= true
         and (self._standbyIntroNoFitW ~= self.zone.w or self._standbyIntroNoFitH ~= self.zone.h)
         and self.zone.w * 4 >= (LCD_W or 480) * 3 and self.zone.h * 4 >= (LCD_H or 320) * 3
+      -- The language is part of the key: the texts are fixed when the surface is built, so a
+      -- change of language is a change of the key rather than a clear of it.
+      local i18n = self.i18n
+      local language = i18n and type(i18n.getLocale) == "function" and i18n.getLocale() or "en"
       local splashKey = (useStandby and (intro and "standby|intro|" or "standby|") or "splash|") .. "info="
         .. tostring(self.state.standbyInfoKind) .. "|" .. tostring(self.state.zoneW) .. "x" .. tostring(self.state.zoneH)
-        .. (fullscreenSplash and "|fs" or "") .. "|" .. tostring(utils.colorScheme(self)) .. (useStandby
+        .. (fullscreenSplash and "|fs" or "") .. "|" .. tostring(utils.colorScheme(self)) .. "|" .. tostring(language)
+        .. (useStandby
           and ("|" .. tostring(dashboardPrefs.standby_layout)
             .. "|overflow=" .. tostring(self._standbyCache and self._standbyCache.valueOverflow == true))
           or "")
+      if self.renderKey == nil and useStandby and self._treeKind == "standby" and self._treeKey == splashKey then
+        -- Some other path cleared the key -- the reconnect edge, a theme or preferences reload, the
+        -- voltage bounds moving -- while the standby on screen is the one built for exactly this
+        -- key, and the key names everything that build reads. Building it again would draw the same
+        -- screen, at the cost of a clear and a build, several times on every connect. So the tree
+        -- stands. A preferences reload empties the text cache its GPS and ELRS fields read from, and
+        -- the state pass above refills it with a smaller set; it is put back as the build left it.
+        self.renderKey = splashKey
+        self.built = true
+        local cache = self._standbyCache
+        if cache ~= nil and self._standbyItems ~= nil then
+          local texts = standbyTexts(self, self._standbyItems, self.state.standbyInfoKind)
+          cache.text = function(key, fallback) return texts[key] or fallback end
+        end
+        if Log and type(Log.emitf) == "function" then
+          Log.emitf("rfsuite.widget.standby", "debug", "kept: its key was cleared, the screen is already this one: %s", splashKey)
+        end
+      end
       if self.renderKey ~= splashKey then
         -- The key names everything this surface is rebuilt for, so the pair is the reason. A key
         -- that some other path cleared says nothing, so the last one is kept to tell the two apart.
+        -- One cleared while the standby on screen is not the build for this key -- a build that
+        -- was dropped or had not finished, another surface since -- still builds.
+        if self.renderKey == nil and useStandby and self._surfaceKey == splashKey
+            and Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+          Log.emitf("rfsuite.widget.standby", "trace", "not kept: the tree on record is %s, %s",
+            tostring(self._treeKind), tostring(self._treeKey))
+        end
         if Log and type(Log.emitf) == "function" then
           if self.renderKey == nil and self._surfaceKey == splashKey then
             Log.emitf("rfsuite.widget.standby", "debug", "rebuild: nothing about it changed, its key was cleared: %s", splashKey)

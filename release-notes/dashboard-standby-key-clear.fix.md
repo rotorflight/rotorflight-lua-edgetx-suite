@@ -1,0 +1,1 @@
+- **The standby screen is no longer built again during a connect when nothing on it changed (`widgets/dashboard`)**
