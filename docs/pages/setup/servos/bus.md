@@ -42,8 +42,9 @@ other settings and the servo selector are shown as text and cannot be changed un
 switched off.
 
 Save keeps the change. Leaving the page or Reload without Save puts back the centre the flight
-controller had before, and leaving the page also releases the servos. If a save fails, the page
-stays unsaved, and leaving it puts back the centre the flight controller has stored.
+controller had before, and leaving the page also releases the servos. If a save fails after `*`
+was used on the visit, the page stays unsaved, and leaving it puts back the centre the flight
+controller has stored; without `*`, **Restart FC** in the notice after the failed save does that.
 
 While `*` is on, the flight controller refuses to arm. Nothing is sent while the model is armed.
 If the flight controller does not report whether it is armed, the confirmation says so: make

@@ -38,8 +38,9 @@ Read-only while the model is armed.
 With `*` on, the flight controller passes the sticks through the mixer for setup, and the title
 shows a `*`. A changed value is sent at most every 200 ms and applied at once, without an EEPROM
 write. Save keeps it; leaving the page or Reload without Save puts back the geometry the flight
-controller had before, and leaving the page also switches setup mode off. If a save fails, the
-page stays unsaved, and leaving it puts back the geometry the flight controller has stored.
+controller had before, and leaving the page also switches setup mode off. If a save fails after
+`*` was used on the visit, the page stays unsaved, and leaving it puts back the geometry the flight
+controller has stored; without `*`, **Restart FC** in the notice after the failed save does that.
 
 While setup mode is on, the flight controller refuses to arm. Nothing is sent while the model is
 armed. If the flight controller does not report whether it is armed, the confirmation says so:
