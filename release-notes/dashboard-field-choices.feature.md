@@ -1,3 +1,1 @@
-- **Choose dashboard tile values and theme keys (`widgets/dashboard`, `app/pages/settings/dashboard`)**:
-  - Default settings now open Look, Before flight, In flight, Statistics and Keys pages: choose live readings or last-flight figures for plain value tiles, with captions, units and decimals following the choice while geometry stays unchanged.
-  - Shared pages let box themes offer these choices and fullscreen key bindings, with radio-wide keys taking priority and Per-Model Settings overriding the theme's standard values.
+- **Choose what dashboard value tiles show, live readings or last-flight figures, and bind the theme's full-screen keys (`settings/dashboard`)**

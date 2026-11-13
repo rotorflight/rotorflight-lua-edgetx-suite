@@ -1,1 +1,1 @@
-- Generate the Helicopter Setup flow diagram and JSON inventory from the Lua sources and traceability map; CI rejects stale documentation and proves the check detects an added confirmation (`helicopter_setup`).
+- **The Helicopter Setup flow diagram is generated from the sources, and CI rejects a stale one (`helicopter_setup`)**

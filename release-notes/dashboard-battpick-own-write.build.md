@@ -1,2 +1,1 @@
-- **A battery picked on the dashboard no longer makes that dashboard reload its preferences (`widgets/dashboard/runtime.lua`)**:
-  - The pick's save still moves the reload request for the tool and the other widgets. The dashboard that made it already holds what it saved: it looks at the files just before and just after the save, and where nothing had moved since its last look it takes them as they stand after it, so it no longer reads the model's preferences back and resolves its theme again. A save made elsewhere that moved the files since its last look, or one made after the pick, is reloaded as before.
+- **Picking a battery on the dashboard no longer makes that dashboard reload its preferences (`widgets/dashboard/runtime`)**

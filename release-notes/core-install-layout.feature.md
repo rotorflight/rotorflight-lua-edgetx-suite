@@ -1,4 +1,1 @@
-- **One main folder on the card (`src/rfsuite/lib/paths.lua`, `src/rfsuite/lib/user_move.lua`, `bin/package/build_package.py`)**:
-  - The suite now installs as `SCRIPTS/RFSUITE/core` and `SCRIPTS/RFSUITE/user`; the tool entry `SCRIPTS/TOOLS/rfsuite.lua` stays where it is.
-  - On a card updated by unpacking the archive, the first start copies the pilot's data over while *Preparing suite* is shown, reads it back and then asks for a restart. A failed copy leaves everything on the old folder, says so on the start screen and tries again at the next start.
-  - The old folders `SCRIPTS/TOOLS/rfsuite-core` and `SCRIPTS/TOOLS/rfsuite.user` are never deleted by the suite and can be removed by hand once the settings are checked. The copy stays in the suite for a limited time; a later release note names the last version that carries it.
+- **The suite installs under one main folder on the card and moves the pilot's data there on the first start (`lib/user_move`)**

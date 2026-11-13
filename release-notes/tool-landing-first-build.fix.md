@@ -1,2 +1,1 @@
-- **A page the tool is opened on from the dashboard opens again (`ui/home.lua`, `docs/dashboard/quick-menu.md`)**:
-  - Opened from the dashboard on a page -- the quick menu's *FLIGHT LOG*, or a key bound to it -- the tool builds the page on the pass after its start-up pass instead of in it, where the build could stop at the widget's instruction limit and end in the page's build error. While a compile pass holds the start screen, nothing changes.
+- **A page the tool is opened on from the dashboard opens again (`ui/home`)**

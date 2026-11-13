@@ -1,2 +1,1 @@
-- **Validate Sensors no longer walks the telemetry slot list on every wakeup (`app/pages/tools/diagnostics/validate_sensors/page.lua`)**:
-  - Between two row refreshes the page compared a snapshot of all 40 telemetry slots on every wakeup to notice a new sensor configuration; it now takes that snapshot only when a new configuration has been stored. A changed configuration still shows on the next wakeup, and the rows still refresh every 0.8 s (#604).
+- **Validate Sensors does less work between row refreshes; a changed sensor setup still shows at once (`tools/diagnostics/validate_sensors`)** (#604)

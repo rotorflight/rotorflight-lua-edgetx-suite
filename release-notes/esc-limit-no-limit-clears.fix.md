@@ -1,1 +1,1 @@
-- An ESC reporting no current limit clears the figure its own family stored, and an AM32 with its limit off no longer stores 202 A or more as a limit, so ESC load shows `--` and its announcement stays silent; a figure typed in by hand stays (esc_current_limit).
+- **ESC load shows -- and stays silent when the ESC reports no current limit; a limit typed in by hand stays (`setup/esc_motors/esc_tools/esc_current_limit`)**

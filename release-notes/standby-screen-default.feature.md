@@ -1,1 +1,1 @@
-- The dashboard shows the standby screen while it waits for a flight controller, on every radio: the clock, the transmitter battery and the ELRS settings instead of the connection splash. Its on and off switch is gone, a saved off no longer counts, and the layout stays under Settings > Dashboard > Standby screen (widgets/dashboard/runtime.lua).
+- **The dashboard always shows the standby screen while it waits for a flight controller (`widgets/dashboard/runtime`)**

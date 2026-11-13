@@ -1,1 +1,1 @@
-- **Bluejay keeps cached settings with their ESC target (`setup/esc_motors/esc_tools/escmfg/bluejay`)**: replies for another target are ignored; switching back within the same page visit restores that target's cached values if still held, and Save remains refused until its own read succeeds. Adds section-specific help in English and German (#600).
+- **Bluejay keeps cached settings with their ESC target and refuses Save until that target is read (`setup/esc_motors/esc_tools/escmfg/bluejay`)** (#600)

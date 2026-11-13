@@ -1,4 +1,1 @@
-- **The documentation website lists the page files in the order of the menus (`bin/docs/mkdocs_hooks.py`, `bin/docs/menu_structure.py`)**:
-  - The section that was called *Pages* is now *Menu*, with *Configuration* and *System* below it and one section per menu, titled and ordered as the tool shows them and each page listed under the label of its tile, read from `app/manifest.lua` at build time. The Dashboard Settings grid, which the tool fills at run time, lists Per-Model Settings and the theme settings page.
-  - A page file no menu entry opens is listed at the end of the menu that holds its folder, so no page drops out of the navigation; a menu definition that cannot be read fails the site build.
-  - The site is rebuilt when the menu definition, the page registry or the English titles change.
+- **The documentation website lists its pages in the order of the tool's menus (`bin/docs/mkdocs_hooks`)**

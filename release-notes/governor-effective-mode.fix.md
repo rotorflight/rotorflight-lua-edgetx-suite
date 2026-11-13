@@ -1,2 +1,1 @@
-- **Governor readers now respect the GOVERNOR feature (`app/pages/flight_tuning/governor`, `app/pages/flight_tuning/advanced/tail_rotor`, `widgets/dashboard`)**:
-  - With the feature off, the effective mode is OFF and governor gains and Tail Torque Assist fields are hidden regardless of the stored mode (if the feature could not be read at connect, the stored mode is shown as before); saving Setup > Governor > General updates the readers without reconnecting (#908).
+- **With the GOVERNOR feature off, the governor reads as OFF and its gains and Tail Torque Assist are hidden (`flight_tuning/governor`)** (#908)

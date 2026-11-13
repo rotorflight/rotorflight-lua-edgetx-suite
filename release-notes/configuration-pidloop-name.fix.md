@@ -1,2 +1,1 @@
-- **Correct PID-loop labels and craft-name limit (`setup/configuration`)**:
-  - Label PID-loop choices from the board's gyro sample rate, as Rotorflight Configurator does, with two decimals in kHz; until the board reports it the labels stay rounded as before. The inline help recommends 1 to 2 kHz and Realtime Load at or below 70%. Limit craft names to the 16 characters the flight controller stores (#615).
+- **PID-loop choices are labeled from the board's gyro rate as in the Configurator, and craft names are limited to 16 characters (`setup/configuration`)** (#615)
