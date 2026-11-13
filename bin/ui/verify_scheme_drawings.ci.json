@@ -1,0 +1,7 @@
+{
+  "id": "scheme-drawings",
+  "name": "Colour schemes: the tool's own drawings read on the page",
+  "commands": [
+    "lua5.3 bin/ui/verify_scheme_drawings.lua"
+  ]
+}
