@@ -1,0 +1,2 @@
+- **The sensor search caps hold for a whole dashboard pass (`lib/sensors.lua`, `widgets/dashboard`)**:
+  - The caps on how many values may start or repeat a sensor search in one pass now count per pass of the dashboard instead of per 10 ms clock tick, so a pass that runs longer than a tick no longer gets them again with every tick it spans. Right after the link is lost every value searches at once, and those searches can no longer all land in one pass.
