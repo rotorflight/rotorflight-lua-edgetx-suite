@@ -107,9 +107,11 @@ them.
 Only chunks under the page's folder go. Files it loads from elsewhere -- MSP APIs, libraries other
 pages use too -- stay cached, and no module instance is touched: the page drops its own in its
 `onClose`, and a module someone else still holds keeps its code alive. Nothing is collected at that
-moment, because the old scene is still on screen until the next build replaces it; the tool's menu
-change asks for a collection right after it has built the new screen (`ui/home.lua`), and that is
-when the memory comes back. With the debug log level, the tool writes a line
+moment, because the old scene is still on screen until the next build replaces it. A menu change
+the pilot makes -- opening an entry or going back -- asks for a collection right after the new
+screen is built (`ui/home.lua`), and that is when the memory comes back; on other routes out of the
+area it returns with the collector's own work. The release walks only the kept chunks of files
+under `app/pages/`, which each loader lists as it caches them, not the whole cache. With the debug log level, the tool writes a line
 `page area left for <menu>: N visit(s) ended, M chunk(s) let go`.
 
 The helicopter setup is the page that uses it. It also reads each step's file past the cache

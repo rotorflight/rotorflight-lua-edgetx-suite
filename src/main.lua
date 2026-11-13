@@ -1,11 +1,17 @@
 -- TNS|RFSuite|TNE
 local originalLoadScript = loadScript
 local chunkCache = {}
+-- The kept chunks of files under app/pages/, the only ones releaseChunksUnder ever lets go: its
+-- walk stays as short as a page area's own files, whatever else the cache holds.
+local pageChunkPaths = {}
 _G.rfsuite = _G.rfsuite or {}
 _G.rfsuite.utils = _G.rfsuite.utils or {}
 _G.rfsuite.utils.clearChunkCache = function()
   for k in pairs(chunkCache) do
     chunkCache[k] = nil
+  end
+  for k in pairs(pageChunkPaths) do
+    pageChunkPaths[k] = nil
   end
   if _G.rfsuite and _G.rfsuite.clearAllModules then
     _G.rfsuite.clearAllModules()
@@ -21,8 +27,9 @@ end
 _G.rfsuite.utils.releaseChunksUnder = function(prefix)
   local released = 0
   if type(prefix) ~= "string" or prefix == "" then return released end
-  for path in pairs(chunkCache) do
+  for path in pairs(pageChunkPaths) do
     if string.sub(path, 1, #prefix) == prefix then
+      pageChunkPaths[path] = nil
       chunkCache[path] = nil
       released = released + 1
     end
@@ -50,6 +57,7 @@ _G.loadScript = function(path, mode)
   local chunk, err = originalLoadScript(path, _G.rfsuite.loadMode or mode)
   if chunk and not isPageModule(path) then
     chunkCache[path] = chunk
+    if string.find(path, "/app/pages/", 1, true) then pageChunkPaths[path] = true end
   end
   return chunk, err
 end

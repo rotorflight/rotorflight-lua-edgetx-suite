@@ -116,6 +116,27 @@ local mainChunk = assert(loadfile("src/main.lua"))
 mainChunk()
 walkArea("standalone")
 
+-- 1b. A pass stopped inside the release leaves the visit open, and the next change finishes it.
+do
+  resetGlobals()
+  assert(loadfile("src/main.lua"))()
+  local registry = assert(loadfile("src/rfsuite/app/pages/init.lua"))()
+  if type(registry.endVisits) == "function" then
+    loadScript(WIZARD_FILE, "t")
+    registry.get("helicopter_setup_page")
+    registry.release("helicopter_setup_page", {})
+    local real = _G.rfsuite.utils.releaseChunksUnder
+    _G.rfsuite.utils.releaseChunksUnder = function() error("stopped") end
+    equal(pcall(registry.endVisits, "configuration_menu"), false, "a stopped release raises to the caller")
+    _G.rfsuite.utils.releaseChunksUnder = real
+    local ended, chunks = registry.endVisits("configuration_menu")
+    equal(ended, 1, "the next change ends the visit a stopped release left open")
+    equal(chunks, 1, "and lets go of its chunk")
+  else
+    equal(type(registry.endVisits), "function", "retry: registry ends visits")
+  end
+end
+
 -- 2. The tool opened from the dashboard: tool_host's loader, installed on the first pass.
 resetGlobals()
 local stubs = {

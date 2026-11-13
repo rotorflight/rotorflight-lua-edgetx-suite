@@ -1109,10 +1109,10 @@ function M.new(runtime, transport, mathModule, labels)
           local root = _G.rfsuite
           local uncached = root and root.utils and root.utils.loadScriptUncached
           local stepPath = BASE .. "app/pages/helicopter_setup/steps/" .. key .. ".lua"
-          local stepChunk
-          if type(uncached) == "function" then stepChunk = uncached(stepPath, root.loadMode or "t")
-          else stepChunk = loadScript(stepPath, "t") end
-          held = { key = key, chunk = assert(stepChunk) }
+          local stepChunk, err
+          if type(uncached) == "function" then stepChunk, err = uncached(stepPath, root.loadMode or "t")
+          else stepChunk, err = loadScript(stepPath, "t") end
+          held = { key = key, chunk = assert(stepChunk, err) }
           self.stepChunk = held
           if self.logTrace then self:log("trace", "step file %s read", key) end
         end

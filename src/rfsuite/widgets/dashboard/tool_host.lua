@@ -143,6 +143,8 @@ end
 local function installLoader(host)
   local original = _G.loadScript
   local chunks = {}
+  -- The kept chunks of files under app/pages/: releaseChunksUnder walks only these.
+  local pageChunkPaths = {}
   local function load(path, mode)
     if host.loader ~= load or type(path) ~= "string" or string.sub(path, 1, #BASE_PATH) ~= BASE_PATH then
       return original(path, mode)
@@ -152,7 +154,10 @@ local function installLoader(host)
     local root = _G.rfsuite
     local err
     chunk, err = original(path, (root and root.loadMode) or mode)
-    if chunk and not isPageModule(path) then chunks[path] = chunk end
+    if chunk and not isPageModule(path) then
+      chunks[path] = chunk
+      if string.find(path, "/app/pages/", 1, true) then pageChunkPaths[path] = true end
+    end
     return chunk, err
   end
   host.loader = load
@@ -168,8 +173,9 @@ local function installLoader(host)
     local function releaseChunksUnder(prefix)
       local released = 0
       if type(prefix) ~= "string" or prefix == "" then return released end
-      for path in pairs(chunks) do
+      for path in pairs(pageChunkPaths) do
         if string.sub(path, 1, #prefix) == prefix then
+          pageChunkPaths[path] = nil
           chunks[path] = nil
           released = released + 1
         end

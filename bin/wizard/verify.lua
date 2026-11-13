@@ -1286,7 +1286,7 @@ do
   check(held[control] == true, "STEP collectability control: a held table survives the collections")
   -- A few controllers of this file stay reachable to its end, each with the cards of its current step; every
   -- other build must be gone. With the step file read past the cache, nothing else keeps that code alive.
-  check(uncachedStepLoads >= 20 and alive <= 5, string.format("STEP cards of left steps are collectable (%d built, %d alive)", uncachedStepLoads, alive))
+  check(uncachedStepLoads >= 20 and alive <= 5, string.format("STEP cards of left steps are collectable (%d builds, %d alive)", stepBuilds, alive))
 end
 print(string.format("Wizard: %d assertions, %d failures",assertions,failures))
 if failures>0 then os.exit(1) end

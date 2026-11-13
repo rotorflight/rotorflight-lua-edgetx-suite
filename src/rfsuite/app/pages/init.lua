@@ -362,11 +362,13 @@ function registry.endVisits(currentMenuId)
     local inside = currentMenuId == visitMenu
       or (currentFull ~= nil and string.sub(currentFull, 1, #folder) == folder)
     if not inside then
-      openVisits[folder] = nil
-      ended = ended + 1
+      -- Ended only once the release has returned: a pass stopped inside it leaves the visit
+      -- open, and the next change of menu or page finishes it.
       if type(releaseChunksUnder) == "function" then
         chunks = chunks + (releaseChunksUnder(folder) or 0)
       end
+      openVisits[folder] = nil
+      ended = ended + 1
     end
   end
   return ended, chunks
