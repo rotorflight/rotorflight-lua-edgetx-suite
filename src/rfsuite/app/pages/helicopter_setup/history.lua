@@ -7,7 +7,9 @@ local prerequisites = {
 }
 function M.attach(w, store)
   local session = w:session()
-  w.history = store.new(session.mcu_id, session.modelPreferencesFile)
+  -- The radio model's name, as the preparation card shows it, keys the remembered preparation.
+  local radioModel = w.activeModelName ~= w.L.unknown and w.activeModelName or nil
+  w.history = store.new(session.mcu_id, session.modelPreferencesFile, radioModel)
   function w:updateHistoryHints()
     local missing, lines = 0, {}
     local mask = self.history.mask

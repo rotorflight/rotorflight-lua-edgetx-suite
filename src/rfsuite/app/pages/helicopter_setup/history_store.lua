@@ -31,8 +31,18 @@ function M.mask(identity, modelFile)
   return mask or 0
 end
 -- Whether the radio model was prepared for this FC: a file of its own beside the completion
--- record, so the record's fixed format and every reader of it stay as they are.
-local function preparedPath(path) return path and string.gsub(path, "%.lua$", "-prepared.lua") end
+-- record, so the record's fixed format and every reader of it stay as they are. It is kept per
+-- FC and radio model, because one board can be flown from another transmitter model; without
+-- the model's name nothing is remembered and the card asks again.
+local function modelKey(radioModel)
+  if type(radioModel) ~= "string" or radioModel == "" then return nil end
+  local key = string.sub(string.gsub(radioModel, "[^%w_-]", "_"), 1, 32)
+  return key ~= "" and key or nil
+end
+local function preparedPath(path, key)
+  if not path or not key then return nil end
+  return (string.gsub(path, "%.lua$", "-prepared-" .. key .. ".lua"))
+end
 local PREPARED = "return { version = 1, prepared = true }\n"
 local function readPrepared(path)
   local file = path and io.open(path, "r")
@@ -41,20 +51,21 @@ local function readPrepared(path)
   io.close(file)
   return text == PREPARED
 end
-function M.new(identity, modelFile)
+function M.new(identity, modelFile, radioModel)
   local h = { mask = 0, count = 0 }
   h.directory, h.path = location(identity, modelFile)
-  h.prepared = readPrepared(preparedPath(h.path))
+  h.preparedFile = preparedPath(h.path, modelKey(radioModel))
+  h.prepared = readPrepared(h.preparedFile)
   function h:markPrepared()
     if self.prepared then return true end
-    if not self.path or type(mkdir) ~= "function" then return false end
+    if not self.preparedFile or type(mkdir) ~= "function" then return false end
     local directoryResult = mkdir(self.directory)
     if directoryResult ~= 0 and directoryResult ~= 8 then return false end
-    local file = io.open(preparedPath(self.path), "w")
+    local file = io.open(self.preparedFile, "w")
     if not file then return false end
     local wrote = io.write(file, PREPARED)
     io.close(file)
-    self.prepared = wrote and readPrepared(preparedPath(self.path)) or false
+    self.prepared = wrote and readPrepared(self.preparedFile) or false
     return self.prepared
   end
   function h:publish(mask)

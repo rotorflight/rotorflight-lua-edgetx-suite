@@ -113,11 +113,12 @@ still checked in step 2.
 The first row is **FC name**, the flight controller's own name (up to 16 characters, the same
 field as on the Configuration page). An edit is written with the next saved step.
 
-The confirmation is remembered per flight controller, in a file of its own beside the
-completion history (`wizard-history/<board id>-prepared.lua`). Complete setup always shows the
-card. A step opened on its own shows it the first time for a flight controller; after that it
-passes the card by itself as soon as both state sensors below are live, and shows it only while
-one of them is missing. The history/reset page needs no model-configuration confirmation. The 19 numbered steps
+The confirmation is remembered per flight controller and radio model, because one board can be
+flown from another transmitter model: a file of its own beside the completion history
+(`wizard-history/<board id>-prepared-<radio model>.lua`). Complete setup always shows the card. A
+step opened on its own shows it the first time for that flight controller and radio model; after
+that it passes the card by itself as soon as both state sensors below are live, and shows it only
+while one of them is missing. A radio model without a name is never remembered. The history/reset page needs no model-configuration confirmation. The 19 numbered steps
 deliberately deviate from the Configurator's order at one place: Connect the servos
 is step 10, ESC telemetry step 11 and the spin test step 12. The restarts the earlier
 steps owe are done at Connect the servos, with the servos still out. The ESC link and

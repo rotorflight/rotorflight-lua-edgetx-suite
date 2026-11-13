@@ -4706,19 +4706,23 @@ return function(h)
     fs:restore()
   end)
   case("CORE.prepared-model-and-blades-intro",function()
-    -- The preparation is remembered per FC in a file of its own; the completion record is untouched.
+    -- The preparation is remembered per FC and radio model in a file of its own; the completion
+    -- record is untouched.
     local fs=assert(loadfile("bin/wizard/history_fixture.lua"))()();fs:install()
     local Store=load("app/pages/helicopter_setup/history_store.lua")
-    local a=Store.new("board-P","/user/board-P.lua");a:load()
+    local a=Store.new("board-P","/user/board-P.lua","Heli 1");a:load()
     check(a.prepared==false,"CORE a new FC has no remembered preparation")
     check(a:markPrepared(),"CORE the preparation is remembered")
     eq(fs.files[a.path],nil,"CORE remembering the preparation leaves the completion record alone")
-    local again=Store.new("board-P","/user/board-P.lua")
+    local again=Store.new("board-P","/user/board-P.lua","Heli 1")
     check(again.prepared==true,"CORE the next visit reads the remembered preparation")
-    check(Store.new("board-Q","/user/board-Q.lua").prepared==false,"CORE another FC is not prepared by it")
+    check(Store.new("board-Q","/user/board-Q.lua","Heli 1").prepared==false,"CORE another FC is not prepared by it")
+    check(Store.new("board-P","/user/board-P.lua","Heli 2").prepared==false,"CORE another radio model is not prepared by it")
+    local nameless=Store.new("board-P","/user/board-P.lua",nil)
+    check(nameless.prepared==false and not nameless:markPrepared(),"CORE a radio model without a name is never taken as prepared")
     for _,failure in ipairs({"open","write","short","mkdir"}) do
       fs.failure=failure
-      local failed=Store.new("board-F","/user/board-F.lua")
+      local failed=Store.new("board-F","/user/board-F.lua","Heli 1")
       check(not failed:markPrepared(),"CORE a failed write is not taken for remembered "..failure)
     end
     fs.failure=nil;fs:restore()

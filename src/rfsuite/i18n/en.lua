@@ -514,7 +514,7 @@ return {
         noPort = "No free UART",
         channelOrder = "Channel order",
         channelOrderPick = "Choose your radio's channel order and continue; that is enough. Detect is the alternative: it finds the order from the sticks.",
-        channelHint = "Detect uses the channels received by the FC. First collective, then roll, pitch and yaw, then toggle the throttle switch OFF/ON. Move only the requested control. Presets are an alternative; the next card checks every stick.",
+        channelHint = "Detect uses the channels received by the FC. First collective, then roll, pitch and yaw, then toggle the throttle switch OFF/ON. Move only the requested control. Choosing the radio's channel order on the card before is the simpler way; the next card checks every stick.",
         detect = "Detect",
         standardOrder = "Standard channel order",
         collective = "Collective",

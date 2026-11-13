@@ -514,7 +514,7 @@ return {
         noPort = "Kein freier UART",
         channelOrder = "Kanalreihenfolge",
         channelOrderPick = "Kanalreihenfolge der Funke wählen und weiter; das reicht. Erkennen ist die Alternative: es findet die Reihenfolge über die Knüppel.",
-        channelHint = "Erkennen nutzt die am FC ankommenden Kanäle. Zuerst Pitch, dann Roll, Nick und Heck, danach den Gas-Schalter AUS/EIN schalten. Nur den angeforderten Geber bewegen. Alternativ eine Reihenfolge wählen; die nächste Karte prüft jeden Knüppel.",
+        channelHint = "Erkennen nutzt die am FC ankommenden Kanäle. Zuerst Pitch, dann Roll, Nick und Heck, danach den Gas-Schalter AUS/EIN schalten. Nur den angeforderten Geber bewegen. Einfacher ist es, auf der Karte davor die Kanalreihenfolge des Senders zu wählen; die nächste Karte prüft jeden Knüppel.",
         detect = "Erkennen",
         standardOrder = "Standard-Reihenfolge",
         collective = "Kollektiv",
