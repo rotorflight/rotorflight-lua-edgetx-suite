@@ -42,7 +42,8 @@
 -- Without the PID# and RTE# telemetry sensors, MSP_STATUS is read once after the axes and before
 -- the save, so the flight is saved under the profiles the flight controller flies now (readProfiles);
 -- a read the queue dropped starts the reading again from the first axis, a read that fails is asked
--- again as a failed axis read is, and a reply that cannot be read saves the flight without profiles.
+-- again as a failed axis read is (so is a status module that does not load), and a reply that cannot
+-- be read saves the flight without profiles.
 --
 -- After the flight is saved and the clear has gone through, RC_TUNING and PID_PROFILE are read
 -- and the cyclic polarity, the cyclic ring and the I-term relax type are added to the flight,
@@ -598,9 +599,11 @@ function M.tick(tc, mspState, linkUp, now)
       elseif StatusApi then
         readProfiles(tc, queue)
       else
-        -- No status module: the session's profiles, as before
-        tc.profilesRead = true
+        -- No status module (low memory): as a failed read, loaded again on the next try, and
+        -- never the session's profiles in its place
+        log("status module not loaded; the profiles are asked again", "info")
         StatusApi = nil
+        failed(tc)
       end
     else
       requestAxis(tc, queue, #tc.replies + 1)

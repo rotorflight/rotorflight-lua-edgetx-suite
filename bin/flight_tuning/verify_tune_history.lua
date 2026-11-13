@@ -1541,6 +1541,24 @@ do
     statusMsg ~= nil and after == "roll,pitch,yaw" and #tuneHistory.read(MCU) == 0,
     after .. " / " .. #tuneHistory.read(MCU) .. " flights saved")
 
+  -- The status module does not load (low memory): as a failed read, never the session's profiles.
+  -- Nothing is saved or cleared; with the module back, the next disarm saves the flight
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.shared["tasks/msp/api/status.lua"] = false
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump(nil, nil, 60)
+  check("the status module not loading: nothing saved under the session's profiles, nothing cleared",
+    asked == "roll,pitch,yaw" and #tuneHistory.read(MCU) == 0 and rig.capture().state == "failed",
+    asked .. " / " .. #tuneHistory.read(MCU) .. " saved / " .. tostring(rig.capture().state))
+  rig.shared["tasks/msp/api/status.lua"] = nil
+  asked = flyThrough(30)
+  check("(control) with the module back, the next disarm saves the flight under the profiles read",
+    asked == "roll,pitch,yaw,clear" and savedProfiles() == "2/3", asked .. " / saved " .. savedProfiles())
+
   -- A status reply cut short before the profile bytes (their parser reads a missing byte as 0): the
   -- same reply would come back, so the flight is saved without profiles, never counted for any
   fresh()
