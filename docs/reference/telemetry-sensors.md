@@ -22,7 +22,8 @@ The page's catalogue and the decoder are kept in step deliberately: a sensor you
 is one the suite can unpack. The list itself lives in the code
 (`src/rfsuite/lib/rf2tlm_sensors.lua`), and that file is the authority — this page does not
 repeat it, because a copy would go out of date the first time the flight controller gains a
-sensor.
+sensor. A row added to that file is added to `bin/telemetry/verify_decoder_table.lua` as well:
+that check holds every row's width, sign, unit and precision, and fails on a row it does not know.
 
 For the meaning of an individual value — what `Vbat` measures, what the governor states are —
 see the [Rotorflight documentation](https://doc.rotorflight.org/); the suite does not
