@@ -10,17 +10,20 @@ local function decU8(data, pos)
 end
 
 local function decS8(data, pos)
-    local val,ptr = decU8(data,pos)
-    return val < 0x80 and val or val - 0x100, ptr
+    local val = data[pos]
+    return val < 0x80 and val or val - 0x100, pos+1
 end
 
+-- Up to three bytes are joined by arithmetic rather than bit32: the result stays below 2^24, so
+-- it is the same integer on a desktop Lua and on EdgeTX, which builds Lua with 32-bit integers.
+-- The four-byte decoders keep bit32, since a value past 2^31 does not fit that integer type.
 local function decU16(data, pos)
-    return bit32.lshift(data[pos],8) + data[pos+1], pos+2
+    return data[pos]*256 + data[pos+1], pos+2
 end
 
 local function decS16(data, pos)
-    local val,ptr = decU16(data,pos)
-    return val < 0x8000 and val or val - 0x10000, ptr
+    local val = data[pos]*256 + data[pos+1]
+    return val < 0x8000 and val or val - 0x10000, pos+2
 end
 
 -- Two 12-bit values in three bytes: the first byte carries the high nibble of each (the first
@@ -38,12 +41,12 @@ local function decS12S12(data, pos)
 end
 
 local function decU24(data, pos)
-    return bit32.lshift(data[pos],16) + bit32.lshift(data[pos+1],8) + data[pos+2], pos+3
+    return data[pos]*65536 + data[pos+1]*256 + data[pos+2], pos+3
 end
 
 local function decS24(data, pos)
-    local val,ptr = decU24(data,pos)
-    return val < 0x800000 and val or val - 0x1000000, ptr
+    local val = data[pos]*65536 + data[pos+1]*256 + data[pos+2]
+    return val < 0x800000 and val or val - 0x1000000, pos+3
 end
 
 local function decU32(data, pos)
@@ -202,205 +205,208 @@ local function decAccel(data, pos)
     return nil, pos
 end
 
+-- A row is { sensor id, name = ..., unit = ..., prec = ..., dec = ... }. The id sits in the
+-- array part on purpose: with four named fields a row's hash part holds four slots, a fifth would
+-- double it to eight, and the drain keeps these rows for as long as its Lua state lives.
 local sensorsById = {
    -- No data
-    [0] = { sid = 0x1000, name = "NONE", unit = UNIT_RAW, prec = 0, dec = decNil },
+    [0] = { 0x1000, name = "NONE", unit = UNIT_RAW, prec = 0, dec = decNil },
     -- Heartbeat (millisecond uptime % 60000)
-    [1] = { sid = 0x1001, name = "BEAT", unit = UNIT_RAW, prec = 0, dec = decU16 },
+    [1] = { 0x1001, name = "BEAT", unit = UNIT_RAW, prec = 0, dec = decU16 },
 
     -- Main battery voltage
-    [3] = { sid = 0x1011, name = "Vbat", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
+    [3] = { 0x1011, name = "Vbat", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
     -- Main battery current
-    [4] = { sid = 0x1012, name = "Curr", unit = UNIT_AMPS, prec = 2, dec = decU16 },
+    [4] = { 0x1012, name = "Curr", unit = UNIT_AMPS, prec = 2, dec = decU16 },
     -- Main battery used capacity
-    [5] = { sid = 0x1013, name = "Capa", unit = UNIT_MAH, prec = 0, dec = decU16 },
+    [5] = { 0x1013, name = "Capa", unit = UNIT_MAH, prec = 0, dec = decU16 },
     -- Main battery charge / fuel level
-    [6] = { sid = 0x1014, name = "Bat%", unit = UNIT_PERCENT, prec = 0, dec = decU8 },
+    [6] = { 0x1014, name = "Bat%", unit = UNIT_PERCENT, prec = 0, dec = decU8 },
 
     -- Main battery cell count
-    [7] = { sid = 0x1020, name = "Cel#", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [7] = { 0x1020, name = "Cel#", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- Main battery cell voltage (minimum/average)
-    [8] = { sid = 0x1021, name = "Vcel", unit = UNIT_VOLTS, prec = 2, dec = decCellV },
+    [8] = { 0x1021, name = "Vcel", unit = UNIT_VOLTS, prec = 2, dec = decCellV },
     -- Main battery cell voltages
-    [9] = { sid = 0x102F, name = "Cels", unit = UNIT_VOLTS, prec = 2, dec = decCells },
+    [9] = { 0x102F, name = "Cels", unit = UNIT_VOLTS, prec = 2, dec = decCells },
 
     -- Control Combined (hires)
-    [10] = { sid = 0x1030, name = "Ctrl", unit = UNIT_RAW, prec = 0, dec = decControl },
+    [10] = { 0x1030, name = "Ctrl", unit = UNIT_RAW, prec = 0, dec = decControl },
     -- Pitch Control angle
-    [11] = { sid = 0x1031, name = "CPtc", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
+    [11] = { 0x1031, name = "CPtc", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
     -- Roll Control angle
-    [12] = { sid = 0x1032, name = "CRol", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
+    [12] = { 0x1032, name = "CRol", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
     -- Yaw Control angle
-    [13] = { sid = 0x1033, name = "CYaw", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
+    [13] = { 0x1033, name = "CYaw", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
     -- Collective Control angle
-    [14] = { sid = 0x1034, name = "CCol", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
+    [14] = { 0x1034, name = "CCol", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
     -- Throttle output %
-    [15] = { sid = 0x1035, name = "Thr", unit = UNIT_PERCENT, prec = 0, dec = decS8 },
+    [15] = { 0x1035, name = "Thr", unit = UNIT_PERCENT, prec = 0, dec = decS8 },
 
     -- ESC#1 voltage
-    [17] = { sid = 0x1041, name = "EscV", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
+    [17] = { 0x1041, name = "EscV", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
     -- ESC#1 current
-    [18] = { sid = 0x1042, name = "EscI", unit = UNIT_AMPS, prec = 2, dec = decU16 },
+    [18] = { 0x1042, name = "EscI", unit = UNIT_AMPS, prec = 2, dec = decU16 },
     -- ESC#1 capacity/consumption
-    [19] = { sid = 0x1043, name = "EscC", unit = UNIT_MAH, prec = 0, dec = decU16 },
+    [19] = { 0x1043, name = "EscC", unit = UNIT_MAH, prec = 0, dec = decU16 },
     -- ESC#1 eRPM
-    [20] = { sid = 0x1044, name = "EscR", unit = UNIT_RPMS, prec = 0, dec = decU24 },
+    [20] = { 0x1044, name = "EscR", unit = UNIT_RPMS, prec = 0, dec = decU24 },
     -- ESC#1 PWM/Power
-    [21] = { sid = 0x1045, name = "EscP", unit = UNIT_PERCENT, prec = 1, dec = decU16 },
+    [21] = { 0x1045, name = "EscP", unit = UNIT_PERCENT, prec = 1, dec = decU16 },
     -- ESC#1 throttle
-    [22] = { sid = 0x1046, name = "Esc%", unit = UNIT_PERCENT, prec = 1, dec = decU16 },
+    [22] = { 0x1046, name = "Esc%", unit = UNIT_PERCENT, prec = 1, dec = decU16 },
     -- ESC#1 temperature
-    [23] = { sid = 0x1047, name = "EscT", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
+    [23] = { 0x1047, name = "EscT", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
     -- ESC#1 / BEC temperature
-    [24] = { sid = 0x1048, name = "BecT", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
+    [24] = { 0x1048, name = "BecT", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
     -- ESC#1 / BEC voltage
-    [25] = { sid = 0x1049, name = "BecV", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
+    [25] = { 0x1049, name = "BecV", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
     -- ESC#1 / BEC current
-    [26] = { sid = 0x104A, name = "BecI", unit = UNIT_AMPS, prec = 2, dec = decU16 },
+    [26] = { 0x104A, name = "BecI", unit = UNIT_AMPS, prec = 2, dec = decU16 },
     -- ESC#1 Status Flags
-    [27] = { sid = 0x104E, name = "EscF", unit = UNIT_RAW, prec = 0, dec = decU32 },
+    [27] = { 0x104E, name = "EscF", unit = UNIT_RAW, prec = 0, dec = decU32 },
     -- ESC#1 Model Id
-    [28] = { sid = 0x104F, name = "Esc#", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [28] = { 0x104F, name = "Esc#", unit = UNIT_RAW, prec = 0, dec = decU8 },
 
     -- ESC#2 voltage
-    [30] = { sid = 0x1051, name = "Es2V", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
+    [30] = { 0x1051, name = "Es2V", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
     -- ESC#2 current
-    [31] = { sid = 0x1052, name = "Es2I", unit = UNIT_AMPS, prec = 2, dec = decU16 },
+    [31] = { 0x1052, name = "Es2I", unit = UNIT_AMPS, prec = 2, dec = decU16 },
     -- ESC#2 capacity/consumption
-    [32] = { sid = 0x1053, name = "Es2C", unit = UNIT_MAH, prec = 0, dec = decU16 },
+    [32] = { 0x1053, name = "Es2C", unit = UNIT_MAH, prec = 0, dec = decU16 },
     -- ESC#2 eRPM
-    [33] = { sid = 0x1054, name = "Es2R", unit = UNIT_RPMS, prec = 0, dec = decU24 },
+    [33] = { 0x1054, name = "Es2R", unit = UNIT_RPMS, prec = 0, dec = decU24 },
     -- ESC#2 temperature
-    [36] = { sid = 0x1057, name = "Es2T", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
+    [36] = { 0x1057, name = "Es2T", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
     -- ESC#2 Model Id
-    [41] = { sid = 0x105F, name = "Es2#", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [41] = { 0x105F, name = "Es2#", unit = UNIT_RAW, prec = 0, dec = decU8 },
 
     -- Combined ESC voltage
-    [42] = { sid = 0x1080, name = "Vesc", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
+    [42] = { 0x1080, name = "Vesc", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
     -- BEC voltage
-    [43] = { sid = 0x1081, name = "Vbec", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
+    [43] = { 0x1081, name = "Vbec", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
     -- BUS voltage
-    [44] = { sid = 0x1082, name = "Vbus", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
+    [44] = { 0x1082, name = "Vbus", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
     -- MCU voltage
-    [45] = { sid = 0x1083, name = "Vmcu", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
+    [45] = { 0x1083, name = "Vmcu", unit = UNIT_VOLTS, prec = 2, dec = decU16 },
 
     -- Combined ESC current
-    [46] = { sid = 0x1090, name = "Iesc", unit = UNIT_AMPS, prec = 2, dec = decU16 },
+    [46] = { 0x1090, name = "Iesc", unit = UNIT_AMPS, prec = 2, dec = decU16 },
     -- BEC current
-    [47] = { sid = 0x1091, name = "Ibec", unit = UNIT_AMPS, prec = 2, dec = decU16 },
+    [47] = { 0x1091, name = "Ibec", unit = UNIT_AMPS, prec = 2, dec = decU16 },
     -- BUS current
-    [48] = { sid = 0x1092, name = "Ibus", unit = UNIT_AMPS, prec = 2, dec = decU16 },
+    [48] = { 0x1092, name = "Ibus", unit = UNIT_AMPS, prec = 2, dec = decU16 },
     -- MCU current
-    [49] = { sid = 0x1093, name = "Imcu", unit = UNIT_AMPS, prec = 2, dec = decU16 },
+    [49] = { 0x1093, name = "Imcu", unit = UNIT_AMPS, prec = 2, dec = decU16 },
 
     -- Combined ESC temperature
-    [50] = { sid = 0x10A0, name = "Tesc", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
+    [50] = { 0x10A0, name = "Tesc", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
     -- BEC temperature
-    [51] = { sid = 0x10A1, name = "Tbec", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
+    [51] = { 0x10A1, name = "Tbec", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
     -- MCU temperature
-    [52] = { sid = 0x10A3, name = "Tmcu", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
+    [52] = { 0x10A3, name = "Tmcu", unit = UNIT_CELSIUS, prec = 0, dec = decU8 },
 
     -- Heading (combined gyro+mag+GPS)
-    [57] = { sid = 0x10B1, name = "Hdg", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
+    [57] = { 0x10B1, name = "Hdg", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
     -- Altitude (combined baro+GPS)
-    [58] = { sid = 0x10B2, name = "Alt", unit = UNIT_METERS, prec = 2, dec = decS24 },
+    [58] = { 0x10B2, name = "Alt", unit = UNIT_METERS, prec = 2, dec = decS24 },
     -- Variometer (combined baro+GPS)
-    [59] = { sid = 0x10B3, name = "Var", unit = UNIT_METERS_PER_SECOND, prec = 2, dec = decS16 },
+    [59] = { 0x10B3, name = "Var", unit = UNIT_METERS_PER_SECOND, prec = 2, dec = decS16 },
 
     -- Headspeed
-    [60] = { sid = 0x10C0, name = "Hspd", unit = UNIT_RPMS, prec = 0, dec = decU16 },
+    [60] = { 0x10C0, name = "Hspd", unit = UNIT_RPMS, prec = 0, dec = decU16 },
     -- Tailspeed
-    [61] = { sid = 0x10C1, name = "Tspd", unit = UNIT_RPMS, prec = 0, dec = decU16 },
+    [61] = { 0x10C1, name = "Tspd", unit = UNIT_RPMS, prec = 0, dec = decU16 },
 
     -- Attitude (hires combined)
-    [64] = { sid = 0x1100, name = "Attd", unit = UNIT_DEGREE, prec = 1, dec = decAttitude },
+    [64] = { 0x1100, name = "Attd", unit = UNIT_DEGREE, prec = 1, dec = decAttitude },
     -- Attitude pitch
-    [65] = { sid = 0x1101, name = "Ptch", unit = UNIT_DEGREE, prec = 0, dec = decS16 },
+    [65] = { 0x1101, name = "Ptch", unit = UNIT_DEGREE, prec = 0, dec = decS16 },
     -- Attitude roll
-    [66] = { sid = 0x1102, name = "Roll", unit = UNIT_DEGREE, prec = 0, dec = decS16 },
+    [66] = { 0x1102, name = "Roll", unit = UNIT_DEGREE, prec = 0, dec = decS16 },
     -- Attitude yaw
-    [67] = { sid = 0x1103, name = "Yaw", unit = UNIT_DEGREE, prec = 0, dec = decS16 },
+    [67] = { 0x1103, name = "Yaw", unit = UNIT_DEGREE, prec = 0, dec = decS16 },
 
     -- Acceleration (hires combined)
-    [68] = { sid = 0x1110, name = "Accl", unit = UNIT_G, prec = 2, dec = decAccel },
+    [68] = { 0x1110, name = "Accl", unit = UNIT_G, prec = 2, dec = decAccel },
     -- Acceleration X
-    [69] = { sid = 0x1111, name = "AccX", unit = UNIT_G, prec = 1, dec = decS16 },
+    [69] = { 0x1111, name = "AccX", unit = UNIT_G, prec = 1, dec = decS16 },
     -- Acceleration Y
-    [70] = { sid = 0x1112, name = "AccY", unit = UNIT_G, prec = 1, dec = decS16 },
+    [70] = { 0x1112, name = "AccY", unit = UNIT_G, prec = 1, dec = decS16 },
     -- Acceleration Z
-    [71] = { sid = 0x1113, name = "AccZ", unit = UNIT_G, prec = 1, dec = decS16 },
+    [71] = { 0x1113, name = "AccZ", unit = UNIT_G, prec = 1, dec = decS16 },
 
     -- GPS Satellite count
-    [73] = { sid = 0x1121, name = "Sats", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [73] = { 0x1121, name = "Sats", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- GPS PDOP
-    [74] = { sid = 0x1122, name = "PDOP", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [74] = { 0x1122, name = "PDOP", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- GPS HDOP
-    [75] = { sid = 0x1123, name = "HDOP", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [75] = { 0x1123, name = "HDOP", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- GPS VDOP
-    [76] = { sid = 0x1124, name = "VDOP", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [76] = { 0x1124, name = "VDOP", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- GPS Coordinates
-    [77] = { sid = 0x1125, name = "GPS", unit = UNIT_RAW, prec = 0, dec = decLatLong },
+    [77] = { 0x1125, name = "GPS", unit = UNIT_RAW, prec = 0, dec = decLatLong },
     -- GPS altitude
-    [78] = { sid = 0x1126, name = "GAlt", unit = UNIT_METERS, prec = 2, dec = decGpsAltitude },
+    [78] = { 0x1126, name = "GAlt", unit = UNIT_METERS, prec = 2, dec = decGpsAltitude },
     -- GPS heading
-    [79] = { sid = 0x1127, name = "GHdg", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
+    [79] = { 0x1127, name = "GHdg", unit = UNIT_DEGREE, prec = 1, dec = decS16 },
     -- GPS ground speed
-    [80] = { sid = 0x1128, name = "GSpd", unit = UNIT_METERS_PER_SECOND, prec = 2, dec = decU16 },
+    [80] = { 0x1128, name = "GSpd", unit = UNIT_METERS_PER_SECOND, prec = 2, dec = decU16 },
     -- GPS home distance
-    [81] = { sid = 0x1129, name = "GDis", unit = UNIT_METERS, prec = 0, dec = decU16 },
+    [81] = { 0x1129, name = "GDis", unit = UNIT_METERS, prec = 0, dec = decU16 },
     -- GPS home direction
-    [82] = { sid = 0x112A, name = "GDir", unit = UNIT_DEGREE, prec = 0, dec = decU16 },
+    [82] = { 0x112A, name = "GDir", unit = UNIT_DEGREE, prec = 0, dec = decU16 },
 
     -- CPU load
-    [85] = { sid = 0x1141, name = "CPU%", unit = UNIT_PERCENT, prec = 0, dec = decU8 },
+    [85] = { 0x1141, name = "CPU%", unit = UNIT_PERCENT, prec = 0, dec = decU8 },
     -- System load
-    [86] = { sid = 0x1142, name = "SYS%", unit = UNIT_PERCENT, prec = 0, dec = decU8 },
+    [86] = { 0x1142, name = "SYS%", unit = UNIT_PERCENT, prec = 0, dec = decU8 },
     -- Realtime CPU load
-    [87] = { sid = 0x1143, name = "RT%", unit = UNIT_PERCENT, prec = 0, dec = decU8 },
+    [87] = { 0x1143, name = "RT%", unit = UNIT_PERCENT, prec = 0, dec = decU8 },
 
     -- Model ID
-    [88] = { sid = 0x1200, name = "MDL#", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [88] = { 0x1200, name = "MDL#", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- Flight mode flags
-    [89] = { sid = 0x1201, name = "Mode", unit = UNIT_RAW, prec = 0, dec = decU16 },
+    [89] = { 0x1201, name = "Mode", unit = UNIT_RAW, prec = 0, dec = decU16 },
     -- Arming flags
-    [90] = { sid = 0x1202, name = "ARM", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [90] = { 0x1202, name = "ARM", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- Arming disable flags
-    [91] = { sid = 0x1203, name = "ARMD", unit = UNIT_RAW, prec = 0, dec = decU32 },
+    [91] = { 0x1203, name = "ARMD", unit = UNIT_RAW, prec = 0, dec = decU32 },
     -- Rescue state
-    [92] = { sid = 0x1204, name = "Resc", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [92] = { 0x1204, name = "Resc", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- Governor state
-    [93] = { sid = 0x1205, name = "Gov", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [93] = { 0x1205, name = "Gov", unit = UNIT_RAW, prec = 0, dec = decU8 },
 
     -- Current PID profile
-    [95] = { sid = 0x1211, name = "PID#", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [95] = { 0x1211, name = "PID#", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- Current Rate profile
-    [96] = { sid = 0x1212, name = "RTE#", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [96] = { 0x1212, name = "RTE#", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- Battery profile
-    [97] = { sid = 0x1214, name = "BAT#", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [97] = { 0x1214, name = "BAT#", unit = UNIT_RAW, prec = 0, dec = decU8 },
     -- Current LED profile
-    [98] = { sid = 0x1213, name = "LED#", unit = UNIT_RAW, prec = 0, dec = decU8 },
+    [98] = { 0x1213, name = "LED#", unit = UNIT_RAW, prec = 0, dec = decU8 },
 
     -- Adjustment function
-    [99] = { sid = 0x1220, name = "ADJ", unit = UNIT_RAW, prec = 0, dec = decAdjFunc },
+    [99] = { 0x1220, name = "ADJ", unit = UNIT_RAW, prec = 0, dec = decAdjFunc },
 
     -- Packed status words; bit layout in rotorflight-firmware's src/main/telemetry/status.h.
     -- System status: armed, RX link, failsafe, GPS, battery, rescue and governor state, ...
-    [120] = { sid = 0x1230, name = "STAT", unit = UNIT_RAW, prec = 0, dec = decU32 },
+    [120] = { 0x1230, name = "STAT", unit = UNIT_RAW, prec = 0, dec = decU32 },
     -- System config: PID/rate/battery profile numbers, config and hardware state
-    [121] = { sid = 0x1231, name = "SCFG", unit = UNIT_RAW, prec = 0, dec = decU32 },
+    [121] = { 0x1231, name = "SCFG", unit = UNIT_RAW, prec = 0, dec = decU32 },
 
     -- Debug
-    [100] = {sid = 0xDB00, name = "DBG0", unit = UNIT_RAW, prec = 0, dec = decS32 },
-    [101] = {sid = 0xDB01, name = "DBG1", unit = UNIT_RAW, prec = 0, dec = decS32 },
-    [102] = {sid = 0xDB02, name = "DBG2", unit = UNIT_RAW, prec = 0, dec = decS32 },
-    [103] = {sid = 0xDB03, name = "DBG3", unit = UNIT_RAW, prec = 0, dec = decS32 },
-    [104] = {sid = 0xDB04, name = "DBG4", unit = UNIT_RAW, prec = 0, dec = decS32 },
-    [105] = {sid = 0xDB05, name = "DBG5", unit = UNIT_RAW, prec = 0, dec = decS32 },
-    [106] = {sid = 0xDB06, name = "DBG6", unit = UNIT_RAW, prec = 0, dec = decS32 },
-    [107] = {sid = 0xDB07, name = "DBG7", unit = UNIT_RAW, prec = 0, dec = decS32 },
+    [100] = { 0xDB00, name = "DBG0", unit = UNIT_RAW, prec = 0, dec = decS32 },
+    [101] = { 0xDB01, name = "DBG1", unit = UNIT_RAW, prec = 0, dec = decS32 },
+    [102] = { 0xDB02, name = "DBG2", unit = UNIT_RAW, prec = 0, dec = decS32 },
+    [103] = { 0xDB03, name = "DBG3", unit = UNIT_RAW, prec = 0, dec = decS32 },
+    [104] = { 0xDB04, name = "DBG4", unit = UNIT_RAW, prec = 0, dec = decS32 },
+    [105] = { 0xDB05, name = "DBG5", unit = UNIT_RAW, prec = 0, dec = decS32 },
+    [106] = { 0xDB06, name = "DBG6", unit = UNIT_RAW, prec = 0, dec = decS32 },
+    [107] = { 0xDB07, name = "DBG7", unit = UNIT_RAW, prec = 0, dec = decS32 },
 
     -- Smart fuel
-    [118] = {sid = 0x1015, name = "SmF%", unit = UNIT_PERCENT, prec = 0, dec = decS8 },
+    [118] = { 0x1015, name = "SmF%", unit = UNIT_PERCENT, prec = 0, dec = decS8 },
 
 }
 
@@ -413,7 +419,7 @@ local function initializeSensors(ids)
             local ptr = 1
             local val = sensor.dec(data, ptr)
             if val then
-                setTelemetryValue(sensor.sid, 0, 0, 0, sensor.unit, sensor.prec, sensor.name)
+                setTelemetryValue(sensor[1], 0, 0, 0, sensor.unit, sensor.prec, sensor.name)
             end
         end
     end
@@ -425,21 +431,21 @@ local function getSensorsBySid(ids)
         local id = ids[i]
         if id ~= 0 and sensorsById[id] ~= nil then
             local sensor = sensorsById[id]
-            result[sensor.sid] = { name = sensor.name, unit = sensor.unit, prec = sensor.prec, dec = sensor.dec }
+            result[sensor[1]] = { name = sensor.name, unit = sensor.unit, prec = sensor.prec, dec = sensor.dec }
         end
     end
     return result
 end
 
 if type(requestedSensorsById) == "table" then
-    -- Wird durch EdgeTX Sensor Discovery Feature aufgerufen
+    -- Called by EdgeTX's sensor discovery
     initializeSensors(requestedSensorsById)
     return getSensorsBySid(requestedSensorsById)
 else
-    -- Wird durch rfsuite (telemetry_bg Task) aufgerufen
+    -- Called by the suite's telemetry_bg task: the rows themselves are handed on, keyed by sensor id
     local result = {}
     for id, sensor in pairs(sensorsById) do
-        if id ~= 0 then result[sensor.sid] = { name = sensor.name, unit = sensor.unit, prec = sensor.prec, dec = sensor.dec } end
+        if id ~= 0 then result[sensor[1]] = sensor end
     end
     return result
 end
