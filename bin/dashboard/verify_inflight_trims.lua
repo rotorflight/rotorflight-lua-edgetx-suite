@@ -145,5 +145,29 @@ local poll=count(function() drive:pollTrims() end)
 drive.live=true; drive.phase="live"; drive.fastAt=nil
 drive.sessionProfiles={pid={[1]=true},rate={[1]=true}}
 local fast=count(function() ticks=ticks+5; drive:fastTick(ticks) end)
+-- Setup.trace, the trace-level twin of Setup.log: gated first, assembled only past the gate, emitted
+-- at trace on the overlay's tag. The logger it holds is reached through its upvalue.
+do
+  local log
+  for i=1,20 do
+    local name,value=debug.getupvalue(Setup.trace,i)
+    if name==nil then break end
+    if name=="Log" then log=value end
+  end
+  assert(type(log)=="table","Setup.trace holds the logger")
+  local wanted,emit=log.wanted,log.emit
+  local lines,asked={},{}
+  log.emit=function(tag,msg,level) lines[#lines+1]={tag,msg,level} end
+  log.wanted=function(level) asked[#asked+1]=level; return level=="info" end
+  Setup.trace("bank channel reads band %s (was %s)","2","1")
+  assert(#lines==0 and asked[#asked]=="trace","Setup.trace is silent where only info is wanted")
+  log.wanted=function(level) return level=="trace" end
+  Setup.trace("bank channel reads band %s (was %s)","2","1")
+  assert(#lines==1 and lines[1][1]=="rfsuite.inflight" and lines[1][3]=="trace"
+    and lines[1][2]=="bank channel reads band 2 (was 1)","Setup.trace emits the formatted line at trace")
+  Setup.log("control %d",1)
+  assert(#lines==1,"positive control: Setup.log stays at info and is not taken by a trace-only gate")
+  log.wanted,log.emit=wanted,emit
+end
 print(comparisons.." routing/read-count comparisons passed; sliced discovery, settings invalidation and disabled inputs passed")
 print("warm row poll: "..poll.." instructions; idle fastTick: "..fast.." instructions (stubs included)")

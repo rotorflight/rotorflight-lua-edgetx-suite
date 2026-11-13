@@ -53,6 +53,15 @@ end
 -- own now that the assembly past the gate lives here.
 M.log = logDrive
 
+-- The flow below info, for a reading that changes too often to be worth a line at info: the
+-- message is assembled past the same gate, at trace.
+function M.trace(fmt, ...)
+  if not (Log and type(Log.wanted) == "function" and Log.wanted("trace")) then return end
+  local msg = tostring(fmt)
+  if select("#", ...) > 0 then msg = string.format(msg, ...) end
+  Log.emit("rfsuite.inflight", msg, "trace")
+end
+
 -- What the two [inflight] sections hold, and what the overlay falls back to when they hold
 -- nothing. One table for both of them, keyed by M.RADIO_KEYS and M.MODEL_KEYS below: a default is
 -- a property of the setting rather than of the file it happens to live in, and two tables would
