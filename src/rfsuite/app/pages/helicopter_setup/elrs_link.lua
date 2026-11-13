@@ -46,11 +46,13 @@ function M.new(w)
     self.asked,self.signature,self.started=nil,nil,nil
     -- An unfinished Set on both ends with the task: nothing would carry it on.
     self.plan=nil
-    w.linkTick,w.stopLink=nil,nil
+    w.linkTick,w.stopLink,w.linkBusy=nil,nil,nil
   end
   function c:bind()
     w.linkTick=function() self:tick() end
     w.stopLink=function() self:stop() end
+    -- A running sync owns FC writes and their EEPROM commit; a memory stop waits for it.
+    w.linkBusy=function() return self:busy() end
   end
   function c:boardText()
     if not self:applies() then return L.linkNeedsCrsf end

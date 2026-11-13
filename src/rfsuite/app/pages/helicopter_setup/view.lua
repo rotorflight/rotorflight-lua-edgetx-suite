@@ -214,10 +214,13 @@ function M.new(w, ctx, diagrams)
     -- Out of radio memory: every test is released; the visit can only be left.
     all[#all+1]=label(12,48,width-24,w.L.memoryStop);all[#all].h=72;all[#all].color=palette.error
     local y=124
-    if w.cleanupFailed then
+    -- "Released" only when every release was answered; a lost link sent none.
+    if w.cleanupFailed or w.needsRelease then
       all[#all+1]=label(12,y,width-24,w.L.cleanupFailed);all[#all].h=48;all[#all].color=palette.warning;y=y+52
     elseif w.error~="memory" then
       all[#all+1]=label(12,y,width-24,w.errorText and w:errorText() or w.error);all[#all].color=palette.error;y=y+28
+    else
+      all[#all+1]=label(12,y,width-24,w.L.testsReleased);all[#all].color=palette.text;y=y+28
     end
     local idle=function() return not w.transition end
     if next(w.dirty) then

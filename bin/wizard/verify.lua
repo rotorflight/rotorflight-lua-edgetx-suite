@@ -839,6 +839,19 @@ do
   w.buildRequested=true
   for _=1,20 do w:tick();pump();ticks=ticks+1 end
   check(w.cards==stopCards and w.buildRequested==true,"a card build asked for after the stop loads no step")
+  -- A running ELRS link sync owns FC writes and their EEPROM commit: the stop waits for it.
+  w=world();local syncing=true;w.linkBusy=function() return syncing end
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  check(not w.memoryStop and w.memoryOwed,"an ELRS link sync is not cut off")
+  syncing=false;w:tick()
+  eq(w.memoryStop,"releasing","the owed stop follows the ELRS link sync")
+  -- The stop screen says "released" only when every release was answered.
+  for _=1,60 do w:tick();pump();ticks=ticks+1;if w.memoryStop==true then break end end
+  local shown=stopScreen(w)
+  check(shown[L.testsReleased]~=nil and shown[L.cleanupFailed]==nil,"a confirmed release says the tests were released")
+  w.needsRelease=true
+  shown=stopScreen(w)
+  check(shown[L.testsReleased]==nil and shown[L.cleanupFailed]~=nil,"a release never sent is not called released")
   getAvailableMemory=savedFree
 end
 -- Whole-table work is generated one record per pass, with EEPROM last.

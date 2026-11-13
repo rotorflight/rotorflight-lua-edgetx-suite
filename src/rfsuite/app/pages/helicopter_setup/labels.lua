@@ -190,6 +190,7 @@ local L = {
   releasingTests = "@i18n(app.modules.helicopter_setup.releasingTests)@",
   memoryLow = "@i18n(app.modules.helicopter_setup.memoryLow)@",
   memoryStop = "@i18n(app.modules.helicopter_setup.memoryStop)@",
+  testsReleased = "@i18n(app.modules.helicopter_setup.testsReleased)@",
   closeWizard = "@i18n(app.modules.helicopter_setup.closeWizard)@",
   recoveryRequired = "@i18n(app.modules.helicopter_setup.recoveryRequired)@",
 

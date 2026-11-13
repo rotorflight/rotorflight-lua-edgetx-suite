@@ -586,7 +586,7 @@ radio has left:
   **Close**. Back closes it when nothing is unsaved. No other card opens from this screen. Restart
   the radio before opening the wizard again.
 
-A save, a restart or an ESC parameter transfer already running finishes before the stop. Where the radio does not report its
+A save, a restart, an ESC parameter transfer or an ELRS link sync already running finishes before the stop. The stop screen says the tests were released only when every release was answered; with the link lost it says they were not confirmed off. Where the radio does not report its
 free memory (the EdgeTX simulator), the wizard does not check it.
 
 ## Session Logs

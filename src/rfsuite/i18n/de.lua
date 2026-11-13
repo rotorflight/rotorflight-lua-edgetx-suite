@@ -236,7 +236,8 @@ return {
         cleanupFailed = "Testausgänge nicht als AUS bestätigt. FC stromlos machen und prüfen.",
         releasingTests = "Testausgänge werden freigegeben...",
         memoryLow = "Senderspeicher wird knapp: bald speichern und verlassen.",
-        memoryStop = "Zu wenig Senderspeicher zum Weitermachen. Alle Tests wurden freigegeben. Assistent verlassen und Sender neu starten.",
+        memoryStop = "Zu wenig Senderspeicher zum Weitermachen. Assistent verlassen und Sender neu starten.",
+        testsReleased = "Alle Tests wurden freigegeben.",
         closeWizard = "Schließen",
         recoveryRequired = "Letzter Lauf unterbrochen. FC neu starten.",
 
