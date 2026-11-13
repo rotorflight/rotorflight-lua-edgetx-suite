@@ -1,2 +1,1 @@
-- **The first connect after switching the radio on no longer reloads the preferences (`widgets/dashboard`)**:
-  - The model's file joining the preferences check once the board's UID is read is taken as it stands, since that read has just loaded the model's preferences from it, instead of re-reading both preference files, rebuilding the language context and dropping the theme in a connect pass that ran close to the 20 000-instruction limit; on the simulator that pass came down by 7 to 18 percentage points of the limit. Both files are still read when the reload request moved with it (#1193).
+- **The first connect after switching the radio on no longer reloads the preferences it has just loaded (`widgets/dashboard`)** (#1193)
