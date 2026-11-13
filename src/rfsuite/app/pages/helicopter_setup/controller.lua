@@ -17,9 +17,10 @@ end
 local function now() return getTime() end
 local TAG = "rfsuite.helicopter_setup"
 -- Free radio memory, in kB, below which the wizard warns and below which it stops. Running out
--- closes the whole Lua state; a motor test held at that moment, or a servo or mixer test on
--- firmware without the override timeout, stays active with nothing left to release it. One card change was seen to take about 100 kB on a radio; the levels leave
--- room for that and for the stop screen.
+-- closes the whole Lua state; a servo or mixer test held at that moment on firmware without the
+-- override timeout stays active with nothing left to release it (a motor test lapses on the
+-- flight controller a second after its last refresh). One card change was seen to take about
+-- 100 kB on a radio; the levels leave room for that and for the stop screen.
 local MEMORY_WARN_KB, MEMORY_STOP_KB = 350, 250
 -- A reading this small is not a heap about to run out: the simulator answers a constant 1000 bytes.
 local MEMORY_FLOOR_KB = 4
@@ -1178,6 +1179,9 @@ function M.new(runtime, transport, mathModule, labels)
       end
     end
     if not self.bus:idle() then self.bus:tick(); return end
+    -- After a memory stop only the queued save, discard and close run, on the transport above:
+    -- no card is built, no live write is sent, nothing is polled.
+    if self.memoryStop then return end
     if self.buildRequested and self.ready then
       -- Only a plain card move may reuse the step's cards; any other request builds them anew.
       local kept = self.buildRequested == "card" and self.keptCards

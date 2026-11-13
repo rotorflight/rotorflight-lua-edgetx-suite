@@ -826,6 +826,19 @@ do
   check(not w.memoryStop and w.memoryOwed,"an ESC transaction is not cut off")
   w.escBusy=nil;w:tick()
   eq(w.memoryStop,"releasing","the owed stop follows the ESC transaction")
+  -- From the stop on, only the transport runs: a pending live write is not sent, and a card build
+  -- asked for later (the model-preparation pass, say) loads no step file.
+  w=world();w.live={motor_config=true}
+  q.sent={}
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  for _=1,60 do w:tick();pump();ticks=ticks+1;if w.memoryStop==true then break end end
+  local liveSent=false
+  for _,m in ipairs(q.sent) do if m.command==api("motor_config").writeCommand then liveSent=true end end
+  check(w.memoryStop==true and not liveSent,"no live write is sent after the stop")
+  local stopCards=w.cards
+  w.buildRequested=true
+  for _=1,20 do w:tick();pump();ticks=ticks+1 end
+  check(w.cards==stopCards and w.buildRequested==true,"a card build asked for after the stop loads no step")
   getAvailableMemory=savedFree
 end
 -- Whole-table work is generated one record per pass, with EEPROM last.

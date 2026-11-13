@@ -574,8 +574,9 @@ It does not jump out of an active bench test through a web-style tab shortcut.
 ## When radio memory runs low
 
 Each new card takes some of the radio's memory, and a radio that runs out stops all of its Lua
-scripts at once. A motor test held at that moment would stay active, and so would a servo or mixer
-test on firmware without the override timeout; the flight controller refuses to arm while one is. So after each new card the wizard reads how much memory the
+scripts at once. A servo or mixer test held at that moment would stay active on firmware without the
+override timeout (a motor test stops by itself a second later), and the flight controller refuses to
+arm while one is. So after each new card the wizard reads how much memory the
 radio has left:
 
 - below 350 kB the status line says *Radio memory is low: save and leave soon.* Nothing else
