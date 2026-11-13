@@ -172,8 +172,9 @@ because they are not the same event:
   over the first few reads -- no more than four values start their search in one pass of the
   widget, however long that pass runs, no more than one value repeats a search in it, and the
   arming state is not held back -- so after a reconnect the dashboard's values appear over about
-  two seconds rather than all on the first read. The same applies when the widget starts, and
-  when the link is lost, which is the moment every value searches again and finds nothing.
+  two seconds rather than all on the first read, and somewhat later where other readers in the
+  same pass start searches of their own. The same applies when the widget starts, and when the
+  link is lost, which is the moment every value searches again and finds nothing.
 - **The configuration tool** forgets the choice once, on the audio tick where it stops
   considering the connection ready -- no link quality, no battery reading, or no flight
   controller answering. While it waits it keeps reading link quality, voltage and fuel on every
