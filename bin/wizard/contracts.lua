@@ -556,6 +556,25 @@ return function(h)
               end
             end
             check(named or card.title==LL.steps[index] and #cards==1,string.format("FIT %s %dx%d step %d card %d header names the card or its place",locale,size[1],size[2],index,c))
+            -- Below the header: a one-line label or value holds its text, and a button's caption fits
+            -- inside the button's padding, so nothing wraps into the next row or the status line.
+            local pad=size[1]>=700 and 20 or 16
+            for _,item in ipairs(scene.children) do
+              local text=item.text
+              if type(text)=="function" then text=text() end
+              -- A row label carries no height of its own (one line); a text this test cannot resolve
+              -- (another page's i18n key) is not measured.
+              if type(text)=="string" and text~="" and item.y and item.w and item.y>=(size[1]>=700 and 30 or 20)
+                and not string.find(text,string.char(10),1,true) and not string.find(text,"@i18n(",1,true) then
+                if item.type=="label" and (item.h or 0)<34 then
+                  local need=width(text,item.font)
+                  check(need<=item.w,string.format("FIT %s %dx%d step %d card %d label '%s' %d fits %d",locale,size[1],size[2],index,c,text,need,item.w))
+                elseif item.type=="button" and text~="?" then
+                  local need=width(text,item.font or SMLSIZE)+pad
+                  check(need<=item.w,string.format("FIT %s %dx%d step %d card %d button '%s' %d fits %d",locale,size[1],size[2],index,c,text,need,item.w))
+                end
+              end
+            end
           end
         end
         -- The step menu's buttons.

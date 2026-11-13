@@ -325,8 +325,10 @@ function M.new(w, ctx, diagrams)
     -- The status line's top: everything a card draws ends above it.
     local cardBottom = height-controlH-(large and 40 or 27)
     -- Without a picture the controls follow right after a label column, leaving space on the
-    -- right; beside a picture they keep to the form column's right edge.
-    local labelW = not illustrated and not attitudeCard and (large and 280 or math.floor(formW*0.36)) or nil
+    -- right; beside a picture they keep to the form column's right edge. On the 480-wide screens
+    -- there is no room to leave: the label and the control share the width, so a German label or
+    -- value still fits one line.
+    local labelW = not illustrated and not attitudeCard and (large and 280 or math.floor(formW*0.5)) or nil
     -- Overview cards (blocks, a table, bars) draw across the full width below the summary.
     local overviewY = rowY
     if card.dense and slots > 0 then
@@ -519,7 +521,7 @@ function M.new(w, ctx, diagrams)
         local editX = formX+formW-editW
         local textW = formW-editW-8
         if labelW and not r.fullWidth then
-          editW = large and 270 or math.min(formW-labelW, 190)
+          editW = large and 270 or formW-labelW
           editX, textW = formX+labelW, labelW-8
         end
         local bandH = r.kind == "value" and (card.link=="overview" or card.dense or fitRows)
