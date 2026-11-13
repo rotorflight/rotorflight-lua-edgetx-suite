@@ -36,7 +36,8 @@ Read-only while the model is armed.
 The left panel shows the live roll, pitch and yaw, the offsets as set, the view's yaw, and the
 nose direction (*Nose Up*, *Nose Down* or *Nose Level*, with *Leaning Left* or *Leaning Right*
 when the board rolls more than 3.5 degrees). The picture on the right is the helicopter with the
-offsets applied; its nose face is drawn in the accent colour.
+offsets applied, drawn in the colour scheme of *Settings* > *General* > *Appearance*: outlines and
+blades in the text colour, the fuselage in three greys, the nose face in the accent colour.
 
 The picture moves only when roll or pitch has changed by more than 0.3 degrees, or yaw has
 changed, since it was last drawn, so a model lying still holds a steady picture. The readouts on

@@ -3486,7 +3486,7 @@ return {
       diagnostics_session_logs = {
         no_logs = "Keine Protokolle verfügbar",
         loading = "Lade Protokolle...",
-        help_message = "Zeigt die letzten Log-Zeilen, die dieses Skript im Speicher hält, die neueste unten, nach Stufe eingefärbt. Die Seite aktualisiert sich selbst, sobald Zeilen eintreffen; RELOAD zeichnet sie nur neu. Die Liste liegt im Speicher und ist weg, sobald das Skript endet - schalte dafür Log Session To Card unter Developer > Settings ein, um eine Kopie für einen Bericht zu behalten."
+        help_message = "Die letzten Log-Zeilen, die dieses Skript im Speicher hält, neueste unten, nach Stufe gefärbt; weg, sobald es endet, außer Sitzungslog auf Karte (Entwickler > Einstellungen) ist an.\nNeu laden (Kopfzeile): zeichnet die Seite neu; sie aktualisiert sich auch selbst, sobald Zeilen eintreffen."
       },
       diagnostics_smartfuel = {
         protocol = "Protokoll",
@@ -4153,6 +4153,8 @@ return {
         graph_curve = "Kurve",
         graph_none = "Keiner",
         graph_flight = "Flug",
+        graph_flight_help = "Welcher Flug des Logs gezeichnet wird; ein Log kann mehrere enthalten, jeder mit seiner Dauer.",
+        graph_curve_help = "Eine Spalte des Logs, die als diese Kurve gezeichnet wird, oder Keiner; bis zu vier Kurven, jede in eigener Farbe.",
         graph_show = "Anzeigen",
         graph_full = "Ganz",
         graph_curves = "Sensoren",
