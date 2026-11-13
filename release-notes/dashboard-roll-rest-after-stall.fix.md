@@ -1,1 +1,1 @@
-- **The rotary menu settling right after the radio stalled no longer risks disabling the widget (`widgets/dashboard`)**
+- **The rotary menu settling right after the radio stalled waits a pass instead of sharing the catch-up pass (`widgets/dashboard`)**
