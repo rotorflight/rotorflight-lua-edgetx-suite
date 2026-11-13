@@ -520,17 +520,29 @@ function Events.wakeup(carry)
   else
     state.linkUpSince = nil
     if not state.linkDownSince then state.linkDownSince = t end
+    local publishedDown = false
     if state.linkStableUp and (t - state.linkDownSince) >= DISCONNECT_STABLE_SECONDS then
       state.linkStableUp = false
       publishConnected(false)
+      publishedDown = true
     end
     -- Only once the link is HELD to be down. The two seconds above exist because a brief
     -- telemetry dropout is not a disconnect, and a restore inside one would rename the model in
     -- flight and spend the record -- while linkStableUp never changed, so the returning link
     -- publishes no connect and nothing writes the craft name back for the rest of the flight. A
     -- cold start is unaffected: linkStableUp starts false, so the first pass still restores.
+    --
+    -- Not in the call that published the disconnect: that call has already reset every runner
+    -- and re-read the name store, and the restore writes the model and the store as well. It
+    -- runs on the next call instead, one logic tick later.
     if not state.linkStableUp then
-      restorePendingModelName()
+      if publishedDown then
+        if Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+          pcall(Log.emit, "rfsuite.events", "model name restore waits for the next call after the link-down work", "trace")
+        end
+      else
+        restorePendingModelName()
+      end
     end
   end
   if state.flightPendingSince ~= nil and state.linkStableUp then

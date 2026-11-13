@@ -1,0 +1,2 @@
+- **The seconds after a lost link no longer pile their work into one dashboard pass (`lib/sensors.lua`, `tasks/events`, `widgets/dashboard`)**:
+  - A lost link keeps the list of the model's sensor slots, so it is no longer made again two seconds after the edge, in the same pass as the disconnect's runner resets; the model's own name is put back on the call after those resets instead of in it.

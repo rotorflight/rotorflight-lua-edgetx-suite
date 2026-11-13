@@ -5207,8 +5207,10 @@ function Runtime.new(zone, options)
       self.state.packNotFull = nil
       self.state.previousSessionFuel = self.state.fuel
       self.state.fuel = 0.0
+      -- "link_lost" keeps the model's slot walk: the sensor table has not changed, and a walk two
+      -- seconds from now would share a pass with the event runtime's link-down work.
       if Sensors and type(Sensors.reset) == "function" then
-        Sensors.reset()
+        Sensors.reset("link_lost")
       end
       -- The link is gone, so nothing can report what the board is doing with what the overlay
       -- last wrote. Both variables go back to 0 here rather than being left for the next tuning pass.
@@ -5396,6 +5398,9 @@ function Runtime.new(zone, options)
   -- for theme loads into a structural rule for every build.
   function widget.refresh(self, event, touchState)
     traceInstructionUsage(self)
+    -- The sensor searches count their per-pass caps against this call, however many clock ticks
+    -- it spans (lib/sensors.lua, Sensors.passBegins).
+    if Sensors and Sensors.passBegins then Sensors.passBegins() end
 
     -- The firmware calls refresh() for the widget the pilot is looking at and background() for
     -- every other one, so this is where "on screen" is known. The overlay drives only from here.
@@ -6106,6 +6111,7 @@ function Runtime.new(zone, options)
   end
 
   function widget.background(self)
+    if Sensors and Sensors.passBegins then Sensors.passBegins() end
     -- Off screen. The overlay's own tick refuses to drive from here and cleans up instead, which
     -- is what makes a widget scrolled away stop writing the two variables.
     if self._foreground == true and self._shmOn then

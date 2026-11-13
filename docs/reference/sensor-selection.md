@@ -150,7 +150,8 @@ the values move to the flight controller's rows by themselves.
   sensor, which the native telemetry creates and the suite never does. On such a model the suite
   lists the model's sensors about two seconds after each connection, and again when a search meets
   a sensor that has never received anything while one has been added since; a model without
-  `RxBt` reads every name as before.
+  `RxBt` reads every name as before. A lost link keeps the list -- the model's sensors have not
+  changed -- so it is not made again in the seconds after the link goes.
 - **A sensor added after that list is noticed by a search.** On a model that meets custom
   telemetry for the first time while the native rows still hold a value -- the telemetry mode
   changed with the radio left on -- the values stay on the native rows until the next connection.
@@ -168,10 +169,12 @@ because they are not the same event:
 
 - **The dashboard widget** forgets the choice on its own link edges, so a session that begins
   after a reconnect matches everything again from the top of its list. That matching is spread
-  over the first few reads -- normally no more than four values start their search in one pass,
-  and the arming state is not held back -- so after a reconnect the dashboard's values appear
-  over about two seconds rather than all on the first read, and somewhat later where other
-  readers in the same pass start searches of their own. The same applies when the widget starts.
+  over the first few reads -- no more than four values start their search in one pass of the
+  widget, however long that pass runs, no more than one value repeats a search in it, and the
+  arming state is not held back -- so after a reconnect the dashboard's values appear over about
+  two seconds rather than all on the first read, and somewhat later where other readers in the
+  same pass start searches of their own. The same applies when the widget starts, and when the
+  link is lost, which is the moment every value searches again and finds nothing.
 - **The configuration tool** forgets the choice once, on the audio tick where it stops
   considering the connection ready -- no link quality, no battery reading, or no flight
   controller answering. While it waits it keeps reading link quality, voltage and fuel on every
