@@ -1050,7 +1050,8 @@ local board = { seconds = 0 }
 
 -- pump(), answering each read with the board's numbers and emptying them on an answered clear.
 -- `failClear`: that many clears end in a link error. `stopAtClear`: return with the first clear
--- still on the queue, unanswered.
+-- still on the queue, unanswered. A message with `sendIf` is asked first, as tasks/msp/queue.lua
+-- asks it before every send, and withheld when the answer is not true.
 local function boardPump(failClear, stopAtClear)
   local asked = {}
   local stopAt = rig.clock + 40
@@ -1062,14 +1063,18 @@ local function boardPump(failClear, stopAtClear)
       local name = rig.name(msg)
       if name == "clear" and stopAtClear then return table.concat(asked, ","), msg end
       rig.take()
-      if name ~= "rc_tuning" and name ~= "pid_profile" then asked[#asked + 1] = name end
-      if name == "clear" and (failClear or 0) > 0 then
-        failClear = failClear - 1
-        msg.errorHandler(msg, "timeout")
+      if msg.sendIf and msg.sendIf(msg) ~= true then
+        msg.errorHandler(msg, "withheld")
       else
-        rig.reply.seconds = board.seconds
-        rig.answer(msg)
-        if name == "clear" then board.seconds = 0 end
+        if name ~= "rc_tuning" and name ~= "pid_profile" then asked[#asked + 1] = name end
+        if name == "clear" and (failClear or 0) > 0 then
+          failClear = failClear - 1
+          msg.errorHandler(msg, "timeout")
+        else
+          rig.reply.seconds = board.seconds
+          rig.answer(msg)
+          if name == "clear" then board.seconds = 0 end
+        end
       end
     end
   end
@@ -1099,6 +1104,27 @@ local function savedSeconds()
   local out = {}
   for _, flight in ipairs(tuneHistory.read(MCU)) do out[#out + 1] = tostring(flight.seconds) end
   return table.concat(out, ",")
+end
+
+-- Like boardPump, but stops on the pass that saves the flight: the clear is owed then and waits its
+-- GAP_SECONDS, not on the queue yet. Only tasks/events/runtime.lua's own drop rules (an arm, a link
+-- loss, a time without passes) can give it up in that window; no queue drop is involved.
+local function boardPumpUntilSaved()
+  local asked = {}
+  local stopAt = rig.clock + 40
+  while rig.clock < stopAt and savedSeconds() == "" do
+    rig.clock = rig.clock + 0.5
+    rig.pass()
+    while rig.requests[1] do
+      local msg = rig.take()
+      local name = rig.name(msg)
+      if name ~= "rc_tuning" and name ~= "pid_profile" then asked[#asked + 1] = name end
+      rig.reply.seconds = board.seconds
+      rig.answer(msg)
+    end
+  end
+  local cap = rig.capture()
+  return table.concat(asked, ","), cap and cap.clearPending == true and rig.requests[1] == nil
 end
 
 do
@@ -1140,6 +1166,45 @@ do
   boardPump()
   check("the next disarm reads what the board held", savedSeconds() == "140,230" and board.seconds == 0,
     savedSeconds() .. " / board " .. board.seconds)
+end
+
+-- The same three in the window between the save and the clear going on the queue: here only the
+-- runtime's drop rules stand between the owed clear and the next flight
+do
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  local asked, owed = boardPumpUntilSaved()
+  check("(setup) flight one saved, its clear owed and not queued yet", asked == "roll,pitch,yaw" and owed == true
+    and savedSeconds() == "140", asked .. " / owed " .. tostring(owed))
+  boardFly(60, 1)
+  asked = boardPump()
+  check("armed before the owed clear was queued: it is not sent, the next flight is read and saved",
+    string.sub(asked, 1, 4) == "roll" and savedSeconds() == "140,200", asked .. " / " .. savedSeconds())
+
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  asked, owed = boardPumpUntilSaved()
+  check("(setup) flight one saved, its clear owed and not queued yet", owed == true, asked)
+  rig.setLink(false)
+  rig.passes(80, 1)
+  board.seconds = board.seconds + 60
+  rig.setLink(true)
+  asked = boardPump()
+  check("a link loss before the owed clear was queued: it is not sent when the link is back",
+    asked == "" and board.seconds == 200, asked .. " / board " .. board.seconds)
+
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  asked, owed = boardPumpUntilSaved()
+  check("(setup) flight one saved, its clear owed and not queued yet", owed == true, asked)
+  rig.clock = rig.clock + 200
+  board.seconds = board.seconds + 120
+  asked = boardPump()
+  check("a time without passes before the owed clear was queued: it is not sent afterwards",
+    asked == "" and board.seconds == 260, asked .. " / board " .. board.seconds)
 end
 
 do
