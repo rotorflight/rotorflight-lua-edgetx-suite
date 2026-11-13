@@ -7,8 +7,11 @@ local prerequisites = {
 }
 function M.attach(w, store)
   local session = w:session()
-  -- The radio model's name, as the preparation card shows it, keys the remembered preparation.
-  local radioModel = w.activeModelName ~= w.L.unknown and w.activeModelName or nil
+  -- The radio model keys the remembered preparation: its file on the card, which no two models
+  -- share, else the name the preparation card shows.
+  local info = type(model)=="table" and type(model.getInfo)=="function" and model.getInfo()
+  local radioModel = type(info)=="table" and type(info.filename)=="string" and info.filename~="" and info.filename
+    or (w.activeModelName ~= w.L.unknown and w.activeModelName or nil)
   w.history = store.new(session.mcu_id, session.modelPreferencesFile, radioModel)
   function w:updateHistoryHints()
     local missing, lines = 0, {}
