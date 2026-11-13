@@ -270,10 +270,6 @@ local function decU8(data, pos)
     return data[pos], pos+1
 end
 
-local function decU16(data, pos)
-    return bit32.lshift(data[pos],8) + data[pos+1], pos+2
-end
-
 local CrsfManager = nil
 
 -- How long the drain waits before asking the loader again for one of its modules that did not
@@ -389,11 +385,13 @@ local function decodeFrame(data, now)
     walkOnly = false
     decodeNow = now
     local ptr = 4
-    while ptr < #data do
-        sid,ptr = decU16(data, ptr)
+    local n = #data
+    while ptr < n do
+        sid = data[ptr]*256 + data[ptr+1]
         local sensor = RFSensors[sid]
-        if sensor and type(sensor.dec) == "function" then
-            val,ptr = sensor.dec(data, ptr)
+        local dec = sensor and sensor.dec
+        if dec then
+            val,ptr = dec(data, ptr + 2)
             if val and (passFresh or (sid ~= SID_ARMING_FLAGS and sid ~= SID_SYSTEM_STATUS)
                     or armedStateTrusted(val)) then
                 publishSensorValue(sid, val, sensor, now)
@@ -413,11 +411,13 @@ local function decodeFrameTraced(data, now)
     decodeNow = now
     local ptr = 4
     local decoded = 0
-    while ptr < #data do
-        sid,ptr = decU16(data, ptr)
+    local n = #data
+    while ptr < n do
+        sid = data[ptr]*256 + data[ptr+1]
         local sensor = RFSensors[sid]
-        if sensor and type(sensor.dec) == "function" then
-            val,ptr = sensor.dec(data, ptr)
+        local dec = sensor and sensor.dec
+        if dec then
+            val,ptr = dec(data, ptr + 2)
             decoded = decoded + 1
             if val and (passFresh or (sid ~= SID_ARMING_FLAGS and sid ~= SID_SYSTEM_STATUS)
                     or armedStateTrusted(val)) then
@@ -706,20 +706,21 @@ local function rescueAdjustment(data, now)
     local ptr = 4
     walkOnly = true
     decodeNow = now
-    while ptr < #data do
-        local sid
-        sid, ptr = decU16(data, ptr)
+    local n = #data
+    while ptr < n do
+        local sid = data[ptr]*256 + data[ptr+1]
         local sensor = RFSensors[sid]
-        if not sensor or type(sensor.dec) ~= "function" then break end
+        local dec = sensor and sensor.dec
+        if not dec then break end
         if sid == SID_ADJUSTMENT then
             walkOnly = false
             local val
-            val, ptr = sensor.dec(data, ptr)
+            val, ptr = dec(data, ptr + 2)
             if val then publishSensorValue(sid, val, sensor, now) end
             return true
         end
         local _
-        _, ptr = sensor.dec(data, ptr)
+        _, ptr = dec(data, ptr + 2)
     end
     walkOnly = false
     return false
@@ -844,13 +845,14 @@ local function publishArmedSource(data, now, withStatus, newerArmed)
     local ptr = 4
     local statusFound, statusArmed = false, false
     walkOnly = true
-    while ptr < #data do
-        local sid
-        sid, ptr = decU16(data, ptr)
+    local n = #data
+    while ptr < n do
+        local sid = data[ptr]*256 + data[ptr+1]
         local sensor = RFSensors[sid]
-        if not sensor or type(sensor.dec) ~= "function" then break end
+        local dec = sensor and sensor.dec
+        if not dec then break end
         local val
-        val, ptr = sensor.dec(data, ptr)
+        val, ptr = dec(data, ptr + 2)
         if sid == SID_ARMING_FLAGS then
             walkOnly = false
             -- An untrusted disarmed reading is neither published nor the end of the search.
