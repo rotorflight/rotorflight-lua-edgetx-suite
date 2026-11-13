@@ -950,12 +950,6 @@ local function guessReconnect(case, k)
   return world
 end
 
-for _, k in ipairs({ 0, 5, 9, 10, 11, 20, 40 }) do guessReconnect("guess", k) end
-guessReconnect("late", 70)
-guessReconnect("nosensor", nil)
-guessReconnect("full", 40)
-guessReconnect("stale", 20)
-
 -- "gone": the sensor answered on the first connection and never again (another flight controller
 -- on the model, or the sensor taken off its telemetry list). The first reconnect on a guess that
 -- differs waits out the limit once and forgets the sensor's count; the next reconnect is not held.
@@ -990,6 +984,12 @@ do
   expect(wait2 ~= nil and wait2 <= 14, "gone: the next reconnect is not held for a sensor that stays silent",
     tostring(wait2) .. " pass(es) after ready")
 end
+
+for _, k in ipairs({ 0, 5, 9, 10, 11, 20, 40 }) do guessReconnect("guess", k) end
+guessReconnect("late", 70)
+guessReconnect("nosensor", nil)
+guessReconnect("full", 40)
+guessReconnect("stale", 20)
 
 -- The memory probe's own control: an allocation it must see.
 do
