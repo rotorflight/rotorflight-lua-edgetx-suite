@@ -914,6 +914,8 @@ local function queueHistoryRead()
   ui.seenSaved = capture and capture.saved or nil
   ui.loadStep = ui.mcu and "profiles" or nil
   ui.activePid, ui.activeRate, ui.profilesReading = nil, nil, false
+  -- A status read still out for an earlier read of the flights is not this one's (see readActiveProfiles)
+  ui.profileRead = (ui.profileRead or 0) + 1
   ui.unsavedSeconds, ui.flightCount = 0, 0
   ui.probeOwed = true
 end
@@ -952,27 +954,37 @@ local function readActiveProfiles()
   if not api then settleProfiles(nil, nil, armed and "session, armed" or "session"); return end
   ui.profilesReading = true
   render()
-  local generation = ui.generation
+  local generation, token = ui.generation, ui.profileRead
+  -- Only the newest read settles the profiles: Reload, or a newly saved flight, starts another
+  -- read of the flights while this one may still be out
+  local function stale()
+    if generation == ui.generation and token == ui.profileRead then return false end
+    pageLog("debug", "status reply for an earlier read of the flights ignored")
+    return true
+  end
   queue:add({
     command = api.command,
     isWrite = false,
     maxRetries = 2,
     simulatorResponse = api.simulatorResponse,
     processReply = function(_, buf)
-      if generation ~= ui.generation then return end
+      if stale() then return end
       local parsed = type(buf) == "table" and #buf >= STATUS_PROFILE_BYTES and api.parse(buf) or nil
       local p = parsed and tonumber(parsed.current_pid_profile_index)
       local r = parsed and tonumber(parsed.current_control_rate_profile_index)
       if p and r then
-        pcall(Profile.setSessionPidProfile, p)
-        pcall(Profile.setSessionRateProfile, r)
+        -- Without lib/profile.lua the session is not told, but the page still uses what was read
+        if Profile then
+          pcall(Profile.setSessionPidProfile, p)
+          pcall(Profile.setSessionRateProfile, r)
+        end
         settleProfiles(p + 1, r + 1, "read")
       else
         settleProfiles(nil, nil, "session, read not understood")
       end
     end,
     errorHandler = function(_, reason)
-      if generation ~= ui.generation then return end
+      if stale() then return end
       settleProfiles(nil, nil, "session, read " .. tostring(reason))
     end
   })

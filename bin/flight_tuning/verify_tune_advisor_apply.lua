@@ -159,6 +159,7 @@ local real = {
 }
 function loadScript(path)
   local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
+  if stubs[relative] == false then return nil end   -- a module that does not load
   if stubs[relative] then local mod = stubs[relative]; return function() return mod end end
   assert(real[relative], "unexpected module: " .. tostring(path))
   return assert(loadfile(ROOT .. relative))
@@ -407,6 +408,20 @@ end
 
 clearCard()
 resetFc()
+
+print("Differences from the Ethos suite: lib/profile.lua does not load")
+do
+  -- First, before the page has loaded it once: the status read's reply must not index the missing
+  -- module, and the flights are still read (on the profiles read, PID 1 / rates 1 here)
+  local saved = stubs["lib/profile.lua"]
+  stubs["lib/profile.lua"] = false
+  local ok, err = pcall(openPage)
+  check("the status reply without lib/profile.lua: no error, the flights are read and shown",
+    ok and ui.loadStep == nil and ui.activePid == 1 and string.find(ui.view.data or "", "1/5", 1, true) ~= nil,
+    ok and tostring(ui.view.data) or tostring(err))
+  stubs["lib/profile.lua"] = saved
+  resetFlights()
+end
 
 print("Ethos suite: Apply writes only the advised fields")
 do
@@ -1011,6 +1026,50 @@ do
   twoFlights({ cyclicRing = 80 })
   check("an older flight ended by another setting on the same profiles: no line about profiles", shown("1/5")
     and not contains(ui.view.whys, OTHER), seen())
+  resetFlights()
+
+  -- Reload while the status read is still out: only the newest read settles the profiles. A flight
+  -- on PID 2 and one on PID 1; the stale read answers PID 2, the new one PID 1
+  resetFc()
+  files[TuneHistory.path(MCU)] = nil
+  files[TuneHistory.path(MCU) .. ".bak"] = nil
+  flightContext = { pidProfile = 2, rateProfile = 1 }
+  saveFlight()
+  flightContext = nil
+  saveFlight()
+  local function statusFor(pid)
+    local buf = {}
+    for i, b in ipairs(codecs.status.simulatorResponse) do buf[i] = b end
+    buf[24], buf[26] = pid - 1, 0
+    return buf
+  end
+  local function nextStatus()
+    for _ = 1, 40 do
+      ticks = ticks + 5
+      Page.wakeup(ctx)
+      for i, m in ipairs(queue.entries) do
+        if m.command == codecs.status.command then return table.remove(queue.entries, i) end
+      end
+    end
+  end
+  if opened then Page.onClose() end
+  queue.entries = {}
+  build()
+  opened = true
+  local first = nextStatus()
+  Page.onReload()
+  local second = nextStatus()
+  if first then first.processReply(first, statusFor(2)) end
+  for _ = 1, 3 do ticks = ticks + 5; Page.wakeup(ctx) end
+  if second then second.processReply(second, statusFor(1)) end
+  queue.entries = {}
+  pump()
+  check("Reload while a status read is out: the stale reply does not settle the profiles, PID 1's flight is shown",
+    first ~= nil and second ~= nil and ui.activePid == 1
+      and ui.view.data ~= string.format(ui.text.noFlightProfileFmt or "?", 1, 1)
+      and string.find(ui.view.data or "", "1/5", 1, true) ~= nil,
+    tostring(first ~= nil) .. "/" .. tostring(second ~= nil) .. " / PID " .. tostring(ui.activePid) .. " / "
+      .. tostring(ui.view.data))
   resetFlights()
 end
 
