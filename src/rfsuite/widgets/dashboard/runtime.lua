@@ -2923,6 +2923,18 @@ local function updateConnectionState(self)
             now - (self.readySince or now))
         end
       end
+      -- A wait that ran out on a guessed count: the cell count sensor did not answer, so the count
+      -- it gave on an earlier connection is forgotten. Another flight controller on this model, or
+      -- one that no longer sends the sensor, would otherwise hold every later connect for the full
+      -- five seconds; the next connect waits again only once the sensor has answered.
+      if not boundsHold and rawReady and self._voltageBoundsPending == true
+        and self.state.batteryCellSource == "voltage" and self.state.cellSensorCount ~= nil then
+        if Log and type(Log.emitf) == "function" then
+          Log.emitf("rfsuite.widget", "debug", "cell count sensor silent through the wait, its last count %s is forgotten",
+            tostring(self.state.cellSensorCount))
+        end
+        self.state.cellSensorCount = nil
+      end
     end
   end
 
@@ -4246,8 +4258,8 @@ local function readTelemetry(state, audioState)
 
   -- Where the count in use came from, kept beside it: "sensor", "config" or "voltage". A count
   -- from the voltage is a guess; the last count the sensor gave is kept across connections
-  -- (`cellSensorCount`), and a guess that differs from it holds the gate's first opening for the
-  -- sensor's answer (updateVoltageThemeConfig). Logged when the count or its source changes,
+  -- (`cellSensorCount`, forgotten when a wait for it runs out), and a guess that differs from it
+  -- holds the gate's first opening for the sensor's answer (updateVoltageThemeConfig). Logged when the count or its source changes,
   -- never per pass.
   local cellsBefore, cellSourceBefore = state.batteryCellCount, state.batteryCellSource
   local batteryCellCountValue = getSensor("battery_cell_count")

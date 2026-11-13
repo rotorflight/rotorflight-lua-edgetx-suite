@@ -956,6 +956,41 @@ guessReconnect("nosensor", nil)
 guessReconnect("full", 40)
 guessReconnect("stale", 20)
 
+-- "gone": the sensor answered on the first connection and never again (another flight controller
+-- on the model, or the sensor taken off its telemetry list). The first reconnect on a guess that
+-- differs waits out the limit once and forgets the sensor's count; the next reconnect is not held.
+do
+  if trace then print("scenario: guessed cell count gone") end
+  local world = newWorld()
+  FC.replies[32][3] = 0
+  Stubs.sensors["Vbat"] = 22.0
+  connectAndSettle(world)
+  expect(world.w.state.cellSensorCount == 6, "gone: control: the sensor's count is kept from the first connection",
+    tostring(world.w.state.cellSensorCount))
+  Stubs.sensors["Cel#"] = 0
+  local function reconnect()
+    world.linkUp = false
+    passes(world, 30, "down")
+    world.linkUp = true
+    local start, readyPass = #world.trees, nil
+    for _ = 1, 400 do
+      passes(world, 1, "back")
+      if world.w.readySince ~= nil and not readyPass then readyPass = world.pass end
+      if readyPass and world.pass - readyPass >= 80 then break end
+    end
+    local first = sceneTrees(world, start)[1] or {}
+    return first.pass and readyPass and (first.pass - readyPass) or nil
+  end
+  local wait1 = reconnect()
+  expect(wait1 ~= nil and wait1 > 14 and wait1 <= 60,
+    "gone: the first reconnect waits for the sensor, not past the limit", tostring(wait1) .. " pass(es) after ready")
+  expect(world.w.state.cellSensorCount == nil, "gone: the silent sensor's count is forgotten after the wait",
+    tostring(world.w.state.cellSensorCount))
+  local wait2 = reconnect()
+  expect(wait2 ~= nil and wait2 <= 14, "gone: the next reconnect is not held for a sensor that stays silent",
+    tostring(wait2) .. " pass(es) after ready")
+end
+
 -- The memory probe's own control: an allocation it must see.
 do
   collectgarbage("collect")

@@ -71,6 +71,9 @@ reported a count since the widget was loaded, an estimate that differs from that
 treated like a missing one after a connect: the dashboard waits for the sensor, for the same
 five seconds at most. An estimate that matches the sensor's last count is used at once, and a
 model without a cell count sensor gets no wait for an estimate, because nothing would replace it.
+If the sensor stays silent through such a wait -- another flight controller on the model, or one
+that no longer sends it -- its last count is forgotten, and the next connect is not held again
+until the sensor has reported.
 
 ## The shipped themes
 
