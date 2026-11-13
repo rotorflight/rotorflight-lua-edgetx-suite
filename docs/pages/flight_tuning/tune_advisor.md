@@ -41,10 +41,11 @@ After each disarm the radio reads all three axes from the flight controller, sav
 the flight controller's measurements so the next flight is measured on its own. It starts 5 seconds after the
 disarm and waits 2 seconds after each answer before the next request, so telemetry sensors keep updating; the
 flight is saved about 10 seconds after the disarm (2 seconds later without the *PID#* and *RTE#* sensors, when the
-profiles are asked for first). Then it reads the cyclic polarity, the cyclic ring and the I-term relax type and
-adds them to the saved flight, since they change what its numbers mean. A value that could not be read stays
-unknown, and so do all three if you switch the PID or rate profile before they are read: the values read then would
-belong to the other profile.
+profiles are asked for first; that question is asked again on a link error like an axis, and an answer the radio
+cannot read saves the flight without profiles, so it is never combined). Then it reads the cyclic polarity, the
+cyclic ring and the I-term relax type and adds them to the saved flight, since they change what its numbers mean.
+A value that could not be read stays unknown, and so do all three if you switch the PID or rate profile before
+they are read: the values read then would belong to the other profile.
 
 - **The saving is done by the RFSuite dashboard widget or the RFSuite Service widget**, whether or not this page
   is open (see [Service widget](../../dashboard/service-widget.md)). With neither of them on the model, no flight

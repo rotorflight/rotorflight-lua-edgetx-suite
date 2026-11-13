@@ -1440,7 +1440,8 @@ do
     asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
   rig.sensors.pid_profile, rig.sensors.rate_profile = nil, nil
 
-  -- The read fails: the session's profiles, as before, and the flight is still saved
+  -- The read fails on the link: asked again as a failed axis read is, never saved under the
+  -- session's profiles, which a switch on the transmitter does not change
   fresh()
   rig.status.pid, rig.status.rate = 1, 2
   rig.reply.seconds = 120
@@ -1448,8 +1449,24 @@ do
   update(true)
   update(false)
   asked = pump({ status = { n = 1, reason = "timeout" } })
-  check("a failed profiles read falls back to the session's and the flight is saved", asked == "roll,pitch,yaw,clear"
-    and #rig.statusAsked == 1 and savedProfiles() == "1/1", asked .. " / saved " .. savedProfiles())
+  check("a profiles read that fails once is asked again, and the flight saved under the profiles read",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 2 and savedProfiles() == "2/3",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+
+  -- It fails three times: given up until the next disarm, nothing saved and nothing cleared, so
+  -- that disarm reads the flight again
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump({ status = { n = 3, reason = "timeout" } }, nil, 60)
+  check("a profiles read that fails three times: nothing saved under the session's profiles, nothing cleared",
+    asked == "roll,pitch,yaw" and #rig.statusAsked == 3 and #tuneHistory.read(MCU) == 0
+      and rig.capture().state == "failed",
+    asked .. " / " .. #rig.statusAsked .. " status / " .. #tuneHistory.read(MCU) .. " saved / "
+      .. tostring(rig.capture().state))
 
   -- The queue drops the read (a link loss, however short): the flight controller may have flown or
   -- restarted meanwhile, so the axes are read again with it, as after a dropped axis read
@@ -1524,14 +1541,14 @@ do
     statusMsg ~= nil and after == "roll,pitch,yaw" and #tuneHistory.read(MCU) == 0,
     after .. " / " .. #tuneHistory.read(MCU) .. " flights saved")
 
-  -- A status reply cut short before the profile bytes (their parser reads a missing byte as 0):
-  -- the session's profiles, not PID 1 / rates 1
+  -- A status reply cut short before the profile bytes (their parser reads a missing byte as 0): the
+  -- same reply would come back, so the flight is saved without profiles, never counted for any
   fresh()
   rig.session.activeProfile, rig.session.activeRateProfile = 2, 1
   rig.status.bytes = 20
   asked = flyThrough(120)
-  check("a status reply too short for the profiles keeps the session's, not profile 1",
-    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 1 and savedProfiles() == "3/2",
+  check("a status reply too short for the profiles: the flight is saved without profiles, not under the session's",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 1 and savedProfiles() == "nil/nil",
     asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
   rig.status.bytes = nil
 

@@ -41,7 +41,8 @@
 --
 -- Without the PID# and RTE# telemetry sensors, MSP_STATUS is read once after the axes and before
 -- the save, so the flight is saved under the profiles the flight controller flies now (readProfiles);
--- a read the queue dropped starts the reading again from the first axis.
+-- a read the queue dropped starts the reading again from the first axis, a read that fails is asked
+-- again as a failed axis read is, and a reply that cannot be read saves the flight without profiles.
 --
 -- After the flight is saved and the clear has gone through, RC_TUNING and PID_PROFILE are read
 -- and the cyclic polarity, the cyclic ring and the I-term relax type are added to the flight,
@@ -175,6 +176,7 @@ end
 local function clearReplies(tc)
   tc.replies = {}
   tc.profilesRead = nil
+  tc.profilesUnknown = nil
   tc.saveDue = false
   tc.job = nil
 end
@@ -352,8 +354,12 @@ end
 -- the Tune Advisor page takes for the active profiles -- follows a switch made on the
 -- transmitter. A read the queue dropped (a link loss, however short) is "cleared" as a dropped axis
 -- read is (handleError): the flight controller may have flown or restarted meanwhile, so the axes
--- are read again before anything is saved or cleared. A read that fails leaves the session's
--- profiles, as before, and is not asked again for this flight.
+-- are read again before anything is saved or cleared. A read that fails on the link counts as a
+-- failed axis read does (failed): asked again RETRY_SECONDS later, and after MAX_FAILURES nothing more
+-- until the next disarm, with nothing saved and nothing cleared, so that disarm reads the flight
+-- again. The session's profiles are never taken instead: a switch on the transmitter does not
+-- change them. A reply that cannot be read would come back the same, so the flight is saved
+-- without profiles; such a flight is never combined with any.
 -- The rate profile index is byte 26 of MSP_STATUS (tasks/msp/api/status.lua). Its parser reads a
 -- missing byte as 0, so a reply cut shorter would name PID 1 and rates 1: it is taken as not
 -- understood instead.
@@ -380,7 +386,8 @@ local function readProfiles(tc, queue)
         log(string.format("profiles read for the save: PID %s, rates %s", tostring(pid + 1), tostring(rate + 1)),
           "debug")
       else
-        log("profile read not understood; the session's profiles are used", "warn")
+        log("profile read not understood; the flight is saved without profiles", "warn")
+        tc.profilesUnknown = true
       end
       tc.profilesRead = true
       StatusApi = nil
@@ -394,9 +401,8 @@ local function readProfiles(tc, queue)
         handleError(tc, "cleared")
         return
       end
-      log("profile read failed (" .. tostring(reason) .. "); the session's profiles are used", "info")
-      tc.profilesRead = true
-      waitFor(tc, GAP_SECONDS)
+      log("profile read failed (" .. tostring(reason) .. "); asked again", "info")
+      failed(tc)
       publishState(tc)
     end,
   })
@@ -458,6 +464,8 @@ local function finishCapture(tc, mcuId)
     local job = tc.job
     if not job then
       local pid, rate = activeProfiles()
+      -- The flight controller's answer could not be read: no profiles rather than the session's
+      if tc.profilesUnknown then pid, rate = nil, nil end
       local time = ChangeJournal and ChangeJournal.timestamp and ChangeJournal.timestamp() or 0
       ChangeJournal = false       -- its clock was all the save needed of it
       job = TuneHistory and TuneHistory.saveJob(mcuId, replies, { pidProfile = pid, rateProfile = rate }, time)
