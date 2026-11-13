@@ -12,7 +12,7 @@
     "src/rfsuite/app/pages/helicopter_setup/feedback.lua": "b56069199ada87dfa22e0cb01ca01b230e005582a0ecbf3a279c88d8d3ec98be",
     "src/rfsuite/app/pages/helicopter_setup/forms.lua": "22830b0484f787a3379c3cb8f61caa85d0c905da109b9636fc8ad9d9844830f4",
     "src/rfsuite/app/pages/helicopter_setup/help.lua": "210bc647674c7bdf88e1ac00cf623c53858bb0721623f089caa1f95465ac2c46",
-    "src/rfsuite/app/pages/helicopter_setup/history.lua": "064fdaf2dea1e9c7557134a118e951ea0fed1b06b0ac36b371c3e3be74a265ec",
+    "src/rfsuite/app/pages/helicopter_setup/history.lua": "7a5378a01b8bb4ca80a7a367b7e02978fda35c7cf7f54625ae89ebf57eace9e2",
     "src/rfsuite/app/pages/helicopter_setup/history_store.lua": "d5d4bd333793cc55d9d90ac2df66d8f6044c65db5f5b0df0c0a26aa37b71e9da",
     "src/rfsuite/app/pages/helicopter_setup/labels.lua": "c7ad6ab16dd977aa22ef0d3f874f996180a47becf28c78f22a9e9ac48e1fd141",
     "src/rfsuite/app/pages/helicopter_setup/math.lua": "f125cbdc577a170e8060688d69552d248e5ed6b092852c03139cc2d11d05b1a0",
