@@ -70,8 +70,10 @@ keeps the faded icon at about 3.8:1 on the face, above the 3:1 a disabled contro
 
 ## Rules
 
-- **A new colour is a new role, not a literal.** Log graph curves and the alignment page's shading
-  are data colours and stay where they are, and a dashboard theme owns its own colours.
+- **A new colour is a new role, not a literal.** The Alignment page's 3D model takes the `model*`
+  roles. The Logs graph's four curves are data colours, not roles: `app/pages/logs/graph.lua` keeps one
+  set for the dark page and darker ones of the same hues for the light page. A dashboard theme owns its
+  own colours.
 - **Take the role, not the value that looks right.** Two roles sharing a value today are still two
   roles.
 - **A value never crosses schemes.** Dark's warning on the light page reads at about 1.4:1, so a
@@ -83,7 +85,8 @@ keeps the faded icon at about 3.8:1 on the face, above the 3:1 a disabled contro
 
 `bin/ui/verify_color_schemes.lua` holds both schemes to the same set of roles and checks each
 foreground against the surfaces it is drawn on, as RGB565 draws them. A pair a new role is used on
-belongs in its list.
+belongs in its list. `bin/ui/verify_scheme_drawings.lua` does the same for the tool's own drawings
+in both schemes: Session Logs' warn and error rows, the 3D model and the four curves.
 
 ## Pictures
 
@@ -133,7 +136,8 @@ so the radio's colours are put back on every way the tool can end:
 - A finaliser. A long press of RTN closes the tool without running any Lua and an error ends it, but
   both close its Lua state, and `lua_close` runs every pending `__gc` metamethod first. The guard
   holds the radio's colours and `lcd.setColor` as upvalues, since the suite's globals may be gone by
-  then.
+  then. This holds from EdgeTX 2.11.2: on 2.11.0 and 2.11.1 the tool's Lua state is closed only when
+  the next tool starts, so after a long RTN or an error the marker file below puts the colours back.
 - A marker file, `theme_slots.txt` in the user folder, written before the first slot. Should neither
   of the above run, the dashboard widget's first refresh after a pause (EdgeTX stops widget refresh
   while a tool window is open) puts the radio's colours back and deletes it; the next start of the

@@ -15,6 +15,9 @@
 --     error ends the script, but both close its Lua state, and lua_close runs every pending __gc
 --     metamethod before it frees anything (Lua 5.3, lgc.c luaC_freeallobjects). The guard below holds
 --     the radio's colours and lcd.setColor as upvalues, since by then the suite's globals may be gone.
+--     From EdgeTX 2.11.2 on, that is: on 2.11.0 and 2.11.1 StandaloneLuaWindow::deleteLater does not
+--     close the state, which stays until the next standalone script starts, so there the marker
+--     below is what puts the colours back.
 --   * A marker file holding the radio's colours and the ones written. Should neither of the above run
 --     (memory exhausted, an error inside the finaliser), the dashboard widget finds it and puts the
 --     radio's colours back (recover), and the next start of the tool takes the radio's colours from it
