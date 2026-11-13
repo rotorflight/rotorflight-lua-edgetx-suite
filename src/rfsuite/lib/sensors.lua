@@ -754,8 +754,10 @@ function Sensors.passBegins()
 end
 
 local readValue
--- The one source whose next read is exempt from FIRST_SEARCHES_PER_PASS: set by Sensors.getValue
--- for the arming state's fallback word right before that read, and taken by readValue on entry.
+-- The one source whose next first search is exempt from FIRST_SEARCHES_PER_PASS: set by
+-- Sensors.getValue for the arming state's fallback word right before that read, taken by the
+-- throttle in readValue (so a read that is answered without a search costs nothing for it), and
+-- cleared by Sensors.reset().
 local capExemptSource = nil
 
 -- Readings the packed status words also carry (rotorflight-firmware
@@ -777,7 +779,12 @@ function Sensors.getValue(source)
   if value ~= nil then return value end
   -- The arming state's packed fallback is exempt from the first-search cap like `armflags` itself
   -- (see the throttle in readValue): a board that sends no ARM row has its armed bit only there.
-  if source == "armflags" then capExemptSource = DERIVED.armflags.word end
+  -- Marked only where that read can search: a word already adopted is read without one, and an
+  -- unspent mark would wait for some later search.
+  if source == "armflags" then
+    local word = DERIVED.armflags.word
+    if not (Sensors.active_paths and Sensors.active_paths[word]) then capExemptSource = word end
+  end
 
   local derived = DERIVED[source]
   if not derived then return nil end
@@ -788,10 +795,6 @@ end
 
 readValue = function(source)
   if type(source) ~= "string" then return nil end
-  -- The cap exemption belongs to the one read that follows Sensors.getValue's marking, whatever
-  -- path that read takes, so it is taken here before any of them can return.
-  local exempt = capExemptSource == source
-  capExemptSource = nil
 
   if not loggedSimulatorState then
     loggedSimulatorState = true
@@ -903,6 +906,8 @@ readValue = function(source)
   -- this runs once for every source the caps hold back, in the same pass.
   local key = now
   if passMarkAt and now - passMarkAt / 100 < PASS_MARK_SECONDS then key = passMark end
+  local exempt = capExemptSource == source
+  capExemptSource = nil
   if previousWait ~= nil then
     if Sensors.last_search == key then return nil end
     Sensors.last_search = key
@@ -1026,6 +1031,7 @@ function Sensors.reset(reason)
   -- The level is asked again after a reset, so a level changed on the radio reaches these lines at
   -- the next connect rather than at the next start.
   debugEnabled = nil
+  capExemptSource = nil
   -- These lines say once per connection which source was taken or missed, not once per start.
   loggedSources = {}
   if Sensors.active_paths then
