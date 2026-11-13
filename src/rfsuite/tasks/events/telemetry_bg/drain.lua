@@ -683,7 +683,7 @@ end
 -- drive stamps `rfsuite.adjustmentStepAt` (getTime() ticks) on every step it writes. The board
 -- answers within half a second and repeats the report after 3 s, so the window is the 3 s in
 -- between; outside it a backlog pass pays nothing for the rescue. An adjustment the pilot makes
--- with his own switch, without the drive, is not looked for -- as before the rescue.
+-- with a switch of their own, without the drive, is not looked for -- as before the rescue.
 local ADJUSTMENT_AWAIT_SECONDS = 3
 local function adjustmentAwaited(now)
     local root = _G.rfsuite
