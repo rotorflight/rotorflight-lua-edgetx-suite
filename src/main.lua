@@ -40,12 +40,9 @@ end
 -- A page's own module file. Whoever loaded it -- the page cache in app/pages/init.lua, or a
 -- page that uses another page's functions -- holds the module for as long as it wants it, and
 -- the chunk is not kept beyond that: kept here, the bytecode of every page ever opened would
--- stay until the tool closes. The other files under app/pages/ stay cached.
-local function isPageModule(path)
-  return type(path) == "string"
-    and string.sub(path, -9) == "/page.lua"
-    and string.find(path, "/app/pages/", 1, true) ~= nil
-end
+-- stay until the tool closes. The other files under app/pages/ stay cached, and are listed in
+-- pageChunkPaths for releaseChunksUnder. One search for "/app/pages/" answers both, so a file
+-- costs the cache no more than the page-module test alone did.
 
 _G.loadScript = function(path, mode)
   local cached = chunkCache[path]
@@ -55,9 +52,12 @@ _G.loadScript = function(path, mode)
   -- lib/require.lua publishes the load mode the whole suite uses; until it has been
   -- loaded, the mode the caller asked for still applies.
   local chunk, err = originalLoadScript(path, _G.rfsuite.loadMode or mode)
-  if chunk and not isPageModule(path) then
-    chunkCache[path] = chunk
-    if string.find(path, "/app/pages/", 1, true) then pageChunkPaths[path] = true end
+  if chunk and type(path) == "string" then
+    local inPages = string.find(path, "/app/pages/", 1, true) ~= nil
+    if not (inPages and string.sub(path, -9) == "/page.lua") then
+      chunkCache[path] = chunk
+      if inPages then pageChunkPaths[path] = true end
+    end
   end
   return chunk, err
 end

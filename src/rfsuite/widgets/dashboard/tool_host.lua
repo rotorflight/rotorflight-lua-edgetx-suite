@@ -129,10 +129,8 @@ end
 
 -- A page's own module file. The page registry holds the module for as long as it wants it, so
 -- its chunk is not kept: kept, the bytecode of every page opened would stay until the tool
--- closes. The same rule as the tool script's loader (src/main.lua).
-local function isPageModule(path)
-  return string.sub(path, -9) == "/page.lua" and string.find(path, "/app/pages/", 1, true) ~= nil
-end
+-- closes. The same rule as the tool script's loader (src/main.lua); the other files under
+-- app/pages/ are kept and listed for releaseChunksUnder, both answered by one search.
 
 -- The tool script's loader, for as long as the tool is open: the suite's load mode in place of
 -- the one a caller passed, and every chunk but a page's kept until the tool closes. The global
@@ -154,9 +152,12 @@ local function installLoader(host)
     local root = _G.rfsuite
     local err
     chunk, err = original(path, (root and root.loadMode) or mode)
-    if chunk and not isPageModule(path) then
-      chunks[path] = chunk
-      if string.find(path, "/app/pages/", 1, true) then pageChunkPaths[path] = true end
+    if chunk then
+      local inPages = string.find(path, "/app/pages/", 1, true) ~= nil
+      if not (inPages and string.sub(path, -9) == "/page.lua") then
+        chunks[path] = chunk
+        if inPages then pageChunkPaths[path] = true end
+      end
     end
     return chunk, err
   end
