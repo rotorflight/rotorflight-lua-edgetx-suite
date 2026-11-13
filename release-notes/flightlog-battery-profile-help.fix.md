@@ -1,2 +1,1 @@
-- **A pack's battery profile says when it is used (`tools/flight_log`)**:
-  - The *Battery profile* field's help and the Flight Log page say that the field only acts while *Set the pack's battery profile* is on; with it off a pick sends no profile and the flight controller stays on the one it is on. The page adds when to set the field: leave it at 0 where the board's profiles have different capacities, so the capacity match finds it, and set it only where two profiles share a capacity or no profile has the pack's capacity. The quick-menu page says the same for the profile the battery picker shows.
+- **A pack's *Battery profile* says it acts only while *Set the pack's battery profile* is on (`tools/flight_log`)**
