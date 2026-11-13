@@ -1,1 +1,1 @@
-- **Swash Geometry, PWM Output and BUS Output share the live override with Tail and Trims; a failed save no longer leaves new values running (`setup/servos`)**
+- **Swash Geometry, PWM Output and BUS Output share the live override with Tail and Trims (`app/pages/setup`)**
