@@ -1498,6 +1498,32 @@ do
     sentWhileDown .. " sent while down / " .. after .. " / " .. #rig.statusAsked .. " status after / saved "
       .. savedProfiles() .. " / seconds " .. table.concat(savedSecs, ","))
 
+  -- Stated, the cost of reading again: the flight controller restarted while the link was down (a
+  -- new pack), so its statistics are gone. The axes read again say no flight: nothing is saved and
+  -- nothing is cleared, and the flight read before the gap is not kept
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump(nil, 3)
+  statusMsg = nil
+  for _ = 1, 40 do
+    rig.clock = rig.clock + 0.5
+    rig.pass()
+    if rig.requests[1] and rig.name(rig.requests[1]) == "status" then statusMsg = rig.take(); break end
+  end
+  rig.setLink(false)
+  if statusMsg then statusMsg.errorHandler(statusMsg, "cleared") end
+  rig.passes(40, 0.5)
+  rig.reply.seconds = 0
+  rig.setLink(true)
+  after = pump()
+  check("stated: a restart while the link was down leaves no flight to read, nothing saved and nothing cleared",
+    statusMsg ~= nil and after == "roll,pitch,yaw" and #tuneHistory.read(MCU) == 0,
+    after .. " / " .. #tuneHistory.read(MCU) .. " flights saved")
+
   -- A status reply cut short before the profile bytes (their parser reads a missing byte as 0):
   -- the session's profiles, not PID 1 / rates 1
   fresh()
