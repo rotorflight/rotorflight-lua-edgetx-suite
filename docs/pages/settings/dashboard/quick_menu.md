@@ -35,11 +35,13 @@ Empty places are skipped, so the menu has no gaps: a dash in *Position 1* and *B
   condition on top of this list: *IN-FLIGHT TUNING* only while its preview is on, *BATTERY* only
   with a pack for this model while disarmed, *ERASE BLACKBOX* only with a ready connection while disarmed,
   *MAIN MENU* only while disarmed, *FLIGHT LOG*
-  only while the model is disarmed. Taking an entry
+  only while the model is disarmed. In the rotary style an entry that is only waiting for the connection
+  or for the model to be disarmed stays, grey, and says why. Taking an entry
   out here hides it always.
 - **BATTERY PROFILE is not a position.** The menu always draws it as its last row or entry, under the
   entries chosen here, while the connection is ready, the model is disarmed and the flight controller has reported a
-  battery profile with a capacity.
+  battery profile with a capacity. In the rotary style it stays, grey, without a connection or while armed, and is
+  left out only when a connected flight controller reports no profile with a capacity.
 - **A list saved by an earlier version that names BATTERY PROFILE** reads without it. One that
   named BATTERY PROFILE alone names nothing that can be placed, and reads as the default.
 - **A dash in every place empties the menu.** The header and its close box stay, so full screen

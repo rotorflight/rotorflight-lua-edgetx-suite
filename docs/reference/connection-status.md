@@ -95,6 +95,11 @@ versions and the transport whatever this notice says.
 The log on the card names each step as it finishes, and names the one that was given up on. See
 [Collecting logs](../troubleshooting/collecting-logs.md) for switching it on.
 
+## In the rotary quick menu
+
+The header of [the rotary style](../dashboard/quick-menu.md#the-rotary-style) says the same four states in words, from the same
+module (`lib/connection_status.lua`): *Not connected*, *Connecting*, *Connection error*, *Connected*. A tap on them shows this notice.
+
 ## Related
 
 - [No connection to the flight controller](../troubleshooting/no-connection.md) -- what to check

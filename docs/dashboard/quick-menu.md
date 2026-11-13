@@ -112,15 +112,17 @@ are as they come.
 
 ![The quick menu in the rotary style, the focus on the battery profiles](../images/dashboard/quick-menu/menu-rotary.png)
 
-The left list holds the entries that are offered now, BATTERY PROFILE last. The current one always
+The left list holds the entries of the quick menu, BATTERY PROFILE last. The current one always
 stands in the larger row in the middle, and the list ends where it ends: it does not wrap, and the
 rows past either end stay empty. The right list shows what the current entry leads to, where it
-leads to something.
+leads to something. On opening, the first row that can be pressed now is the current one.
 
 - **The wheel** moves the list that has the focus.
-- **A press** runs the current entry. Where it leads to a choice or a question, the focus moves to
-  the right list instead. A press there finishes, and the menu closes.
-- **RTN** returns from the right list to the left; from the left it closes the menu.
+- **A press** runs the current entry. Where it leads to a choice, a question or a further list, the
+  focus moves to the right list instead. A press on a right row that leads on shifts both columns
+  by a level; any other press there finishes, and the menu closes.
+- **RTN** takes back one press: from the right list the focus returns left, and nothing shifts or moves; from
+  the left list at depth both columns shift back a level; on the first level it closes the menu.
 - **A swipe** rolls the list it starts on, one row for a row's height. A list on the right takes
   the focus when it is swiped.
 - **A tap on the middle row** is a press. **A tap on any other row** brings it to the middle and
@@ -134,6 +136,47 @@ says *SENDING...*, the menu closes when the flight controller has answered, and 
 BATTERY shows this model's packs in the right list, each with its capacity, cycles and profile under
 its name; where that does not fit, the profile is left out first. The focus starts as it does in
 [the battery picker](#the-battery-picker).
+
+**MAIN MENU rolls on through the suite's whole menu** in the same two columns, and the header holds
+the path, shortened from the front where it does not fit (`... > Setup > Mixer`). A press on a page
+opens it inside the widget, as [the tool from full screen](#the-tool-from-full-screen) does, and RTN
+from the page comes back to the same place in the roll. The tool's tile home stays what it was: it is
+what the card style's MAIN MENU opens, and what a key set to *Suite: Main menu* opens in either style.
+
+A press that opens a page says *Opening...* under its row at once, in the accent colour, because loading the suite
+holds the screen for a moment; the page follows. A press whose page has not started opening when the link
+comes back is called off: the roll keeps its place, and the page needs a new press.
+
+Three places open in the tool with their tiles instead of rolling on, and RTN walks the tool's levels
+before it comes back to the roll: **ESC & Motors**, whose entries depend on the ESC protocol, **Helicopter
+Setup**, whose steps show on their tiles which are done, and the **dashboard theme settings**, a list made
+while the tool runs.
+
+**A row that cannot work now stays in the list, grey**, and says why on the right: *Needs the flight
+controller* with no connection, *Not while armed* while the model is armed, where every row is grey.
+It rolls, and a press on it does nothing. The place in the lists stays through both. What is not set
+up is not listed at all: a feature switched off, no packs for this model, or firmware too old while
+connected. Without a connection the firmware's version is not known, so a row that needs a newer one
+is grey rather than gone.
+
+**The header's line says how things stand**, one message by rank: *SENDING...* or *NOT SAVED*, or *Could
+not open* for a page the tool could not open, until the next detent or press; then *Connection error*,
+in the error colour, *Not connected* or *Connecting*, in the warning colour; then *Connected*, in green. A tap on it shows the details the tool's connection
+button shows; the wheel does not reach it. Back from a page the roll is where it was with these rules
+applied: a row that has gone in the meantime leaves the wheel on the level above it, and no other row
+takes its place under the press. A lost link on a page returns to the roll, greyed, and an open question
+or a running *SENDING...* does not survive it. Two things hold the page instead: a page that deals with a lost
+link itself, and a save the suite's save sequence is still reporting, or one that restarts the board and has
+not been closed;
+RTN then works as it does on any page. A battery prompt comes up over the roll as it does over
+the menu, and the place is there again behind it.
+
+The roll is forgotten, and the dashboard shows, when the model arms on a page, full screen is left or
+the widget goes to the background. A key's visit to a page never returns into the roll.
+
+The middle row and its neighbours carry a picture, in near-black in the light scheme and in the
+scheme's blue in the dark one; grey rows and the outer rows carry none. Pictures are drawn for 800x480
+and the radio scales them on a 480 wide screen.
 
 The wheel moves the focus rather than reporting a turn, and the focus passes the widget itself at
 the point where the list was last at rest. A detent onto that point shows on the next detent. The
@@ -167,6 +210,9 @@ closed. It is reached three ways, all of them only while the model is disarmed:
 - the same control on the connect screen, when the widget is put full screen before the link is
   up, so the tool is there for a model that does not connect.
 
+In the rotary style MAIN MENU leads on through the menu in place of the first of these: see
+[the rotary style](#the-rotary-style).
+
 While it is open the tool works as it does when started from the radio's tool list, on the
 widget's own connection to the flight controller. The return key at the top of its menu closes
 it, and so does the return key on the *Flight Log* page where *FLIGHT LOG* opened it there. Arming the model closes it as well, because while it is open the dashboard does not run and
@@ -181,8 +227,9 @@ Two things are different from the tool started from the tool list:
 
 - **A page that builds a lot can take a moment longer to appear.** A widget is stopped when one
   call runs too long, where the tool started from the tool list is paused and resumed, so such a
-  page is finished over the next few frames. For the same reason, when **FLIGHT LOG** opens the
-  tool on its page, the page is drawn one frame after the tool has started up, not in the same frame.
+  page is finished over the next few frames. For the same reason, when **FLIGHT LOG** or a row of
+  the rolling menu opens the tool on a page, the page is drawn one frame after the tool has started
+  up, not in the same frame.
 - **Some memory stays in use after it is closed.** The pages are released, but the parts of the
   tool the dashboard shares stay loaded until the widget is.
 
@@ -362,8 +409,21 @@ pick does is therefore written in one place, the record; the picker is only its 
 the finger, the columns and the place in the lists, and knows nothing about the menu it draws: it
 draws a description, a table of a title, the rows, what a row leads to and what a press does. The
 descriptions of the quick menu and the picker are `widgets/dashboard/menu_roll_sources.lua`, whose
-head lists the fields. Another menu is another description. The place is held as a path of levels,
-two of which are on screen; the first two are all that exist today. `widgets/dashboard/menu_look.lua`
+head lists the fields. Another menu is another description. A menu hands `Roll.build` a function that makes
+its description rather than the description: when the wheel rests the roll keeps its scene and makes the
+description again, so what the menu says (a value in a question, which entries are offered) is read as a build reads it. A rest that falls due in a pass after a hole of a second or more waits for the next pass, twice at most: that pass catches up on what the hole held back, and the sweep that hides the wheel's ladders runs after `refresh` on the same instruction budget. The place is held as a path of levels,
+two of which are on screen: `base` is the level on the left, and `focus` says which column has the
+wheel. Each view has its own roll on the session (`Views.roll`), so a menu keeps its place under a picker.
+`widgets/dashboard/menu_tree.lua` reads `widgets/dashboard/menu_list.lua` for MAIN MENU, outside the module cache and for
+the visit to the quick menu. That list is generated from `app/manifest.lua` and holds only what the roll reads: after a change to the
+manifest, run `lua5.3 bin/dashboard/make_menu_list.lua`, and CI's `bin/dashboard/verify_menu_list.lua` says where it was forgotten. A row of it is a `level`, a `page` or `tiles`, absent where it is not set up,
+and with `needsFc` where it needs a connection, its ancestors' condition included. An entry of the quick
+menu says with `existsWhen` what is left of its `visibleWhen` once the passing states are taken out.
+`Views.visit(widget, menuId, place)` opens the tool on a page from a roll and keeps the place on the widget;
+`Views.toolClosed` takes the host's outcome: `back` and `failed` return to the place, anything else forgets
+it, and a `done` from a view that rose by itself over a rolling menu hands back to the place under it. `lib/connection_status.lua` holds the connection's words for the tool's header and this one, and
+`bin/icons/make_scheme_icons.py --set roll` makes the pictures under `widgets/dashboard/roll_icons/` from the manifest's
+icons, in the colours `docs/developer/color-schemes.md` names for pictures (`--check` says where one is stale). `widgets/dashboard/menu_look.lua`
 holds what these pages share in the card style as well: the colors, the two layout profiles and
 `frame`, the header with its title and close box.
 

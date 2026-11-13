@@ -224,8 +224,10 @@ local function reclaimSave()
   toSavePipeline("reclaim")
 end
 
--- Hand the screen and the globals back to the dashboard. Safe to run in any phase.
-local function finish(widget, reason)
+-- Hand the screen and the globals back to the dashboard. Safe to run in any phase. `outcome` is what
+-- the close means for a visit from the rolling menu (views.lua, `toolClosed`): "back" returns to its
+-- place, "failed" does too and says the page could not be opened, anything else forgets the place.
+local function finish(widget, reason, outcome)
   local host = widget._toolHost
   widget._toolHost = nil
   if host == nil then return end
@@ -280,6 +282,13 @@ local function finish(widget, reason)
   widget._cachedFullscreenKey = nil
   if collectgarbage then collectgarbage("collect") end
   hostLogTransition("tool closed (" .. tostring(reason) .. ")")
+
+  if host.visit == true then
+    local Views = requireModule("widgets/dashboard/views.lua")
+    if type(Views) == "table" and type(Views.toolClosed) == "function" then
+      Views.toolClosed(widget, outcome)
+    end
+  end
 end
 
 --- Ask for the tool to be opened. The work is done by the next pass of the widget, not by the
@@ -288,14 +297,16 @@ end
 --
 -- `landing`, where given, is the menuId of the page the tool opens on instead of its menu
 -- (`init({ hosted = true, landing = ... })` in ui/home.lua); the back key there closes the tool.
-function M.request(widget, landing)
+-- `visit` marks the rolling menu's way in: that page stays the edge of the tool below which the back
+-- key walks, and the close reports how it went (`finish`).
+function M.request(widget, landing, visit)
   if widget._toolHost ~= nil then return false end
   if _G.rfsuite.logSteps then hostStep("tool asked for, landing " .. tostring(landing)) end
   if modelArmed() then
     hostLog("tool not opened: the model is armed", "warn")
     return false
   end
-  widget._toolHost = { phase = "load", cpuHits = 0, landing = landing }
+  widget._toolHost = { phase = "load", cpuHits = 0, landing = landing, visit = visit == true or nil }
   widget.built = false
   widget.renderKey = nil
   return true
@@ -312,17 +323,20 @@ function M.abandon(widget, reason)
 end
 
 local function stopped(widget, host, err, phase)
+  -- A tool already closing (fullscreen left, the model armed) forgets the menu's place as a close
+  -- that runs to its end does (runStep): the pilot left, so the menu is not put back.
+  local outcome = host.closing and "forget" or "failed"
   if isCpuLimit(err) then
     host.cpuHits = host.cpuHits + 1
     hostLog("tool " .. phase .. " stopped at the instruction limit (" .. host.cpuHits .. "/" .. CPU_GIVE_UP .. ")",
       host.cpuHits >= CPU_GIVE_UP and "error" or "warn")
     if host.cpuHits >= CPU_GIVE_UP then
-      finish(widget, phase .. " stopped at the instruction limit " .. host.cpuHits .. " times")
+      finish(widget, phase .. " stopped at the instruction limit " .. host.cpuHits .. " times", outcome)
     end
     return
   end
-  hostLog("tool " .. phase .. " failed: " .. tostring(err), "error")
-  finish(widget, phase .. " failed")
+  hostLog("tool " .. phase .. " failed: " .. tostring(err) .. (host.closing and " while closing" or ""), "error")
+  finish(widget, phase .. " failed", outcome)
 end
 
 local function loadStep(widget, host)
@@ -340,14 +354,14 @@ local function loadStep(widget, host)
   local chunk, err = loadScript(HOME_PATH, root.loadMode or "bt")
   if not chunk then
     hostLog("tool not opened: " .. tostring(err), "error")
-    finish(widget, "load failed")
+    finish(widget, "load failed", "failed")
     return
   end
   local ok, home = pcall(chunk)
   if not ok then return stopped(widget, host, home, "load") end
   if type(home) ~= "table" or type(home.init) ~= "function" or type(home.run) ~= "function" then
     hostLog("tool not opened: ui/home.lua is not a tool", "error")
-    finish(widget, "load failed")
+    finish(widget, "load failed", "failed")
     return
   end
   if _G.rfsuite.logSteps then hostStep("tool loaded") end
@@ -358,7 +372,7 @@ end
 
 local function initStep(widget, host)
   reclaimSave()
-  local ok, err = callInWidgetContext(host.home.init, { hosted = true, landing = host.landing })
+  local ok, err = callInWidgetContext(host.home.init, { hosted = true, landing = host.landing, visit = host.visit })
   if not ok then return stopped(widget, host, err, "init") end
   host.phase = "run"
   host.cpuHits = 0
@@ -378,7 +392,15 @@ local function runStep(widget, host, event, touchState)
   local ok, result = callInWidgetContext(home.run, event, touchState)
   if not ok then return stopped(widget, host, result, "run") end
   host.cpuHits = 0
-  if result == 2 then finish(widget, host.closing and "closed by the widget" or "closed by the pilot") end
+  if result == 2 then
+    if host.closing then
+      finish(widget, "closed by the widget", "forget")
+    elseif type(home.landingRefused) == "function" and home.landingRefused() then
+      finish(widget, "the page was refused", "failed")
+    else
+      finish(widget, "closed by the pilot", "back")
+    end
+  end
 end
 
 --- One pass of the open tool, in place of the dashboard's own. Returns nothing; the tool is

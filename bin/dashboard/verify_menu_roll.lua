@@ -87,13 +87,17 @@ local function loadWorld(mutate)
     cache[path] = mod
     return mod
   end
-  _G.rfsuite = { require = requireStub, session = { dataflash = { used = 50, total = 100 } } }
+  _G.rfsuite = {
+    require = requireStub, session = { dataflash = { used = 50, total = 100 }, fblConnected = true },
+    paths = { core = string.sub(SRC, 1, -2), user = "/none" },
+  }
+  _G.loadScript = function(path) return loadfile(path) end
   return requireStub("widgets/dashboard/views.lua"), requireStub("widgets/dashboard/fullscreen_menu.lua"), requireStub
 end
 
 local function newWidget(style)
   return {
-    zone = { w = 800, h = 480 }, connectionReady = true, built = true, renderKey = "test",
+    zone = { w = 800, h = 480 }, connectionReady = true, built = true, renderKey = "test", theme = {},
     state = {
       armed = false, connectionReady = true, batteryProfile = 2,
       battery_config = { batteryCapacity_0 = 2000, batteryCapacity_1 = 3000, batteryCapacity_2 = 4000 },
@@ -137,7 +141,7 @@ local function run(mutate)
     Views.navigate(w, "openView:menu")
     return w, scene(Menu, w)
   end
-  local function roll(w) return w._viewStack.roll end
+  local function roll(w) return Views.topRoll(w) end
   local function detent(box, h, row) box.scrolled(0, row * h) end
 
   -- Every colour these pages read is a role of both schemes: an unset colour draws white.
@@ -168,15 +172,21 @@ local function run(mutate)
     local w, s = open()
     local r = roll(w)
     check("two ladders", s.forward ~= nil and s.reverse ~= nil)
+    check("the quick menu hands the shared roll how its rows are made, read again at a rest", type(r.make) == "function")
     check("left list holds three rows", #r.levels[1].rows == 3)
     check("BATTERY PROFILE is last", r.levels[1].rows[#r.levels[1].rows].id == "battery_profile")
     check("starts on the first row", r.levels[1].index == 1)
   end
 
-  -- The rows are no buttons: the wheel's walk holds the two ladders and the close box.
+  -- The rows are no buttons, nor is the close box: the wheel's walk holds the two ladders and nothing else.
   do
     local _, s = open()
-    check("only the close box is a button outside the ladders", #s.buttons == 1)
+    check("no button outside the ladders", #s.buttons == 0)
+    local inside = 0
+    for _, box in ipairs({ s.forward, s.reverse }) do
+      for i = 1, #box.children do if box.children[i].type == "button" then inside = inside + 1 end end
+    end
+    check("twelve buttons in each ladder", inside == 24)
   end
 
   -- The wheel: both ways, fixed ends, and the sum across the widget's own focus step.
@@ -252,14 +262,14 @@ local function run(mutate)
     end)())
   end
 
-  -- A row with nothing behind it runs at once.
+  -- MAIN MENU leads on, and opens nothing by itself.
   do
     local w, s = open()
     local r = roll(w)
     detent(s.forward, s.forward.h, 1)
     check("MAIN MENU is current", r.levels[1].rows[r.levels[1].index].id == "tool")
     Roll.press(w)
-    check("a press runs it", toolOpened == 1)
+    check("a press moves the focus into the suite's menu", toolOpened == 0 and r.focus == 2 and #r.levels[2].rows > 0)
   end
 
   -- The question: on the right, the safe answer first, and nothing queued before the answer.
@@ -306,9 +316,9 @@ local function run(mutate)
     Views.key(w, EVT_VIRTUAL_ENTER)
     check("a press writes", #adds == 2)
     check("and it writes the profile in force's own number here", adds[1].payload.batteryProfile == 1)
-    check("the menu stays up while it is sent", w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "busy")
+    check("the menu stays up while it is sent", roll(w) ~= nil and Views.status(w, "battery_profile") == "busy")
     adds[#adds].processReply(adds[#adds], {})
-    check("an answered write closes the menu", w._viewStack == nil or w._viewStack.roll == nil)
+    check("an answered write closes the menu", w._viewStack == nil or roll(w) == nil)
   end
   do
     -- The wheel rests on another profile: the scene is built again, and that profile is what is written.
@@ -334,7 +344,10 @@ local function run(mutate)
     detent(s.forward, s.forward.h, 1)
     check("on the third profile", r.levels[2].index == 3)
     -- ERASE BLACKBOX leaves the list, so the row's number changes under it.
-    Roll.build({}, w, req("widgets/dashboard/menu_roll_sources.lua").quick(w, { Menu.entry(w, "tool") }, function(_, f) return f end), Look.colors(w))
+    local one = { Menu.entry(w, "tool") }
+    Roll.build({}, w, function()
+      return req("widgets/dashboard/menu_roll_sources.lua").quick(w, one, function(_, f) return f end)
+    end, Look.colors(w))
     check("the row keeps its entry", r.levels[1].rows[r.levels[1].index].id == "battery_profile" and r.levels[1].index == 2 and r.focus == 2)
     check("and the option its place", r.levels[2].index == 3)
   end
@@ -393,17 +406,48 @@ local function run(mutate)
     local w = open()
     local entry = Views.find(w, "menu")
     entry.load = function() return {} end
-    check("ENTER is no longer the roll's", Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and w._viewStack.roll == nil)
+    check("ENTER is no longer the roll's", Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and roll(w) == nil)
+  end
+  do
+    -- The same after a reconnect: the kept roll's scene is not the theme's until the theme's look is built, and
+    -- then ENTER reaches the look -- the roll's own build, which clears the reconnect's mark, never comes.
+    local w = open()
+    local kept = Views.acrossReconnect(w)
+    w._viewStack = kept
+    local entry = Views.find(w, "menu")
+    entry.load = function() return {} end
+    w.theme, w.built = {}, false
+    check("before the theme's look is built a press does nothing",
+      Views.key(w, EVT_VIRTUAL_ENTER) == true and toolOpened == 0 and roll(w) ~= nil)
+    w.built = true
+    check("once it is built ENTER is no longer the roll's",
+      Views.key(w, EVT_VIRTUAL_ENTER) ~= true and toolOpened == 0 and roll(w) == nil)
+  end
+  do
+    -- A rest whose refresh moves the levels has the scene built again on a later pass; until then the old
+    -- ladders stand where they stood, so the count keeps their position and the next detent moves one row.
+    local w, s = open()
+    local r = roll(w)
+    local h = s.forward.h
+    detent(s.forward, h, 1)
+    local index = r.levels[1].index
+    -- A right list that has gone: the rest's refresh takes the focus back left, which a build lays out.
+    r.focus = 2
+    r.levels[r.base + 1] = nil
+    check("such a rest asks for a build and keeps the ladder position", Roll.rested(r) == true and r.position == 1)
+    -- Back up the ladder: counted from a position of 0 this detent would come to nothing.
+    detent(s.forward, h, 0)
+    check("a detent back on the scene still standing moves one row", r.levels[1].index == index - 1)
   end
   do
     local w = toProfile()
     Views.key(w, EVT_VIRTUAL_ENTER)
     adds[1].errorHandler(adds[1], "timeout")
     check("a failed write stays up and says so",
-      w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "failed")
+      roll(w) ~= nil and Views.status(w, "battery_profile") == "failed")
     adds[#adds].processReply(adds[#adds], {})
     check("the last message's answer does not close over a failed one",
-      w._viewStack.roll ~= nil and Views.status(w, "battery_profile") == "failed")
+      roll(w) ~= nil and Views.status(w, "battery_profile") == "failed")
   end
   do
     -- A reply to a write from before the menu was closed says nothing about the menu opened since.
@@ -415,21 +459,145 @@ local function run(mutate)
     scene(Menu, w)
     local session = w._viewStack
     late.processReply(late, {})
-    check("an old reply leaves the new menu up", w._viewStack == session and session.roll ~= nil)
+    check("an old reply leaves the new menu up", w._viewStack == session and roll(w) ~= nil)
+  end
+  do
+    -- A reply that comes while the battery prompt stands over the menu leaves the prompt up.
+    local w = toProfile()
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    local late = adds[#adds]
+    w.state.batteryPick = { loaded = true, pending = true, candidates = { { id = "a", name = "Pack A", cap = 3000 } } }
+    Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the prompt rose over the menu", Views.top(w) == "battery_pick" and Views.roll(w, "battery_pick") ~= nil)
+    late.processReply(late, {})
+    check("a reply under the prompt leaves it up", Views.top(w) == "battery_pick" and w.state.batteryPick.pending == true)
+  end
+  do
+    -- The menu as the default view, on an empty stack with no base layer: the prompt rises over it and is
+    -- answered, and the write's reply comes before the next pass has named the menu the view again.
+    adds, exits, toolOpened = {}, 0, 0
+    local w = newWidget("rotary")
+    w._viewId = Views.resolve(w)
+    local s = scene(Menu, w)
+    local r = roll(w)
+    check("the default menu has its roll on an empty stack", Views.top(w) == nil and r ~= nil and r.view == "menu")
+    detent(s.forward, s.forward.h, 2)
+    Roll.press(w)
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    local late = adds[#adds]
+    local session = w._viewStack
+    w.state.batteryPick = { loaded = true, pending = true, candidates = { { id = "a", name = "Pack A", cap = 3000 } } }
+    w._viewId = Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the prompt rose over the default menu", w._viewId == "battery_pick" and Views.top(w) == "battery_pick")
+    w.state.batteryPick.pending = false
+    Views.navigate(w, "done")
+    check("the prompt hands back to the default menu", Views.top(w) == nil and w._viewStack == session
+      and Views.roll(w, "battery_pick") == nil and Views.roll(w, "menu") == r)
+    check("and the wheel finds the menu's roll before the next pass names it", Views.topRoll(w) == r)
+    late.processReply(late, {})
+    check("the answered write closes the default menu though the last pass named the prompt",
+      w._viewStack ~= session or Views.roll(w, "menu") == nil)
+  end
+  do
+    -- A reconnect while the prompt stands over the default menu of a theme without a base layer: the prompt
+    -- goes with the old connection, and the menu under it keeps its place, as a menu on the stack does.
+    adds, exits, toolOpened = {}, 0, 0
+    local w = newWidget("rotary")
+    w._viewId = Views.resolve(w)
+    local s = scene(Menu, w)
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 2)
+    w.state.batteryPick = { loaded = true, pending = true, candidates = { { id = "a", name = "Pack A", cap = 3000 } } }
+    w._viewId = Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the prompt stands over the default menu", Views.top(w) == "battery_pick" and Views.roll(w, "menu") == r)
+    -- A press whose page had not started opening when the prompt covered the menu: the reconnect calls it
+    -- off, so the menu showing again does not open the old selection without another press.
+    local ran = 0
+    Roll.openNext(r, "Opening...", function() ran = ran + 1 end)
+    local kept = Views.acrossReconnect(w)
+    check("a reconnect keeps the default menu's place under the prompt, and drops the prompt",
+      kept ~= nil and kept.rolls.menu == r and kept.rolls.battery_pick == nil and kept[1] == nil
+      and r.levels[1].index == 3)
+    check("a reconnect calls off a page that had not started opening", r.opening == nil and r.slots == nil)
+    -- The new connection's session, the prompt gone: the menu shows again and its passes open nothing.
+    w._viewStack = kept
+    w.state.batteryPick = { loaded = true, pending = false, candidates = {} }
+    w._viewId = Views.resolve(w)
+    for _ = 1, 3 do Roll.renderKey(w) end
+    check("the menu showing again after the reconnect opens no page without a press",
+      Views.topRoll(w) == r and ran == 0 and r.levels[1].index == 3)
+  end
+  do
+    -- After a reconnect the theme loads a pass before the scene is built: until the menu is built again, what
+    -- stands on screen is still not its scene, so a press or a finger is not acted on -- an ordinary rebuild,
+    -- with no reconnect in between, is no reason to drop one.
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 2)
+    local function place() return tostring(r.focus) .. "/" .. tostring(r.base) .. "/" .. tostring(r.opening) end
+    local before = place()
+    local kept = Views.acrossReconnect(w)
+    w._viewStack = kept
+    w.theme, w.built = {}, false
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("a press after a reconnect, the theme loaded but the menu not built yet, does nothing",
+      place() == before and toolOpened == 0 and #adds == 0)
+    Roll.press(w)
+    check("nor does a ladder's press then", place() == before and toolOpened == 0 and #adds == 0)
+    scene(Menu, w)
+    w.built = true
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("once the menu is built again the same press acts", place() ~= before or toolOpened > 0 or #adds > 0)
+    local w2, s2 = open()
+    local r2 = roll(w2)
+    detent(s2.forward, s2.forward.h, 2)
+    local before2 = tostring(r2.focus) .. "/" .. tostring(r2.base) .. "/" .. tostring(r2.opening)
+    w2.built = false
+    Views.key(w2, EVT_VIRTUAL_ENTER)
+    check("a press during an ordinary rebuild, with no reconnect, acts",
+      (tostring(r2.focus) .. "/" .. tostring(r2.base) .. "/" .. tostring(r2.opening)) ~= before2
+      or toolOpened > 0 or #adds > 0)
+  end
+  do
+    -- A view taken off the stack starts over; one merely covered keeps its place.
+    local w = open()
+    local r = roll(w)
+    w.state.batteryPick = { loaded = true, pending = true, candidates = { { id = "a", name = "Pack A", cap = 3000 } } }
+    Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the menu keeps its roll under the prompt", Views.roll(w, "menu") == r and Views.roll(w, "battery_pick") ~= nil)
+    Views.navigate(w, "openView:menu")
+    check("going back to the menu drops the prompt's roll", Views.top(w) == "menu" and Views.roll(w, "battery_pick") == nil
+      and Views.roll(w, "menu") == r)
+    w.state.batteryPick.pending = false
+    Views.resolve(w)
+    w.state.batteryPick.pending = true
+    Views.resolve(w)
+    req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
+    check("the prompt rose again with a roll", Views.top(w) == "battery_pick" and Views.roll(w, "battery_pick") ~= nil)
+    w.state.batteryPick.pending = false
+    Views.resolve(w)
+    check("a prompt whose condition fell leaves no roll behind", Views.top(w) == "menu" and Views.roll(w, "battery_pick") == nil)
   end
   do
     -- The right list follows the left entry, from the one in force.
     local w, r = toProfile()
     r.levels[2].index = 3
+    r.slots = nil
     Views.key(w, EVT_VIRTUAL_EXIT)
     local s = scene(Menu, w)
     detent(s.forward, s.forward.h, -1 + 1)
     r.levels[1].index = 1
+    r.slots = nil
     for i = 1, #s.children do
       local node = s.children[i]
       if node.type == "label" and type(node.text) == "function" then node.text() end
     end
     r.levels[1].index = #r.levels[1].rows
+    r.slots = nil
     for i = 1, #s.children do
       local node = s.children[i]
       if node.type == "label" and type(node.text) == "function" then node.text() end
@@ -460,7 +628,7 @@ local function run(mutate)
     check("and runs nothing", toolOpened == 0 and #adds == 0)
     scene(Menu, w)
     tap(w, g.leftX + 5, g.slotY(0) + 2)
-    check("a tap on the middle row is a press", toolOpened == 1)
+    check("a tap on the middle row is a press", r.focus == 2)
   end
   do
     local w = open()
@@ -502,8 +670,12 @@ local function run(mutate)
   do
     -- A touch on the header is no row.
     local w = open()
+    local Sources = req("widgets/dashboard/menu_roll_sources.lua")
+    local two = { Menu.entry(w, "erase_blackbox"), Menu.entry(w, "flight_log") }
+    Roll.build({}, w, function() return Sources.quick(w, two, function(_, f) return f end) end, Look.colors(w))
     local r = roll(w)
     r.levels[1].index = 2
+    r.slots = nil
     local g = geoOf(w)
     tap(w, 20, 30)
     check("a tap on the header moves nothing", r.levels[1].index == 2 and toolOpened == 0)
@@ -539,26 +711,240 @@ local function run(mutate)
     check("a tap on its middle writes that one", adds[1] ~= nil and adds[1].payload.batteryProfile == 2)
   end
 
-  -- At rest the scene is built again, and the selection stays.
+  -- At rest the scene is NOT built: the ladders hide for one sweep, which takes the focus back to the widget,
+  -- and show again in the next; the selection stays and the next detent counts from the widget.
   do
+    local w, s = open()
+    local r = roll(w)
+    local h = s.forward.h
+    local function ladderShown(box)
+      for i = 1, #box.children do
+        local node = box.children[i]
+        if node.type == "button" then return node.visible == nil or node.visible() end
+      end
+    end
+    check("the ladders are shown while the wheel turns", ladderShown(s.forward) and ladderShown(s.reverse))
+    detent(s.forward, h, 1)
+    detent(s.forward, h, 2)
+    r.slots = { stale = true }
+    local key = Menu.renderKey(w)
+    now = now + 100
+    check("the key stays once the wheel has rested", Menu.renderKey(w) == key)
+    check("the selection is kept", r.levels[1].index == 3)
+    check("the lists are read afresh", r.slots == nil)
+    check("the ladders hide for the sweep", not ladderShown(s.forward) and not ladderShown(s.reverse))
+    -- The sweep: the focus passes over the forward ladder's buttons, LVGL scrolls to each; none is a detent.
+    s.forward.scrolled(0, 3 * h)
+    s.forward.scrolled(0, 4 * h)
+    check("no detent while the ladders hide", r.levels[1].index == 3)
+    check("the ladders are asked back to their spare rows", select(2, s.forward.scrollTo()) == 0
+      and select(2, s.reverse.scrollTo()) == 12 * h)
+    check("the hiding sweep is over after the reverse ladder", r.recentre ~= nil and r.recentre.state == "show")
+    check("and the ladders show in the next", ladderShown(s.forward) and ladderShown(s.reverse))
+    s.reverse.scrollTo()
+    check("which ends it", r.recentre == nil)
+    check("the count starts over", r.position == 0)
+    detent(s.reverse, h, 11)
+    check("a detent back from the widget moves one row", r.levels[1].index == 2)
+    check("still no build", Menu.renderKey(w) == key)
+  end
+  do
+    -- A sweep that never comes: the scene is built after all, and the wheel is not left without ladders.
     local w, s = open()
     local r = roll(w)
     detent(s.forward, s.forward.h, 1)
     local key = Menu.renderKey(w)
     now = now + 100
-    check("the key moves once the wheel has rested", Menu.renderKey(w) ~= key)
-    check("the selection is kept", r.levels[1].index == 2)
-    scene(Menu, w)
-    check("and the built ladder starts over", r.position == 0 and r.levels[1].index == 2)
+    Menu.renderKey(w)
+    check("the rest started hiding", r.recentre ~= nil)
+    now = now + 1000
+    Menu.renderKey(w)
+    check("a slow pass is no reason to give up", r.recentre ~= nil and Menu.renderKey(w) == key)
+    Menu.renderKey(w)
+    check("four passes without the sweep build the scene", Menu.renderKey(w) ~= key and r.recentre == nil)
+  end
+  do
+    -- A rest due in a pass after a long hole waits for the next pass: that pass catches up on what the hole
+    -- held back, and the hiding sweep would be billed on the same budget.
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 1)
+    Menu.renderKey(w)
+    now = now + 100
+    w._passGap = 2.9
+    Menu.renderKey(w)
+    check("a rest after a long hole waits", r.recentre == nil and r.steppedAt ~= nil)
+    w._passGap = 0.2
+    Menu.renderKey(w)
+    check("and runs in the next pass", r.recentre ~= nil and r.recentre.state == "hide")
+  end
+  do
+    -- Holes pass after pass: the rest waits twice, then runs anyway rather than leave the focus on a ladder.
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 1)
+    now = now + 100
+    w._passGap = 1.5
+    Menu.renderKey(w)
+    Menu.renderKey(w)
+    check("two passes after holes wait", r.recentre == nil and r.steppedAt ~= nil)
+    Menu.renderKey(w)
+    check("the third runs the rest", r.recentre ~= nil and r.recentre.state == "hide")
+  end
+  do
+    -- A detent starts the waits over: the bound is per rest, not per visit.
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 1)
+    now = now + 100
+    w._passGap = 1.5
+    Menu.renderKey(w)
+    Menu.renderKey(w)
+    detent(s.forward, s.forward.h, 2)
+    now = now + 100
+    Menu.renderKey(w)
+    check("after a detent a rest after a hole waits again", r.recentre == nil and r.steppedAt ~= nil)
+  end
+  do
+    -- A pass that builds asks for the key more than once: the waits count passes, not asks, and a second ask
+    -- in the pass a rest waits out does not run it there.
+    local w, s = open()
+    local r = roll(w)
+    detent(s.forward, s.forward.h, 1)
+    now = now + 100
+    w._passGap = 1.5
+    w._passAt = 1
+    Menu.renderKey(w)
+    Menu.renderKey(w)
+    Menu.renderKey(w)
+    check("three asks in one pass are one wait", r.restWaits == 1 and r.recentre == nil)
+    w._passAt = 2
+    Menu.renderKey(w)
+    Menu.renderKey(w)
+    check("the second wait holds for every ask of its pass", r.restWaits == 2 and r.recentre == nil)
+    w._passAt = 3
+    Menu.renderKey(w)
+    check("the third pass after holes runs it", r.recentre ~= nil and r.recentre.state == "hide")
+  end
+  do
+    -- A touch arrives relative to the object it lands on: over the touch box, only labels, pictures and dots
+    -- (which take none) and a rectangle starting at the same corner may lie.
+    local _, s = open()
+    local after, wrong = false, {}
+    for i = 1, #s.children do
+      local node = s.children[i]
+      if node.type == "box" and node.scrolled == nil and node.x == 0 and node.y == 0 and node.scrollDir == 0 then
+        after = true
+      elseif after and node.type == "rectangle" and (node.x ~= 0 or node.y ~= 0) then
+        wrong[#wrong + 1] = tostring(node.x) .. "," .. tostring(node.y)
+      end
+    end
+    check("no rectangle over the touch box away from its corner: " .. table.concat(wrong, " "), after and #wrong == 0)
+  end
+  do
+    -- A rest asks the menu for its rows afresh, as a build did: the question says the fill as it is now.
+    local w, s = open()
+    local r = roll(w)
+    Roll.press(w)
+    s = scene(Menu, w)
+    check("the question has the fill", string.find(r.levels[2].question.detail or "", "50", 1, true) ~= nil)
+    local before = r.source
+    detent(s.forward, s.forward.h, 1)
+    local key = Menu.renderKey(w)
+    now = now + 100
+    check("an unchanged question rests without a build", Menu.renderKey(w) == key)
+    check("and the menu's rows were made afresh", r.source ~= before and type(r.make) == "function")
+    s.reverse.scrollTo()
+    s.reverse.scrollTo()
+    _G.rfsuite.session.dataflash = { used = 80, total = 100 }
+    detent(s.forward, s.forward.h, 1)
+    Menu.renderKey(w)
+    now = now + 100
+    check("a question whose words changed is built again", Menu.renderKey(w) ~= key)
+    check("in what it says now", string.find(r.levels[2].question.detail or "", "80", 1, true) ~= nil)
+    _G.rfsuite.session.dataflash = { used = 50, total = 100 }
+  end
+  do
+    -- The close box during an opening: it calls the opening off and closes, as the button did, until the
+    -- tool is starting.
+    local w = open()
+    local r = roll(w)
+    local g = geoOf(w)
+    local ran = 0
+    Roll.openNext(r, "Opening...", function() ran = ran + 1 end)
+    tap(w, g.leftX + 5, g.slotY(1) + 2)
+    check("a finger elsewhere is ignored while a page opens", r.opening ~= nil and Views.top(w) ~= nil)
+    tap(w, g.closeX + 2, g.closeY + 2)
+    check("the close box calls the opening off and closes", r.opening == nil and Views.top(w) == nil and ran == 0)
+    w = open()
+    r = roll(w)
+    g = geoOf(w)
+    Roll.openNext(r, "Opening...", function() ran = ran + 1 end)
+    r.opening.started = true
+    tap(w, g.closeX + 2, g.closeY + 2)
+    check("once the tool is starting it does nothing", r.opening ~= nil and Views.top(w) ~= nil)
+  end
+  do
+    -- The close box: drawn, and a tap on it closes the menu.
+    local w = open()
+    local g = geoOf(w)
+    tap(w, g.closeX + 2, g.closeY + 2)
+    check("a tap on the close box closes the menu", Views.top(w) == nil)
+  end
+  do
+    -- The status notice covers the menu: the finger acts on nothing under it, and the notice's own button
+    -- closes it.
+    local w = open()
+    local r = roll(w)
+    local g = geoOf(w)
+    r.notice = { "Title", "Message" }
+    local s = scene(Menu, w)
+    tap(w, g.closeX + 2, g.closeY + 2)
+    check("a tap where the close box was leaves the menu up under the notice", Views.top(w) == "menu" and r.notice ~= nil)
+    touch(w, EVT_TOUCH_FIRST, { x = g.leftX + 5, y = g.slotY(1) })
+    touch(w, EVT_TOUCH_SLIDE, { x = g.leftX + 5, y = 0, slideY = -(g.rowH + 1) })
+    touch(w, EVT_TOUCH_BREAK, { x = g.leftX + 5, y = 0 })
+    check("a swipe under the notice moves nothing", r.levels[1].index == 1)
+    local close
+    local function findPress(node, depth)
+      if close ~= nil or type(node) ~= "table" or depth > 6 then return end
+      if type(node.press) == "function" then close = node.press; return end
+      for _, v in pairs(node) do findPress(v, depth + 1) end
+    end
+    findPress(s.children, 0)
+    check("the notice has its own button", close ~= nil)
+    if close ~= nil then close() end
+    check("which closes the notice, not the menu", r.notice == nil and Views.top(w) == "menu")
+  end
+  do
+    -- A reconnect takes the theme until the board's id has been read: a ladder's button, which calls the press
+    -- itself, does not act on the scene left from before, as the wheel's press through the widget does not.
+    local w, s = open()
+    local r = roll(w)
+    local button
+    for i = 1, #s.forward.children do
+      if button == nil and s.forward.children[i].type == "button" then button = s.forward.children[i] end
+    end
+    local function place() return tostring(r.focus) .. "/" .. tostring(r.base) .. "/" .. tostring(r.opening) end
+    local before = place()
+    w.theme, w.built = nil, false
+    button.press()
+    check("a ladder press on the scene from before the reconnect does nothing",
+      place() == before and toolOpened == 0 and #adds == 0)
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("nor does the wheel's press", place() == before and toolOpened == 0 and #adds == 0)
+    w.theme, w.built = {}, true
+    button.press()
+    check("with the theme back the same press acts", place() ~= before or toolOpened > 0 or #adds > 0)
   end
 
   -- Drawn as buttons, the keys are the buttons' again.
   do
     local w = open()
-    check("the rolling menu has its state", w._viewStack.roll ~= nil)
+    check("the rolling menu has its state", roll(w) ~= nil)
     w.preferences.general.menu_style = nil
     scene(Menu, w)
-    check("the card ends it", w._viewStack.roll == nil)
+    check("the card ends it", roll(w) == nil)
     check("and ENTER is not answered for it", Views.key(w, EVT_VIRTUAL_ENTER) ~= true)
   end
 
@@ -601,18 +987,22 @@ local function run(mutate)
     local w, children, forward = openPicker(false)
     local r = roll(w)
     check("the picker has a roll of its own", r ~= nil and r.view == "battery_pick" and forward ~= nil)
+    check("and hands the shared roll how its packs are made, read again at a rest", type(r.make) == "function")
     check("with no pack in force it starts on NO BATTERY", r.levels[1].rows[r.levels[1].index].none == true)
     check("its title is the picker's", string.find(labelsOf(children), "WHICH BATTERY?", 1, true) ~= nil)
     forward.scrolled(0, -1 * 0)
     r.levels[1].index = 1
+    r.slots = nil
     local text = labelsOf(children)
     check("the first pack's facts stand on the right",
       string.find(text, "3000 mAh", 1, true) ~= nil and string.find(text, "12 cycles", 1, true) ~= nil)
     r.levels[1].index = 3
+    r.slots = nil
     check("a pack without a cycle count leaves it out", string.find(labelsOf(children), "cycles", 1, true) == nil)
     r.levels[1].index = 1
+    r.slots = nil
     Views.key(w, EVT_VIRTUAL_ENTER)
-    check("with the switch off a press picks at once", w._batteryPickRequest == "a" and (w._viewStack == nil or w._viewStack.roll == nil))
+    check("with the switch off a press picks at once", w._batteryPickRequest == "a" and (w._viewStack == nil or roll(w) == nil))
   end
   do
     local w = openPicker(false)
@@ -628,16 +1018,18 @@ local function run(mutate)
     check("Pack B has none and cannot be picked", rows[2].selectable == false)
     check("NO BATTERY always can", rows[#rows].selectable ~= false)
     r.levels[1].index = 2
+    r.slots = nil
     check("it says why", string.find(labelsOf(children), "no profile", 1, true) ~= nil)
     Views.key(w, EVT_VIRTUAL_ENTER)
-    check("a press on it does nothing", w._batteryPickRequest == nil and w._viewStack.roll ~= nil)
+    check("a press on it does nothing", w._batteryPickRequest == nil and roll(w) ~= nil)
     check("nor can a theme's run reach it", (function()
       Menu.run(w, Menu.entry(w, "battery_pick"), rows[2])
       return w._batteryPickRequest == nil
     end)())
     r.levels[1].index = 1
+    r.slots = nil
     Views.key(w, EVT_VIRTUAL_ENTER)
-    check("a pack that writes stays up and says so", w._batteryPickRequest == "a" and w._viewStack.roll ~= nil
+    check("a pack that writes stays up and says so", w._batteryPickRequest == "a" and roll(w) ~= nil
       and Views.status(w, "battery_pick") == "busy")
     w._batteryPickRequest = nil
     Views.key(w, EVT_VIRTUAL_ENTER)
@@ -727,13 +1119,13 @@ local function run(mutate)
     for i = 1, #children do
       if children[i].type == "box" and children[i].children ~= nil and #children[i].children > 0 then box = true end
     end
-    check("forty packs are still cards", w._viewStack.roll == nil and box)
+    check("forty packs are still cards", roll(w) == nil and box)
     check("and their build stays well inside a call: " .. n, n < 20000 * 0.9)
     w = big(41)
     cost(w)
     check("forty-one roll", roll(w) ~= nil and roll(w).view == "battery_pick")
     Views.key(w, EVT_VIRTUAL_ENTER)
-    check("and the wheel's press is answered", w._batteryPickRequest ~= nil or w._viewStack == nil or w._viewStack.roll == nil)
+    check("and the wheel's press is answered", w._batteryPickRequest ~= nil or w._viewStack == nil or roll(w) == nil)
     -- What a pack says follows its language, its profile and whether it can be picked.
     do
       local q = big(2)
@@ -816,7 +1208,7 @@ local function run(mutate)
     check("it stays marked", rows[2].current == true and rows[2].selectable == false)
     check("the roll starts on NO BATTERY", rows[r.levels[1].index].none == true)
     check("a pack in force with a profile is started on", (function()
-      w._viewStack.roll = nil
+      Views.dropRoll(w, "battery_pick")
       w.state.batteryPick.selectedId = "a"
       req("widgets/dashboard/battery_pick_menu.lua").build({}, w)
       local again = roll(w)
@@ -838,7 +1230,7 @@ local function run(mutate)
     check("the focus starts on NO BATTERY there too", r.focus == 2 and r.levels[2].rows[r.levels[2].index].none == true)
   end
   do
-    -- A finger down: the scene is not built under it, however long the wheel has rested.
+    -- A finger down: nothing moves the focus under it, however long the wheel has rested.
     local w, s = open()
     local r = roll(w)
     detent(s.forward, s.forward.h, 1)
@@ -847,16 +1239,22 @@ local function run(mutate)
     local key = Menu.renderKey(w)
     now = now + 100
     check("no build while a finger is down", Menu.renderKey(w) == key)
+    check("nor does the focus move under it", r.recentre == nil)
     touch(w, EVT_TOUCH_BREAK, { x = g.leftX + 5, y = g.slotY(0) })
-    check("and the rest is honoured after it", Menu.renderKey(w) ~= key or r.steppedAt == nil)
+    Menu.renderKey(w)
+    check("and the rest is honoured after it", r.recentre ~= nil or r.steppedAt == nil)
   end
 
-  -- The model arming takes the list away from under the right side.
+  -- The model arming greys the list under the right side, with the place kept.
   do
     local w, r = toProfile()
     w.state.armed = true
     scene(Menu, w)
-    check("what the right list showed has gone: back to the left", r.focus == 1)
+    check("the place stays while the model is armed", r.focus == 2)
+    local written = #adds
+    Roll.press(w)
+    check("and a press writes nothing", #adds == written)
+    w.state.armed = false
   end
 end
 
@@ -871,22 +1269,22 @@ if selfTest then
       return (string.gsub(t, "Menu.run%(widget, entry, choice, \"none\", report%)", "Menu.run(widget, entry, choice, \"done\", report)"))
     end },
     { "a write's success closes whatever it finds", function(t)
-      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and session.roll == roll\n      and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
+      return (string.gsub(t, "if value == \"ok\" and widget._viewStack == session and Views.onTop%(widget, roll.view%)\n      and Views.roll%(widget, roll.view%) == roll\n      and Views.status%(widget, entry.id%) == \"ok\" then", "if value == \"ok\" then"))
     end },
     { "a position reported twice counts", function(t)
       return (string.gsub(t, "if sy == window.y then return end\n", ""))
     end },
     { "a build forgets the place on the right", function(t)
-      return (string.gsub(t, "right.index = place\n", "right.index = 1\n"))
+      return (string.gsub(t, "level.index = place\n", "level.index = 1\n"))
     end },
     { "another option takes a gone one's place", function(t)
-      return (string.gsub(t, "roll.focus = 1\n        right.index = right.rows and startIndex%(right.rows, source%) or 1", "right.index = 1"))
+      return (string.gsub(t, "level.index = level.rows and startIndex%(level.rows, source%) or 1\n        for i = #levels, depth %+ 1, %-1 do levels%[i%] = nil end\n        roll.base = math.min%(roll.base, depth %- 1%)\n        roll.focus = 1\n", "level.index = 1\n"))
     end },
     { "a question keeps what it said", function(t)
-      return (string.gsub(t, "right.rows, right.question = rows, question\n", ""))
+      return (string.gsub(t, "level.rows, level.question = rows, question\n", ""))
     end },
     { "the place goes by the row's number", function(t)
-      return (string.gsub(t, "local found = indexOfRow%(left.rows, before%)", "local found = (before ~= nil and left.rows[left.index] ~= nil) and left.index or nil"))
+      return (string.gsub(t, "local found = indexOfRow%(first.rows, before%)", "local found = (before ~= nil and first.rows[first.index] ~= nil) and first.index or nil"))
     end },
     { "a detent is not summed", function(t)
       return (string.gsub(t, "local delta = position %- roll.position", "local delta = (position > roll.position) and 1 or -1"))
@@ -910,13 +1308,74 @@ if selfTest then
       return (string.gsub(t, "Views.status%(widget, entry.id%) == \"busy\" then", "false then"))
     end },
     { "the picker starts on the first pack", function(t)
-      return (string.gsub(t, "if row.none == true then fallback = i end\n", ""))
+      return (string.gsub(t, "if row.none == true then none = i end\n", ""))
     end },
     { "RTN on the picker only closes the view", function(t)
       return (string.gsub(t, "    close = close,\n    back = close,", "    close = close,\n    back = function() Views.navigate(widget, \"closeView\") end,"))
     end },
     { "a build under the finger", function(t)
-      return (string.gsub(t, "roll.steppedAt ~= nil and roll.touchX == nil and", "roll.steppedAt ~= nil and"))
+      return (string.gsub(t, "recentre == nil and roll.touchX == nil and", "recentre == nil and"))
+    end },
+    { "the rest builds the scene", function(t)
+      return (string.gsub(t, "    if relayout then\n", "    if relayout or true then\n"))
+    end },
+    { "the ladders never hide", function(t)
+      return (string.gsub(t, "return recentre == nil or recentre.state ~= \"hide\"", "return true"))
+    end },
+    { "the hiding sweep's scrolls count as detents", function(t)
+      local kept = "        recentre.swallowed = recentre.swallowed + 1\n"
+      return (string.gsub(t, "        recentre.swallowed = recentre.swallowed %+ 1\n        return\n", kept))
+    end },
+    { "the hiding never ends", function(t)
+      return (string.gsub(t, "          recentre.state = \"show\"\n", ""))
+    end },
+    { "a rest after a long hole does not wait", function(t)
+      return (string.gsub(t, "widget._passGap >= STALL_GAP", "false"))
+    end },
+    { "a rest waits for as long as the holes last", function(t)
+      return (string.gsub(t, "%(roll.restWaits or 0%) < STALL_WAITS", "true"))
+    end },
+    { "the waits count asks, not passes", function(t)
+      return (string.gsub(t, "if widget._passAt == nil or roll.restWaitPass ~= widget._passAt then", "if true then"))
+    end },
+    { "a second ask in a waited-out pass runs the rest", function(t)
+      return (string.gsub(t, " or %(widget._passAt ~= nil and roll.restWaitPass == widget._passAt%)%)", ")"))
+    end },
+    { "a detent keeps the waits of the rest before", function(t)
+      return (string.gsub(t, "roll.detentAt = roll.steppedAt\n  roll.restWaits = nil\n", "roll.detentAt = roll.steppedAt\n"))
+    end },
+    { "hidden ladders are never given up", function(t)
+      return (string.gsub(t, "recentre.passes > HIDDEN_PASSES", "false"))
+    end },
+    { "a rest keeps the rows the last build made", function(t)
+      return (string.gsub(t, "  if type%(roll.make%) == \"function\" then\n", "  if false then\n"))
+    end },
+    { "the quick menu hands in rows made once", function(t)
+      return (string.gsub(t, "function%(%) return Sources.quick%(widget, entries or M.entries%(widget%), t%) end",
+        "Sources.quick(widget, entries or M.entries(widget), t)"))
+    end },
+    { "the picker hands in packs made once", function(t)
+      return (string.gsub(t, "function%(%) return Sources.pick%(widget, t%) end", "Sources.pick(widget, t)"))
+    end },
+    { "the close box is dead while a page opens", function(t)
+      local tail = "      end\n    end\n    return true\n"
+      return (string.gsub(t, "        roll.source.close%(%)\n" .. tail, tail))
+    end },
+    { "the close box does nothing", function(t)
+      return (string.gsub(t, "    roll.source.close%(%)\n    return\n", "    return\n"))
+    end },
+    { "the finger acts on the menu under the status notice", function(t)
+      return (string.gsub(t, "  if roll.notice ~= nil then\n    %-%- The details behind the status cover the menu",
+        "  if false then\n    -- The details behind the status cover the menu"))
+    end },
+    { "a ladder press acts on the scene from before a reconnect", function(t)
+      return (string.gsub(t, "and Views.sceneStale%(widget%) then", "and false then"))
+    end },
+    { "the menu built again after a reconnect still ignores presses", function(t)
+      return (string.gsub(t, "    roll.staleScene = nil\n", ""))
+    end },
+    { "a rest that asks for a build drops the ladder position of the scene still standing", function(t)
+      return (string.gsub(t, "    roll.position = position\n", ""))
     end },
   }
   quiet = true
