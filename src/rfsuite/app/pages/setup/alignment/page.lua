@@ -1411,12 +1411,19 @@ function M.build(ctx)
   scene.leaningLeft = pageText(i18n, "leaning_left", "Leaning Left")
 
   local colors = scene.colors
-  colors[LIGHT] = COLOR_THEME_PRIMARY2
-  colors[MID] = COLOR_THEME_SECONDARY2
-  colors[DARK] = COLOR_THEME_PRIMARY3 or BLACK
-  colors[MAIN] = WHITE
-  colors[ACCENT] = COLOR_THEME_SECONDARY1 or YELLOW
-  colors[DISC] = COLOR_THEME_SECONDARY2
+  -- The model draws on the scheme's page (Palette.panel), so its colours are scheme roles too: the
+  -- radio theme's PRIMARY2 and WHITE are the scheme's card and white there, which do not read on the
+  -- light page, and PRIMARY2 not on the dark one either.
+  colors[LIGHT] = Palette.modelFaceLight
+  colors[MID] = Palette.modelFaceMid
+  colors[DARK] = Palette.modelFaceDark
+  colors[MAIN] = Palette.modelLine
+  colors[ACCENT] = Palette.modelAccent
+  colors[DISC] = Palette.modelDisc
+  local Log = _G.rfsuite and _G.rfsuite.Log
+  if Log and type(Log.wanted) == "function" and Log.wanted("debug") then
+    Log.emit("rfsuite.alignment", "model colours from scheme " .. tostring(Palette.scheme), "debug")
+  end
 
   -- The model's layers are boxes the size of the page body, placed before everything else so
   -- that every control stays on top of them and keeps its touches. A box keeps a recreated

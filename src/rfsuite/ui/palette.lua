@@ -24,7 +24,7 @@ local ROLES = {
   { "panelText", "text" },
   { "headingText", "text" },      -- a group title on a page
   { "settingsText", "text" },
-  { "logWarning", "warning" },
+  { "logWarning", "text" },       -- a warn row in Session Logs; an error row draws in warning
   { "strongBorder", "text" },      -- a frame that has to stand out
   { "wizardBorder", "accent" },
   { "grid", "rule" },      -- the log graph's grid lines
@@ -33,6 +33,14 @@ local ROLES = {
   { "testProgressTrack", "raised" },
   { "tile", "tileOff" },   -- a disabled tile's face
   { "tileMuted", "tileOffText" }, -- a disabled tile's text
+  -- The Alignment page's 3D model: outlines and blades, three face shades, the boom ring, the rotor
+  -- discs. Each reads on the page in both schemes; the darkest face stays quiet and is outlined.
+  { "modelLine", "text" },
+  { "modelFaceLight", "muted" },
+  { "modelFaceMid", "disabled" },
+  { "modelFaceDark", "rule" },
+  { "modelAccent", "accent" },
+  { "modelDisc", "disabled" },
 }
 
 local palette = {}
