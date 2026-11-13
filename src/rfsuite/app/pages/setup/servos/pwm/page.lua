@@ -272,7 +272,9 @@ local function selectedCentre()
 end
 
 --- Puts servo `raw`'s snapshot back on the screen and in the session copy, and, where a centre
---- went out live for it since the board's record was taken, sends that record's centre back.
+--- went out live for it since the board's record was taken, sends that record's centre back. A
+--- save of the servo that was not stored may have left its record in the board's RAM; without an
+--- override record for the servo nothing else takes that back, so its stored centre is sent too.
 --- Returns whether anything was put back.
 local function rollbackServo(raw)
   local orig = ui.originalServos and ui.originalServos[raw]
@@ -292,6 +294,14 @@ local function rollbackServo(raw)
       return true
     end)
     if sent then changed = true end
+  elseif ui.runtime and ui.runtime.saveFailed and ui.runtime.saveFailed[raw] then
+    local queue = getQueue()
+    if queue then
+      queueCentre(queue, raw, orig.mid)
+      ui.runtime.saveFailed[raw] = nil
+      logf("info", "servo %d: the stored centre %s sent back after a save that was not stored", raw, tostring(orig.mid))
+      changed = true
+    end
   end
   return changed
 end
@@ -706,6 +716,7 @@ local function queueServoWrite(servoIdx, onDone)
         override:stored({ raw = servoIdx, mid = mid }, { mid = mid })
       end
       if ui.runtime ~= visit then return end
+      if visit.saveFailed then visit.saveFailed[servoIdx] = nil end
       ui.dirty = false
       renewOriginalServo(servoIdx)
       saveToSession()
@@ -713,6 +724,12 @@ local function queueServoWrite(servoIdx, onDone)
     onDone = function(result)
       if result.saved ~= true and override and overrideRaw == ui.overrideServo then override:saveFailed() end
       if ui.runtime ~= visit then return end
+      -- Remembered for leaving or Reload without Save (rollbackServo), as long as this visit lasts.
+      if result.saved ~= true and visit then
+        visit.saveFailed = visit.saveFailed or {}
+        visit.saveFailed[servoIdx] = true
+        logf("debug", "servo %d: save not stored, its stored centre goes back on leaving", servoIdx)
+      end
       if type(onDone) == "function" then onDone(result.saved == true) end
       if type(ui.runtime.requestRebuild) == "function" then
         ui.runtime.requestRebuild()

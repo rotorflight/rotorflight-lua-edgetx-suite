@@ -311,6 +311,43 @@ for _, name in ipairs({ "pwm", "bus" }) do
     check(loggedLine("info rfsuite.override: rollback: the board's record queued") ~= nil, name .. ": the rollback is logged")
   end
 
+  -- The same without *: no override record exists, and PWM sends the stored centre back as it did
+  -- before the override helper. BUS never did without *. A save that is stored sends nothing back.
+  if name == "pwm" then
+    do
+      local page = open(name)
+      local orig = fields["Center"].opts.get()
+      build(page)
+      fields["Center"].opts.set(orig + 15)
+      page.wakeup(ctx)
+      clearQueue()
+      page.onSave({})
+      logged = {}
+      finishSave("failed")
+      clearQueue()
+      page.onClose()
+      equal(commands(), "213", name .. ": after a failed save without *, leaving puts the stored centre back")
+      equal(u16(queue.messages[1], 2), orig, name .. ": that write carries the centre read")
+      check(loggedLine("info rfsuite.servos." .. name .. ": servo 0: the stored centre") ~= nil,
+        name .. ": the centre sent back without * is logged")
+    end
+    do
+      local page = open(name)
+      local orig = fields["Center"].opts.get()
+      build(page)
+      fields["Center"].opts.set(orig + 15)
+      page.wakeup(ctx)
+      clearQueue()
+      page.onSave({})
+      finishSave("failed")
+      page.onSave({})
+      finishSave("done")
+      clearQueue()
+      page.onClose()
+      equal(commands(), "", name .. ": a failed save stored by a second Save sends nothing back on leaving")
+    end
+  end
+
   -- Reload without Save puts the centre back before it reads again.
   do
     local page = open(name)
