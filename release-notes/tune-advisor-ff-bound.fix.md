@@ -1,0 +1,1 @@
+- **Tune Advisor keeps FF and the rates within reach of your own values instead of moving them on every Save (`flight_tuning/tune_advisor`)** (#1174)

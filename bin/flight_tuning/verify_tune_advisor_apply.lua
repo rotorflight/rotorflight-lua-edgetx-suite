@@ -810,10 +810,36 @@ do
     and contains(ui.view.whys, T().whyJournalUnread) and not contains(ui.view.actions, "->"),
     table.concat(ui.view.whys, " | "))
   openFails[Journal.path(MCU)] = nil
+  -- A journal over its read cap of 64 KiB is read from its newest part (#1170): the advisor's own
+  -- raises at its end still cap P, and the page does not call it unreadable
+  files[Journal.path(MCU)] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
+    .. 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\ne(1761900002,"tune_advisor",1,"pid_0_P",60,70)\n'
+  openPage()
+  check("a journal over its read cap still caps P from its newest entries (#1170)",
+    #files[Journal.path(MCU)] > 65536 and not canSave()
+    and contains(ui.view.whys, string.format(T().whyPMaxFmt, 40))
+    and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
+  -- The advisor's own raises older than the newest 64 KiB are not read, and the oldest value read
+  -- counts as the pilot's: with both raises before the window P 70 is the pilot's, and with the
+  -- first one cut off P 60 is (cap 90). The documented trade-off of reading only the newest part.
+  files[Journal.path(MCU)] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. 'e(1761900002,"tune_advisor",1,"pid_0_P",60,70)\n'
+    .. string.rep('e(1761900003,"pids",1,"pid_2_P",1,2)\n', 2000)
+  openPage()
+  check("own raises older than the newest 64 KiB are not read: P 70 counts as the pilot's",
+    #files[Journal.path(MCU)] > 65536 and canSave()
+    and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
+  files[Journal.path(MCU)] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. string.rep('e(1761900003,"pids",1,"pid_2_P",1,2)\n', 2000)
+    .. 'e(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
+  openPage()
+  check("a chain of own raises cut by the window counts from the oldest value read (P 60)",
+    #files[Journal.path(MCU)] > 65536 and canSave()
+    and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
   files[Journal.path(MCU)] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
   openPage()
-  check("nor does one over its read cap", #files[Journal.path(MCU)] > 65536 and not canSave()
-    and contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
+  check("(control) one over its read cap with no raise of roll's P raises it", #files[Journal.path(MCU)] > 65536
+    and canSave() and not contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
 
   -- A long journal (a thousand entries, about 40 kB) is read over many passes, and the walk
   -- still finds the advisor's own raises at its end
@@ -964,6 +990,204 @@ do
 end
 
 -- ---------------------------------------------------------------------------
+print("F and its rates stay within 0.6-1/0.6 of the pilot's own (#1174)")
+do
+  local A = "tune_advisor"
+  local function reasons() return table.concat(ui.view.whys, " | ") end
+  local function belowF(pct) return string.format(T().whyFBelowFmt, pct, T().pidsPage) end
+  local function ratesChanged()
+    for _, c in ipairs(ui.view.changes or {}) do
+      if c.key == "rcRate" or c.key == "sRate" then return true end
+    end
+    return false
+  end
+
+  -- A series through the real Save: roll F 120 hot, Actual 18/24. Each Save is recorded in the
+  -- change journal, and the next flight is flown on what it wrote.
+  resetFc()
+  journal({})
+  openPage()
+  applyNow()
+  check("step 1 through Save: F 120 -> 96, rates 18/24 -> 23/30", fc.tuning.pid_0_F == 96
+    and fc.rates.rcRates_1 == 23 and fc.rates.rates_1 == 30,
+    fc.tuning.pid_0_F .. " " .. fc.rates.rcRates_1 .. "/" .. fc.rates.rates_1)
+  flightRoll = { F = 96, rcRate = 23, sRate = 30 }
+  openPage()
+  applyNow()
+  check("step 2 through Save: F 96 -> 77 (64% of 120), rates 23/30 -> 29/37", fc.tuning.pid_0_F == 77
+    and fc.rates.rcRates_1 == 29 and fc.rates.rates_1 == 37,
+    fc.tuning.pid_0_F .. " " .. fc.rates.rcRates_1 .. "/" .. fc.rates.rates_1)
+  flightRoll = { F = 77, rcRate = 29, sRate = 37, releases = 20, meanRebound = 0.2, meanIterm = 0 }
+  openPage()
+  check("a third step (77 -> 62, under 0.6 x 120) is not given, and the reasons say how far F is",
+    not canSave() and contains(ui.view.whys, T().whyFast) and contains(ui.view.whys, belowF(36))
+    and not contains(ui.view.actions, "->"), reasons())
+  check("nor are the stops told to fix FF first, nor P raised", not contains(ui.view.whys, "Fix FF first")
+    and not contains(ui.view.whys, "More P"), reasons())
+  local entries = Journal.read(MCU) or {}
+  check("the journal holds what the two Saves wrote, on the profiles Save names", #entries == 6
+    and entries[4].field == "pid_0_F" and entries[4].old == 96 and entries[4].new == 77 and entries[4].profile == 1
+    and entries[5].field == "rcRates_1" and entries[6].field == "rates_1" and entries[6].profile == 1, #entries)
+
+  -- A hand edit of F on the PIDs page ends the chain: the edited F is the pilot's own
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 120, new = 96 },
+    { source = A, profile = 1, field = "pid_0_F", old = 96, new = 77 },
+    { source = "pids", profile = 1, field = "pid_0_F", old = 77, new = 77 },
+  })
+  fc.tuning.pid_0_F, fc.rates.rcRates_1, fc.rates.rates_1 = 77, 29, 37
+  flightRoll = { F = 77, rcRate = 29, sRate = 37 }
+  openPage()
+  check("(control) after an entry from another page F 77 is the pilot's own: a step is given", canSave(), reasons())
+  resetFlights()
+
+  -- Rounding: two steps from F 97 land at 62, just under 0.64 x 97 -- still inside 0.6 x 97
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 97, new = 78 },
+    { source = A, profile = 1, field = "rcRates_1", old = 40, new = 50 },
+    { source = A, profile = 1, field = "rates_1", old = 64, new = 80 },
+  })
+  fc.tuning.pid_0_F, fc.rates.rcRates_1, fc.rates.rates_1 = 78, 50, 80
+  flightRoll = { F = 78, rcRate = 50, sRate = 80 }
+  openPage()
+  applyNow()
+  check("the second step from F 97 is given: 78 -> 62, rates 50/80 -> 63/101", fc.tuning.pid_0_F == 62
+    and fc.rates.rcRates_1 == 63 and fc.rates.rates_1 == 101,
+    fc.tuning.pid_0_F .. " " .. fc.rates.rcRates_1 .. "/" .. fc.rates.rates_1)
+  resetFlights()
+
+  -- The other way: the heli is slower than the stick, F goes up. F 100 raised twice to 144; a
+  -- third raise (173) is past 100 / 0.6.
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 100, new = 120 },
+    { source = A, profile = 1, field = "pid_0_F", old = 120, new = 144 },
+  })
+  fc.tuning.pid_0_F = 144
+  flightRoll = { F = 144, ffGain = 0.7 }
+  openPage()
+  check("slow: a third raise of F is not given, and the reasons say how far above it is", not canSave()
+    and contains(ui.view.whys, T().whySlow)
+    and contains(ui.view.whys, string.format(T().whyFAboveFmt, 44, T().pidsPage)), reasons())
+  journal({ { source = A, profile = 1, field = "pid_0_F", old = 100, new = 120 } })
+  fc.tuning.pid_0_F = 120
+  flightRoll = { F = 120, ffGain = 0.7 }
+  openPage()
+  check("(control) slow: the second raise (120 -> 144) is given", canSave(), reasons())
+
+  -- A step back toward the pilot's own is never refused, even from outside the bound (a journal
+  -- written before the bound): F 100 lowered four times to 41, then the heli is slow
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 100, new = 80 },
+    { source = A, profile = 1, field = "pid_0_F", old = 80, new = 64 },
+    { source = A, profile = 1, field = "pid_0_F", old = 64, new = 51 },
+    { source = A, profile = 1, field = "pid_0_F", old = 51, new = 41 },
+  })
+  fc.tuning.pid_0_F = 41
+  flightRoll = { F = 41, ffGain = 0.7 }
+  openPage()
+  check("a raise back toward the pilot's own F is given from outside the bound", canSave(), reasons())
+  resetFlights()
+
+  -- A step landing exactly on 3/5 of the pilot's own is given (compared in integers: on a radio
+  -- with 32-bit floats 100 x 0.6 is a hair above 60)
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 100, new = 80 },
+    { source = A, profile = 1, field = "pid_0_F", old = 80, new = 75 },
+  })
+  fc.tuning.pid_0_F = 75
+  flightRoll = { F = 75 }
+  openPage()
+  applyNow()
+  check("a step landing exactly on 60% of the pilot's own F is given: 75 -> 60", fc.tuning.pid_0_F == 60,
+    tostring(fc.tuning.pid_0_F))
+  resetFlights()
+
+  -- Slow: F goes up and its rates down; the rates were cut twice by full stick already (own 30)
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "rcRates_1", old = 30, new = 24 },
+    { source = A, profile = 1, field = "rcRates_1", old = 24, new = 19 },
+  })
+  fc.rates.rcRates_1 = 19
+  flightRoll = { rcRate = 19, ffGain = 0.7 }
+  openPage()
+  check("slow: an F raise whose rates would fall under 60% of their own is not given", not canSave()
+    and contains(ui.view.whys, string.format(T().whyRatesBelowFmt, 37, T().ratesPage)), reasons())
+  resetFlights()
+
+  -- Yaw has its own F and its own rate row: own F 156 lowered twice to 100, a third step is not given
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "pid_2_F", old = 156, new = 125 },
+    { source = A, profile = 1, field = "pid_2_F", old = 125, new = 100 },
+  })
+  fc.tuning.pid_2_F = 100
+  flightAxes[3] = { F = 100, ffGain = 1.3, ffCount = 1500, ffCorr = 0.97 }
+  openPage()
+  axisSetter(3)
+  check("yaw: a third F step is not given, and the reasons say how far F is", not canSave()
+    and contains(ui.view.whys, belowF(36)), reasons())
+  journal({ { source = A, profile = 1, field = "pid_2_F", old = 125, new = 100 } })
+  openPage()
+  axisSetter(3)
+  check("(control) yaw: one step after the pilot's 125 is given", canSave(), reasons())
+  axisSetter(1)
+  resetFlights()
+
+  -- Polar cyclic: roll's and pitch's F steps both scale the Cyclic (Pitch) rate row. Its own
+  -- 18/24 were raised to 29/38 already; one more roll step (x1.25) would take it past 18 / 0.6.
+  resetFc()
+  fc.rates.cyclic_polarity = 1
+  fc.tuning.pid_0_F, fc.rates.rcRates_2, fc.rates.rates_2 = 96, 29, 38
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 120, new = 96 },
+    { source = A, profile = 1, field = "rcRates_2", old = 18, new = 23 },
+    { source = A, profile = 1, field = "rates_2", old = 24, new = 30 },
+    { source = A, profile = 1, field = "pid_1_F", old = 120, new = 96 },
+    { source = A, profile = 1, field = "rcRates_2", old = 23, new = 29 },
+    { source = A, profile = 1, field = "rates_2", old = 30, new = 38 },
+  })
+  flightRoll = { F = 96 }
+  flightAxes[2] = { rcRate = 29, sRate = 38 }
+  openPage()
+  check("polar cyclic: roll's F step is not given when the Cyclic rates would pass their bound", not canSave()
+    and contains(ui.view.whys, string.format(T().whyRatesAboveFmt, 61, T().ratesPage)), reasons())
+  journal({ { source = A, profile = 1, field = "pid_0_F", old = 120, new = 96 } })
+  openPage()
+  check("(control) polar cyclic: with the Cyclic rates the pilot's own, the step is given", canSave(), reasons())
+  resetFlights()
+
+  -- A full-stick cut counts toward the rates' bound too: own 30/40, cut twice to 18/24 already
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "rcRates_1", old = 30, new = 24 },
+    { source = A, profile = 1, field = "rates_1", old = 40, new = 32 },
+    { source = A, profile = 1, field = "rcRates_1", old = 24, new = 18 },
+    { source = A, profile = 1, field = "rates_1", old = 32, new = 24 },
+  })
+  flightRoll = { ffGain = 1.0, fullCount = 200, fullSatCount = 200, fullMaxRate = 100 }
+  openPage()
+  check("a third full-stick cut is not given, and the reasons say how far below the rates are", not ratesChanged()
+    and contains(ui.view.whys, string.format(T().whyRatesBelowFmt, 40, T().ratesPage)), reasons())
+
+  -- The journal cannot be read: no F step (how far F already is cannot be told), but a
+  -- full-stick cut is still given
+  openFails[Journal.path(MCU)] = true
+  openPage()
+  check("with the journal unread a full-stick cut is still given", ratesChanged(), reasons())
+  resetFlights()
+  resetFc()
+  openPage()
+  check("with the journal unread no F step is given, and the reasons say why", not canSave()
+    and contains(ui.view.whys, T().whyJournalUnread) and not contains(ui.view.actions, "->"), reasons())
+  openFails[Journal.path(MCU)] = nil
+  journal({})
+  resetFlights()
+end
+
 print("From the review")
 -- ---------------------------------------------------------------------------
 do

@@ -46,17 +46,24 @@ it can be put in order.
 
 ## Reading it
 
-A reader reads the whole text (up to 64 KiB) and compiles it with Lua's
+A reader reads the text and compiles it with Lua's
 `load(text, name, "t", { e = collector })`, where `collector(time, source, profile, field, old, new)` receives
 each line. Use `load`, not `loadScript`: on EdgeTX, `loadScript` does not pass its environment argument to
-the chunk. The append-only file otherwise grows without limit, so archive a large file by hand. The suite
-itself reads the text a few lines at a time, one group per pass of the page, so that a long journal never holds
-up the radio.
+the chunk. The suite itself reads the text a few lines at a time, one group per pass of the page, so that a long
+journal never holds up the radio.
 
-The Tune Advisor page reads the journal when it opens, to find the P you last set yourself: it follows its own
-entries for P on an axis and PID profile back from the current value and stops at any other change. If the file
-is there but cannot be read -- over 64 KiB, or it does not open -- the page raises no P until it can be read
-again.
+The append-only file grows without limit. The suite reads at most its newest 64 KiB, some 1400 entries: from
+the first whole line in that part to the end, with older lines left in the file but not read. The Tune Advisor
+follows the journal back from its newest entries, so a journal past 64 KiB keeps working; archive it by hand only
+if you want a smaller file.
+
+The Tune Advisor page reads the journal when it opens, to find the P, FF and rate values you last set yourself:
+for each, it follows its own entries back from the current value -- P and FF on an axis and PID profile, the rates
+on a row and rate profile -- and stops at any other change. It folds the entries as it reads them and keeps none.
+If its own changes go back further than the newest 64 KiB, the oldest value read counts as yours, and the current
+value when none of them is read: after that many changes the page's limits around your own values count from
+that value, not from the one you set before them. If the file is there but cannot be read -- it does not open,
+for example -- the page raises no P and changes no FF until it can be read again.
 
 ## Reading and repairing
 
@@ -66,8 +73,8 @@ A failed journal append is reported by the Tune Advisor and does not undo the bo
 When a group of lines does not compile or run -- a half-written last line, or a line broken by hand -- the
 reader reads that group again line by line and skips only the lines that do not read; every other line still counts.
 A later append starts on a new line and leaves the broken fragment in place, where it is skipped again; delete
-it by hand to tidy the file. Files above 64 KiB are reported as too big rather than read partly; archive the
-file by hand if it reaches that size.
+it by hand to tidy the file. A file above 64 KiB is read from its newest 64 KiB; a line cut in two by the start
+of that part is not read.
 
 There is no journal viewer or undo button in the UI. This is a record for undoing a change by hand: select
 the recorded profile and put the old value back on the appropriate settings page, then save it.

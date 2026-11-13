@@ -34,7 +34,10 @@
 -- - Stick releases: the rebound after a stop. I-term pushing back points at a lower I-term relax
 --   cut-off, on an axis I-term relax covers; with F still off, F comes first; otherwise more P.
 -- - P is never raised past P_RAISE_MAX times the pilot's own P: the value before this page's own
---   changes, followed back through the change journal (lib/tune_history.lua, pilotValue).
+--   changes, followed back through the change journal (lib/tune_history.lua, pilotFold).
+-- - F, and each rate byte the advice moves (F's rates, a full-stick cut), stays within 3/5 to 5/3
+--   of the pilot's own value, followed back the same way (see FF_DRIFT_NUM); past it the reasons
+--   say how far it already is. With the journal unread no F step is given.
 -- - A change whose new value is outside the range the flight controller accepts is not given at
 --   all, nor any change that goes with it (F with its rates): clamping would give a different
 --   change from the one the data asks for.
@@ -85,6 +88,11 @@ local FF_MIN_CORR = 0.85
 local FF_HOT = 1.15
 local FF_LOW = 0.85
 local FF_STEP_MAX = 0.2         -- change F (and rates) by at most 20% per step
+-- F, and each rate byte the advice moves, stays within FF_DRIFT_NUM / FF_DRIFT_DEN (0.6) to its
+-- inverse of the pilot's own value (from the change journal, as for P): about two steps either
+-- way, with room for the rounding of each step. Compared in integers: a radio built with 32-bit
+-- floats would put 100 x 0.6 a hair above 60.
+local FF_DRIFT_NUM, FF_DRIFT_DEN = 3, 5
 
 -- What the flight controller accepts: P, F and B 0-1000 (PID_GAIN_MAX), the I-term relax
 -- cut-off 1-100, and the rate bytes as firmware fc/rc_rates.h and cli/settings.c bound them.
@@ -214,9 +222,10 @@ local ui = {
   loadStep = nil,           -- the history read in progress: "read", "aggregate", "journal"
   readJob = nil,            -- the file read's own steps (lib/tune_history.lua readJob)
   journalJob = nil,         -- the change journal read's own steps (lib/change_journal.lua readJob)
+  journalFinish = nil,      -- the fold over its entries (lib/tune_history.lua pilotFold) to finish
   axesBuilt = nil,          -- the axes combined so far, one per pass
   flights = nil,            -- held only between the read and the aggregate
-  axes = nil,               -- per axis {a, used, seconds, pilotP}: all the page keeps
+  axes = nil,               -- per axis {a, used, seconds, pilot}: all the page keeps
   maxFlights = 5,
   newestHasPitch = false,
   probeOwed = false,
@@ -391,7 +400,16 @@ local function loadTexts(i18n)
     whyOk = pageText(i18n, "why_ok", "The heli answers the stick as asked."),
     whyLimit = pageText(i18n, "why_limit", "The change needed goes past a setting's limit."),
     whyPMaxFmt = pageText(i18n, "why_p_max_fmt", "P is already %d%% above your setting. Check the mechanics."),
-    whyJournalUnread = pageText(i18n, "why_journal_unread", "The change journal could not be read, so P is not raised."),
+    whyJournalUnread = pageText(i18n, "why_journal_unread",
+      "The change journal could not be read, so P is not raised and FF is not changed."),
+    whyFBelowFmt = pageText(i18n, "why_f_below_fmt",
+      "FF is already %d%% below your setting. Set it on the %s page to go further."),
+    whyFAboveFmt = pageText(i18n, "why_f_above_fmt",
+      "FF is already %d%% above your setting. Set it on the %s page to go further."),
+    whyRatesBelowFmt = pageText(i18n, "why_rates_below_fmt",
+      "The rates are already %d%% below your setting. Set them on the %s page to go further."),
+    whyRatesAboveFmt = pageText(i18n, "why_rates_above_fmt",
+      "The rates are already %d%% above your setting. Set them on the %s page to go further."),
 
     armed = pageText(i18n, "save_armed", "Disarm first. Nothing was saved."),
     disconnected = pageText(i18n, "save_disconnected", "Connect the flight controller first."),
@@ -559,6 +577,39 @@ local function rateActionCount(rates)
   return roles and #roles or 1
 end
 
+-- Whether a value moved from `from` to `to` leaves 3/5 to 5/3 of the pilot's own value `own`
+-- (integers throughout). One-sided: a move back toward the pilot's own value is never refused,
+-- even from outside.
+local function driftsOut(from, to, own)
+  if to < from then return to * FF_DRIFT_DEN < own * FF_DRIFT_NUM end
+  if to > from then return to * FF_DRIFT_NUM > own * FF_DRIFT_DEN end
+  return false
+end
+
+-- How far a value already is from the pilot's own, in percent, and whether above it
+local function driftText(T, fmtAbove, fmtBelow, value, own, page)
+  local above = value > own
+  return string.format(above and fmtAbove or fmtBelow, round(math.abs(value / own - 1) * 100), page)
+end
+
+-- Whether scaling the rate curve by k takes a rate byte past the drift bound of the pilot's own
+-- (pilotRates: {rcRate, sRate} of this rate row, nil where it is not known). Returns the reason
+-- when it does. A percentage-only rates_type moves no byte here.
+local function ratesDriftOut(T, rates, k, pilotRates)
+  local roles = LINEAR_ROLES[rates.ratesType]
+  if not roles or not pilotRates then return nil end
+  for _, role in ipairs(roles) do
+    local key = rateKey(role)
+    local own, raw = pilotRates[key], rates[key]
+    if own and own > 0 and driftsOut(raw, round(raw * k), own) then
+      pageLog("debug", "rate %s %d -> %d leaves %d/%d of the pilot's %d", key, raw, round(raw * k), FF_DRIFT_NUM,
+        FF_DRIFT_DEN, own)
+      return driftText(T, T.whyRatesAboveFmt, T.whyRatesBelowFmt, raw, own, T.ratesPage)
+    end
+  end
+  return nil
+end
+
 -- Fills actions/whys/changes (cleared by the caller) for one axis; returns the Response and
 -- Stops values. changes holds what Save writes, one entry per setting line, built by the same
 -- call that adds the line, so the screen and the save cannot disagree.
@@ -570,9 +621,10 @@ end
 -- accepts is dropped with anything tied to it, and the reasons say so once (atLimit).
 --
 -- rates: the rate set the advice works on ({ratesType, rcRate, sRate, row, axis}); ctx: the
--- newest flight's cyclic ring and I-term relax type where they apply (nil = unknown); pilotP:
--- the pilot's own P for this axis, nil when the change journal could not be read.
-local function advise(T, a, axis, rates, ctx, pilotP, actions, whys, changes)
+-- newest flight's cyclic ring and I-term relax type where they apply (nil = unknown); pilot: the
+-- pilot's own values from the change journal -- P and F of this axis, and rates = {rcRate, sRate}
+-- of the rate row the advice works on -- or nil when the journal could not be read.
+local function advise(T, a, axis, rates, ctx, pilot, actions, whys, changes)
   local function room(n) return #actions + n <= MAX_ACTIONS end
   local function act(s) if #actions < MAX_ACTIONS then actions[#actions + 1] = s end end
   local function why(s) if #whys < MAX_WHYS then whys[#whys + 1] = s end end
@@ -587,6 +639,9 @@ local function advise(T, a, axis, rates, ctx, pilotP, actions, whys, changes)
     end
   end
   local limited = false
+  -- F was not given for want of the pilot's own values, or at their bound: the stops get no
+  -- "fix FF first", which the page cannot help with
+  local fHeld = false
   local function atLimit()
     if not limited then limited = true; why(T.whyLimit) end
   end
@@ -618,6 +673,22 @@ local function advise(T, a, axis, rates, ctx, pilotP, actions, whys, changes)
         atLimit()
       elseif not ratesMove(rates, a.F / newF) then
         why(hot and T.whyFast or T.whySlow)
+      elseif pilot == nil then
+        -- How far F already is from the pilot's own cannot be told: no step, as for P
+        why(hot and T.whyFast or T.whySlow)
+        why(T.whyJournalUnread)
+        fHeld = true
+        pageLog("debug", "axis %d: journal unread, F %d not moved", axis, a.F)
+      elseif not pilot.F or pilot.F <= 0 then
+        why(hot and T.whyFast or T.whySlow)
+        atLimit()
+      elseif driftsOut(a.F, newF, pilot.F) or ratesDriftOut(T, rates, a.F / newF, pilot.rates) then
+        -- As far from the pilot's own as this page goes: the pilot takes it from here
+        why(hot and T.whyFast or T.whySlow)
+        why(driftsOut(a.F, newF, pilot.F) and driftText(T, T.whyFAboveFmt, T.whyFBelowFmt, a.F, pilot.F, T.pidsPage)
+          or ratesDriftOut(T, rates, a.F / newF, pilot.rates))
+        fHeld = true
+        pageLog("info", "axis %d: F %d -> %d stops at the bound (pilot's F %d)", axis, a.F, newF, pilot.F)
       else
         local text = string.format(PATH_FMT, T.pidsPage, T.pidsAxis[axis], T.pidsF, a.F, newF)
         if LINEAR_ROLES[rates.ratesType] then change(text, "F", a.F, newF) else act(text) end
@@ -638,9 +709,12 @@ local function advise(T, a, axis, rates, ctx, pilotP, actions, whys, changes)
         and a.fullMaxRate < FULL_REACH * given and room(rateActionCount(rates)) then
       local k = math.max(a.fullMaxRate / given, 1 - FF_STEP_MAX)
       local fits = ratesFit(rates, k)
-      if fits then rateActions(T, rates, k, act, change) end
+      -- With the journal unread the cut is still given: lowering toward what the heli reaches is
+      -- the safe way, and each cut is held to FF_STEP_MAX
+      local ratesOut = fits and pilot and ratesDriftOut(T, rates, k, pilot.rates)
+      if fits and not ratesOut then rateActions(T, rates, k, act, change) end
       why(string.format(T.whyFullFmt, round(given), a.fullMaxRate))
-      if not fits then atLimit() end
+      if not fits then atLimit() elseif ratesOut then why(ratesOut) end
     end
   end
 
@@ -681,19 +755,19 @@ local function advise(T, a, axis, rates, ctx, pilotP, actions, whys, changes)
           end
         end
       elseif ffOff(a) and a.F > 0 then
-        -- F first, unless F was at its limit: then nothing is advised here
-        if not limited then why(string.format(T.whyFixFFmt, rebound)) end
+        -- F first, unless F was at its limit or held (see fHeld): then nothing is advised here
+        if not limited and not fHeld then why(string.format(T.whyFixFFmt, rebound)) end
       elseif room(1) then
         local newP = math.max(round(a.P * P_STEP), a.P + 1)
         if not inRange("P", newP) then
           atLimit()
-        elseif pilotP == nil then
+        elseif pilot == nil then
           -- The journal could not be read: how far P is above the pilot's own cannot be told
           why(T.whyJournalUnread)
-        elseif newP > math.floor(pilotP * P_RAISE_MAX) then
+        elseif newP > math.floor(pilot.P * P_RAISE_MAX) then
           -- Already raised as far as this page goes; a P of 0 or 1 gets no raise
-          if a.P > pilotP and pilotP > 0 then
-            why(string.format(T.whyPMaxFmt, round((a.P / pilotP - 1) * 100)))
+          if a.P > pilot.P and pilot.P > 0 then
+            why(string.format(T.whyPMaxFmt, round((a.P / pilot.P - 1) * 100)))
           else
             atLimit()
           end
@@ -823,7 +897,10 @@ local function render()
       view.profile = string.format(T.profileFmt, a.pidProfile, a.rateProfile)
     end
     local actions, whys = {}, {}
-    view.response, view.stops = advise(T, a, axis, rates, ctx, entry.pilotP, actions, whys, view.changes)
+    -- The pilot's own rate bytes are those of the row the advice works on (Pitch's under polar)
+    local own, row = entry.pilot, ui.axes[rates.axis] and ui.axes[rates.axis].pilot
+    local pilot = own and { P = own.P, F = own.F, rates = row and { rcRate = row.rcRate, sRate = row.sRate } }
+    view.response, view.stops = advise(T, a, axis, rates, ctx, pilot, actions, whys, view.changes)
     local tune = {
       axis = axis, mcu = ui.mcu, pidProfile = pid, rateProfile = rate,
       polar = ctx.polar == true, ring = ctx.ring, relaxType = ctx.relaxType, rateAxis = rates.axis,
@@ -860,12 +937,14 @@ end
 
 -- Starts this visit's read of the saved flights. The read runs as steps on the page's wakeups
 -- (readHistoryStep): the history module, the file, its lines a flight at a time, then the three
--- axes combined one per pass, then the change journal for the pilot's own P a few lines per pass.
+-- axes combined one per pass, then the change journal for the pilot's own P, F and rates a few
+-- lines per pass.
 -- Nothing can be saved until it has finished.
 local function queueHistoryRead()
   ui.runtime.historyRead = false
   ui.mcu = sessionMcu()
   ui.axes, ui.axesBuilt, ui.flights, ui.readJob, ui.journalJob = nil, nil, nil, nil, nil
+  ui.journalFinish = nil
   for axis = AXIS_ROLL, AXIS_YAW do ui.applied[axis] = nil end
   local session = getSession()
   local capture = session and session.tuneCapture
@@ -905,18 +984,39 @@ local function readHistoryStep()
     end
     local axis = #axes + 1
     local a, used, seconds = TuneHistory.aggregate(flights, axis)
-    axes[axis] = { a = a, used = used, seconds = seconds, pilotP = a.P }
+    axes[axis] = { a = a, used = used, seconds = seconds,
+      pilot = { P = a.P, F = a.F, rcRate = a.rcRate, sRate = a.sRate } }
     if axis < AXIS_YAW then return end
     ui.axes, ui.axesBuilt, ui.flights = axes, nil, nil
     ui.loadStep = "journal"
   elseif step == "journal" then
-    -- The pilot's own P, per axis, on the PID profile the flights were flown on. The journal
-    -- grows with every save, so it is read like the flights: the module and the job on one pass,
-    -- then a bounded number of its lines per pass, keeping only the entries for P.
+    -- The pilot's own P and F per axis, on the PID profile the flights were flown on, and the
+    -- pilot's own rate bytes per rate row, on the rate profile. The journal grows with every save,
+    -- so it is read like the flights: the module and the job on one pass, then a bounded number of
+    -- its lines per pass. Its entries are folded as they are read (TuneHistory.pilotFold), so no
+    -- table of them is kept.
     if not ui.journalJob then
       if not ChangeJournal then ChangeJournal = loadModule("lib/change_journal.lua") end
       if ChangeJournal and type(ChangeJournal.readJob) == "function" then
-        ui.journalJob = ChangeJournal.readJob(ui.mcu, { pid_0_P = true, pid_1_P = true, pid_2_P = true })
+        local pid, rate = currentProfiles()
+        local wants, fields = {}, {}
+        for axis = AXIS_ROLL, AXIS_YAW do
+          local a = ui.axes[axis].a
+          local own = {
+            P = { profile = a.pidProfile or pid, field = "pid_" .. (axis - 1) .. "_P", value = a.P },
+            F = { profile = a.pidProfile or pid, field = "pid_" .. (axis - 1) .. "_F", value = a.F },
+            rcRate = { profile = a.rateProfile or rate, field = "rcRates_" .. axis, value = a.rcRate },
+            sRate = { profile = a.rateProfile or rate, field = "rates_" .. axis, value = a.sRate },
+          }
+          for _, w in pairs(own) do
+            wants[#wants + 1] = w
+            fields[w.field] = true
+          end
+          ui.axes[axis].own = own
+        end
+        local add, finish = TuneHistory.pilotFold(wants)
+        ui.journalFinish = finish
+        ui.journalJob = ChangeJournal.readJob(ui.mcu, fields, add)
         return
       end
     end
@@ -926,18 +1026,24 @@ local function readHistoryStep()
       if entries == false then return end
       ui.journalJob = nil
     end
-    -- No journal is no record: the current P is the pilot's. A journal that is there but cannot
-    -- be read leaves it unknown (nil), and P is then not raised. One walk for the three axes.
-    local pid = currentProfiles()
-    local wants = {}
+    -- No journal is no record: the current values are the pilot's. A journal that is there but
+    -- cannot be read leaves them unknown (nil), and P is then not raised nor F moved.
+    local read = type(entries) == "table" and ui.journalFinish ~= nil
+    if read then ui.journalFinish() end
     for axis = AXIS_ROLL, AXIS_YAW do
-      local a = ui.axes[axis].a
-      wants[axis] = { profile = a.pidProfile or pid, field = "pid_" .. (axis - 1) .. "_P", value = a.P }
+      local own = ui.axes[axis].own
+      ui.axes[axis].pilot = read and own and {
+        P = own.P.value, F = own.F.value, rcRate = own.rcRate.value, sRate = own.sRate.value
+      } or nil
+      ui.axes[axis].own = nil
+      if ui.axes[axis].pilot then
+        pageLog("debug", "axis %d: pilot's own P %d F %d rates %d/%d", axis, ui.axes[axis].pilot.P,
+          ui.axes[axis].pilot.F, ui.axes[axis].pilot.rcRate, ui.axes[axis].pilot.sRate)
+      else
+        pageLog("info", "axis %d: change journal not read; P and F held", axis)
+      end
     end
-    if type(entries) == "table" then TuneHistory.pilotValues(entries, wants) end
-    for axis = AXIS_ROLL, AXIS_YAW do
-      ui.axes[axis].pilotP = type(entries) == "table" and wants[axis].value or nil
-    end
+    ui.journalFinish = nil
     -- Neither module is needed again until Clear or Save
     TuneHistory, ChangeJournal = nil, nil
     ui.loadStep = nil
@@ -1516,6 +1622,7 @@ function M.onClose()
   ui.generation = ui.generation + 1
   ui.applyGeneration = ui.applyGeneration + 1
   ui.mcu, ui.loadStep, ui.readJob, ui.journalJob, ui.flights, ui.axes = nil, nil, nil, nil, nil, nil
+  ui.journalFinish = nil
   ui.axesBuilt = nil
   ui.probeOwed, ui.probing, ui.unsupported, ui.unsavedSeconds, ui.flightCount = false, false, false, 0, 0
   ui.captureState, ui.seenSaved, ui.profileKey = nil, nil, nil
