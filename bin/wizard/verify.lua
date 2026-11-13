@@ -34,14 +34,17 @@ local uncachedStepLoads = 0
 -- What each step build returned, held weakly: once the walk has moved on, a left step's cards
 -- (and with them the code they were built from) must be collectable.
 local stepCards = setmetatable({}, { __mode = "k" })
+local stepBuilds = 0
 _G.rfsuite.utils = { loadScriptUncached = function(path, mode)
   local chunk, err = loadScript(path, mode)
   if not string.find(path, "/steps/", 1, true) or not chunk then return chunk, err end
   uncachedStepLoads = uncachedStepLoads + 1
   return function(...)
     local build = chunk(...)
+    if type(build) ~= "function" then return build end
     return function(w)
       local cards = build(w)
+      stepBuilds = stepBuilds + 1
       if type(cards) == "table" then stepCards[cards] = true end
       return cards
     end
@@ -1273,6 +1276,8 @@ for _,locale in ipairs({"en","de"}) do
     "I18N "..locale.." wizard strings use glyphs the radio fonts have")
 end
 check(uncachedStepLoads>0,"STEP files are read past the tool's chunk cache")
+-- A card set rebuilt on the same step runs the held chunk again and reads nothing from the card.
+check(stepBuilds > uncachedStepLoads, string.format("STEP rebuilds on the same step reuse the held file (%d builds, %d reads)", stepBuilds, uncachedStepLoads))
 do
   -- A table held here on purpose is the control: it must survive the same collections.
   local held = setmetatable({}, { __mode = "k" }); local control = {}; held[control] = true

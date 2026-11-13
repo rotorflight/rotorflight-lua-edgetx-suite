@@ -107,9 +107,12 @@ them.
 Only chunks under the page's folder go. Files it loads from elsewhere -- MSP APIs, libraries other
 pages use too -- stay cached, and no module instance is touched: the page drops its own in its
 `onClose`, and a module someone else still holds keeps its code alive. Nothing is collected at that
-moment, because the old scene is still on screen until the next build replaces it; the memory comes
-back with the collector's normal work. With the debug log level, the tool writes a line
+moment, because the old scene is still on screen until the next build replaces it; the tool's menu
+change asks for a collection right after it has built the new screen (`ui/home.lua`), and that is
+when the memory comes back. With the debug log level, the tool writes a line
 `page area left for <menu>: N visit(s) ended, M chunk(s) let go`.
 
-The helicopter setup is the page that uses it; it also reads each step's file past the cache
-(`rfsuite.utils.loadScriptUncached`), so a step's code goes with the step's cards.
+The helicopter setup is the page that uses it. It also reads each step's file past the cache
+(`rfsuite.utils.loadScriptUncached`) and holds only the current step's chunk on its controller: a
+card set rebuilt on the same step reuses it, and once another step is built the old step's code
+goes with its cards.

@@ -1099,16 +1099,24 @@ function M.new(runtime, transport, mathModule, labels)
         self.cards, self.validate, self.onLive, self.commit = kept, model.validate, model.onLive, model.commit
         if self.logDebug then self:log("debug", "cards %s kept", key) end
       else
-        -- A step's file is read past the tool's chunk cache, so its code leaves with the step's
-        -- cards rather than staying until the wizard's area is left; a step entered again reads
-        -- its file from the card again. The uncached loader takes the suite's load mode itself.
-        local root = _G.rfsuite
-        local uncached = root and root.utils and root.utils.loadScriptUncached
-        local stepPath = BASE .. "app/pages/helicopter_setup/steps/" .. key .. ".lua"
-        local stepChunk
-        if type(uncached) == "function" then stepChunk = uncached(stepPath, root.loadMode or "t")
-        else stepChunk = loadScript(stepPath, "t") end
-        self.cards = assert(stepChunk)()(self)
+        -- A step's file is read past the tool's chunk cache and its chunk is held here only while
+        -- the walk stays on that step: its card set is rebuilt after edits and loads without
+        -- reading the card again, and the step's code leaves once another step is built rather
+        -- than staying until the wizard's area is left. A step entered again reads its file from
+        -- the card again. The chunk is run anew for every build, as a cached one was before.
+        local held = self.stepChunk
+        if not held or held.key ~= key then
+          local root = _G.rfsuite
+          local uncached = root and root.utils and root.utils.loadScriptUncached
+          local stepPath = BASE .. "app/pages/helicopter_setup/steps/" .. key .. ".lua"
+          local stepChunk
+          if type(uncached) == "function" then stepChunk = uncached(stepPath, root.loadMode or "t")
+          else stepChunk = loadScript(stepPath, "t") end
+          held = { key = key, chunk = assert(stepChunk) }
+          self.stepChunk = held
+          if self.logTrace then self:log("trace", "step file %s read", key) end
+        end
+        self.cards = held.chunk()(self)
         self.cards.model = { step = self.step, edits = self.edits, rebootPending = self.rebootPending,
           validate = self.validate, onLive = self.onLive, commit = self.commit }
         if self.logDebug then self:log("debug", "cards %s built, %s", key, #self.cards) end
