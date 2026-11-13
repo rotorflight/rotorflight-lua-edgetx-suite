@@ -735,11 +735,14 @@ local searchWaits = {}
 -- begins (Sensors.passBegins), and the throttles count against that pass, however many ticks it
 -- spans.
 --
--- A host that does not mark keeps the clock key, as before: the configuration tool, whose calls
--- are not billed against a per-call limit, and the service widget. A mark older than
--- PASS_MARK_SECONDS is treated as no mark, so a state whose marking widget went away -- the
--- dashboard taken off the model, the service widget carrying on -- does not keep one pass number
--- for ever, which would hold every repeated search back for good.
+-- A Lua state with no marking widget keeps the clock key, as before: the configuration tool,
+-- whose calls are not billed against a per-call limit, and a service widget on a model without
+-- the dashboard. In a state the dashboard marks, any read within PASS_MARK_SECONDS of its latest
+-- mark counts against that mark's pass, whichever widget makes it (the service widget stands down
+-- while the dashboard drives). A mark older than that is treated as no mark, so a state whose
+-- marking widget went away -- the dashboard taken off the model, the service widget carrying on --
+-- falls back to the clock key instead of keeping one pass number for ever, which would hold every
+-- repeated search back for good.
 local PASS_MARK_SECONDS = 1.0
 local passMark = 0
 -- Until when, in the seconds of nowSeconds(), the current mark counts: worked out once per pass so
