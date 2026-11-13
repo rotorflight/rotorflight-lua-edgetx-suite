@@ -33,7 +33,7 @@ end
 
 local function getLogColor(level)
   local l = string.lower(tostring(level or "debug"))
-  if l == "error" then return Palette.warning end
+  if l == "error" then return Palette.error end
   if l == "warn"  then return Palette.logWarning end
   if l == "info"  then return Palette.text end
   -- debug / trace: use a mid-contrast colour that remains legible on both
