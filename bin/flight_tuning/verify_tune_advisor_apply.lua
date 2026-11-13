@@ -61,6 +61,7 @@ local PIPELINE_PATH = "tasks/msp/save_pipeline.lua"
 -- luacheck: globals io
 local files = {}
 local openFails = {}           -- path -> true: opening it for reading answers nil
+local renameFails = {}         -- source path -> true: renaming it answers an error
 io.open = function(path, mode)
   mode = mode or "r"
   local m = string.sub(mode, 1, 1)
@@ -92,6 +93,7 @@ end
 function mkdir() return 0 end
 function del(path) files[path] = nil; return 0 end
 function rename(from, to)
+  if renameFails[from] then return 1 end
   if files[from] == nil or files[to] ~= nil then return 8 end
   files[to], files[from] = files[from], nil
   return 0
@@ -151,16 +153,34 @@ local stubs = {
 local real = {
   [PAGE_PATH] = true, [PIPELINE_PATH] = true,
   ["lib/tune_history.lua"] = true, ["lib/change_journal.lua"] = true, ["lib/atomic_file.lua"] = true,
+  ["lib/journal_compact.lua"] = true,
   ["lib/api_version.lua"] = true,
   ["tasks/msp/api/tune_advisor.lua"] = true, ["tasks/msp/api/status.lua"] = true,
   ["tasks/msp/api/pid_tuning.lua"] = true, ["tasks/msp/api/pid_profile.lua"] = true,
   ["tasks/msp/api/rc_tuning.lua"] = true, ["tasks/msp/api/eeprom_write.lua"] = true,
 }
+-- Each step of the change journal's start afresh, as the page takes it: whether a save was in
+-- progress then, and `compactRaises` makes the step raise
+local compactSteps = { applying = 0, total = 0 }
+local compactRaises = false
+local ui
 function loadScript(path)
   local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
   if stubs[relative] then local mod = stubs[relative]; return function() return mod end end
   assert(real[relative], "unexpected module: " .. tostring(path))
-  return assert(loadfile(ROOT .. relative))
+  local chunk = assert(loadfile(ROOT .. relative))
+  if relative ~= "lib/journal_compact.lua" then return chunk end
+  return function()
+    local mod = chunk()
+    local step = mod.step
+    mod.step = function(job)
+      compactSteps.total = compactSteps.total + 1
+      if ui and ui.applying then compactSteps.applying = compactSteps.applying + 1 end
+      if compactRaises then error("step raised") end
+      return step(job)
+    end
+    return mod
+  end
 end
 
 
@@ -233,7 +253,8 @@ end
 -- Journal entries of this suite's change journal: {source, profile, field, old, new}
 local function journal(entries)
   local path = Journal.path(MCU)
-  files[path] = nil
+  -- The earlier generation too: a journal standing only as `.bak` is put back by the next append
+  files[path], files[path .. ".bak"], files[path .. ".new"] = nil, nil, nil
   if #entries > 0 then assert(Journal.append(MCU, entries), "journal append failed") end
 end
 
@@ -242,7 +263,6 @@ end
 -- ---------------------------------------------------------------------------
 local Page = assert(loadfile(ROOT .. PAGE_PATH))()
 local Pipeline = assert(loadfile(ROOT .. PIPELINE_PATH))()
-local ui
 for i = 1, 40 do
   local name, value = debug.getupvalue(Page.canSave, i)
   if name == "ui" then ui = value; break end
@@ -317,6 +337,7 @@ local function pump(reply)
   for _ = 1, 400 do
     local busy = pass(reply, sent)
     local idle = not busy and ui.loadStep == nil and not ui.probeOwed and not ui.applying and not wantBuild
+      and not ui.compactOwed and not ui.compactJob
     quiet = idle and quiet + 1 or 0
     if quiet >= 3 then break end
   end
@@ -810,10 +831,87 @@ do
     and contains(ui.view.whys, T().whyJournalUnread) and not contains(ui.view.actions, "->"),
     table.concat(ui.view.whys, " | "))
   openFails[Journal.path(MCU)] = nil
-  files[Journal.path(MCU)] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
+  -- A journal above the size it starts afresh at (over 64 KiB here, past what was read before)
+  -- starts afresh when the page opens, before it is read: the advisor's own raises are carried
+  -- into the new journal as one line, and cap P from the pilot's own P wherever they stood.
+  local JPATH = Journal.path(MCU)
+  local padding = string.rep('e(1761900003,"pids",1,"pid_2_P",1,2)\n', 2000)
+  local function whys() return table.concat(ui.view.whys, " | ") end
+  local function capped() return not canSave() and contains(ui.view.whys, string.format(T().whyPMaxFmt, 40))
+    and not contains(ui.view.whys, T().whyJournalUnread) end
+  local CARRIED = 'e(1761900004,"tune_advisor",1,"pid_0_P",50,70)\n'
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = string.rep('e(1761900000,"pids",1,"pid_2_P",1,2)\n', 2000)
+    .. 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\ne(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
+  local before = files[JPATH]
   openPage()
-  check("nor does one over its read cap", #files[Journal.path(MCU)] > 65536 and not canSave()
-    and contains(ui.view.whys, T().whyJournalUnread), table.concat(ui.view.whys, " | "))
+  check("own raises at the end of a large journal cap P; the journal starts afresh holding only them",
+    #before > 65536 and capped() and files[JPATH] == CARRIED and files[JPATH .. ".bak"] == before, whys())
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. 'e(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n' .. padding
+  before = files[JPATH]
+  openPage()
+  check("own raises older than 64 KiB of other entries still cap P from the pilot's own P 50",
+    #before > 65536 and capped() and files[JPATH] == CARRIED and files[JPATH .. ".bak"] == before, whys())
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n' .. padding
+    .. 'e(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
+  openPage()
+  check("a chain of own raises with 64 KiB of other fields between them still counts from P 50",
+    capped() and files[JPATH] == CARRIED, whys())
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = padding
+  openPage()
+  check("(control) one with no raise of roll's P raises it, and starts afresh empty",
+    canSave() and not contains(ui.view.whys, T().whyJournalUnread) and files[JPATH] == "", whys())
+  -- The other profile's chain and the other fields' chains are carried too, each as one line
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = 'e(1761900001,"tune_advisor",2,"pid_0_P",40,44)\ne(1761900002,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. 'e(1761900005,"tune_advisor",2,"pid_0_P",44,48)\n' .. padding
+    .. 'e(1761900006,"tune_advisor",1,"rcRates_1",40,50)\ne(1761900007,"tune_advisor",1,"pid_0_P",60,70)\n'
+  openPage()
+  check("every open chain is carried, each with the time of its last change: profile 2's P, profile 1's P, the rate",
+    capped() and files[JPATH] == 'e(1761900005,"tune_advisor",2,"pid_0_P",40,48)\n'
+      .. 'e(1761900007,"tune_advisor",1,"pid_0_P",50,70)\n'
+      .. 'e(1761900006,"tune_advisor",1,"rcRates_1",40,50)\n', tostring(files[JPATH]))
+
+  -- A start afresh that cannot be put in place leaves the journal as it was, and the page reads
+  -- its newest part instead: the raises at its end still cap P. The next open tries again.
+  files[JPATH .. ".bak"] = nil
+  files[JPATH] = padding .. 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\ne(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
+  before = files[JPATH]
+  renameFails[JPATH] = true
+  openPage()
+  check("a start afresh that fails leaves the journal whole, read from its newest part: P still capped",
+    capped() and files[JPATH] == before and files[JPATH .. ".bak"] == nil, whys())
+  renameFails[JPATH] = nil
+  files[JPATH .. ".new"] = nil
+  openPage()
+  check("the next open starts it afresh", capped() and files[JPATH] == CARRIED, whys())
+  -- Cut short between its two renames: only the `.bak` stands, and it is a large journal (a start
+  -- afresh only runs above the size). The open puts it back under its name and starts it afresh
+  -- first, so own raises at its start still cap P.
+  local parked = 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\ne(1761900004,"tune_advisor",1,"pid_0_P",60,70)\n'
+    .. padding
+  files[JPATH .. ".bak"] = parked
+  files[JPATH] = nil
+  openPage()
+  check("only a large .bak standing, own raises at its start: put back and started afresh, P still capped from 50",
+    capped() and files[JPATH] == CARRIED and files[JPATH .. ".bak"] == parked, whys())
+  -- (control) the same lone .bak read as it stands: from its newest part, the raises are not seen
+  files[JPATH .. ".bak"], files[JPATH] = parked, nil
+  local realLoadScript = loadScript
+  loadScript = function(path, ...)
+    local chunk = realLoadScript(path, ...)
+    if not string.find(path, "lib/change_journal.lua", 1, true) then return chunk end
+    return function() local m = chunk(); m.restore = nil; return m end
+  end
+  openPage()
+  loadScript = realLoadScript
+  check("(control) without putting it back first, the lone .bak is read from its newest part: P raised",
+    canSave() and files[JPATH] == nil, whys())
+  files[JPATH .. ".bak"] = nil
 
   -- A long journal (a thousand entries, about 40 kB) is read over many passes, and the walk
   -- still finds the advisor's own raises at its end
@@ -964,6 +1062,254 @@ do
 end
 
 -- ---------------------------------------------------------------------------
+print("F and its rates stay within 0.6-1/0.6 of the pilot's own (#1174)")
+do
+  local A = "tune_advisor"
+  local function reasons() return table.concat(ui.view.whys, " | ") end
+  local function belowF(pct) return string.format(T().whyFBelowFmt, pct, T().pidsPage) end
+  local function ratesChanged()
+    for _, c in ipairs(ui.view.changes or {}) do
+      if c.key == "rcRate" or c.key == "sRate" then return true end
+    end
+    return false
+  end
+
+  -- A series through the real Save: roll F 120 hot, Actual 18/24. Each Save is recorded in the
+  -- change journal, and the next flight is flown on what it wrote.
+  resetFc()
+  journal({})
+  openPage()
+  applyNow()
+  check("step 1 through Save: F 120 -> 96, rates 18/24 -> 23/30", fc.tuning.pid_0_F == 96
+    and fc.rates.rcRates_1 == 23 and fc.rates.rates_1 == 30,
+    fc.tuning.pid_0_F .. " " .. fc.rates.rcRates_1 .. "/" .. fc.rates.rates_1)
+  flightRoll = { F = 96, rcRate = 23, sRate = 30 }
+  openPage()
+  applyNow()
+  check("step 2 through Save: F 96 -> 77 (64% of 120), rates 23/30 -> 29/37", fc.tuning.pid_0_F == 77
+    and fc.rates.rcRates_1 == 29 and fc.rates.rates_1 == 37,
+    fc.tuning.pid_0_F .. " " .. fc.rates.rcRates_1 .. "/" .. fc.rates.rates_1)
+  flightRoll = { F = 77, rcRate = 29, sRate = 37, releases = 20, meanRebound = 0.2, meanIterm = 0 }
+  openPage()
+  check("a third step (77 -> 62, under 0.6 x 120) is not given, and the reasons say how far F is",
+    not canSave() and contains(ui.view.whys, T().whyFast) and contains(ui.view.whys, belowF(36))
+    and not contains(ui.view.actions, "->"), reasons())
+  check("nor are the stops told to fix FF first, nor P raised", not contains(ui.view.whys, "Fix FF first")
+    and not contains(ui.view.whys, "More P"), reasons())
+  local entries = Journal.read(MCU) or {}
+  check("the journal holds what the two Saves wrote, on the profiles Save names", #entries == 6
+    and entries[4].field == "pid_0_F" and entries[4].old == 96 and entries[4].new == 77 and entries[4].profile == 1
+    and entries[5].field == "rcRates_1" and entries[6].field == "rates_1" and entries[6].profile == 1, #entries)
+
+  -- A hand edit of F on the PIDs page ends the chain: the edited F is the pilot's own
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 120, new = 96 },
+    { source = A, profile = 1, field = "pid_0_F", old = 96, new = 77 },
+    { source = "pids", profile = 1, field = "pid_0_F", old = 77, new = 77 },
+  })
+  fc.tuning.pid_0_F, fc.rates.rcRates_1, fc.rates.rates_1 = 77, 29, 37
+  flightRoll = { F = 77, rcRate = 29, sRate = 37 }
+  openPage()
+  check("(control) after an entry from another page F 77 is the pilot's own: a step is given", canSave(), reasons())
+  resetFlights()
+
+  -- Rounding: two steps from F 97 land at 62, just under 0.64 x 97 -- still inside 0.6 x 97
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 97, new = 78 },
+    { source = A, profile = 1, field = "rcRates_1", old = 40, new = 50 },
+    { source = A, profile = 1, field = "rates_1", old = 64, new = 80 },
+  })
+  fc.tuning.pid_0_F, fc.rates.rcRates_1, fc.rates.rates_1 = 78, 50, 80
+  flightRoll = { F = 78, rcRate = 50, sRate = 80 }
+  openPage()
+  applyNow()
+  check("the second step from F 97 is given: 78 -> 62, rates 50/80 -> 63/101", fc.tuning.pid_0_F == 62
+    and fc.rates.rcRates_1 == 63 and fc.rates.rates_1 == 101,
+    fc.tuning.pid_0_F .. " " .. fc.rates.rcRates_1 .. "/" .. fc.rates.rates_1)
+  resetFlights()
+
+  -- The other way: the heli is slower than the stick, F goes up. F 100 raised twice to 144; a
+  -- third raise (173) is past 100 / 0.6.
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 100, new = 120 },
+    { source = A, profile = 1, field = "pid_0_F", old = 120, new = 144 },
+  })
+  fc.tuning.pid_0_F = 144
+  flightRoll = { F = 144, ffGain = 0.7 }
+  openPage()
+  check("slow: a third raise of F is not given, and the reasons say how far above it is", not canSave()
+    and contains(ui.view.whys, T().whySlow)
+    and contains(ui.view.whys, string.format(T().whyFAboveFmt, 44, T().pidsPage)), reasons())
+  journal({ { source = A, profile = 1, field = "pid_0_F", old = 100, new = 120 } })
+  fc.tuning.pid_0_F = 120
+  flightRoll = { F = 120, ffGain = 0.7 }
+  openPage()
+  check("(control) slow: the second raise (120 -> 144) is given", canSave(), reasons())
+
+  -- A step back toward the pilot's own is never refused, even from outside the bound (a journal
+  -- written before the bound): F 100 lowered four times to 41, then the heli is slow
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 100, new = 80 },
+    { source = A, profile = 1, field = "pid_0_F", old = 80, new = 64 },
+    { source = A, profile = 1, field = "pid_0_F", old = 64, new = 51 },
+    { source = A, profile = 1, field = "pid_0_F", old = 51, new = 41 },
+  })
+  fc.tuning.pid_0_F = 41
+  flightRoll = { F = 41, ffGain = 0.7 }
+  openPage()
+  check("a raise back toward the pilot's own F is given from outside the bound", canSave(), reasons())
+  resetFlights()
+
+  -- A step landing exactly on 3/5 of the pilot's own is given (compared in integers: on a radio
+  -- with 32-bit floats 100 x 0.6 is a hair above 60)
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 100, new = 80 },
+    { source = A, profile = 1, field = "pid_0_F", old = 80, new = 75 },
+  })
+  fc.tuning.pid_0_F = 75
+  flightRoll = { F = 75 }
+  openPage()
+  applyNow()
+  check("a step landing exactly on 60% of the pilot's own F is given: 75 -> 60", fc.tuning.pid_0_F == 60,
+    tostring(fc.tuning.pid_0_F))
+  resetFlights()
+
+  -- Slow: F goes up and its rates down; the rates were cut twice by full stick already (own 30)
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "rcRates_1", old = 30, new = 24 },
+    { source = A, profile = 1, field = "rcRates_1", old = 24, new = 19 },
+  })
+  fc.rates.rcRates_1 = 19
+  flightRoll = { rcRate = 19, ffGain = 0.7 }
+  openPage()
+  check("slow: an F raise whose rates would fall under 60% of their own is not given", not canSave()
+    and contains(ui.view.whys, string.format(T().whyRatesBelowFmt, 37, T().ratesPage)), reasons())
+  resetFlights()
+
+  -- Yaw has its own F and its own rate row: own F 156 lowered twice to 100, a third step is not given
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "pid_2_F", old = 156, new = 125 },
+    { source = A, profile = 1, field = "pid_2_F", old = 125, new = 100 },
+  })
+  fc.tuning.pid_2_F = 100
+  flightAxes[3] = { F = 100, ffGain = 1.3, ffCount = 1500, ffCorr = 0.97 }
+  openPage()
+  axisSetter(3)
+  check("yaw: a third F step is not given, and the reasons say how far F is", not canSave()
+    and contains(ui.view.whys, belowF(36)), reasons())
+  journal({ { source = A, profile = 1, field = "pid_2_F", old = 125, new = 100 } })
+  openPage()
+  axisSetter(3)
+  check("(control) yaw: one step after the pilot's 125 is given", canSave(), reasons())
+  axisSetter(1)
+  resetFlights()
+
+  -- Polar cyclic: roll's and pitch's F steps both scale the Cyclic (Pitch) rate row. Its own
+  -- 18/24 were raised to 29/38 already; one more roll step (x1.25) would take it past 18 / 0.6.
+  resetFc()
+  fc.rates.cyclic_polarity = 1
+  fc.tuning.pid_0_F, fc.rates.rcRates_2, fc.rates.rates_2 = 96, 29, 38
+  journal({
+    { source = A, profile = 1, field = "pid_0_F", old = 120, new = 96 },
+    { source = A, profile = 1, field = "rcRates_2", old = 18, new = 23 },
+    { source = A, profile = 1, field = "rates_2", old = 24, new = 30 },
+    { source = A, profile = 1, field = "pid_1_F", old = 120, new = 96 },
+    { source = A, profile = 1, field = "rcRates_2", old = 23, new = 29 },
+    { source = A, profile = 1, field = "rates_2", old = 30, new = 38 },
+  })
+  flightRoll = { F = 96 }
+  flightAxes[2] = { rcRate = 29, sRate = 38 }
+  openPage()
+  check("polar cyclic: roll's F step is not given when the Cyclic rates would pass their bound", not canSave()
+    and contains(ui.view.whys, string.format(T().whyRatesAboveFmt, 61, T().ratesPage)), reasons())
+  journal({ { source = A, profile = 1, field = "pid_0_F", old = 120, new = 96 } })
+  openPage()
+  check("(control) polar cyclic: with the Cyclic rates the pilot's own, the step is given", canSave(), reasons())
+  resetFlights()
+
+  -- A full-stick cut counts toward the rates' bound too: own 30/40, cut twice to 18/24 already
+  resetFc()
+  journal({
+    { source = A, profile = 1, field = "rcRates_1", old = 30, new = 24 },
+    { source = A, profile = 1, field = "rates_1", old = 40, new = 32 },
+    { source = A, profile = 1, field = "rcRates_1", old = 24, new = 18 },
+    { source = A, profile = 1, field = "rates_1", old = 32, new = 24 },
+  })
+  flightRoll = { ffGain = 1.0, fullCount = 200, fullSatCount = 200, fullMaxRate = 100 }
+  openPage()
+  check("a third full-stick cut is not given, and the reasons say how far below the rates are", not ratesChanged()
+    and contains(ui.view.whys, string.format(T().whyRatesBelowFmt, 40, T().ratesPage)), reasons())
+
+  -- The journal cannot be read: no F step (how far F already is cannot be told), but a
+  -- full-stick cut is still given
+  openFails[Journal.path(MCU)] = true
+  openPage()
+  check("with the journal unread a full-stick cut is still given", ratesChanged(), reasons())
+  resetFlights()
+  resetFc()
+  openPage()
+  check("with the journal unread no F step is given, and the reasons say why", not canSave()
+    and contains(ui.view.whys, T().whyJournalUnread) and not contains(ui.view.actions, "->"), reasons())
+  openFails[Journal.path(MCU)] = nil
+  journal({})
+  resetFlights()
+end
+
+print("The change journal starts afresh after a Save that leaves it above its size")
+do
+  local JPATH = Journal.path(MCU)
+  local function reasons() return table.concat(ui.view.whys, " | ") end
+  resetFc()
+  journal({})
+  files[JPATH .. ".bak"] = nil
+  openPage()
+  applyNow()
+  -- Other pages' entries up to just under the size it starts afresh at
+  local line = 'e(1761900003,"pids",1,"pid_2_P",1,2)\n'
+  local pad = (Journal.ROTATE_AT - #files[JPATH]) // #line
+  files[JPATH] = files[JPATH] .. string.rep(line, pad)
+  local beforeSave = #files[JPATH]
+  flightRoll = { F = 96, rcRate = 23, sRate = 30 }
+  openPage()
+  local unchangedOnOpen = #files[JPATH] == beforeSave and files[JPATH .. ".bak"] == nil
+  applyNow()
+  local text = files[JPATH] or ""
+  check("the Save's append passes the size; on the next passes the journal starts afresh with F and both rates",
+    unchangedOnOpen and beforeSave <= Journal.ROTATE_AT and fc.tuning.pid_0_F == 77
+    and #(files[JPATH .. ".bak"] or "") > Journal.ROTATE_AT and lineCount(text) == 3
+    and string.find(text, '"pid_0_F",120,77)', 1, true) and string.find(text, '"rcRates_1",18,29)', 1, true)
+    and string.find(text, '"rates_1",24,37)', 1, true), text)
+  check("no step of it ran while the save was in progress", compactSteps.total > 10 and compactSteps.applying == 0,
+    compactSteps.applying .. " of " .. compactSteps.total .. " steps while applying")
+  flightRoll = { F = 77, rcRate = 29, sRate = 37, releases = 20, meanRebound = 0.2, meanIterm = 0 }
+  openPage()
+  check("the next open bounds F from the pilot's own 120 as before: no third step",
+    not canSave() and contains(ui.view.whys, string.format(T().whyFBelowFmt, 36, T().pidsPage)), reasons())
+
+  -- A step that raises ends the start afresh as failed: the open still finishes, reading the
+  -- journal's newest part, and the journal is left as it was
+  journal({})
+  resetFc()
+  flightRoll = { ffGain = 1.0, fullCount = 0, releases = 20, meanRebound = 0.2, meanIterm = 0 }
+  files[JPATH] = string.rep(line, 600) .. 'e(1761900001,"tune_advisor",1,"pid_0_P",50,60)\n'
+    .. 'e(1761900002,"tune_advisor",1,"pid_0_P",60,70)\n'
+  local big = files[JPATH]
+  compactRaises = true
+  openPage()
+  compactRaises = false
+  check("a start afresh that raises does not hold the open: the read finishes from the newest part",
+    ui.runtime.historyRead == true and ui.compactJob == nil and files[JPATH] == big
+    and not canSave() and contains(ui.view.whys, string.format(T().whyPMaxFmt, 40)), reasons())
+  journal({})
+  files[JPATH .. ".bak"] = nil
+  resetFlights()
+end
+
 print("From the review")
 -- ---------------------------------------------------------------------------
 do

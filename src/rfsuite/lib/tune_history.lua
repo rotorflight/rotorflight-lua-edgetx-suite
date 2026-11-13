@@ -625,4 +625,32 @@ function M.pilotValues(entries, wants)
   end
 end
 
+--- pilotValues() as entries arrive, oldest first, without keeping them: `wants` as for pilotValues;
+--- returns `add(entry)` for each entry and `finish()`, which replaces each want's `value` by the
+--- pilot's own. Per setting it follows the newest unbroken chain of the Tune Advisor's own
+--- entries -- each starting from the value the one before it ended at -- and any other entry on
+--- that setting ends the chain, as the walk back from the newest entry does. A chain counts only
+--- when it ends at the current value.
+function M.pilotFold(wants)
+  local byField = {}
+  for _, w in ipairs(wants) do byField[w.field] = { want = w } end
+  local function add(e)
+    local s = byField[e.field]
+    if not s or e.profile ~= s.want.profile then return end
+    if e.source ~= "tune_advisor" then
+      s.first, s.last = nil, nil
+    elseif s.last ~= nil and s.last == e.old then
+      s.last = e.new
+    else
+      s.first, s.last = e.old, e.new
+    end
+  end
+  local function finish()
+    for _, s in pairs(byField) do
+      if s.last ~= nil and s.last == s.want.value then s.want.value = s.first end
+    end
+  end
+  return add, finish
+end
+
 return M

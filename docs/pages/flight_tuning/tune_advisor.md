@@ -129,8 +129,18 @@ profiles they were flown on keep *Save* off as well; fly again.
   FF by at most 20%. With Actual, Quick and Rotorflight rates the page gives the exact rate values; with
   Betaflight, Raceflight and KISS rates it gives a percentage. An axis with FF set to 0 (often the tail) gets no FF
   advice.
+- **FF and the rates stay within 60% to 167% of your own values**, which is about two steps either way. Your own FF
+  and rates are found the same way as your own P (below), for FF on the axis and PID profile, for the rates on their
+  row and rate profile. A step that would take FF or a rate value outside that range is not suggested. With Betaflight, Raceflight and KISS rates the page only names the change and *Save*
+  does not write it, so nothing of it is recorded: the range then counts from the values you have now, or from your
+  own values recorded by an earlier *Save* with Actual, Quick or Rotorflight rates. The reasons say how far it
+  already is, for example "FF is already 36%
+  below your setting. Set it on the PIDs page to go further." This counts every change on a rate row: under polar
+  cyclic the roll and pitch FF steps both move the one *Cyclic* row, and full-stick cuts lower it too. A step back toward your own value
+  is never held back by this range. With FF held there, the stops are not told to fix FF first, and P is not raised.
 - **Full stick asks for more rate than the heli reaches** (roll and pitch), with the cyclic at its limit: lower
-  the rates toward what the heli reaches, by at most 20% per step. What full stick asks for takes the cyclic ring
+  the rates toward what the heli reaches, by at most 20% per step and not below 60% of your own rates (see above).
+  What full stick asks for takes the cyclic ring
   into account: below a ring of 100% the flight controller holds one axis at full stick to the ring's share of the
   rate curve's maximum, so that, not the curve's maximum, is what the reached rate is measured against. With both
   sticks in a corner it is held lower still, which the measurements do not tell apart.
@@ -142,9 +152,12 @@ profiles they were flown on keep *Save* off as well; fly again.
   page follows the [change journal](../../reference/change-journal.md) back through its own changes to P on that
   axis and PID profile, and stops at any other change. A P set by hand on the *PIDs* page starts the count again.
   If stops still bounce back after that, the reasons say "P is already ...% above your setting. Check the
-  mechanics." More P will not fix it. With no journal yet, your current P counts as your own. A journal that is
-  there but cannot be read (over 64 KiB, or it does not open) raises no P at all, and the reasons say "The change
-  journal could not be read, so P is not raised."
+  mechanics." More P will not fix it. With no journal yet, your current P counts as your own. The journal starts
+  afresh once it passes 16 KiB and keeps your own P, FF and rates, so the limits count from your own values however
+  many saves lie between (see [change journal](../../reference/change-journal.md#starting-afresh)). A journal
+  that is there but cannot be read (it does not open, for example) raises no P and changes no FF at all, and the
+  reasons say "The change journal could not be read, so P is not raised and FF is not changed." A full-stick cut
+  is still suggested then.
 - **A change would go past a setting's limit**: the page does not suggest it, or any change that goes with it
   (FF is never suggested without its rates). Instead, the reasons say "The change needed goes past a setting's
   limit." Look for the cause outside the tune, for example the mechanics or the head speed. For a rate the limit
@@ -209,6 +222,11 @@ older flights out. Each value written is added to the flight controller's
 [change journal](../../reference/change-journal.md), with the profile, the old and the new value, so you can see
 what the advisor changed and set it back by hand. A journal failure is reported with the save result; the changes
 already stored on the flight controller stay stored. *\** does not erase the journal.
+
+When a save leaves the journal above 16 KiB, about 350 changes, the page starts it afresh on the passes after the
+save. If you leave the page before then, it does so the next time the page opens, before it reads the journal; with
+a large journal from an earlier version, that one opening takes a few seconds longer. Nothing is shown for it: the
+advice and the limits stay as they were.
 
 ## Adjustment functions
 
