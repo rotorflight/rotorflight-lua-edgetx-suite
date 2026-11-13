@@ -1719,20 +1719,22 @@ do
   check("(control) a clear answered between the flights: no mark, both flights counted",
     savedSeconds() == "140,60" and marks() == 0 and select(1, combined()) == 2, seen())
 
-  -- Another tune: the flight controller restarts its statistics, the reading holds only the new flight
+  -- Another tune: the flight controller restarts its statistics, the reading holds only the new flight.
+  -- The new flight is longer than the saved one, so only the tune can tell them apart
   heldCase(function()
     board.seconds = 0
     rig.reply.F = 90
-  end)
-  check("another tune since the save: no mark", savedSeconds() == "140,60" and marks() == 0, seen())
+  end, false, 200)
+  check("another tune since the save: no mark", savedSeconds() == "140,200" and marks() == 0, seen())
   rig.reply.F = 100
 
-  -- A count smaller than the saved flight's: the board started again unseen
+  -- A count smaller than the saved flight's: the board started again unseen. Longer than the saved
+  -- flight, on the same tune, so only the count can tell them apart
   heldCase(function()
     board.seconds = 0
     rig.reply.releases = 1
-  end)
-  check("a count smaller than the saved flight's: no mark", savedSeconds() == "140,60" and marks() == 0, seen())
+  end, false, 200)
+  check("a count smaller than the saved flight's: no mark", savedSeconds() == "140,200" and marks() == 0, seen())
   rig.reply.releases = nil
 
   -- Not more seconds than the saved flight: the board started again unseen
