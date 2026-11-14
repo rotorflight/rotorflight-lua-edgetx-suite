@@ -1,0 +1,7 @@
+{
+  "id": "drain-frame-walk",
+  "name": "Telemetry drain frame walks",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_drain_frame_walk.lua"
+  ]
+}
