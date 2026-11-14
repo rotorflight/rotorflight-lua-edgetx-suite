@@ -125,14 +125,22 @@ slots from the scheme with `lcd.setColor`, through one mapping:
 coupled by the firmware: the header's colour is the controls' text colour and its title colour their
 background.
 
+When they are written: run as a script of its own, the tool writes them in its start-up call, before
+its first screen. Opened from the dashboard, the start-up call is one widget call under the instruction
+limit and already the heaviest of the open, so it only marks them owed: the pass after it writes them,
+a pass of its own, and the first screen is built on the pass after that, so nothing is drawn in the
+radio's colours. A write stopped at the limit is tried again on the next passes, three times at most,
+and the first build waits for it (`ui/home.lua`, `writeOwedThemeSlots`; checked by
+`bin/ui/verify_tool_open_theme_slots.lua`).
+
 `lcd.setColor` changes the whole radio's interface, and EdgeTX restores nothing when a script ends,
 so the radio's colours are put back on every way the tool can end:
 
 - `restore()` on every exit the suite runs itself: the closing sequence, and the dashboard's
   `tool_host.lua` when the hosted tool closes or fullscreen is left. It writes the colours back before
   it lets go of anything, so one stopped at the instruction limit is called again on the widget's next
-  pass. `apply()` arms the finaliser and holds its state before it writes the marker or a slot, and
-  names the scheme only once every slot carries it.
+  pass. `apply()` arms the finaliser and holds its state before it writes the marker or a slot, drops
+  the scheme it named before the first slot, and names the new one only once every slot carries it.
 - A finaliser. A long press of RTN closes the tool without running any Lua and an error ends it, but
   both close its Lua state, and `lua_close` runs every pending `__gc` metamethod first. The guard
   holds the radio's colours and `lcd.setColor` as upvalues, since the suite's globals may be gone by

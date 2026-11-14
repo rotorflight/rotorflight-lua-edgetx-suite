@@ -773,6 +773,35 @@ local function applySavedScheme()
   scheduleBuildUI(false)
 end
 
+-- The radio's theme slots from the saved scheme (lib/theme_slots.lua), the module loaded on the first
+-- call. Hosted, init only marks them owed and run writes them on its first pass, a pass of its own:
+-- init is one widget call under the instruction limit and already the heaviest call of the open, and
+-- the module's load and the write would add a few thousand instructions to it. The first build waits
+-- for the pass after, so nothing is drawn before the colours are in. A write that stops part way (the
+-- instruction limit) is tried again on the next pass, at most THEME_SLOT_TRIES times; whatever it
+-- wrote is held by the module and put back on close.
+local THEME_SLOT_TRIES = 3
+local function writeThemeSlots()
+  local general = state.preferences and state.preferences.general
+  ThemeSlots = ThemeSlots or loadModule("lib/theme_slots.lua")
+  return ThemeSlots.apply(general and general.color_scheme)
+end
+
+local function writeOwedThemeSlots()
+  local tries = (state.themeSlotsTries or 0) + 1
+  state.themeSlotsTries = tries
+  local ok, result = pcall(writeThemeSlots)
+  if ok then
+    state.themeSlotsOwed = nil
+    logf("debug", "theme slots: owed write done (written %s), first build on the next pass", tostring(result))
+  elseif tries >= THEME_SLOT_TRIES then
+    state.themeSlotsOwed = nil
+    logf("error", "theme slots not written after %d tries: %s", tries, tostring(result))
+  else
+    logf("warn", "theme slots not written (try %d of %d): %s", tries, THEME_SLOT_TRIES, tostring(result))
+  end
+end
+
 local function performSave()
   _G.rfsuite.preferences = state.preferences
   local ok, err = savePreferencesSafe(state.preferences)
@@ -3517,13 +3546,21 @@ function M.init(opts)
   -- after this point leaves the step file naming the stage it stopped in.
   logStep("init: preferences read", true)
 
-  -- Before the first build, so the first frame and every native control on it are in the scheme.
+  -- Before the first build, so the first frame and every native control on it are in the scheme. The
+  -- theme slots: here when the tool runs as a script of its own, on run's first pass when hosted
+  -- (writeThemeSlots).
   local scheme = prefs and prefs.general and prefs.general.color_scheme
   Palette.apply(scheme)
-  ThemeSlots = ThemeSlots or loadModule("lib/theme_slots.lua")
-  local schemeOk, schemeErr = pcall(ThemeSlots.apply, scheme)
-  if not schemeOk then
-    logf("error", "theme slots not written: %s", tostring(schemeErr))
+  state.themeSlotsTries = 0
+  if state.hosted then
+    state.themeSlotsOwed = true
+    logf("trace", "theme slots owed: written on the first pass after init")
+  else
+    state.themeSlotsOwed = nil
+    local schemeOk, schemeErr = pcall(writeThemeSlots)
+    if not schemeOk then
+      logf("error", "theme slots not written: %s", tostring(schemeErr))
+    end
   end
 
   local locale = resolveLocaleFromSystem()
@@ -3683,7 +3720,11 @@ function M.init(opts)
   -- page loads under a pcall of its own can come back nil and fail later in a reply handler. The
   -- start screen used to take this pass. With nothing to compile it is left before the first
   -- build, so the page waits one pass instead; a start screen that still stands is built now.
-  if state.landingMenuId ~= nil and not state.initialLoad then
+  -- Hosted, the theme slots take the next pass and the first build the one after it.
+  if state.themeSlotsOwed then
+    logf("info", "first build after the theme slots (landing %s)", tostring(state.landingMenuId))
+    scheduleBuildUI(false)
+  elseif state.landingMenuId ~= nil and not state.initialLoad then
     logf("info", "landing %s: first build on the next pass", tostring(state.landingMenuId))
     scheduleBuildUI(false)
   else
@@ -4025,10 +4066,17 @@ function M.run(event, touchState)
       return 0
     end
 
+    -- The theme slots a hosted init left owed, on a pass of their own: a build waits for the next pass.
+    -- Never while closing: the closing sequence above has returned by here.
+    local slotsThisPass = false
+    if state.themeSlotsOwed then
+      writeOwedThemeSlots()
+      slotsThisPass = true
+    end
     if state.sceneBuildOwed and not state.isClosing then
       state.pendingBuildUI = true
     end
-    if state.pendingBuildUI and not state.isClosing then
+    if state.pendingBuildUI and not state.isClosing and not slotsThisPass then
       state.pendingBuildUI = false
       local doGc = state.pendingGcAfterBuild == true
       state.pendingGcAfterBuild = false
