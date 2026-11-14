@@ -886,7 +886,8 @@ do
   for _=1,200 do w:tick();pump();ticks=ticks+1;if w.closed then break end end
   check(w.closed,"CODEX Close works after a stop with no override modules")
   -- Save & exit whose commit has something to say (a refused tail pin move): the stop screen shows it.
-  w=world();w:touch("motor_config")
+  -- feedback.lua attached as on the radio: its status line says nothing while the stop is shown.
+  w=world();load(PATH.."feedback.lua").attach(w,load("lib/system_state.lua"),{});w:touch("motor_config")
   w.commit=function() w.stayNotice=L.tailPinRefused end
   getAvailableMemory=function() return 200*1024 end;w:checkMemory()
   untilStopped(w)
