@@ -237,9 +237,12 @@ function M.apply(name)
 
   -- The nets first, then the colours: whatever stops the tool after the first write finds this state
   -- holding the rows, the finaliser armed and the marker on the card. The scheme is named only once
-  -- every slot carries it, so a change that stopped half way is made again by the next one.
+  -- every slot carries it, so a change that stopped half way is made again by the next one: the old
+  -- name goes before the first write, or a stopped dark -> light change would still answer dark and a
+  -- later save of dark would take the mixed slots for written (ui/home.lua, applySavedScheme).
   if applied == nil then arm(rows, path) end
   applied = rows
+  appliedScheme = nil
   if not writeMarker(path, rows) then
     log("warn", "theme slot marker not written: a tool stopped without its finaliser leaves the colours")
   end
