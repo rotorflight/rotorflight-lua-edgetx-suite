@@ -5903,22 +5903,24 @@ return function(h)
     local controller=load("app/pages/helicopter_setup/elrs_link.lua").new(w)
     local card=w:cardDef(L.linkTitle,L.linkHint,{});w.cards={card};w.card=1
     controller:enter(card)
-    -- The FC step has run (started, task done, module walked again): its outcome decides.
+    -- The FC step's task finishes with an outcome; the module walk after it replaces the task's
+    -- status before the plan looks again, so the outcome is the one kept when the task ended.
     local function finishFcStep(outcome)
-      status=outcome;w.linkNotice=nil
+      w.linkNotice=nil
       controller.plan={steps={{kind="fc"}},at=1,started=true}
-      controller.asked,controller.rewalk,controller.started=true,nil,nil
+      status=outcome;controller.rewalk=true;controller:taskDone()
+      status="status_elrs_probe_complete";controller.asked,controller.started=true,nil
       controller:runPlan();controller:runPlan()
     end
     for _,bad in ipairs({"status_rotorflight_save_failed","status_rotorflight_write_failed","status_read_timeout"}) do
       finishFcStep(bad)
       check(controller.plan==nil,"CODEX a failed FC step ends Set on both: "..bad)
-      eq(w.linkNotice,L.linkSetBothFailed,"CODEX a failed FC step says Set on both failed: "..bad)
+      eq(w.linkNotice,L.linkSetBothFcFailed,"CODEX a failed FC step says the FC did not save: "..bad)
     end
     for _,good in ipairs({"status_rotorflight_updated","status_rf_matches_elrs"}) do
       finishFcStep(good)
       check(controller.plan==nil,"CODEX a good FC step finishes Set on both: "..good)
-      check(w.linkNotice~=L.linkSetBothFailed,"CODEX a good FC step is not reported as failed: "..good)
+      check(w.linkNotice~=L.linkSetBothFcFailed,"CODEX a good FC step is not reported as failed: "..good)
     end
     -- A stop (released tests, stale STATUS) ends an unfinished plan, so Set on both can be pressed again.
     controller.plan={steps={{kind="fc"}},at=1}
