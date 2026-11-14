@@ -366,6 +366,23 @@ do
   check(widget._themeRecoverOwed == true, "a stopped load owes the recovery to the next pass")
   Wrapper.refresh(widget)
   check(radioColours() and not exists(MARKER), "the next pass loads the module and finishes the recovery")
+  -- rfsuite.require usually answers nil for a module whose chunk raised rather than raising itself.
+  leaveMarker("dark")
+  modules["lib/theme_slots.lua"] = nil
+  local nils = 1
+  rfsuite.require = function(path)
+    if path == "lib/theme_slots.lua" and nils > 0 then
+      nils = nils - 1
+      return nil
+    end
+    return realRequire(path)
+  end
+  widget = { refresh = function() end }
+  Wrapper.refresh(widget)
+  Wrapper.refresh(widget)
+  check(nils == 0 and widget._themeRecoverOwed == true, "a load that answers nil owes the recovery to the next pass")
+  Wrapper.refresh(widget)
+  check(radioColours() and not exists(MARKER), "and the next pass finishes it")
   rfsuite.require = realRequire
 end
 
