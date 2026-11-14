@@ -100,15 +100,25 @@ end
 
 local PAGE = "setup_mixer_tail_page"
 
--- Hosted on its menu: nothing written or built in init, the slots on the first pass, the build after.
+-- Hosted on its menu: nothing loaded, written or built in init, the slots on the first pass, the build after.
 do
   connected = true
+  local root = _G.rfsuite
+  local realRequire = root.require
+  local slotLoads = 0
+  root.require = function(path)
+    if path == "lib/theme_slots.lua" then slotLoads = slotLoads + 1 end
+    return realRequire(path)
+  end
   local state = open({ hosted = true })
+  check(slotLoads == 0, "hosted init does not load lib/theme_slots.lua", slotLoads)
   check(writes == 0, "hosted init writes no theme slot", writes)
   check(builds == 0, "hosted init builds nothing", builds)
   pass()
   check(writes > 0, "the first pass writes the theme slots", writes)
   check(builds == 0, "and builds nothing", builds)
+  check(slotLoads == 1, "the first pass loads the module", slotLoads)
+  root.require = realRequire
   local written = writes
   pass()
   check(builds > 0, "the pass after builds the first screen", builds)
@@ -141,6 +151,30 @@ do
   check(writes > 0 and builds == 0, "the next pass writes the slots, still nothing built", writes .. "/" .. builds)
   pass()
   check(builds > 0, "the first build follows on the pass after", builds)
+  restore()
+end
+
+-- A stop before the first write (the module's load fails): tried again on the next pass all the same.
+do
+  connected = true
+  local root = _G.rfsuite
+  local realRequire = root.require
+  local fails = 1
+  root.require = function(path)
+    if path == "lib/theme_slots.lua" and fails > 0 then
+      fails = fails - 1
+      return nil
+    end
+    return realRequire(path)
+  end
+  open({ hosted = true })
+  pass()
+  check(fails == 0 and writes == 0 and builds == 0, "control: the load failed, nothing written or built")
+  pass()
+  check(writes > 0 and builds == 0, "the next pass loads the module and writes the slots", writes .. "/" .. builds)
+  root.require = realRequire
+  pass()
+  check(builds > 0, "and the first build follows", builds)
   restore()
 end
 

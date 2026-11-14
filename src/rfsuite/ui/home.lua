@@ -4066,7 +4066,8 @@ function M.run(event, touchState)
       return 0
     end
 
-    -- The theme slots a hosted init left owed, on a pass of their own: a build waits for the next pass.
+    -- The theme slots a hosted init left owed, on a pass that builds nothing: the build, the menu's step
+    -- and the page's wakeup wait for the next pass; the link's own ticks run as on any pass.
     -- Never while closing: the closing sequence above has returned by here.
     local slotsThisPass = false
     if state.themeSlotsOwed then
@@ -4231,7 +4232,7 @@ function M.run(event, touchState)
     -- being stepped is noted before the step and forgotten only once the screen has been asked
     -- for, so a pass stopped anywhere between the step that completes the build and that request
     -- leaves the note behind, and the next pass makes the request instead.
-    if not transitionedMenuThisTick and not builtThisPass and not state.isClosing then
+    if not transitionedMenuThisTick and not builtThisPass and not slotsThisPass and not state.isClosing then
       local onScreen = state.menu.getCurrentMenuId()
       if state.menu.isCurrentMenuPending() then
         state.steppedMenuId = onScreen
@@ -4344,7 +4345,9 @@ function M.run(event, touchState)
       -- be looking at state the aborted build never created.
       local buildFailedHere = state.pageBuildFailed ~= nil
         and state.pageBuildFailed == state.activePageMenuId
-      if (not transitionedMenuThisTick) and (not buildFailedHere) then
+      -- Nor on the theme slots' pass: a landing page is active from init on, and is built only on the
+      -- pass after, so its wakeup waits for that build as it does without the slots.
+      if (not transitionedMenuThisTick) and (not buildFailedHere) and (not slotsThisPass) then
         local activePage = getActivePageModule()
         local wakeupFn = activePage and (activePage.wakeup or activePage.onWake)
         if type(wakeupFn) == "function" then
