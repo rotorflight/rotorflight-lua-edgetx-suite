@@ -82,7 +82,9 @@ The journal before it is kept beside it as `<mcu id>.lua.bak`: the one earlier g
 start afresh replaces it. The new journal is written beside the old one and checked before it takes its place, so
 a start afresh that is cut short -- the radio switched off, a full card -- leaves the old journal whole. If only
 the `.bak` stands, the Tune Advisor page puts it back under its own name when it opens, and starts it afresh then
-if it is above 16 KiB; a save does the same before it appends. To delete the journal by hand, delete both files.
+if it is above 16 KiB; a save puts it back the same way before it appends. If it cannot be put back, the `.bak` stays the
+journal: the Tune Advisor reads it and a save appends to it, rather than starting a new journal beside it, and it
+starts afresh once it is back under its own name. To delete the journal by hand, delete both files.
 
 A journal that could not be started afresh is tried again after the next save or opening; meanwhile its newest
 16 KiB are read: from the first whole line in that part to the end.

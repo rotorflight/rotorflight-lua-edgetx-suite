@@ -103,21 +103,28 @@ end
 -- A journal that starts afresh is put in place by lib/atomic_file.lua: a replace cut short
 -- between its two renames leaves no journal, only the one before it as `.bak`. That is the
 -- journal, so it is put back under the name before anything is appended, rather than a new
--- journal being started beside it, which the next replace would leave as the only record.
+-- journal being started beside it, which the reads would take in its place and the next
+-- replace would leave as the only record. Answers false while the `.bak` still stands alone;
+-- an append then goes to the `.bak`, which the reads take while no journal stands under the name.
 local function restoreParked(path)
-  if fileSize(path) ~= nil or type(rename) ~= "function" then return end
+  if fileSize(path) ~= nil then return true end
   local bakPath = path .. ".bak"
-  if fileSize(bakPath) == nil then return end
-  local ok, res = pcall(rename, bakPath, path)
-  journalLog(ok and res == 0 and "info" or "debug", "journal %s: only its .bak stood; put back: %s",
-    path, tostring(ok and res == 0))
+  if fileSize(bakPath) == nil then return true end
+  local ok, res = false, "no rename"
+  if type(rename) == "function" then ok, res = pcall(rename, bakPath, path) end
+  local restored = ok and res == 0
+  journalLog(restored and "info" or "debug", "journal %s: only its .bak stood; put back: %s (%s)",
+    path, tostring(restored), tostring(res))
+  return restored
 end
 
 --- Puts a journal that stands only as `.bak` back under its name (see restoreParked). The Tune
---- Advisor page does so when it opens, so a large one starts afresh before it is read.
+--- Advisor page does so when it opens, so a large one starts afresh before it is read. Answers
+--- false while only the `.bak` stands; it is then what the reads take.
 function M.restore(mcuId)
   local path = M.path(mcuId)
-  if path then restoreParked(path) end
+  if not path then return false end
+  return restoreParked(path)
 end
 
 --- Appends the entries. Answers true and, second, whether the journal now stands above ROTATE_AT
@@ -141,23 +148,36 @@ function M.append(mcuId, entries)
   if #lines == 0 then return true end
   local text = table.concat(lines)
   ensureDir()
-  restoreParked(path)
-  local before = fileSize(path)
+  -- A `.bak` that cannot be put back stays the journal and takes the entries, so its chains run
+  -- on; it starts afresh only once it is back under the name. A name that opens although its
+  -- size cannot be had is refused: once its size can be had again, the reads take it and not
+  -- the `.bak`, so entries written to the `.bak` would no longer be read.
+  local target = path
+  if not restoreParked(path) then
+    local taken = io.open(path, "r")
+    if taken then
+      io.close(taken)
+      return false, "parked"
+    end
+    target = path .. ".bak"
+    journalLog("debug", "journal %s: appending to its .bak", path)
+  end
+  local before = fileSize(target)
   if before == nil then
-    local created = io.open(path, "a")
+    local created = io.open(target, "a")
     if not created then return false, "open" end
     io.close(created)
-    before = fileSize(path)
+    before = fileSize(target)
     if before == nil then return false, "unmeasurable" end
   end
-  if before > 0 and endsMidLine(path, before) then text = "\n" .. text end
-  local f = io.open(path, "a")
+  if before > 0 and endsMidLine(target, before) then text = "\n" .. text end
+  local f = io.open(target, "a")
   if not f then return false, "open" end
   io.write(f, text)
   io.close(f)
-  local after = fileSize(path)
+  local after = fileSize(target)
   if after == nil or after ~= before + #text then return false, "unverified" end
-  if after > ROTATE_AT then
+  if after > ROTATE_AT and target == path then
     journalLog("debug", "journal %s: %d bytes after the append, above %d", path, after, ROTATE_AT)
     return true, true
   end

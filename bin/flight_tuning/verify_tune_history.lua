@@ -808,6 +808,53 @@ do
   result = runCompact()
   check("and the next start afresh carries the chain across it", result == true
     and string.match(files[JOURNAL] or "", '^e%(%d+,"tune_advisor",1,"pid_0_P",50,70%)\n$') ~= nil, tostring(files[JOURNAL]))
+  -- Only the .bak standing and it cannot be put back: the .bak stays the journal and takes the
+  -- append, so the chain in it runs on; no journal is started beside it, which the reads would
+  -- take in its place and the next replace would make the only record. F 120 -> 96 in the .bak,
+  -- then a Save of 96 -> 77: the pilot's own F is still 120.
+  local function pilotF(current)
+    local want = { profile = 1, field = "pid_0_F", value = current }
+    local add, finish = tuneHistory.pilotFold({ want })
+    local job = journal.readJob(MCU, { pid_0_F = true }, add)
+    local done
+    repeat done = journal.readStep(job) until done ~= false
+    if type(done) ~= "table" then return nil end
+    finish()
+    return want.value
+  end
+  local F_NEXT = { { source = A, profile = 1, field = "pid_0_F", old = 96, new = 77 } }
+  reset()
+  local parked = big .. 'e(30,"tune_advisor",1,"pid_0_F",120,96)\n'
+  files[JOURNAL .. ".bak"] = parked
+  check("the parked journal's own F reads as 120 at 96", pilotF(96) == 120, tostring(pilotF(96)))
+  renameFails[JOURNAL .. ".bak"] = true
+  local due
+  ok, due = journal.append(MCU, F_NEXT)
+  check("only the .bak standing and its rename fails: the append goes to the .bak, no journal beside it",
+    ok == true and due == false and files[JOURNAL] == nil
+    and string.sub(files[JOURNAL .. ".bak"] or "", 1, #parked) == parked
+    and string.match(string.sub(files[JOURNAL .. ".bak"] or "", #parked + 1),
+      '^e%(%d+,"tune_advisor",1,"pid_0_F",96,77%)\n$') ~= nil,
+    tostring(ok) .. " " .. tostring(due) .. " " .. tostring(files[JOURNAL] and #files[JOURNAL]))
+  check("and the pilot's own F at 77 is still 120", pilotF(77) == 120, tostring(pilotF(77)))
+  -- A name that opens although its size cannot be had is taken by the reads once it can: refused
+  files[JOURNAL] = ""
+  local realFstat = fstat
+  fstat = function(path) if path == JOURNAL then return nil end return realFstat(path) end
+  local bakBefore = files[JOURNAL .. ".bak"]
+  local refused
+  ok, refused = journal.append(MCU, F_NEXT)
+  fstat = realFstat
+  local nameAfter = files[JOURNAL]
+  files[JOURNAL] = nil
+  check("a name that opens but cannot be measured: the append is refused and the .bak left alone",
+    ok == false and refused == "parked" and nameAfter == "" and files[JOURNAL .. ".bak"] == bakBefore, tostring(refused))
+  renameFails[JOURNAL .. ".bak"] = nil
+  local withSave = files[JOURNAL .. ".bak"]
+  ok, due = journal.append(MCU, { { source = A, profile = 1, field = "pid_0_F", old = 77, new = 70 } })
+  check("the next append, its rename working, puts the .bak back under the name and appends to it",
+    ok == true and due == true and files[JOURNAL .. ".bak"] == nil and string.sub(files[JOURNAL] or "", 1, #withSave) == withSave
+    and pilotF(70) == 120, tostring(pilotF(70)))
 
   -- An append between two steps of the read: the start afresh is given up, nothing is lost
   reset()
