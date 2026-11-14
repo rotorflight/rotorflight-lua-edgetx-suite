@@ -154,7 +154,15 @@ local function endSession(session)
   session.flightcount = 0
   -- A flight controller that answered the Tune Advisor with "no such command" is asked again on
   -- the next connection: it may have been flashed in between.
-  if type(session.tuneCapture) == "table" then session.tuneCapture.noCommand = nil end
+  -- And a flight it saved is no longer taken to be held by the board's next reading: a fresh pack
+  -- restarted the board, so that reading is saved beside it as before (tasks/events/tune_capture.lua).
+  if type(session.tuneCapture) == "table" then
+    session.tuneCapture.noCommand = nil
+    if session.tuneCapture.held ~= nil and Log and type(Log.emit) == "function" then
+      pcall(Log.emit, "rfsuite.events", "tune capture: new link, saved flights no longer taken as held", "debug")
+    end
+    session.tuneCapture.held = nil
+  end
   if FlightRecord and type(FlightRecord.reset) == "function" then
     pcall(FlightRecord.reset)
   end
@@ -366,14 +374,34 @@ end
 -- left the module is dropped again.
 --
 -- Arming ends any capture in progress: the flight controller keeps adding to its numbers, so
--- the next disarm reads this flight together with the one it was still reading.
+-- the next disarm reads this flight together with the one it was still reading. A clear still
+-- owed for a saved flight is dropped too: sent after the next disarm, it would erase that new
+-- flight unread. The same holds across a link loss and across a stretch with no pass (the
+-- configuration tool open stops the widgets), through which the craft may have flown unseen. The
+-- next disarm reads first, saves, and clears then. A clear already queued is stopped by its own
+-- sendIf (tasks/events/tune_capture.lua).
+local function dropOwedClear(capture, why)
+  if not capture.clearPending then return end
+  if Log and type(Log.emit) == "function" then
+    pcall(Log.emit, "rfsuite.events", "tune capture: clear owed dropped (" .. why .. "); the next disarm reads first", "debug")
+  end
+  capture.clearPending, capture.clearMcu = false, nil
+  -- The capture's own module may not be loaded to say so: with no flight to read, nothing is owed
+  if not capture.pending then capture.state = "idle" end
+end
+
 local function driveTuneCapture(capture, armed, linkUp, t, carry, mspState)
+  local seen = capture.seenAt
+  capture.seenAt = t
+  if seen ~= nil and (t < seen or t - seen > 5) then dropOwedClear(capture, "no pass for a while") end
   if armed then
+    dropOwedClear(capture, "armed")
     capture.pending = false
     capture.state = "idle"
     TuneCapture = nil
     return
   end
+  if linkUp ~= true then dropOwedClear(capture, "link lost") end
   if carry then return end
   if TuneCapture == nil then
     local work = capture.pending or (capture.clearPending and not capture.refusedOnFc)

@@ -17,24 +17,38 @@ hovering counts nothing. Time in Angle, Horizon, Trainer, Altitude hold, Rescue,
 ten seconds of rolls, flips and pirouettes with the stick centred after each one, which one flight may or may not
 give.
 
-The page combines up to the last 5 flights flown on the same tune as the newest one. Counting back from the
-newest flight, the first flight with a different P, F, B, I-term relax cut-off, rate type or rates on that axis
-ends the count, because the advice is worked out against the tune you fly now. So does a flight with a different
-cyclic polarity, cyclic ring or I-term relax type, or one where any of these three is not known. Under polar
-cyclic, Roll flies on the Pitch rates, so for Roll a change of the Pitch rates ends the count too. Combining flights
-adds up the counts and averages each measurement weighted by how much data it came from; the flight controller
-weights its own figures slightly differently, so the combined response is a close estimate rather than exact,
-while the stop figures combine exactly.
+The page shows the flights of the PID and rate profile active on the flight controller, so that each setup gets its
+own advice and *Save* writes to the profiles the flights were flown on. It combines up to the last 5 flights flown
+on those profiles and on the same tune as the newest of them. Counting back from that flight, a flight on other
+profiles, or one that does not say which profiles it was flown on, is passed over: it neither counts nor ends the
+count, and stays saved for its own profiles. The first flight on these profiles with a different P, F, B, I-term
+relax cut-off, rate type or rates on that axis ends the count, because the advice is worked out against the tune
+you fly now. So does a flight with a different cyclic polarity, cyclic ring or I-term relax type, or one where any
+of these three is not known. When flights on other profiles are saved too, the first line under *Why* reads
+"Flights on other profiles are kept for those profiles."; with no flight on the active profiles the page says, for
+example, "No flight saved on PID 2, rates 1 yet". The active profiles come from the *PID#* and *RTE#* telemetry
+sensors; without them the page asks the flight controller when it opens and on *Reload*, only while disarmed
+("Reading the active profiles..." meanwhile), and otherwise uses the ones the flight controller reported last. A
+flight is saved under the profiles the same way: the sensors, or one request before the save without them. Under
+polar cyclic, Roll flies on the Pitch rates, so for Roll a change of the Pitch rates ends the count too. Combining
+flights adds up the counts and averages each measurement weighted by how much data it came from; the flight
+controller weights its own figures slightly differently, so the combined response is a close estimate rather than
+exact, while the stop figures combine exactly. A flight whose numbers a newer saved reading also holds (see *How a
+flight is saved*) is left out as well: it neither counts nor ends the count.
 
 ## How a flight is saved
 
 After each disarm the radio reads all three axes from the flight controller, saves them as one flight, then clears
 the flight controller's measurements so the next flight is measured on its own. It starts 5 seconds after the
 disarm and waits 2 seconds after each answer before the next request, so telemetry sensors keep updating; the
-flight is saved about 10 seconds after the disarm. Then it reads the cyclic polarity, the cyclic ring and the
-I-term relax type and adds them to the saved flight, since they change what its numbers mean. A value that could
-not be read stays unknown, and so do all three if you switch the PID or rate profile before they are read: the
-values read then would belong to the other profile.
+flight is saved about 10 seconds after the disarm (2 seconds later without the *PID#* and *RTE#* sensors, when the
+profiles are asked for first; that question is asked again on a link error like an axis, and an answer the radio
+cannot read saves the flight without profiles, so it is never combined). Then it reads the cyclic polarity, the
+cyclic ring and the I-term relax type and adds them to the saved flight, since they change what its numbers mean.
+A value that could not be read stays unknown, and so do all three if you switch the PID or rate profile before
+they are read and the *PID#* and *RTE#* sensors report the switch: the values read then would belong to the other
+profile. Without those sensors a switch after the profiles were asked for is not seen, so keep the profiles until
+the flight is saved and its settings are read.
 
 - **The saving is done by the RFSuite dashboard widget or the RFSuite Service widget**, whether or not this page
   is open (see [Service widget](../../dashboard/service-widget.md)). With neither of them on the model, no flight
@@ -48,11 +62,32 @@ values read then would belong to the other profile.
 - **A link loss is caught up.** If the model is disarmed while the link is down, the flight is read once the radio
   reconnects, provided the flight controller has not been powered off in between. If the link drops the reading,
   the radio asks again 5 seconds later; after three failures it waits for the next disarm, and since the flight
-  controller was not cleared, that flight is then saved together with this one.
+  controller was not cleared, that flight is then saved together with this one. An answer for another axis than
+  the one asked for is not kept; that axis is asked again, and it counts as one of those failures. If the link
+  drops after the flight is saved but before the flight controller is cleared, the clear is not sent when the
+  link is back: the model may have flown meanwhile, and the clear would erase that flight unread. The flight
+  controller is then cleared after the next disarm, as below.
 - **If another flight controller is connected before the clear**, it is not cleared, and its settings are not
   added to the first one's flight; that flight stays saved with its settings unknown.
 - **Arming again before the flight is saved** stops the reading. The flight controller keeps adding to its
   measurements, so the next disarm saves both flights as one.
+- **Arming again after the flight is saved but before the clear has gone through** (or after a clear lost to the
+  link) leaves that flight in the flight controller, which adds the next flight to it. The radio does not send that
+  old clear afterwards, since it would erase the next flight before it is read; the next disarm reads first, saves,
+  and then clears. That reading holds the earlier flight as well, so it is saved marked as containing it, and the
+  page leaves the earlier flight out instead of counting it twice. Nothing saved is removed for this. The radio
+  marks a reading only when no clear was answered and the link was not lost since that save, and the reading has
+  the same profiles and tune, a longer flight time and no smaller count.
+- **The same holds while the RFSuite widgets do not run for more than 5 seconds** (the configuration tool open):
+  the model may have flown meanwhile, so a clear still owed is not sent afterwards, and the flight controller is
+  cleared after the next disarm. A pack swapped meanwhile is not seen either: a longer next flight on the same
+  profiles and tune is then taken as holding the earlier one, which stays saved but is left out of the advice.
+- **After a lost link** the radio cannot tell a new pack (a restarted flight controller) from the same one. A
+  reading that still holds the earlier flight is then saved beside it unmarked, and that flight counts twice.
+- **A flight that cannot be written to the SD card** (the card is full or write-protected, or the history file is
+  over the 16 KiB the page reads) is tried again 5 seconds later, and after three failed writes the radio waits for
+  the next disarm. The flight controller is not cleared, so that disarm reads the flight again, together with the
+  next one.
 - A flight with no acro flight time is not saved.
 
 **Coming from another dashboard:** put the RFSuite dashboard or the RFSuite Service widget on a screen of the model
@@ -68,7 +103,9 @@ answer finds measurements nobody saved, *Why* starts with how long they are, for
 flight whose reading failed while the page stayed open, press *Reload* to ask again.
 
 The flights are kept on the radio's SD card in `/SCRIPTS/RFSUITE/user/tune/<mcu id>.lua`, one line per
-flight and axis, newest last; only the last 5 flights are kept. `<mcu id>` is the flight controller's board ID,
+flight and axis, newest last, and a line `c(time, seconds)` after a flight that contains the saved flight with that
+time and flight time (see above); the last 5 flights of each PID and rate profile are kept, at most 20 in all (the 
+profiles with the most flights give up their oldest first), and the file is kept under 15 KiB. `<mcu id>` is the flight controller's board ID,
 with characters other than letters, digits, underscores and hyphens replaced by underscores, the same name as its
 [change journal](../../reference/change-journal.md) in `journal/<mcu id>.lua` beside the `tune` folder. Each save
 replaces the whole file, so a save that is cut short leaves the previous file in place (or as `<mcu id>.lua.bak`,
@@ -95,28 +132,29 @@ which keeps saving flights meanwhile, and it reads the flights again when one is
 the cyclic polarity, cyclic ring and I-term relax type have been added to it (a few seconds after the save). Until
 that flight is saved it shows "Reading the last flight..." in place of the advice, with *Save* and *\** greyed
 out. If the radio could not read the flight, the advice from the saved flights comes back with "Last flight not
-read. It is read at the next disarm." above it.
+read. It is read at the next disarm." above it; if it could not write the flight to the card, with "Last flight
+not saved to the card. Check the card before the next flight; the next disarm tries again." above it.
 
 ## Settings
 
 | Line | What it shows |
 | --- | --- |
 | Axis | Roll, Pitch or Yaw. Everything below is for the chosen axis. |
-| Flight data | Minutes and seconds of acro flight in the flights combined, and how many of the last 5 that is, for example "2m 12s, 3/5 flights". "No flight saved yet" when none is saved for this flight controller (see *How a flight is saved*). |
-| Profiles | The PID profile and rate profile the newest flight was flown on, for example "PID 1, rates 1". |
+| Flight data | Minutes and seconds of acro flight in the flights combined, and how many of the last 5 on the active profiles that is, for example "2m 12s, 3/5 flights". "No flight saved yet" when none is saved for this flight controller (see *How a flight is saved*), "No flight saved on PID 2, rates 1 yet" when none is saved on the active profiles. |
+| Profiles | The PID profile and rate profile active on the flight controller, for example "PID 1, rates 1". Only flights flown on these profiles are combined. |
 | Response | How fast the heli turns compared with the rate the stick asks for, for example "53% faster than asked". "Needs more flying" shows how much data is still needed; "Too uneven to judge" means the response varies too much. |
 | Stops | How much the heli bounces back after you centre the stick, as a share of the turn rate. Needs 10 stops. "Shaking 49 deg/s" instead means the heli oscillates with the stick centred (see the rules below). |
 | Suggested changes | Up to three changes, each named by the page, row and column to change and in the units that page shows, for example *PIDs > Roll > FF: 100 -> 80* and *Rates > Roll > Max Rate: 720 -> 900*. When there is something *Save* can write, a last line says so. |
 | Why | The reason for each change, and a fact worth knowing when there is room (for example how much faster the heli turns at high collective). |
 | * (header) | Erases this model's saved flights and resets the flight controller's current measurements, after asking to confirm. The change journal is kept. |
 | Save (header) | Writes the suggested changes for the shown axis to the flight controller. Available while connected and disarmed, with a known board ID, at least one change it can write and no save already running. See *Applying the changes* below. |
-| Reload (header) | Reads the saved flights again and asks the flight controller again whether it has the tune advisor. |
+| Reload (header) | Reads the active profiles and the saved flights again and asks the flight controller again whether it has the tune advisor. |
 
 **The profiles the flights were flown on.** The advice uses the cyclic polarity, cyclic ring and I-term relax type
-saved with the newest flight only while the active PID and rate profile are the ones that flight was flown on.
-Otherwise the first line under *Suggested changes* reads, for example, "Flown on PID profile 2 and rate profile 1.
-Switch to them to save." and *Save* stays off: switch to those profiles to save. Flights that do not say which
-profiles they were flown on keep *Save* off as well; fly again.
+saved with the newest flight on the active profiles. If the active profiles change while the page is open (a switch
+on the transmitter, seen through the *PID#* and *RTE#* sensors), the page reads the flights of the new profiles
+again by itself, as *Reload* does, and *Save* stays off until they are read; a save already running stops
+instead.
 
 ## The rules
 
@@ -216,10 +254,16 @@ In-flight adjustments (*Setup* → *Controls* → *Adjustments*) can change the 
 and writes: P, F, B, the rates and the I-term relax cut-off per axis, and the PID and rate profile. The firmware
 applies an adjustment straight away and saves it when you disarm.
 
-- **Adjusting during a flight mixes two tunes.** The flight controller checks the tune only when you arm, so a
-  flight where you adjusted one of these settings (or switched profile) is measured partly on the old value and
-  saved as if flown on the value you ended on. Leave these adjustments alone while collecting flights for the
-  advisor. If you did use one, press *\** and fly again.
+- **Adjusting during a flight starts the measurements again.** On firmware with rotorflight-firmware pull request
+  #607, a profile switch, or an adjustment that changes a P, I, D, F, B or O gain, a rate or an expo, makes the
+  flight controller drop everything it has measured so far and start again on the new tune. That flight is then
+  saved with only the part flown after the last change; a change shortly before landing leaves too little, or
+  nothing, and a flight with no acro flight time is not saved. A flight not saved yet (see *How a flight is saved*)
+  is dropped with it. Leave these adjustments alone while collecting flights for the advisor.
+- **On older firmware, adjusting during a flight mixes two tunes.** On a 4.7 development build from before that
+  pull request the flight controller checks the tune only when you arm, so a flight where you adjusted one of
+  these settings (or switched profile) is measured partly on the old value and saved as if flown on the value you
+  ended on. If you did use one, press *\** and fly again.
 - **Adjusting between flights is fine.** A *STEPPED* adjustment is saved at disarm, so the next flight is on a new
   tune and the advisor starts again from it, as it does after *Save*.
 - **A *MAPPED* adjustment overrides Save.** It sets the value from the channel's position: once the knob moves,

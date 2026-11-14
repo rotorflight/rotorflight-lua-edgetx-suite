@@ -17,7 +17,8 @@
 -- known context (profiles, cyclic polarity, cyclic ring, relax type), since a flight of unknown
 -- context is never combined with another. The Apply record is this suite's change journal.
 -- The disarm capture and its pacing are the Ethos cases of the same file, driven through this
--- suite's event runtime (bin/flight_tuning/tune_capture_rig.lua); its request gate is
+-- suite's event runtime, the real src/rfsuite/tasks/events/runtime.lua (bin/flight_tuning/
+-- tune_capture_rig.lua); its request gate is
 -- bin/flight_tuning/verify_tune_advisor_gate.lua.
 --
 -- Against a tree without lib/tune_history.lua this script stops at the first load: red.
@@ -395,6 +396,96 @@ do
   check("another cyclic polarity is not combined", pairUsed(base, with("cyclicPolarity", 1)) == 1)
   check("another cyclic ring is not combined", pairUsed(base, with("cyclicRing", 80)) == 1)
   check("another relax type is not combined", pairUsed(base, with("relaxType", 1)) == 1)
+
+  -- #1166: the PID and rate profile too, and per profile: flights on other profiles are passed
+  -- over, not ended at. aggregate's fourth value says the list also holds flights on other known
+  -- profiles.
+  local function pairOthers(ctxOld, ctxNew, fOld)
+    reset()
+    fly(60, fOld or 100, ctxOld)
+    fly(60, 100, ctxNew)
+    local _, n, _, others = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+    return n, others
+  end
+  local n, others = pairOthers(base, base)
+  check("(control) the same profiles: combined, no other profiles", n == 2 and not others,
+    tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(with("pidProfile", 2), base)
+  check("another PID profile is not combined, and other profiles are said to be kept", n == 1 and others == true,
+    tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(with("rateProfile", 2), base)
+  check("another rate profile is not combined, and other profiles are said to be kept", n == 1 and others == true,
+    tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(with("pidProfile", nil), base)
+  check("an older flight of unknown PID profile is not combined, and is no other known profile",
+    n == 1 and not others, tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(base, with("rateProfile", nil))
+  check("a newest flight of unknown rate profile counts alone", n == 1, tostring(n) .. " " .. tostring(others))
+  n, others = pairOthers(with("cyclicRing", 80), base)
+  check("ended by another setting on the same profiles: no other profiles", n == 1 and not others,
+    tostring(n) .. " " .. tostring(others))
+  local _, none, _, noneOthers = tuneHistory.aggregate({}, 1)
+  check("no flights: nothing combined, no other profiles", none == 0 and not noneOthers)
+
+  -- Per profile: P1, P2, P1 -- the flight on P2 is passed over
+  local P2 = with("pidProfile", 2)
+  reset()
+  fly(60, 100, base)
+  fly(70, 100, P2)
+  fly(80, 100, base)
+  local flights = tuneHistory.read(MCU)
+  local _, usedP1, secP1 = tuneHistory.aggregate(flights, 1, 1, 1)
+  check("P1, P2, P1: both P1 flights are combined, the P2 flight passed over", usedP1 == 2 and secP1 == 140,
+    usedP1 .. " / " .. secP1)
+  local aP2, usedP2, secP2 = tuneHistory.aggregate(flights, 1, 2, 1)
+  check("with P2 active its own flight is shown", usedP2 == 1 and secP2 == 70 and aP2.pidProfile == 2,
+    usedP2 .. " / " .. secP2)
+  local _, usedP3, _, othersP3 = tuneHistory.aggregate(flights, 1, 3, 1)
+  check("with a profile no flight was flown on: nothing combined, other profiles kept", usedP3 == 0 and othersP3,
+    usedP3)
+  local _, usedNewest = tuneHistory.aggregate(flights, 1)
+  check("(control) without profiles the newest flight's are used", usedNewest == 2, usedNewest)
+
+  -- At most five combined per profile, counted over other profiles' flights
+  reset()
+  for k = 1, 6 do fly(60 + k, 100, base); fly(30, 100, P2) end
+  local _, usedMax = tuneHistory.aggregate(tuneHistory.read(MCU), 1, 1, 1)
+  check("at most 5 flights of one profile are combined, with others between", usedMax == 5, usedMax)
+
+  -- Kept per profile: a burst on P2 does not push P1's flights out
+  reset()
+  for _ = 1, 3 do fly(60, 100, base) end
+  for _ = 1, 6 do fly(30, 100, P2) end
+  flights = tuneHistory.read(MCU)
+  local p1, p2 = 0, 0
+  for _, f in ipairs(flights) do
+    if f.pidProfile == 1 then p1 = p1 + 1 elseif f.pidProfile == 2 then p2 = p2 + 1 end
+  end
+  check("kept per profile: six P2 flights leave P1's three, and keep P2's newest five", p1 == 3 and p2 == 5,
+    p1 .. " P1, " .. p2 .. " P2")
+
+  -- At most 20 in the file: the profile with the most flights gives up its oldest
+  reset()
+  for pidp = 1, 5 do
+    for _ = 1, 5 do fly(40 + pidp, 100, with("pidProfile", pidp)) end
+  end
+  flights = tuneHistory.read(MCU)
+  local per = {}
+  for _, f in ipairs(flights) do per[f.pidProfile] = (per[f.pidProfile] or 0) + 1 end
+  check("at most 20 flights in the file; the profiles with the most flights give up their oldest, so five profiles keep four each",
+    #flights == 20 and per[1] == 4 and per[2] == 4 and per[3] == 4 and per[4] == 4 and per[5] == 4,
+    #flights .. " flights, P1 " .. tostring(per[1]) .. ", P5 " .. tostring(per[5]))
+  check("the file stays under the read cap", #files[HISTORY] < 16384, #files[HISTORY])
+
+  -- Read with the active profiles: other profiles' flights come back without axis tables
+  reset()
+  fly(60, 100, base)
+  fly(70, 100, P2)
+  flights = tuneHistory.read(MCU, 1, 1)
+  check("a read for P1 builds no axis tables for P2's flight", #flights == 2 and flights[2].axes[1] == nil
+    and flights[2].pidProfile == 2 and flights[1].axes[1] ~= nil, #flights)
+  local _, filtered = tuneHistory.aggregate(flights, 1, 1, 1)
+  check("(control) and still combines P1's flight", filtered == 1, filtered)
 end
 
 print("Differences from the Ethos suite: under polar cyclic Roll flies on Pitch's rates (#981)")
@@ -560,7 +651,9 @@ local function pump(fail, limit, seconds)
     while rig.requests[1] and not (limit and #asked >= limit) do
       local msg = rig.take()
       local name = rig.name(msg)
-      if name == "rc_tuning" or name == "pid_profile" then
+      if name == "status" then
+        rig.statusAsked[#rig.statusAsked + 1] = name
+      elseif name == "rc_tuning" or name == "pid_profile" then
         rig.contextAsked[#rig.contextAsked + 1] = name
       else
         asked[#asked + 1] = name
@@ -754,7 +847,7 @@ do
     while rig.requests[1] do
       local msg = rig.take()
       local name = rig.name(msg)
-      if name ~= "rc_tuning" and name ~= "pid_profile" then asked[#asked + 1] = name end
+      if name ~= "rc_tuning" and name ~= "pid_profile" and name ~= "status" then asked[#asked + 1] = name end
       rig.answer(msg)
     end
   end
@@ -789,12 +882,13 @@ do
   fresh()
   local history = assert(loadfile("src/rfsuite/lib/tune_history.lua"))()
   -- The capture saves through history.step (a save in steps, one per pass); its write step is
-  -- the save the Ethos case fails four times.
+  -- the save the Ethos case fails four times. (Difference: here the third failed write in a row
+  -- ends the capture until the next disarm, see below, so it fails twice.)
   local realStep, saves = history.step, 0
   history.step = function(job)
     if job.kind == "save" and job.phase == "write" then
       saves = saves + 1
-      if saves <= 4 then job.phase = "done"; return false, "write" end
+      if saves <= 2 then job.phase = "done"; return false, "write" end
     end
     return realStep(job)
   end
@@ -802,8 +896,8 @@ do
   update(true)
   update(false)
   local asked = pump(nil, nil, 60)
-  check("a failed write is tried again without reading again, past the link-error limit",
-    asked == "roll,pitch,yaw,clear" and saves == 5 and #lines() == 4,
+  check("a failed write is tried again without reading again",
+    asked == "roll,pitch,yaw,clear" and saves == 3 and #lines() == 4,
     asked .. " / " .. saves .. " saves / " .. #lines() .. " lines")
 end
 
@@ -930,6 +1024,366 @@ do
     and files[HISTORY] == big, asked)
 end
 
+-- ---------------------------------------------------------------------------
+print("The capture: a card that cannot be written (#1168)")
+-- ---------------------------------------------------------------------------
+do
+  fresh()
+  local history = assert(loadfile("src/rfsuite/lib/tune_history.lua"))()
+  local realStep, writes = history.step, 0
+  history.step = function(job)
+    if job.kind == "save" and job.phase == "write" then
+      writes = writes + 1
+      job.phase = "done"
+      return false, "write"
+    end
+    return realStep(job)
+  end
+  rig.shared["lib/tune_history.lua"] = history
+  update(true)
+  update(false)
+  local asked = pump(nil, nil, 120)
+  check("a write that always fails is tried three times, then not again until the next disarm",
+    asked == "roll,pitch,yaw" and writes == 3, asked .. " / " .. writes .. " writes")
+  check("the page is told the flight was not saved, not that it is still being read",
+    rig.states[#rig.states] == "unsaved", table.concat(rig.states, ","))
+  check("the flight controller is not cleared", not string.find(asked, "clear", 1, true), asked)
+  local loadsBefore = #rig.loads
+  rig.passes(100, 1)
+  check("nothing more is loaded or asked while it waits", #rig.loads == loadsBefore and #rig.requests == 0,
+    (#rig.loads - loadsBefore) .. " loads, " .. #rig.requests .. " requests")
+  update(true)
+  check("arming ends the note", rig.states[#rig.states] == "idle", table.concat(rig.states, ","))
+  history.step = realStep
+  asked = flyThrough(160)
+  check("the next disarm reads again and saves once the card takes it",
+    asked == "roll,pitch,yaw,clear" and #lines() == 4, asked .. " / " .. #lines() .. " lines")
+end
+
+do
+  -- A history over the read cap: the same three tries, then the note
+  fresh()
+  flyThrough(140)
+  files[HISTORY] = files[HISTORY] .. string.rep("-- padding ", 1700)
+  rig.reply.seconds = 150
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  local logsBefore = #rig.logs
+  local asked = pump(nil, nil, 120)
+  local tries = 0
+  for i = logsBefore + 1, #rig.logs do
+    if string.find(rig.logs[i], "cannot write the flight history", 1, true) then tries = tries + 1 end
+  end
+  check("a history over the read cap is tried three times, then the page says not saved",
+    asked == "roll,pitch,yaw" and tries == 3 and rig.states[#rig.states] == "unsaved",
+    asked .. " / " .. tries .. " tries / " .. table.concat(rig.states, ","))
+end
+
+-- ---------------------------------------------------------------------------
+print("The capture: a reply is stored by the axis it names (#1169)")
+-- ---------------------------------------------------------------------------
+-- Answers every request as it goes out, but a pitch request with the reply to a roll request
+-- `wrong` times. Returns what was asked.
+local function pumpWrongPitch(wrong, seconds)
+  local asked = {}
+  local stopAt = rig.clock + (seconds or 30)
+  while rig.clock < stopAt do
+    rig.clock = rig.clock + 0.5
+    rig.pass()
+    while rig.requests[1] do
+      local msg = rig.take()
+      local name = rig.name(msg)
+      if name ~= "rc_tuning" and name ~= "pid_profile" and name ~= "status" then asked[#asked + 1] = name end
+      if name == "pitch" and wrong > 0 then
+        wrong = wrong - 1
+        msg.__errorReply = false
+        msg.processReply(msg, rig.replyFor({ command = Rig.READ, payload = { 0 } }))
+      else
+        rig.answer(msg)
+      end
+    end
+  end
+  return table.concat(asked, ",")
+end
+
+do
+  fresh()
+  update(true)
+  update(false)
+  local asked = pumpWrongPitch(1)
+  check("a reply naming another axis is not stored, and that axis is asked again",
+    asked == "roll,pitch,pitch,yaw,clear", asked)
+  local flight = tuneHistory.read(MCU)[1]
+  local roll, pitch = Api.parse(Api.simulatorResponseFor(1)).a, Api.parse(Api.simulatorResponseFor(2)).a
+  check("(setup) roll and pitch replies differ", roll.P ~= pitch.P and roll.ffCount ~= pitch.ffCount)
+  check("the saved pitch line holds pitch's numbers, not roll's", flight ~= nil
+    and flight.axes[2].P == pitch.P and flight.axes[2].ffCount == pitch.ffCount
+    and flight.axes[1].ffCount == roll.ffCount,
+    flight and (tostring(flight.axes[2].P) .. " " .. tostring(flight.axes[2].ffCount)) or "no flight")
+end
+
+do
+  fresh()
+  update(true)
+  update(false)
+  local asked = pumpWrongPitch(99, 120)
+  check("replies that keep naming another axis count as link errors: three, then the next disarm",
+    asked == "roll,pitch,pitch,pitch" and files[HISTORY] == nil and rig.states[#rig.states] == "failed",
+    asked .. " / " .. table.concat(rig.states, ","))
+end
+
+-- ---------------------------------------------------------------------------
+print("The capture: a clear owed from before an arm, a link loss or a pause is never sent (#1173)")
+-- ---------------------------------------------------------------------------
+-- The flight controller's numbers, modelled: a flight adds its usable seconds and an answered
+-- clear empties them.
+local board = { seconds = 0 }
+
+-- pump(), answering each read with the board's numbers and emptying them on an answered clear.
+-- `failClear`: that many clears end in a link error. `stopAtClear`: return with the first clear
+-- still on the queue, unanswered. A message with `sendIf` is asked first, as tasks/msp/queue.lua
+-- asks it before every send, and withheld when the answer is not true.
+local function boardPump(failClear, stopAtClear)
+  local asked = {}
+  local stopAt = rig.clock + 40
+  while rig.clock < stopAt do
+    rig.clock = rig.clock + 0.5
+    rig.pass()
+    while rig.requests[1] do
+      local msg = rig.requests[1]
+      local name = rig.name(msg)
+      if name == "clear" and stopAtClear then return table.concat(asked, ","), msg end
+      rig.take()
+      if msg.sendIf and msg.sendIf(msg) ~= true then
+        msg.errorHandler(msg, "withheld")
+      else
+        if name ~= "rc_tuning" and name ~= "pid_profile" and name ~= "status" then asked[#asked + 1] = name end
+        if name == "clear" and (failClear or 0) > 0 then
+          failClear = failClear - 1
+          msg.errorHandler(msg, "timeout")
+        else
+          rig.reply.seconds = board.seconds
+          rig.answer(msg)
+          if name == "clear" then board.seconds = 0 end
+        end
+      end
+    end
+  end
+  return table.concat(asked, ",")
+end
+
+-- Drops what the queue holds, as arming or a link loss does
+local function dropQueue()
+  for i = #rig.requests, 1, -1 do
+    local msg = table.remove(rig.requests, i)
+    msg.errorHandler(msg, "cleared")
+  end
+end
+
+-- `ground` seconds on the ground (default 60), a pass a second, then arms, flies `seconds`
+-- (armed 20 s longer) and disarms
+local function boardFly(seconds, ground)
+  rig.passes(ground or 60, 1)
+  dropQueue()
+  update(true)
+  board.seconds = board.seconds + seconds
+  rig.passes(seconds + 20, 1)
+  update(false)
+end
+
+local function savedSeconds()
+  local out = {}
+  for _, flight in ipairs(tuneHistory.read(MCU)) do out[#out + 1] = tostring(flight.seconds) end
+  return table.concat(out, ",")
+end
+
+-- Like boardPump, but stops on the pass that saves the flight: the clear is owed then and waits its
+-- GAP_SECONDS, not on the queue yet. Only tasks/events/runtime.lua's own drop rules (an arm, a link
+-- loss, a time without passes) can give it up in that window; no queue drop is involved.
+local function boardPumpUntilSaved()
+  local asked = {}
+  local stopAt = rig.clock + 40
+  while rig.clock < stopAt and savedSeconds() == "" do
+    rig.clock = rig.clock + 0.5
+    rig.pass()
+    while rig.requests[1] do
+      local msg = rig.take()
+      local name = rig.name(msg)
+      if name ~= "rc_tuning" and name ~= "pid_profile" and name ~= "status" then asked[#asked + 1] = name end
+      rig.reply.seconds = board.seconds
+      rig.answer(msg)
+    end
+  end
+  local cap = rig.capture()
+  return table.concat(asked, ","), cap and cap.clearPending == true and rig.requests[1] == nil
+end
+
+do
+  -- The pilot arms again in the moment between the save and the clear
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  local asked = boardPump(nil, true)
+  check("(setup) flight one saved, its clear about to go out", asked == "roll,pitch,yaw" and savedSeconds() == "140",
+    asked .. " / " .. savedSeconds())
+  boardFly(60, 1)
+  asked = boardPump()
+  check("a clear owed from before the arm is not sent ahead of the next reading", string.sub(asked, 1, 4) == "roll",
+    asked)
+  -- The reading still holds flight one: both are kept, and the page leaves flight one out (#1167)
+  check("the second flight is read and saved, not erased", savedSeconds() == "140,200" and board.seconds == 0,
+    savedSeconds() .. " / board " .. board.seconds)
+end
+
+do
+  -- The link goes while the clear is still owed, and the craft flies while it is down: the radio
+  -- never sees that flight. The owed clear must not erase it when the link is back.
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  local asked, msg = boardPump(nil, true)
+  check("(setup) flight one saved, its clear about to go out", asked == "roll,pitch,yaw" and msg ~= nil, asked)
+  rig.setLink(false)
+  dropQueue()
+  rig.passes(80, 1)
+  board.seconds = board.seconds + 60
+  rig.setLink(true)
+  asked = boardPump()
+  check("a clear owed across a link loss is not sent when the link is back", asked == "" and board.seconds == 200,
+    asked .. " / board " .. board.seconds)
+  check("the page is not left reading", rig.capture().state == "idle", tostring(rig.capture().state))
+  boardFly(30, 1)
+  boardPump()
+  check("the next disarm reads what the board held", savedSeconds() == "140,230" and board.seconds == 0,
+    savedSeconds() .. " / board " .. board.seconds)
+end
+
+-- The same three in the window between the save and the clear going on the queue: here only the
+-- runtime's drop rules stand between the owed clear and the next flight
+do
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  local asked, owed = boardPumpUntilSaved()
+  check("(setup) flight one saved, its clear owed and not queued yet", asked == "roll,pitch,yaw" and owed == true
+    and savedSeconds() == "140", asked .. " / owed " .. tostring(owed))
+  boardFly(60, 1)
+  asked = boardPump()
+  check("armed before the owed clear was queued: it is not sent, the next flight is read and saved",
+    string.sub(asked, 1, 4) == "roll" and savedSeconds() == "140,200", asked .. " / " .. savedSeconds())
+
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  asked, owed = boardPumpUntilSaved()
+  check("(setup) flight one saved, its clear owed and not queued yet", owed == true, asked)
+  rig.setLink(false)
+  rig.passes(80, 1)
+  board.seconds = board.seconds + 60
+  rig.setLink(true)
+  asked = boardPump()
+  check("a link loss before the owed clear was queued: it is not sent when the link is back",
+    asked == "" and board.seconds == 200, asked .. " / board " .. board.seconds)
+
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  asked, owed = boardPumpUntilSaved()
+  check("(setup) flight one saved, its clear owed and not queued yet", owed == true, asked)
+  rig.clock = rig.clock + 200
+  board.seconds = board.seconds + 120
+  asked = boardPump()
+  check("a time without passes before the owed clear was queued: it is not sent afterwards",
+    asked == "" and board.seconds == 260, asked .. " / board " .. board.seconds)
+end
+
+do
+  -- The widget runs no pass for a while (the configuration tool open stops the widgets) with a
+  -- clear owed but not yet sent: the craft may have flown unseen, so it is not sent afterwards
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  boardPump(nil, true)
+  dropQueue()
+  rig.clock = rig.clock + 200
+  board.seconds = board.seconds + 120
+  local asked = boardPump()
+  check("a clear owed across a time without passes is not sent", asked == "" and board.seconds == 260
+    and rig.capture().state == "idle", asked .. " / board " .. board.seconds .. " / " .. tostring(rig.capture().state))
+end
+
+do
+  -- The same with the clear already on the queue: the queue asks the message's sendIf before every
+  -- send, and on the first pass after the pause it ticks before the events runtime has seen the gap
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  local _, msg = boardPump(nil, true)
+  check("(setup) a clear on the queue", msg ~= nil and rig.name(msg) == "clear", msg and rig.name(msg))
+  rig.clock = rig.clock + 200
+  board.seconds = board.seconds + 120
+  local allowed = msg.sendIf == nil or msg.sendIf(msg) == true
+  check("a clear queued before a time without passes is withheld at its next send", not allowed, tostring(allowed))
+  if not allowed then
+    rig.take()
+    msg.errorHandler(msg, "withheld")
+  end
+  local asked = boardPump()
+  check("and not sent again; the board keeps the flight and the page is idle", asked == "" and board.seconds == 260
+    and rig.capture().state == "idle", asked .. " / board " .. board.seconds .. " / " .. tostring(rig.capture().state))
+end
+
+do
+  -- The radio's clock goes back with a clear on the queue: the queue asks its sendIf before the
+  -- events runtime has seen the step
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  local _, msg = boardPump(nil, true)
+  check("(setup) a clear on the queue", msg ~= nil and rig.name(msg) == "clear", msg and rig.name(msg))
+  rig.clock = rig.clock - 10
+  local allowed = msg.sendIf == nil or msg.sendIf(msg) == true
+  check("a clear queued before the clock went back is withheld at its next send", not allowed, tostring(allowed))
+end
+
+do
+  -- A link loss too short for the runtime to call the link lost still empties the queue: the
+  -- clear it drops is not sent again when the link is back
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  local _, msg = boardPump(nil, true)
+  check("(setup) a clear on the queue", msg ~= nil and rig.name(msg) == "clear", msg and rig.name(msg))
+  rig.setLink(false)
+  dropQueue()
+  rig.passes(2, 0.5)
+  board.seconds = board.seconds + 1
+  rig.setLink(true)
+  local asked = boardPump()
+  check("a clear the queue dropped in a short link loss is not sent again", asked == "" and board.seconds == 141,
+    asked .. " / board " .. board.seconds)
+end
+
+do
+  -- A flight with nothing new, its clear dropped by a link loss: the page must be told idle
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  boardPump(3)
+  boardFly(0)
+  local asked = boardPump(nil, true)
+  check("(setup) the same numbers read again, the clear about to go out", asked == "roll,pitch,yaw"
+    and savedSeconds() == "140", asked .. " / " .. savedSeconds())
+  rig.setLink(false)
+  dropQueue()
+  rig.passes(30, 1)
+  rig.setLink(true)
+  boardPump()
+  check("a clear dropped with nothing else owed leaves the page idle, not reading", rig.capture().state == "idle",
+    tostring(rig.capture().state))
+end
+
 do
   -- The pilot unplugs the pack before the start wait is over; the same flight controller comes
   -- back with its numbers: the flight is still owed and read then.
@@ -944,6 +1398,462 @@ do
   local asked = pump()
   check("a flight still owed when the link went is read once it is back", asked == "roll,pitch,yaw,clear"
     and #lines() == 4, asked .. " / " .. #lines() .. " lines")
+end
+
+-- ---------------------------------------------------------------------------
+print("The capture: the profiles a flight is saved under (#1166)")
+-- ---------------------------------------------------------------------------
+do
+  local function savedProfiles()
+    local flights = tuneHistory.read(MCU)
+    local a = flights[#flights] and flights[#flights].axes[1]
+    return a and (tostring(a.pidProfile) .. "/" .. tostring(a.rateProfile)) or "-"
+  end
+
+  -- No PID#/RTE# sensors; the flight controller flies PID 2 / rates 3, the session still says 1 / 1
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  local asked = flyThrough(120)
+  check("without the profile sensors the profiles are read once before the save and the flight is saved under them",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 1 and savedProfiles() == "2/3",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+  check("the session follows, so the page sees the profiles flown", rig.session.activeProfile == 1
+    and rig.session.activeRateProfile == 2, tostring(rig.session.activeProfile) .. "/" .. tostring(rig.session.activeRateProfile))
+
+  -- A switch on the transmitter between two flights, no sensors: not combined
+  fresh()
+  flyThrough(120)
+  rig.status.pid = 1
+  flyThrough(90)
+  local _, used = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+  check("a profile switch between two flights without the sensors: the flights are not combined", used == 1
+    and savedProfiles() == "2/1", used .. " flights, newest " .. savedProfiles())
+  rig.status.pid = nil
+
+  -- With the sensors: no read, their values
+  fresh()
+  rig.sensors.pid_profile, rig.sensors.rate_profile = 4, 5
+  asked = flyThrough(120)
+  check("with the PID# and RTE# sensors nothing more is read, the flight is saved under their profiles",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 0 and savedProfiles() == "4/5",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+  rig.sensors.pid_profile, rig.sensors.rate_profile = nil, nil
+
+  -- The read fails on the link: asked again as a failed axis read is, never saved under the
+  -- session's profiles, which a switch on the transmitter does not change
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump({ status = { n = 1, reason = "timeout" } })
+  check("a profiles read that fails once is asked again, and the flight saved under the profiles read",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 2 and savedProfiles() == "2/3",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+
+  -- It fails three times: given up until the next disarm, nothing saved and nothing cleared, so
+  -- that disarm reads the flight again
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump({ status = { n = 3, reason = "timeout" } }, nil, 60)
+  check("a profiles read that fails three times: nothing saved under the session's profiles, nothing cleared",
+    asked == "roll,pitch,yaw" and #rig.statusAsked == 3 and #tuneHistory.read(MCU) == 0
+      and rig.capture().state == "failed",
+    asked .. " / " .. #rig.statusAsked .. " status / " .. #tuneHistory.read(MCU) .. " saved / "
+      .. tostring(rig.capture().state))
+
+  -- The queue drops the read (a link loss, however short): the flight controller may have flown or
+  -- restarted meanwhile, so the axes are read again with it, as after a dropped axis read
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump({ status = { n = 1, reason = "cleared" } }, nil, 60)
+  check("a profiles read the queue dropped: the axes and the profiles are read again, the flight saved under them",
+    asked == "roll,pitch,yaw,roll,pitch,yaw,clear" and #rig.statusAsked == 2 and savedProfiles() == "2/3",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+
+  -- The same through a real link loss: the read goes out, the link drops and the queue with it,
+  -- nothing is sent while it is down, and once it is back the axes and the profiles are read again.
+  -- A flight flown unseen while the link was down is what the board holds then: that is saved, and
+  -- the clear after it erases nothing unsaved
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump(nil, 3)
+  local statusMsg
+  for _ = 1, 40 do
+    rig.clock = rig.clock + 0.5
+    rig.pass()
+    if rig.requests[1] and rig.name(rig.requests[1]) == "status" then statusMsg = rig.take(); break end
+  end
+  check("(setup) the profiles read goes out after the three axes", asked == "roll,pitch,yaw" and statusMsg ~= nil, asked)
+  rig.setLink(false)
+  if statusMsg then statusMsg.errorHandler(statusMsg, "cleared") end
+  rig.passes(40, 0.5)
+  local sentWhileDown = #rig.requests
+  rig.reply.seconds = 200
+  rig.setLink(true)
+  local after = pump()
+  local flights = tuneHistory.read(MCU)
+  local savedSecs = {}
+  for i = 1, #flights do savedSecs[#savedSecs + 1] = tostring(flights[i].seconds) end
+  check("a profiles read dropped by a link loss: once the link is back the axes are read again and what the board holds is saved",
+    sentWhileDown == 0 and after == "roll,pitch,yaw,clear" and #rig.statusAsked == 1 and savedProfiles() == "2/3"
+      and table.concat(savedSecs, ",") == "200",
+    sentWhileDown .. " sent while down / " .. after .. " / " .. #rig.statusAsked .. " status after / saved "
+      .. savedProfiles() .. " / seconds " .. table.concat(savedSecs, ","))
+
+  -- Stated, the cost of reading again: the flight controller restarted while the link was down (a
+  -- new pack), so its statistics are gone. The axes read again say no flight: nothing is saved and
+  -- nothing is cleared, and the flight read before the gap is not kept
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump(nil, 3)
+  statusMsg = nil
+  for _ = 1, 40 do
+    rig.clock = rig.clock + 0.5
+    rig.pass()
+    if rig.requests[1] and rig.name(rig.requests[1]) == "status" then statusMsg = rig.take(); break end
+  end
+  rig.setLink(false)
+  if statusMsg then statusMsg.errorHandler(statusMsg, "cleared") end
+  rig.passes(40, 0.5)
+  rig.reply.seconds = 0
+  rig.setLink(true)
+  after = pump()
+  check("stated: a restart while the link was down leaves no flight to read, nothing saved and nothing cleared",
+    statusMsg ~= nil and after == "roll,pitch,yaw" and #tuneHistory.read(MCU) == 0,
+    after .. " / " .. #tuneHistory.read(MCU) .. " flights saved")
+
+  -- The status module does not load (low memory): as a failed read, never the session's profiles.
+  -- Nothing is saved or cleared; with the module back, the next disarm saves the flight
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.shared["tasks/msp/api/status.lua"] = false
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump(nil, nil, 60)
+  check("the status module not loading: nothing saved under the session's profiles, nothing cleared",
+    asked == "roll,pitch,yaw" and #tuneHistory.read(MCU) == 0 and rig.capture().state == "failed",
+    asked .. " / " .. #tuneHistory.read(MCU) .. " saved / " .. tostring(rig.capture().state))
+  rig.shared["tasks/msp/api/status.lua"] = nil
+  asked = flyThrough(30)
+  check("(control) with the module back, the next disarm saves the flight under the profiles read",
+    asked == "roll,pitch,yaw,clear" and savedProfiles() == "2/3", asked .. " / saved " .. savedProfiles())
+
+  -- A status reply cut short before the profile bytes (their parser reads a missing byte as 0): the
+  -- same reply would come back, so the flight is saved without profiles, never counted for any
+  fresh()
+  rig.session.activeProfile, rig.session.activeRateProfile = 2, 1
+  rig.status.bytes = 20
+  asked = flyThrough(120)
+  check("a status reply too short for the profiles: the flight is saved without profiles, not under the session's",
+    asked == "roll,pitch,yaw,clear" and #rig.statusAsked == 1 and savedProfiles() == "nil/nil",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+  rig.status.bytes = nil
+
+  -- Dropped again and again: not a link error, so not given up on
+  fresh()
+  rig.status.pid, rig.status.rate = 1, 2
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  asked = pump({ status = { n = 5, reason = "cleared" } }, nil, 120)
+  local rolls = select(2, string.gsub(asked, "roll", ""))
+  check("a profiles read dropped five times is still asked again, and the flight saved under the profiles read",
+    rolls == 6 and string.sub(asked, -6) == ",clear" and #rig.statusAsked == 6 and savedProfiles() == "2/3",
+    asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
+end
+
+-- ---------------------------------------------------------------------------
+print("The capture: a reading that holds the saved flight is not counted twice (#1167)")
+-- ---------------------------------------------------------------------------
+-- What the page combines on roll: flights used and their seconds
+local function combined()
+  local _, used, seconds = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+  return used, seconds
+end
+
+local function marks()
+  local n = 0
+  for _, l in ipairs(lines()) do if string.sub(l, 1, 2) == "c(" then n = n + 1 end end
+  return n
+end
+
+-- Optionally a normal flight of 100 s first (`three`); then flight one of 140 s, saved, with its
+-- clear about to go out; then `between` and a second flight of 60 s: the board's second reading
+-- holds 200 s when it was not cleared. The settings reads are answered whenever they are asked.
+local function heldCase(between, three, second)
+  fresh()
+  board.seconds = 0
+  rig.reply.releases, rig.reply.F = nil, 100
+  if three then
+    boardFly(100)
+    boardPump()
+  end
+  boardFly(140)
+  boardPump(between == "givenup" and 3 or nil, between ~= "givenup")
+  if between == "nopass" then
+    -- The widgets run no pass for a while (the configuration tool open)
+    dropQueue()
+    rig.clock = rig.clock + 200
+    boardPump()
+  elseif between == "flicker" then
+    -- A link loss shorter than the radio's hold, which still empties the queue
+    rig.setLink(false)
+    dropQueue()
+    rig.passes(2, 0.5)
+    rig.setLink(true)
+    boardPump()
+  elseif between == "linkloss" then
+    -- A link loss the radio calls one, and the link back: as far as the radio can tell a new pack
+    rig.setLink(false)
+    dropQueue()
+    rig.passes(80, 1)
+    rig.setLink(true)
+    rig.passes(20, 1)
+    boardPump()
+  elseif type(between) == "function" then
+    between()
+  end
+  boardFly(second or 60, 1)
+  boardPump()
+end
+
+local function seen()
+  local used, seconds = combined()
+  return savedSeconds() .. " saved, " .. marks() .. " marks, " .. used .. " flights / " .. seconds .. " s"
+end
+
+local function logged(needle)
+  for _, l in ipairs(rig.logs) do if string.find(l, needle, 1, true) then return true end end
+  return false
+end
+
+do
+  -- The pilot arms again in the moment between the save and the clear. Flight one's settings are
+  -- never read then, so it is never combined: before, the reading that holds it ended the count
+  -- there and the 100 s flight before it was left out too.
+  heldCase(nil, true)
+  local used, seconds = combined()
+  check("a re-arm before the clear: the reading holding flight one is marked, nothing is removed",
+    savedSeconds() == "100,140,200" and marks() == 1 and string.find(lines()[#lines()], ",140)", 1, true) ~= nil,
+    seen())
+  check("a re-arm before the clear: the page counts 100 s and the 200 s reading, 2 flights",
+    used == 2 and seconds == 300, seen())
+  check("the capture says so in the log", logged("containing the one before"))
+
+  heldCase("givenup", true)
+  used, seconds = combined()
+  check("a clear given up after link errors: marked, and the page counts 2 flights / 300 s",
+    savedSeconds() == "100,140,200" and marks() == 1 and used == 2 and seconds == 300, seen())
+
+  -- The settings of flight one are read after the gap: before, both flights were combined, the
+  -- 140 s twice
+  heldCase("nopass")
+  used, seconds = combined()
+  check("no pass while the clear was owed: marked, the page counts 1 flight / 200 s, not 340",
+    savedSeconds() == "140,200" and marks() == 1 and used == 1 and seconds == 200, seen())
+  heldCase("flicker")
+  used, seconds = combined()
+  check("a link flicker under the hold: marked, the page counts 1 flight / 200 s, not 340",
+    savedSeconds() == "140,200" and marks() == 1 and used == 1 and seconds == 200, seen())
+
+  -- Stated, not fixed: a new link drops the evidence (a pack swap restarts the board, and a
+  -- quick unplug after landing must not leave real flights out)
+  heldCase("linkloss")
+  used, seconds = combined()
+  check("(setup) the link came up again in between", logged("session.isConnected=true"))
+  check("a link lost and back: no mark, both flights counted as before (2 / 340)",
+    savedSeconds() == "140,200" and marks() == 0 and used == 2 and seconds == 340, seen())
+
+  -- Stated, not fixed: the pack swapped while the widgets did not run (the configuration tool
+  -- open). The radio never saw the link go, so a restarted board's longer flight on the same tune
+  -- is taken as holding the saved one: that flight is left out of the advice, nothing is removed
+  heldCase(function()
+    dropQueue()
+    rig.clock = rig.clock + 200
+    board.seconds = 0
+    boardPump()
+  end, false, 200)
+  used, seconds = combined()
+  check("a pack swapped unseen while the tool was open: marked, flight one left out, both kept",
+    savedSeconds() == "140,200" and marks() == 1 and used == 1 and seconds == 200, seen())
+
+  -- The history module cannot be loaded (low memory) at the save of a reading while a saved flight
+  -- is held: the save fails as a write would, no error, and after three tries the flight is unsaved
+  heldCase(function() rig.shared["lib/tune_history.lua"] = false end)
+  rig.shared["lib/tune_history.lua"] = nil
+  local cap = rig.capture()
+  check("the history module not loading while a saved flight is held: no error, the flight reported unsaved",
+    not logged("tune capture error") and cap.state == "unsaved" and savedSeconds() == "140",
+    tostring(cap.state) .. " / " .. seen() .. (logged("tune capture error") and " / error logged" or ""))
+end
+
+do
+  -- No mark without the evidence; each twin above marks
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  boardPump()
+  boardFly(60, 1)
+  boardPump()
+  check("(control) a clear answered between the flights: no mark, both flights counted",
+    savedSeconds() == "140,60" and marks() == 0 and select(1, combined()) == 2, seen())
+
+  -- Another tune: the flight controller restarts its statistics, the reading holds only the new flight.
+  -- The new flight is longer than the saved one, so only the tune can tell them apart
+  heldCase(function()
+    board.seconds = 0
+    rig.reply.F = 90
+  end, false, 200)
+  check("another tune since the save: no mark", savedSeconds() == "140,200" and marks() == 0, seen())
+  rig.reply.F = 100
+
+  -- A count smaller than the saved flight's: the board started again unseen. Longer than the saved
+  -- flight, on the same tune, so only the count can tell them apart
+  heldCase(function()
+    board.seconds = 0
+    rig.reply.releases = 1
+  end, false, 200)
+  check("a count smaller than the saved flight's: no mark", savedSeconds() == "140,200" and marks() == 0, seen())
+  rig.reply.releases = nil
+
+  -- Not more seconds than the saved flight: the board started again unseen
+  heldCase(function() board.seconds = 0 end)
+  check("no more seconds than the saved flight: no mark", savedSeconds() == "140,60" and marks() == 0, seen())
+
+  -- The page's erase between the flights: the file's newest flight is not the held one any more
+  heldCase(function() tuneHistory.erase(MCU) end)
+  check("an erase between the flights: no mark on the one flight left", savedSeconds() == "200" and marks() == 0,
+    seen())
+end
+
+print("The history file: the mark (#1167)")
+do
+  -- Saved with and without the evidence; the mark is bound to the newest flight in the file
+  reset()
+  fly(60)
+  local first = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock, { time = first.time, seconds = 60 }))
+  local flights = tuneHistory.read(MCU)
+  local _, used, seconds = tuneHistory.aggregate(flights, 1)
+  check("a flight saved with the evidence is marked and holds the one before", #flights == 2
+    and flights[2].contains ~= nil and flights[1].contains == nil and used == 1 and seconds == 90,
+    #flights .. " flights, used " .. used)
+
+  reset()
+  fly(60)
+  first = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock, { time = first.time, seconds = 59 }))
+  check("evidence about another flight than the file's newest: no mark", marks() == 0)
+
+  -- A clock with a fraction: the file keeps the second rounded, and the evidence still binds
+  reset()
+  clock = clock + 60.6
+  assert(tuneHistory.save(MCU, replies(60, { F = 100 }), CONTEXT, clock))
+  local fractional = clock
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock, { time = fractional, seconds = 60 }))
+  check("a radio time with a fraction: the evidence binds to the rounded second in the file", marks() == 1, marks())
+
+  -- The context job and later saves keep it; the trim to five keeps it with its flight
+  reset()
+  fly(60)
+  first = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock, { time = first.time, seconds = 60 }))
+  check("(setup) marked", marks() == 1)
+  assert(tuneHistory.setContext(MCU, { cyclicPolarity = 0, cyclicRing = 100, relaxType = 2 }))
+  check("the context job keeps the mark with the newest flight", marks() == 1 and string.sub(lines()[#lines()], 1, 2) == "c(",
+    tostring(lines()[#lines()]))
+  fly(30)
+  flights = tuneHistory.read(MCU)
+  check("a later save keeps the mark with its flight", marks() == 1 and flights[2].contains ~= nil
+    and flights[3].contains == nil, marks() .. " marks")
+  fly(31) fly(32) fly(33)
+  flights = tuneHistory.read(MCU)
+  check("trimmed to five: the marked flight is the oldest kept, and still marked", #flights == 5
+    and flights[1].seconds == 90 and flights[1].contains ~= nil and marks() == 1, #flights .. " flights")
+  fly(34)
+  check("trimmed past it: the mark goes with its flight", #tuneHistory.read(MCU) == 5 and marks() == 0, marks())
+
+  -- Chained: each flight holds the one before
+  reset()
+  fly(60)
+  for _, s in ipairs({ 90, 120 }) do
+    local newest = tuneHistory.read(MCU)
+    newest = newest[#newest]
+    clock = clock + 60
+    assert(tuneHistory.save(MCU, replies(s, { F = 100 }), CONTEXT, clock,
+      { time = newest.time, seconds = newest.seconds }))
+  end
+  local _, chainUsed, chainSeconds = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+  check("chained marks: only the newest reading counts", chainUsed == 1 and chainSeconds == 120,
+    chainUsed .. " / " .. chainSeconds)
+
+  -- The mark names its flight: once that flight is trimmed away, nothing else is left out
+  reset()
+  fly(60)
+  local firstFlight = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock,
+    { time = firstFlight.time, seconds = 60 }))
+  for k = 1, 4 do fly(100 + k) end
+  flights = tuneHistory.read(MCU)
+  local _, trimmedUsed = tuneHistory.aggregate(flights, 1)
+  check("a mark whose flight was trimmed away leaves no other flight out", #flights == 5 and flights[1].seconds == 90
+    and flights[1].contains ~= nil and trimmedUsed == 5, #flights .. " flights, used " .. trimmedUsed)
+
+  -- Flights on other profiles between: the marked flight still leaves out only the one it names
+  reset()
+  fly(60)
+  firstFlight = tuneHistory.read(MCU)[1]
+  clock = clock + 60
+  assert(tuneHistory.save(MCU, replies(90, { F = 100 }), CONTEXT, clock,
+    { time = firstFlight.time, seconds = 60 }))
+  local otherCtx = {}
+  for k, v in pairs(CONTEXT) do otherCtx[k] = v end
+  otherCtx.pidProfile = (CONTEXT.pidProfile or 1) + 1
+  fly(50, 100, otherCtx)
+  fly(70)
+  local _, interUsed, interSeconds = tuneHistory.aggregate(tuneHistory.read(MCU), 1)
+  check("with another profile's flight between, only the named flight is left out", interUsed == 2
+    and interSeconds == 160, interUsed .. " / " .. interSeconds)
+
+  -- A mark after a line that does not read marks nothing
+  reset()
+  fly(60)
+  fly(90)
+  local text = files[HISTORY]
+  local torn = string.gsub(text, '(f%(%d+,90,"yaw",)', 'f(x,90,"yaw",', 1)
+  files[HISTORY] = torn .. "c(" .. tuneHistory.read(MCU)[1].time .. ",60)\n"
+  flights = tuneHistory.read(MCU)
+  check("a mark after a line that does not read marks nothing", flights[#flights].contains == nil
+    and #flights == 2, tostring(flights[#flights].contains))
+  files[HISTORY] = text .. "c(" .. tuneHistory.read(MCU)[1].time .. ",60)\n"
+  flights = tuneHistory.read(MCU)
+  check("(control) the same mark after a line that reads marks its flight", flights[#flights].contains ~= nil)
 end
 
 -- ---------------------------------------------------------------------------
@@ -963,6 +1873,8 @@ do
     if rig.capture().clearPending then break end
     rig.clock = rig.clock + 0.5
     rig.pass()
+    -- The profiles read before the save (no PID#/RTE# here) is answered; the clear is not
+    if rig.requests[1] and rig.name(rig.requests[1]) == "status" then rig.answer(rig.take()) end
   end
   check("(setup) A's flight is saved and its clear owed", rig.capture().clearPending == true and #lines() == 4)
   rig.session.mcu_id = OTHER
@@ -1008,7 +1920,8 @@ do
   fresh()
   update(true)
   update(false)
-  asked = pump({ clear = { n = 3, reason = "timeout" } })
+  -- 40 s: the profiles read before the save adds one paced request
+  asked = pump({ clear = { n = 3, reason = "timeout" } }, nil, 40)
   check("(setup) a saved flight whose clear never gets through", asked == "roll,pitch,yaw,clear,clear,clear"
     and #tuneHistory.read(MCU) == 1, asked)
   update(true)
@@ -1130,7 +2043,7 @@ do
   fresh()
   update(true)
   update(false)
-  pump({ clear = { n = 3, reason = "timeout" } })
+  pump({ clear = { n = 3, reason = "timeout" } }, nil, 40)
   check("it is told too when the capture gives up before the settings are read",
     rig.capture().saved == 1 and rig.capture().contextPending == false and #rig.contextAsked == 0)
 end
