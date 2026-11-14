@@ -5888,6 +5888,44 @@ return function(h)
     eq(placeholders,2,"CODEX both ELRS list placeholders are drawn")
     w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
   end)
+  case("CODEX.elrs-set-on-both-reads-the-fc-outcome",function()
+    local w=world();settle(w);w.step=2;w.rx={}
+    local status="status_idle"
+    local task={getRateField=function() return nil end,getRatioField=function() return nil end,
+      isRunning=function() return false end,reset=function() end,setOwner=function() end,
+      getStatus=function() return status end,getStatusText=function() return "" end,
+      wakeup=function() end,start=function() end,MODE_ELRS_TO_ROTORFLIGHT=2}
+    local realLoad=w.loadModule
+    w.loadModule=function(self,path)
+      if string.find(path,"elrslink_task",1,true) then return task end
+      return realLoad(self,path)
+    end
+    local controller=load("app/pages/helicopter_setup/elrs_link.lua").new(w)
+    local card=w:cardDef(L.linkTitle,L.linkHint,{});w.cards={card};w.card=1
+    controller:enter(card)
+    -- The FC step has run (started, task done, module walked again): its outcome decides.
+    local function finishFcStep(outcome)
+      status=outcome;w.linkNotice=nil
+      controller.plan={steps={{kind="fc"}},at=1,started=true}
+      controller.asked,controller.rewalk,controller.started=true,nil,nil
+      controller:runPlan();controller:runPlan()
+    end
+    for _,bad in ipairs({"status_rotorflight_save_failed","status_rotorflight_write_failed","status_read_timeout"}) do
+      finishFcStep(bad)
+      check(controller.plan==nil,"CODEX a failed FC step ends Set on both: "..bad)
+      eq(w.linkNotice,L.linkSetBothFailed,"CODEX a failed FC step says Set on both failed: "..bad)
+    end
+    for _,good in ipairs({"status_rotorflight_updated","status_rf_matches_elrs"}) do
+      finishFcStep(good)
+      check(controller.plan==nil,"CODEX a good FC step finishes Set on both: "..good)
+      check(w.linkNotice~=L.linkSetBothFailed,"CODEX a good FC step is not reported as failed: "..good)
+    end
+    -- A stop (released tests, stale STATUS) ends an unfinished plan, so Set on both can be pressed again.
+    controller.plan={steps={{kind="fc"}},at=1}
+    controller:stop()
+    check(controller.plan==nil,"CODEX a stop ends an unfinished Set on both")
+    w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
+  end)
   case("REVIEW26.esc-sensor-feature-asks-for-a-restart",function()
     local w=world();settle(w);w.step=9
     w.data.motor_config.motor_pwm_protocol=5;w.data.motor_config.use_dshot_telemetry=0
