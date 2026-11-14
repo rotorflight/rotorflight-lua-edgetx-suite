@@ -59,17 +59,30 @@ local R = {
   writeThrottleChannel = function() return true end
 }
 
-local function newRadio()
-  local radio = { inputs = {}, mixes = {}, modules = { [0] = { Type = 5 }, [1] = { Type = 0 } } }
-  _G.lvgl = {
-    SRC_SWITCH = 0x10, SRC_CLEAR = 0x01,
-    clear = function() radio.children = nil end,
-    -- Every screen is one page; its body is what the checks read.
-    build = function(children)
-      local page = children[1]
-      radio.page = page
-      radio.children = (page and page.type == "page") and page.children or children
-    end
+-- `opts.noSuite`: the card carries no lib/model_radio.lua. `opts.noLvgl`: a radio without the
+-- lvgl module (EdgeTX before 2.11), where only lcd drawing exists.
+local function newRadio(opts)
+  opts = opts or {}
+  local radio = { inputs = {}, mixes = {}, modules = { [0] = { Type = 5 }, [1] = { Type = 0 } },
+    builds = 0, drawn = {} }
+  if opts.noLvgl then
+    _G.lvgl = nil
+  else
+    _G.lvgl = {
+      SRC_SWITCH = 0x10, SRC_CLEAR = 0x01,
+      clear = function() radio.children = nil end,
+      -- Every screen is one page; its body is what the checks read.
+      build = function(children)
+        local page = children[1]
+        radio.builds = radio.builds + 1
+        radio.page = page
+        radio.children = (page and page.type == "page") and page.children or children
+      end
+    }
+  end
+  _G.lcd = {
+    clear = function() end,
+    drawText = function(_, _, text) radio.drawn[#radio.drawn + 1] = text end
   }
   _G.model = {
     getInputsCount = function(index) return #(radio.inputs[index] or {}) end,
@@ -102,13 +115,14 @@ local function newRadio()
       return function() return { text = 1, muted = 2, border = 3, warning = 4, error = 5, ok = 6 } end
     end
     assert(string.find(path, "lib/model_radio.lua", 1, true), "unexpected module: " .. path)
+    if opts.noSuite then return nil end
     return function() return R end
   end
   _G.LCD_W, _G.LCD_H = 480, 272
   _G.EVT_VIRTUAL_EXIT, _G.EVT_VIRTUAL_ENTER = 1001, 1002
   radio.script = assert(loadfile("src/templates/5.Rotorflight/Rotorflight.lua"))()
   radio.script.init()
-  radio.script.run(0)
+  radio.result = radio.script.run(0)
   return radio
 end
 
@@ -229,6 +243,77 @@ do
   press(radio, "create_button")
   check(radio.modules[0].Type == 5 and radio.modules[1].Type == 0, "internal leaves both slots as they are")
   check(radio.inputs[4] ~= nil and radio.inputs[4][1].source == source(SW.SW1), "arming is written")
+end
+
+-- 7. The script asks for the lvgl layout, so the radio puts the form's controls in its focus
+-- group: the rotary moves between them, ENTER opens a picker, RTN reaches the page's back.
+do
+  local radio = newRadio()
+  check(radio.script.useLvgl == true, "the script asks for the lvgl layout")
+end
+
+-- 8. RTN on a page reaches the script twice: the press edge as a raw event, then the page's own
+-- back. On the second screen that is one step back, not the end of the dialog; on the first
+-- screen and on the closing screen it leaves.
+do
+  local radio = newRadio()
+  firstScreen(radio, "SW1", "SE", "SA", "SD", "SF")
+  check(button(radio, "create_button") ~= nil, "the second screen is up")
+  local pressEdge = 0x0600 + 7
+  check(radio.script.run(pressEdge) == 0, "the press edge of RTN does not end the dialog")
+  radio.page.back()
+  check(radio.script.run(0) == 0, "back on the second screen does not end the dialog")
+  check(button(radio, "next_button") ~= nil, "back on the second screen shows the first")
+  radio.page.back()
+  check(radio.script.run(0) ~= 0, "back on the first screen leaves")
+
+  radio = newRadio()
+  firstScreen(radio, "SW1", "SE", "SA", "SD", "SF")
+  press(radio, "create_button")
+  check(hasText(radio, "next_steps"), "the closing screen is up")
+  radio.page.back()
+  check(radio.script.run(0) ~= 0, "back on the closing screen leaves")
+end
+
+-- 9. No suite on the card, lvgl present: lcd drawing does nothing in the lvgl layout, so the
+-- notice is a page of its own, built once, that RTN (the page's back) and a button both close.
+do
+  local radio = newRadio({ noSuite = true })
+  for _ = 1, 3 do radio.script.run(0) end
+  check(radio.builds == 1, "the notice page is built once, not on every pass")
+  check(radio.page ~= nil and radio.page.type == "page", "the notice is a page")
+  check(radio.page ~= nil and radio.page.icon == nil, "the notice names no suite file as its icon")
+  for _, key in ipairs({ "fallback_created", "fallback_needs_1", "fallback_needs_2",
+    "fallback_needs_3", "fallback_close" }) do
+    check(hasText(radio, key), "the notice carries " .. key)
+  end
+  check(#radio.drawn == 0, "nothing is drawn with lcd in the lvgl layout")
+  local back = radio.page and radio.page.back
+  check(back ~= nil, "the notice page has a back")
+  if back then
+    back()
+    check(radio.script.run(0) ~= 0, "back closes the notice")
+  end
+
+  radio = newRadio({ noSuite = true })
+  local close = button(radio, "close_button")
+  check(close ~= nil, "the notice has a Close button")
+  if close then
+    close.press()
+    check(radio.script.run(0) ~= 0, "Close closes the notice")
+  end
+end
+
+-- 10. No lvgl at all: the notice is drawn with lcd, and ENTER closes it.
+do
+  local radio = newRadio({ noLvgl = true })
+  check(radio.builds == 0, "nothing is built without lvgl")
+  local seen = false
+  for _, text in ipairs(radio.drawn) do
+    if string.find(text, "fallback_created", 1, true) then seen = true end
+  end
+  check(seen, "the notice is drawn with lcd without lvgl")
+  check(radio.script.run(_G.EVT_VIRTUAL_ENTER) ~= 0, "ENTER closes the lcd notice")
 end
 
 print(string.format("%d checks, %d failures", checks, failures))
