@@ -753,6 +753,87 @@ function Sensors.getValue(source)
   return bit32.band(bit32.rshift(math.floor(word), derived.shift), derived.mask)
 end
 
+-- The value the telemetry decoder in this Lua state decoded for a source, when this state is the one
+-- decoding (tasks/events/telemetry_bg/drain.lua, directValues); nil to read the radio's sensors as
+-- before. A source with a search list is walked in its order for as long as the names are sensors of
+-- the custom telemetry: a name the decoder has a value for answers; a custom name it has not seen
+-- is passed over, as the sensor search passes over a sensor that is not arriving; the first name
+-- that is not a custom sensor ends the walk, and the sensors are read as before, so a list whose
+-- next candidate is a native or a radio-side sensor keeps its order. Read through the root rather
+-- than a module handle, because the decoder belongs to the host's telemetry task and this module
+-- does not load it.
+--
+-- Which names of a source are custom sensors, and their sids and scales, is worked out once per
+-- source and kept (`directPlans`, three entries per name: sid, divisor, name; false for a source
+-- with none), so a read is a table lookup and one call per candidate.
+local directPlans = {}
+-- At most DIRECT_PLANS_PER_TICK plans are worked out per clock tick: after a start every value is
+-- read for the first time in the same pass, and that pass is the one closest to the instruction
+-- limit. A value held back is read from the sensors that once and gets its plan on a later read, as
+-- the sensor search spaces its first searches (FIRST_SEARCHES_PER_PASS).
+local DIRECT_PLANS_PER_TICK = 3
+local directPlanTick, directPlansThisTick = nil, 0
+-- Set by the live read (Sensors.getLiveValue), which reads the radio's sensor on purpose -- it asks
+-- whether the sensor is arriving now -- and calls readValue only to have its path resolved.
+local radioOnly = false
+
+local function directPlan(decoder, source, resolved)
+  local custom = decoder.customSensor
+  if type(custom) ~= "function" then return false end
+  local names = Sensors.search_paths[source]
+  -- The first name first, before anything is allocated: nil while the decoder's name index is
+  -- still being built, and that is asked again on the next read.
+  local first = names and names[1] or resolved or source
+  if custom(first) == nil then return nil end
+  names = names or { first }
+  local plan = {}
+  for i = 1, #names do
+    local sid, scale = custom(names[i])
+    if sid == nil then return nil end
+    if sid == false then break end
+    plan[#plan + 1], plan[#plan + 2], plan[#plan + 3] = sid, scale, names[i]
+  end
+  if #plan == 0 then return false end
+  return plan
+end
+
+local function directValue(source, resolved)
+  if radioOnly then return nil end
+  local root = _G.rfsuite
+  local decoder = root and root.telemetryDecoder
+  if not decoder then return nil end
+  local plan = directPlans[source]
+  if plan == false then return nil end
+  -- Before a plan is worked out: nil while another Lua state decodes (the background function
+  -- script), which can last the whole session, so no plan is attempted then.
+  local values = decoder.directValues()
+  if not values then return nil end
+  if plan == nil then
+    local tick = type(getTime) == "function" and getTime() or 0
+    if tick ~= directPlanTick then directPlanTick, directPlansThisTick = tick, 0 end
+    if directPlansThisTick >= DIRECT_PLANS_PER_TICK then return nil end
+    plan = directPlan(decoder, source, resolved)
+    if plan == nil then
+      -- The decoder cannot answer yet (its table or name index is still coming), and it will not
+      -- within this tick: no further attempt until the next one.
+      directPlansThisTick = DIRECT_PLANS_PER_TICK
+      return nil
+    end
+    directPlansThisTick = directPlansThisTick + 1
+    directPlans[source] = plan
+    if not plan then return nil end
+  end
+  for i = 1, #plan, 3 do
+    local value = values[plan[i]]
+    if type(value) == "number" then
+      local scale = plan[i + 1]
+      if scale ~= 1 then value = value / scale end
+      return value, plan[i + 2]
+    end
+  end
+  return nil
+end
+
 readValue = function(source)
   if type(source) ~= "string" then return nil end
 
@@ -795,6 +876,17 @@ readValue = function(source)
     
     -- WICHTIG: Im Simulator kein Hardware-Fallback!
     return nil
+  end
+
+  -- While this Lua state decodes the custom telemetry itself, its own decoded value answers.
+  local direct, directName = directValue(source, resolved)
+  if direct ~= nil then
+    -- Said once per source; the key is checked before the text is built, as on the steady path below.
+    if debugWanted() then
+      local key = "direct:" .. source
+      if not loggedSources[key] then debugLog(key, source .. " read from the decoder (" .. directName .. ")") end
+    end
+    return direct
   end
 
   -- At most one clock reading for the whole call, taken where it is first needed and handed to
@@ -950,7 +1042,9 @@ end
 -- contract (including held readings) unchanged for dashboard consumers.
 local function liveValue(source)
   if type(source) ~= "string" or type(_G.getSourceValue) ~= "function" then return nil end
-  readValue(source)
+  radioOnly = true
+  pcall(readValue, source)
+  radioOnly = false
   local path = Sensors.active_paths and Sensors.active_paths[source]
   if not path then return nil end
   if duplicateNames ~= false then path = slotName(path) end

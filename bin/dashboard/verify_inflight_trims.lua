@@ -136,6 +136,22 @@ local oldWrites,oldStates=trace(true)
 local newWrites,newStates=trace(false)
 assert(#newWrites>0,"fast-path trace produced no output")
 assert(oldWrites==newWrites and oldStates==newStates,"fast-path pulse or output trace changed")
+-- A step written to the value variable stamps the time on the suite's root, for the telemetry
+-- drain's report search (drive.lua writeValue, tasks/events/telemetry_bg/drain.lua); the 0 that ends
+-- the pulse does not move the stamp.
+do
+  local d=M.newDrive(radio, settings("rows"))
+  ticks=5000
+  rfsuite.adjustmentStepAt=nil
+  d:writeValue(73, 0)
+  assert(rfsuite.adjustmentStepAt==5000,"a step write stamps rfsuite.adjustmentStepAt: "..tostring(rfsuite.adjustmentStepAt))
+  ticks=5031
+  d:writeValue(0, 0)
+  assert(rfsuite.adjustmentStepAt==5000,"the pulse's 0 leaves the stamp")
+  ticks=5100
+  d:writeValue(-73, 0)
+  assert(rfsuite.adjustmentStepAt==5100,"the next step moves it")
+end
 mask=0
 local function count(fn)
   local n=0; debug.sethook(function() n=n+1 end,"",1); fn(); debug.sethook(); return n

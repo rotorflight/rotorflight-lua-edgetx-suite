@@ -9,7 +9,11 @@ Rotorflight sends its own telemetry values in a custom frame that EdgeTX does no
 itself, so something on the radio has to unpack it and hand the values to the sensors. The
 dashboard does that on its own, in the widget, and it works — but a widget call is stopped at a
 fixed instruction count, so when frames arrive faster than the widget can decode them the older
-part of the backlog is dropped.
+part of the backlog is dropped. One value is kept even then: for three seconds after an in-flight
+tuning step, the flight controller's answer to that step is looked for in the dropped frames, so
+the new value and its announcement do not wait for the flight controller to send it again. In rare
+cases it still does. An adjustment made with a switch of the pilot's own, without in-flight tuning,
+is not looked for.
 
 The suite can move that work into a small script the radio runs outside the widgets:
 `SCRIPTS/FUNCTIONS/rfsbg.lua`. A call there is paused and continued on the next turn instead of
@@ -73,6 +77,17 @@ just added.
   last drawn cycle cost. A dashboard on another screen page or behind one of the radio's menu pages
   is still called by the radio and still does its work, so it is not reported. A model without this script has nothing
   that can report that.
+- **While it runs, the dashboard reads the radio's sensors.** Without it, the dashboard decodes
+  for itself and reads its values straight from its own decoder, as the flight controller sends
+  them; see [sensor selection](sensor-selection.md). A correction made on the radio's sensor page
+  therefore reaches a value the dashboard reads from its decoder only while this script runs.
+- **Its decoding can be followed in the log.** From *DEBUG* up, the decoder's lines (tag
+  `rfsuite.decoder`) start with `bg` when this script decodes and with `dash` or `tool` when the
+  dashboard or the tool does, so a log shows when the dashboard stood aside for it and when it took
+  over; at *TRACE* each decoded frame is listed with the values that changed. Its state line, like
+  the dashboard's and the tool's, says whether that part decoded since its last one and with how
+  many frames and gaps, or that it stood aside for another part (`decoder elsewhere`). See
+  [collecting logs](../troubleshooting/collecting-logs.md).
 - **It writes a log of its own** when *Log Session To Card* is on and the log level is *DEBUG*
   or above, the `function` files of each power-up, beside the tool's and the dashboard's. Unlike
   theirs, it needs both switches to start: *Log Session To Card* alone writes no `function` file. Once it

@@ -488,12 +488,18 @@ local function traceInstructionUsage(self)
   -- Kept for the phase and link lines, which fall on the armed pass, the closest to its limit.
   self._recordingOn = Log and type(Log.recording) == "function" and Log.recording() or false
   if self._recordingOn then
+    -- What the telemetry decoder in this state did since the last line (telemetry_bg/drain.lua).
+    -- Reached through the root rather than a module handle: this chunk is at Lua's limit of top-level
+    -- locals.
+    local decoder = _G.rfsuite.telemetryDecoder
     Log.emitf("rfsuite.widget", "info",
       "state: instruction budget %d%% now, %d%% peak/%ds, %d%% peak since load, %d objects, %s, "
-        .. "peak work %s, lua peak %d kB, theme=%s",
+        .. "peak work %s, lua peak %d kB, theme=%s, %s",
       percent, self._usageWindowPeak, USAGE_REPORT_INTERVAL, self._usagePeak,
       self._lastChildCount, Log.resources(), tostring(self._usageWindowWork),
-      utils.luaKb(self) and self._luaPeak, tostring(self.themePath))
+      utils.luaKb(self) and self._luaPeak, tostring(self.themePath),
+      type(decoder) == "table" and type(decoder.summary) == "function" and decoder.summary()
+        or "decoder -")
   end
 
   self._usageWindowPeak = -1

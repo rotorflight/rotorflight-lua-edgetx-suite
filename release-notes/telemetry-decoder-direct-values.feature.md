@@ -1,0 +1,3 @@
+- **The dashboard and the tool read the flight controller's values straight from their own decoder (`lib/sensors.lua`)**:
+  - While the dashboard's script or the tool decodes the custom telemetry itself, its values come from its decoder rather than from the radio's sensors, so they no longer depend on the sensors having been discovered; the sensors are still published for the radio's own screens, alarms and SD log.
+  - Such a value is the flight controller's as it sends it: a ratio, offset, filter or unit set on the radio's telemetry page does not apply to it. While the background decoder runs, the dashboard reads the radio's sensors as before.

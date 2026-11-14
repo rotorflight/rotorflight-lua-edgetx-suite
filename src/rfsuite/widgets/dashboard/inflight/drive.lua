@@ -541,6 +541,11 @@ function Drive:writeValue(value, fm)
     -- a pilot without those still moved his parameters and still wants the undo offered.
     if self.phase == M.PHASE_LIVE then self.fired = self.fired + 1 end
     writeGvar(self, settings.value_gvar, mode, value)
+    -- When the step went out, in getTime() ticks: the telemetry drain looks for the board's report
+    -- in the frames its decode cap drops only for a while after a step (tasks/events/telemetry_bg/
+    -- drain.lua, adjustmentAwaited), so a pass that pops a backlog pays that search only then.
+    local root = _G.rfsuite
+    if type(root) == "table" then root.adjustmentStepAt = self.radio.now() end
   else
     writeGvar(self, settings.value_gvar, mode, 0)
     self.written = 0
