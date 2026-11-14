@@ -5954,7 +5954,16 @@ return function(h)
     controller.plan={steps={{kind="fc"}},at=1}
     controller:stop()
     check(controller.plan==nil,"S02 a stop ends an unfinished Set on both")
-    w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
+    -- A memory stop waits for the whole of Set on both on its card (the module changed, the FC not
+    -- yet), not only for a running task; off the card a leftover plan holds nothing.
+    controller:enter(card);w.active=true
+    controller.plan={steps={{kind="rate",index=1},{kind="fc"}},at=2}
+    check(w.linkBusy and w.linkBusy()==true,"CODEX the memory stop waits between the steps of Set on both")
+    local other=w:cardDef(L.linkTitle,L.linkHint,{});w.cards={card,other};w.card=2
+    check(w.linkBusy()==false,"CODEX a plan on a card that is not shown holds no stop")
+    w.card=1;controller.plan=nil
+    check(w.linkBusy()==false,"CODEX without a plan or task the link holds no stop")
+    w.loadModule=realLoad;w.linkTick,w.stopLink,w.linkBusy=nil,nil,nil
   end)
   case("S02.elrs-set-on-both-after-a-stop-reads-the-module-first",function()
     local w=world();settle(w);w.step=2;w.rx={}
