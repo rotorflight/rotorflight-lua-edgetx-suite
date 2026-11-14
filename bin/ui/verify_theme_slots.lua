@@ -226,14 +226,19 @@ check(T.recover() == true, "recover takes a half-restored table as its own")
 check(radioColours(), "recover puts the rest back")
 check(not exists(MARKER), "and drops the marker")
 
--- 12. A scheme change stopped half way: the scheme is not named yet, so the next change makes it again,
---     and a slot table mixed from both schemes still counts as the suite's.
+-- 12. A scheme change stopped half way: no scheme is named, neither the new one nor the old one, so the
+--     next change makes it again -- back to the old scheme as well, which a caller skips while current()
+--     still names it (ui/home.lua, applySavedScheme) -- and a slot table mixed from both schemes still
+--     counts as the suite's.
 T = load()
 T.apply("dark")
 failAfter = 3
 check(not pcall(T.apply, "light"), "control: the stopped change raised")
-check(T.current() == "dark", "a stopped change does not name the new scheme")
+check(T.current() == nil, "a stopped change names no scheme, not the old one either")
 check(T.holding(), "and the state still holds the radio's colours")
+check(T.apply("dark") == true and table_[COLOR_THEME_PRIMARY2] == dark.card, "a change back to the old scheme goes through")
+failAfter = 3
+check(not pcall(T.apply, "light"), "control: the second stopped change raised")
 check(T.apply("light") == true and table_[COLOR_THEME_PRIMARY2] == light.card, "the next change goes through")
 T.restore("test")
 check(radioColours(), "and the restore after it puts the radio's colours back")
@@ -305,10 +310,12 @@ do
   lvgl = lvgl or {}
   local Wrapper = assert(loadfile("src/widgets/rfsuite/main.lua"))()
   lvgl = savedLvgl
+  -- The marker as a stopped tool leaves it, with no finaliser that a collection could run in between:
+  -- the collection below proves the case does not depend on when one runs.
   local function freshMarker()
-    local T = load()
-    T.apply("dark")
+    leaveMarker("dark")
     modules["lib/theme_slots.lua"] = load()   -- the widget's own instance holds nothing
+    collectgarbage("collect")
   end
   freshMarker()
   local widget = { refresh = function() end }
@@ -332,6 +339,34 @@ do
   end
   check(stops == 3, "a recover that keeps stopping is tried three times, not on every pass (" .. stops .. ")")
   rfsuite.require("lib/theme_slots.lua").recover()
+end
+
+-- 17. The same recovery when the module's load stops (the instruction limit inside root.require): it is
+--     tried again on the next pass, as a recover that stops is.
+do
+  local savedLvgl = lvgl
+  lvgl = lvgl or {}
+  local Wrapper = assert(loadfile("src/widgets/rfsuite/main.lua"))()
+  lvgl = savedLvgl
+  leaveMarker("dark")
+  modules["lib/theme_slots.lua"] = nil
+  local realRequire = rfsuite.require
+  local loadStops = 1
+  rfsuite.require = function(path)
+    if path == "lib/theme_slots.lua" and loadStops > 0 then
+      loadStops = loadStops - 1
+      error("instruction limit")
+    end
+    return realRequire(path)
+  end
+  local widget = { refresh = function() end }
+  Wrapper.refresh(widget)                          -- first pass: the pause is seen
+  Wrapper.refresh(widget)                          -- the module's load stops
+  check(loadStops == 0 and not radioColours() and exists(MARKER), "control: the stopped load left colours and marker")
+  check(widget._themeRecoverOwed == true, "a stopped load owes the recovery to the next pass")
+  Wrapper.refresh(widget)
+  check(radioColours() and not exists(MARKER), "the next pass loads the module and finishes the recovery")
+  rfsuite.require = realRequire
 end
 
 -- 9. Without lcd.setColor (a desktop runner, an old radio) nothing is attempted.
