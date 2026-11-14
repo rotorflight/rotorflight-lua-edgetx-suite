@@ -828,8 +828,12 @@ local function logMemoryUsage(now, deferred)
     return
   end
   state.stateLineTick = tickNow
-  pcall(Log.emitf, "rfsuite.ui", "info", "state: page %s, %s",
-    tostring(state.activePageMenuId or "-"), Log.resources())
+  -- What the telemetry decoder in this state did since the last line (telemetry_bg/drain.lua).
+  local decoder = _G.rfsuite and _G.rfsuite.telemetryDecoder
+  local summary = type(decoder) == "table" and type(decoder.summary) == "function"
+    and decoder.summary() or "decoder -"
+  pcall(Log.emitf, "rfsuite.ui", "info", "state: page %s, %s, %s",
+    tostring(state.activePageMenuId or "-"), Log.resources(), summary)
 end
 
 local function resolveLocaleFromSystem()

@@ -126,6 +126,54 @@ local function enabled()
   return events ~= nil and events.adjustment_events == true
 end
 
+-- The teller's log lines, under the decoder's rules (tasks/events/telemetry_bg/drain.lua): each
+-- names the Lua state that wrote it, and the level is asked once a second from a clock reading
+-- the pass already takes, so a pass between two asks pays one comparison. debug says what the
+-- flight controller reported and whether it was spoken, and if not, why; trace adds the teller's
+-- state on every pass that is waiting for something.
+local LOG_TAG = "rfsuite.adjust"
+local Log = nil
+local logCheckAt = 0
+local debugOn = false
+local traceOn = false
+local hostName = "tool"
+
+local seenLevel = nil
+local seenLog = nil
+
+local function refreshLog(now)
+  logCheckAt = now + 1.0
+  local root = _G.rfsuite
+  local L = root and root.Log
+  local prefs = root and root.preferences
+  local general = prefs and prefs.general
+  local level = general and general.debug_level
+  if level == seenLevel and L == seenLog then return end
+  seenLevel, seenLog = level, L
+  if type(L) ~= "table" or type(L.wanted) ~= "function" or type(L.emitf) ~= "function" then
+    Log, debugOn, traceOn = nil, false, false
+    return
+  end
+  Log = L
+  debugOn = L.wanted("debug") == true
+  traceOn = debugOn and L.wanted("trace") == true
+  local decoder = root.telemetryDecoder
+  if type(decoder) == "table" and type(decoder.host) == "function" then
+    hostName = decoder.host()
+  elseif type(root.decoderHost) == "string" then
+    hostName = root.decoderHost
+  end
+end
+
+local function logf(level, fmt, ...)
+  if not Log then return end
+  pcall(Log.emitf, LOG_TAG, level, "%s: " .. fmt, hostName, ...)
+end
+
+-- The last pair logged as reported, so a report is logged once when it arrives rather than on
+-- every pass it stands.
+local loggedId, loggedValue = nil, nil
+
 -- A teller loaded while announcements are on and the decoder holds a 0 starts as one that has
 -- already read it: nothing is being adjusted, so the next report is the pilot's. Its host does not
 -- wake it on the pass that loads it, and a report decoded on the next one would otherwise be its
@@ -216,7 +264,13 @@ function M.selectionTick(ticks)
   selection = nil
   if not enabled() then return false end
   local audio = ensureAudio()
-  if not allowed(audio) then return false end
+  if not allowed(audio) then
+    if debugOn then logf("debug", "selection %s %s not spoken: audio does not allow it now",
+      tostring(pending.kind), tostring(pending.id)) end
+    return false
+  end
+  if debugOn then logf("debug", "selection %s %s spoken%s", tostring(pending.kind), tostring(pending.id),
+    pending.value ~= nil and (", value " .. tostring(pending.value)) or "") end
   if pending.kind == "value" then audio.playEventFile("inflight/selected.wav") end
   if pending.kind == "group" then
     local file = GROUP_WORDS[pending.id]
@@ -231,9 +285,19 @@ function M.selectionTick(ticks)
 end
 
 local function announce()
-  if SPOKEN_ELSEWHERE[state.functionId] then return end
+  if SPOKEN_ELSEWHERE[state.functionId] then
+    if debugOn then logf("debug", "function %s not spoken: a profile announcement says it",
+      tostring(state.functionId)) end
+    return
+  end
   local audio = ensureAudio()
-  if not allowed(audio) then return end
+  if not allowed(audio) then
+    if debugOn then logf("debug", "function %s value %s not spoken: audio does not allow it now",
+      tostring(state.functionId), tostring(state.value)) end
+    return
+  end
+  if debugOn then logf("debug", "function %s value %s spoken%s", tostring(state.functionId),
+    tostring(state.value), state.functionChanged and " with its name" or ", value only") end
   if state.functionChanged and audio then speakName(audio, state.functionId) end
   -- Through the audio module only, so the value is spoken at the same level as the words before
   -- it. Without the module there is no level to speak it at, and no words either: a bare number
@@ -245,11 +309,24 @@ end
 
 function M.wakeup()
   if not enabled() then return end
-  if M.selectionTick(nowSeconds() * 100) then return end
-  if selection ~= nil then return end
-
+  local now = nowSeconds()
+  if now >= logCheckAt then refreshLog(now) end
+  -- The report is logged before the selection below can hold the teller back, so an adjustment
+  -- reported while a selection is being spoken is still in the log, with the reason it waits.
   local suite = _G.rfsuite
   local report = suite and suite.adjustmentReport
+  if debugOn and type(report) == "table" and report[1] ~= nil and report[2] ~= nil
+      and (report[1] ~= loggedId or report[2] ~= loggedValue) then
+    loggedId, loggedValue = report[1], report[2]
+    logf("debug", "report: function %s value %s%s", tostring(report[1]), tostring(report[2]),
+      selection ~= nil and report[1] ~= 0 and ", waits: a selection is being spoken" or "")
+  end
+  if M.selectionTick(now * 100) then return end
+  if selection ~= nil then
+    if traceOn then logf("trace", "waiting: a selection is pending") end
+    return
+  end
+
   if type(report) ~= "table" then return end
   local functionId, value = report[1], report[2]
   if functionId == nil or value == nil then return end
@@ -262,8 +339,6 @@ function M.wakeup()
     return
   end
 
-  local now = nowSeconds()
-
   -- The firmware reports an adjustment for 3 s after it was made, and 0 otherwise. A first
   -- reading that is not 0 is therefore an adjustment made just before this teller started or
   -- was reset, often one another Lua state's teller has already announced (the tool opening,
@@ -273,6 +348,8 @@ function M.wakeup()
   -- every connect, since their teller is reset at each disconnect.
   if state.functionId == nil and not state.idleSeen then
     state.functionId, state.value = functionId, value
+    if debugOn then logf("debug", "function %s value %s joined without speaking: it was standing when this teller started",
+      tostring(functionId), tostring(value)) end
     return
   end
 
@@ -287,6 +364,10 @@ function M.wakeup()
     state.changedAt = now
   end
 
+  if traceOn and state.changedAt and (now - state.changedAt) < SETTLE_SECONDS then
+    logf("trace", "waiting: function %s value %s settles in %s s", tostring(state.functionId),
+      tostring(state.value), string.format("%.1f", SETTLE_SECONDS - (now - state.changedAt)))
+  end
   if state.changedAt and (now - state.changedAt) >= SETTLE_SECONDS then
     state.changedAt = nil
     if state.functionChanged or state.valueChanged then
