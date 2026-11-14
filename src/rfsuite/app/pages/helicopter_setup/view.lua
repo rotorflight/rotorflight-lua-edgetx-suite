@@ -545,7 +545,10 @@ function M.new(w, ctx, diagrams)
                 w:applyEdit(function() if itemEditable() then item.set(v - offset) end end)
               end, active = itemEnabled }
           else
-            button(ix, y, share, item.label, function() if itemEnabled() and w:usable() then item.press() end end, itemEnabled)
+            -- An item without an action (a list the ELRS module has not offered yet) is drawn inactive.
+            local press = item.press
+            local active = press and itemEnabled or function() return false end
+            button(ix, y, share, item.label, function() if press and itemEnabled() and w:usable() then press() end end, active)
             all[#all].h = rowControlH
           end
         end
