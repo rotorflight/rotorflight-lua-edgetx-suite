@@ -42,6 +42,8 @@ function M.new(w)
     self.epoch=self.epoch+1
     task.reset()
     self.asked,self.signature,self.started=true,nil,nil
+    -- An unfinished Set on both ends with the task: nothing would carry it on.
+    self.plan=nil
     w.linkTick,w.stopLink=nil,nil
   end
   function c:bind()
@@ -204,6 +206,13 @@ function M.new(w)
   end
   -- One step of Set on both per idle wakeup: start it, then wait until the task is done and the
   -- module was read again, and check the value before the next step.
+  -- The task just finished: keep its outcome for the plan step that started it, before the module
+  -- walk that follows replaces the task's status.
+  function c:taskDone()
+    local plan=self.plan
+    if plan and plan.started then plan.outcome=task.getStatus and task.getStatus() end
+    self.rewalk,self.asked=nil,nil
+  end
   function c:runPlan()
     local plan=self.plan
     if not plan or self:busy() or self.rewalk or not self.asked then return end
@@ -222,7 +231,14 @@ function M.new(w)
       end
       return
     end
-    if step.kind~="fc" then
+    if step.kind=="fc" then
+      -- The task owns the FC write and its EEPROM save; only these two outcomes leave both sides equal.
+      local outcome=plan.outcome
+      if outcome~="status_rotorflight_updated" and outcome~="status_rf_matches_elrs" then
+        w:log("warn","ELRS set on both: FC step ended with %s",tostring(outcome))
+        self.plan=nil;self:notice(L.linkSetBothFcFailed);return
+      end
+    else
       local field=step.kind=="rate" and task.getRateField() or task.getRatioField()
       if not field or field.selectedIndex~=step.index then
         w:log("warn","ELRS set on both: module %s not taken",step.kind)
@@ -268,7 +284,7 @@ function M.new(w)
     -- STATUS and wizard transactions retain priority; the task never becomes wizard dirty data.
     if not w.bus:idle() then return end
     -- A picker write leaves the task's fields as they were; walk the module again once it is done.
-    if self.rewalk and not self:busy() then self.rewalk,self.asked=nil,nil end
+    if self.rewalk and not self:busy() then self:taskDone() end
     if not self.asked then self.asked=true;self:probe();return end
     if self:busy() then task.wakeup() end
     self:runPlan()

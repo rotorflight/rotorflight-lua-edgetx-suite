@@ -469,6 +469,7 @@ local L = {
   linkSetBothStep = "@i18n(app.modules.helicopter_setup.linkSetBothStep)@",
   linkSetBothFc = "@i18n(app.modules.helicopter_setup.linkSetBothFc)@",
   linkSetBothFailed = "@i18n(app.modules.helicopter_setup.linkSetBothFailed)@",
+  linkSetBothFcFailed = "@i18n(app.modules.helicopter_setup.linkSetBothFcFailed)@",
   linkSetBothNone = "@i18n(app.modules.helicopter_setup.linkSetBothNone)@",
   linkRate = "@i18n(app.modules.helicopter_setup.linkRate)@",
   linkRatio = "@i18n(app.modules.helicopter_setup.linkRatio)@",
