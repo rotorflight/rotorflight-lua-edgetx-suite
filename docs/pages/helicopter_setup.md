@@ -51,7 +51,8 @@ values**. **Or choose other values** has a packet-rate and a telemetry-ratio lis
 both**: choosing in the lists writes nothing; Set on both asks once, writes the module (one value
 after the other, each read back), and only then lets the flight controller take the module's
 values and save them. If the module does not take a value, it stops there and the flight
-controller is not changed. Every change asks first because the link may drop briefly; the
+controller is not changed; if the flight controller does not save, the card says so and the module
+keeps its new values (FC takes module values tries again). Every change asks first because the link may drop briefly; the
 receiver Advanced switch is not required. Unsaved wizard changes must be saved first. The card has no
 text band, so the table starts at the top and the controls fit 480x272; the ? sheet says why both sides
 must match. On the 480-wide screens the two groups show their controls without the group names.
