@@ -143,22 +143,24 @@ local function recoverThemeSlots(widget)
   if widget._toolHost ~= nil then return end
   if not (type(user) == "string" and type(fstat) == "function" and type(root.require) == "function") then return end
   if fstat(user .. "/theme_slots.txt") == nil then return end
+  -- The load can stop as well as the recover (the instruction limit): either one is tried again.
   local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
-  if ok and type(ThemeSlots) == "table" and type(ThemeSlots.recover) == "function" then
-    local done, err = pcall(ThemeSlots.recover)
-    if not done and fstat(user .. "/theme_slots.txt") ~= nil then
-      local tries = (widget._themeRecoverTries or 0) + 1
-      widget._themeRecoverTries = tries
-      if tries < RECOVER_TRIES then widget._themeRecoverOwed = true end
-      local Log = root.Log
-      if type(Log) == "table" and type(Log.emit) == "function" then
-        pcall(Log.emit, "rfsuite.widget", "theme slot recovery stopped (try " .. tries .. " of " .. RECOVER_TRIES
-          .. "): " .. tostring(err), "warn")
-      end
+  local loaded = ok and type(ThemeSlots) == "table" and type(ThemeSlots.recover) == "function"
+  -- rfsuite.require answers nil for a chunk that raised rather than raising itself.
+  local done, err = false, ok and "module not loaded" or ThemeSlots
+  if loaded then done, err = pcall(ThemeSlots.recover) end
+  if not done and fstat(user .. "/theme_slots.txt") ~= nil then
+    local tries = (widget._themeRecoverTries or 0) + 1
+    widget._themeRecoverTries = tries
+    if tries < RECOVER_TRIES then widget._themeRecoverOwed = true end
+    local Log = root.Log
+    if type(Log) == "table" and type(Log.emit) == "function" then
+      pcall(Log.emit, "rfsuite.widget", "theme slot recovery stopped (try " .. tries .. " of " .. RECOVER_TRIES
+        .. "): " .. tostring(err), "warn")
     end
-    if not ThemeSlots.holding() and type(root.clearModule) == "function" then
-      root.clearModule("lib/theme_slots.lua")
-    end
+  end
+  if loaded and not ThemeSlots.holding() and type(root.clearModule) == "function" then
+    root.clearModule("lib/theme_slots.lua")
   end
 end
 
