@@ -1,0 +1,7 @@
+{
+  "id": "theme-slots",
+  "name": "Theme slots: written from the scheme, put back on every way out",
+  "commands": [
+    "lua5.3 bin/ui/verify_theme_slots.lua"
+  ]
+}

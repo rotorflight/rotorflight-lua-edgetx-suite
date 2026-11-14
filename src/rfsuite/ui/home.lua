@@ -8,6 +8,10 @@ local function loadModule(path)
 end
 
 local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+-- The radio's theme slots, written from the colour scheme while the tool is open (lib/theme_slots.lua).
+-- Held here for the whole run: the module keeps the finaliser that puts the radio's colours back when
+-- this Lua state is closed, and the closing sequence below lets go of everything else first.
+local ThemeSlots = nil
 
 local state
 
@@ -72,7 +76,10 @@ local MEM_LOW_CLEAR_KB = 96
 -- here" and neither warns nor is logged.
 local MEM_FREE_MIN_KB = 4
 
-local APP_ICON  = _G.rfsuite.paths.core .. "/assets/icon.png"
+-- The page header's icon. EdgeTX draws it at the file's own size, centred in the header's corner
+-- and tinted with the header's title colour (a mask from the picture's darkness), so there is one
+-- file per header height: 45 px on a 480-wide screen, 62 px on an 800-wide one.
+local APP_ICON  = _G.rfsuite.paths.core .. (((LCD_W or 480) >= 800) and "/assets/icon_800.png" or "/assets/icon.png")
 
 local M = {}
 
@@ -384,20 +391,7 @@ local SAVE_PHASE_TEXT = {
   reload    = "reading_back",
 }
 
-local ONCONNECT_TEXT = {
-  apiversion        = "@i18n(app.onconnect.apiversion)@",
-  uid               = "@i18n(app.onconnect.uid)@",
-  rtc               = "@i18n(app.onconnect.rtc)@",
-  status            = "@i18n(app.onconnect.status)@",
-  battery_config    = "@i18n(app.onconnect.battery_config)@",
-  governor_config   = "@i18n(app.onconnect.governor_config)@",
-  esc_sensor_config = "@i18n(app.onconnect.esc_sensor_config)@",
-  smartfuel_config  = "@i18n(app.onconnect.smartfuel_config)@",
-  name              = "@i18n(app.onconnect.name)@",
-  telemetry         = "@i18n(app.onconnect.telemetry)@",
-  flight_stats      = "@i18n(app.onconnect.flight_stats)@",
-  dataflash_summary = "@i18n(app.onconnect.dataflash_summary)@"
-}
+local ConnectionStatus = loadModule("lib/connection_status.lua")
 
 -- The header's connection button, one glyph per state, alongside the other header glyphs in
 -- `app.actions`. They are FontAwesome code points out of the subset the firmware embeds
@@ -519,6 +513,11 @@ local function pageBodyHeight()
     end
   end
   return screenH - headerH
+end
+
+-- The colour scheme's page colour behind the page body (ui/palette.lua).
+local function appendPageBackground(children)
+  Palette.appendBackground(children, LCD_W or 480, pageBodyHeight())
 end
 
 local function toWrappedItems(items, cols)
@@ -761,9 +760,53 @@ local function shortenBreadcrumb(breadcrumb)
   return breadcrumb
 end
 
+-- A saved colour scheme recolours at once: the palette and the theme slots take it, and the open page
+-- is built again in it (scheduleBuildUI, declared below, is looked up when this runs).
+local scheduleBuildUI
+local function applySavedScheme()
+  local general = state.preferences and state.preferences.general
+  local scheme = general and general.color_scheme
+  if Palette.scheme == nil or Palette.apply(scheme) == nil then return end
+  if ThemeSlots and ThemeSlots.current() == Palette.scheme then return end
+  logf("info", "colour scheme %s applied on save", tostring(Palette.scheme))
+  if ThemeSlots then pcall(ThemeSlots.apply, scheme) end
+  scheduleBuildUI(false)
+end
+
+-- The radio's theme slots from the saved scheme (lib/theme_slots.lua), the module loaded on the first
+-- call. Hosted, init only marks them owed and run writes them on its first pass, a pass of its own:
+-- init is one widget call under the instruction limit and already the heaviest call of the open, and
+-- the module's load and the write would add a few thousand instructions to it. The first build waits
+-- for the pass after, so nothing is drawn before the colours are in. A write that stops part way (the
+-- instruction limit) is tried again on the next pass, at most THEME_SLOT_TRIES times; whatever it
+-- wrote is held by the module and put back on close.
+local THEME_SLOT_TRIES = 3
+local function writeThemeSlots()
+  local general = state.preferences and state.preferences.general
+  ThemeSlots = ThemeSlots or loadModule("lib/theme_slots.lua")
+  return ThemeSlots.apply(general and general.color_scheme)
+end
+
+local function writeOwedThemeSlots()
+  local tries = (state.themeSlotsTries or 0) + 1
+  state.themeSlotsTries = tries
+  local ok, result = pcall(writeThemeSlots)
+  if ok then
+    state.themeSlotsOwed = nil
+    logf("debug", "theme slots: owed write done (written %s), first build on the next pass", tostring(result))
+  elseif tries >= THEME_SLOT_TRIES then
+    state.themeSlotsOwed = nil
+    logf("error", "theme slots not written after %d tries: %s", tries, tostring(result))
+  else
+    logf("warn", "theme slots not written (try %d of %d): %s", tries, THEME_SLOT_TRIES, tostring(result))
+  end
+end
+
 local function performSave()
   _G.rfsuite.preferences = state.preferences
-  return savePreferencesSafe(state.preferences)
+  local ok, err = savePreferencesSafe(state.preferences)
+  if ok then applySavedScheme() end
+  return ok, err
 end
 
 local function isSerialMemoryLogEnabled()
@@ -886,7 +929,7 @@ local function releasePages()
   end
 end
 
-local function scheduleBuildUI(withGc)
+function scheduleBuildUI(withGc)
   state.pendingBuildUI = true
   if withGc == true then
     state.pendingGcAfterBuild = true
@@ -934,7 +977,8 @@ local function syncActivePageModule()
   end
   state.activePageMenuId = currentMenuId
   -- The page the tool was opened on (see openLanding) is that only until another one is up.
-  if state.landingMenuId ~= nil and currentMenuId ~= state.landingMenuId then
+  if state.landingMenuId ~= nil and currentMenuId ~= state.landingMenuId
+    and state.visitMenuId ~= state.landingMenuId then
     state.landingMenuId = nil
   end
   -- The latch belongs to the page that is leaving. Re-entering it is a fresh attempt.
@@ -972,6 +1016,7 @@ local function leaveCurrentPage(fromEvent)
   -- The page a host opened the tool on (openLanding): the pilot came from the host and not from
   -- the menu above the page, so leaving the page closes the tool, as leaving the menu does.
   if state.landingMenuId ~= nil and state.menu.getCurrentMenuId() == state.landingMenuId then
+    logf("trace", "back on the landing %s closes the tool", tostring(state.landingMenuId))
     state.lastBackTick = now
     state.isClosing = true
     return
@@ -1499,6 +1544,23 @@ local function returnToRootOnDisconnect()
   local page = getActivePageModule()
   if page and page.handlesDisconnect == true then return end
 
+  -- A visit from the host's menu goes back there: the place the pilot came from shows what the lost
+  -- link means for each of its rows, and the tool's root would be a screen the pilot never asked for.
+  if state.visitMenuId ~= nil then
+    -- A save that restarts the board takes the link with it, and its outcome is the pilot's to read:
+    -- it holds the page until then, and the back key leaves as it does from any page.
+    if SavePipeline and (SavePipeline.blocksNavigation() or SavePipeline.hasOutcome()) then
+      logf("info", "link lost on a visit to %s, the save holds the page", tostring(state.visitMenuId))
+      return
+    end
+    logf("info", "link lost on a visit to %s, the tool closes", tostring(state.visitMenuId))
+    closeHelpDialogIfOpen()
+    state.leavePromptVisible = false
+    state.leavePromptAnswers = nil
+    state.isClosing = true
+    return
+  end
+
   closeHelpDialogIfOpen()
   state.pendingMenuOpen = nil
   state.pendingPageOpen = nil
@@ -1766,35 +1828,6 @@ local function readTelemetryLinkUp()
   return type(session) == "table" and session.rawRfConnected == true
 end
 
-local function appendStatusPart(parts, value, format)
-  if type(value) == "string" and value ~= "" then
-    parts[#parts + 1] = string.format(format, value)
-  end
-end
-
--- Why the handshake has not completed, where the session already carries a reason. It is
--- resolved into a value of its own rather than read where the notice is composed, because it
--- decides the glyph as well as the wording -- the API version read fails on a backoff that
--- grows, so the reason usually arrives well after the button has already been drawn.
-local function readHandshakeDetail(session)
-  if type(session) ~= "table" then return nil end
-  if session.apiSupported == false then return "api" end
-  if type(session.mspLastError) == "string" and session.mspLastError ~= "" then return "noreply" end
-  return nil
-end
-
--- Which glyph the four states map onto. Two of them share one: waiting for the handshake and
--- reading the configuration are both "working" from outside, and a reason for the handshake
--- not completing, or a connect step that was given up on, is what turns either into a warning.
-local function connectionGlyphKey(status, detail, failed)
-  if status == "nolink" then return "nolink" end
-  if status == "handshake" then
-    return detail and "error" or "handshake"
-  end
-  if status == "chain" then return "handshake" end
-  return failed > 0 and "error" or "ready"
-end
-
 -- The button's own text. Handed to the header as a function, so the firmware resolves it on
 -- its own refresh pass: the glyph follows the state with nothing rebuilding the scene.
 local function currentConnectionGlyph()
@@ -1806,94 +1839,9 @@ end
 -- state nobody asks about costs no formatting at all, and the notice does not have to live
 -- while it is open.
 --
--- Every message here is two lines at most, so it never fills the room the notice box gives it.
--- ui/loading_overlay.lua grows the box by exactly the lines that do not fit
--- (`messageShift = max(0, lines * lineH - messageRoom)`) and puts nothing under the text, so a
--- message that uses all of its room ends with its descenders against the acknowledging button.
--- That box is not this change's to alter, and a caller can stay inside it: the third thing
--- worth saying is always somewhere the pilot can already read it.
 local function buildConnectionNotice(status, detail, taskName, done, total, failed)
   local root = _G and _G.rfsuite
-  local session = root and root.session
-
-  if status == "nolink" then
-    return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_no_link") or "Not connected",
-           state.i18n and state.i18n.t and state.i18n.t("app.home_status.no_link")
-             or "The radio is not receiving telemetry from this model."
-  end
-
-  if status == "handshake" then
-    if detail == "api" then
-      return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_error") or "Connection error",
-             state.i18n and state.i18n.t and state.i18n.t("app.home_status.api_unsupported")
-               or "The flight controller answered with an MSP API version the suite does not support."
-    end
-    if detail == "noreply" then
-      return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_error") or "Connection error",
-             state.i18n and state.i18n.t and state.i18n.t("app.home_status.no_reply")
-               or "Telemetry is arriving, but the flight controller is not answering."
-    end
-    return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_connecting") or "Connecting",
-           state.i18n and state.i18n.t and state.i18n.t("app.home_status.handshake")
-             or "Telemetry is arriving. Waiting for the flight controller to answer."
-  end
-
-  if status == "chain" then
-    -- The same table the start screen names its step from, so the wording a pilot reads before
-    -- the menu appears and the wording he reads behind the button are one string rather than two.
-    local taskText = ONCONNECT_TEXT[taskName or ""] or
-      (state.i18n and state.i18n.t and state.i18n.t("app.home_status.reading") or "Reading the configuration")
-    local message = taskText
-    if total > 0 then
-      message = string.format(
-        state.i18n and state.i18n.t and state.i18n.t("app.home_status.step") or "%s (%d/%d)",
-        taskText, done, total)
-    end
-    return state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_connecting") or "Connecting", message
-  end
-
-  local title = failed > 0
-    and (state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_error") or "Connection error")
-    or (state.i18n and state.i18n.t and state.i18n.t("app.home_status.title_connected") or "Connected")
-
-  local lines = {}
-  local craft = nil
-  if type(session) == "table" and type(session.modelName) == "string" and session.modelName ~= "" then
-    craft = session.modelName
-  end
-
-  if failed > 0 then
-    -- A task that gave up counts towards the chain being through, because the chain has moved
-    -- past it -- so a bare "connected" would cover a connect that is missing part of its
-    -- configuration. That is what the pilot opened this for, so it takes the first line and the
-    -- firmware versions give up theirs to it: the versions are on the diagnostics info page
-    -- whatever happens here, and the count is nowhere else.
-    lines[#lines + 1] = string.format(
-      state.i18n and state.i18n.t and state.i18n.t("app.home_status.steps_failed") or "Connect steps not completed: %d",
-      failed)
-    if craft then
-      lines[#lines + 1] = craft
-    end
-  else
-    if craft then
-      lines[#lines + 1] = craft
-    end
-    local versions = {}
-    if type(session) == "table" then
-      appendStatusPart(versions, session.rfVersion,
-        state.i18n and state.i18n.t and state.i18n.t("app.home_status.rf_version") or "Rotorflight %s")
-      appendStatusPart(versions, session.apiVersion,
-        state.i18n and state.i18n.t and state.i18n.t("app.home_status.api_version") or "MSP API %s")
-    end
-    if #versions > 0 then
-      lines[#lines + 1] = table.concat(versions, " - ")
-    end
-  end
-
-  if #lines == 0 then
-    return title, state.i18n and state.i18n.t and state.i18n.t("app.home_status.ready") or "Connected."
-  end
-  return title, table.concat(lines, "\n")
+  return ConnectionStatus.notice(state.i18n, root and root.session, status, detail, taskName, done, total, failed)
 end
 
 local function showConnectionStatusNotice()
@@ -1921,7 +1869,7 @@ local function updateConnectionStatus()
   elseif not state.fblConnected then
     status = "handshake"
     local root = _G and _G.rfsuite
-    detail = readHandshakeDetail(root and root.session)
+    detail = ConnectionStatus.handshakeDetail(root and root.session)
     state.connStatusReady = false
   elseif state.connStatusReady then
     -- The chain is through and nothing it reports can change again. Returning here is what
@@ -1951,7 +1899,7 @@ local function updateConnectionStatus()
   -- the button's text is a function the firmware calls on its own refresh pass, so a state
   -- change costs no scene rebuild at all -- which is the whole reason this is a button in a row
   -- that already exists rather than a line of its own above the content.
-  state.connStatusGlyph = connectionGlyphKey(status, detail, failed)
+  state.connStatusGlyph = ConnectionStatus.stateKey(status, detail, failed)
 
   if status == state.connStatusState
     and detail == state.connStatusDetail
@@ -3153,6 +3101,7 @@ local function buildScene()
   -- Clear and reuse the children table to reduce garbage collection
   local children = state.children
   wipeTable(children)
+  appendPageBackground(children)
 
   local contentX = contentPad
   -- The strip sits flush under the page header and the content starts one gap below it, so
@@ -3370,6 +3319,7 @@ local function buildScene()
         -- finished, and the armed strip appended before it does not. Both come off, the strip
         -- goes back on, and the failure takes the page body.
         wipeTable(children)
+        appendPageBackground(children)
         if bannerH > 0 then
           appendArmedBanner(children, contentX, 0, contentW, bannerH, currentArmedBannerText())
         end
@@ -3596,6 +3546,23 @@ function M.init(opts)
   -- after this point leaves the step file naming the stage it stopped in.
   logStep("init: preferences read", true)
 
+  -- Before the first build, so the first frame and every native control on it are in the scheme. The
+  -- theme slots: here when the tool runs as a script of its own, on run's first pass when hosted
+  -- (writeThemeSlots).
+  local scheme = prefs and prefs.general and prefs.general.color_scheme
+  Palette.apply(scheme)
+  state.themeSlotsTries = 0
+  if state.hosted then
+    state.themeSlotsOwed = true
+    logf("trace", "theme slots owed: written on the first pass after init")
+  else
+    state.themeSlotsOwed = nil
+    local schemeOk, schemeErr = pcall(writeThemeSlots)
+    if not schemeOk then
+      logf("error", "theme slots not written: %s", tostring(schemeErr))
+    end
+  end
+
   local locale = resolveLocaleFromSystem()
   state.i18n       = I18n.new(locale)
   logStep("init: locale " .. tostring(locale), true)
@@ -3678,6 +3645,7 @@ function M.init(opts)
   state.rootRefreshOwed = false
   ensureVersion()
   logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
+  logf("debug", "header icon %s (screen width %s)", APP_ICON, tostring(LCD_W))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader
   -- when a page first needs it, and the tool opens on its menu without a start screen -- meant for
   -- automated runs on a card that starts without bytecode each time. Like the rest of the
@@ -3718,10 +3686,29 @@ function M.init(opts)
     logf("debug", "start screen shown: compile pass running")
   end
   state.landingMenuId = nil
+  state.visitMenuId = nil
+  state.landingRefused = nil
   local landing = state.hosted and type(opts) == "table" and opts.landing or nil
   if type(landing) == "string" then
+    -- The conditions as they stand now rather than as a registry made a moment ago starts them, for
+    -- the walk below: hosted, the flight controller's state is already known to this Lua state.
+    state.fblConnected = readFblConnected()
+    state.menu.setCondition("fblConnected", state.fblConnected)
+    state.menu.setCondition("modelArmed", isModelArmed())
     if openLanding(landing) then
       state.landingMenuId = landing
+      -- A visit (`opts.visit`): the page or menu is the edge of the tool for as long as it stays
+      -- open, whichever pages the pilot goes through below it.
+      if opts.visit == true then state.visitMenuId = landing end
+      -- The start screen can hold the first build while the page's wakeup already runs: its first read
+      -- has to go under the page's client, the one the close drops.
+      syncActivePageModule()
+    elseif opts.visit == true then
+      -- The host's menu offered it and the tool does not. Never the tiles in its place: the visit
+      -- ends, and the host says so.
+      logf("warn", "visit to %s refused by the menu, the tool closes", landing)
+      state.landingRefused = true
+      state.isClosing = true
     else
       logf("info", "landing %s not offered, the tool opens on its menu", landing)
     end
@@ -3733,7 +3720,11 @@ function M.init(opts)
   -- page loads under a pcall of its own can come back nil and fail later in a reply handler. The
   -- start screen used to take this pass. With nothing to compile it is left before the first
   -- build, so the page waits one pass instead; a start screen that still stands is built now.
-  if state.landingMenuId ~= nil and not state.initialLoad then
+  -- Hosted, the theme slots take the next pass and the first build the one after it.
+  if state.themeSlotsOwed then
+    logf("info", "first build after the theme slots (landing %s)", tostring(state.landingMenuId))
+    scheduleBuildUI(false)
+  elseif state.landingMenuId ~= nil and not state.initialLoad then
     logf("info", "landing %s: first build on the next pass", tostring(state.landingMenuId))
     scheduleBuildUI(false)
   else
@@ -3741,6 +3732,11 @@ function M.init(opts)
     M.buildUI()
   end
   logStep("init: done", true)
+end
+
+--- Whether the page of a visit was refused when the tool opened (`opts.visit`, M.init).
+function M.landingRefused()
+  return state.landingRefused == true
 end
 
 -- Hoisted out of `M.run`. EdgeTX drives `run()` from the standalone window's event
@@ -3991,6 +3987,10 @@ function M.run(event, touchState)
       elseif not state.shouldExit then
         -- Tick 16: Finalize library cleanup and detach MSP
         logToFile("Closing sequence finalizing. Detaching MSP.")
+        -- The radio's colours first, while the paths and the log the restore reads are still there.
+        if ThemeSlots then
+          pcall(ThemeSlots.restore, "tool closed")
+        end
         logStep("closing: detaching MSP", true)
         if state.mspAttached then
           if MspRuntime and type(MspRuntime.detach) == "function" then
@@ -4066,10 +4066,18 @@ function M.run(event, touchState)
       return 0
     end
 
+    -- The theme slots a hosted init left owed, on a pass that builds nothing: the build, the menu's step
+    -- and the page's wakeup wait for the next pass; the link's own ticks run as on any pass.
+    -- Never while closing: the closing sequence above has returned by here.
+    local slotsThisPass = false
+    if state.themeSlotsOwed then
+      writeOwedThemeSlots()
+      slotsThisPass = true
+    end
     if state.sceneBuildOwed and not state.isClosing then
       state.pendingBuildUI = true
     end
-    if state.pendingBuildUI and not state.isClosing then
+    if state.pendingBuildUI and not state.isClosing and not slotsThisPass then
       state.pendingBuildUI = false
       local doGc = state.pendingGcAfterBuild == true
       state.pendingGcAfterBuild = false
@@ -4224,7 +4232,7 @@ function M.run(event, touchState)
     -- being stepped is noted before the step and forgotten only once the screen has been asked
     -- for, so a pass stopped anywhere between the step that completes the build and that request
     -- leaves the note behind, and the next pass makes the request instead.
-    if not transitionedMenuThisTick and not builtThisPass and not state.isClosing then
+    if not transitionedMenuThisTick and not builtThisPass and not slotsThisPass and not state.isClosing then
       local onScreen = state.menu.getCurrentMenuId()
       if state.menu.isCurrentMenuPending() then
         state.steppedMenuId = onScreen
@@ -4337,7 +4345,9 @@ function M.run(event, touchState)
       -- be looking at state the aborted build never created.
       local buildFailedHere = state.pageBuildFailed ~= nil
         and state.pageBuildFailed == state.activePageMenuId
-      if (not transitionedMenuThisTick) and (not buildFailedHere) then
+      -- Nor on the theme slots' pass: a landing page is active from init on, and is built only on the
+      -- pass after, so its wakeup waits for that build as it does without the slots.
+      if (not transitionedMenuThisTick) and (not buildFailedHere) and (not slotsThisPass) then
         local activePage = getActivePageModule()
         local wakeupFn = activePage and (activePage.wakeup or activePage.onWake)
         if type(wakeupFn) == "function" then
@@ -4738,5 +4748,6 @@ return {
   useLvgl = true,
   requestRebuild = scheduleBuildUI,
   requestClose = requestClose,
-  releasePages = releasePages
+  releasePages = releasePages,
+  landingRefused = M.landingRefused
 }

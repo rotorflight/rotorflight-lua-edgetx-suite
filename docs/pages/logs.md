@@ -91,7 +91,8 @@ telemetry page, and the next log has one column of each name.
 *Graph*, on the summary or in the list, opens a plot of the log over time. Choose up to four
 columns, one per *Curve*, or one of
 the offered sets (*Power*, *Battery*, *Link*, *Governor*, whichever this log can serve), and
-press *Show*. Zoom, page and a cursor readout work on the plotted flight; where the log holds
+press *Show*. Each curve has a colour of its own: darker ones in the light colour scheme, brighter
+ones in the dark. Zoom, page and a cursor readout work on the plotted flight; where the log holds
 more than one flight, the chooser also offers which one.
 A column chosen in more than one slot is plotted once.
 *Show* with the curves already plotted keeps the plot as it is, zoom included. Back from the plot

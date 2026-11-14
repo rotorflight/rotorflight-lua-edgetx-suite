@@ -61,6 +61,18 @@ local function viewStep(fmt, ...)
   end
 end
 
+-- A view taken off the stack starts its rolling menu over the next time it opens, wherever it was
+-- taken off; one merely covered keeps its place. What the quick menu read for its way on goes with it.
+local function forgetView(widget, id)
+  local stack = widget._viewStack
+  if stack == nil or id == nil then return end
+  if stack.rolls ~= nil and stack.rolls[id] ~= nil then
+    stack.rolls[id] = nil
+    if _G.rfsuite.logSteps then viewStep("%s left the stack, its rolling menu starts over", tostring(id)) end
+  end
+  if id == M.DEFAULT_VIEW then stack.tree = nil end
+end
+
 -- How deep the stack may grow. A push beyond it is refused rather than dropping the bottom
 -- entry: a view that silently disappeared from under the others would be a way back that no
 -- longer leads anywhere.
@@ -118,6 +130,11 @@ local CONDITIONS = {}
 -- fullscreen exit, a page switch) can be opened again after the landing.
 function CONDITIONS.previewInflightTuning(widget)
   if widget.state and widget.state.armed == true then return false end
+  return CONDITIONS.inflightSwitchedOn(widget)
+end
+
+-- The same two preferences on their own: the rolling menu shows the row grey while the model is armed.
+function CONDITIONS.inflightSwitchedOn(widget)
   local prefs = widget.preferences
   local previewOn = prefs and prefs.general and prefs.general.preview_inflight_tuning == true
   local radioOn = prefs and type(prefs.inflight) == "table" and prefs.inflight.enabled == true
@@ -129,6 +146,11 @@ end
 -- is disarmed, because a pack chosen in the air would be recorded against the flight in progress.
 function CONDITIONS.batteryPickHasPacks(widget)
   if widget.state and widget.state.armed == true then return false end
+  return CONDITIONS.batteryPickKnowsPacks(widget)
+end
+
+-- Whether this model has packs at all, armed or not.
+function CONDITIONS.batteryPickKnowsPacks(widget)
   local pick = widget.state and widget.state.batteryPick or nil
   local candidates = (type(pick) == "table" and type(pick.candidates) == "table") and pick.candidates or nil
   return candidates ~= nil and #candidates > 0
@@ -169,6 +191,11 @@ end
 -- capacity -- a row that opens a page with nothing to choose on it is not offered.
 function CONDITIONS.batteryProfileOffered(widget)
   if not CONDITIONS.connectionReadyDisarmed(widget) then return false end
+  return CONDITIONS.batteryProfileKnown(widget)
+end
+
+-- Whether the flight controller has reported a profile with a capacity.
+function CONDITIONS.batteryProfileKnown(widget)
   local config = widget.state and widget.state.battery_config or nil
   if type(config) ~= "table" then return false end
   for i = 0, 5 do
@@ -176,6 +203,11 @@ function CONDITIONS.batteryProfileOffered(widget)
     if cap ~= nil and cap > 0 then return true end
   end
   return false
+end
+
+-- For the rolling menu: without a connection that is not known yet, so the row stays, grey.
+function CONDITIONS.batteryProfileExists(widget)
+  return widget.connectionReady ~= true or CONDITIONS.batteryProfileKnown(widget)
 end
 
 -- The tool opened on its Flight Log page: like the tool, and like the page's own tile, only while
@@ -359,7 +391,10 @@ function M.register(widget, themeViews)
   local stack = widget._viewStack
   if stack ~= nil then
     for i = #stack, 1, -1 do
-      if M.find(widget, stack[i].id) == nil then table.remove(stack, i) end
+      if M.find(widget, stack[i].id) == nil then
+        forgetView(widget, stack[i].id)
+        table.remove(stack, i)
+      end
     end
   end
   return registry
@@ -397,7 +432,10 @@ local function push(widget, id, auto)
   local stack = widget._viewStack
   local at = indexOf(stack, id)
   if at ~= nil then
-    for i = #stack, at + 1, -1 do stack[i] = nil end
+    for i = #stack, at + 1, -1 do
+      forgetView(widget, stack[i].id)
+      stack[i] = nil
+    end
     if not auto then stack[at].auto = nil end
     stack.refused = nil
     return true
@@ -427,6 +465,7 @@ local function pop(widget)
   if _G.rfsuite.logSteps then
     viewStep("%s closed, %d left on the stack", tostring(stack[#stack] and stack[#stack].id), math.max(#stack - 1, 0))
   end
+  forgetView(widget, stack[#stack] and stack[#stack].id)
   stack[#stack] = nil
   stack.refused = nil
 end
@@ -469,7 +508,10 @@ function M.fail(widget, entry, why)
     entry.failed = true
     local stack = widget._viewStack
     local at = indexOf(stack, entry.id)
-    if at ~= nil then table.remove(stack, at) end
+    if at ~= nil then
+      forgetView(widget, entry.id)
+      table.remove(stack, at)
+    end
   end
 end
 
@@ -553,6 +595,7 @@ function M.resolve(widget)
   for i = #session, 1, -1 do
     if session[i].auto and not held[session[i].id] then
       if _G.rfsuite.logSteps then viewStep("%s closed: its condition fell", tostring(session[i].id)) end
+      forgetView(widget, session[i].id)
       table.remove(session, i)
       changed = true
     end
@@ -666,6 +709,129 @@ local function newSession(widget)
   widget._viewStack = carried and { held = carried } or nil
 end
 
+-- ---------------------------------------------------------------------------
+-- The rolling menu's place
+-- ---------------------------------------------------------------------------
+
+--- The roll of view `id` on this visit's session, or nil.
+function M.roll(widget, id)
+  local session = widget._viewStack
+  local rolls = session and session.rolls or nil
+  return rolls and rolls[id] or nil
+end
+
+--- Forget the roll of view `id`.
+function M.dropRoll(widget, id)
+  local session = widget._viewStack
+  local rolls = session and session.rolls or nil
+  if rolls ~= nil and id ~= nil then rolls[id] = nil end
+end
+
+-- The view drawn now: the top of the stack, or with the stack empty and no base layer the default
+-- view, as `resolve` picks it. Keys and replies are handled before a pass resolves, where `_viewId`
+-- may still name a view that has just been taken off.
+local function drawnView(widget)
+  local top = M.top(widget)
+  if top ~= nil then return top end
+  if widget._viewBase == nil then return M.DEFAULT_VIEW end
+  return widget._viewId
+end
+
+--- Whether view `id` is the one drawn now.
+function M.onTop(widget, id)
+  return drawnView(widget) == id
+end
+
+--- The roll of the view drawn now, where that view draws one.
+function M.topRoll(widget)
+  return M.roll(widget, drawnView(widget))
+end
+
+--- Whether a rolling menu holds the screen: it stays up through a lost link, where the rows say what
+--- that means, so the connection splash does not cover it.
+function M.rollUp(widget)
+  local id = M.top(widget)
+  if id == nil and widget._viewBase == nil then id = M.DEFAULT_VIEW end
+  return id ~= nil and M.roll(widget, id) ~= nil
+end
+
+--- The session a reconnect leaves: empty as ever, but for the quick menu's place while it is up.
+function M.acrossReconnect(widget)
+  local roll = M.roll(widget, M.DEFAULT_VIEW)
+  if roll == nil then return nil end
+  -- On the stack, or the default view of a theme without a base layer: up on its own or under a view
+  -- such as the prompt, which goes with the old connection and leaves the menu showing again.
+  local stacked = indexOf(widget._viewStack, M.DEFAULT_VIEW) ~= nil
+  if not stacked and widget._viewBase ~= nil then
+    if _G.rfsuite.logSteps then viewStep("reconnect: the rolling menu is not up, its place goes") end
+    return nil
+  end
+  if _G.rfsuite.logSteps then
+    viewStep("reconnect: the rolling menu keeps its place (%s)", stacked and "on the stack" or "default view")
+  end
+  -- A page still waiting to open was pressed for under the old connection: called off, so the menu showing
+  -- again does not open it without another press. One that has started is not met here: `M.visit` gave the
+  -- widget a new session, and a refused one was called off where it was refused.
+  if roll.opening ~= nil then
+    roll.opening, roll.slots = nil, nil
+    if _G.rfsuite.logSteps then viewStep("reconnect: a page waiting to open is called off") end
+  end
+  -- What stands on screen is the old connection's until the menu is built again: the theme loads a pass
+  -- before that build, so `widget.theme` alone does not say it (M.sceneStale). Menu_roll's build clears it.
+  roll.staleScene = true
+  local session = { rolls = { [M.DEFAULT_VIEW] = roll } }
+  if stacked then session[1] = { id = M.DEFAULT_VIEW } end
+  return session
+end
+
+--- Whether what stands on screen is not this theme's scene: no theme is loaded and nothing was built for
+--- it, as after a reconnect until the read of the board's id has settled (which waits while the model is
+--- armed), or while a theme loads; or the rolling menu a reconnect kept has not been built again since (the
+--- theme loads a pass before that build). A press or a finger is not acted on then; RTN and the other keys
+--- carry on, as the way out. An ordinary rebuild is no reason: `built` goes false for every one of those.
+function M.sceneStale(widget)
+  if widget.theme == nil and widget.built ~= true then return true end
+  local roll = M.topRoll(widget)
+  if roll == nil or roll.staleScene ~= true then return false end
+  -- A theme's look that took the view over is built in place of the roll, whose own build never comes: its
+  -- scene stands once the widget has built.
+  local own = M.find(widget, roll.view)
+  if own ~= nil and own.load ~= nil then return widget.built ~= true end
+  return true
+end
+
+--- Open the tool on `menuId` from a rolling menu, keeping where the press stood (a table of the menu's
+--- own, `place`) on the widget: the session goes with the visit, as for any other opening of the tool.
+function M.visit(widget, menuId, place)
+  local ToolHost = requireModule("widgets/dashboard/tool_host.lua")
+  if type(ToolHost) ~= "table" or type(ToolHost.request) ~= "function" then return false end
+  if not ToolHost.request(widget, menuId, true) then return false end
+  if Log and type(Log.emit) == "function" then
+    Log.emit("rfsuite.widget", "visit to " .. tostring(menuId) .. " from the rolling menu", "info")
+  end
+  widget._rollPlace = place
+  newSession(widget)
+  M.invalidate(widget)
+  return true
+end
+
+--- A visit has ended. `outcome`: "back" returns to the place, "failed" too and it says so; anything
+--- else -- the model armed, full screen left, the widget in the background -- forgets the place and
+--- leaves the dashboard showing.
+function M.toolClosed(widget, outcome)
+  local place = widget._rollPlace
+  widget._rollPlace = nil
+  if Log and type(Log.emit) == "function" then
+    Log.emit("rfsuite.widget", "visit ended: " .. tostring(outcome) .. (place ~= nil and ", place kept" or ""), "info")
+  end
+  if place == nil or (outcome ~= "back" and outcome ~= "failed") then return end
+  if not push(widget, M.DEFAULT_VIEW, false) then return end
+  local session = M.session(widget)
+  session.rolls = session.rolls or {}
+  session.rolls[M.DEFAULT_VIEW] = { view = M.DEFAULT_VIEW, restore = place, couldNotOpen = outcome == "failed" or nil }
+  M.invalidate(widget)
+end
+
 --- Perform the action that follows a press.
 --
 --   openView:<id>   open that view, or return to it where it is already on the stack
@@ -702,10 +868,17 @@ function M.navigate(widget, after)
     M.invalidate(widget)
   elseif verb == "closeView" then
     pop(widget)
-    -- The rolling menu starts over the next time it is opened.
-    if widget._viewStack ~= nil then widget._viewStack.roll = nil end
     M.invalidate(widget)
   elseif verb == "done" then
+    -- A view that rose by itself over a rolling menu, the battery prompt, hands back to the place under it.
+    local stack = widget._viewStack
+    local entry = stack ~= nil and stack[#stack] or nil
+    if entry ~= nil and entry.auto == true and entry.id ~= M.DEFAULT_VIEW and M.roll(widget, M.DEFAULT_VIEW) ~= nil then
+      forgetView(widget, entry.id)
+      stack[#stack] = nil
+      M.invalidate(widget)
+      return
+    end
     newSession(widget)
     if widget._viewBase == nil then
       exitFullscreen(widget)
@@ -914,14 +1087,18 @@ end
 function M.key(widget, event, touch)
   -- A menu in the rolling style: the wheel's press while the focus is still on the fullscreen widget,
   -- which delivers it here rather than to a button, RTN's step back to the left list, and the finger.
-  local session = widget._viewStack
-  local rolling = session ~= nil and session.roll or nil
-  if rolling ~= nil and (M.top(widget) or widget._viewId) == rolling.view then
+  local rolling = M.topRoll(widget)
+  if rolling ~= nil then
     local enter, exitKey = _G.EVT_VIRTUAL_ENTER, _G.EVT_VIRTUAL_EXIT
+    -- What stands on screen says what held before a reconnect (M.sceneStale): a press or a finger is not
+    -- acted on by it. RTN and the other keys carry on: they are the way out.
+    if M.sceneStale(widget) and (event == enter or (touch ~= nil and event ~= exitKey)) then
+      return true
+    end
     local own = M.find(widget, rolling.view)
     if own ~= nil and own.load ~= nil then
       -- A theme's look has taken the view over since it was opened.
-      session.roll = nil
+      M.dropRoll(widget, rolling.view)
     elseif touch ~= nil and event ~= enter and event ~= exitKey then
       local Roll = requireModule("widgets/dashboard/menu_roll.lua")
       if type(Roll) == "table" and Roll.touch(widget, event, touch) then return true end

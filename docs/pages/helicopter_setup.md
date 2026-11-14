@@ -27,8 +27,8 @@ the TOOLS menu and when the tool is hosted by the dashboard widget.
 
 The wizard follows *Color scheme* on [*Settings* → *General* → *Appearance*](settings/general.md),
 light as it comes, with a set of pictures for each scheme. A changed scheme shows the next time the
-wizard opens. Its choice lists and its number and text fields are the radio's own controls and
-keep the colors of the radio's theme, in both schemes.
+wizard opens. Its choice lists and its number and text fields are the radio's own controls; they
+take the scheme's colors with the rest of the tool.
 
 The menu's **?** explains the tiles: a tick marks a step this flight controller completed
 before, and the last tile, **Setup history**, resets the ticks.

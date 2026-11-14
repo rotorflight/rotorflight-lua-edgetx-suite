@@ -1,0 +1,9 @@
+{
+  "id": "quick-menu-list",
+  "name": "Quick menu generated list",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_menu_list.lua"
+  ],
+  "step": "Check the rolling menu's list against the manifest",
+  "rationale": "The rotary quick menu reads a list generated from app/manifest.lua. A manifest change that forgets to make it again would leave the roll showing the old menu with nothing else going red."
+}
