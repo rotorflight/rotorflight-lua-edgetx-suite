@@ -1654,7 +1654,7 @@ return {
         color_scheme = "Color scheme",
         color_scheme_light = "Light",
         color_scheme_dark = "Dark",
-        help_color_scheme = "Light or dark colors for the dashboard's quick menu and its pages, the loading and standby screens, the tool's start and the helicopter setup wizard, on every theme. The rest does not follow yet.",
+        help_color_scheme = "Light or dark colors for the whole tool and the radio's own controls while it is open, the dashboard's quick menu and its pages, in-flight tuning, loading and standby screens and helicopter setup.",
         help_save_confirm = "Asks before a Save writes to the flight controller.",
         help_save_armed_warning = "Warns before a Save or Reload while the model is armed.",
         help_reload_confirm = "Asks before a Reload replaces edits that are not saved.",
@@ -3486,7 +3486,7 @@ return {
       diagnostics_session_logs = {
         no_logs = "No logs available",
         loading = "Loading logs...",
-        help_message = "Shows the last log lines this script kept in memory, newest at the bottom, coloured by level. The page updates itself as lines arrive, and RELOAD only draws it again. The list lives in memory and is gone when the script stops, so switch on Log Session To Card under Developer > Settings to keep a copy for a report."
+        help_message = "The last log lines this script kept in memory, newest at the bottom, coloured by level; gone when it stops unless Log Session To Card (Developer > Settings) is on.\nReload (header): draws the page again; it also updates itself as lines arrive."
       },
       diagnostics_smartfuel = {
         protocol = "Protocol",
@@ -4159,6 +4159,8 @@ return {
         graph_curve = "Curve",
         graph_none = "None",
         graph_flight = "Flight",
+        graph_flight_help = "Which flight of the log to plot; a log can hold several, each listed with its length.",
+        graph_curve_help = "A column of the log to draw as this curve, or None; up to four curves, each in its own colour.",
         graph_show = "Show",
         graph_full = "Full",
         graph_curves = "Sensors",
@@ -4442,6 +4444,11 @@ return {
       battery_profile_armed = "CHANGEABLE ONLY WHEN DISARMED",
       battery_profile_not_ready = "CHANGEABLE ONLY WHEN CONNECTED",
       battery_profile_busy = "SENDING...",
+      roll_not_armed = "Not while armed",
+      roll_needs_fc = "Needs the flight controller",
+      roll_could_not_open = "Could not open",
+      roll_opening = "Opening...",
+      roll_close = "Close",
       battery_profile_ok = "SET AND SAVED",
       battery_profile_failed = "NOT SAVED",
       battery_pick_title = "WHICH BATTERY?",
@@ -4707,6 +4714,7 @@ return {
       inflight_fc_slot_failed = "Adjustment slot %s could not be written.",
       inflight_fc_rotor_running = "The rotor is running. Stop it before setting up the flight controller.",
       inflight_fc_setup_action = "Set up suggested functions",
+      inflight_fc_setup_short = "Functions",
       inflight_fc_no_functions = "The FC has no adjustment functions for in-flight tuning.",
       inflight_fc_slot_conflict = "Slot %d conflicts with the tuning channels. Change it in the Configurator.",
       inflight_fc_setup_intro = "Replaces adjustment slots %d-%d with the suggestions, whatever they hold now.\nSlots 1-%d (profile selection) stay.\nThe next page lists what is replaced.",

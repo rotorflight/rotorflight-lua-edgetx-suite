@@ -14,8 +14,10 @@ end
 
 local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
 
-local function resolveTileTextColor(isEnabled, focused)
-  if not isEnabled or focused then
+-- EdgeTX marks a focused button with a border and an outline in the focus colour and keeps its fill
+-- (libui/etx_lv_theme.cpp, etx_std_ctrl_colors), so a focused tile's text stays the text colour.
+local function resolveTileTextColor(isEnabled)
+  if not isEnabled then
     return Palette.tileMuted
   end
   return Palette.text
@@ -173,13 +175,23 @@ function Tiles.append(children, x, y, size, iconFile, text, focused, pressHandle
 
   if iconFile then
     local iconSize = math.max(16, math.floor(size * 0.36))
+    local iconX, iconY = x + math.floor((size - iconSize) / 2), y + math.max(5, math.floor(size * 0.08))
     children[#children + 1] = {
       type = "image",
-      x = x + math.floor((size - iconSize) / 2),
-      y = y + math.max(5, math.floor(size * 0.08)),
+      x = iconX, y = iconY,
       w = iconSize, h = iconSize,
-      file = iconFile
+      file = Palette.iconPath(iconFile)
     }
+    -- A disabled tile's icon fades into the face: the face colour laid over it at the scheme's fade.
+    -- A scheme with no fade draws nothing here.
+    local fade = Palette.iconFade or 0
+    if fade > 0 and (live or not isEnabled) then
+      children[#children + 1] = {
+        type = "rectangle", x = iconX, y = iconY, w = iconSize, h = iconSize,
+        color = Palette.tile, filled = true, opacity = fade,
+        visible = live and function() return not enabled() end or nil
+      }
+    end
   end
 
   children[#children + 1] = {
@@ -189,8 +201,8 @@ function Tiles.append(children, x, y, size, iconFile, text, focused, pressHandle
     w = size - 8,
     text  = formatTileText(text),
     font  = SMLSIZE,
-    color = live and function() return resolveTileTextColor(enabled(), focused == true) end
-      or resolveTileTextColor(isEnabled, focused == true),
+    color = live and function() return resolveTileTextColor(enabled()) end
+      or resolveTileTextColor(isEnabled),
     align = CENTER
   }
 

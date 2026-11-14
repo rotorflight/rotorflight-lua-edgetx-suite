@@ -698,7 +698,8 @@ for _, locale in ipairs({"en", "de"}) do
         end
         local allButtons = {}
         for _, node in ipairs(nodes) do if node.type == "button" and shown(node) then allButtons[#allButtons + 1] = node end end
-        local labels, buttons, captions, captionFonts, panel, footer, footerText, modelLabel, modelValue = {}, {}, {}, {}
+        local labels, buttons, captions, captionFonts, strips, rule, footer, footerText, modelLabel, modelValue = {}, {}, {}, {}, {}
+        local scheme = rfsuite.require("lib/color_schemes.lua").colors("light")
         for index, node in ipairs(nodes) do
           local x, y, width, tall = node.x or 0, node.y or 0, node.w or 0, height(node)
           check(x >= 0 and y >= 0 and x + width <= size[1] and y + tall <= size[2], "every ground child fits the screen")
@@ -720,20 +721,29 @@ for _, locale in ipairs({"en", "de"}) do
                 check(not touches(node, other), "ground text stays off the buttons: " .. text)
               end
             end
-            if footer and inside(node, footer) then footerText = text end
             if text == translations.inflight_model_status then modelLabel, modelValue = node, nodes[index + 1] end
           elseif node.type == "label" and text and text ~= "" then
             local button = buttons[#buttons]
             if button and inside(node, button) then
               captions[#captions] = captions[#captions] == "" and text or captions[#captions] .. " " .. text
             end
-          elseif node.type == "rectangle" and node.filled and node.h > 12 then
-            if node.x > 0 then panel = node elseif y > size[2] / 2 then footer = node end
+          elseif node.type == "rectangle" and node.filled and node.h > 12 and node.y > 0 then
+            strips[#strips + 1] = node
+          elseif node.type == "rectangle" and node.filled and node.h == 1 and node.x > 0 then
+            rule = node
           end
         end
-        check(panel and footer and panel.color == footer.color and modelLabel and modelValue
-          and modelLabel.y >= panel.y and modelValue.x > modelLabel.x,
-          "status values share a filled panel and the footer uses the same palette")
+        -- The footer is the lowest text that is no action's caption.
+        local footerY = -1
+        for _, label in ipairs(labels) do
+          if label.y > footerY then
+            footerY, footerText = label.y, type(label.text) == "function" and label.text() or label.text
+          end
+        end
+        footer = {y = footerY}
+        check(#strips == 0 and rule and rule.color == scheme.rule and modelLabel and modelValue
+          and modelLabel.y < rule.y and modelValue.x > modelLabel.x,
+          "status values stand on the page above a rule, with no box and no footer strip")
         local warning = d.announcementsSaveFailed and translations.inflight_announcements_failed or translations.inflight_announcements_off
         check(footerText == (announcementsOn and translations.inflight_ground_controls or warning),
           "ground footer shows the controls, the announcements warning, or a failed attempt to turn them on")
@@ -746,7 +756,7 @@ for _, locale in ipairs({"en", "de"}) do
         else
           expected[1] = variant == "empty" and translations.inflight_fc_setup_action or translations.inflight_choose_parameters
         end
-        if variant ~= "empty" then expected[#expected + 1] = translations.inflight_fc_setup_action end
+        if variant ~= "empty" then expected[#expected + 1] = translations.inflight_fc_setup_short end
         expected[#expected + 1] = translations.inflight_read_again
         if not announcementsOn then expected[#expected + 1] = translations.inflight_announcements_enable end
         expected[#expected + 1], expected[#expected + 2] = translations.inflight_restore_all, "X"
@@ -768,19 +778,25 @@ for _, locale in ipairs({"en", "de"}) do
         check(primary.active() and primary.h >= minimum and primary.h >= first.h and (size[2] < 300 or primary.h > first.h),
           "ground primary is active and at least as tall as the other actions, taller where there is room")
         if variant ~= "reading" then
-          check(primary.color == lcd.RGB(41, 163, 224), "ground primary is accented")
+          check(primary.color == scheme.accent, "ground primary is accented")
         else
           check(not buttons[1].active() and not first.active() and not restore.active(),
             "while a read runs, retry waits for a held return and the other actions are shown disabled")
         end
-        for index = primaries + 1, #buttons - 2 do
+        -- The secondaries, Restore all the last of them, are cells of one height under the primary:
+        -- in one row where every caption fits its cell, two to a row otherwise.
+        local perRow = 0
+        for index = primaries + 1, #buttons - 1 do
           local button = buttons[index]
-          check(button.h == first.h and (button.w == restore.w or button.w * 2 < restore.w) and button.y + button.h < restore.y,
-            "secondary cells share one height, are full or half width and end above Restore all")
+          if button.y == first.y then perRow = perRow + 1 end
+          check(button.h == first.h and button.y >= primary.y + primary.h and button.w == first.w,
+            "secondary cells share one height and width and sit under the primary")
         end
-        check(primary.w == size[1] - primary.x * 2 and primary.w == restore.w
-          and restore.h == first.h and restore.y + restore.h < footer.y and restore.color ~= first.color,
-          "primary and restore are full width with restore above the footer")
+        check(perRow == #buttons - 1 - primaries or perRow == 2, "the secondaries take one row, or two to a row")
+        local restoreCaption = nodes[(function() for i, n in ipairs(nodes) do if n == restore then return i end end end)() + 1]
+        check(primary.w == size[1] - primary.x * 2 and restore.y + restore.h <= footer.y
+          and restore.color == first.color and restoreCaption.color == scheme.error,
+          "primary is full width; Restore all is a cell like the others, named in the error colour, above the footer")
         if variant == "expired" then
           local said = false
           for _, label in ipairs(labels) do

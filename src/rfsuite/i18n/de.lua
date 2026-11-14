@@ -1654,7 +1654,7 @@ return {
         color_scheme = "Farbschema",
         color_scheme_light = "Hell",
         color_scheme_dark = "Dunkel",
-        help_color_scheme = "Helle oder dunkle Farben für das Schnellmenü des Dashboards und seine Seiten, Lade- und Standby-Bild, den Start des Tools und Helikopter einrichten, in jedem Theme. Der Rest folgt noch nicht.",
+        help_color_scheme = "Helle oder dunkle Farben für das ganze Tool samt den Bedienelementen des Senders, das Schnellmenü des Dashboards und seine Seiten, In-Flight-Tuning, Lade- und Standby-Bild und Helikopter einrichten.",
         help_save_confirm = "Fragt nach, bevor Speichern auf den Flight Controller schreibt.",
         help_save_armed_warning = "Warnt vor Speichern oder Neu laden, solange das Modell scharf ist.",
         help_reload_confirm = "Fragt nach, bevor Neu laden ungespeicherte Änderungen ersetzt.",
@@ -3486,7 +3486,7 @@ return {
       diagnostics_session_logs = {
         no_logs = "Keine Protokolle verfügbar",
         loading = "Lade Protokolle...",
-        help_message = "Zeigt die letzten Log-Zeilen, die dieses Skript im Speicher hält, die neueste unten, nach Stufe eingefärbt. Die Seite aktualisiert sich selbst, sobald Zeilen eintreffen; RELOAD zeichnet sie nur neu. Die Liste liegt im Speicher und ist weg, sobald das Skript endet - schalte dafür Log Session To Card unter Developer > Settings ein, um eine Kopie für einen Bericht zu behalten."
+        help_message = "Die letzten Log-Zeilen, die dieses Skript im Speicher hält, neueste unten, nach Stufe gefärbt; weg, sobald es endet, außer Sitzungslog auf Karte (Entwickler > Einstellungen) ist an.\nNeu laden (Kopfzeile): zeichnet die Seite neu; sie aktualisiert sich auch selbst, sobald Zeilen eintreffen."
       },
       diagnostics_smartfuel = {
         protocol = "Protokoll",
@@ -4153,6 +4153,8 @@ return {
         graph_curve = "Kurve",
         graph_none = "Keiner",
         graph_flight = "Flug",
+        graph_flight_help = "Welcher Flug des Logs gezeichnet wird; ein Log kann mehrere enthalten, jeder mit seiner Dauer.",
+        graph_curve_help = "Eine Spalte des Logs, die als diese Kurve gezeichnet wird, oder Keiner; bis zu vier Kurven, jede in eigener Farbe.",
         graph_show = "Anzeigen",
         graph_full = "Ganz",
         graph_curves = "Sensoren",
@@ -4436,6 +4438,11 @@ return {
       battery_profile_armed = "NUR ENTSCHÄRFT ÄNDERBAR",
       battery_profile_not_ready = "NUR VERBUNDEN ÄNDERBAR",
       battery_profile_busy = "WIRD GESENDET...",
+      roll_not_armed = "Nicht im scharfen Zustand",
+      roll_needs_fc = "Braucht den Flight Controller",
+      roll_could_not_open = "Nicht zu öffnen",
+      roll_opening = "Wird geöffnet...",
+      roll_close = "Schließen",
       battery_profile_ok = "GESETZT UND GESPEICHERT",
       battery_profile_failed = "NICHT GESPEICHERT",
       battery_pick_title = "WELCHER AKKU?",
@@ -4701,6 +4708,7 @@ return {
       inflight_fc_slot_failed = "Einstellplatz %s konnte nicht geschrieben werden.",
       inflight_fc_rotor_running = "Der Rotor läuft. Vor dem Einrichten des Flight Controllers anhalten.",
       inflight_fc_setup_action = "Vorgeschlagene Funktionen einrichten",
+      inflight_fc_setup_short = "Funktionen",
       inflight_fc_no_functions = "Der FC hat keine Einstellfunktionen für In-Flight-Tuning.",
       inflight_fc_slot_conflict = "Platz %d kollidiert mit den Tuning-Kanälen. Im Configurator ändern.",
       inflight_fc_setup_intro = "Ersetzt Anpassungs-Slots %d-%d durch die Vorschläge, egal was dort steht.\nSlots 1-%d (Profilwahl) bleiben.\nDie Liste folgt auf der nächsten Seite.",

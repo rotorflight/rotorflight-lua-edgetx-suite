@@ -1,4 +1,8 @@
 -- EdgeTX exposes string functions without a string-method metatable.
+-- The surface draws in the suite's colour scheme (lib/color_schemes.lua), which asks the firmware
+-- for each colour once: lcd.RGB with one 0xRRGGBB argument, as EdgeTX 2.11 and later take it.
+_G.lcd = _G.lcd or {}
+lcd.RGB = lcd.RGB or function(rgb) return rgb end
 debug.getmetatable("").__index = nil
 -- Real transaction/drive/store modules, deterministic FC and EdgeTX filesystem seams.
 local checked, tick, peak = 0, 1000, 0

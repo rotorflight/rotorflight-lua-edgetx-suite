@@ -1746,6 +1746,8 @@ local function viewJobStep(self)
   local view = Views.load(self, entry)
   if view == nil then return true end
   local children = {}
+  local timed = Log and type(Log.wanted) == "function" and Log.wanted("trace") and type(getTime) == "function"
+  local startedAt = timed and getTime() or nil
   if entry.load ~= nil then
     -- A theme's build that raises is given up on as a module that does not load is, rather than
     -- raising out of the step: the dispatcher would clear the job and the next pass queue the
@@ -1764,8 +1766,14 @@ local function viewJobStep(self)
   else
     view.build(children, self)
   end
+  local madeAt = timed and getTime() or nil
   lvgl.clear()
+  local clearedAt = timed and getTime() or nil
   lvgl.build(children)
+  if timed then
+    Log.emit("rfsuite.widget", string.format("view %s built: %d ms in Lua, %d ms clearing, %d ms building",
+      tostring(entry.id), (madeAt - startedAt) * 10, (clearedAt - madeAt) * 10, (getTime() - clearedAt) * 10), "trace")
+  end
   self.built = true
   self._lastChildCount = #children
   -- The state pass keyed this build before the module was loaded, so without the module's own
@@ -5155,7 +5163,11 @@ function Runtime.new(zone, options)
       self._batteryPickWritten = nil
       self._batteryPickPress = nil
       self._batteryPickPicked = nil
-      self._viewStack = nil
+      do
+        -- Empty for the new connection, but for the place of a rolling menu that is up.
+        local Views = viewsModule()
+        self._viewStack = Views and Views.acrossReconnect(self) or nil
+      end
       self.modelPreferences = nil
       -- The post-flight theme kept for the model that flew before (noteModelTheme) belongs to that
       -- session; this one sets its own once its preferences arrive.
@@ -5810,7 +5822,7 @@ function Runtime.new(zone, options)
     local explicitView = false
     if event ~= nil and self._viewStack ~= nil then
       local Views = viewsModule()
-      explicitView = Views ~= nil and Views.top(self) ~= nil
+      explicitView = Views ~= nil and (Views.top(self) ~= nil or Views.rollUp(self))
     end
     -- Past its soft timeout the splash counts as ready, but while this link's UID read has no
     -- outcome no theme is resolved (performBackgroundWork), so there is nothing else to draw: the

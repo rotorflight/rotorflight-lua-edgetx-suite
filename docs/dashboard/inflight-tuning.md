@@ -141,6 +141,13 @@ that returns while the model is still armed resumes as soon as the radio receive
 reading, without waiting for landing: the flight controller is not identified again while armed,
 and a controller that rebooted would report disarmed. Disabling
 the feature closes the visit; enabling it again requires opening tuning from the quick menu.
+
+Every surface draws in the colour scheme chosen under *Settings* → *General* → *Appearance*,
+light by default, the same one the quick menu it opens from uses: a light or a dark page, a header
+strip, grey cells for the actions and the accent blue for the main one. The colours keep their
+meaning in both schemes: green for a passed setup check, amber for a warning, red for a fault, the
+close box and **Restore all**.
+
 Every link loss also requires a full ground read of the receiver map, adjustment function IDs,
 populated slot records, profile status and parameter values, even when the same FC returns.
 An armed continuation defers that read until the model is disarmed and connected. Until it
@@ -171,19 +178,21 @@ follows it.
 
 ![The ground surface: model check, FC slots, session, and the actions](../images/inflight/overlay-ground.png)
 
-One filled status panel shows **Model** (the setup verdict), **FC slots** (the number of parameters
+Three status rows show **Model** (the setup verdict), **FC slots** (the number of parameters
 read from the board, plus skipped slots, or the slot that blocks tuning), and **Session** (the time this session's start values
-were read, for example **Start values 14:32**, a pending session end, or a not-read/refused status). Dim labels sit
-beside values. Each status takes one line on 480x272, 480x320 and 800x480 displays, and a second
+were read, for example **Start values 14:32**, a pending session end, or a not-read/refused status). Grey labels sit
+beside values, on the page itself, with a thin line under the rows that parts them from the actions. Each status takes one line on 480x272, 480x320 and 800x480 displays, and a second
 one only where its text needs it and the actions keep their room; where they would not, the status
 is cut to one line, the slot count first, then the session, the model verdict last. The rows are
 placed by the standard font's measured line, so a long status never runs into the actions. The model verdict is green when setup passes, amber while
 unchecked or checking, and red for a setup fault. Warnings about FC bounds and an unsaved model
-default stay in the panel. Secondary actions sit two to a row where both captions fit half the
-width and one to a row otherwise, in the same encoder order, above **Restore all**. The space down
-to the footer is shared out; the full-width primary action is a little taller where there is room
-(on 480x272 with every warning shown it can equal the others). On 800x480, status rows and
-secondary captions use the standard font, with a larger primary caption when it fits.
+default follow below the rows. Under the line, the full-width primary action comes first; the
+other actions follow in one row of equal cells, in encoder order, **Restore all** the last of
+them. A caption may take two lines in its cell where the row is tall enough; where a caption does
+not fit, the cells go two to a row. The primary is taller than the cells, up to a fixed height, and
+the room left stays empty above the footer (on 480x272 with every warning shown it can equal the
+others). On 800x480, status rows and secondary captions use the standard font, with a larger
+primary caption when it fits.
 
 When **Adjustment Announcements** is off, the footer warns that adjustment announcements
 are off and **Turn on announcements** enables and saves the existing radio-wide preference.
@@ -203,7 +212,7 @@ model's flight list on the next pass; the ground surface says if that write fail
 changes nothing. The picker closes when the model is armed.
 The flight list is edited only here, on the ground screen; the radio settings have no second editor.
 
-**Set up suggested functions** is a secondary grid action when the board offers parameters.
+**Set up suggested functions** is the secondary action **Functions** when the board offers parameters.
 After a completed read with no tunable slots on the configured channel pair, a line explains
 that the FC has no adjustment functions for in-flight tuning and this becomes the large primary
 action in place of **Choose parameters**. It is absent while armed; during a read or restore it is shown disabled.
@@ -302,20 +311,20 @@ board whose own layout you want to keep. **Choose parameters** narrows either se
 flies, without changing the board.
 
 Below it, **Read again** refreshes the session's profiles without changing its start values.
-**Restore all** is set apart at the bottom in the destructive-action colour and opens the
+**Restore all**, the last action of the row, is named in red and opens the
 confirmation naming its targets; it writes back the session's start values. No spare FC profile
 is reserved; old stored spare-slot settings are ignored. There is no separate action to replace
 the start values: every session reads its own.
 
 A read or restore on the ground runs inside the ground surface. The **Session** row shows
-**Reading** or **Restoring** with **Step x of y**, a bar and the current operation follow in the
-panel, and the other actions stay on screen, disabled, until it ends. In the place of the primary
+**Reading** or **Restoring** with **Step x of y**, a bar and the current operation follow under the
+rows, and the other actions stay on screen, disabled, until it ends. In the place of the primary
 action, **Cancel** is offered only during a read, before the return to the original profiles (a
 restore must finish its writes and return), and **Read again** while that return is held. Within a
 session, its stored start values are checked on the SD card before the first profile is read
 (*Checking the saved session*).
 
-![A read on the ground: its progress runs inside the status panel, the actions stay in place](../images/inflight/overlay-reading.png)
+![A read on the ground: its progress runs under the status rows, the actions stay in place](../images/inflight/overlay-reading.png)
 
 A read or restore started from the post-flight screen takes its own progress screen with a
 **Reading** or **Restoring** title, so the change list it was started from is still there when it
@@ -353,8 +362,6 @@ transaction. Missing/incomplete/foreign start values refuse restoration. They ar
 session's tracked parameters, not a full FC configuration backup.
 
 ### In the air
-
-The overlay uses a Rotorflight dark palette with a blue accent.
 
 ![In the air: the group as the title, the selected function with its value, its neighbours below](../images/inflight/overlay-live.png)
 

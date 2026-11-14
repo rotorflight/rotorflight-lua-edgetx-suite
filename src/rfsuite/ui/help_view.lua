@@ -56,7 +56,14 @@ function HelpView.build(ctx)
   end
   local textW = math.max(40, (ctx.contentW or LCD_W) - 16)
 
+  -- The scheme's page colour can only stand behind a column layout as a floating object; where the
+  -- firmware cannot float one, the text keeps the radio theme's colour, readable on its background.
   local children = {}
+  local textColor = nil
+  if Palette.canFloat() then
+    Palette.appendBackground(children, LCD_W or 480, LCD_H or 320)
+    textColor = Palette.text
+  end
   local function marker()
     children[#children + 1] = { type = "button", w = textW, h = 2, text = "" }
   end
@@ -70,7 +77,7 @@ function HelpView.build(ctx)
       type = "label",
       w = textW,
       text = line ~= "" and line or " ",
-      color = Palette.text,
+      color = textColor,
       font = SMLSIZE
     }
   end

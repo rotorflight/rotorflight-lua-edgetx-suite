@@ -1195,7 +1195,7 @@ local function buildCurvePicker(children, x, y, w, i18n)
       function(v)
         Graph.selectSession(v)
         rebuild()
-      end)
+      end, { helpText = pageText(i18n, "graph_flight_help") })
   end
 
   local columns = Graph.getColumns()
@@ -1219,6 +1219,7 @@ local function buildCurvePicker(children, x, y, w, i18n)
   end
 
   local curveLabel = pageText(i18n, "graph_curve")
+  local curveHelp = pageText(i18n, "graph_curve_help")
   for k = 1, Graph.MAX_CURVES do
     local slot = k
     cursorY = cursorY + Controls.appendComboSelect(
@@ -1227,7 +1228,7 @@ local function buildCurvePicker(children, x, y, w, i18n)
       function(v)
         if v == 0 then state.slots[slot] = nil else state.slots[slot] = v end
         rebuild()
-      end)
+      end, { helpText = curveHelp })
   end
 
   local chosen = {}

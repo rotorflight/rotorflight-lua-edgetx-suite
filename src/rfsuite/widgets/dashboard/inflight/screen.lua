@@ -38,6 +38,7 @@ end
 local Functions = requireModule("widgets/dashboard/inflight/functions.lua")
 local Drive = requireModule("widgets/dashboard/inflight/drive.lua")
 local Input = requireModule("widgets/dashboard/inflight/input.lua")
+local Schemes = requireModule("lib/color_schemes.lua")
 
 -- A dependency that did not load must not leave a WORKING-LOOKING module behind.
 --
@@ -55,7 +56,7 @@ local Input = requireModule("widgets/dashboard/inflight/input.lua")
 -- Raising here instead means the pcall in lib/require.lua fails, NOTHING is cached, and the next
 -- pass loads the file again on a budget that may well be quieter. A missing file behaves the same
 -- way and is answered by the caller, which keeps its own retry.
-if type(Functions) ~= "table" or type(Drive) ~= "table" or type(Input) ~= "table" then
+if type(Functions) ~= "table" or type(Drive) ~= "table" or type(Input) ~= "table" or type(Schemes) ~= "table" then
   error("inflight/screen.lua: a dependency did not load", 0)
 end
 
@@ -82,39 +83,51 @@ end
 -- Colours
 -- ---------------------------------------------------------------------------
 
---- The surface's palette.
+--- The surface's palette: the suite's colour scheme the pilot has chosen.
 --
--- The theme's own constants where the quick settings menu uses them, and named colours where the
--- drawing asks for one the theme does not carry. `lcd.RGB` is the firmware's own mixer and this
--- file is not the first to reach for it: widgets/dashboard/fullscreen_menu.lua builds its
--- background with it, and widgets/dashboard/objects/common.lua wraps it for the gauges.
+-- The scheme is `general.color_scheme` in the widget's preferences (Settings > General >
+-- Appearance), the same one the quick menu this surface opens from is drawn in, so the two never
+-- differ. The values are lib/color_schemes.lua's; this table only names what each one is used for
+-- here. Anything but "dark" reads as the default, light.
 --
--- Rotorflight's dark surface and blue accent stay local to the overlay. Every colour retains a
--- theme fallback on a firmware build without lcd.RGB.
-local function rgb(r, g, b, fallback)
-  if lcd and type(lcd.RGB) == "function" then
-    local ok, col = pcall(lcd.RGB, r, g, b)
-    if ok and col ~= nil then return col end
-  end
-  return fallback
-end
+-- One table per scheme, kept: a build asks for it once and the answer changes only when the pilot
+-- saves the settings page.
+local palettes = {}
 
-local function palette()
-  local p = {}
-  p.bg = rgb(20, 25, 30, COLOR_THEME_PRIMARY3 or BLACK)
-  p.header = rgb(30, 37, 44, COLOR_THEME_PRIMARY1 or BLACK)
-  p.text = rgb(233, 238, 242, WHITE)
-  p.dim = rgb(154, 167, 179, COLOR_THEME_DISABLED or WHITE)
-  p.accent = rgb(41, 163, 224, COLOR_THEME_SECONDARY1 or BLUE)
-  p.onAccent = rgb(11, 18, 24, BLACK)
-  p.border = rgb(52, 64, 75, COLOR_THEME_DISABLED or WHITE)
-  p.error = rgb(229, 83, 75, RED)
-  p.ok = rgb(90, 200, 120, GREEN or WHITE)
-  p.warn = rgb(242, 163, 58, COLOR_THEME_WARNING or YELLOW)
-  p.button = p.header
-  -- The armed row's fill: dark, with just enough of the accent in it that the outline reads as
-  -- belonging to the row rather than floating over it.
-  p.rowFill = rgb(30, 52, 67, COLOR_THEME_PRIMARY1 or BLACK)
+local function palette(widget)
+  local prefs = widget and widget.preferences
+  local general = type(prefs) == "table" and prefs.general or nil
+  local name = Schemes.name(type(general) == "table" and general.color_scheme or nil)
+  local p = palettes[name]
+  if p then return p end
+  local c = Schemes.colors(name)
+  p = {
+    name = name,
+    bg = c.page,
+    header = c.header,
+    -- The header strip of the light scheme is the card's white; a rule under it parts it from
+    -- the page. The dark strip is darker than nothing round it, so it needs none.
+    headerRule = name == "light" and c.rule or nil,
+    text = c.text,
+    dim = c.muted,
+    -- A fill or an outline; where the accent is text or a glyph it is accentInk.
+    accent = c.accent,
+    accentInk = c.accentInk,
+    onAccent = c.onAccent,
+    -- A divider and the track of a progress bar.
+    border = c.rule,
+    error = c.error,
+    onError = c.onError,
+    ok = c.ok,
+    warn = c.warning,
+    -- Every action that is not the surface's primary one.
+    button = c.raised,
+    -- The selected row's fill.
+    rowFill = c.selection,
+  }
+  palettes[name] = p
+  local Log = requireModule("lib/log.lua")
+  if Log and type(Log.emit) == "function" then Log.emit("rfsuite.inflight", "tuning colors: " .. name, "debug") end
   return p
 end
 
@@ -389,6 +402,11 @@ local function appendHeader(children, widget, m, w, t, p, closeW)
   children[#children + 1] = {
     type = "rectangle", x = 0, y = 0, w = w, h = m.headerH, color = p.header, filled = true
   }
+  if p.headerRule then
+    children[#children + 1] = {
+      type = "rectangle", x = 0, y = m.headerH - 1, w = w, h = 1, color = p.headerRule, filled = true
+    }
+  end
 
   -- The headline is the PROFILE, and that is the pilot's own ruling after the third radio round.
   -- The firmware's adjustments act on whichever PID profile is active, he chooses that with a
@@ -418,7 +436,7 @@ local function appendHeader(children, widget, m, w, t, p, closeW)
   elseif snapshot.phase == "live" then
     liveText, liveColor = t("widgets.dashboard.inflight_live", "LIVE"), p.ok
   elseif snapshot.phase == "post" then
-    liveText, liveColor = t("widgets.dashboard.inflight_after", "AFTER"), p.accent
+    liveText, liveColor = t("widgets.dashboard.inflight_after", "AFTER"), p.accentInk
   else
     liveText, liveColor = t("widgets.dashboard.inflight_ground", "GROUND"), p.dim
   end
@@ -485,7 +503,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
   local function button(target, x, y, width, height, text, press, color)
     target[#target + 1] = {
       type = "button", x = x, y = y, w = width, h = height, color = color or p.button,
-      text = text, textColor = p.text, press = press
+      text = text, textColor = color == p.accent and p.onAccent or p.text, press = press
     }
   end
   local title = group and group.name or t("widgets.dashboard.inflight_no_parameters", "No driveable parameters")
@@ -504,14 +522,11 @@ local function appendFlight(children, widget, m, w, h, t, p)
     hint = t("widgets.dashboard.inflight_browse_controls", "PAGE group / Rotate function / Press tune")
     shortHint = t("widgets.dashboard.inflight_browse_controls_short", "PAGE group / Rotate / Press tune")
   end
-  children[#children + 1] = {type = "rectangle", x = 0, y = footerY, w = w, h = m.footerH, color = p.header, filled = true}
   appendCentredLabel(children, m.pad, footerY, lineW, m.footerH,
     pickText(hint, shortHint, lineW, m.small),
     p.dim, m.small, CENTER, m)
 
   if paused then
-    children[#children + 1] = {type = "rectangle", x = m.pad, y = contentY, w = lineW,
-      h = footerY - contentY - 4, color = p.header, filled = true}
     local y = contentY + m.pad
     appendLabel(children, m.pad * 2, y, lineW - m.pad * 2,
       t("widgets.dashboard.inflight_paused", "PAUSED"), p.error, MIDSIZE, LEFT)
@@ -575,7 +590,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
       local forward, reverse = sensor.windows()
       local ladder, previous = {}, {}
       local first, leave = sensor.first, sensor.leave
-      local color, textColor = p.header, p.text
+      local color, textColor = p.bg, p.text
       -- The transparent resting window still participates in pointer hit testing.
       previous[1] = {
         type = "button", y = first * nameH, w = lineW, h = nameH,
@@ -585,7 +600,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
       local function guard(list, index)
         list[#list + 1] = {
           type = "button", x = 0, y = index * nameH, w = lineW, h = nameH,
-          color = p.header, textColor = p.text, font = m.font,
+          color = p.bg, textColor = p.text, font = m.font,
           text = t("widgets.dashboard.inflight_encoder", "Encoder"), press = sensor.leave
         }
       end
@@ -625,11 +640,11 @@ local function appendFlight(children, widget, m, w, h, t, p)
     local centreX, centreW = m.pad, lineW - stepW - m.pad
     appendLabel(children, centreX, valueY, centreW,
       function() local snap = state.inflight; return snap and snap.activeValueText or UNKNOWN_VALUE end,
-      p.accent, m.valueFont, CENTER)
+      p.accentInk, m.valueFont, CENTER)
     local compareY = valueY + m.valueH + 2
     appendLabel(children, centreX, compareY, centreW,
       function() local snap = state.inflight; return snap and snap.activeComparison or "" end,
-      p.accent, m.large and 0 or m.small, CENTER)
+      p.accentInk, m.large and 0 or m.small, CENTER)
     local refusals = {
       cooling = t("widgets.dashboard.inflight_too_fast", "too fast - one step at a time"),
       range = t("widgets.dashboard.inflight_custom_range", "Row cannot be stepped"),
@@ -723,7 +738,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
         {type = "label", x = 8 - buttonX, y = 0, w = selNameW,
           text = sensor and selectedName or fitTwoLines(entry.name, selNameW, nameFont), color = p.text, font = nameFont, align = VCENTER},
         {type = "label", x = selNameW + 10 - buttonX, y = 0, w = diffW,
-          text = field("differenceText", ""), color = p.accent, font = m.small, align = RIGHT + VCENTER},
+          text = field("differenceText", ""), color = p.accentInk, font = m.small, align = RIGHT + VCENTER},
         {type = "label", x = lineW - selValueW - 16 - buttonX, y = 0,
           w = selValueW, text = field("valueText", UNKNOWN_VALUE), color = p.text, font = m.selectedValueFont, align = RIGHT + VCENTER}
       } end
@@ -775,7 +790,7 @@ local function appendFlight(children, widget, m, w, h, t, p)
         end
         appendCentredLabel(children, m.pad + 8, rowY, nameW, rowH, field("name", ""), p.text, m.listFont, LEFT, m)
         appendCentredLabel(children, m.pad + nameW + 10, rowY, diffW, rowH,
-          field("differenceText", ""), p.accent, m.small, RIGHT, m)
+          field("differenceText", ""), p.accentInk, m.small, RIGHT, m)
         appendCentredLabel(children, w - m.pad - valueW - 8, rowY, valueW, rowH,
           field("valueText", ""), p.text, m.listFont, RIGHT, m)
       end
@@ -801,9 +816,9 @@ local function appendFlight(children, widget, m, w, h, t, p)
     button(children, titleX, groupY, titleW, groupH, title, function() openGroupPicker(widget) end, p.accent)
     return
   end
-  button(children, m.pad, groupY, arrowW, groupH, "<", action("function", -1), p.accent)
+  button(children, m.pad, groupY, arrowW, groupH, "<", action("function", -1))
   button(children, titleX, groupY, titleW, groupH, title, function() openGroupPicker(widget) end)
-  button(children, w - m.pad - arrowW, groupY, arrowW, groupH, ">", action("function", 1), p.accent)
+  button(children, w - m.pad - arrowW, groupY, arrowW, groupH, ">", action("function", 1))
 end
 
 local appendBusy, busyStepText
@@ -830,7 +845,7 @@ local function appendClose(children, widget, m, w, p)
     type = "button", x = x, y = y, w = size, h = size, color = p.error,
     press = function() Input.dispatch(widget, "close", nil, "touch") end
   }
-  appendCentredLabel(children, x, y, size, size, "X", p.text, m.font, CENTER, m)
+  appendCentredLabel(children, x, y, size, size, "X", p.onError, m.font, CENTER, m)
 end
 
 -- ---------------------------------------------------------------------------
@@ -992,8 +1007,8 @@ function M.buildGround(children, widget, m, w, h, t, p)
   local labelX, valueX = m.pad + inset, m.pad + inset + labelW + 6
   local valueW = lineW - inset * 2 - labelW - 6
   local fullW = lineW - inset * 2
-  children[#children + 1] = {type = "rectangle", x = m.pad, y = y, w = lineW, h = 0, color = p.header, filled = true}
-  local panel = children[#children]
+  -- The status rows stand on the page with no box round them; a rule under them parts them from
+  -- the actions.
   y = y + inset
 
   -- One status row: a dim caption and a value on one line, or on two where `lines` says so.
@@ -1018,31 +1033,52 @@ function M.buildGround(children, widget, m, w, h, t, p)
   local footerY = h - footerH
   local gap = m.large and 8 or 4
   local barH = m.large and 8 or 5
-  local halfW = math.floor((lineW - gap) / 2)
   local available = not busy and not (drive and drive.restorePending)
   local completed = not first.readRequired and first.prime and first.prime.phase == "done"
   local emptyBoard = completed and (first.setSource ~= "board" or (first.cellCount or 0) == 0)
   local boundsRow = not busy and not first.readRequired and (first.boundsCount or 0) > 0
   local saveRow = not busy and drive ~= nil and drive.saveResult ~= nil and drive.saveResult ~= "ok"
 
-  -- The secondary actions, two to a row where both captions fit half the width. Each entry is
-  -- {caption, press, usable while a return is held}.
-  local function pairRows(list)
-    local rows, index = {}, 1
-    while index <= #list do
-      local a, b = list[index], list[index + 1]
-      if b and textFits(a[1], halfW - 8, lineFont) and textFits(b[1], halfW - 8, lineFont) then
-        rows[#rows + 1], index = {a, b}, index + 2
-      else
-        rows[#rows + 1], index = {a}, index + 1
+  -- The secondary actions share ONE row under the primary, equal in width, as long as every caption
+  -- fits its cell on one line -- or on two, where the row is tall enough for two. Otherwise they go
+  -- two to a row. Each entry is {caption, press, usable while a return is held, usable, danger}.
+  local function captionFits(text, width, twoLines)
+    if textFits(text, width, lineFont) then return true end
+    if not twoLines then return false end
+    -- Two lines that lose nothing: fitTwoLines breaks at a space and cuts only what does not fit.
+    local wrapped = fitTwoLines(text, width, lineFont)
+    return string.find(wrapped, "\n", 1, true) ~= nil and #wrapped == #text
+  end
+  -- The rows, and whether a caption in them needs its second line.
+  local function actionRows(list, twoLines)
+    local cellW = math.floor((lineW - gap * (#list - 1)) / math.max(1, #list))
+    local perRow, needsTwo = #list, false
+    for _, entry in ipairs(list) do
+      if not captionFits(entry[1], cellW - 8, twoLines) then perRow = 2
+      elseif not textFits(entry[1], cellW - 8, lineFont) then needsTwo = true end
+    end
+    if perRow == 2 then
+      -- Two to a row: one line each where half the width holds it, the cell's two lines otherwise.
+      local halfW = math.floor((lineW - gap) / 2)
+      needsTwo = false
+      for _, entry in ipairs(list) do
+        if not textFits(entry[1], halfW - 8, lineFont) then needsTwo = true end
       end
+    end
+    local rows = {perRow = perRow, needsTwo = needsTwo}
+    for index = 1, #list, perRow do
+      local cells = {}
+      for column = index, math.min(#list, index + perRow - 1) do cells[#cells + 1] = list[column] end
+      rows[#rows + 1] = cells
     end
     return rows
   end
+  local restoreLabel = t("widgets.dashboard.inflight_restore_all", "Restore all")
   local captions = {}
-  if not emptyBoard then captions[#captions + 1] = {t("widgets.dashboard.inflight_fc_setup_action", "Set up suggested functions")} end
+  if not emptyBoard then captions[#captions + 1] = {t("widgets.dashboard.inflight_fc_setup_short", "Functions")} end
   captions[#captions + 1] = {t("widgets.dashboard.inflight_read_again", "Read again")}
   if announcementsOff then captions[#captions + 1] = {t("widgets.dashboard.inflight_announcements_enable", "Turn on announcements")} end
+  captions[#captions + 1] = {restoreLabel}
 
   -- The actions are given their room first: each needs a line of text and its margin. Where the
   -- panel would leave less, a status that wanted two lines takes one -- the skipped count first,
@@ -1054,7 +1090,9 @@ function M.buildGround(children, widget, m, w, h, t, p)
   local extraRows = (job and 1 or 0) + (boundsRow and 1 or 0) + (saveRow and 1 or 0)
   -- From 320 px up an action keeps a comfortable height and the primary a little more; below, a
   -- line of text and its margin.
-  local actionCount = #pairRows(captions) + 2
+  -- Sized for the rows the actions need at worst, one line per caption: sized for the one-row
+  -- layout, a fallback to two to a row found later would squeeze the primary to the cells' height.
+  local actionCount = #actionRows(captions, false) + 1
   local actionMin = h >= 320 and 28 or lineH + 2
   local actionsNeed = actionCount * actionMin + (h >= 320 and 8 or 0) + gap * (actionCount + 1)
     + ((emptyBoard and available) and lineH * 2 + gap or 0)
@@ -1111,7 +1149,7 @@ function M.buildGround(children, widget, m, w, h, t, p)
         stepText = fitText(title .. " - " .. string.format(stepFormat, at, total), valueW, lineFont)
       end
       return stepText
-    end, p.accent)
+    end, p.accentInk)
   else
     local lastPending, lastTransfer, lastReason, lastSummary, lastPhase, lastError, lastDone, lastSessionRead, lastStamp, sessionText
     local lastExpired
@@ -1192,8 +1230,9 @@ function M.buildGround(children, widget, m, w, h, t, p)
       "Not saved as the model default:") .. " " .. drive.saveResult, fullW, lineFont), p.warn, lineFont, LEFT)
     y = y + lineH + rowGap
   end
-  panel.h = y - rowGap + inset - panel.y
-  y = panel.y + panel.h + gap
+  y = y - rowGap + inset
+  children[#children + 1] = {type = "rectangle", x = m.pad, y = y, w = lineW, h = 1, color = p.border, filled = true}
+  y = y + 1 + gap
 
   -- Why the ground half is refusing, when it is not simply that the board is armed. The one case
   -- so far is the arm sensor never having answered: the ground half then refuses everything,
@@ -1211,7 +1250,6 @@ function M.buildGround(children, widget, m, w, h, t, p)
   end
   if drive == nil or Prime == nil then return end
 
-  children[#children + 1] = {type = "rectangle", x = 0, y = footerY, w = w, h = footerH, color = p.header, filled = true}
   -- The footer carries the announcement state: a failed attempt to turn them on, that they are off,
   -- or, with nothing to warn about, the controls.
   local footerText = drive and drive.announcementsSaveFailed
@@ -1246,7 +1284,7 @@ function M.buildGround(children, widget, m, w, h, t, p)
 
   local secondaries = {}
   if not emptyBoard then
-    secondaries[#secondaries + 1] = {t("widgets.dashboard.inflight_fc_setup_action", "Set up suggested functions"), openSetup}
+    secondaries[#secondaries + 1] = {t("widgets.dashboard.inflight_fc_setup_short", "Functions"), openSetup}
   end
   secondaries[#secondaries + 1] = {t("widgets.dashboard.inflight_read_again", "Read again"), function()
     if drive.fcSetupOpen then return end
@@ -1280,16 +1318,39 @@ function M.buildGround(children, widget, m, w, h, t, p)
       changed()
     end}
   end
-  local rows = pairRows(secondaries)
+  -- Restore all is the last action of the row: it puts the session's start values back, so it is
+  -- drawn like the others and named in the error colour rather than filled with it.
+  secondaries[#secondaries + 1] = {restoreLabel, function()
+    if not available or drive.fcSetupOpen or drive.sessionExpired then return end
+    drive.restoreConfirm = {all = true}
+    changed()
+  end, false, function() return available and not drive.sessionExpired end, true}
 
-  -- The space between the panel and the footer is shared: the primary gets a little more, Restore
-  -- all sits on the footer, every other row has one height.
-  local count = #rows + 2
-  local space = footerY - gap - y - gap * (count - 1)
-  local extra = m.large and 16 or 6
-  local secondaryH = math.floor((space - extra) / count)
-  if secondaryH < lineH + 4 then extra, secondaryH = 0, math.floor(space / count) end
-  local primaryH = space - secondaryH * (count - 1)
+  -- The primary takes the room the row of secondaries leaves, up to a height that still reads as a
+  -- button; what is left stays empty above the footer rather than swelling every action.
+  local primaryCap = m.large and 84 or (h >= 320 and 56 or 44)
+  local secondaryCap = m.large and 64 or (h >= 320 and 44 or 36)
+  local function layout(twoLines)
+    local rows = actionRows(secondaries, twoLines)
+    local count = #rows + 1
+    local space = footerY - gap - y - gap * (count - 1)
+    local extra = m.large and 16 or 6
+    local secondaryH = math.min(secondaryCap, math.floor((space - extra) / count))
+    -- A caption on two lines needs the height for both.
+    if twoLines and rows.needsTwo then secondaryH = math.max(secondaryH, lineH * 2 + 4) end
+    if secondaryH < lineH + 4 then secondaryH = math.floor(space / count) end
+    local primaryH = math.min(primaryCap, space - secondaryH * (count - 1))
+    return rows, secondaryH, primaryH
+  end
+  local rows, secondaryH, primaryH = layout(true)
+  -- Where the row of two-line cells leaves the primary no taller than the cells, the captions go on
+  -- one line each instead, two to a row.
+  if rows.needsTwo and primaryH <= secondaryH then rows, secondaryH, primaryH = layout(false) end
+  local Log = requireModule("lib/log.lua")
+  if Log and type(Log.emitf) == "function" then
+    Log.emitf("rfsuite.inflight", "trace", "ground actions: %s rows of %s, primary %s, cells %s, two-line %s",
+      #rows, rows.perRow, primaryH, secondaryH, tostring(rows.needsTwo))
+  end
   local action = {small = lineFont, textOff = 0, wrap = true, actionH = primaryH}
 
   local primaryLabel = emptyBoard and t("widgets.dashboard.inflight_fc_setup_action", "Set up suggested functions")
@@ -1336,27 +1397,23 @@ function M.buildGround(children, widget, m, w, h, t, p)
   y = y + primaryH + gap
   action.actionH, action.small = secondaryH, lineFont
 
+  -- One width for every cell, an odd last cell included, so the cells read as one set.
+  local cellW = math.floor((lineW - gap * (rows.perRow - 1)) / rows.perRow)
   for _, cells in ipairs(rows) do
-    local cellW = #cells == 2 and halfW or lineW
     for column, cell in ipairs(cells) do
       -- Read again also retries a held return to the original profiles, so it stays usable then.
-      local usable = cell[3] and function() return available or drive.restorePending == true end or isAvailable
-      appendAction(children, action, m.pad + (column - 1) * (halfW + gap), y, cellW, cell[1], p, function()
+      local usable = cell[4] or (cell[3] and function() return available or drive.restorePending == true end) or isAvailable
+      local at = #children + 1
+      appendAction(children, action, m.pad + (column - 1) * (cellW + gap), y, cellW, cell[1], p, function()
         if usable() then cell[2]() end
       end)
-      children[#children - 1].active = usable
+      children[at].active = usable
+      if cell[5] then
+        for index = at + 1, #children do children[index].color = p.error end
+      end
     end
     y = y + secondaryH + gap
   end
-
-  appendAction(children, action, m.pad, footerY - gap - secondaryH, lineW,
-    t("widgets.dashboard.inflight_restore_all", "Restore all"), p, function()
-      if not available or drive.fcSetupOpen or drive.sessionExpired then return end
-      drive.restoreConfirm = {all = true}
-      changed()
-    end)
-  children[#children - 1].color = p.error
-  children[#children - 1].active = function() return available and not drive.sessionExpired end
 end
 
 -- ---------------------------------------------------------------------------
@@ -1375,13 +1432,13 @@ function M.buildPost(children, widget, m, w, h, t, p)
   local footer = widget.state.armed == true
     and t("widgets.dashboard.inflight_post_armed_controls", "Board has saved")
     or t("widgets.dashboard.inflight_post_controls", "RTN close / Board has saved")
-  children[#children + 1] = {type = "rectangle", x = 0, y = footerY, w = w, h = m.footerH, color = p.header, filled = true}
   appendCentredLabel(children, m.pad, footerY, lineW, m.footerH, footer, p.dim, m.small, LEFT, m)
 
   if drive and drive.postActionsOpen then
     local target = drive.postActionsOpen
     local bw = math.floor((lineW - m.pad) / 2)
-    appendLabel(children, m.pad, y, lineW, t("widgets.dashboard.inflight_post_actions", "Restore / read values"), p.accent, rowFont, LEFT)
+    appendLabel(children, m.pad, y, lineW, t("widgets.dashboard.inflight_post_actions", "Restore / read values"),
+      p.accentInk, rowFont, LEFT)
     y = y + rowH
     local menuGap = math.max(4, math.floor(m.pad / 2))
     -- The restores are shown disabled while the session's end is pending (see describeBackup).
@@ -1394,6 +1451,7 @@ function M.buildPost(children, widget, m, w, h, t, p)
       widget._tuningKeyDirty = true
     end)
     children[restoreAt].active = restorable
+    for index = restoreAt + 1, #children do children[index].color = p.error end
     appendAction(children, m, m.pad * 2 + bw, y, bw, t("widgets.dashboard.inflight_read_again", "Read again"), p, function()
       drive.postActionsOpen = nil
       if drive.restorePending then Prime.retryReturn(drive) else Prime.refreshValues(widget, drive) end
@@ -1411,6 +1469,7 @@ function M.buildPost(children, widget, m, w, h, t, p)
       widget._tuningKeyDirty = true
     end)
     children[restoreAt].active = restorable
+    for index = restoreAt + 1, #children do children[index].color = p.error end
     y = y + m.actionH + menuGap
     appendAction(children, m, m.pad, y, lineW, t("widgets.dashboard.inflight_post_back", "Back to changes"), p, function()
       drive.postActionsOpen = nil; drive.valueEpoch = drive.valueEpoch + 1
@@ -1423,7 +1482,7 @@ function M.buildPost(children, widget, m, w, h, t, p)
     and t("widgets.dashboard.inflight_changed_count_one", "%d parameter changed")
     or t("widgets.dashboard.inflight_changed_count", "%d parameters changed"))
   appendLabel(children, m.pad, y, lineW, list and string.format(countText, #list)
-    or t("widgets.dashboard.inflight_delta_unprimed", "Read the values first: nothing to compare against"), p.accent, rowFont, LEFT)
+    or t("widgets.dashboard.inflight_delta_unprimed", "Read the values first: nothing to compare against"), p.accentInk, rowFont, LEFT)
   -- A label is laid out with LVGL's own line, which for the middle font at 800x480 is about 41 px
   -- and for the small one about 22: a step of the row height put the heading under the first band
   -- and the caption above the buttons on their top border.
@@ -1458,11 +1517,12 @@ function M.buildPost(children, widget, m, w, h, t, p)
     if entry.heading then
       children[#children + 1] = {type = "rectangle", x = m.pad, y = rowY, w = lineW, h = rowH, color = p.rowFill, filled = true}
       appendCentredLabel(children, m.pad + 4, rowY, lineW - 8, rowH,
-        fitText(entry.heading, lineW - 8, rowFont), p.accent, rowFont, LEFT, m)
+        fitText(entry.heading, lineW - 8, rowFont), p.accentInk, rowFont, LEFT, m)
     else
       appendCentredLabel(children, m.pad + 4, rowY, nameW - 4, rowH, fitText(entry.name, nameW - 4, rowFont), p.text, rowFont, LEFT, m)
       appendCentredLabel(children, m.pad + nameW, rowY, lineW - nameW - 4, rowH,
-        formatValue(entry.old) .. " -> " .. formatValue(entry.new) .. "  " .. string.format("%+d", entry.new - entry.old), p.accent, rowFont, RIGHT, m)
+        formatValue(entry.old) .. " -> " .. formatValue(entry.new) .. "  " .. string.format("%+d", entry.new - entry.old),
+        p.accentInk, rowFont, RIGHT, m)
     end
   end
   -- The list stays up while the link is gone (the pack is out), and the session's end becomes
@@ -1489,16 +1549,18 @@ function M.buildPost(children, widget, m, w, h, t, p)
   end)
   children[#children - 1].color = p.accent
   children[#children].color = p.onAccent
+  local restoreAt = #children + 1
   appendAction(children, m, m.pad * 2 + continueW, actionY, buttonW - continueW - m.pad,
     t("widgets.dashboard.inflight_post_restore", "Restore..."), p, function()
     drive.postActionsOpen = {kind = target.scope, index = target.profile}
     drive.valueEpoch = drive.valueEpoch + 1; widget._tuningKeyDirty = true
   end)
+  for index = restoreAt + 1, #children do children[index].color = p.error end
   for index = 1, 2 do
     local direction = index == 1 and -1 or 1
     children[#children + 1] = {
       type = "button", x = w - m.pad - arrowW * (3 - index), y = actionY,
-      w = arrowW - 4, h = m.actionH, color = p.accent, textColor = p.onAccent,
+      w = arrowW - 4, h = m.actionH, color = p.button, textColor = p.text,
       text = index == 1 and "<" or ">", press = function() Input.dispatch(widget, "group", direction, "touch") end
     }
   end
@@ -1543,6 +1605,7 @@ local function appendRestoreConfirmation(children, widget, m, w, t, p)
   end)
   -- Disabled while the session's end is pending (see describeBackup).
   children[restoreAt].active = function() return not drive.sessionExpired end
+  for index = restoreAt + 1, #children do children[index].color = p.error end
   appendAction(children, m, m.pad * 2 + bw, y, bw, t("widgets.dashboard.inflight_restore_cancel", "Cancel"), p, function()
     drive.restoreConfirm = nil
     drive.valueEpoch = drive.valueEpoch + 1; widget._tuningKeyDirty = true
@@ -1625,11 +1688,11 @@ local function appendSessionPicker(children, widget, m, w, h, t, p)
       if target >= 1 and target <= #pages then pick.page = target; refresh() end
     end
   end
-  children[#children + 1] = { type = "button", x = m.pad, y = y, w = arrowW, h = selectorH, color = p.accent,
+  children[#children + 1] = { type = "button", x = m.pad, y = y, w = arrowW, h = selectorH, color = p.button,
     text = "<", textColor = p.text, press = turn(-1) }
   appendCentredLabel(children, m.pad + arrowW, y, lineW - arrowW * 2, selectorH,
     fitText(title, lineW - arrowW * 2, m.font), p.text, m.font, CENTER, m)
-  children[#children + 1] = { type = "button", x = w - m.pad - arrowW, y = y, w = arrowW, h = selectorH, color = p.accent,
+  children[#children + 1] = { type = "button", x = w - m.pad - arrowW, y = y, w = arrowW, h = selectorH, color = p.button,
     text = ">", textColor = p.text, press = turn(1) }
   y = y + selectorH + gap
 
@@ -1642,7 +1705,7 @@ local function appendSessionPicker(children, widget, m, w, h, t, p)
       local on = pick.wanted[entry.id] == true
       children[#children + 1] = {
         type = "button", x = m.pad, y = y, w = lineW, h = rowH - 2,
-        color = on and p.accent or p.rowFill, textColor = on and p.onAccent or p.text,
+        color = on and p.accent or p.button, textColor = on and p.onAccent or p.text,
         text = fitText((on and "[x] " or "[  ] ") .. entry.name, lineW - 16, m.listFont),
         press = function()
           if pick.wanted[entry.id] then
@@ -1710,7 +1773,7 @@ local function appendRestoreResults(children, widget, m, w, h, t, p)
   local page = math.min(drive.restoreResultOpen, pages)
   local y, width = m.headerH + m.pad, w - m.pad * 2
   appendLabel(children, m.pad, y, width, t("widgets.dashboard.inflight_restore_results", "Restore results")
-    .. " " .. page .. "/" .. pages, p.accent, m.small, LEFT)
+    .. " " .. page .. "/" .. pages, p.accentInk, m.small, LEFT)
   y = y + m.lineH
   if transfer.reason then
     appendLabel(children, m.pad, y, width, fitText(M.restoreReason(transfer.reason, t), width, m.small), p.warn, m.small, LEFT)
@@ -1791,7 +1854,7 @@ appendBusy = function(children, widget, m, w, h, t, p)
   local barH = math.max(3, math.floor(m.statusLineH / 3))
   local stepY = barY + barH + m.pad
   local actionY = h - m.actionH - m.pad
-  appendLabel(children, m.pad, m.chipY, width, title, p.accent, m.nameFont, LEFT)
+  appendLabel(children, m.pad, m.chipY, width, title, p.accentInk, m.nameFont, LEFT)
   children[#children + 1] = {
     type = "rectangle", x = m.pad, y = barY, w = width, h = barH, color = p.border, filled = true
   }
@@ -1861,7 +1924,7 @@ function M.buildFullscreen(children, widget)
   local w = (widget.zone and widget.zone.w) or LCD_W or 480
   local h = (widget.zone and widget.zone.h) or LCD_H or 272
   local t = translator(widget)
-  local p = palette()
+  local p = palette(widget)
   local m = metrics(w, h)
 
   children[#children + 1] = { type = "rectangle", x = 0, y = 0, w = w, h = h, color = p.bg, filled = true }

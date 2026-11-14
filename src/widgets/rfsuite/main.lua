@@ -125,9 +125,71 @@ local function letGoWhileBackedOff(widget)
   if type(release) == "function" then pcall(release) end
 end
 
+-- EdgeTX stops every widget's refresh while a tool window is open, so a refresh after a pause is the
+-- first moment after the suite's tool may have ended without putting the radio's theme colours back
+-- (an exhausted memory, an error in its finaliser). The marker it leaves is read then, on the pass
+-- after the pause is seen, and never during the pause: the tool's own background work may still run
+-- (lib/theme_slots.lua, recover).
+local REFRESH_PAUSE_S = 2
+-- Only a marker on the card loads the module, and it is let go again unless this state holds colours
+-- of its own, so a pause costs one fstat and keeps nothing. Never while the tool is open in this widget:
+-- that tool owns the marker and the module instance (widgets/dashboard/tool_host.lua). A recover that
+-- stops part way (the instruction limit) leaves the marker, and is tried again on the next passes, at
+-- most RECOVER_TRIES times per pause, so one that keeps stopping does not load the module every pass.
+local RECOVER_TRIES = 3
+local function recoverThemeSlots(widget)
+  local root = _G.rfsuite
+  local user = root and root.paths and root.paths.user
+  if widget._toolHost ~= nil then return end
+  if not (type(user) == "string" and type(fstat) == "function" and type(root.require) == "function") then return end
+  if fstat(user .. "/theme_slots.txt") == nil then return end
+  -- The load can stop as well as the recover (the instruction limit): either one is tried again.
+  local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
+  local loaded = ok and type(ThemeSlots) == "table" and type(ThemeSlots.recover) == "function"
+  -- rfsuite.require answers nil for a chunk that raised rather than raising itself.
+  local done, err = false, ok and "module not loaded" or ThemeSlots
+  if loaded then done, err = pcall(ThemeSlots.recover) end
+  if not done and fstat(user .. "/theme_slots.txt") ~= nil then
+    local tries = (widget._themeRecoverTries or 0) + 1
+    widget._themeRecoverTries = tries
+    if tries < RECOVER_TRIES then widget._themeRecoverOwed = true end
+    local Log = root.Log
+    if type(Log) == "table" and type(Log.emit) == "function" then
+      pcall(Log.emit, "rfsuite.widget", "theme slot recovery stopped (try " .. tries .. " of " .. RECOVER_TRIES
+        .. "): " .. tostring(err), "warn")
+    end
+  end
+  if loaded and not ThemeSlots.holding() and type(root.clearModule) == "function" then
+    root.clearModule("lib/theme_slots.lua")
+  end
+end
+
+-- A restore the hosted tool's close could not finish (the instruction limit): called again, pass by
+-- pass, until it goes through -- on a background pass too, since a close while the widget is off
+-- screen would otherwise leave the radio's own screens in the scheme until it is shown again.
+local function finishThemeRestore(widget)
+  local root = _G.rfsuite
+  local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
+  if not (ok and type(ThemeSlots) == "table") then widget._themeRestoreOwed = nil; return end
+  if pcall(ThemeSlots.restore, "owed by the hosted tool's close") then widget._themeRestoreOwed = nil end
+end
+
 local function refresh(widget, event, touchState)
   if widget and widget.refresh then
     local now = nowSeconds()
+    if widget._themeRestoreOwed and widget._toolHost == nil then
+      finishThemeRestore(widget)
+    end
+    if widget._themeRecoverOwed then
+      widget._themeRecoverOwed = nil
+      recoverThemeSlots(widget)
+    end
+    local last = widget._lastRefreshAt
+    widget._lastRefreshAt = now
+    if last == nil or now - last > REFRESH_PAUSE_S then
+      widget._themeRecoverOwed = true
+      widget._themeRecoverTries = nil
+    end
     local backoffUntil = tonumber(widget._cpuBackoffUntil) or 0
     if backoffUntil > 0 and now < backoffUntil then
       letGoWhileBackedOff(widget)
@@ -158,6 +220,9 @@ end
 local function background(widget)
   if widget and widget.background then
     local now = nowSeconds()
+    if widget._themeRestoreOwed and widget._toolHost == nil then
+      finishThemeRestore(widget)
+    end
     local backoffUntil = tonumber(widget._cpuBackoffUntil) or 0
     if backoffUntil > 0 and now < backoffUntil then
       letGoWhileBackedOff(widget)

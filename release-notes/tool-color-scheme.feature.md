@@ -1,0 +1,1 @@
+- **The whole tool follows the color scheme from Settings > General > Appearance; it opens light until set to dark (`ui`)**

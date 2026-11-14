@@ -52,8 +52,9 @@ local EMPTY_PTS           = { { 0, 0 }, { 0, 0 } }  -- a line object needs two p
 
 G.MAX_CURVES = 4
 
--- Curve colours. lcd.RGB is used where it exists so the four curves stay apart on
--- a dark page; the named constants are the fallback.
+-- Curve colours. lcd.RGB is used where it exists so the four curves stay apart; the named
+-- constants are the fallback. The page is the colour scheme's: the bright four read on the dark
+-- page, and the light page takes darker ones of the same hues (4.5:1 or more on it).
 local function rgb(r, g, b, fallback)
   if lcd and type(lcd.RGB) == "function" then
     local ok, col = pcall(lcd.RGB, r, g, b)
@@ -62,15 +63,27 @@ local function rgb(r, g, b, fallback)
   return fallback
 end
 
-local CURVE_COLORS = nil
+local CURVE_COLORS, CURVE_SCHEME = nil, nil
 local function curveColors()
-  if not CURVE_COLORS then
-    CURVE_COLORS = {
-      rgb(255, 190, 60, YELLOW),
-      rgb(80, 200, 255, CYAN),
-      rgb(120, 230, 120, GREEN),
-      rgb(255, 130, 200, MAGENTA)
-    }
+  local palette = _G.rfsuite and _G.rfsuite.palette
+  local scheme = palette and palette.scheme or "dark"
+  if not CURVE_COLORS or CURVE_SCHEME ~= scheme then
+    if scheme == "light" then
+      CURVE_COLORS = {
+        rgb(154, 98, 0, YELLOW),
+        rgb(0, 112, 176, CYAN),
+        rgb(31, 122, 51, GREEN),
+        rgb(176, 42, 124, MAGENTA)
+      }
+    else
+      CURVE_COLORS = {
+        rgb(255, 190, 60, YELLOW),
+        rgb(80, 200, 255, CYAN),
+        rgb(120, 230, 120, GREEN),
+        rgb(255, 130, 200, MAGENTA)
+      }
+    end
+    CURVE_SCHEME = scheme
   end
   return CURVE_COLORS
 end
