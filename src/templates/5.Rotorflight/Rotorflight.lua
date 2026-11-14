@@ -350,12 +350,13 @@ local function choiceRow(children, y, row)
 end
 
 -- Every screen is one page: the suite's icon, "Rotorflight" and the step in the header, and the
--- header's back arrow doing what that screen's own way back does.
-local function buildPage(subtitle, body, onBack)
+-- header's back arrow doing what that screen's own way back does. `noIcon` leaves the icon to
+-- the radio, for the notice on a card where the suite's icon file is one of the missing ones.
+local function buildPage(subtitle, body, onBack, noIcon)
   lvgl.clear()
   lvgl.build({
     {
-      type = "page", title = "Rotorflight", subtitle = subtitle, icon = APP_ICON,
+      type = "page", title = "Rotorflight", subtitle = subtitle, icon = (not noIcon) and APP_ICON or nil,
       back = onBack, backButton = true, children = body
     }
   })
@@ -492,8 +493,7 @@ local function buildDone()
   buildPage("@i18n(templates.rotorflight.title_done)@", body, function() quit = true end)
 end
 
--- The notice for a card without the suite, as an lvgl page. It names no icon: the suite's icon
--- is one of the files that are missing here, and without one the page shows the radio's own.
+-- The notice for a card without the suite, as an lvgl page.
 local FALLBACK_LINES = {
   "@i18n(templates.rotorflight.fallback_created)@",
   "@i18n(templates.rotorflight.fallback_needs_1)@",
@@ -519,13 +519,7 @@ local function buildFallback()
     text = "@i18n(templates.rotorflight.close_button)@",
     press = function() quit = true end
   }
-  lvgl.clear()
-  lvgl.build({
-    {
-      type = "page", title = "Rotorflight", back = function() quit = true end, backButton = true,
-      children = body
-    }
-  })
+  buildPage(nil, body, function() quit = true end, true)
 end
 
 local function init()
