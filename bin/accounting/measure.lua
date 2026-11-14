@@ -268,9 +268,10 @@ local cycleFor, cycle = nil, nil
 -- (lib/sensors.lua). An entry with no value set, and every group entry, keeps its zero bytes.
 -- Filled in when the frame is built, never in the cycle, so a value the run moves reaches the next
 -- frame.
--- The scenarios name the battery profile by the radio label they were written with; the frame row
--- is the decoder table's BAT#.
-local SCENARIO_ALIAS = { ["BAT#"] = "BatP" }
+-- The scenarios name two sensors by the radio label they were written with, not by the decoder
+-- table's name: the battery profile (BatP, the frame row is BAT#) and the throttle (Thr%, the frame
+-- row is Thr).
+local SCENARIO_ALIAS = { ["BAT#"] = "BatP", ["Thr"] = "Thr%" }
 
 local function scenarioBytes(sid, width)
   if width > 4 or sid == 0x102F or sid == 0x1126 then return nil end
