@@ -35,7 +35,8 @@ Before the dialog asks anything, the model already has:
 
 ## The dialog
 
-The dialog has two screens.
+The dialog has two screens. It works by touch or with the keys: the rotary moves between the
+rows and buttons, ENTER opens a picker or presses a button, RTN goes back.
 
 **First screen: the switches the model needs.**
 
@@ -67,11 +68,13 @@ The dialog has two screens.
 
 The closing screen lists CH5 to CH10 and the module with the outcome of each write. A channel
 left empty reads *not used*. It ends with the next step: connect the flight controller and set
-it up under *Configuration* → *Setup* in RFSuite. RTN leaves the dialog at any point. The model keeps everything
-from the list above, and the switches can be set up later.
+it up under *Configuration* → *Setup* in RFSuite. RTN on the second screen goes back to the first; on the first screen and on the closing screen
+it leaves the dialog. The model keeps everything from the list above, and the switches can be
+set up later.
 
 The dialog needs RFSuite on the card and a radio with LVGL (EdgeTX 2.11 or later). Without
-them, the model is still created from the template file and a short notice says so.
+them, the model is still created from the template file and a short notice says so; RTN
+closes it, and so does its *Close* button on a radio with LVGL.
 
 ## Related
 

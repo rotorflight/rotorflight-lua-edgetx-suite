@@ -350,12 +350,13 @@ local function choiceRow(children, y, row)
 end
 
 -- Every screen is one page: the suite's icon, "Rotorflight" and the step in the header, and the
--- header's back arrow doing what that screen's own way back does.
-local function buildPage(subtitle, body, onBack)
+-- header's back arrow doing what that screen's own way back does. `noIcon` leaves the icon to
+-- the radio, for the notice on a card where the suite's icon file is one of the missing ones.
+local function buildPage(subtitle, body, onBack, noIcon)
   lvgl.clear()
   lvgl.build({
     {
-      type = "page", title = "Rotorflight", subtitle = subtitle, icon = APP_ICON,
+      type = "page", title = "Rotorflight", subtitle = subtitle, icon = (not noIcon) and APP_ICON or nil,
       back = onBack, backButton = true, children = body
     }
   })
@@ -492,6 +493,35 @@ local function buildDone()
   buildPage("@i18n(templates.rotorflight.title_done)@", body, function() quit = true end)
 end
 
+-- The notice for a card without the suite, as an lvgl page.
+local FALLBACK_LINES = {
+  "@i18n(templates.rotorflight.fallback_created)@",
+  "@i18n(templates.rotorflight.fallback_needs_1)@",
+  "@i18n(templates.rotorflight.fallback_needs_2)@",
+  "@i18n(templates.rotorflight.fallback_needs_3)@"
+}
+
+local function buildFallback()
+  local body = {}
+  local y = 4
+  for i, text in ipairs(FALLBACK_LINES) do
+    if i == 2 then y = y + LABEL_H end
+    body[#body + 1] = { type = "label", x = LEFT, y = y, w = BODY_W, color = P.text, font = SMLSIZE, text = text }
+    y = y + LABEL_H
+  end
+  y = y + LABEL_H
+  body[#body + 1] = {
+    type = "label", x = LEFT, y = y, w = BODY_W, color = P.muted, font = SMLSIZE,
+    text = "@i18n(templates.rotorflight.fallback_close)@"
+  }
+  body[#body + 1] = {
+    type = "button", x = LEFT, y = y + LABEL_H + 8, w = 160, h = BUTTON_H,
+    text = "@i18n(templates.rotorflight.close_button)@",
+    press = function() quit = true end
+  }
+  buildPage(nil, body, function() quit = true end, true)
+end
+
 local function init()
 end
 
@@ -501,7 +531,9 @@ local function run(event)
   -- Without the suite there is no radio module to borrow, and half a wizard would leave half
   -- a layout. The template's yml part is already in the model either way. And without lvgl
   -- there is no picker to offer -- the same honest exit.
-  if R == nil then
+  -- Checked on every pass, not only until the module is loaded: a radio without lvgl has the
+  -- module and still nothing to build the form with.
+  if R == nil or loadError ~= nil then
     if loadError == nil then
       local chunk = loadScript(RADIO_MODULE, "t")
       if type(chunk) == "function" then
@@ -530,6 +562,17 @@ local function run(event)
       end
     end
     if R == nil or loadError ~= nil then
+      -- The script runs in the lvgl layout, where lcd drawing is switched off, so on a radio
+      -- with lvgl the notice is a page of its own -- built once, because a rebuild on every pass
+      -- would take the focus off its button. A radio without lvgl does not know the layout flag
+      -- and runs the script on the lcd canvas, where the same lines are drawn.
+      if lvgl ~= nil and type(lvgl.build) == "function" then
+        if view ~= "fallback" then
+          buildFallback()
+          view = "fallback"
+        end
+        return 0
+      end
       if event == EVT_VIRTUAL_ENTER then return 1 end
       if lcd ~= nil and lcd.clear ~= nil then
         lcd.clear()
@@ -554,4 +597,7 @@ local function run(event)
   return 0
 end
 
-return { init = init, run = run }
+-- `useLvgl` puts the form's controls into the radio's focus group: the rotary moves between the
+-- rows, ENTER opens a picker, RTN reaches the page's back. Without it the script window holds
+-- every key itself and the controls answer to touch only.
+return { init = init, run = run, useLvgl = true }
