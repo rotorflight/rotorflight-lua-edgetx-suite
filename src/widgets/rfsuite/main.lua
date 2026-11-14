@@ -146,7 +146,8 @@ local function recoverThemeSlots(widget)
   -- The load can stop as well as the recover (the instruction limit): either one is tried again.
   local ok, ThemeSlots = pcall(root.require, "lib/theme_slots.lua")
   local loaded = ok and type(ThemeSlots) == "table" and type(ThemeSlots.recover) == "function"
-  local done, err = false, ThemeSlots
+  -- rfsuite.require answers nil for a chunk that raised rather than raising itself.
+  local done, err = false, ok and "module not loaded" or ThemeSlots
   if loaded then done, err = pcall(ThemeSlots.recover) end
   if not done and fstat(user .. "/theme_slots.txt") ~= nil then
     local tries = (widget._themeRecoverTries or 0) + 1

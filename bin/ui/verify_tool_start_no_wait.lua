@@ -203,10 +203,9 @@ if case == "landing" then
   expect(state.pageBuildFailed == nil and state.activePageMenuId == PAGE,
     "the landing's page did not build: failed " .. tostring(state.pageBuildFailed) .. ", active " .. tostring(state.activePageMenuId))
   -- The page being active says which module is current, not that its build drew anything: the
-  -- Flight Log's own first scene is its read overlay or, once its read has finished on the theme slots'
-  -- pass, its empty list; no other page draws either line.
-  expect(lastTexts["Reading the flight log"] == true or lastTexts["No flights recorded yet"] == true,
-    "the first scene does not show the Flight Log page's own content")
+  -- Flight Log's own first scene is its read overlay, and no other page draws that line. The theme slots'
+  -- pass in between runs no wakeup of the page, so its read has not started before that scene.
+  expect(lastTexts["Reading the flight log"] == true, "the first scene does not show the Flight Log page's own content")
   print("CHECKS " .. checks)
   os.exit(0)
 end
