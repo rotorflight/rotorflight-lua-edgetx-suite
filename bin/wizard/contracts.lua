@@ -5872,6 +5872,20 @@ return function(h)
     eq(w.message,L.linkNeedsCrsf,"R26 entering the ELRS card without CRSF says so once")
     w.message=L.pendingSave;controller:tick();controller:tick()
     eq(w.message,L.pendingSave,"R26 the unsaved-changes reminder survives the ELRS card's ticks")
+    -- Without module fields the two lists are value placeholders: drawn, never pressable.
+    w.canEdit=true;w.statusAt=getTime()
+    local scene=h.view.new(w,{w=800,h=480},h.diagrams)
+    while not scene:step() do end
+    local placeholders=0
+    for _,item in ipairs(scene.children) do
+      if item.type=="button" and (item.text==L.linkRate or item.text==L.linkRatio) then
+        placeholders=placeholders+1
+        check(not (item.active and item.active()),"CODEX an ELRS list placeholder is inactive")
+        local ok,err=pcall(item.press)
+        check(ok,"CODEX a tap on an ELRS list placeholder does not raise: "..tostring(err))
+      end
+    end
+    eq(placeholders,2,"CODEX both ELRS list placeholders are drawn")
     w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
   end)
   case("REVIEW26.esc-sensor-feature-asks-for-a-restart",function()
