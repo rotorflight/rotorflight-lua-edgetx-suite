@@ -15,14 +15,15 @@
 -- the flight controller counted it. The five values after the axis are the context the advice
 -- depends on and the reply does not carry; any of them may be nil, which means unknown.
 --
--- Only the newest MAX_FLIGHTS flights are kept, since the page never looks further back. Every
+-- Only the newest MAX_FLIGHTS flights per PID and rate profile are kept, since the page never
+-- looks further back, and at most MAX_FILE_FLIGHTS over all profiles, within WRITE_CAP bytes. Every
 -- write replaces the whole file through lib/atomic_file.lua, so a write that is cut short
 -- leaves the previous file in place rather than a torn one -- under its name, or as the `.bak`
 -- the replace parked it as, which is then read instead. A line that does not read is
 -- skipped and the rest of the file still counts.
 --
--- aggregate() combines the newest flights flown on the newest flight's tune, for one axis:
--- counts add up, ratios are averaged weighted by the count they came from. The flight
+-- aggregate() combines the newest flights flown on the newest flight's tune and profiles, for
+-- one axis: counts add up, ratios are averaged weighted by the count they came from. The flight
 -- controller's own gains are setpoint-squared weighted, so this is an approximation across
 -- flights, close when flights are alike; the stop figures combine exactly. The field set,
 -- precision and arithmetic are those of the Ethos suite's lib/tune_history.lua.
@@ -43,7 +44,9 @@ end
 local USER_ROOT = _G.rfsuite.paths.user
 local DATA_DIR = USER_ROOT .. "/tune"
 local FORMAT_VERSION = 1
-local MAX_FLIGHTS = 5
+local MAX_FLIGHTS = 5               -- kept, and combined, per PID and rate profile
+local MAX_FILE_FLIGHTS = 20         -- kept in the file over all profiles
+local WRITE_CAP = 16384 - 1024      -- READ_CAP below, less a margin: a file over READ_CAP reads as none
 local AXIS_COUNT = 3
 local AXIS_NAMES = { "roll", "pitch", "yaw" }
 local BAND_COUNT = 3
@@ -80,6 +83,10 @@ local CONTEXT_KEYS = { "pidProfile", "rateProfile", "cyclicPolarity", "cyclicRin
 local TUNE_KEYS = { "P", "F", "B", "relaxCutoff", "ratesType", "rcRate", "sRate" }
 -- ...and when these are known and equal on both: they change what the same numbers mean
 local MEANING_KEYS = { "cyclicPolarity", "cyclicRing", "relaxType" }
+-- ...and when these are known and equal on both: a flight on another PID or rate profile was
+-- flown on another setup, even with the same P, F, B and rates, and the advice is saved to the
+-- newest flight's profiles
+local PROFILE_KEYS = { "pidProfile", "rateProfile" }
 
 local LEAD = 3 + #CONTEXT_KEYS
 local ARG_COUNT = LEAD + #FIELDS
@@ -184,7 +191,10 @@ end
 -- bytecode beside the file.
 local LINES_PER_READ_STEP = AXIS_COUNT
 
-local function newCollector()
+-- pid, rate: when given, a line of other or unknown profiles is checked as strictly as any other
+-- but kept as a light row (time, seconds, axis, profiles) without its axis table: a page open
+-- builds tables only for the profiles it shows.
+local function newCollector(pid, rate)
   local axisByName = {}
   for i = 1, AXIS_COUNT do axisByName[AXIS_NAMES[i]] = i end
   local col = { version = nil, rows = {} }
@@ -199,18 +209,24 @@ local function newCollector()
     local args = { ... }
     local axis = axisByName[args[3]]
     if type(args[1]) ~= "number" or type(args[2]) ~= "number" or not axis then error("invalid flight line") end
-    local a = newAxis()
     for k = 1, #CONTEXT_KEYS do
       local v = args[3 + k]
       if v ~= nil and type(v) ~= "number" then error("invalid flight line") end
-      a[CONTEXT_KEYS[k]] = v
     end
-    for k, f in ipairs(FIELDS) do
-      local v = args[LEAD + k]
-      if type(v) ~= "number" then error("invalid flight line") end
-      if f.band then a[f.band][f.index][f[2]] = v else a[f[2]] = v end
+    for k = 1, #FIELDS do
+      if type(args[LEAD + k]) ~= "number" then error("invalid flight line") end
     end
-    col.rows[#col.rows + 1] = { time = args[1], seconds = args[2], axis = axis, a = a }
+    local row = { time = args[1], seconds = args[2], axis = axis, pidProfile = args[4], rateProfile = args[5] }
+    if pid == nil or (args[4] == pid and args[5] == rate) then
+      local a = newAxis()
+      for k = 1, #CONTEXT_KEYS do a[CONTEXT_KEYS[k]] = args[3 + k] end
+      for k, f in ipairs(FIELDS) do
+        local v = args[LEAD + k]
+        if f.band then a[f.band][f.index][f[2]] = v else a[f[2]] = v end
+      end
+      row.a = a
+    end
+    col.rows[#col.rows + 1] = row
   end
   col.env = env
   return col
@@ -233,9 +249,11 @@ local function collectLines(job, first, last)
   end
 end
 
---- A read of one flight controller's saved flights in steps (see M.readStep).
-function M.readJob(mcuId)
-  return { kind = "read", phase = "read", mcuId = mcuId }
+--- A read of one flight controller's saved flights in steps (see M.readStep). pid, rate: when
+--- given, only flights on these profiles carry their axis tables; the others are read as
+--- {time, seconds, pidProfile, rateProfile} with no axes, which is all aggregate() needs of them.
+function M.readJob(mcuId, pid, rate)
+  return { kind = "read", phase = "read", mcuId = mcuId, pid = pid, rate = rate }
 end
 
 --- One step of a job from readJob(): nil while there is more to do, then what read() answers.
@@ -247,7 +265,7 @@ function M.readStep(job)
     if not text then job.phase = "done"; return {}, reason end
     local lines = {}
     for oneLine in string.gmatch(text, "[^\r\n]+") do lines[#lines + 1] = oneLine end
-    job.lines, job.next, job.collector = lines, 1, newCollector()
+    job.lines, job.next, job.collector = lines, 1, newCollector(job.pid, job.rate)
     job.phase = "parse"
     return nil
   elseif job.phase == "parse" then
@@ -262,20 +280,24 @@ function M.readStep(job)
 
   local flights, current = {}, nil
   for _, row in ipairs(col.rows) do
-    if not current or current.time ~= row.time or current.axes[row.axis] then
-      current = { time = row.time, seconds = row.seconds, axes = {} }
+    if not current or current.time ~= row.time or current.seen[row.axis] then
+      current = { time = row.time, seconds = row.seconds, axes = {}, seen = {},
+        pidProfile = row.pidProfile, rateProfile = row.rateProfile }
       flights[#flights + 1] = current
     end
+    current.seen[row.axis] = true
     current.axes[row.axis] = row.a
   end
+  for _, flight in ipairs(flights) do flight.seen = nil end
   return flights
 end
 
---- The saved flights for one flight controller, oldest first: {time, seconds, axes = {a, a, a}}.
---- Each axis table is shaped like a decoded reply's `a`, plus the context keys. A missing file,
---- or one of another format version, reads as no flights; the second value says why.
-function M.read(mcuId)
-  local job = M.readJob(mcuId)
+--- The saved flights for one flight controller, oldest first: {time, seconds, axes = {a, a, a},
+--- pidProfile, rateProfile}. Each axis table is shaped like a decoded reply's `a`, plus the
+--- context keys. A missing file, or one of another format version, reads as no flights; the
+--- second value says why. pid, rate: as readJob().
+function M.read(mcuId, pid, rate)
+  local job = M.readJob(mcuId, pid, rate)
   while true do
     local flights, reason = M.readStep(job)
     if flights ~= nil then return flights, reason end
@@ -313,7 +335,7 @@ local function newScanner()
     for k = LEAD + 1, ARG_COUNT do
       if type(args[k]) ~= "number" then error("invalid flight line") end
     end
-    sc.current = { time = args[1], axis = axis }
+    sc.current = { time = args[1], axis = axis, pidProfile = args[4], rateProfile = args[5] }
   end
   sc.env = env
   return sc
@@ -334,13 +356,57 @@ local function groupRows(rows)
   local flights, current = {}, nil
   for _, row in ipairs(rows) do
     if not current or current.time ~= row.time or current.axes[row.axis] then
-      current = { time = row.time, axes = {} }
+      current = { time = row.time, axes = {}, pidProfile = row.pidProfile, rateProfile = row.rateProfile }
       flights[#flights + 1] = current
     end
     current.axes[row.axis] = row
     current[#current + 1] = row
   end
   return flights
+end
+
+-- The profiles a flight is kept under: "pid/rate", or "?" when either is unknown
+local function profileKey(pid, rate)
+  if pid == nil or rate == nil then return "?" end
+  return tostring(pid) .. "/" .. tostring(rate)
+end
+
+local function textBytes(flight)
+  local n = 0
+  for j = 1, #flight do n = n + #flight[j].text + 1 end
+  return n
+end
+
+-- Which of `flights` (oldest first, the new one last) are kept: the newest MAX_FLIGHTS per
+-- profiles; then, while more than MAX_FILE_FLIGHTS, the oldest flight of the profiles with the
+-- most flights goes (ties: the profiles whose oldest flight is oldest); then, while the text is
+-- over WRITE_CAP, the oldest flight. The new flight always stays.
+local function keepFlights(flights)
+  local perKey, kept = {}, {}
+  for i = #flights, 1, -1 do
+    local key = flights[i].key
+    perKey[key] = (perKey[key] or 0) + 1
+    if perKey[key] <= MAX_FLIGHTS then table.insert(kept, 1, flights[i]) end
+  end
+  while #kept > MAX_FILE_FLIGHTS do
+    local count, first = {}, {}
+    for i, f in ipairs(kept) do
+      count[f.key] = (count[f.key] or 0) + 1
+      if not first[f.key] then first[f.key] = i end
+    end
+    local drop = nil
+    for key, n in pairs(count) do
+      if drop == nil or n > count[drop] or (n == count[drop] and first[key] < first[drop]) then drop = key end
+    end
+    table.remove(kept, first[drop])
+  end
+  local bytes = 0
+  for _, f in ipairs(kept) do bytes = bytes + f.bytes end
+  while bytes > WRITE_CAP and #kept > 1 do
+    bytes = bytes - kept[1].bytes
+    table.remove(kept, 1)
+  end
+  return kept
 end
 
 local function write(mcuId, lines)
@@ -375,11 +441,24 @@ local function finishJob(job)
   local flights = job.scanner and job.scanner.version == FORMAT_VERSION and groupRows(job.scanner.rows) or {}
   local out = {}
   if job.kind == "save" then
-    for i = math.max(1, #flights - (MAX_FLIGHTS - 1) + 1), #flights do
-      local flight = flights[i]
-      for j = 1, #flight do out[#out + 1] = flight[j].text end
+    local all = {}
+    for _, flight in ipairs(flights) do
+      flight.key, flight.bytes = profileKey(flight.pidProfile, flight.rateProfile), textBytes(flight)
+      all[#all + 1] = flight
     end
-    for axis = 1, AXIS_COUNT do out[#out + 1] = job.added[axis] end
+    local ctx = type(job.context) == "table" and job.context or {}
+    local added = { key = profileKey(ctx.pidProfile, ctx.rateProfile), bytes = 0, new = true }
+    for axis = 1, AXIS_COUNT do added.bytes = added.bytes + #job.added[axis] + 1 end
+    all[#all + 1] = added
+    local kept = keepFlights(all)
+    job.dropped = #all - #kept
+    for _, flight in ipairs(kept) do
+      if flight.new then
+        for axis = 1, AXIS_COUNT do out[#out + 1] = job.added[axis] end
+      else
+        for j = 1, #flight do out[#out + 1] = flight[j].text end
+      end
+    end
   else
     local newest = flights[#flights]
     if not newest then return false end
@@ -515,6 +594,9 @@ local function sameTune(flightA, flightB, axis)
   for _, k in ipairs(MEANING_KEYS) do
     if a[k] == nil or b[k] == nil or a[k] ~= b[k] then return false end
   end
+  for _, k in ipairs(PROFILE_KEYS) do
+    if a[k] == nil or b[k] == nil or a[k] ~= b[k] then return false end
+  end
   local ra, rb = ratesFlown(flightA, axis), ratesFlown(flightB, axis)
   if not ra or not rb then return false end
   for _, k in ipairs(TUNE_KEYS) do
@@ -525,6 +607,15 @@ local function sameTune(flightA, flightB, axis)
     end
   end
   return true
+end
+
+-- The profiles a flight was flown on: read() puts them on the flight; a flight built by hand
+-- carries them on its axis tables
+local function flightProfiles(flight, axis)
+  if flight.pidProfile ~= nil or flight.rateProfile ~= nil then return flight.pidProfile, flight.rateProfile end
+  local a = flight.axes and (flight.axes[axis] or flight.axes[1] or flight.axes[2] or flight.axes[3])
+  if a then return a.pidProfile, a.rateProfile end
+  return nil, nil
 end
 
 -- weighted running mean: adds value v with weight w to out[key] over total
@@ -540,52 +631,77 @@ local function addBand(bands, src)
   end
 end
 
---- One axis (1 roll, 2 pitch, 3 yaw) over the newest flights on the newest flight's tune.
---- Returns the combined axis table (shaped like a decoded reply's `a`, with the newest flight's
---- context keys; all zeros with no flights), the flights used and their total seconds. Under
---- polar cyclic a Roll flight's rates are the Pitch rates it flew on, so a Pitch rate change ends
---- Roll's flights too; the table keeps Roll's own bytes.
-function M.aggregate(flights, axis)
+--- One axis (1 roll, 2 pitch, 3 yaw) over the newest flights on one PID and rate profile, on the
+--- tune of the newest of them. pid, rate: the profiles to combine (the page passes the active
+--- ones); without them, the newest flight's. Counting back from the newest flight on them, a flight
+--- on other or unknown profiles is passed over -- it neither counts nor ends the count -- and at
+--- most MAX_FLIGHTS are combined. Returns the combined axis table (shaped like a decoded reply's
+--- `a`, with that flight's context keys; all zeros with no flight on the profiles), the flights
+--- used, their total seconds, and true when the list also holds flights on other known profiles.
+--- Under polar cyclic a Roll flight's rates are the Pitch rates it flew on, so a Pitch rate change
+--- ends Roll's flights too; the table keeps Roll's own bytes.
+function M.aggregate(flights, axis, pid, rate)
   local out = newAxis()
-  local newest = flights[#flights] and flights[#flights].axes[axis]
-  if not newest then return out, 0, 0 end
+  local anchor = nil
+  for i = #flights, 1, -1 do
+    local fp, fr = flightProfiles(flights[i], axis)
+    if pid == nil or (fp == pid and fr == rate) then anchor = i; break end
+  end
+  local ap, ar = nil, nil
+  if anchor then ap, ar = flightProfiles(flights[anchor], axis) end
+  if pid ~= nil then ap, ar = pid, rate end
+  local others = false
+  for i = 1, #flights do
+    local fp, fr = flightProfiles(flights[i], axis)
+    if fp ~= nil and fr ~= nil and (fp ~= ap or fr ~= ar) then others = true; break end
+  end
+  local newest = anchor and flights[anchor].axes[axis]
+  if not newest then return out, 0, 0, others end
   for _, k in ipairs(TUNE_KEYS) do out[k] = newest[k] end
   for _, k in ipairs(CONTEXT_KEYS) do out[k] = newest[k] end
 
   local used, seconds, shakeSq = 0, 0, 0
-  for i = #flights, math.max(1, #flights - MAX_FLIGHTS + 1), -1 do
+  for i = anchor, 1, -1 do
+    if used >= MAX_FLIGHTS then break end
+    local fp, fr = flightProfiles(flights[i], axis)
     local a = flights[i].axes[axis]
-    -- The newest flight always counts; an older one only on the same tune, in the same context
-    if not a or (i < #flights and not sameTune(flights[i], flights[#flights], axis)) then break end
-    used = used + 1
-    seconds = seconds + flights[i].seconds
+    if i < anchor and (fp == nil or fr == nil or fp ~= ap or fr ~= ar) then
+      -- Another setup's flight: kept for its own profiles, passed over here
+    elseif not a or (i < anchor and not sameTune(flights[i], flights[anchor], axis)) then
+      -- The anchor always counts; an older flight on these profiles only on the same tune, in the
+      -- same context
+      break
+    else
+      used = used + 1
+      seconds = seconds + flights[i].seconds
 
-    out.ffCount = out.ffCount + a.ffCount
-    addMean(out, "ffGain", a.ffGain, a.ffCount, out.ffCount)
-    addMean(out, "ffCorr", a.ffCorr, a.ffCount, out.ffCount)
-    addMean(out, "ffLagMs", a.ffLagMs, a.ffCount, out.ffCount)
-    addBand(out.spBands, a.spBands)
-    addBand(out.collBands, a.collBands)
+      out.ffCount = out.ffCount + a.ffCount
+      addMean(out, "ffGain", a.ffGain, a.ffCount, out.ffCount)
+      addMean(out, "ffCorr", a.ffCorr, a.ffCount, out.ffCount)
+      addMean(out, "ffLagMs", a.ffLagMs, a.ffCount, out.ffCount)
+      addBand(out.spBands, a.spBands)
+      addBand(out.collBands, a.collBands)
 
-    out.fullCount = out.fullCount + a.fullCount
-    out.fullSatCount = out.fullSatCount + a.fullSatCount
-    addMean(out, "fullRatio", a.fullRatio, a.fullCount, out.fullCount)
-    if a.fullMaxRate > out.fullMaxRate then out.fullMaxRate = a.fullMaxRate end
+      out.fullCount = out.fullCount + a.fullCount
+      out.fullSatCount = out.fullSatCount + a.fullSatCount
+      addMean(out, "fullRatio", a.fullRatio, a.fullCount, out.fullCount)
+      if a.fullMaxRate > out.fullMaxRate then out.fullMaxRate = a.fullMaxRate end
 
-    out.releases = out.releases + a.releases
-    out.bigRebounds = out.bigRebounds + a.bigRebounds
-    addMean(out, "meanRebound", a.meanRebound, a.releases, out.releases)
-    addMean(out, "meanOvershoot", a.meanOvershoot, a.releases, out.releases)
-    addMean(out, "meanCounter", a.meanCounter, a.releases, out.releases)
-    addMean(out, "meanIterm", a.meanIterm, a.releases, out.releases)
+      out.releases = out.releases + a.releases
+      out.bigRebounds = out.bigRebounds + a.bigRebounds
+      addMean(out, "meanRebound", a.meanRebound, a.releases, out.releases)
+      addMean(out, "meanOvershoot", a.meanOvershoot, a.releases, out.releases)
+      addMean(out, "meanCounter", a.meanCounter, a.releases, out.releases)
+      addMean(out, "meanIterm", a.meanIterm, a.releases, out.releases)
 
-    -- RMS combines exactly: the mean of the squares, weighted by count
-    out.shakeCount = out.shakeCount + a.shakeCount
-    shakeSq = shakeSq + (a.shakeRms * a.shakeRms - shakeSq) * (out.shakeCount > 0 and a.shakeCount / out.shakeCount or 0)
+      -- RMS combines exactly: the mean of the squares, weighted by count
+      out.shakeCount = out.shakeCount + a.shakeCount
+      shakeSq = shakeSq + (a.shakeRms * a.shakeRms - shakeSq) * (out.shakeCount > 0 and a.shakeCount / out.shakeCount or 0)
+    end
   end
   out.shakeRms = math.sqrt(shakeSq)
   out.ffLagMs = math.floor(out.ffLagMs + 0.5)
-  return out, used, seconds
+  return out, used, seconds, others
 end
 
 --- The value the pilot last set by hand for one setting: from the current value, follows the

@@ -34,7 +34,10 @@ function M.owe(s, now)
   end
   tc.pending = true
   tc.failures = 0
+  tc.writeFailures = 0
+  tc.unsaved = false
   tc.replies = {}
+  tc.profilesRead = nil
   tc.saveDue = false
   tc.job = nil
   tc.contextPending = false

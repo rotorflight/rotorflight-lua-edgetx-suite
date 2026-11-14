@@ -1326,7 +1326,10 @@ return {
         no_aircraft = "Zuerst mit einem Modell verbinden",
         reading_flight = "Lese den letzten Flug...",
         not_read = "Letzter Flug nicht gelesen. Er wird beim nächsten Entschärfen gelesen.",
+        not_saved = "Letzter Flug nicht auf der Karte gespeichert. Vor dem nächsten Flug die Karte prüfen; das nächste Entschärfen versucht es erneut.",
         no_flight = "Noch kein Flug gespeichert",
+        no_flight_profile_fmt = "Noch kein Flug auf PID %d, Raten %d gespeichert",
+        reading_profiles = "Aktive Profile werden gelesen...",
         act_no_flight = "Im Acro-Modus fliegen, mit dem RFSuite-Dashboard oder dem Service-Widget auf diesem Modell, dann entschärfen.",
         why_no_flight = "Das Dashboard oder das Service-Widget speichert jeden Flug nach dem Entschärfen. Das Tool allein speichert keinen.",
         why_no_flight_arm = "Das Entschärfen erkennt es am ARM-Sensor des Modells. Fehlt er, die Sensoren suchen lassen.",
@@ -1360,6 +1363,7 @@ return {
         why_slow = "Der Heli dreht langsamer, als der Knüppel verlangt.",
         why_keep_feel = "FF und Raten gemeinsam ändern erhält das Knüppelgefühl.",
         why_no_f = "Diese Achse hat kein FF, ihre PID-Werte bestimmen das Ansprechen.",
+        why_other_profiles = "Flüge anderer Profile bleiben für diese Profile erhalten.",
         why_full_fmt = "Vollausschlag verlangt %d °/s, der Heli schafft höchstens %d.",
         why_coll_high_fmt = "Bei hohem Kollektiv dreht er %d%% schneller als bei niedrigem.",
         why_coll_low_fmt = "Bei niedrigem Kollektiv dreht er %d%% schneller als bei hohem.",
@@ -1396,7 +1400,7 @@ return {
         applied = "Änderungen im Flugcontroller gespeichert. Erneut fliegen, um die neue Abstimmung zu prüfen.",
         help_title = "Tuning-Berater",
         help_axis = "Roll, Nick oder Gier: Flugdaten, Vorschläge und Speichern darunter gelten nur für diese Achse.",
-        help_message = "Acro fliegen; Dashboard- oder Service-Widget speichert Flüge beim Entschärfen.\nAchse: Roll, Nick oder Gier; alle Zeilen gelten für diese Achse.\nFlugdaten: Acro-Zeit zusammen und wie viele der letzten 5 Flüge.\nProfile: PID- und Ratenprofil des neuesten Flugs.\nAnsprechen: Drehrate im Vergleich zum Knüppel.\nStopps: Rückprall nach Knüppelzentrieren oder Zittern.\nVorgeschlagene Änderungen: nach Seite und Einstellung.\nWarum: Grund jeder Änderung.\n*: löscht nach Rückfrage gespeicherte Flüge und Statistik des Flugcontrollers.\nSpeichern (Kopfzeile): schreibt Vorschläge dieser Achse nach Bestätigung."
+        help_message = "Acro fliegen; Dashboard- oder Service-Widget speichert Flüge beim Entschärfen.\nAchse: Roll, Nick oder Gier; alle Zeilen gelten für diese Achse.\nFlugdaten: Acro-Zeit zusammen und wie viele der letzten 5 Flüge.\nProfile: die aktiven; nur deren Flüge zählen.\nAnsprechen: Drehrate im Vergleich zum Knüppel.\nStopps: Rückprall nach Knüppelzentrieren oder Zittern.\nVorgeschlagene Änderungen: nach Seite und Einstellung.\nWarum: Grund jeder Änderung.\n*: löscht nach Rückfrage gespeicherte Flüge und Statistik des Flugcontrollers.\nSpeichern (Kopfzeile): schreibt Vorschläge dieser Achse nach Bestätigung."
       },
       flight_tuning_rates_advanced_cyclic_behaviour = {
         save_error_title = "Fehler",
