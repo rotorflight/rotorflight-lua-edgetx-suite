@@ -45,7 +45,9 @@ profiles are asked for first; that question is asked again on a link error like 
 cannot read saves the flight without profiles, so it is never combined). Then it reads the cyclic polarity, the
 cyclic ring and the I-term relax type and adds them to the saved flight, since they change what its numbers mean.
 A value that could not be read stays unknown, and so do all three if you switch the PID or rate profile before
-they are read: the values read then would belong to the other profile.
+they are read and the *PID#* and *RTE#* sensors report the switch: the values read then would belong to the other
+profile. Without those sensors a switch after the profiles were asked for is not seen, so keep the profiles until
+the flight is saved and its settings are read.
 
 - **The saving is done by the RFSuite dashboard widget or the RFSuite Service widget**, whether or not this page
   is open (see [Service widget](../../dashboard/service-widget.md)). With neither of them on the model, no flight
