@@ -778,8 +778,12 @@ end
 -- init is one widget call under the instruction limit and already the heaviest call of the open, and
 -- the module's load and the write would add a few thousand instructions to it. The first build waits
 -- for the pass after, so nothing is drawn before the colours are in. A write that stops part way (the
--- instruction limit) is tried again on the next pass, at most THEME_SLOT_TRIES times; whatever it
--- wrote is held by the module and put back on close.
+-- instruction limit) is tried again on the next pass, at most THEME_SLOT_TRIES times. If it never
+-- completes, the slots it did write are put back on the passes after it (restore, at most
+-- THEME_SLOT_TRIES tries as well), so the first build meets the radio's colours rather than a scheme
+-- written part way; only then is it built. Should the put-back keep stopping too, the build goes ahead
+-- and the module still holds the radio's colours, which the close puts back. A write that stopped after
+-- its last slot (the module names the scheme only once every slot carries it) counts as written.
 local THEME_SLOT_TRIES = 3
 local function writeThemeSlots()
   local general = state.preferences and state.preferences.general
@@ -790,13 +794,45 @@ end
 local function writeOwedThemeSlots()
   local tries = (state.themeSlotsTries or 0) + 1
   state.themeSlotsTries = tries
+  if tries > THEME_SLOT_TRIES then
+    -- The write was given up and left slots held: put the radio's colours back, a pass per try. Checked
+    -- again here, since a stop can land between the try count and the write and skip the check below.
+    local putBack = tries - THEME_SLOT_TRIES
+    if not (ThemeSlots and ThemeSlots.holding()) then
+      state.themeSlotsOwed = nil
+      logf("info", "theme slots: nothing held to put back, first build on the next pass")
+      return
+    end
+    local ok, result = pcall(ThemeSlots.restore, "scheme write given up")
+    if ok then
+      state.themeSlotsOwed = nil
+      logf("info", "theme slots: radio colours put back (%s), first build on the next pass", tostring(result))
+    elseif putBack >= THEME_SLOT_TRIES then
+      state.themeSlotsOwed = nil
+      logf("error", "theme slots: radio colours not put back after %d tries: %s; put back on close", putBack,
+        tostring(result))
+    else
+      logf("warn", "theme slots: radio colours not put back (try %d of %d): %s", putBack, THEME_SLOT_TRIES,
+        tostring(result))
+    end
+    return
+  end
   local ok, result = pcall(writeThemeSlots)
+  if not ok and ThemeSlots ~= nil and ThemeSlots.current() ~= nil then
+    logf("debug", "theme slots: the write stopped after its last slot (%s), taken as written", tostring(result))
+    ok = true
+  end
   if ok then
     state.themeSlotsOwed = nil
     logf("debug", "theme slots: owed write done (written %s), first build on the next pass", tostring(result))
   elseif tries >= THEME_SLOT_TRIES then
-    state.themeSlotsOwed = nil
-    logf("error", "theme slots not written after %d tries: %s", tries, tostring(result))
+    -- Given up. Whatever it wrote is put back on the next passes before the first build; with nothing held
+    -- (the module never loaded, or the write stopped before it took the radio's colours) the radio's
+    -- colours stand and the build goes ahead.
+    local holding = ThemeSlots ~= nil and ThemeSlots.holding()
+    if not holding then state.themeSlotsOwed = nil end
+    logf("error", "theme slots not written after %d tries: %s; %s", tries, tostring(result),
+      holding and "radio colours put back first" or "nothing written")
   else
     logf("warn", "theme slots not written (try %d of %d): %s", tries, THEME_SLOT_TRIES, tostring(result))
   end

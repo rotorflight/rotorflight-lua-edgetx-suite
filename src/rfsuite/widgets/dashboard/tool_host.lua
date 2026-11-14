@@ -250,8 +250,8 @@ local function finish(widget, reason, outcome)
   local ThemeSlots = requireModule("lib/theme_slots.lua")
   if type(ThemeSlots) == "table" and type(ThemeSlots.restore) == "function" then
     local ok, err = pcall(ThemeSlots.restore, "hosted tool closed (" .. tostring(reason) .. ")")
-    -- A stopped restore keeps its state, its finaliser and its marker (lib/theme_slots.lua); the widget's
-    -- next refresh calls it again (src/widgets/rfsuite/main.lua).
+    -- A stopped restore keeps its rows -- and, stopped before the colours were all back, its finaliser and its
+    -- marker (lib/theme_slots.lua); the widget's next refresh calls it again (src/widgets/rfsuite/main.lua).
     if not ok then
       widget._themeRestoreOwed = true
       hostLog("theme slots not restored on close, owed to the next pass: " .. tostring(err), "warn")

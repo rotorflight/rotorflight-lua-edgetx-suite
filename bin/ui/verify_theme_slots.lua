@@ -205,7 +205,7 @@ T.apply("dark")
 failAfter = 3
 check(not pcall(T.restore, "stopped"), "control: the stopped restore raised")
 check(not radioColours(), "a stopped restore leaves some slots in the scheme")
-check(T.current() == "dark", "a stopped restore keeps the state")
+check(T.current() == nil and T.holding(), "a stopped restore names no scheme and keeps its rows")
 check(exists(MARKER), "a stopped restore keeps the marker")
 check(T.restore("again") == true and radioColours(), "a second restore puts every colour back")
 check(not exists(MARKER), "and drops the marker")
@@ -384,6 +384,35 @@ do
   Wrapper.refresh(widget)
   check(radioColours() and not exists(MARKER), "and the next pass finishes it")
   rfsuite.require = realRequire
+end
+
+-- 18. A restore stopped after it disarmed the finaliser (here: where it looks up the marker's path) still holds
+--     its rows, and a later apply (a scheme saved) arms the finaliser again: a state that then ends without
+--     restore() puts the radio's colours back.
+do
+  T = load()
+  T.apply("dark")
+  local realPaths = rfsuite.paths
+  local trap = true
+  rfsuite.paths = setmetatable({}, { __index = function(_, key)
+    if key == "user" and trap then
+      trap = false
+      error("instruction limit")
+    end
+    return realPaths[key]
+  end })
+  local stopped = not pcall(T.restore, "stopped")
+  rfsuite.paths = realPaths
+  check(stopped and not trap and radioColours(), "control: the restore stopped after its colours were back")
+  check(T.holding(), "a restore stopped there still holds its rows")
+  T.apply("light")
+  check(not radioColours(), "control: the later apply wrote the slots")
+  T = nil
+  collectgarbage("collect")
+  collectgarbage("collect")
+  check(radioColours(), "and the finaliser it armed puts the radio's colours back")
+  if exists(MARKER) then os.remove(MARKER) end
+  resetRadio()
 end
 
 -- 9. Without lcd.setColor (a desktop runner, an old radio) nothing is attempted.

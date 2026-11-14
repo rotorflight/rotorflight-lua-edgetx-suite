@@ -4,7 +4,9 @@
 -- call under the instruction limit and already the heaviest of the open -- and the first pass of run writes
 -- the slots and builds nothing either, so the first build, on the pass after, is drawn in the scheme; with a
 -- landing as without one. A write that stops is tried again on the next passes, at most three times, and
--- the first build waits for it. A visit refused in init writes nothing. Run as a script of its own, the
+-- the first build waits for it. A write that never completes -- stopped after some slots were written --
+-- has those slots put back on the passes after (at most three tries), and the first build meets the
+-- radio's colours. A visit refused in init writes nothing. Run as a script of its own, the
 -- tool still writes the slots in init. No pixels or timing are measured. Exit 0 green, 1 failed checks.
 
 local checks, failures = 0, 0
@@ -39,22 +41,41 @@ Stubs.clearCard()
 Stubs.install("."); FC.install(Stubs); Stubs.reset(); FC.reset()
 Stubs.installTool()
 
--- The radio's theme table, which the stubs do not have: getColor answers what setColor wrote. `stops` makes
--- the next setColor calls raise, as the instruction limit does part way through a write.
-local slots, writes, stops = {}, 0, 0
+-- The radio's theme table, which the stubs do not have: getColor answers what setColor wrote, and a slot's
+-- own colour is its flag. `stops` makes setColor calls raise, as the instruction limit does part way through
+-- a write; `stopAfter` lets that many calls through first, so a stop can land after some slots were written.
+local slots, writes, stops, stopAfter = {}, 0, 0, 0
 lcd.getColor = function(flag) return slots[flag] or flag end
 lcd.setColor = function(flag, color)
   if stops > 0 then
-    stops = stops - 1
-    error("instruction limit")
+    if stopAfter > 0 then
+      stopAfter = stopAfter - 1
+    else
+      stops = stops - 1
+      error("instruction limit")
+    end
   end
   writes = writes + 1
   slots[flag] = color
 end
-local builds = 0
+
+-- How many theme slots hold something other than the radio's own colour (the slot list read once, here).
+local SLOTS = assert(_G.rfsuite.require("lib/theme_slots.lua"), "lib/theme_slots.lua missing").SLOTS
+local function changedSlots()
+  local changed = 0
+  for i = 1, #SLOTS do
+    local flag = _G[SLOTS[i][1]]
+    if flag ~= nil and lcd.getColor(flag) ~= flag then changed = changed + 1 end
+  end
+  return changed
+end
+
+-- The slots as the first build meets them, counted inside the build.
+local builds, changedAtBuild = 0, nil
 local realBuild = lvgl.build
 lvgl.build = function(...)
   builds = builds + 1
+  if changedAtBuild == nil then changedAtBuild = changedSlots() end
   return realBuild(...)
 end
 
@@ -82,7 +103,7 @@ end
 
 local function open(opts)
   freshHome()
-  writes, builds = 0, 0
+  writes, builds, changedAtBuild = 0, 0, nil
   Home.init(opts)
   return assert(find(Home.run, "state"), "home state missing")
 end
@@ -93,7 +114,7 @@ local function pass()
 end
 
 local function restore()
-  stops = 0
+  stops, stopAfter = 0, 0
   local ThemeSlots = _G.rfsuite.require("lib/theme_slots.lua")
   if type(ThemeSlots) == "table" then ThemeSlots.restore("case end") end
 end
@@ -178,23 +199,203 @@ do
   restore()
 end
 
--- A write that keeps stopping is given up after three tries, and the tool builds in the radio's colours.
+-- A write that stops after its last slot (here: at its closing log line) has every slot in the scheme and the
+-- scheme named: taken as written, no second try, and the build follows in the scheme. Only the module's own
+-- log call is stopped, the tool's logging is left alone.
+do
+  connected = true
+  local root = _G.rfsuite
+  local realRequire = root.require
+  local slotCount = 0
+  for i = 1, #SLOTS do
+    if _G[SLOTS[i][1]] ~= nil then slotCount = slotCount + 1 end
+  end
+  local trap = true
+  root.require = function(path)
+    local caller = debug.getinfo(2, "S")
+    local fromModule = caller ~= nil and string.find(caller.source, "theme_slots.lua", 1, true) ~= nil
+    if path == "lib/log.lua" and trap and fromModule and writes >= slotCount then
+      trap = false
+      error("instruction limit")
+    end
+    return realRequire(path)
+  end
+  open({ hosted = true })
+  pass()
+  root.require = realRequire
+  check(not trap and writes == slotCount and builds == 0, "control: the write stopped after its last slot",
+    tostring(trap) .. " " .. writes .. "/" .. slotCount .. " " .. builds)
+  pass()
+  check(builds > 0 and writes == slotCount, "taken as written: the next pass builds and writes nothing again",
+    builds .. "/" .. writes)
+  check(changedAtBuild == slotCount, "and the build meets the scheme in every slot", changedAtBuild)
+  restore()
+end
+
+-- Three writes that each stop after two slots: given up, and the slots written are put back on a pass of their
+-- own before the first build, which meets the radio's colours.
+local function threePartialWrites()
+  local tried = 0
+  for _ = 1, 3 do
+    stops, stopAfter = 1, 2
+    pass()
+    if stops == 0 then tried = tried + 1 end
+    stops, stopAfter = 0, 0
+  end
+  return tried
+end
+
+do
+  connected = true
+  local state = open({ hosted = true })
+  local tried = threePartialWrites()
+  check(tried == 3 and builds == 0, "control: three writes stopped part way, nothing built", tried .. "/" .. builds)
+  check(changedSlots() > 0, "control: the stopped writes left slots in the scheme", changedSlots())
+  pass()
+  check(builds == 0, "the pass after the third stop puts back and builds nothing", builds)
+  check(changedSlots() == 0, "and the radio's colours are back", changedSlots())
+  pass()
+  check(builds > 0, "the first build follows on the pass after", builds)
+  check(changedAtBuild == 0, "and meets the radio's colours", changedAtBuild)
+  check(state.isClosing ~= true, "the tool stays open")
+  restore()
+end
+
+-- The same with every write stopped before its first slot: the module already holds the radio's colours, so
+-- the put-back pass runs all the same, and the build meets the radio's colours.
 do
   connected = true
   open({ hosted = true })
-  local tried = 0
   for _ = 1, 3 do
     stops = 1
     pass()
-    if stops == 0 then tried = tried + 1 end
     stops = 0
   end
-  check(tried == 3 and builds == 0, "three stopped tries build nothing", tried .. "/" .. builds)
+  check(builds == 0, "control: three writes stopped at the first slot, nothing built", builds)
+  pass()
+  pass()
+  check(builds > 0 and changedAtBuild == 0, "the build follows the put-back in the radio's colours",
+    tostring(builds) .. "/" .. tostring(changedAtBuild))
+  restore()
+end
+
+-- A put-back that stops is tried again, and the first build waits for it.
+do
+  connected = true
+  open({ hosted = true })
+  threePartialWrites()
+  stops, stopAfter = 1, 1
+  pass()
+  check(stops == 0 and builds == 0, "control: the put-back stopped part way, nothing built", stops .. "/" .. builds)
+  stops, stopAfter = 0, 0
+  pass()
+  check(builds == 0 and changedSlots() == 0, "the next pass puts back and builds nothing",
+    builds .. "/" .. changedSlots())
+  pass()
+  check(builds > 0 and changedAtBuild == 0, "the first build follows in the radio's colours",
+    tostring(builds) .. "/" .. tostring(changedAtBuild))
+  restore()
+end
+
+-- A put-back that keeps stopping is given up after three tries too: the tool builds, and the module still
+-- holds the radio's colours, so the close puts them back.
+do
+  connected = true
+  open({ hosted = true })
+  threePartialWrites()
+  for _ = 1, 3 do
+    stops = 1
+    pass()
+    stops = 0
+  end
+  check(builds == 0, "control: three stopped put-backs, nothing built yet", builds)
+  pass()
+  check(builds > 0, "the build then goes ahead", builds)
   stops = 1
   pass()
-  check(stops == 1, "no fourth try", stops)
+  check(stops == 1, "no further try once the build is done", stops)
   stops = 0
-  check(builds > 0, "and the first build goes ahead", builds)
+  local ThemeSlots = _G.rfsuite.require("lib/theme_slots.lua")
+  check(ThemeSlots.holding(), "the module still holds the radio's colours")
+  restore()
+  check(changedSlots() == 0, "and a restore, what the close calls, puts them back", changedSlots())
+end
+
+-- A put-back stopped after the colours are back but before the module lets go of them (here: where it
+-- looks up the marker's path) is run again whole on the next pass, so nothing it holds is left half let go.
+do
+  connected = true
+  open({ hosted = true })
+  threePartialWrites()
+  local root = _G.rfsuite
+  local realPaths = root.paths
+  local trap = true
+  root.paths = setmetatable({}, { __index = function(_, key)
+    if key == "user" and trap then
+      trap = false
+      error("instruction limit")
+    end
+    return realPaths and realPaths[key]
+  end })
+  pass()
+  root.paths = realPaths
+  local ThemeSlots = _G.rfsuite.require("lib/theme_slots.lua")
+  check(not trap and builds == 0, "control: the put-back stopped after its colours, nothing built",
+    tostring(trap) .. "/" .. builds)
+  check(changedSlots() == 0, "the radio's colours are back", changedSlots())
+  check(ThemeSlots.holding(), "and the module still holds them, so the put-back is owed again")
+  pass()
+  check(not ThemeSlots.holding() and builds == 0, "the next pass finishes the put-back and builds nothing",
+    tostring(ThemeSlots.holding()) .. "/" .. builds)
+  pass()
+  check(builds > 0 and changedAtBuild == 0, "the first build follows in the radio's colours",
+    tostring(builds) .. "/" .. tostring(changedAtBuild))
+  restore()
+end
+
+-- A stop between the try count and the write (two loads failed, the third stopped before its load) leaves
+-- the module unloaded: the pass after does not reach for it, and the build follows.
+do
+  connected = true
+  local root = _G.rfsuite
+  local realRequire = root.require
+  root.require = function(path)
+    if path == "lib/theme_slots.lua" then return nil end
+    return realRequire(path)
+  end
+  local state = open({ hosted = true })
+  pass()
+  pass()
+  root.require = realRequire
+  state.themeSlotsTries = 3
+  check(state.themeSlotsOwed == true and builds == 0, "control: still owed after the stopped third try",
+    tostring(state.themeSlotsOwed) .. "/" .. builds)
+  local ok, err = pcall(pass)
+  check(ok, "the pass after does not raise", err)
+  check(state.themeSlotsOwed == nil and state.isClosing ~= true, "nothing is owed and the tool stays open",
+    tostring(state.themeSlotsOwed) .. "/" .. tostring(state.isClosing))
+  pass()
+  check(builds > 0 and writes == 0, "and the build follows, nothing written", builds .. "/" .. writes)
+  restore()
+end
+
+-- A module that never loads holds nothing: given up after three tries, the build follows without a put-back.
+do
+  connected = true
+  local root = _G.rfsuite
+  local realRequire = root.require
+  root.require = function(path)
+    if path == "lib/theme_slots.lua" then return nil end
+    return realRequire(path)
+  end
+  open({ hosted = true })
+  pass()
+  pass()
+  pass()
+  check(builds == 0 and writes == 0, "control: three failed loads, nothing written or built", builds .. "/" .. writes)
+  pass()
+  check(builds > 0 and writes == 0, "the build follows at once, nothing written", builds .. "/" .. writes)
+  root.require = realRequire
   restore()
 end
 

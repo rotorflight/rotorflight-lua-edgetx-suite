@@ -128,19 +128,26 @@ background.
 When they are written: run as a script of its own, the tool writes them in its start-up call, before
 its first screen. Opened from the dashboard, the start-up call is one widget call under the instruction
 limit and already the heaviest of the open, so it only marks them owed: the pass after it writes them,
-a pass that builds nothing and runs no page or menu step, and the first screen is built on the pass after that, so nothing is drawn in the
+a pass that builds nothing and runs no page or menu step, and the first screen is built on the pass after that, so once the write completes nothing is drawn in the
 radio's colours. A write stopped at the limit is tried again on the next passes, three times at most,
-and the first build waits for it (`ui/home.lua`, `writeOwedThemeSlots`; checked by
+and the first build waits for it. A write that never completes may have changed some slots before it
+stopped, so those are put back with `restore()` on the passes after it, again three tries at most, and
+the first build waits for that too: the tool then opens with EdgeTX's own controls in the radio's
+colours and the suite's own drawing in the scheme, rather than with a scheme written part way. Only
+when the put-back keeps stopping as well is the tool built over what the write left, and the radio's
+colours are then put back when it ends, as below (`ui/home.lua`, `writeOwedThemeSlots`; checked by
 `bin/ui/verify_tool_open_theme_slots.lua`).
 
 `lcd.setColor` changes the whole radio's interface, and EdgeTX restores nothing when a script ends,
 so the radio's colours are put back on every way the tool can end:
 
 - `restore()` on every exit the suite runs itself: the closing sequence, and the dashboard's
-  `tool_host.lua` when the hosted tool closes or fullscreen is left. It writes the colours back before
-  it lets go of anything, so one stopped at the instruction limit is called again on the widget's next
-  pass. `apply()` arms the finaliser and holds its state before it writes the marker or a slot, drops
-  the scheme it named before the first slot, and names the new one only once every slot carries it.
+  `tool_host.lua` when the hosted tool closes or fullscreen is left (and, hosted, after an opening
+  write that never completed, above). It drops the scheme's name first, then writes the colours back,
+  and lets go of what it holds last, so one stopped at the instruction limit is run again whole on the
+  widget's next pass. `apply()` arms the finaliser (whenever none is armed) and holds its state before it
+  writes the marker or a slot, drops the scheme it named before the first slot, and names the new one only
+  once every slot carries it.
 - A finaliser. A long press of RTN closes the tool without running any Lua and an error ends it, but
   both close its Lua state, and `lua_close` runs every pending `__gc` metamethod first. The guard
   holds the radio's colours and `lcd.setColor` as upvalues, since the suite's globals may be gone by

@@ -10,7 +10,7 @@
 -- the radio's colours back, and there are four:
 --
 --   * restore(), called on every exit the suite runs itself (the closing sequence, the hosted tool's
---     finish, fullscreen left).
+--     finish, fullscreen left), and by ui/home.lua when a hosted opening write never completed.
 --   * A finaliser. On a colour radio a long RTN closes the tool at once without running any Lua, and an
 --     error ends the script, but both close its Lua state, and lua_close runs every pending __gc
 --     metamethod before it frees anything (Lua 5.3, lgc.c luaC_freeallobjects). The guard below holds
@@ -169,7 +169,9 @@ end
 local function arm(rows, path)
   local setColor = lcd.setColor
   local remove = del
-  local state = { armed = true }
+  -- Armed only once both the guard and its state are held here: a stop in between leaves an unarmed guard,
+  -- which a collection may take without writing anything, and the next apply arms a new one.
+  local state = { armed = false }
   -- The finaliser must be in the metatable before setmetatable is called, or Lua never runs it.
   guard = setmetatable({}, {
     __gc = function()
@@ -184,6 +186,7 @@ local function arm(rows, path)
     end
   })
   guardState = state
+  state.armed = true
 end
 
 local function disarm()
@@ -239,8 +242,10 @@ function M.apply(name)
   -- holding the rows, the finaliser armed and the marker on the card. The scheme is named only once
   -- every slot carries it, so a change that stopped half way is made again by the next one: the old
   -- name goes before the first write, or a stopped dark -> light change would still answer dark and a
-  -- later save of dark would take the mixed slots for written (ui/home.lua, applySavedScheme).
-  if applied == nil then arm(rows, path) end
+  -- later save of dark would take the mixed slots for written (ui/home.lua, applySavedScheme). Armed
+  -- whenever no finaliser is, not only when no rows are held: a restore stopped after it disarmed the
+  -- finaliser still holds the rows.
+  if not (guardState and guardState.armed) then arm(rows, path) end
   applied = rows
   appliedScheme = nil
   if not writeMarker(path, rows) then
@@ -255,20 +260,23 @@ function M.apply(name)
 end
 
 --- Put the radio's colours back, drop the marker and disarm the finaliser. Safe to call when nothing
---- was written. The colours go back first: a call stopped half way (the instruction limit, hosted)
---- leaves this state, the finaliser and the marker as they were, so a later restore or the end of
---- the Lua state finishes the job.
+--- was written. The scheme's name goes first, as in apply, then the colours, and the rows are let go
+--- last: a call stopped half way (the instruction limit, hosted) leaves this state holding them -- and,
+--- stopped before the colours were all back, the finaliser and the marker -- so a later restore runs every
+--- step again (each is safe twice) or the end of the Lua state finishes the job. Letting go of the rows
+--- earlier would leave the finaliser armed with no restore left to disarm it, and the next apply would
+--- arm a second one beside it.
 function M.restore(why)
   local rows = applied
   if rows == nil then
     log("trace", "restore (%s): nothing written in this state", tostring(why or "-"))
     return false
   end
-  if canWrite() then putBack(rows) end
-  applied = nil
   appliedScheme = nil
+  if canWrite() then putBack(rows) end
   disarm()
   dropMarker(markerPath())
+  applied = nil
   log("info", "theme slots restored (%s)", tostring(why or "-"))
   return true
 end
