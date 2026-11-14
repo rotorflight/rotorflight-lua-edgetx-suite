@@ -24,6 +24,9 @@ local TAG = "rfsuite.helicopter_setup"
 local MEMORY_WARN_KB, MEMORY_STOP_KB = 350, 250
 -- A reading this small is not a heap about to run out: the simulator answers a constant 1000 bytes.
 local MEMORY_FLOOR_KB = 4
+-- Blocks written row by row, and the key of their row list in the sent snapshot.
+local ROW_BLOCKS = { servo_configurations = "servos", mixer_input = "inputs", mode_ranges = "mode_ranges",
+  mode_ranges_extra = "mode_ranges_extra", adjustment_ranges = "adjustment_ranges" }
 -- Equal values in an equal shape. A value equal to its counterpart needs no call of its own,
 -- which keeps a whole configuration block within one pass.
 local function same(a, b)
@@ -231,12 +234,23 @@ function M.new(runtime, transport, mathModule, labels)
     self.memoryStop, self.memoryLow, self.memoryOwed = "releasing", true, nil
     self.escBusy = nil
     self.bus:cancel()
+    -- A row is put in the sent snapshot when its write is generated, before the FC answers; the
+    -- cancel may have dropped it unsent. Forget the row snapshots, so Save & exit or Discard from the
+    -- stop screen writes every row of a changed block again.
+    for api, key in pairs(ROW_BLOCKS) do
+      if self.sent[api] then self.sent[api] = { [key] = {} } end
+    end
     local dropped = self.pendingEditDropped
     self.statusQueued, self.pendingEdit, self.pendingEditDropped = nil, nil, nil
     if dropped then dropped() end
     self.buildRequested, self.keptCards = nil, nil
     self.canEdit, self.canNext = false, false
-    self:release(true)
+    -- Before the override modules are loaded (history only, an FC below API 12.10, the loading card)
+    -- nothing can be held, and a full release could not be sent: release only what is held.
+    local apis = self.bus.apis
+    local loaded = apis.servo_override ~= nil and apis.mixer_override ~= nil and apis.motor_override ~= nil
+    if not loaded and self.logDebug then self:log("debug", "memory stop before the override modules: nothing held to release") end
+    self:release(loaded)
     if self.restoreProfile and self:allowed() then
       if self.logInfo then self:log("info", "profile %s selected again after the stop", self.restoreProfile) end
       self.bus:add({ api = "set_pid_profile", write = true, payload = { self.restoreProfile }, optional = true })
@@ -628,6 +642,8 @@ function M.new(runtime, transport, mathModule, labels)
       -- A commit may report something the pilot has to see before moving on; the save itself
       -- is complete, and the next Next step goes on.
       if self.stayNotice then
+        -- On the stop screen the status line is silent: the notice is shown on the screen itself.
+        if self.memoryStop then self.stopNotice = self.stayNotice end
         self.message, self.stayNotice = self.stayNotice, nil
         if self.logInfo then self:keyMessage(self.stayNoticeKey) end
         self:rebuild(); return

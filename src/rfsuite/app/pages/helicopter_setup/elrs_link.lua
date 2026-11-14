@@ -51,8 +51,9 @@ function M.new(w)
   function c:bind()
     w.linkTick=function() self:tick() end
     w.stopLink=function() self:stop() end
-    -- A running sync owns FC writes and their EEPROM commit; a memory stop waits for it.
-    w.linkBusy=function() return self:busy() end
+    -- A running sync owns FC writes and their EEPROM commit; a memory stop waits for it, and for the
+    -- rest of Set on both on this card (the module changed, the FC not yet).
+    w.linkBusy=function() return (self:busy() or (self.plan~=nil and self:current())) and true or false end
   end
   function c:boardText()
     if not self:applies() then return L.linkNeedsCrsf end

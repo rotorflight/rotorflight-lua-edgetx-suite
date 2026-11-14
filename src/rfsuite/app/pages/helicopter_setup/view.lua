@@ -222,6 +222,9 @@ function M.new(w, ctx, diagrams)
     else
       all[#all+1]=label(12,y,width-24,w.L.testsReleased);all[#all].color=palette.text;y=y+28
     end
+    if w.stopNotice then
+      all[#all+1]=label(12,y,width-24,w.stopNotice);all[#all].h=48;all[#all].color=palette.warning;y=y+52
+    end
     local idle=function() return not w.transition end
     if next(w.dirty) then
       button(12,y,math.floor(width/2)-18,w.L.saveExit,function() if not w.transition then w:save(function() w:close() end) end end,idle)
