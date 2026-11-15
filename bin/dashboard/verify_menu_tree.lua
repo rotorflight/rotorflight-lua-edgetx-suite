@@ -500,6 +500,11 @@ local function run(mutate)
     check("the same row, its version now known and reached, can be pressed", r.source.off(row) ~= true)
     _G.rfsuite.session.apiVersion = "12.09"
     check("and too old while the list still stands, it is grey", r.source.off(row) == true)
+    -- What a row shows is drawn from slots kept between passes: a version that changes alone builds them again.
+    local keyBefore = Menu.renderKey(w)
+    _G.rfsuite.session.apiVersion = "12.10"
+    check("a version that changes alone moves the menu's render key", Menu.renderKey(w) ~= keyBefore)
+    _G.rfsuite.session.apiVersion = nil
     pages[#pages] = nil
     _G.rfsuite.session.apiVersion = "12.10"
   end

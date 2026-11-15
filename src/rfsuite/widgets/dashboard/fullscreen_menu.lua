@@ -844,10 +844,11 @@ function M.renderKey(widget)
     local Roll = rollModule()
     if Roll then
       -- The flight controller's own answer as well as the dashboard's readiness: a row of the suite's
-      -- menu goes by the first.
+      -- menu goes by the first, and a row behind a version gate by the version it reports.
       local session = _G.rfsuite and _G.rfsuite.session or nil
       key = key .. (state.armed == true and "|a" or "|") .. (state.connectionReady == true and "r" or "")
         .. (session ~= nil and session.fblConnected == true and "f" or "")
+        .. "|" .. tostring(session ~= nil and session.apiVersion or "")
         .. "|" .. Roll.renderKey(widget)
     end
   end
