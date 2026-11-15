@@ -5880,15 +5880,15 @@ return function(h)
     for _,item in ipairs(scene.children) do
       if item.type=="button" and (item.text==L.linkRate or item.text==L.linkRatio) then
         placeholders=placeholders+1
-        check(not (item.active and item.active()),"CODEX an ELRS list placeholder is inactive")
+        check(not (item.active and item.active()),"S02 an ELRS list placeholder is inactive")
         local ok,err=pcall(item.press)
-        check(ok,"CODEX a tap on an ELRS list placeholder does not raise: "..tostring(err))
+        check(ok,"S02 a tap on an ELRS list placeholder does not raise: "..tostring(err))
       end
     end
-    eq(placeholders,2,"CODEX both ELRS list placeholders are drawn")
+    eq(placeholders,2,"S02 both ELRS list placeholders are drawn")
     w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
   end)
-  case("CODEX.elrs-set-on-both-reads-the-fc-outcome",function()
+  case("S02.elrs-set-on-both-reads-the-fc-outcome",function()
     local w=world();settle(w);w.step=2;w.rx={}
     local status="status_idle"
     local task={getRateField=function() return nil end,getRatioField=function() return nil end,
@@ -5914,18 +5914,18 @@ return function(h)
     end
     for _,bad in ipairs({"status_rotorflight_save_failed","status_rotorflight_write_failed","status_read_timeout"}) do
       finishFcStep(bad)
-      check(controller.plan==nil,"CODEX a failed FC step ends Set on both: "..bad)
-      eq(w.linkNotice,L.linkSetBothFcFailed,"CODEX a failed FC step says the FC did not save: "..bad)
+      check(controller.plan==nil,"S02 a failed FC step ends Set on both: "..bad)
+      eq(w.linkNotice,L.linkSetBothFcFailed,"S02 a failed FC step says the FC did not save: "..bad)
     end
     for _,good in ipairs({"status_rotorflight_updated","status_rf_matches_elrs"}) do
       finishFcStep(good)
-      check(controller.plan==nil,"CODEX a good FC step finishes Set on both: "..good)
-      check(w.linkNotice~=L.linkSetBothFcFailed,"CODEX a good FC step is not reported as failed: "..good)
+      check(controller.plan==nil,"S02 a good FC step finishes Set on both: "..good)
+      check(w.linkNotice~=L.linkSetBothFcFailed,"S02 a good FC step is not reported as failed: "..good)
     end
     -- A stop (released tests, stale STATUS) ends an unfinished plan, so Set on both can be pressed again.
     controller.plan={steps={{kind="fc"}},at=1}
     controller:stop()
-    check(controller.plan==nil,"CODEX a stop ends an unfinished Set on both")
+    check(controller.plan==nil,"S02 a stop ends an unfinished Set on both")
     w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
   end)
   case("REVIEW26.esc-sensor-feature-asks-for-a-restart",function()
