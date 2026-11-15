@@ -399,6 +399,35 @@ do
   restore()
 end
 
+-- A scheme saved while the tool is open recolours at once. A slot write that stops part way through (after
+-- some slots) is owed to the next pass like the opening write, and the page is built again only after it has
+-- gone through, so the rebuilt page does not stand over a scheme written in part.
+do
+  connected = true
+  local state = open({ hosted = true })
+  pass()
+  pass()
+  local ThemeSlots = _G.rfsuite.require("lib/theme_slots.lua")
+  check(builds > 0 and ThemeSlots.current() ~= nil, "control: the tool is built in a scheme", builds)
+  local general = state.preferences.general
+  local saved = general.color_scheme
+  local other = (ThemeSlots.current() == "light") and "dark" or "light"
+  general.color_scheme = other
+  local applySaved = assert(find(Home.run, "applySavedScheme"), "applySavedScheme missing")
+  stops, stopAfter = 1, 3
+  applySaved()
+  check(stops == 0 and ThemeSlots.current() == nil, "control: the save's slot write stopped part way")
+  check(state.themeSlotsOwed == true, "a stopped save write is owed to the next pass")
+  local before = builds
+  pass()
+  check(ThemeSlots.current() == other, "the next pass writes the saved scheme", ThemeSlots.current())
+  check(builds == before, "and builds nothing", builds - before)
+  pass()
+  check(builds > before, "the page is built again on the pass after", builds - before)
+  general.color_scheme = saved
+  restore()
+end
+
 -- A visit refused in init closes the tool: no slot is written on the way out.
 do
   connected = false

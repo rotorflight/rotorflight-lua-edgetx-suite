@@ -769,7 +769,16 @@ local function applySavedScheme()
   if Palette.scheme == nil or Palette.apply(scheme) == nil then return end
   if ThemeSlots and ThemeSlots.current() == Palette.scheme then return end
   logf("info", "colour scheme %s applied on save", tostring(Palette.scheme))
-  if ThemeSlots then pcall(ThemeSlots.apply, scheme) end
+  -- A write that stops part way (the instruction limit) leaves slots of both schemes: it is owed to the next
+  -- passes as the opening write is (writeOwedThemeSlots, same tries and the same put-back if it never goes
+  -- through), and the page waits for it rather than being built over the mix.
+  if ThemeSlots then
+    local ok, err = pcall(ThemeSlots.apply, scheme)
+    if not ok and ThemeSlots.current() == nil then
+      state.themeSlotsTries, state.themeSlotsOwed = 0, true
+      logf("warn", "theme slots not written on save: %s; owed to the next pass", tostring(err))
+    end
+  end
   scheduleBuildUI(false)
 end
 

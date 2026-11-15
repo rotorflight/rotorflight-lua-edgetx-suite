@@ -69,19 +69,31 @@ local USER = TMP .. "_user"
 os.execute("mkdir -p '" .. USER .. "'")
 local MARKER = USER .. "/theme_slots.txt"
 
+local realOpen = io.open
 _G.fstat = function(path)
-  local f = io.open(path, "r")
+  local f = realOpen(path, "r")
   if f then f:close(); return {} end
   return nil
 end
 _G.del = function(path) return os.remove(path) and 0 or 4 end
 -- EdgeTX's io takes the file as the first argument.
 local stdio = io
+local writeFailAfter = nil   -- io.write raises once this many more calls have gone through
+local openFails = 0          -- io.open answers nil this many more times (a card that does not answer)
 _G.io = {
-  open = stdio.open,
+  open = function(path, mode)
+    if openFails > 0 then openFails = openFails - 1; return nil end
+    return stdio.open(path, mode)
+  end,
   close = function(f) return f:close() end,
   read = function(f, n) return f:read(n) end,
-  write = function(f, s) return f:write(s) end,
+  write = function(f, s)
+    if writeFailAfter then
+      if writeFailAfter == 0 then writeFailAfter = nil; error("instruction limit") end
+      writeFailAfter = writeFailAfter - 1
+    end
+    return f:write(s)
+  end,
 }
 
 local modules = {}
@@ -412,6 +424,92 @@ do
   collectgarbage("collect")
   check(radioColours(), "and the finaliser it armed puts the radio's colours back")
   if exists(MARKER) then os.remove(MARKER) end
+  resetRadio()
+end
+
+-- 19. A scheme change, or a first apply over an earlier run's marker, that stops while it would write the marker
+--     leaves the marker whole: it already holds every radio colour, so nothing truncates it. Where neither
+--     finaliser nor restore runs (EdgeTX 2.11.0/2.11.1, memory exhausted), another state's recover() then puts
+--     every slot back, not only the rows a cut marker would still hold.
+do
+  local function markerRows()
+    local n = 0
+    local f = stdio.open(MARKER, "r")
+    if f == nil then return 0 end
+    for _ in f:lines() do n = n + 1 end
+    f:close()
+    return n
+  end
+  T = load()
+  T.apply("dark")
+  check(markerRows() == #T.SLOTS, "control: a first apply writes a whole marker")
+  writeFailAfter = 3
+  local stopped = not pcall(T.apply, "light")
+  local stopUsed = writeFailAfter == nil
+  writeFailAfter = nil
+  collectgarbage("collect")   -- a file left open by a stop is closed, so what it holds is on the card
+  check(stopped == false and markerRows() == #T.SLOTS, "a scheme change leaves the marker whole (" .. markerRows() .. " rows)")
+  local Other = load()        -- a state that never wrote: the widget after the tool's state was left behind
+  check(Other.recover() == true and radioColours(), "another state's recover puts every slot back after a scheme change")
+  check(not stopUsed, "control: the scheme change wrote no marker row, so the armed stop was never reached")
+  T.restore("test")
+  resetRadio()
+
+  leaveMarker("light")
+  T = load()
+  writeFailAfter = 3
+  pcall(T.apply, "dark")
+  writeFailAfter = nil
+  collectgarbage("collect")
+  check(markerRows() == #T.SLOTS, "a first apply over an earlier run's marker leaves it whole (" .. markerRows() .. " rows)")
+  Other = load()
+  check(Other.recover() == true and radioColours(), "and another state's recover puts every slot back")
+  T.restore("test")
+  resetRadio()
+
+  -- Control the other way: with no marker on the card a stopped first write is what it is, and the next apply
+  -- writes the marker it is missing.
+  T = load()
+  writeFailAfter = 3
+  pcall(T.apply, "dark")
+  writeFailAfter = nil
+  collectgarbage("collect")
+  check(markerRows() < #T.SLOTS, "control: a first marker write that stops leaves a cut marker")
+  T.apply("light")
+  check(markerRows() == #T.SLOTS, "the next apply writes a whole marker over a cut one")
+  T.restore("test")
+  resetRadio()
+end
+
+-- 20. The widget's recovery after a pause when recover() answers false with the marker still on the card (the
+--     card did not answer io.open after fstat saw the file): tried again on the next pass, at most three times.
+do
+  local savedLvgl = lvgl
+  lvgl = lvgl or {}
+  local Wrapper = assert(loadfile("src/widgets/rfsuite/main.lua"))()
+  lvgl = savedLvgl
+  leaveMarker("dark")
+  modules["lib/theme_slots.lua"] = load()
+  local widget = { refresh = function() end }
+  Wrapper.refresh(widget)                          -- first pass: the pause is seen
+  openFails = 1
+  Wrapper.refresh(widget)                          -- recover cannot read the marker
+  check(openFails == 0 and not radioColours() and exists(MARKER), "control: the unread marker left colours and marker")
+  check(widget._themeRecoverOwed == true, "a recover that answers false with the marker there owes the next pass")
+  Wrapper.refresh(widget)
+  check(radioColours() and not exists(MARKER), "the next pass finishes the recovery")
+  leaveMarker("dark")
+  widget = { refresh = function() end }
+  Wrapper.refresh(widget)
+  local tries = 0
+  for _ = 1, 5 do
+    openFails = 1
+    Wrapper.refresh(widget)
+    if openFails == 0 then tries = tries + 1 end
+    openFails = 0
+  end
+  check(tries == 3, "an unread marker is tried three times per pause, not on every pass (" .. tries .. ")")
+  rfsuite.require("lib/theme_slots.lua").recover()
   resetRadio()
 end
 

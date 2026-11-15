@@ -56,6 +56,8 @@ local MARKER_NAME = "theme_slots.txt"
 -- hosted tool shares the widget's.
 local applied = nil
 local appliedScheme = nil
+-- True while the marker on the card holds the radio's colour of every slot in `applied`.
+local markerKept = nil
 -- The finaliser's table, anchored here so that only the end of the Lua state collects it; `armed`
 -- is what it reads, so a restore() already done leaves it nothing to do.
 local guard = nil -- luacheck: ignore (held, never read: it only has to stay reachable)
@@ -220,13 +222,17 @@ function M.apply(name)
       log("info", "marker found: the radio colours it holds are the ones to put back")
     end
     rows = {}
+    -- That marker is kept as it is when it names every slot: it already holds the colours to put back.
+    local covered = left ~= nil and next(originals) ~= nil
     for i = 1, #M.SLOTS do
       local flag = _G[M.SLOTS[i][1]]
       if flag ~= nil then
+        if originals[flag] == nil then covered = false end
         local original = originals[flag] or lcd.getColor(flag)
         rows[#rows + 1] = { flag, original, 0 }
       end
     end
+    markerKept = covered or nil
   end
 
   local byFlag = {}
@@ -245,10 +251,18 @@ function M.apply(name)
   -- later save of dark would take the mixed slots for written (ui/home.lua, applySavedScheme). Armed
   -- whenever no finaliser is, not only when no rows are held: a restore stopped after it disarmed the
   -- finaliser still holds the rows.
+  -- The marker is written only while the card holds none with these rows' radio colours: opening it for
+  -- writing empties it, so a stop part way through would leave fewer rows than slots, and a recover from that
+  -- would put only those back. A scheme change keeps the radio's colours and so keeps the marker; the colours
+  -- it names as written may be the old scheme's, which stillOurs accepts.
   if not (guardState and guardState.armed) then arm(rows, path) end
   applied = rows
   appliedScheme = nil
-  if not writeMarker(path, rows) then
+  if markerKept then
+    log("trace", "theme slot marker kept: it holds the radio colours already")
+  elseif writeMarker(path, rows) then
+    markerKept = true
+  else
     log("warn", "theme slot marker not written: a tool stopped without its finaliser leaves the colours")
   end
   for i = 1, #rows do
@@ -275,6 +289,7 @@ function M.restore(why)
   appliedScheme = nil
   if canWrite() then putBack(rows) end
   disarm()
+  markerKept = nil
   dropMarker(markerPath())
   applied = nil
   log("info", "theme slots restored (%s)", tostring(why or "-"))

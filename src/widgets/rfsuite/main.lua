@@ -149,7 +149,10 @@ local function recoverThemeSlots(widget)
   -- rfsuite.require answers nil for a chunk that raised rather than raising itself.
   local done, err = false, ok and "module not loaded" or ThemeSlots
   if loaded then done, err = pcall(ThemeSlots.recover) end
-  if not done and fstat(user .. "/theme_slots.txt") ~= nil then
+  -- A recover that went through can still leave the marker (the card did not answer the read): that is
+  -- unfinished too. Not a marker this state holds as its own, which recover leaves alone on purpose.
+  if done then err = "the marker is still there" end
+  if fstat(user .. "/theme_slots.txt") ~= nil and not (loaded and ThemeSlots.holding()) then
     local tries = (widget._themeRecoverTries or 0) + 1
     widget._themeRecoverTries = tries
     if tries < RECOVER_TRIES then widget._themeRecoverOwed = true end

@@ -136,7 +136,9 @@ the first build waits for that too: the tool then opens with EdgeTX's own contro
 colours and the suite's own drawing in the scheme, rather than with a scheme written part way. Only
 when the put-back keeps stopping as well is the tool built over what the write left, and the radio's
 colours are then put back when it ends, as below (`ui/home.lua`, `writeOwedThemeSlots`; checked by
-`bin/ui/verify_tool_open_theme_slots.lua`).
+`bin/ui/verify_tool_open_theme_slots.lua`). A scheme saved while the tool is open is written at once
+(`applySavedScheme`); a write stopped there is owed to the next passes in the same way, with the same
+tries and put-back, and the page is built again only after it.
 
 `lcd.setColor` changes the whole radio's interface, and EdgeTX restores nothing when a script ends,
 so the radio's colours are put back on every way the tool can end:
@@ -153,11 +155,15 @@ so the radio's colours are put back on every way the tool can end:
   holds the radio's colours and `lcd.setColor` as upvalues, since the suite's globals may be gone by
   then. This holds from EdgeTX 2.11.2: on 2.11.0 and 2.11.1 the tool's Lua state is closed only when
   the next tool starts, so after a long RTN or an error the marker file below puts the colours back.
-- A marker file, `theme_slots.txt` in the user folder, written before the first slot. Should neither
+- A marker file, `theme_slots.txt` in the user folder, written before the first slot -- unless one
+  that holds the radio's colour of every slot is already there: a scheme change, or a start that took
+  the colours from an earlier run's marker, keeps it as it is, since opening it for writing empties it
+  and a write stopped part way would leave only some of the colours. Should neither
   of the above run, the dashboard widget's first refresh after a pause (EdgeTX stops widget refresh
-  while a tool window is open) puts the radio's colours back and deletes it; the next start of the
-  tool takes the radio's colours from it instead of from the slots, writes it again and puts them
-  back when it closes. Both only while each slot holds the radio's colour or one a scheme writes
+  while a tool window is open) puts the radio's colours back and deletes it, and tries again on the
+  next passes, three times at most, while the marker is still there; the next start of the
+  tool takes the radio's colours from it instead of from the slots, keeps it (writes it again only
+  where it lacks a slot) and puts them back when it closes. Both only while each slot holds the radio's colour or one a scheme writes
   there, so a theme applied since is left alone. Never while the tool is open in that widget.
 - A restart of the radio, which reloads the theme.
 
