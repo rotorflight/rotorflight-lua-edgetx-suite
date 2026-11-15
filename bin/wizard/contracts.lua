@@ -6653,15 +6653,15 @@ return function(h)
     local function pass() page.wakeup(ctx);h.pump();h.advance(1) end
     local function shown(text)
       for _,item in ipairs(ctx.children) do
-        local t=item.text;if type(t)=="function" then t=t() end
-        if t==text then return item end
+        local value=item.text;if type(value)=="function" then value=value() end
+        if value==text then return item end
       end
     end
     page.build(ctx)
     for _=1,1500 do pass();if w and w.ready and (w.overview or w.cards) then break end end
     loadScript=realLoad
     check(w and w.ready,"STOP the page reaches a ready visit")
-    -- The page loads its own labels, unresolved: compare with those, not the harness's translation.
+    -- The page loads its own labels, unresolved: compare with those, not with the translated ones here.
     local PL=w.L
     w:touch("motor_config");w.commit=function() w.stayNotice=PL.tailPinRefused end
     getAvailableMemory=function() return 200*1024 end;w:checkMemory()
