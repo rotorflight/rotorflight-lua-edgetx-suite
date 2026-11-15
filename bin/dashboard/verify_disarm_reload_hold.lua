@@ -23,8 +23,11 @@
 --   held      while the reload waits, the event runtime names the ondisarm runner as the edge
 --             still driven (Events.edgeChainActive);
 --   loaded    the post-flight theme module is loaded within six seconds of the disarm by the
---             stub clock, and is still the module standing at the end;
---   apart     the pass that loads the post-flight module is not the pass that wrote the log.
+--             stub clock, and a theme is still standing on that state at the end;
+--   apart     the post-flight module is loaded on a later pass than the one that wrote the log;
+--   waited    the ondisarm runner has nothing left at the end of the pass that loads it (the
+--             runner may finish in that same pass, before the reload), or the load is not before
+--             three seconds after the disarm (the hold's limit).
 -- Exit status: 0 green, 1 failed expectations, 2 invalid arguments.
 
 local ROOT = "."
@@ -146,7 +149,10 @@ local function runPhase(pad)
   Stubs.sensors["Gov"] = 0
   Stubs.sensors["Thr%"] = 0
   local disarmAt = getTime()
-  local r = { loggedPass = nil, loadedPass = nil, loadedAfter = nil, held = false }
+  local r = { loggedPass = nil, loadedPass = nil, loadedAfter = nil, held = false, chainAtLoad = nil }
+  local function chain()
+    return type(Events.edgeChainActive) == "function" and Events.edgeChainActive() or nil
+  end
   for i = 1, 70 do
     local seq0 = _G.rfsuite.log_history_seq or 0
     local key0 = widget.themeStateKey
@@ -157,14 +163,12 @@ local function runPhase(pad)
       if string.find(history[k].msg, "flight logged", 1, true) == 1 then r.loggedPass = r.loggedPass or i end
     end
     if r.loadedPass == nil and key0 ~= postKey and widget.themeStateKey == postKey then
-      r.loadedPass, r.loadedAfter = i, (getTime() - disarmAt) / 100
+      r.loadedPass, r.loadedAfter, r.chainAtLoad = i, (getTime() - disarmAt) / 100, chain()
     end
-    if r.loadedPass == nil and type(Events.edgeChainActive) == "function"
-        and Events.edgeChainActive() == "ondisarm" then
-      r.held = true
-    end
+    if r.loadedPass == nil and chain() == "ondisarm" then r.held = true end
   end
-  r.standing = postKey ~= nil and widget.themeStateKey == postKey
+  -- A theme module that failed to load leaves the requested state key behind with no theme table.
+  r.standing = postKey ~= nil and widget.themeStateKey == postKey and type(widget.theme) == "table"
   return wasInflight, r
 end
 
@@ -179,8 +183,12 @@ for pad = 0, 9 do
   check(r.loadedAfter ~= nil and r.loadedAfter <= 6.0 and r.standing,
     tag .. ": loaded -- the post-flight module within six seconds of the disarm, and still standing",
     r.loadedAfter and string.format("%.1f s", r.loadedAfter) or "never")
-  check(r.loadedPass == nil or r.loadedPass ~= r.loggedPass,
-    tag .. ": apart -- the post-flight module is not loaded in the pass that wrote the flight log")
+  check(r.loadedPass ~= nil and r.loggedPass ~= nil and r.loadedPass > r.loggedPass,
+    tag .. ": apart -- the post-flight module is loaded after the pass that wrote the flight log",
+    string.format("written pass %s, loaded pass %s", tostring(r.loggedPass), tostring(r.loadedPass)))
+  check(r.chainAtLoad ~= "ondisarm" or (r.loadedAfter or 0) >= 3.0,
+    tag .. ": waited -- loaded with the disarm's tasks done, or not before three seconds after the disarm",
+    string.format("runner %s after the loading pass, %.1f s", tostring(r.chainAtLoad), r.loadedAfter or -1))
 end
 
 io.open = realOpen

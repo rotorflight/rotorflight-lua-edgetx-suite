@@ -135,7 +135,7 @@ in autorotation does not send the screen back to `armed`. The latch is cleared o
 arm edge, and on the flight controller reconnect edge; the disarm hands it to the postflight
 phase, which is what makes a landing produce a summary screen and a bench arm not produce one.
 
-**The postflight module is loaded after the disarm's event tasks, not beside them.** The disarm
+**The postflight module waits for the disarm's event tasks, up to three seconds.** The disarm
 starts the `ondisarm` tasks (`tasks/events/ondisarm/manifest.lua`: the flight record, the flight
 log entry, the flight statistics, the dataflash summary and the tune history, which only
 schedules its own reads for later). While that runner still has tasks, the widget keeps the
