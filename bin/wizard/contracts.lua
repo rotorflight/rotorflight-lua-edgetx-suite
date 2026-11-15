@@ -5947,6 +5947,9 @@ return function(h)
     check(eepromSent(),"S02 the save is tried when the FC already holds the module values")
     check(controller.plan==nil and w.error==nil,"S02 a refused save ends Set on both and leaves the visit open")
     eq(w.linkNotice,L.linkSetBothFcFailed,"S02 a refused save says the FC did not save")
+    -- Leaving the card (a stop) before the save went out drops it unsent.
+    q.sent={};finishFcStep("status_rf_matches_elrs");controller:stop();drain(w)
+    check(not eepromSent(),"S02 a save Set on both queued is not sent after the card was left")
     -- A stop (released tests, stale STATUS) ends an unfinished plan, so Set on both can be pressed again.
     controller.plan={steps={{kind="fc"}},at=1}
     controller:stop()
