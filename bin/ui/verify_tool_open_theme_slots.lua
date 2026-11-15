@@ -424,6 +424,17 @@ do
   check(builds == before, "and builds nothing", builds - before)
   pass()
   check(builds > before, "the page is built again on the pass after", builds - before)
+  -- A save whose write goes through owes nothing more, even where an earlier save's write was given up and
+  -- its put-back still waits: that put-back would undo the scheme just written.
+  general.color_scheme = (other == "light") and "dark" or "light"
+  stops, stopAfter = 1, 3
+  applySaved()
+  state.themeSlotsTries = 3                      -- the owed write given up: the next owed pass puts back
+  general.color_scheme = other
+  applySaved()
+  check(ThemeSlots.current() == other and state.themeSlotsOwed == nil, "a save that goes through clears what was owed")
+  pass()
+  check(ThemeSlots.current() == other, "and the next pass leaves the saved scheme in the slots", ThemeSlots.current())
   general.color_scheme = saved
   restore()
 end

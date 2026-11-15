@@ -452,6 +452,10 @@ do
   local Other = load()        -- a state that never wrote: the widget after the tool's state was left behind
   check(Other.recover() == true and radioColours(), "another state's recover puts every slot back after a scheme change")
   check(not stopUsed, "control: the scheme change wrote no marker row, so the armed stop was never reached")
+  -- That recover dropped the marker while this state still holds its rows: its next scheme change writes one.
+  check(not exists(MARKER), "control: the other state's recover dropped the marker")
+  T.apply("dark")
+  check(markerRows() == #T.SLOTS, "a scheme change after another state dropped the marker writes it again")
   T.restore("test")
   resetRadio()
 

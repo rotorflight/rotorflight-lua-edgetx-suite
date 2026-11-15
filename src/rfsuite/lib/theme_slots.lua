@@ -258,6 +258,8 @@ function M.apply(name)
   if not (guardState and guardState.armed) then arm(rows, path) end
   applied = rows
   appliedScheme = nil
+  -- Another Lua state's recover may have put the colours back and dropped the marker since: then it is gone.
+  if markerKept and path and type(fstat) == "function" and fstat(path) == nil then markerKept = nil end
   if markerKept then
     log("trace", "theme slot marker kept: it holds the radio colours already")
   elseif writeMarker(path, rows) then
