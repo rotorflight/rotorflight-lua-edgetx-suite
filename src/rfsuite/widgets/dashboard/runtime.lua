@@ -5321,9 +5321,40 @@ function Runtime.new(zone, options)
     -- theme of its own then has its preferences read, the radio's theme released and the model's
     -- loaded in one widget call. Carried the same way, once, and marked as such, so that the tick it
     -- is carried to may still carry it off a read pass.
-    if wantReload and ((readThisPass and self._themeReloadPending ~= true)
+    --
+    -- Nor does the post-flight reload share a pass with the disarm edge's event tasks. On the
+    -- disarm the flight log is written to the card in the same widget call, and the time that
+    -- write takes makes the next tick a read pass again, so the reload carried once above would run
+    -- beside the read, the card write and the first post-flight reads in one call. It waits while
+    -- the edge's runner still has tasks, until 3 s after the wait began (the flight log write, the
+    -- flight statistics and the dataflash reads after a disarm; a literal, because this file's main
+    -- chunk is at Lua's 200-local limit). That wait does not use up the one carry off a read pass,
+    -- so a reload released on a read pass can still move one tick further. While it waits, the
+    -- foreground queues no scene job for the theme it is about to replace (_edgeHoldBusy).
+    local edgeBusy = false
+    local edge = wantReload and modeChanged and EventsRuntime and type(EventsRuntime.edgeChainActive) == "function"
+      and EventsRuntime.edgeChainActive() or nil
+    if edge == "ondisarm" then
+      if self._edgeHoldSince == nil then
+        self._edgeHoldSince = now
+        Log.emitf("rfsuite.widget", "debug", "%s reload waits for the %s tasks, %s screen stays", tostring(nextMode),
+          tostring(edge), tostring(self.flightMode))
+      end
+      edgeBusy = (now - self._edgeHoldSince) < 3.0
+    elseif self._edgeHoldSince ~= nil then
+      if self._traceOn then
+        Log.emitf("rfsuite.widget", "trace", "edge hold over after %.1f s", now - self._edgeHoldSince)
+      end
+      self._edgeHoldSince = nil
+    end
+    self._edgeHoldBusy = edgeBusy or nil
+    if wantReload and (edgeBusy or (readThisPass and self._themeReloadPending ~= true)
         or (modelPrefsChanged and self._themeReloadPending == nil)) then
-      self._themeReloadPending = (readThisPass and self._themeReloadPending ~= true) or "preferences"
+      if edgeBusy then
+        if modelPrefsChanged and self._themeReloadPending == nil then self._themeReloadPending = "preferences" end
+      else
+        self._themeReloadPending = (readThisPass and self._themeReloadPending ~= true) or "preferences"
+      end
       -- As the reload itself would: a job already queued belongs to the theme being replaced. In
       -- a foreground pass none is (a job pass never reaches this function), but widget.background
       -- runs this work whatever is queued.
@@ -5879,8 +5910,12 @@ function Runtime.new(zone, options)
     -- A theme reload that fell on a read pass waits for the next logic tick; the deferral itself
     -- is in performBackgroundWork. Queuing a scene job here would build against the theme that
     -- reload is about to replace, and run ahead of it. widget.background queues no scene jobs. The
-    -- same holds between the two halves of a staged load: the module is in, its readings are not.
-    if (self._themeReloadPending or self._themeSourcesPending) and not tuningMode then
+    -- same holds between the two halves of a staged load: the module is in, its readings are not,
+    -- and, outside fullscreen, while the post-flight reload waits for the disarm's event tasks
+    -- (_edgeHoldBusy). In fullscreen (`event` not nil) a menu or view on top must follow its keys
+    -- for the up to 3 s of that wait, so there the surface keeps building as before.
+    if (self._themeReloadPending or self._themeSourcesPending or (self._edgeHoldBusy and event == nil))
+        and not tuningMode then
       self._passEndAt = nowSeconds()
       return
     end
