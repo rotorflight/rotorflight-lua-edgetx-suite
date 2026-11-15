@@ -943,13 +943,22 @@ function M.build(children, widget, make, colors)
   local roll = rollOf(widget, source.id)
   if roll == nil then return end
   roll.source, roll.make = source, make
-  refreshLists(roll, source)
-  roll.recentre = nil
-  -- The scene a reconnect left (views.lua, M.acrossReconnect) is replaced by this one.
+  -- The scene a reconnect left (views.lua, M.acrossReconnect) is replaced by this one. A question standing in
+  -- it was asked, and perhaps answered, under the old connection: it goes, and the wheel is back on the row it
+  -- asks for, so the new connection's question is raised by a press of its own. An ordinary rebuild keeps it.
   if roll.staleScene then
     roll.staleScene = nil
+    for depth = 2, #roll.levels do
+      if roll.levels[depth].question ~= nil then
+        cutTo(roll, math.min(roll.base, depth - 1))
+        trace("reconnect: the question at level " .. tostring(depth) .. " goes with the old scene")
+        break
+      end
+    end
     trace("built again after the reconnect, presses are acted on")
   end
+  refreshLists(roll, source)
+  roll.recentre = nil
 
   local W, H = widget.zone.w, widget.zone.h
 

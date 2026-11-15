@@ -562,6 +562,27 @@ local function run(mutate)
       or toolOpened > 0 or #adds > 0)
   end
   do
+    -- A question answered under the old connection is not answered for the new one: ERASE chosen, then a
+    -- reconnect while the menu stays covered, and the new link is ready when the menu is built again. The
+    -- question goes with the old scene, so one press erases nothing; an ordinary rebuild keeps the answer.
+    local w, s = open()
+    local r = roll(w)
+    Roll.press(w)
+    s = scene(Menu, w)
+    detent(s.forward, s.forward.h, 1)
+    check("ERASE is chosen before the reconnect", r.focus == 2 and r.levels[2].question ~= nil and r.levels[2].index == 2)
+    scene(Menu, w)
+    check("an ordinary rebuild keeps the chosen answer", r.focus == 2 and r.levels[2].question ~= nil and r.levels[2].index == 2)
+    local kept = Views.acrossReconnect(w)
+    w._viewStack = kept
+    w.theme, w.built = {}, false
+    scene(Menu, w)
+    w.built = true
+    check("the menu built after the reconnect asks no question", r.focus == 1 and (r.levels[2] == nil or r.levels[2].question == nil))
+    Views.key(w, EVT_VIRTUAL_ENTER)
+    check("and the first press after it erases nothing", #adds == 0)
+  end
+  do
     -- A view taken off the stack starts over; one merely covered keeps its place.
     local w = open()
     local r = roll(w)
@@ -1295,6 +1316,9 @@ if selfTest then
     end },
     { "the menu built again after a reconnect still ignores presses", function(t)
       return (string.gsub(t, "    roll.staleScene = nil\n", ""))
+    end },
+    { "a question answered under the old connection survives the reconnect", function(t)
+      return (string.gsub(t, "        cutTo%(roll, math.min%(roll.base, depth %- 1%)%)\n", ""))
     end },
     { "a rest that asks for a build drops the ladder position of the scene still standing", function(t)
       return (string.gsub(t, "    roll.position = position\n", ""))

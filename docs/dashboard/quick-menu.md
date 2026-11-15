@@ -129,7 +129,8 @@ leads to something. On opening, the first row that can be pressed now is the cur
   runs nothing. The X closes the menu.
 
 ERASE BLACKBOX asks its question in the right list, with the focus on its CANCEL, so a double press
-cannot erase. A battery profile is written as on [its page](#the-battery-profile-page): the header
+cannot erase. A reconnect while the menu stays up or covered takes the question with it: the menu
+comes back on the ERASE BLACKBOX row, and the new connection asks again on its own press. A battery profile is written as on [its page](#the-battery-profile-page): the header
 says *SENDING...*, the menu closes when the flight controller has answered, and it stays up with
 *NOT SAVED* where it did not.
 
