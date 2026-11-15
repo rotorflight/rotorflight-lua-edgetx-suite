@@ -80,7 +80,9 @@ a late reply could not be told from the answer to a later one.
 A status older than three seconds immediately blocks editing. Active tests and
 pending writes still fail closed and release overrides. During an idle read-only
 visit, or while an accelerometer calibration runs, the page displays **Checking current FC status; controls paused** while the
-fresh STATUS request completes. It does not extend the safety window. A failed
+fresh STATUS request completes. It does not extend the safety window. A switch moved
+while that request runs takes its last position: moved back before the answer, it changes
+nothing. A failed
 request displays an error and a receiver-link hint. **Try again** starts a new
 arming-disable/readback handshake; the expired timestamp cannot abort that handshake.
 Status processing continues during resumable scene assembly. On firmware without
@@ -146,6 +148,8 @@ Every card shows where it is in its header: the step, the card's own name and it
 name does not fit, the header gives up space in this order: the large step font (800×480),
 then the **Step n/19** text (the arrow stays), then the card's name for its place **(3/6)**. Tapping the
 header opens the step menu: all 19 steps, the current one marked, done steps with a mark.
+Opening it releases whatever the card holds, and nothing the card would start is started
+behind the menu or behind the Save or Discard question.
 Choosing another step first offers Save or Discard when something changed, then opens that
 step at its first card; the mode stays (Complete setup carries on from there, a single step
 stays a single step). Back returns to the card the menu was opened from. A step that needs

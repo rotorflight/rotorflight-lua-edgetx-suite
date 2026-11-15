@@ -117,7 +117,7 @@ function M.new(runtime, transport, mathModule, labels)
     self.escBusy = nil
     self.bus:cancel()
     local dropped = self.pendingEditDropped
-    self.statusQueued, self.pendingEdit, self.pendingEditDropped = nil, nil, nil
+    self.statusQueued, self.pendingEdit, self.pendingEditDropped, self.switchEdit = nil, nil, nil, nil
     if dropped then dropped() end
     self.statusFailure = api == "status" or api == "arming_disable"
     self.error = api .. ": " .. tostring(reason)
@@ -206,7 +206,7 @@ function M.new(runtime, transport, mathModule, labels)
       self:log("warn", "accelerometer calibration flags did not clear")
     end
     local edit, dropped = self.pendingEdit, self.pendingEditDropped
-    self.pendingEdit, self.pendingEditDropped = nil, nil
+    self.pendingEdit, self.pendingEditDropped, self.switchEdit = nil, nil, nil
     if edit and self:usable() then edit()
     else
       if edit then self:log("warn", "edit dropped, the fresh status did not confirm the lock") end
@@ -1114,7 +1114,22 @@ function M.new(runtime, transport, mathModule, labels)
         if self.logDebug then self:log("debug", "cards %s built, %s", key, #self.cards) end
       end
       self.card = math.min(self.card, #self.cards)
-      if self.cards[self.card].enter and not self.stepMenu then self:afterRelease(self.cards[self.card].enter) end
+      if self.cards[self.card].enter and not self.stepMenu then
+        -- The entry runs after the release before it, a pass or more later. By then the step menu may be
+        -- open or a question asked (a jump with staged changes), both of which release the card's holds, or
+        -- another card entered: only the latest card entry runs, and only on its card.
+        local enter, cards, card = self.cards[self.card].enter, self.cards, self.card
+        self.entrySeq = (self.entrySeq or 0) + 1
+        local seq = self.entrySeq
+        self:afterRelease(function()
+          if seq ~= self.entrySeq or self.stepMenu or self.confirmExit or self.transition
+            or self.cards ~= cards or self.card ~= card then
+            if self.logTrace then self:log("trace", "card %s entry skipped: left before it ran", card) end
+            return
+          end
+          enter()
+        end)
+      end
       self:rebuild(); return
     end
     if not self.ready or self.error or self.transition then return end

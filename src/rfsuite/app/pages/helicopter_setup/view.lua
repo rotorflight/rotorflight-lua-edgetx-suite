@@ -554,17 +554,33 @@ function M.new(w, ctx, diagrams)
           -- ToggleSwitch with a 0 x 0 rectangle): measured, 72 x 44 on 800x480 and 48 x 28 on the
           -- 480-wide screens. It is centred on the row with that size, like its label.
           local sw, sh = large and 72 or 48, large and 44 or 28
+          local switchKey = tostring(w.card) .. ":" .. i
           all[#all + 1] = { type = "toggle", x = editX, y = y+math.floor((rowControlH-sh)/2), w = sw, h = sh,
             get = function() return r.get() == 2 end,
             set = function(v)
-              -- Some EdgeTX builds call set() without a payload: that is a flip.
+              -- While an edit of this switch waits for a fresh status, the latest input decides: one back to
+              -- the value the row holds calls the waiting edit off. Kept on the page by card and row, so a rebuild
+              -- keeps it and two rows of the same label stay apart.
+              local waiting = w.switchEdit
+              if not (waiting and waiting.key == switchKey and waiting.edit == w.pendingEdit) then waiting = nil end
               local on
-              if v == nil then on = r.get() ~= 2
+              -- Some EdgeTX builds call set() without a payload: that is a flip, of the waiting value if any.
+              if v == nil then
+                if waiting then on = not waiting.on else on = r.get() ~= 2 end
               elseif type(v) == "boolean" then on = v
               else on = (tonumber(v) or 0) ~= 0 end
+              if waiting then
+                if on ~= waiting.on then
+                  w.pendingEdit, w.pendingEditDropped, w.switchEdit = nil, nil, nil
+                  if w.logTrace then w:log("trace", "switch %s %s: the waiting edit is called off", tostring(r.label), tostring(on)) end
+                end
+                return
+              end
               if on == (r.get() == 2) then return end
               if w.logTrace then w:log("trace", "switch %s %s", tostring(r.label), tostring(on)) end
-              w:applyEdit(function() if editable() then r.set(on and 2 or 1) end end)
+              local edit = function() if editable() then r.set(on and 2 or 1) end end
+              w:applyEdit(edit)
+              w.switchEdit = w.pendingEdit == edit and { key = switchKey, on = on, edit = edit } or nil
             end, active = enabled }
         elseif r.kind == "toggle" then
           local function set(v) w:applyEdit(function() if editable() then r.set(v) end end) end

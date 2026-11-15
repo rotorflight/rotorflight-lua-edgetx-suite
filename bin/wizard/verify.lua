@@ -1257,6 +1257,100 @@ do
   check(found:escTelemetryOnly() == false, "HALF no such claim for an ESC this page cannot program")
   q.sent = {}
 end
+-- A card's entry is queued behind the release of the card before. The step menu opened, or a jump with
+-- staged changes asked about, before that entry runs takes it with it: nothing is held behind the menu or the
+-- question. Closing the menu runs the card's entry again.
+do
+  local function settle(lw)
+    for _ = 1, 200 do lw:tick(); pump(); ticks = ticks + 1; if lw.bus:idle() and not lw.buildRequested then break end end
+  end
+  local function prepared()
+    local lw = world()
+    settle(lw)
+    local entered = 0
+    lw.cards[lw.card].enter = function() entered = entered + 1; lw:holdAxes(1, 500) end
+    lw.statusAt = ticks
+    lw:navigate(lw.step, lw.card)
+    lw:tick(); ticks = ticks + 1
+    return lw, function() return entered end
+  end
+  local lw, entered = prepared()
+  check(not lw.bus:idle() and entered() == 0, "ENTRY control: the card's entry is queued, not run yet")
+  lw:openStepMenu()
+  settle(lw)
+  check(lw.stepMenu == true, "ENTRY control: the step menu is open")
+  eq(entered(), 0, "ENTRY a queued entry does not run behind the step menu")
+  check(next(lw.holds) == nil, "ENTRY nothing is held behind the step menu")
+  lw:closeStepMenu()
+  settle(lw)
+  eq(entered(), 1, "ENTRY closing the step menu runs the card's entry")
+  check(next(lw.holds) ~= nil, "ENTRY and its hold is set again")
+  lw:release(); settle(lw)
+  lw, entered = prepared()
+  lw:openStepMenu()
+  lw.dirty.test = true
+  lw:jumpToStep(lw.step == 1 and 2 or 1)
+  settle(lw)
+  check(lw.confirmExit == true, "ENTRY control: the jump asks about the staged change")
+  eq(entered(), 0, "ENTRY a queued entry does not run behind the jump's question")
+  check(next(lw.holds) == nil, "ENTRY nothing is held behind the jump's question")
+end
+-- A switch whose edit waits for a fresh status follows the latest input: back to the value the row holds
+-- calls the waiting edit off, also across a rebuild, and a flip without a value flips the waiting one.
+do
+  local function settle(lw)
+    for _ = 1, 200 do lw:tick(); pump(); ticks = ticks + 1; if lw.bus:idle() and not lw.buildRequested then break end end
+  end
+  local function toggleOf(lw)
+    local job = view.new(lw, { w = 480, h = 272 }, diagrams)
+    while not job.done do job:step() end
+    for _, item in ipairs(job.children) do if item.type == "toggle" then return item end end
+  end
+  local lw = world()
+  settle(lw)
+  lw.cards, lw.card = { lw:cardDef("T", "d", { lw:check("probe", "Probe") }) }, 1
+  local item = toggleOf(lw)
+  check(item ~= nil, "SWITCH control: the card draws a switch")
+  lw.statusAt = ticks - 301
+  item.set(true)
+  check(lw.pendingEdit ~= nil and not lw.checks.probe, "SWITCH control: an edit waits for a fresh status")
+  item.set(false)
+  settle(lw)
+  check(not lw.checks.probe, "SWITCH on then off while the status is pending leaves it off")
+  lw.checks.probe = nil
+  lw.statusAt = ticks - 301
+  item = toggleOf(lw)
+  item.set(true)
+  item = toggleOf(lw)                          -- a rebuild in between makes the switch anew
+  item.set(false)
+  settle(lw)
+  check(not lw.checks.probe, "SWITCH on, a rebuild, then off while pending leaves it off")
+  -- Two rows of the same label are two switches: each one's input is its own.
+  lw.cards, lw.card = { lw:cardDef("T", "d", { lw:check("probeA", "Probe"), lw:check("probeB", "Probe") }) }, 1
+  local function toggles()
+    local job = view.new(lw, { w = 480, h = 272 }, diagrams)
+    while not job.done do job:step() end
+    local found = {}
+    for _, it in ipairs(job.children) do if it.type == "toggle" then found[#found + 1] = it end end
+    return found
+  end
+  lw.statusAt = ticks - 301
+  local pair = toggles()
+  check(#pair == 2, "SWITCH control: two switches of the same label are drawn")
+  pair[1].set(true)
+  pair[2].set(false)                           -- the second row is off already: nothing to do for it
+  settle(lw)
+  check(lw.checks.probeA == true and not lw.checks.probeB, "SWITCH a second switch of the same label leaves the first one's edit")
+  lw.cards, lw.card = { lw:cardDef("T", "d", { lw:check("probe", "Probe") }) }, 1
+  lw.checks.probe = nil
+  lw.statusAt = ticks - 301
+  item = toggleOf(lw)
+  item.set(true)
+  item.set(nil)                                -- a flip: from the waiting on, that is off
+  settle(lw)
+  check(not lw.checks.probe, "SWITCH a flip while an edit waits flips the waiting value")
+  check(lw.switchEdit == nil, "SWITCH nothing of the switch is kept once the status has answered")
+end
 print("Source contracts: "..#contractCases.." scenario groups")
 for name,count in pairs(worst) do print(string.format("BUDGET %-12s %d / 14000",name,count)) end
 if arg[1]=="--export" then
