@@ -115,7 +115,7 @@ field as on the Configuration page). An edit is written with the next saved step
 
 The confirmation is remembered per flight controller and radio model, because one board can be
 flown from another transmitter model: a file of its own beside the completion history
-(`wizard-history/<board id>-prepared-<radio model file>.lua`, keyed on the model's file on the card). Complete setup always shows the card. A
+(`wizard-history/<board id>-prepared-<radio model file>-<hash>.lua`, keyed on the model's file on the card; the hash of the whole name keeps two names apart that the file name alone would join). Complete setup always shows the card. A
 step opened on its own shows it the first time for that flight controller and radio model; after
 that it passes the card by itself as soon as both state sensors below are live, and shows it only
 while one of them is missing. A radio model without a file or a name is never remembered. The history/reset page needs no model-configuration confirmation. The 19 numbered steps

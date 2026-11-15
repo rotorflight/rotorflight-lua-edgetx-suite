@@ -34,10 +34,13 @@ end
 -- record, so the record's fixed format and every reader of it stay as they are. It is kept per
 -- FC and radio model, because one board can be flown from another transmitter model; without
 -- the model's name nothing is remembered and the card asks again.
+-- The file name can carry only part of a name ("Heli 1" and "Heli_1" read the same there, and a long one is
+-- cut short), so it ends in a short hash of the whole name: two radio models never share a record.
 local function modelKey(radioModel)
   if type(radioModel) ~= "string" or radioModel == "" then return nil end
-  local key = string.sub(string.gsub(radioModel, "[^%w_-]", "_"), 1, 32)
-  return key ~= "" and key or nil
+  local hash = 5381
+  for i = 1, #radioModel do hash = (hash * 33 + string.byte(radioModel, i)) % 16777216 end
+  return string.sub(string.gsub(radioModel, "[^%w_-]", "_"), 1, 24) .. "-" .. string.format("%06x", hash)
 end
 local function preparedPath(path, key)
   if not path or not key then return nil end
