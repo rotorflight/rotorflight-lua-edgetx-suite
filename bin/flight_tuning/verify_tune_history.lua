@@ -855,6 +855,40 @@ do
   check("the next append, its rename working, puts the .bak back under the name and appends to it",
     ok == true and due == true and files[JOURNAL .. ".bak"] == nil and string.sub(files[JOURNAL] or "", 1, #withSave) == withSave
     and pilotF(70) == 120, tostring(pilotF(70)))
+  -- Only the .bak standing and its size cannot be had although it opens: it still stands, so
+  -- no journal is started beside it (that one would be read in its place and give F 96 at 77)
+  local function bakUnmeasured() return function(path)
+    if path == JOURNAL .. ".bak" then return nil end
+    return realFstat(path)
+  end end
+  reset()
+  files[JOURNAL .. ".bak"] = parked
+  renameFails[JOURNAL .. ".bak"] = true
+  fstat = bakUnmeasured()
+  ok, refused = journal.append(MCU, F_NEXT)
+  fstat = realFstat
+  check("only the .bak standing, unmeasured and its rename failing: the append is refused, no journal beside it",
+    ok == false and refused == "unmeasurable" and files[JOURNAL] == nil and files[JOURNAL .. ".bak"] == parked,
+    tostring(refused) .. " " .. tostring(files[JOURNAL] and #files[JOURNAL]))
+  check("and the pilot's own F is still read from the .bak", pilotF(96) == 120, tostring(pilotF(96)))
+  renameFails[JOURNAL .. ".bak"] = nil
+  reset()
+  files[JOURNAL .. ".bak"] = parked
+  fstat = bakUnmeasured()
+  local restored = journal.restore(MCU)
+  fstat = realFstat
+  check("the page's put-back takes an unmeasured .bak too", restored == true and files[JOURNAL] == parked
+    and files[JOURNAL .. ".bak"] == nil)
+  reset()
+  files[JOURNAL .. ".bak"] = parked
+  fstat = bakUnmeasured()
+  ok, due = journal.append(MCU, F_NEXT)
+  fstat = realFstat
+  check("only the .bak standing, unmeasured and its rename working: put back and appended to",
+    ok == true and due == true and files[JOURNAL .. ".bak"] == nil
+    and string.sub(files[JOURNAL] or "", 1, #parked) == parked
+    and string.match(string.sub(files[JOURNAL] or "", #parked + 1), '^e%(%d+,"tune_advisor",1,"pid_0_F",96,77%)\n$') ~= nil
+    and pilotF(77) == 120, tostring(pilotF(77)))
 
   -- An append between two steps of the read: the start afresh is given up, nothing is lost
   reset()

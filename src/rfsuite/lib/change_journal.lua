@@ -109,7 +109,14 @@ end
 local function restoreParked(path)
   if fileSize(path) ~= nil then return true end
   local bakPath = path .. ".bak"
-  if fileSize(bakPath) == nil then return true end
+  if fileSize(bakPath) == nil then
+    -- A `.bak` that opens although its size cannot be had still stands: it is put back like any
+    -- other, and while it cannot be, the append refuses rather than starting a journal beside it
+    local probe = io.open(bakPath, "r")
+    if not probe then return true end
+    io.close(probe)
+    journalLog("debug", "journal %s: its .bak opens but its size cannot be had", path)
+  end
   local ok, res = false, "no rename"
   if type(rename) == "function" then ok, res = pcall(rename, bakPath, path) end
   local restored = ok and res == 0
@@ -149,7 +156,8 @@ function M.append(mcuId, entries)
   local text = table.concat(lines)
   ensureDir()
   -- A `.bak` that cannot be put back stays the journal and takes the entries, so its chains run
-  -- on; it starts afresh only once it is back under the name. A name that opens although its
+  -- on; it starts afresh only once it is back under the name, and while its own size cannot be
+  -- had the append is refused below ("unmeasurable"). A name that opens although its
   -- size cannot be had is refused: once its size can be had again, the reads take it and not
   -- the `.bak`, so entries written to the `.bak` would no longer be read.
   local target = path
