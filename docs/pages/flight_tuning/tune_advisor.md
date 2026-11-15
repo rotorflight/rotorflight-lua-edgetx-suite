@@ -44,11 +44,11 @@ flight is saved about 10 seconds after the disarm (2 seconds later without the *
 profiles are asked for after the three axes; that question is asked again on a link error like an axis, and an
 answer the radio cannot read saves the flight without profiles, so it is never combined). Then it reads the cyclic
 polarity, the cyclic ring and the I-term relax type and adds them to the saved flight, since they change what its
-numbers mean. A value that could not be read stays unknown, and so do all three if you switch the PID or rate
-profile before they are read and the *PID#* and *RTE#* sensors report the switch: the values read then would belong
-to the other profile. The flight is saved under the profiles active at the save, not at the disarm (without those
-sensors, under the ones read after the three axes, so a later switch is not seen): keep the profiles you flew from
-the disarm until the flight is saved and its settings are read.
+numbers mean. A value that could not be read stays unknown, and so do those not read yet if you switch the PID or
+rate profile after the flight is saved and the *PID#* and *RTE#* sensors report the switch: the values read then
+would belong to the other profile. The flight is saved under the profiles active at the save, not at the disarm
+(without those sensors, under the ones read after the three axes, so a later switch is not seen): keep the profiles
+you flew from the disarm until the flight is saved and its settings are read.
 
 - **The saving is done by the RFSuite dashboard widget or the RFSuite Service widget**, whether or not this page
   is open (see [Service widget](../../dashboard/service-widget.md)). With neither of them on the model, no flight
