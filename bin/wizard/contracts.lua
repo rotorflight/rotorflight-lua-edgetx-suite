@@ -6632,7 +6632,11 @@ return function(h)
     -- Through the page as on the radio: a stop scene already on screen, Save & exit whose commit
     -- has something to say, and the page's scene cache between the two.
     local realLoad,realMemory=loadScript,getAvailableMemory
-    local w
+    -- The visit writes its recovery and history state into the session; later cases start clean.
+    local session=_G.rfsuite.session
+    local keptRecovery,keptHistory=session.helicopterSetupRecovery,session.helicopterSetupHistory
+    local keptMask=keptHistory and keptHistory.mask
+    local w,closed
     loadScript=function(file,...)
       local chunk=realLoad(file,...)
       if not string.find(file,"helicopter_setup/controller.lua",1,true) then return chunk end
@@ -6644,7 +6648,7 @@ return function(h)
     end
     local page=load("app/pages/helicopter_setup/page.lua")
     local ctx={w=480,h=272,children={},menu={getCurrentMenuId=function() return "helicopter_setup_page" end},
-      requestClose=function() end}
+      requestClose=function() closed=true end}
     ctx.requestRebuild=function() ctx.children={};page.build(ctx) end
     local function pass() page.wakeup(ctx);h.pump();h.advance(1) end
     local function shown(text)
@@ -6670,8 +6674,14 @@ return function(h)
     check(shown(PL.tailPinRefused)~=nil,"STOP the page shows what the save had to say on the stop screen")
     check(shown(PL.closeWizard)~=nil,"STOP after that save the page offers Close")
     check(shown(PL.saveExit)==nil,"STOP after that save the page no longer offers Save & exit")
+    local close=shown(PL.closeWizard)
+    if close then close.press() end
+    for _=1,400 do pass();if closed then break end end
+    check(closed,"STOP Close on that screen closes the visit")
     getAvailableMemory=realMemory
     page.onClose();for _=1,30 do h.pump() end
+    session.helicopterSetupRecovery,session.helicopterSetupHistory=keptRecovery,keptHistory
+    if keptHistory then keptHistory.mask=keptMask end
   end)
   return cases
 end
