@@ -286,7 +286,6 @@ local LABEL_H = (W >= 760 and 29) or (W <= 320 and 17) or 21
 local PICKER_W = (W >= 760) and 260 or 172
 local LEFT = 6
 local BODY_W = W - 2 * LEFT
-local MESSAGE_H = 3 * LABEL_H
 local BUTTON_H = 34
 
 local function rowLabel(children, y, text)
@@ -378,18 +377,19 @@ local function buildForm()
   end
 
   -- The one sentence that stands between the pilot and the button. Warning-colored: it is the
-  -- refusal, and it must not read like one more row label. It gets up to three lines BESIDE
-  -- the first screen's button, in the hint's place, and below the second screen's two buttons:
+  -- refusal, and it must not read like one more row label. It wraps BESIDE the first screen's
+  -- button, in the hint's place, and below the second screen's two buttons:
   -- above the button it pushed the button under the fold of a 480x320 screen, and a refusal
   -- that hides the way on is a dead end.
   -- The label reads `message` through a function, which the radio calls after every pass in the
   -- lvgl layout, so a refused press only sets the sentence. Nothing is rebuilt: the focus stays
   -- on the button that was pressed and the page does not jump back to its top, where the
-  -- sentence would sit under the fold of a 480x272 screen.
+  -- sentence would sit under the fold of a 480x272 screen. The label has no fixed height, so it
+  -- grows with the sentence and an idle page keeps the hint's one line, scrolling no further.
   y = y + 6
   local function refusal(x, ry, w, idle, idleColor)
     body[#body + 1] = {
-      type = "label", x = x, y = ry, w = w, h = MESSAGE_H, font = SMLSIZE,
+      type = "label", x = x, y = ry, w = w, font = SMLSIZE,
       text = function() return message or idle end,
       color = function() return message ~= nil and P.warning or idleColor end
     }

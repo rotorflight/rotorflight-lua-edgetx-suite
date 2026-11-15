@@ -347,6 +347,9 @@ do
   local radio = newRadio()
   check(hasText(radio, "skip_hint"), "the first screen shows the hint beside Next")
   check(liveLabel(radio) ~= nil and colorOf(liveLabel(radio)) == 2, "the hint is muted")
+  -- No fixed height: the label grows with the sentence, and an idle page keeps the hint's one
+  -- line instead of a reserved block that makes a 480x320 page scroll.
+  check(liveLabel(radio) ~= nil and liveLabel(radio).h == nil, "the sentence label has no fixed height")
   local builds = radio.builds
   firstScreen(radio, "SW1", "SF", "SA", "SD", "SW1")
   check(radio.builds == builds, "a refused Next rebuilds nothing")
