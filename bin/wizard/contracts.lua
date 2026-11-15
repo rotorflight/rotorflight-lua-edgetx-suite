@@ -1655,6 +1655,15 @@ return function(h)
     eq(session.crsfTelemetryConfig.linkRate,500,"S02 FC rate is published only after EEPROM acknowledgement")
     eq(session.crsfTelemetryConfig.linkRatio,4,"S02 FC ratio is published only after EEPROM acknowledgement")
     check(not task.isRunning(),"S02 acknowledged FC save completes the task")
+    -- An FC whose RAM already holds the module values ends the sync without a write and without an
+    -- EEPROM save, also when a save of those values failed before (Set on both saves them itself).
+    task.reset();w.statusAt=getTime();q.messages={}
+    session.crsfTelemetryConfig={mode=1,linkRate=500,linkRatio=4}
+    session.telemetryConfigBuffer=h.api("telemetry_config").simulatorResponse
+    task.start(task.MODE_ELRS_TO_ROTORFLIGHT)
+    for _=1,3 do h.measure("ELRS task",task.wakeup);h.advance(60) end
+    eq(task.getStatus(),"status_rf_matches_elrs","S02 an FC already holding the module values ends the sync as matching")
+    eq(#q.messages,0,"S02 an FC already holding the module values gets no write and no EEPROM save from the task")
     task.reset()
     session.telemetryType,session.isConnected,_G.rfsuite.require=oldType,oldConnected,oldRequire
     session.crsfTelemetryConfig,session.telemetryConfigBuffer,session.elrsLinkConfig=nil,nil,nil
@@ -5917,16 +5926,74 @@ return function(h)
       check(controller.plan==nil,"S02 a failed FC step ends Set on both: "..bad)
       eq(w.linkNotice,L.linkSetBothFcFailed,"S02 a failed FC step says the FC did not save: "..bad)
     end
-    for _,good in ipairs({"status_rotorflight_updated","status_rf_matches_elrs"}) do
-      finishFcStep(good)
-      check(controller.plan==nil,"S02 a good FC step finishes Set on both: "..good)
-      check(w.linkNotice~=L.linkSetBothFcFailed,"S02 a good FC step is not reported as failed: "..good)
+    finishFcStep("status_rotorflight_updated")
+    check(controller.plan==nil,"S02 an FC step that saved finishes Set on both")
+    check(w.linkNotice~=L.linkSetBothFcFailed,"S02 an FC step that saved is not reported as failed")
+    -- An FC whose RAM already holds the module values is saved by the wizard: the task saves
+    -- nothing then, which is also the state after a save of those values failed.
+    local eepromCommand=h.api("eeprom_write").writeCommand
+    local function eepromSent()
+      for _,m in ipairs(q.sent) do if m.command==eepromCommand then return true end end
+      return false
     end
+    q.sent={};finishFcStep("status_rf_matches_elrs")
+    check(controller.plan~=nil,"S02 an FC already holding the module values is not done before it is saved")
+    drain(w);controller:runPlan();controller:runPlan()
+    check(eepromSent(),"S02 an FC already holding the module values is saved by Set on both")
+    check(controller.plan==nil,"S02 Set on both finishes once that save is answered")
+    check(w.linkNotice~=L.linkSetBothFcFailed,"S02 an answered save is not reported as failed")
+    q.sent={};h.setFailCommand(eepromCommand);finishFcStep("status_rf_matches_elrs")
+    drain(w);controller:runPlan();h.setFailCommand(nil)
+    check(eepromSent(),"S02 the save is tried when the FC already holds the module values")
+    check(controller.plan==nil and w.error==nil,"S02 a refused save ends Set on both and leaves the visit open")
+    eq(w.linkNotice,L.linkSetBothFcFailed,"S02 a refused save says the FC did not save")
     -- A stop (released tests, stale STATUS) ends an unfinished plan, so Set on both can be pressed again.
     controller.plan={steps={{kind="fc"}},at=1}
     controller:stop()
     check(controller.plan==nil,"S02 a stop ends an unfinished Set on both")
     w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
+  end)
+  case("S02.elrs-set-on-both-after-a-stop-reads-the-module-first",function()
+    local w=world();settle(w);w.step=2;w.rx={}
+    -- A walk of the module fills its fields; a reset clears them, as the shared task does.
+    local field={id=1,options={"333Hz","500Hz"},selectedIndex=1}
+    local fields,running,selected=nil,false,{}
+    local task={getRateField=function() return fields end,getRatioField=function() return nil end,
+      isRunning=function() return running end,reset=function() fields,running=nil,false end,setOwner=function() end,
+      getStatus=function() return "status_probe_complete" end,getStatusText=function() return "" end,
+      wakeup=function() fields,running=field,false end,start=function() running=true end,
+      selectOption=function(kind,index)
+        selected[#selected+1]=fields~=nil
+        if not fields then return false end
+        running=true;return true
+      end,MODE_ELRS_TO_ROTORFLIGHT=2,MODE_PROBE=0}
+    local realLoad=w.loadModule
+    w.loadModule=function(self,path)
+      if string.find(path,"elrslink_task",1,true) then return task end
+      return realLoad(self,path)
+    end
+    local session=w:session()
+    local oldType,oldProvider,oldFeatures=session.telemetryType,w.data.rx_config.serialrx_provider,w.data.feature_config.enabledFeatures
+    session.telemetryType,w.data.rx_config.serialrx_provider="crsf",9
+    w.data.feature_config.enabledFeatures=oldFeatures|(1<<3)
+    w.statusAt=getTime()
+    local controller=load("app/pages/helicopter_setup/elrs_link.lua").new(w)
+    local card=w:cardDef(L.linkTitle,L.linkHint,{});w.cards={card};w.card=1
+    controller:enter(card)
+    -- A stop that lands between two steps of a plan (no walk owed), then Set on both again.
+    controller.plan={steps={{kind="rate",index=0},{kind="fc"}},at=1}
+    controller.rewalk=nil;controller:stop()
+    check(controller.plan==nil,"S02 the stop ended the plan")
+    controller:bind();controller.plan={steps={{kind="rate",index=0},{kind="fc"}},at=1}
+    for _=1,40 do
+      w:tick();h.pump();h.advance(1)
+      if #selected>0 then break end
+    end
+    eq(#selected,1,"S02 Set on both after a stop writes its module value")
+    check(selected[1]==true,"S02 Set on both after a stop reads the module before it writes")
+    session.telemetryType,w.data.rx_config.serialrx_provider,w.data.feature_config.enabledFeatures=oldType,oldProvider,oldFeatures
+    session.crsfTelemetryConfig,session.telemetryConfigBuffer=nil,nil
+    task.reset();w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
   end)
   case("REVIEW26.esc-sensor-feature-asks-for-a-restart",function()
     local w=world();settle(w);w.step=9
