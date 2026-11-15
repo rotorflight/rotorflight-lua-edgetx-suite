@@ -6657,17 +6657,19 @@ return function(h)
     for _=1,1500 do pass();if w and w.ready and (w.overview or w.cards) then break end end
     loadScript=realLoad
     check(w and w.ready,"STOP the page reaches a ready visit")
-    w:touch("motor_config");w.commit=function() w.stayNotice=L.tailPinRefused end
+    -- The page loads its own labels, unresolved: compare with those, not the harness's translation.
+    local PL=w.L
+    w:touch("motor_config");w.commit=function() w.stayNotice=PL.tailPinRefused end
     getAvailableMemory=function() return 200*1024 end;w:checkMemory()
-    for _=1,200 do pass();if w.memoryStop==true and shown(L.saveExit) then break end end
-    local save=shown(L.saveExit)
+    for _=1,200 do pass();if w.memoryStop==true and shown(PL.saveExit) then break end end
+    local save=shown(PL.saveExit)
     check(w.memoryStop==true and save~=nil,"STOP the page shows the stop screen with Save & exit")
     if save then save.press() end
     for _=1,800 do pass();if not w.transition and next(w.dirty)==nil and w.stopNotice then break end end
     for _=1,20 do pass() end
-    check(shown(L.tailPinRefused)~=nil,"STOP the page shows what the save had to say on the stop screen")
-    check(shown(L.closeWizard)~=nil,"STOP after that save the page offers Close")
-    check(shown(L.saveExit)==nil,"STOP after that save the page no longer offers Save & exit")
+    check(shown(PL.tailPinRefused)~=nil,"STOP the page shows what the save had to say on the stop screen")
+    check(shown(PL.closeWizard)~=nil,"STOP after that save the page offers Close")
+    check(shown(PL.saveExit)==nil,"STOP after that save the page no longer offers Save & exit")
     getAvailableMemory=realMemory
     page.onClose();for _=1,30 do h.pump() end
   end)
