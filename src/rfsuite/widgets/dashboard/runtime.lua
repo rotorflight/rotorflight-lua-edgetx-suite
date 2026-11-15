@@ -5322,10 +5322,11 @@ function Runtime.new(zone, options)
     -- loaded in one widget call. Carried the same way, once, and marked as such, so that the tick it
     -- is carried to may still carry it off a read pass.
     --
-    -- Nor does the post-flight reload share a pass with the disarm edge's event tasks. On the
-    -- disarm the flight log is written to the card in the same widget call, and the time that
-    -- write takes makes the next tick a read pass again, so the reload carried once above would run
-    -- beside the read, the card write and the first post-flight reads in one call. It waits while
+    -- Nor does the post-flight reload share a pass with the disarm edge's event tasks. Those tasks
+    -- run in this widget's calls, one logic tick after another (the flight log write among them),
+    -- and the read that sees the disarm falls on whichever of those ticks the read cadence gives
+    -- it, so the reload, carried once off that read pass, could run on the next tick in the same
+    -- widget call as the flight log write and the first post-flight reads. It waits while
     -- the edge's runner still has tasks, until 3 s after the wait began (the flight log write, the
     -- flight statistics and the dataflash reads after a disarm; a literal, because this file's main
     -- chunk is at Lua's 200-local limit). That wait does not use up the one carry off a read pass,

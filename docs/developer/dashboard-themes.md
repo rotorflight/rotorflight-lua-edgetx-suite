@@ -140,9 +140,10 @@ starts the `ondisarm` tasks (`tasks/events/ondisarm/manifest.lua`: the flight re
 log entry, the flight statistics, the dataflash summary and the tune history, which only
 schedules its own reads for later). While that runner still has tasks, the widget keeps the
 inflight screen and holds the reload of the postflight module, until three seconds after the hold
-began, whether or not the tasks have finished by then. The flight log write takes long enough on a card that, without
-the hold, the theme load, the telemetry read and the first postflight reads would share one
-widget call with it and could run into the instruction limit. The hold does not use up the one
+began, whether or not the tasks have finished by then. The tasks run in the widget's own calls,
+one logic tick after another, and the phase change follows the telemetry read cadence, so
+without the hold the theme load can fall into the same widget call as the flight log write and,
+together with the read and the first postflight reads, run into the instruction limit. The hold does not use up the one
 carry a reload gets off a telemetry-read pass, so a reload released on a read pass can still move
 one logic tick further. In practice the hold ends after one to two seconds; at the three-second
 limit, with that carry and the logic tick on top, it can last a little longer.

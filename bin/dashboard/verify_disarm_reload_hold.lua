@@ -4,18 +4,18 @@
 --   lua5.3 bin/dashboard/verify_disarm_reload_hold.lua
 --   lua5.3 bin/dashboard/verify_disarm_reload_hold.lua --verbose
 --
--- On a disarm the dashboard's event runtime starts the ondisarm tasks, and the flight log task
--- writes the flight to the card. On a radio that write takes long enough (half a second on a
--- slow card) that the next logic tick is a telemetry read pass again, and the post-flight reload,
--- already carried once off a read pass, would then run in the same widget call as the write, the
--- read and the first post-flight reads -- the call EdgeTX stops at its instruction limit.
+-- On a disarm the dashboard's event runtime starts the ondisarm tasks in the widget's own calls,
+-- one logic tick after another, and the flight log task writes the flight to the card in one of
+-- them. The phase change follows the telemetry read cadence, so without a hold the post-flight
+-- reload can run in the same widget call as the flight log write, the read and the first
+-- post-flight reads -- a call EdgeTX can stop at its instruction limit.
 --
 -- The dashboard's real runtime runs in the accounting world (bin/accounting/stubs): settled on
 -- the reference theme, armed, flown, disarmed, with the flight log switched on. The stub clock
 -- moves one host cycle (0.1 s) per call, and five more while the flight log opens its file for
--- writing, which stands in for the write's wall time. The disarm is moved across ten cadence
--- phases, one pass apart, because which pass the 0.5 s read falls on decides whether the two
--- meet.
+-- writing, which stands in for the write's wall time (the two meet at the same phases without
+-- it). The disarm is moved across ten cadence phases, one pass apart, because which pass the
+-- 0.5 s read falls on decides whether the two meet.
 --
 -- What is checked, at every phase:
 --   logged    the flight log reports the flight written ("flight logged"), so the run reaches
