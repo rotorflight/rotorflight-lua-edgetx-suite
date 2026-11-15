@@ -1294,6 +1294,8 @@ do
   check(lw.confirmExit == true, "ENTRY control: the jump asks about the staged change")
   eq(entered(), 0, "ENTRY a queued entry does not run behind the jump's question")
   check(next(lw.holds) == nil, "ENTRY nothing is held behind the jump's question")
+  -- Nothing of this world stays queued: a later check counts the controllers still reachable.
+  q.messages, q.sent = {}, {}
 end
 -- While an ESC read or write runs, neither the step menu nor a jump leaves the visit its replies belong to.
 do
@@ -1310,6 +1312,8 @@ do
   lw:jumpToStep(step == 1 and 2 or 1)
   check(lw.step == step and lw.stepMenu == true, "ESC a jump waits for the ESC operation")
   lw.escBusy = nil
+  -- Nothing of this world stays queued: a later check counts the controllers still reachable.
+  q.messages, q.sent = {}, {}
 end
 -- A switch whose edit waits for a fresh status follows the latest input: back to the value the row holds
 -- calls the waiting edit off, also across a rebuild, and a flip without a value flips the waiting one.
@@ -1366,6 +1370,8 @@ do
   settle(lw)
   check(not lw.checks.probe, "SWITCH a flip while an edit waits flips the waiting value")
   check(lw.switchEdit == nil, "SWITCH nothing of the switch is kept once the status has answered")
+  -- Nothing of this world stays queued: a later check counts the controllers still reachable.
+  q.messages, q.sent = {}, {}
 end
 print("Source contracts: "..#contractCases.." scenario groups")
 for name,count in pairs(worst) do print(string.format("BUDGET %-12s %d / 14000",name,count)) end
