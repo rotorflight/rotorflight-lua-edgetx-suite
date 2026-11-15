@@ -470,7 +470,7 @@ return {
         linkSetBothStep = "Auf beiden setzen: Modul wird geschrieben",
         linkSetBothFc = "Auf beiden setzen: FC übernimmt die Modulwerte",
         linkSetBothFailed = "Auf beiden setzen abgebrochen: das Modul hat den neuen Wert nicht übernommen. Der FC wurde nicht geändert.",
-        linkSetBothFcFailed = "Auf beiden setzen abgebrochen: das Modul hat die neuen Werte, der FC hat sie nicht gespeichert. FC übernimmt Modulwerte versucht es erneut.",
+        linkSetBothFcFailed = "Auf beiden setzen abgebrochen: das Modul hat die neuen Werte, der FC hat sie nicht gespeichert. Auf beiden setzen versucht es erneut.",
         linkSetBothNone = "Zuerst eine Paketrate oder ein Telemetrieverhältnis wählen.",
         linkRate = "Paketrate",
         linkRatio = "Telemetrieverhältnis",

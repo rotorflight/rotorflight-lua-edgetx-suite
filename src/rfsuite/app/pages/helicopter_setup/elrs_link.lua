@@ -41,7 +41,8 @@ function M.new(w)
   function c:stop()
     self.epoch=self.epoch+1
     task.reset()
-    self.asked,self.signature,self.started=true,nil,nil
+    -- The reset forgets the module's fields: whatever binds the card again walks the module first.
+    self.asked,self.signature,self.started=nil,nil,nil
     -- An unfinished Set on both ends with the task: nothing would carry it on.
     self.plan=nil
     w.linkTick,w.stopLink=nil,nil
@@ -232,9 +233,23 @@ function M.new(w)
       return
     end
     if step.kind=="fc" then
-      -- The task owns the FC write and its EEPROM save; only these two outcomes leave both sides equal.
+      -- The task owns the FC write and its EEPROM save. When the FC's RAM already holds the module
+      -- values it saves nothing, which is also the state after a save of them failed: save them here.
       local outcome=plan.outcome
-      if outcome~="status_rotorflight_updated" and outcome~="status_rf_matches_elrs" then
+      if outcome=="status_rf_matches_elrs" then
+        if not plan.saving then
+          plan.saving=true
+          if w.logDebug then w:log("debug","ELRS set on both: FC already holds the module values, saving them") end
+          local epoch=self.epoch
+          w:write("eeprom_write",{},function(_,err)
+            if epoch~=self.epoch or self.plan~=plan then return end
+            plan.outcome=err and "status_rotorflight_save_failed" or "status_rotorflight_updated"
+            if w.logTrace then w:log("trace","ELRS set on both: FC save %s",tostring(err or "answered")) end
+          end,true)
+        end
+        return
+      end
+      if outcome~="status_rotorflight_updated" then
         w:log("warn","ELRS set on both: FC step ended with %s",tostring(outcome))
         self.plan=nil;self:notice(L.linkSetBothFcFailed);return
       end

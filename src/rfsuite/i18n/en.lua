@@ -470,7 +470,7 @@ return {
         linkSetBothStep = "Set on both: writing the module",
         linkSetBothFc = "Set on both: the FC takes the module values",
         linkSetBothFailed = "Set on both stopped: the module did not take the new value. The FC was not changed.",
-        linkSetBothFcFailed = "Set on both stopped: the module has the new values, the FC did not save them. FC takes module values tries again.",
+        linkSetBothFcFailed = "Set on both stopped: the module has the new values, the FC did not save them. Set on both tries again.",
         linkSetBothNone = "Choose a packet rate or a telemetry ratio first.",
         linkRate = "Packet rate",
         linkRatio = "Telemetry ratio",
