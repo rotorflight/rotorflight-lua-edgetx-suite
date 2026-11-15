@@ -868,23 +868,23 @@ do
   for _=1,20 do w:tick();ticks=ticks+1;if #q.messages>0 then break end end
   local queuedServo=false
   for _,m in ipairs(q.messages) do if m.command==servoWrite then queuedServo=true end end
-  check(queuedServo,"CODEX the live servo write is queued, not yet sent")
+  check(queuedServo,"the live servo write is queued, not yet sent")
   getAvailableMemory=function() return 200*1024 end;w:checkMemory()
   untilStopped(w)
   q.sent={};saveFromStop(w)
   local servoWritten=false
   for _,m in ipairs(q.sent) do if m.command==servoWrite then servoWritten=true end end
-  check(w.closed and servoWritten,"CODEX Save & exit writes the servo change the stop cut off")
+  check(w.closed and servoWritten,"Save & exit writes the servo change the stop cut off")
   -- A stop before the override modules are loaded (a history-only visit, an FC below API 12.10, a
   -- stop on the loading card) sends no release it cannot send, and Close still closes.
   w=world();w.bus.apis.servo_override,w.bus.apis.mixer_override,w.bus.apis.motor_override=nil,nil,nil
   getAvailableMemory=function() return 200*1024 end;w:checkMemory()
   untilStopped(w)
-  check(w.memoryStop==true and not w.cleanupFailed and not w.needsRelease,"CODEX nothing to release is not a failed release")
+  check(w.memoryStop==true and not w.cleanupFailed and not w.needsRelease,"nothing to release is not a failed release")
   w.closed=nil;w.requestClose=function() w.closed=true end
   stopScreen(w)[L.closeWizard].press()
   for _=1,200 do w:tick();pump();ticks=ticks+1;if w.closed then break end end
-  check(w.closed,"CODEX Close works after a stop with no override modules")
+  check(w.closed,"Close works after a stop with no override modules")
   -- Save & exit whose commit has something to say (a refused tail pin move): the stop screen shows it.
   -- feedback.lua attached as on the radio: its status line says nothing while the stop is shown.
   w=world();load(PATH.."feedback.lua").attach(w,load("lib/system_state.lua"),{});w:touch("motor_config")
@@ -893,8 +893,8 @@ do
   untilStopped(w)
   saveFromStop(w)
   local after=stopScreen(w)
-  check(not w.closed and after[L.tailPinRefused]~=nil,"CODEX the stop screen shows what the save had to say")
-  check(after[L.closeWizard]~=nil,"CODEX after that save the stop screen offers Close")
+  check(not w.closed and after[L.tailPinRefused]~=nil,"the stop screen shows what the save had to say")
+  check(after[L.closeWizard]~=nil,"after that save the stop screen offers Close")
   getAvailableMemory=savedFree
 end
 -- Whole-table work is generated one record per pass, with EEPROM last.

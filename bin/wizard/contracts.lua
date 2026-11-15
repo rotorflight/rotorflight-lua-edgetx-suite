@@ -5958,11 +5958,11 @@ return function(h)
     -- yet), not only for a running task; off the card a leftover plan holds nothing.
     controller:enter(card);w.active=true
     controller.plan={steps={{kind="rate",index=1},{kind="fc"}},at=2}
-    check(w.linkBusy and w.linkBusy()==true,"CODEX the memory stop waits between the steps of Set on both")
+    check(w.linkBusy and w.linkBusy()==true,"S02 the memory stop waits between the steps of Set on both")
     local other=w:cardDef(L.linkTitle,L.linkHint,{});w.cards={card,other};w.card=2
-    check(w.linkBusy()==false,"CODEX a plan on a card that is not shown holds no stop")
+    check(w.linkBusy()==false,"S02 a plan on a card that is not shown holds no stop")
     w.card=1;controller.plan=nil
-    check(w.linkBusy()==false,"CODEX without a plan or task the link holds no stop")
+    check(w.linkBusy()==false,"S02 without a plan or task the link holds no stop")
     w.loadModule=realLoad;w.linkTick,w.stopLink,w.linkBusy=nil,nil,nil
   end)
   case("S02.elrs-set-on-both-after-a-stop-reads-the-module-first",function()
