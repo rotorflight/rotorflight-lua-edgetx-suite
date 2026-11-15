@@ -149,7 +149,8 @@ name does not fit, the header gives up space in this order: the large step font 
 then the **Step n/19** text (the arrow stays), then the card's name for its place **(3/6)**. Tapping the
 header opens the step menu: all 19 steps, the current one marked, done steps with a mark.
 Opening it releases whatever the card holds, and nothing the card would start is started
-behind the menu or behind the Save or Discard question.
+behind the menu or behind the Save or Discard question. While an ESC read or write runs the menu does not open
+and no jump is made, as Back waits for it too.
 Choosing another step first offers Save or Discard when something changed, then opens that
 step at its first card; the mode stays (Complete setup carries on from there, a single step
 stays a single step). Back returns to the card the menu was opened from. A step that needs

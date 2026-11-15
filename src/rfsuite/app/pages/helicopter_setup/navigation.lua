@@ -40,6 +40,11 @@ function M.attach(w, ctx)
   function w:openStepMenu()
     if not self.ready or self.transition or not self.cards or self.stepMenu then return end
     if self.modelPreparationCard or self.recoveryCard or self.preparationCard or self.entryRebootGate then return end
+    -- Not while an ESC read or write runs: its replies belong to this visit, as Back waits for them too.
+    if self.escBusy then
+      if self.logDebug then self:log("debug", "step menu waits for the ESC operation") end
+      return
+    end
     if self.logTrace then self:log("trace", "step menu opened on %s card %s", self.step, self.card) end
     self:release()
     self.stepMenu = true; self:rebuild()
@@ -53,6 +58,10 @@ function M.attach(w, ctx)
   end
   function w:jumpToStep(index)
     if not self.stepMenu or not self:usable() or type(index) ~= "number" or index < 1 or index > 19 or index % 1 ~= 0 then return end
+    if self.escBusy then
+      if self.logDebug then self:log("debug", "jump to step %s waits for the ESC operation", index) end
+      return
+    end
     if index == self.step then self:closeStepMenu(); return end
     if index >= 11 and self.rebootPending then
       if self.logDebug then self:log("debug", "jump to step %s waits for the owed restart", index) end

@@ -1295,6 +1295,22 @@ do
   eq(entered(), 0, "ENTRY a queued entry does not run behind the jump's question")
   check(next(lw.holds) == nil, "ENTRY nothing is held behind the jump's question")
 end
+-- While an ESC read or write runs, neither the step menu nor a jump leaves the visit its replies belong to.
+do
+  local lw = world()
+  lw.escBusy = true
+  lw:openStepMenu()
+  check(lw.stepMenu == nil, "ESC the step menu does not open while an ESC operation runs")
+  lw.escBusy = nil
+  lw:openStepMenu()
+  check(lw.stepMenu == true, "ESC control: it opens once the operation is over")
+  local step = lw.step
+  lw.escBusy = true
+  lw.statusAt = ticks
+  lw:jumpToStep(step == 1 and 2 or 1)
+  check(lw.step == step and lw.stepMenu == true, "ESC a jump waits for the ESC operation")
+  lw.escBusy = nil
+end
 -- A switch whose edit waits for a fresh status follows the latest input: back to the value the row holds
 -- calls the waiting edit off, also across a rebuild, and a flip without a value flips the waiting one.
 do
