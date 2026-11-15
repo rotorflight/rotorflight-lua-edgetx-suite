@@ -6632,7 +6632,7 @@ return function(h)
     -- Through the page as on the radio: a stop scene already on screen, Save & exit whose commit
     -- has something to say, and the page's scene cache between the two.
     local realLoad,realMemory=loadScript,getAvailableMemory
-    -- The visit writes its recovery and history state into the session; later cases start clean.
+    -- The visit records its history in the session; later cases start from the one they expect.
     local session=_G.rfsuite.session
     local keptRecovery,keptHistory=session.helicopterSetupRecovery,session.helicopterSetupHistory
     local keptMask=keptHistory and keptHistory.mask
@@ -6675,12 +6675,14 @@ return function(h)
     check(shown(PL.closeWizard)~=nil,"STOP after that save the page offers Close")
     check(shown(PL.saveExit)==nil,"STOP after that save the page no longer offers Save & exit")
     local close=shown(PL.closeWizard)
+    check(not closed,"STOP the visit is still open before Close is pressed")
     if close then close.press() end
     for _=1,400 do pass();if closed then break end end
     check(closed,"STOP Close on that screen closes the visit")
     getAvailableMemory=realMemory
     page.onClose();for _=1,30 do h.pump() end
-    session.helicopterSetupRecovery,session.helicopterSetupHistory=keptRecovery,keptHistory
+    eq(session.helicopterSetupRecovery,keptRecovery,"STOP a visit closed with Close leaves no recovery marker")
+    session.helicopterSetupHistory=keptHistory
     if keptHistory then keptHistory.mask=keptMask end
   end)
   return cases
