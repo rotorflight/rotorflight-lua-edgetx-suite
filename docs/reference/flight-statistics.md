@@ -240,7 +240,10 @@ draws the armed phase with a module of its own, the first sample follows that sc
 On the flight controller's arm flag, as the event runtimes read it — the same edge the flight log
 and the post-disarm reads already fire on. The arm edge opens a record; the disarm edge moves it to
 `last` and starts an empty one. The record is closed **first** of everything that runs on the
-disarm edge, so anything behind it in that chain reads a finished flight.
+disarm edge, so anything behind it in that chain reads a finished flight. The dashboard loads its
+post-flight theme module only behind that chain: while the event runtimes still drive the disarm's
+tasks (`Events.edgeChainActive()` returns `"ondisarm"`), it holds the reload, until three seconds
+after the hold began, so the module load does not share a widget call with the flight log write.
 
 A link that goes down does **not** end the record. After a flight the pilot disarms and unplugs the
 pack, and the post-flight page has to outlive that: its tiles read this record, so the statistics,
