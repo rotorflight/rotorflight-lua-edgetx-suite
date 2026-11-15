@@ -56,7 +56,7 @@ rows and buttons, ENTER opens a picker or presses a button, RTN goes back.
 | Backup pack switch | a switch with two or three positions, or nothing | CH10 *BckU* follows it; left empty, it stays at `MIN` |
 | CRSF module | *Internal* or *External* | *External* sets the external slot to CRSF with 16 channels and switches the internal slot off |
 
-*Next* and *Create switch setup* refuse to go on, with a sentence next to the button saying why
+*Next* and *Create switch setup* refuse to go on, with a sentence saying why beside *Next* or below the buttons
 (the button keeps the focus and the screen stays where it is), when:
 
 - a row the model needs is empty,

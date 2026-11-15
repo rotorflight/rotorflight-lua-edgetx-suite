@@ -147,8 +147,25 @@ end
 -- A label's text as the radio shows it: a function-valued text is what the radio calls after
 -- every pass in the lvgl layout.
 local function textOf(child)
-  if type(child.text) == "function" then return child.text() end
+  if type(child.text) == "function" then
+    local text = child.text()
+    check(type(text) == "string", "a label's text function returns a string")
+    return text
+  end
   return child.text
+end
+
+-- The label that carries the refusal: the one whose text is a function.
+local function liveLabel(radio)
+  for _, child in ipairs(radio.children or {}) do
+    if child.type == "label" and type(child.text) == "function" then return child end
+  end
+  return nil
+end
+
+local function colorOf(child)
+  if type(child.color) == "function" then return child.color() end
+  return child.color
 end
 
 local function hasText(radio, key)
@@ -329,11 +346,14 @@ end
 do
   local radio = newRadio()
   check(hasText(radio, "skip_hint"), "the first screen shows the hint beside Next")
+  check(liveLabel(radio) ~= nil and colorOf(liveLabel(radio)) == 2, "the hint is muted")
   local builds = radio.builds
   firstScreen(radio, "SW1", "SF", "SA", "SD", "SW1")
   check(radio.builds == builds, "a refused Next rebuilds nothing")
   check(hasText(radio, "same_switch"), "the refused Next shows its sentence")
   check(not hasText(radio, "skip_hint"), "the sentence takes the hint's place")
+  local live = liveLabel(radio)
+  check(live ~= nil and colorOf(live) == 4, "the sentence is in the warning color")
   pick(radio, "rescue", "SB")
   press(radio, "next_button")
   check(radio.builds == builds + 1, "an accepted Next builds the second screen once")
