@@ -5994,6 +5994,13 @@ return function(h)
     end
     eq(#selected,1,"S02 Set on both after a stop writes its module value")
     check(selected[1]==true,"S02 Set on both after a stop reads the module before it writes")
+    -- While Set on both runs, neither sync nor the lists can start a task whose end would be taken
+    -- for the plan's step.
+    task.reset();controller.plan=nil;w.statusAt=getTime()
+    check(controller:writable(),"S02 the sync buttons and lists are usable with no Set on both running")
+    controller.plan={steps={{kind="fc"}},at=1}
+    check(not controller:writable(),"S02 the sync buttons and lists are inactive while Set on both runs")
+    controller.plan=nil
     session.telemetryType,w.data.rx_config.serialrx_provider,w.data.feature_config.enabledFeatures=oldType,oldProvider,oldFeatures
     session.crsfTelemetryConfig,session.telemetryConfigBuffer=nil,nil
     task.reset();w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
