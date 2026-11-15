@@ -30,8 +30,9 @@ function M.new(w)
   end
   -- Link changes can briefly cut the wizard's connection and require their own confirmation.
   -- Reading and confirmation availability are independent of the receiver's Advanced switch.
+  -- While Set on both runs, nothing else may start a task: its end would be taken for the plan's step.
   function c:writable()
-    return self:usable() and w.rx ~= nil and not self:busy()
+    return self:usable() and w.rx ~= nil and not self:busy() and self.plan == nil
   end
   function c:refresh()
     -- A new cards identity retires the native scene and its controls before publishing new rows.
