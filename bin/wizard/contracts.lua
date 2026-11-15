@@ -6628,5 +6628,48 @@ return function(h)
     check(w.motorHold~=nil,"PWM restarted calibration waits for a new full reading")
     w:stopMotor();drain(w);q.reply=nil
   end)
+  case("STOP.save-notice-on-the-page",function()
+    -- Through the page as on the radio: a stop scene already on screen, Save & exit whose commit
+    -- has something to say, and the page's scene cache between the two.
+    local realLoad,realMemory=loadScript,getAvailableMemory
+    local w
+    loadScript=function(file,...)
+      local chunk=realLoad(file,...)
+      if not string.find(file,"helicopter_setup/controller.lua",1,true) then return chunk end
+      return function()
+        local module=chunk()
+        local new=module.new
+        return setmetatable({new=function(...) w=new(...);return w end},{__index=module})
+      end
+    end
+    local page=load("app/pages/helicopter_setup/page.lua")
+    local ctx={w=480,h=272,children={},menu={getCurrentMenuId=function() return "helicopter_setup_page" end},
+      requestClose=function() end}
+    ctx.requestRebuild=function() ctx.children={};page.build(ctx) end
+    local function pass() page.wakeup(ctx);h.pump();h.advance(1) end
+    local function shown(text)
+      for _,item in ipairs(ctx.children) do
+        local t=item.text;if type(t)=="function" then t=t() end
+        if t==text then return item end
+      end
+    end
+    page.build(ctx)
+    for _=1,1500 do pass();if w and w.ready and (w.overview or w.cards) then break end end
+    loadScript=realLoad
+    check(w and w.ready,"STOP the page reaches a ready visit")
+    w:touch("motor_config");w.commit=function() w.stayNotice=L.tailPinRefused end
+    getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+    for _=1,200 do pass();if w.memoryStop==true and shown(L.saveExit) then break end end
+    local save=shown(L.saveExit)
+    check(w.memoryStop==true and save~=nil,"STOP the page shows the stop screen with Save & exit")
+    if save then save.press() end
+    for _=1,800 do pass();if not w.transition and next(w.dirty)==nil and w.stopNotice then break end end
+    for _=1,20 do pass() end
+    check(shown(L.tailPinRefused)~=nil,"STOP the page shows what the save had to say on the stop screen")
+    check(shown(L.closeWizard)~=nil,"STOP after that save the page offers Close")
+    check(shown(L.saveExit)==nil,"STOP after that save the page no longer offers Save & exit")
+    getAvailableMemory=realMemory
+    page.onClose();for _=1,30 do h.pump() end
+  end)
   return cases
 end
