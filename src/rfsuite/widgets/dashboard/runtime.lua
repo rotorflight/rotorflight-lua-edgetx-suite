@@ -5913,8 +5913,10 @@ function Runtime.new(zone, options)
     -- same holds between the two halves of a staged load: the module is in, its readings are not,
     -- and, outside fullscreen, while the post-flight reload waits for the disarm's event tasks
     -- (_edgeHoldBusy). In fullscreen (`event` not nil) a menu or view on top must follow its keys
-    -- for the up to 3 s of that wait, so there the surface keeps building as before.
-    if (self._themeReloadPending or self._themeSourcesPending or (self._edgeHoldBusy and event == nil))
+    -- for the up to 3 s of that wait, so there the surface keeps building -- also when the reload
+    -- had already been carried off a read pass before the hold began.
+    if (self._themeSourcesPending or (self._themeReloadPending and not (self._edgeHoldBusy and isInteractive))
+        or (self._edgeHoldBusy and not isInteractive))
         and not tuningMode then
       self._passEndAt = nowSeconds()
       return

@@ -191,6 +191,39 @@ for pad = 0, 9 do
     string.format("runner %s after the loading pass, %.1f s", tostring(r.chainAtLoad), r.loadedAfter or -1))
 end
 
+-- The foreground guard during a hold that began after the reload had already been carried off a
+-- read pass: in fullscreen (an event number, 0 when idle) the surface keeps building, outside it
+-- nothing is queued for the theme about to be replaced. Called without moving the stub clock, so
+-- the logic tick is throttled and the two flags stand as set (checked after each call). Both
+-- surfaces clear _tuningKeyDirty right after the guard and nowhere before it, so a marker left
+-- there tells a pass that got past the guard from one that stopped at it.
+do
+  freshWorld()
+  local Runtime = assert(loadfile(ROOT .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
+  local widget = Runtime.new({ x = 0, y = 0, w = 800, h = 458 }, {})
+  widget.preferences = widget.preferences or {}
+  widget.preferences.dashboard = { theme_preflight = "system/default", standby_intro_seen = true }
+  for _ = 1, 400 do pass(widget) end
+  local function probe(event, pending, holding)
+    widget._job = nil
+    widget._themeReloadPending, widget._edgeHoldBusy = pending, holding
+    widget._tuningKeyDirty = "probe"
+    widget.refresh(widget, event, nil)
+    local past = widget._tuningKeyDirty ~= "probe"
+    local kept = widget._themeReloadPending == pending and widget._edgeHoldBusy == holding
+    widget._themeReloadPending, widget._edgeHoldBusy, widget._tuningKeyDirty = nil, nil, nil
+    return past, kept
+  end
+  local past, kept = probe(nil, nil, nil)
+  check(past and kept, "control -- with no flag set, a widget pass gets past the guard")
+  past, kept = probe(0, true, true)
+  check(past and kept, "fullscreen -- a carried reload does not stop the surface building during the hold")
+  past, kept = probe(nil, true, true)
+  check(not past and kept, "widget -- nothing is built for the old theme during the hold")
+  past, kept = probe(0, true, nil)
+  check(not past and kept, "fullscreen without a hold -- a carried reload still waits for its tick")
+end
+
 io.open = realOpen
 Stubs.releaseCard()
 print(string.format("%d checks, %d failed", checks, failures))
