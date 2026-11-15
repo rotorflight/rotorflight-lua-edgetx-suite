@@ -241,8 +241,10 @@ function M.new(w)
           plan.saving=true
           if w.logDebug then w:log("debug","ELRS set on both: FC already holds the module values, saving them") end
           local epoch=self.epoch
-          w:write("eeprom_write",{},function(_,err)
-            if epoch~=self.epoch or self.plan~=plan then return end
+          -- Sent only while this plan still stands: a stop (leaving the card) drops it unsent.
+          local function current() return epoch==self.epoch and self.plan==plan end
+          w:write("eeprom_write",function() return current() and {} or false end,function(_,err)
+            if not current() then return end
             plan.outcome=err and "status_rotorflight_save_failed" or "status_rotorflight_updated"
             if w.logTrace then w:log("trace","ELRS set on both: FC save %s",tostring(err or "answered")) end
           end,true)
