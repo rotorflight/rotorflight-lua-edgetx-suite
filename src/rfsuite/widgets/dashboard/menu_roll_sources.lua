@@ -117,6 +117,8 @@ end
 local function treeWhy(widget, row)
   if widget.state and widget.state.armed == true then return REASON_ARMED end
   if row.needsFc == true and not Tree.connected() then return REASON_FC end
+  -- A version gate holds whether or not a board has answered: unknown is not passed.
+  if not Tree.versionPassed(row) then return REASON_FC end
   return nil
 end
 

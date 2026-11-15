@@ -481,7 +481,7 @@ local function run(mutate)
     _G.rfsuite.session.apiVersion = nil
     build(w)
     local row = find(r.levels[4].rows, "crsf_sensors")
-    check("unknown while connected is passing: there and grey", row ~= nil and row.needsFc == true)
+    check("unknown while connected is passing: there and grey", row ~= nil and row.needsFc == true and r.source.off(row) == true)
     _G.rfsuite.session.fblConnected = false
     _G.rfsuite.session.apiVersion = "12.09"
     build(w)
@@ -495,7 +495,11 @@ local function run(mutate)
     pages[#pages + 1] = { id = "gated", title = "G", menuId = "gated_page", minApiVersion = { 12, 0, 10 } }
     Tree.refresh(tree)
     row = find(Tree.children(w, tree, { kind = "level", menuId = "tools_menu" }), "gated")
-    check("a version gate alone: unknown is grey", row ~= nil and row.needsFc == true)
+    check("a version gate alone: unknown is grey", row ~= nil and row.needsFc == true and r.source.off(row) == true)
+    _G.rfsuite.session.apiVersion = "12.10"
+    check("the same row, its version now known and reached, can be pressed", r.source.off(row) ~= true)
+    _G.rfsuite.session.apiVersion = "12.09"
+    check("and too old while the list still stands, it is grey", r.source.off(row) == true)
     pages[#pages] = nil
     _G.rfsuite.session.apiVersion = "12.10"
   end
@@ -819,6 +823,8 @@ if selfTest then
         return (string.gsub(t, "if source.enter ~= nil and not isOff%(roll, row%) then rows, question = source.enter%(row%) end", "if source.enter ~= nil then rows, question = source.enter(row) end", 1)) end },
     { "the list starts where the pilot cannot press", function(t)
         return (string.gsub(t, "return none or open or 1", "return none or 1", 1)) end },
+    { "an unknown version passes a gated row while connected", function(t)
+        return (string.gsub(t, "  if not Tree.versionPassed%(row%) then return REASON_FC end\n", "", 1)) end },
   }
   quiet = true
   local red = 0

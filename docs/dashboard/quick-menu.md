@@ -157,8 +157,8 @@ while the tool runs.
 controller* with no connection, *Not while armed* while the model is armed, where every row is grey.
 It rolls, and a press on it does nothing. The place in the lists stays through both. What is not set
 up is not listed at all: a feature switched off, no packs for this model, or firmware too old while
-connected. Without a connection the firmware's version is not known, so a row that needs a newer one
-is grey rather than gone.
+connected. While the firmware's version is not known, without a connection or before the board has
+said it, a row that needs a newer one is grey rather than gone.
 
 **The header's line says how things stand**, one message by rank: *SENDING...* or *NOT SAVED*, or *Could
 not open* for a page the tool could not open, until the next detent or press; then *Connection error*,

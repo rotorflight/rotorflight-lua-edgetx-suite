@@ -85,6 +85,13 @@ function M.connected()
   return type(session) == "table" and session.fblConnected == true
 end
 
+--- Whether a row's version gate is passed now: true for a row without one; false while the version is too
+--- old or not known, connected or not, so a row the board may not offer is never pressed on a guess.
+function M.versionPassed(row)
+  if row.minApiVersion == nil then return true end
+  return reaches(row.minApiVersion) == true
+end
+
 -- Whether an entry is on the menu at all, as far as the widget can tell now.
 local function exists(widget, entry)
   local visibleWhen = entry.visibleWhen
@@ -147,6 +154,9 @@ local function rowsOf(widget, pages, inherited)
         menuId = entry.menuId,
         kind = entry.kind or "page",
         needsFc = needsFc,
+        -- The gate itself, read again whenever the row is judged (menu_roll_sources.lua): the version may
+        -- arrive, or change, while the list stands.
+        minApiVersion = entry.minApiVersion,
         -- What is below inherits only the entry's own condition: a version gate is about this entry.
         below = inherited == true or entry.enabledWhen == "fblConnected",
         -- The name a row's picture goes by: the motif of the manifest's own, else the menu it opens.
