@@ -7,7 +7,7 @@
     "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "1750296f3f160c4c328b331cf34673bb803e936266f19712698dac996c6ea56a",
     "src/rfsuite/app/pages/helicopter_setup/controller.lua": "d1e724a02490a354c7a2d5b6c80b048a03f0e45bc0184b5a013384ebe196190e",
     "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "632a4b83778b59aff2d452005be884114472e6f16ff0f8bb832743e093203a1e",
-    "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "efd726196c710065e9fbeb575283d195db05f2120c6fa706d627002f8960e9d9",
+    "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "b5e10d726ef019b8521faeacb9dfea91b160f5957a30b08e75c7cb5709f3c9aa",
     "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "532fdca33b26f78b2120756d80870ada8d318bf718592948564fa6e4e6099d36",
     "src/rfsuite/app/pages/helicopter_setup/feedback.lua": "c349e4c4e96cd0c6c3dc9adad714b6dc2fc0a4583c6c1319dd0be8d3c1d3061d",
     "src/rfsuite/app/pages/helicopter_setup/forms.lua": "22830b0484f787a3379c3cb8f61caa85d0c905da109b9636fc8ad9d9844830f4",
