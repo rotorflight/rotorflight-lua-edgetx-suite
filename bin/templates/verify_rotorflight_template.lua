@@ -144,9 +144,16 @@ local function button(radio, textKey)
   return nil
 end
 
+-- A label's text as the radio shows it: a function-valued text is what the radio calls after
+-- every pass in the lvgl layout.
+local function textOf(child)
+  if type(child.text) == "function" then return child.text() end
+  return child.text
+end
+
 local function hasText(radio, key)
   for _, child in ipairs(radio.children or {}) do
-    if child.type == "label" and string.find(child.text or "", key, 1, true) then return true end
+    if child.type == "label" and string.find(textOf(child) or "", key, 1, true) then return true end
   end
   return false
 end
@@ -314,6 +321,33 @@ do
   end
   check(seen, "the notice is drawn with lcd without lvgl")
   check(radio.script.run(_G.EVT_VIRTUAL_ENTER) ~= 0, "ENTER closes the lcd notice")
+end
+
+-- 11. A refused press shows its sentence in place: nothing is rebuilt, so the radio keeps the
+-- focus on the pressed button and the page where the pilot scrolled it. The sentence goes when
+-- the press is accepted.
+do
+  local radio = newRadio()
+  check(hasText(radio, "skip_hint"), "the first screen shows the hint beside Next")
+  local builds = radio.builds
+  firstScreen(radio, "SW1", "SF", "SA", "SD", "SW1")
+  check(radio.builds == builds, "a refused Next rebuilds nothing")
+  check(hasText(radio, "same_switch"), "the refused Next shows its sentence")
+  check(not hasText(radio, "skip_hint"), "the sentence takes the hint's place")
+  pick(radio, "rescue", "SB")
+  press(radio, "next_button")
+  check(radio.builds == builds + 1, "an accepted Next builds the second screen once")
+  check(button(radio, "create_button") ~= nil and not hasText(radio, "same_switch"),
+    "the second screen carries no sentence")
+
+  pick(radio, "blackbox", "SW1")
+  builds = radio.builds
+  press(radio, "create_button")
+  check(radio.builds == builds, "a refused Create rebuilds nothing")
+  check(hasText(radio, "same_switch"), "the refused Create shows its sentence")
+  pick(radio, "blackbox", nil)
+  press(radio, "create_button")
+  check(hasText(radio, "next_steps"), "an accepted Create shows the closing screen")
 end
 
 print(string.format("%d checks, %d failures", checks, failures))

@@ -377,17 +377,21 @@ local function buildForm()
     end
   end
 
-  -- The one sentence that stands between the pilot and the button; the button's press
-  -- rebuilds this form, which is what puts the sentence on screen. Warning-colored: it is the
+  -- The one sentence that stands between the pilot and the button. Warning-colored: it is the
   -- refusal, and it must not read like one more row label. It gets up to three lines BESIDE
   -- the first screen's button, in the hint's place, and below the second screen's two buttons:
   -- above the button it pushed the button under the fold of a 480x320 screen, and a refusal
   -- that hides the way on is a dead end.
+  -- The label reads `message` through a function, which the radio calls after every pass in the
+  -- lvgl layout, so a refused press only sets the sentence. Nothing is rebuilt: the focus stays
+  -- on the button that was pressed and the page does not jump back to its top, where the
+  -- sentence would sit under the fold of a 480x272 screen.
   y = y + 6
-  local function refusal(x, ry, w)
+  local function refusal(x, ry, w, idle, idleColor)
     body[#body + 1] = {
-      type = "label", x = x, y = ry, w = w, h = MESSAGE_H,
-      color = P.warning, text = message, font = SMLSIZE
+      type = "label", x = x, y = ry, w = w, h = MESSAGE_H, font = SMLSIZE,
+      text = function() return message or idle end,
+      color = function() return message ~= nil and P.warning or idleColor end
     }
   end
 
@@ -397,21 +401,13 @@ local function buildForm()
       text = "@i18n(templates.rotorflight.next_button)@",
       press = function()
         message = firstProblem(1)
-        -- Either way the view is rebuilt: with nothing in the way it becomes the second
-        -- screen, with a problem it comes back carrying the sentence -- a live label alone
-        -- stayed blank here, and a refusal nobody can read is a button that does nothing.
-        if message == nil then step = 2 end
-        view = nil
+        if message == nil then
+          step = 2
+          view = nil
+        end
       end
     }
-    if message ~= nil then
-      refusal(LEFT + 212, y, BODY_W - 212)
-    else
-      body[#body + 1] = {
-        type = "label", x = LEFT + 212, y = y, w = BODY_W - 212,
-        text = "@i18n(templates.rotorflight.skip_hint)@", color = P.muted, font = SMLSIZE
-      }
-    end
+    refusal(LEFT + 212, y, BODY_W - 212, "@i18n(templates.rotorflight.skip_hint)@", P.muted)
     buildPage("@i18n(templates.rotorflight.title_form)@", body, function() quit = true end)
   else
     body[#body + 1] = {
@@ -419,8 +415,10 @@ local function buildForm()
       text = "@i18n(templates.rotorflight.create_button)@",
       press = function()
         message = firstProblem(2)
-        if message == nil then writeAnswers() end
-        view = nil
+        if message == nil then
+          writeAnswers()
+          view = nil
+        end
       end
     }
     local function back()
@@ -432,7 +430,7 @@ local function buildForm()
       type = "button", x = LEFT + 212, y = y, w = 120, h = BUTTON_H,
       text = "@i18n(templates.rotorflight.back_button)@", press = back
     }
-    if message ~= nil then refusal(LEFT, y + BUTTON_H + 6, BODY_W) end
+    refusal(LEFT, y + BUTTON_H + 6, BODY_W, "", P.warning)
     buildPage("@i18n(templates.rotorflight.title_form_more)@", body, back)
   end
 end
