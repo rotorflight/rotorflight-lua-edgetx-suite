@@ -135,11 +135,14 @@ local function releaseStandby(self, reason)
   cancelStandbyElrs(self, reason)
   if self._job and self._job.kind == "standby" then self._job = nil end
   if self._treeKind == "standby" then
+    -- The key is forgotten before the clear: a pass stopped between the two must not leave a
+    -- record that lets a cleared key keep an empty screen. The kind stays until after the clear,
+    -- so the next release still clears a tree that a stop left standing.
+    self._treeKey = nil
     if lvgl and type(lvgl.clear) == "function" then lvgl.clear() end
     self.built = false
     self.renderKey = nil
     self._treeKind = nil
-    self._treeKey = nil
   end
   local module = self._standbyModule
   self._standbyModule = nil
@@ -538,6 +541,12 @@ end
 
 local EventsRuntime = requireModule("tasks/events/runtime.lua")
 
+-- The helpers of the MSP tick are local to this block. A local ends at its block's `end`, so they
+-- do not count against the main chunk's limit of 200 active locals (MAXVARS in lparser.c); only the
+-- names declared on the next line are visible after it. The body keeps its indentation, so the
+-- block shows only at its edges.
+local compileStatusLine, tickMspRuntime
+do
 -- A save started in the tool opened from this widget (widgets/dashboard/tool_host.lua) outlives
 -- the tool. Its messages are filed under the save's own client, which the tool's close leaves on
 -- the queue, so the replies keep advancing it on this widget's MSP tick: the writes, the EEPROM
@@ -639,7 +648,7 @@ end
 -- The line while the pass runs, and the request to restart once it has finished. It names the work
 -- the way the tool's start screen does: a bar shows how far it is, because a count of files means
 -- nothing to whoever is holding the radio. The bar reads _compileFill through its own size.
-local function compileStatusLine(self, t)
+compileStatusLine = function(self, t)
   if Compile and Compile.needsRestart() then
     self._compileFill, self._compileRestart = nil, true
     if _G.rfsuite.paths.moveFailed then
@@ -654,7 +663,7 @@ local function compileStatusLine(self, t)
   return (t and t("app.preparing")) or "Preparing suite"
 end
 
-local function tickMspRuntime(self, carry)
+tickMspRuntime = function(self, carry)
   -- The mark the service widget stands down on while this widget drives the work below, the
   -- compile pass included: on a model that carries both, the work otherwise runs twice per tick.
   -- See Events.markDriving.
@@ -706,6 +715,7 @@ local function tickMspRuntime(self, carry)
     MspRuntime.pump()
   end
 end
+end -- of the block scoping the MSP tick's helpers
 
 local function buildConnectionSplash(zone, statusLine, title, progress, scheme)
   if DashboardSplash and type(DashboardSplash.build) == "function" then
@@ -1504,6 +1514,10 @@ local function standbyJobStep(self)
     self._standbyCache.elrsWidths = self._standbyCache.elrsActiveWidths
     -- The visible tree's battery getter still reads its fill until the new tree swaps in.
     self._standbyCache.batteryWidths = nil
+    -- Its fill is no longer kept up to date, so that tree is not one a cleared key may keep: a
+    -- build dropped before the swap, the layout back where it was, builds it again. Only the key
+    -- goes; the kind stays, so a release still clears the tree (releaseStandby).
+    if self._treeKind == "standby" then self._treeKey = nil end
     itemsChanged = true
   end
   prepareStandbyTextCache(self, items)
@@ -1746,6 +1760,8 @@ local function viewJobStep(self)
   local view = Views.load(self, entry)
   if view == nil then return true end
   local children = {}
+  local timed = Log and type(Log.wanted) == "function" and Log.wanted("trace") and type(getTime) == "function"
+  local startedAt = timed and getTime() or nil
   if entry.load ~= nil then
     -- A theme's build that raises is given up on as a module that does not load is, rather than
     -- raising out of the step: the dispatcher would clear the job and the next pass queue the
@@ -1764,8 +1780,14 @@ local function viewJobStep(self)
   else
     view.build(children, self)
   end
+  local madeAt = timed and getTime() or nil
   lvgl.clear()
+  local clearedAt = timed and getTime() or nil
   lvgl.build(children)
+  if timed then
+    Log.emit("rfsuite.widget", string.format("view %s built: %d ms in Lua, %d ms clearing, %d ms building",
+      tostring(entry.id), (madeAt - startedAt) * 10, (clearedAt - madeAt) * 10, (getTime() - clearedAt) * 10), "trace")
+  end
   self.built = true
   self._lastChildCount = #children
   -- The state pass keyed this build before the module was loaded, so without the module's own
@@ -2252,6 +2274,10 @@ local function failedLabelJobStep(self)
   return true
 end
 
+-- The helpers of the preference reload are local to this block, for the reason given at the MSP
+-- tick's block above; only the names declared on the next line are visible after it.
+local preferencesLook, buildI18nContext, reloadPreferencesIfNeeded
+do
 --- What the preference files look like right now: size and mtime, as one string.
 --
 -- `fstat` is a global in this firmware and returns { size, attrib, time }. Comparing that
@@ -2346,7 +2372,7 @@ end
 
 -- The files as they stand now: the stamp above and the reload request's sizes, the same two looks
 -- reloadPreferencesIfNeeded takes. Nil where the stamp cannot be established.
-local function preferencesLook(keptStamp)
+preferencesLook = function(keptStamp)
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
   local stamp = preferencesStamp(session and session.modelPreferencesFile, keptStamp)
   if not stamp then return nil end
@@ -2437,7 +2463,7 @@ local function invalidateLocale(prefs)
 end
 
 --- The widget's i18n context for the language as it stands now.
-local function buildI18nContext()
+buildI18nContext = function()
   if not (I18nModule and type(I18nModule.new) == "function") then return nil end
   local mod = localeModule()
   local locale = nil
@@ -2452,7 +2478,7 @@ local function buildI18nContext()
   return nil
 end
 
-local function reloadPreferencesIfNeeded(self, force, isBackground)
+reloadPreferencesIfNeeded = function(self, force, isBackground)
   local now = nowSeconds()
 
   -- The stamp and sequences that a completed reload will adopt. Held back on purpose -- see the armed
@@ -2751,6 +2777,7 @@ local function reloadPreferencesIfNeeded(self, force, isBackground)
   self.preferencesLastLoadedAt = now
   return true
 end
+end -- of the block scoping the preference reload's helpers
 
 local function updateConnectionState(self)
   local runtimeState = nil
@@ -2888,6 +2915,43 @@ local function updateConnectionState(self)
   -- appear for one frame, vanish, and come back a second later.
   local holdSeconds = self.everReady and SPLASH_READY_HOLD_SECONDS or 0
   local ready = (rawReady and self.readySince ~= nil and (now - self.readySince) >= holdSeconds) or softTimeoutReady
+
+  -- The theme's voltage bounds are part of what its scene is built from -- a gauge keeps the range
+  -- it was built with -- and they move to the pack's bounds once a cell count is known, which
+  -- clears the render key and builds the whole scene again. The battery test above can pass on a
+  -- fuel reading alone, before this connection has heard a pack voltage or a cell count, so the
+  -- first scene would be built on the theme's defaults and again a moment later.
+  -- updateVoltageThemeConfig marks exactly that state (`_voltageBoundsPending`: the defaults in
+  -- hand and no count), and the gate's FIRST opening waits for the count -- for at most
+  -- five seconds from the moment everything else was ready, so a model that never reports
+  -- a pack voltage still gets its dashboard. The wait overlaps the reconnect hold rather than
+  -- adding to it, and a gate that is already open is never shut by it -- nor pays for it: an open
+  -- gate skips the whole block.
+  local unheldReady = ready
+  if self.connectionReady ~= true then
+    local boundsHold = (ready and rawReady and self._voltageBoundsPending == true
+      and (now - self.readySince) < 5.0) == true
+    if boundsHold then ready = false end
+    if boundsHold ~= (self._boundsHold == true) then
+      self._boundsHold = boundsHold
+      if Log and type(Log.emitf) == "function" then
+        if boundsHold then
+          Log.emitf("rfsuite.widget", "debug", "first build waits for a cell count (voltage bounds %s/%s)",
+            tostring(self.state.themeConfig and self.state.themeConfig.v_min),
+            tostring(self.state.themeConfig and self.state.themeConfig.v_max))
+        elseif not rawReady then
+          Log.emitf("rfsuite.widget", "trace", "cell count wait left: the gate shut")
+        elseif self._voltageBoundsPending ~= true then
+          Log.emitf("rfsuite.widget", "debug", "cell count in after %.1f s, first build goes ahead",
+            now - (self.readySince or now))
+        else
+          Log.emitf("rfsuite.widget", "info", "no cell count after %.1f s, the dashboard is built on the theme's voltage bounds",
+            now - (self.readySince or now))
+        end
+      end
+    end
+  end
+
   local t = (self.i18n and type(self.i18n.t) == "function") and self.i18n.t or nil
 
   local statusLine, standbyInfoKind = nil, nil
@@ -3016,7 +3080,8 @@ local function updateConnectionState(self)
   -- announcing the model may not, because the announcement needs the name that chain reads.
   -- This is the condition `ready` itself carried before the chain left the gate above, soft
   -- timeout included, so the audio path sees no change at all.
-  self.startupComplete = ready and (tasksDone or softTimeoutReady)
+  -- The wait for a cell count above holds the scene only, not the announcement.
+  self.startupComplete = unheldReady and (tasksDone or softTimeoutReady)
   return ready, statusLine
 end
 
@@ -3419,6 +3484,10 @@ end
 -- loaded -- a theme load is also what the arm and disarm edges pay for -- but on the first
 -- fullscreen pass after the theme on screen has changed, keyed on the theme module itself.
 
+-- The helpers of the theme mode and of the zone views are local to this block, for the reason given
+-- at the MSP tick's block above; only the names declared on the next line are visible after it.
+local takeFullscreenMode, resolveThemeMode
+do
 -- Holds the theme module the mode was last taken for, without keeping a module that has since
 -- been replaced alive until the next fullscreen pass.
 local WEAK_VALUES = { __mode = "v" }
@@ -3473,7 +3542,7 @@ end
 -- The same read takes the theme's `views`: the fullscreen view registry is made anew from the
 -- core views and those of a free-form theme -- only a module that builds its own tree can draw a
 -- view -- and a view of the previous theme's that is still on the stack is taken off it.
-local function takeFullscreenMode(self)
+takeFullscreenMode = function(self)
   local holder = self._fullscreenModeOf
   if holder == nil then
     holder = setmetatable({}, WEAK_VALUES)
@@ -3556,7 +3625,7 @@ end
 --- The fullscreen pass of a theme-mode widget: put the key route in place, and resolve the
 --- surface. Returns the view id and the render key, as views.resolve() does, with the base layer's
 --- key where no view is on top.
-local function resolveThemeMode(self, viewId, viewKey)
+resolveThemeMode = function(self, viewId, viewKey)
   if self.refresh ~= themeModeRefresh then
     self._ownRefresh = self.refresh
     self.refresh = themeModeRefresh
@@ -3688,6 +3757,7 @@ zoneViewFor = function(self)
   if type(view.renderKey) == "function" then self._zoneViewKey = view.renderKey(self.zone, self.state) end
   return view
 end
+end -- of the block scoping the theme mode's and the zone views' helpers
 
 -- A stored path is a selection only if it names a theme: an empty select is written as the
 -- string "nil", and an absent one is empty or missing altogether.
@@ -3958,6 +4028,10 @@ local function modelPreferencesSignature(modelPrefs)
   return table.concat(parts, "\n")
 end
 
+-- The helpers of the telemetry read are local to this block, for the reason given at the MSP tick's
+-- block above; only the names declared on the next line are visible after it.
+local countSharedPass, readTelemetry
+do
 -- Hoisted out of readTelemetry, which runs on the display's 2 Hz cadence: the per-pass cache
 -- and the two helpers below were rebuilt each time, and they are almost everything the pass
 -- allocates.
@@ -3985,7 +4059,7 @@ local telemetryChanged = false
 local sharedRead = nil
 
 --- Count this pass for the record, before the event runtimes are driven.
-local function countSharedPass(now, reads)
+countSharedPass = function(now, reads)
   local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session
   if type(session) ~= "table" then
     sharedRead = nil
@@ -4064,7 +4138,7 @@ local function armFlagsRefused(value)
   return true
 end
 
-local function readTelemetry(state, audioState)
+readTelemetry = function(state, audioState)
   if not (Sensors and type(Sensors.getValue) == "function") then return end
   telemetryTarget = state
   telemetryChanged = false
@@ -4325,6 +4399,7 @@ local function readTelemetry(state, audioState)
   if telemetryChanged then updateDerivedFlightState(state) end
   readFlightRecord(state)
 end
+end -- of the block scoping the telemetry read's helpers
 
 local function computeFlightMode(state)
   local isArmed = state.armed == true
@@ -4677,6 +4752,11 @@ function Runtime.new(zone, options)
     -- exactly what it computed before.
     local curMin = tonumber(currentConfig.v_min)
     local curMax = tonumber(currentConfig.v_max)
+    -- Whether the bounds in hand are the theme's unnormalized defaults with no cell count to
+    -- normalize them yet: the one state in which a count arriving is certain to rewrite them.
+    -- updateConnectionState holds the scene's first build on it. Set only on the two no-cells
+    -- returns below, so every other outcome of this call leaves it clear.
+    self._voltageBoundsPending = nil
     if curMin ~= nil and curMax ~= nil then
       if currentConfig._customVoltage == true then
         logVoltageThemeDecision(self, "custom-config", nil, currentConfig.v_min, currentConfig.v_max, curMin, curMax)
@@ -4684,6 +4764,9 @@ function Runtime.new(zone, options)
       end
       local cells = resolveVoltageCellCount(self.state)
       if not cells or cells <= 0 then
+        if math.abs(curMin - 18.0) <= 0.01 and math.abs(curMax - 25.2) <= 0.01 then
+          self._voltageBoundsPending = true
+        end
         logVoltageThemeDecision(self, "no-cells", cells, currentConfig.v_min, currentConfig.v_max, curMin, curMax)
         return
       end
@@ -4732,6 +4815,9 @@ function Runtime.new(zone, options)
     local cells = resolveVoltageCellCount(self.state)
     if not cells or cells <= 0 then
       applyThemeConfig(self, nextConfig)
+      if math.abs(nextConfig.v_min - defaultMin) <= 0.01 and math.abs(nextConfig.v_max - defaultMax) <= 0.01 then
+        self._voltageBoundsPending = true
+      end
       logVoltageThemeDecision(self, "no-cells", cells, currentConfig.v_min, currentConfig.v_max, nextConfig.v_min, nextConfig.v_max)
       return
     end
@@ -5155,7 +5241,11 @@ function Runtime.new(zone, options)
       self._batteryPickWritten = nil
       self._batteryPickPress = nil
       self._batteryPickPicked = nil
-      self._viewStack = nil
+      do
+        -- Empty for the new connection, but for the place of a rolling menu that is up.
+        local Views = viewsModule()
+        self._viewStack = Views and Views.acrossReconnect(self) or nil
+      end
       self.modelPreferences = nil
       -- The post-flight theme kept for the model that flew before (noteModelTheme) belongs to that
       -- session; this one sets its own once its preferences arrive.
@@ -5207,8 +5297,10 @@ function Runtime.new(zone, options)
       self.state.packNotFull = nil
       self.state.previousSessionFuel = self.state.fuel
       self.state.fuel = 0.0
+      -- "link_lost" keeps the model's slot walk: the sensor table has not changed, and a walk two
+      -- seconds from now would share a pass with the event runtime's link-down work.
       if Sensors and type(Sensors.reset) == "function" then
-        Sensors.reset()
+        Sensors.reset("link_lost")
       end
       -- The link is gone, so nothing can report what the board is doing with what the overlay
       -- last wrote. Both variables go back to 0 here rather than being left for the next tuning pass.
@@ -5321,9 +5413,41 @@ function Runtime.new(zone, options)
     -- theme of its own then has its preferences read, the radio's theme released and the model's
     -- loaded in one widget call. Carried the same way, once, and marked as such, so that the tick it
     -- is carried to may still carry it off a read pass.
-    if wantReload and ((readThisPass and self._themeReloadPending ~= true)
+    --
+    -- Nor does the post-flight reload share a pass with the disarm edge's event tasks. Those tasks
+    -- run in this widget's calls, one logic tick after another (the flight log write among them),
+    -- and the read that sees the disarm falls on whichever of those ticks the read cadence gives
+    -- it, so the reload, carried once off that read pass, could run on the next tick in the same
+    -- widget call as the flight log write and the first post-flight reads. It waits while
+    -- the edge's runner still has tasks, until 3 s after the wait began (the flight log write, the
+    -- flight statistics and the dataflash reads after a disarm; a literal, because this file's main
+    -- chunk is at Lua's 200-local limit). That wait does not use up the one carry off a read pass,
+    -- so a reload released on a read pass can still move one tick further. While it waits, the
+    -- foreground queues no scene job for the theme it is about to replace (_edgeHoldBusy).
+    local edgeBusy = false
+    local edge = wantReload and modeChanged and EventsRuntime and type(EventsRuntime.edgeChainActive) == "function"
+      and EventsRuntime.edgeChainActive() or nil
+    if edge == "ondisarm" then
+      if self._edgeHoldSince == nil then
+        self._edgeHoldSince = now
+        Log.emitf("rfsuite.widget", "debug", "%s reload waits for the %s tasks, %s screen stays", tostring(nextMode),
+          tostring(edge), tostring(self.flightMode))
+      end
+      edgeBusy = (now - self._edgeHoldSince) < 3.0
+    elseif self._edgeHoldSince ~= nil then
+      if self._traceOn then
+        Log.emitf("rfsuite.widget", "trace", "edge hold over after %.1f s", now - self._edgeHoldSince)
+      end
+      self._edgeHoldSince = nil
+    end
+    self._edgeHoldBusy = edgeBusy or nil
+    if wantReload and (edgeBusy or (readThisPass and self._themeReloadPending ~= true)
         or (modelPrefsChanged and self._themeReloadPending == nil)) then
-      self._themeReloadPending = (readThisPass and self._themeReloadPending ~= true) or "preferences"
+      if edgeBusy then
+        if modelPrefsChanged and self._themeReloadPending == nil then self._themeReloadPending = "preferences" end
+      else
+        self._themeReloadPending = (readThisPass and self._themeReloadPending ~= true) or "preferences"
+      end
       -- As the reload itself would: a job already queued belongs to the theme being replaced. In
       -- a foreground pass none is (a job pass never reaches this function), but widget.background
       -- runs this work whatever is queued.
@@ -5396,6 +5520,9 @@ function Runtime.new(zone, options)
   -- for theme loads into a structural rule for every build.
   function widget.refresh(self, event, touchState)
     traceInstructionUsage(self)
+    -- The sensor searches count their per-pass caps against this call, however many clock ticks
+    -- it spans (lib/sensors.lua, Sensors.passBegins).
+    if Sensors and Sensors.passBegins then Sensors.passBegins() end
 
     -- The firmware calls refresh() for the widget the pilot is looking at and background() for
     -- every other one, so this is where "on screen" is known. The overlay drives only from here.
@@ -5759,6 +5886,9 @@ function Runtime.new(zone, options)
             -- The visible tree's battery getter still reads its fill until the new tree swaps in.
             self._standbyCache.batteryWidths = nil
           end
+          -- As in standbyJobStep: the standing tree's fill is no longer kept up to date, so a
+          -- cleared key may not keep it; the kind stays for releaseStandby.
+          if self._treeKind == "standby" then self._treeKey = nil end
         end
         prepareStandbyTextCache(self, standbyItems)
         local wantsElrs = false
@@ -5810,7 +5940,7 @@ function Runtime.new(zone, options)
     local explicitView = false
     if event ~= nil and self._viewStack ~= nil then
       local Views = viewsModule()
-      explicitView = Views ~= nil and Views.top(self) ~= nil
+      explicitView = Views ~= nil and (Views.top(self) ~= nil or Views.rollUp(self))
     end
     -- Past its soft timeout the splash counts as ready, but while this link's UID read has no
     -- outcome no theme is resolved (performBackgroundWork), so there is nothing else to draw: the
@@ -5835,15 +5965,45 @@ function Runtime.new(zone, options)
         and self._standbyIntroClosed ~= true
         and (self._standbyIntroNoFitW ~= self.zone.w or self._standbyIntroNoFitH ~= self.zone.h)
         and self.zone.w * 4 >= (LCD_W or 480) * 3 and self.zone.h * 4 >= (LCD_H or 320) * 3
+      -- The language is part of the key: the texts are fixed when the surface is built, so a
+      -- change of language is a change of the key rather than a clear of it.
+      local i18n = self.i18n
+      local language = i18n and type(i18n.getLocale) == "function" and i18n.getLocale() or "en"
       local splashKey = (useStandby and (intro and "standby|intro|" or "standby|") or "splash|") .. "info="
         .. tostring(self.state.standbyInfoKind) .. "|" .. tostring(self.state.zoneW) .. "x" .. tostring(self.state.zoneH)
-        .. (fullscreenSplash and "|fs" or "") .. "|" .. tostring(utils.colorScheme(self)) .. (useStandby
+        .. (fullscreenSplash and "|fs" or "") .. "|" .. tostring(utils.colorScheme(self)) .. "|" .. tostring(language)
+        .. (useStandby
           and ("|" .. tostring(dashboardPrefs.standby_layout)
             .. "|overflow=" .. tostring(self._standbyCache and self._standbyCache.valueOverflow == true))
           or "")
+      if self.renderKey == nil and useStandby and self._treeKind == "standby" and self._treeKey == splashKey then
+        -- Some other path cleared the key -- the reconnect edge, a theme or preferences reload, the
+        -- voltage bounds moving -- while the standby on screen is the one built for exactly this
+        -- key, and the key names everything that build reads. Building it again would draw the same
+        -- screen, at the cost of a clear and a build, several times on every connect. So the tree
+        -- stands. A preferences reload empties the text cache its GPS and ELRS fields read from, and
+        -- the state pass above refills it with a smaller set; it is put back as the build left it.
+        self.renderKey = splashKey
+        self.built = true
+        local cache = self._standbyCache
+        if cache ~= nil and self._standbyItems ~= nil then
+          local texts = standbyTexts(self, self._standbyItems, self.state.standbyInfoKind)
+          cache.text = function(key, fallback) return texts[key] or fallback end
+        end
+        if Log and type(Log.emitf) == "function" then
+          Log.emitf("rfsuite.widget.standby", "debug", "kept: its key was cleared, the screen is already this one: %s", splashKey)
+        end
+      end
       if self.renderKey ~= splashKey then
         -- The key names everything this surface is rebuilt for, so the pair is the reason. A key
         -- that some other path cleared says nothing, so the last one is kept to tell the two apart.
+        -- One cleared while the standby on screen is not the build for this key -- a build that
+        -- was dropped or had not finished, another surface since -- still builds.
+        if self.renderKey == nil and useStandby and self._surfaceKey == splashKey
+            and Log and type(Log.wanted) == "function" and Log.wanted("trace") then
+          Log.emitf("rfsuite.widget.standby", "trace", "not kept: the tree on record is %s, %s",
+            tostring(self._treeKind), tostring(self._treeKey))
+        end
         if Log and type(Log.emitf) == "function" then
           if self.renderKey == nil and self._surfaceKey == splashKey then
             Log.emitf("rfsuite.widget.standby", "debug", "rebuild: nothing about it changed, its key was cleared: %s", splashKey)
@@ -5879,8 +6039,14 @@ function Runtime.new(zone, options)
     -- A theme reload that fell on a read pass waits for the next logic tick; the deferral itself
     -- is in performBackgroundWork. Queuing a scene job here would build against the theme that
     -- reload is about to replace, and run ahead of it. widget.background queues no scene jobs. The
-    -- same holds between the two halves of a staged load: the module is in, its readings are not.
-    if (self._themeReloadPending or self._themeSourcesPending) and not tuningMode then
+    -- same holds between the two halves of a staged load: the module is in, its readings are not,
+    -- and, outside fullscreen, while the post-flight reload waits for the disarm's event tasks
+    -- (_edgeHoldBusy). In fullscreen (`event` not nil) a menu or view on top must follow its keys
+    -- for the up to 3 s of that wait, so there the surface keeps building -- also when the reload
+    -- had already been carried off a read pass before the hold began.
+    if (self._themeSourcesPending or (self._themeReloadPending and not (self._edgeHoldBusy and isInteractive))
+        or (self._edgeHoldBusy and not isInteractive))
+        and not tuningMode then
       self._passEndAt = nowSeconds()
       return
     end
@@ -6106,6 +6272,7 @@ function Runtime.new(zone, options)
   end
 
   function widget.background(self)
+    if Sensors and Sensors.passBegins then Sensors.passBegins() end
     -- Off screen. The overlay's own tick refuses to drive from here and cleans up instead, which
     -- is what makes a widget scrolled away stop writing the two variables.
     if self._foreground == true and self._shmOn then

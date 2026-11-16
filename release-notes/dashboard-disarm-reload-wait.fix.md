@@ -1,0 +1,1 @@
+- **After a landing the dashboard waits for the flight log before it shows the postflight screen, so the widget is not stopped at the disarm (`widgets/dashboard`)**
