@@ -1,2 +1,1 @@
-- **Radio Config help explains the restart on Save (`setup/radio_config`)**:
-  - The help now states that these settings are stored on the flight controller and Save restarts it, and explains each setting in display order. The new page documentation covers the same settings and save behaviour (#615).
+- **Radio Config help explains that Save restarts the flight controller (`setup/radio_config`)** (#615)

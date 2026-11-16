@@ -1,2 +1,1 @@
-- **Report Telemetry saves after EEPROM storage (`setup/telemetry`)**:
-  - Save writes the telemetry configuration and then commits it to EEPROM through the shared save pipeline, reporting success only after both succeed and keeping the selection unsaved when the write or commit fails. The flight controller is then restarted, since it applies telemetry sensors and the CRSF telemetry mode only at start-up. (#594)
+- **Setup > Telemetry reports Saved only after the EEPROM stores it, then restarts the flight controller (`setup/telemetry`)** (#594)

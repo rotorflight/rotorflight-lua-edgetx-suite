@@ -1,2 +1,1 @@
-- **A reply that broke off on the link is asked for again at once (`tasks/msp/common.lua`, `tasks/msp/queue.lua`, `tasks/msp/runtime.lua`)**:
-  - On firmware with MSP API 12.10 or later, a reply that loses a chunk is requested again on the next pass instead of after the retry window. The early request counts as an attempt, so a link that keeps losing chunks still gives up after the usual number of attempts. Older firmware keeps waiting for the retry window, because it does not restart a replaced reply from its beginning.
+- **A reply that broke off on the link is asked for again at once from MSP API 12.10 (`tasks/msp/queue`)**
