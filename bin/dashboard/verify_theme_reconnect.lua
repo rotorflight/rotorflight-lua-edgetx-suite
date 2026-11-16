@@ -25,7 +25,9 @@
 --
 -- And the voltage bounds at the reconnect: a connection whose cell count is not known when
 -- everything else is ready builds its scene once, on the pack's bounds, when the count arrives,
--- and still builds it within a few seconds when no count comes.
+-- and still builds it within a few seconds when no count comes. A count guessed from the pack
+-- voltage counts as not known when it differs from the last count the cell count sensor gave, and
+-- as known when it matches or the model has no such sensor.
 --
 --   lua5.3 bin/dashboard/verify_theme_reconnect.lua [runtime.lua] [--trace]
 local runtimePath = "src/rfsuite/widgets/dashboard/runtime.lua"
@@ -892,6 +894,147 @@ for _, case in ipairs({ "late", "never" }) do
       tostring(first.pass and readyPass and (first.pass - readyPass)) .. " pass(es) after ready")
   end
 end
+
+-- 11. A reconnect on a part-charged pack whose cell count is a guess at first. The board detects
+-- the count itself and the model carries a cell count sensor, which answered on the first
+-- connection; on the way back it has not answered yet, while the pack voltage has: 22.0 V over the
+-- 4.20 V cell limit reads as 5 cells for a 6-cell pack. The sensor's 6 then arrives `k` passes
+-- after everything else was ready -- before the reconnect hold ends, on the pass it ends, after
+-- it -- and the scene is built once, on the pack's bounds, rather than on 5 cells and again on 6.
+-- "late": the count comes after the wait's limit, and the dashboard is not held past it.
+-- "nosensor": a model with no cell count sensor at all gets its dashboard as soon as before, on
+-- the count the voltage gives, because there is nothing to wait for.
+-- "full": a full pack (24.6 V reads 6) whose guess matches the sensor's last count is not held,
+-- though the sensor answers late.
+-- "stale": the pack voltage has not answered either; the guess comes from the voltage the last
+-- connection left behind, and the scene still waits for the sensor and is built once.
+local function sceneTrees(world, start)
+  local scenes = {}
+  for i = start + 1, #world.trees do
+    local tree = world.trees[i]
+    if tree.kind ~= "standby" and tree.count > 20 then scenes[#scenes + 1] = tree end
+  end
+  return scenes
+end
+
+local function guessReconnect(case, k)
+  local label = case .. (k and (" k=" .. k) or "")
+  if trace then print("scenario: guessed cell count " .. label) end
+  local world = newWorld()
+  FC.replies[32][3] = 0
+  local volts = (case == "full") and 24.6 or 22.0
+  Stubs.sensors["Vbat"] = volts
+  if case == "nosensor" then Stubs.sensors["Cel#"] = nil end
+  connectAndSettle(world)
+  world.linkUp = false
+  passes(world, 30, "down")
+  if case ~= "nosensor" then Stubs.sensors["Cel#"] = 0 end
+  if case == "stale" then Stubs.sensors["Vbat"] = nil end
+  world.linkUp = true
+  local start = #world.trees
+  local readyPass, sensorSet
+  for _ = 1, 400 do
+    if readyPass and k and not sensorSet and world.pass - readyPass >= k then
+      Stubs.sensors["Cel#"], sensorSet = 6, true
+      Stubs.sensors["Vbat"] = volts
+    end
+    passes(world, 1, "back")
+    if world.w.readySince ~= nil and not readyPass then
+      readyPass = world.pass
+      local cfg = world.w.state.themeConfig or {}
+      if case == "stale" then
+        expect(world.w.state.batteryCellCount == 0 and cfg.v_min == 16.5,
+          "control: no count read and the bounds on the left-behind voltage's guess (" .. label .. ")",
+          tostring(world.w.state.batteryCellCount) .. ", " .. tostring(cfg.v_min))
+      else
+        local guess = (case == "full") and 6 or 5
+        expect(world.w.state.batteryCellCount == guess,
+          "control: the count in use when everything else is ready is the voltage's guess (" .. label .. ")",
+          tostring(world.w.state.batteryCellCount))
+      end
+    end
+    if readyPass and world.pass - readyPass >= (k or 0) + 80 then break end
+  end
+  expect(readyPass ~= nil, "control: the reconnect got ready (" .. label .. ")")
+  local scenes = sceneTrees(world, start)
+  local first = scenes[1] or {}
+  expect(world.w.connectionReady == true and #scenes >= 1, label .. ": the dashboard is built",
+    tostring(world.w.connectionReady) .. ", " .. #scenes .. " scene(s)")
+  if case == "guess" or case == "stale" then
+    expect(#scenes == 1, label .. ": the scene is built once", #scenes .. " scene(s)")
+    expect(type(first.vMin) == "number" and math.abs(first.vMin - 19.8) < 0.001
+      and type(first.vMax) == "number" and math.abs(first.vMax - 25.2) < 0.001,
+      label .. ": the scene is built on the pack's bounds",
+      tostring(first.vMin) .. "/" .. tostring(first.vMax))
+  elseif case == "late" then
+    expect(first.pass ~= nil and first.pass - readyPass <= 60,
+      label .. ": the scene does not wait past the limit for the sensor",
+      tostring(first.pass and (first.pass - readyPass)) .. " pass(es) after ready")
+  else
+    expect(#scenes == 1, label .. ": the scene is built once", #scenes .. " scene(s)")
+    -- The reconnect hold is one second, ten passes; nothing is added to it.
+    expect(first.pass ~= nil and first.pass - readyPass <= 14,
+      label .. ": the scene does not wait for a count it already has",
+      tostring(first.pass and (first.pass - readyPass)) .. " pass(es) after ready")
+    local wantMin = (case == "full") and 19.8 or 16.5
+    expect(type(first.vMin) == "number" and math.abs(first.vMin - wantMin) < 0.001,
+      label .. ": the scene is built on the guessed count's bounds", tostring(first.vMin))
+  end
+  return world
+end
+
+-- "gone": the sensor answered on the first connection and never again (another flight controller
+-- on the model, or the sensor taken off its telemetry list). The first reconnect on a guess that
+-- differs waits out the limit once and forgets the sensor's count; the next reconnect is not held.
+-- "gone stale": the same, while the pack voltage has not answered either, so the guess comes from
+-- the voltage the last connection left behind and no count is in use; the count is forgotten all
+-- the same.
+local function sensorGone(stale)
+  local label = stale and "gone stale" or "gone"
+  if trace then print("scenario: guessed cell count " .. label) end
+  local world = newWorld()
+  FC.replies[32][3] = 0
+  Stubs.sensors["Vbat"] = 22.0
+  connectAndSettle(world)
+  expect(world.w.state.cellSensorCount == 6, label .. ": control: the sensor's count is kept from the first connection",
+    tostring(world.w.state.cellSensorCount))
+  Stubs.sensors["Cel#"] = 0
+  if stale then Stubs.sensors["Vbat"] = nil end
+  local function reconnect()
+    world.linkUp = false
+    passes(world, 30, "down")
+    world.linkUp = true
+    local start, readyPass = #world.trees, nil
+    for _ = 1, 400 do
+      passes(world, 1, "back")
+      if world.w.readySince ~= nil and not readyPass then readyPass = world.pass end
+      if readyPass and world.pass - readyPass >= 80 then break end
+    end
+    local first = sceneTrees(world, start)[1] or {}
+    return first.pass and readyPass and (first.pass - readyPass) or nil
+  end
+  local wait1 = reconnect()
+  if stale then
+    expect(world.w.state.batteryCellCount == 0 and world.w.state.batteryCellSource == nil,
+      label .. ": control: no count is in use, the guess is the left-behind voltage's",
+      tostring(world.w.state.batteryCellCount) .. ", " .. tostring(world.w.state.batteryCellSource))
+  end
+  expect(wait1 ~= nil and wait1 > 14 and wait1 <= 60,
+    label .. ": the first reconnect waits for the sensor, not past the limit", tostring(wait1) .. " pass(es) after ready")
+  expect(world.w.state.cellSensorCount == nil, label .. ": the silent sensor's count is forgotten after the wait",
+    tostring(world.w.state.cellSensorCount))
+  local wait2 = reconnect()
+  expect(wait2 ~= nil and wait2 <= 14, label .. ": the next reconnect is not held for a sensor that stays silent",
+    tostring(wait2) .. " pass(es) after ready")
+end
+sensorGone(false)
+sensorGone(true)
+
+for _, k in ipairs({ 0, 5, 9, 10, 11, 20, 40 }) do guessReconnect("guess", k) end
+guessReconnect("late", 70)
+guessReconnect("nosensor", nil)
+guessReconnect("full", 40)
+guessReconnect("stale", 20)
 
 -- The memory probe's own control: an allocation it must see.
 do

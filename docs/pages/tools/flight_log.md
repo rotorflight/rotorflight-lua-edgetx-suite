@@ -102,7 +102,7 @@ and *Delete*. Deleting asks first.
 | Name | What the pack is called on the page and in the flight list. Up to 24 characters. |
 | Capacity | The pack's capacity in whole mAh, as on the Battery page. `0` means it is not recorded and the field is left out of the file. |
 | Cells | The pack's cell count, 1 to 24. Only used to find the pack's battery profile on a flight controller that keeps a cell count per profile (see *The battery profile* below). `0` means it is not recorded and the field is left out of the file. |
-| Battery profile | The flight controller's battery profile this pack belongs to, 1 to 6. `0` means none is recorded and the field is left out of the file. |
+| Battery profile | The flight controller's battery profile this pack belongs to, 1 to 6. Sent to the flight controller only while *Set the pack's battery profile* is on in *Settings*: with that off, the picker still shows the profile, a pick sends none and the flight controller stays on the one it is on. Usually left at `0`, so the profile is found by the pack's capacity; when to set it is under [*The battery profile*](#the-battery-profile). `0` means none is recorded and the field is left out of the file. |
 | Cycles | How many charges the pack has seen. It is counted up by flying, and is editable here for a pack that was already in use before it was entered. |
 | Models | The craft this pack is offered for. The models are listed at the end of the form, below *Cycles*. *All models* (the default) offers it for every model; otherwise only for the models switched on. The list holds every model the radio knows of: those with logged flights, the connected craft, and every flight controller [whose name is recorded on the card](../../reference/configuration-files.md). A model never connected or flown here is not listed yet. A name containing a comma or a semicolon is not listed because the file uses both as separators. An older entry naming a model the radio does not know is kept and shown switched on. |
 
@@ -146,9 +146,20 @@ packs exist than fit, it scrolls. What it shows and how it answers:
 
 ### The battery profile
 
-With *Set the pack's battery profile* on as well, a pick in the prompt also tells the flight
-controller which of its six battery profiles this pack belongs to. Which one that is comes from
-the registry entry and from nowhere else:
+With *Set the pack's battery profile* on as well, a pick in the prompt or under *BATTERY* also
+tells the flight controller which of its six battery profiles this pack belongs to. With it off,
+the pack is only recorded: the picker still shows the profile a pack would get, but nothing is
+sent, and the flight controller stays on the battery profile it is on.
+
+**Which to use.** Where the flight controller's profiles all have different capacities, leave
+*Battery profile* at `0` and give the pack the *Capacity* its profile has on the board — and its
+*Cells* where the board keeps a cell count per profile. The capacity match below then finds the
+profile, and one entry works on several models even where the pack sits in a different profile
+number on each. Set *Battery profile* only where the match cannot find the right one: two profiles
+of the same capacity on one board — the same pack size with different thresholds, say — or a pack
+whose capacity no profile has. The number is the same for every model the entry is offered for.
+
+Which profile a pick selects comes from the registry entry and from nowhere else:
 
 1. `profile=1` … `profile=6` on the entry — the pilot saying it outright — is used as it stands.
 2. Otherwise the entry's `cap=` is matched against the capacities the flight controller publishes
