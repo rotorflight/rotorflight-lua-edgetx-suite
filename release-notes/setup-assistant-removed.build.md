@@ -1,1 +1,1 @@
-- Remove the old Setup Assistant's code and strings, which no menu has opened since Helicopter Setup replaced it; the Rotorflight model template keeps what it uses in `lib/model_radio.lua`
+- **The old Setup Assistant, unreachable since Helicopter Setup replaced it, is removed (`setup_wizard`)**
