@@ -152,11 +152,29 @@ local function fitsScreen(declared)
   return (tonumber(declared.w) or w) == w and (tonumber(declared.h) or h) == h
 end
 
+-- A theme the radio's or the connected model's settings already name stays listed whatever its
+-- declared size: left out, the theme page would take it for uninstalled and replace a selection
+-- the pilot never touched. Only the list is kept; the theme draws as it can.
+local SELECTION_KEYS = { "theme_preflight", "theme_inflight", "theme_postflight" }
+local function selectedSomewhere(path)
+  local root = type(_G) == "table" and _G.rfsuite or nil
+  local prefs = root and type(root.preferences) == "table" and root.preferences or nil
+  local dashboard = prefs and type(prefs.dashboard) == "table" and prefs.dashboard or nil
+  local session = root and type(root.session) == "table" and root.session or nil
+  local modelPrefs = session and type(session.modelPreferences) == "table" and session.modelPreferences or nil
+  local modelDashboard = modelPrefs and type(modelPrefs.dashboard) == "table" and modelPrefs.dashboard or nil
+  for i = 1, #SELECTION_KEYS do
+    if dashboard and dashboard[SELECTION_KEYS[i]] == path then return true end
+    if modelDashboard and modelDashboard["model_" .. SELECTION_KEYS[i]] == path then return true end
+  end
+  return false
+end
+
 local function appendTheme(themes, nextId, entry, loadBasePath, log)
   if type(entry) ~= "table" then return nextId end
   if type(entry.name) ~= "string" or entry.name == "" then return nextId end
   if type(entry.folder) ~= "string" or entry.folder == "" then return nextId end
-  if not fitsScreen(entry.screen) then
+  if not fitsScreen(entry.screen) and not selectedSomewhere(asThemePath(entry.source, entry.folder)) then
     scanSkipped(log, "%s (drawn for another screen size)", entry.folder)
     return nextId
   end
@@ -295,7 +313,7 @@ local function scanEntry(rawEntry, loadBasePath, source, id, log)
     scanSkipped(log, "%s/%s (init.lua %s)", source, folder, initOk and "returned no theme" or "failed")
     return nil
   end
-  if not fitsScreen(initTable.screen) then
+  if not fitsScreen(initTable.screen) and not selectedSomewhere(asThemePath(source, folder)) then
     scanSkipped(log, "%s/%s (drawn for another screen size)", source, folder)
     return nil
   end

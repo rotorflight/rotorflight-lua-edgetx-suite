@@ -2,12 +2,12 @@
 -- hier steht nur, was sich aendert. Der Schirm wird EINMAL gebaut: jede Ziffer hat ihren festen Baustein, der Bild, Ort und
 -- Sichtbarkeit selbst nachfragt. Ein neuer Wert baut nichts neu - ein Bau haelt den Sender rund eine Sekunde auf.
 -- Der Ordner des Themes: mitgeliefert liegt es bei den Themes der Suite, als eigenes Theme des Piloten unter user/dashboard.
--- THEME_PFAD ist der Schluessel, unter dem die Suite seine Einstellungen fuehrt
-local PFADE = rfsuite and rfsuite.paths or nil
-local KERN = (PFADE and PFADE.core) or "/SCRIPTS/RFSUITE/core"
-local ORDNER, THEME_PFAD = KERN .. "/widgets/dashboard/themes/@novafly/", "system/@novafly"
-if loadScript(ORDNER .. "init.lua", "t") == nil then
-    ORDNER, THEME_PFAD = ((PFADE and PFADE.user) or "/SCRIPTS/RFSUITE/user") .. "/dashboard/novafly/", "user/novafly"
+-- THEME_PFAD ist der Schluessel, unter dem die Suite seine Einstellungen fuehrt. Die Wurzeln der Karte nennt nur die Suite
+-- (rfsuite.paths), dieses Skript schreibt sie nicht aus
+local PFADE = rfsuite and rfsuite.paths or {}
+local ORDNER, THEME_PFAD = PFADE.core and (PFADE.core .. "/widgets/dashboard/themes/@novafly/") or nil, "system/@novafly"
+if ORDNER == nil or loadScript(ORDNER .. "init.lua", "t") == nil then
+    if PFADE.user then ORDNER, THEME_PFAD = PFADE.user .. "/dashboard/novafly/", "user/novafly" end
 end
 local floor, byte, max, min = math.floor, string.byte, math.max, math.min
 
@@ -369,51 +369,84 @@ for i = 1, #FARBWORT do FARBE_NR[FARBWORT[i]] = i end
 local farbe = "blau"
 
 -- die Farbe steht in den Theme-Einstellungen der Suite: in den Standardwerten des Senders oder in den eigenen Werten des
--- Modells, wenn es welche hat. Die Suite reicht sie als state.themeConfig; ohne Eintrag oder mit einem fremden Wort gilt Blau
+-- Modells, wenn es welche hat. Die Suite reicht sie als state.themeConfig; ohne Eintrag oder mit einem fremden Wort gilt Blau.
+-- Nach einem langen Druck gilt die neue Farbe sofort (G.farbeNeu), bis die Suite ihre Einstellungen neu gereicht hat: nach
+-- einem Flug ohne Verbindung schiebt sie das Neuladen auf, und ohne das stuende das Cockpit auf der alten Farbe
 local function farbeAus(state)
     local c = state and state.themeConfig
     local wort = type(c) == "table" and c.colour or nil
+    local neu = G.farbeNeu
+    if type(neu) == "table" then
+        if wort ~= neu.vorher then G.farbeNeu = nil   -- die Suite hat neu geladen: ab jetzt gilt, was sie reicht
+        else wort = neu.farbe end
+    end
     if FARBE_NR[wort] then return wort end
     return "blau"
 end
 
+-- Wem die Farbe gehoert: dem Modell (eigene Werte eingeschaltet) oder dem Sender. Solange der Heli da ist, sieht das Theme
+-- die Werte des Modells und merkt sich die Antwort (G.besitz). Nach dem Abstecken reicht die Suite dem Theme weiter die Werte
+-- des Modells, zeigt sie ihm aber nicht mehr - dann gilt das Gemerkte, und gleiche Farben beweisen keinen gleichen Besitzer
+local function besitzMerken(Lib, prefs)
+    local session = rfsuite and rfsuite.session
+    local id = type(session) == "table" and session.mcu_id or nil
+    local modelPrefs = (id and type(session.modelPreferences) == "table") and session.modelPreferences or nil
+    if modelPrefs == nil or Lib == nil or type(Lib.modelOverridesActive) ~= "function" then return end
+    local dashboard = type(prefs) == "table" and type(prefs.dashboard) == "table" and prefs.dashboard or {}
+    G.besitz = {id = id, modell = Lib.modelOverridesActive(dashboard, modelPrefs.dashboard) == true}
+end
+
 -- die neue Farbe in denselben Speicher, den die Einstellungsseite des Themes schreibt: in die eigenen Werte des Modells, wenn
--- es welche hat, sonst in die Standardwerte des Senders. Die Suite liest ihre Einstellungen danach neu und baut das Cockpit
--- mit der neuen Farbe
-local function farbeSpeichern(neu)
+-- sie der Farbe gehoeren, sonst in die Standardwerte des Senders. Die Suite liest ihre Einstellungen danach neu; bis dahin
+-- zeigt das Cockpit die neue Farbe aus G.farbeNeu
+local function farbeSpeichern(neu, state)
     local Lib = suiteModul("app/pages/settings/dashboard/lib.lua")
     local prefs = rfsuite and rfsuite.preferences
     if Lib == nil or type(Lib.setThemeConfig) ~= "function" or type(prefs) ~= "table" then return false end
+    besitzMerken(Lib, prefs)
     local session = rfsuite.session
-    local modelPrefs = (type(session) == "table" and session.mcu_id and type(session.modelPreferences) == "table")
-                       and session.modelPreferences or nil
-    local dashboard = type(prefs.dashboard) == "table" and prefs.dashboard or {}
-    if modelPrefs and type(Lib.modelOverridesActive) == "function" and type(Lib.setEditScope) == "function"
-       and Lib.modelOverridesActive(dashboard, modelPrefs.dashboard) then
+    local id = type(session) == "table" and session.mcu_id or nil
+    local modelPrefs = (id and type(session.modelPreferences) == "table") and session.modelPreferences or nil
+    local besitz = G.besitz
+    local c = state and state.themeConfig
+    local vorher = type(c) == "table" and c.colour or nil
+    local function gilt()
+        G.farbeNeu = {farbe = neu, vorher = vorher}
+        farbe = neu
+        return true
+    end
+    if type(besitz) == "table" and besitz.modell then                 -- die Farbe gehoert dem Modell
+        if modelPrefs == nil or besitz.id ~= id then return false end   -- und das Modell ist nicht da: nichts schreiben
+        if type(Lib.setEditScope) ~= "function" then return false end
         local MP = suiteModul("lib/model_preferences.lua")
         if MP == nil or type(MP.saveByMcuId) ~= "function" then return false end
         Lib.setEditScope("model")
         Lib.setThemeConfig(prefs, THEME_PFAD, {colour = neu}, modelPrefs)
         Lib.setEditScope(nil)
-        return MP.saveByMcuId(session.mcu_id, modelPrefs) == true
+        return MP.saveByMcuId(id, modelPrefs) == true and gilt()
     end
-    -- Zeigt das Cockpit eine andere Farbe als der Standard des Senders, kommt sie aus den Werten eines Modells, dessen
-    -- Kennung gerade fehlt (Akku ab, Heli weg: die Suite haelt sie nach dem Flug). Der Standard wuerde geaendert, ohne dass
-    -- das Cockpit folgt - dann tut der Druck nichts
-    local standard = dashboard["cfg_" .. string.gsub(THEME_PFAD, "[^%w]", "_") .. "_colour"]
-    if (standard or "blau") ~= farbe then return false end
+    if besitz == nil then
+        -- nichts gemerkt (kein Heli, seit das Theme geladen ist). Nach einem Flug ohne Verbindung haelt die Suite noch die Werte
+        -- des letzten Modells, und eine Farbe, die nicht der Standard des Senders ist, kommt von einem Modell: beides heisst, der
+        -- Standard wuerde hinter einem Cockpit geaendert, das nicht folgt - dann tut der Druck nichts
+        if state and state.hadInflightFlight == true and state.rfConnected ~= true then return false end
+        local dashboard = type(prefs.dashboard) == "table" and prefs.dashboard or {}
+        local standard = dashboard["cfg_" .. string.gsub(THEME_PFAD, "[^%w]", "_") .. "_colour"]
+        if (standard or "blau") ~= farbe then return false end
+    end
     local Prefs = suiteModul("lib/preferences.lua")
     if Prefs == nil or type(Prefs.save) ~= "function" then return false end
     Lib.setThemeConfig(prefs, THEME_PFAD, {colour = neu}, nil)
-    return Prefs.save(prefs) == true
+    return Prefs.save(prefs) == true and gilt()
 end
 
 -- ein langer Druck auf den Kopf oben: die naechste Farbe der Reihe, mit Pieps, nur am Boden
+local letzterState = nil
 local function farbeWeiter()
     if anz.arm == "scharf" then return end
     local neu = FARBWORT[(FARBE_NR[farbe] or 1) % #FARBWORT + 1]
     local ton = _G.playTone
-    if farbeSpeichern(neu) and ton then pcall(ton, 880, 120, 0) end
+    if farbeSpeichern(neu, letzterState) and ton then pcall(ton, 880, 120, 0) end
 end
 local schritt = (D and ML ~= nil) and 2 or ((D and 1) or 0)
 
@@ -424,6 +457,7 @@ local PAUSE = 300                                   -- in Hundertstelsekunden: i
 function M.renderKey(zone, state)
     local ok, grund = pcall(stand, state or {})
     if not ok then merken("stand: " .. tostring(grund)) end
+    letzterState = state
     farbe = farbeAus(state)
     local jetzt = getTime and getTime() or 0
     if G.ruf and jetzt - G.ruf > PAUSE then namenTakt = 0 end   -- nach einer Pause den Namen des Modells gleich neu lesen
@@ -432,6 +466,7 @@ function M.renderKey(zone, state)
     if namenTakt <= 0 then                          -- der Name gehoert in den Schluessel, bevor gebaut wird: sonst baut die Suite zweimal
         namenTakt = 100
         anz.name = modellName()
+        besitzMerken(suiteModul("app/pages/settings/dashboard/lib.lua"), rfsuite and rfsuite.preferences)
     end
     return "novafly|" .. farbe .. "|" .. schritt .. "|" .. tostring(anz.name)
 end

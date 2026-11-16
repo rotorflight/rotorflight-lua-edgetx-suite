@@ -437,9 +437,9 @@ return {
     ["page.settings_dashboard_keys_page.build"] = { target = 1400, measured = 1171 },
     -- Raised from 12 200 when @NovaFly RC became the fourteenth shipped theme: the page lists the
     -- themes to name the one an override belongs to, so every theme adds to its build. Measured
-    -- 11 981 with thirteen themes on the same host and 12 324 with fourteen. The target keeps the
+    -- 11 981 with thirteen themes on the same host and 12 330 with fourteen. The target keeps the
     -- 10 % the report prints a warning under, rounded up to the next fifty.
-    ["page.settings_dashboard_overrides_page.build"] = { target = 13750, measured = 12324, proposed = 12200 },
+    ["page.settings_dashboard_overrides_page.build"] = { target = 13750, measured = 12330, proposed = 12200 },
     ["page.settings_dashboard_quick_menu_page.build"] = { target = 3750, measured = 2976, proposed = 2500 },
     -- Priced on the Default theme's Before flight page (measure.lua, SETTINGS_THEME/SETTINGS_PAGE):
     -- the heaviest of its pages, which reads a phase module and lists its tiles.

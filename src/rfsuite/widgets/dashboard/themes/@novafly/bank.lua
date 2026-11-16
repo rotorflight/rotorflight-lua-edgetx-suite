@@ -1,11 +1,12 @@
 -- BANK als Schirm des NovaFly-Themes der Rotorflight-Suite fuer EdgeTX. Karten, Knoepfe und Woerter kommen als Bilder aus einem
 -- Skript. Gelesen wird die Bank, auf der der FC steht; gestellt wird mit Minus und Plus; gespeichert wird der
 -- ganze Satz der Bank mit der einen Aenderung, zurueckgelesen und verglichen, dann gesichert. Geschrieben wird nur am Boden.
--- Der Ordner des Themes: mitgeliefert liegt es bei den Themes der Suite, als eigenes Theme des Piloten unter user/dashboard
-local PFADE = rfsuite and rfsuite.paths or nil
-local ORDNER = ((PFADE and PFADE.core) or "/SCRIPTS/RFSUITE/core") .. "/widgets/dashboard/themes/@novafly/"
-if loadScript(ORDNER .. "init.lua", "t") == nil then
-    ORDNER = ((PFADE and PFADE.user) or "/SCRIPTS/RFSUITE/user") .. "/dashboard/novafly/"
+-- Der Ordner des Themes: mitgeliefert liegt es bei den Themes der Suite, als eigenes Theme des Piloten unter user/dashboard.
+-- Die Wurzeln der Karte nennt nur die Suite (rfsuite.paths), dieses Skript schreibt sie nicht aus
+local PFADE = rfsuite and rfsuite.paths or {}
+local ORDNER = PFADE.core and (PFADE.core .. "/widgets/dashboard/themes/@novafly/") or nil
+if ORDNER == nil or loadScript(ORDNER .. "init.lua", "t") == nil then
+    ORDNER = PFADE.user and (PFADE.user .. "/dashboard/novafly/") or ORDNER
 end
 local floor, byte = math.floor, string.byte
 local RGB = lcd.RGB
@@ -49,7 +50,8 @@ local ctxJetzt = nil
 local offen = nil                 -- die Lesefrage eines Vorgangs, die in der Schlange der Suite steht: ihr Kunde und ihre Nummer
 local kette, kettenNr = nil, 0    -- der Schreibvorgang, der dem FC gehoert: ab dem Schreibbefehl laeuft er zu Ende, auch wenn der Schirm aufgibt
 
-local gesehen = {}                -- je Bank, was der FC zuletzt nannte: bleibt, solange das Theme geladen ist
+local gesehen = {}                -- je Bank, was der FC zuletzt nannte: bleibt, solange das Theme geladen ist und der FC derselbe
+local kennung = nil               -- die Kennung (mcu_id) des FC, von dem gesehen stammt
 local simSatz = nil               -- nur im Simulator: der zuletzt geschriebene Satz, damit das Ruecklesen ihn dort wiederfindet
 local bank, govModus = nil, nil
 local govLesen, govGelesen, govVersuche = false, false, 0
@@ -259,7 +261,7 @@ local function lesen()
         fehlerMelden("armiert")
         return
     end
-    if zustand ~= "bereit" then zustand = "laedt" end
+    if zustand ~= "bereit" and zustand ~= "fehler" then zustand = "laedt" end   -- ein Fehler bleibt stehen, bis der FC antwortet
     laeuft, start = true, zeit()
     local dieser = neuerVorgang()
     local function rot(g) if dieser == vorgang then fehlerMelden(g) end end
@@ -267,7 +269,6 @@ local function lesen()
         if dieser ~= vorgang then return end
         start = zeit()
         bank = b
-        zustand, meldung = "bereit", ""
         satzLesen(function(satz)
             if dieser ~= vorgang then return end
             start = zeit()
@@ -276,12 +277,12 @@ local function lesen()
                 if b2 ~= bank then
                     if not erstlesungWiederholt then erstlesungWiederholt = true; lesen(); return end
                     bank = (b2 >= 1 and b2 <= 3) and b2 or nil
-                    laeuft = false
+                    zustand, meldung, laeuft = "bereit", "", false   -- zu bedienen; die Karte bleibt ungelesen bis zum naechsten Wechsel
                     return
                 end
                 gesehen[bank] = gesehen[bank] or {}
                 gesehen[bank].drehzahl, gesehen[bank].maxgas = satz[FELD_DZ], satz[FELD_PROZENT]
-                laeuft = false
+                zustand, meldung, laeuft = "bereit", "", false   -- bereit erst, wenn der Satz da ist und zu dieser Bank gehoert
             end, rot)
         end, rot)
     end, rot)
@@ -349,6 +350,14 @@ local function speichern()
         end
         ketteEnde("abweichung")
     end
+    -- der Schalter lag um, waehrend geschrieben wurde: welche Bank den Satz hat, weiss niemand - nichts gilt mehr als gelesen,
+    -- nichts wird gesichert, der Schirm liest die Bank, auf der der FC jetzt steht, neu
+    local function bankGewechselt(b2)
+        gesehen[b] = nil
+        if type(b2) == "number" then gesehen[b2] = nil end
+        soll, sollBank = nil, nil
+        ende("abweichung")
+    end
     local ok = statusLesen(function(steht, scharf)
         if not zeigt() then return end
         start = zeit()
@@ -374,19 +383,23 @@ local function speichern()
             satzSchreiben(neuBytes, function()
                 if not lebt() then return end
                 if zeigt() then start, speicherStufe = zeit(), 2 end
-                satzLesen(function(nachher)      -- ruecklesen und vergleichen, dann sichern: was der FC anders uebernahm, wird nie dauerhaft
+                satzLesen(function(nachher)      -- ruecklesen, dann erst STATUS: was der FC anders uebernahm, wird nie dauerhaft
                     if not lebt() then return end
                     if zeigt() then start = zeit() end
-                    if not gleich(a.buildWritePayload(nachher), neuBytes) then   -- der alte Satz geht zurueck in den FC
-                        satzSchreiben(altBytes, function() if lebt() then endeDaneben() end end,
-                                      function() if lebt() then ende("abweichung") end end, true)
-                        return
-                    end
-                    statusLesen(function(steht2, scharf2)   -- vor dem Sichern fragt der FC selbst: scharf oder andere Bank sichert nichts
+                    local unveraendert = gleich(a.buildWritePayload(nachher), neuBytes)
+                    statusLesen(function(steht2, scharf2)   -- nach dem Schreiben fragt der FC selbst: Bank und scharf
                         if not lebt() then return end
                         if zeigt() then start = zeit() end
-                        if scharf2 then ende("armiert"); return end
-                        if steht2 ~= b then ende("schreiben_abgelehnt"); return end
+                        -- MSP traegt beim Governor-Satz keine Banknummer: Lesen und Schreiben treffen die Bank, auf der der FC
+                        -- gerade steht. Lag der Schalter seit dem ersten STATUS um, kann der Satz in der neuen Bank stehen, und
+                        -- ein Rueckweg traefe sie auch - darum ab hier kein Schreiben mehr und nichts sichern
+                        if steht2 ~= b then bankGewechselt(steht2); return end
+                        if not unveraendert then   -- der alte Satz geht zurueck in den FC, die Bank ist noch dieselbe
+                            satzSchreiben(altBytes, function() if lebt() then endeDaneben() end end,
+                                          function() if lebt() then ende("abweichung") end end, true)
+                            return
+                        end
+                        if scharf2 then ende("armiert"); return end   -- scharf sichert nichts
                         fragen("eeprom_write", {}, function()
                             if not lebt() then return end
                             if zeigt() then start, speicherStufe = zeit(), 3 end
@@ -526,6 +539,17 @@ local function takt(state)
     if lage.verbunden then warVerbunden, weg = true, false
     elseif warVerbunden then weg = true end     -- der Heli ist weg, waehrend der Schirm offen ist: der Schirm schliesst
 
+    -- ein anderer FC (andere Kennung): was von den Baenken des vorigen gelesen war, gilt nicht mehr. Dieselbe Kennung behaelt es
+    local id = rfsuite and type(rfsuite.session) == "table" and rfsuite.session.mcu_id or nil
+    if id ~= nil and id ~= kennung then
+        if kennung ~= nil then
+            gesehen, simSatz = {}, nil
+            govModus, govGelesen, govVersuche = nil, false, 0
+            soll, sollBank, bank = nil, nil, nil
+            if not laeuft and lage.bank ~= nil then lesen() end
+        end
+        kennung = id
+    end
     if not govGelesen and not govLesen and not laeuft and zustand == "bereit" then   -- welcher Governor-Modus: Drehzahl oder Max-Gas
         govLesen = true
         local a = apiHolen("governor_config")
@@ -548,10 +572,11 @@ local function takt(state)
         fehlerMelden("armiert")
     end
     if laeuft and jetzt - start > ZEITABLAUF then
-        neuerVorgang()                         -- was noch in der Schlange steht, darf den FC nicht mehr erreichen
+        neuerVorgang()                         -- eine offene Lesefrage geht aus der Schlange; ein Schreibvorgang laeuft als kette weiter
+        local schrieb = speicherStufe ~= nil or hinweis == T.k_warten
         laeuft, speicherStufe = false, nil
-        if zustand == "laedt" then fehlerMelden("zeitablauf")
-        elseif hinweis == T.k_warten then hinweis = grundtext("zeitablauf") end
+        if schrieb then hinweis = grundtext("zeitablauf")   -- die Anzeige gibt den Schreibvorgang auf, die Kette liest am Ende neu
+        else fehlerMelden("zeitablauf") end                  -- ein Lesen ohne Antwort ist ein Fehler: der Takt liest alle 3 s neu
     end
     if zustand == "fehler" and not laeuft and jetzt > neuVersuchAb then   -- nach einem Fehler alle 3 s nochmal
         neuVersuchAb = jetzt + NEUVERSUCH
@@ -561,9 +586,9 @@ local function takt(state)
         soll, sollBank, hinweis = nil, nil, ""
         radBank, stellt = nil, false
     end
-    if lage.bank ~= letzteBank then
+    if lage.bank ~= letzteBank and not laeuft then   -- waehrend einer Anfrage bleibt der Wechsel offen und wird danach gelesen
         letzteBank = lage.bank
-        if lage.bank ~= nil and not laeuft then lesen() end
+        if lage.bank ~= nil then lesen() end
     end
     if stellt and not stellbar(radBank) then stellt = false end
     if speicherStufe == 4 and jetzt >= speicherBis then speicherStufe = nil end

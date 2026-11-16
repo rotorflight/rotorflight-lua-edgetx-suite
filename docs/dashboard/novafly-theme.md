@@ -79,7 +79,10 @@ is taken out of that queue. A save is different: once its write is queued, the v
 through to the end (read back, compare, revert or keep), even if the view has reported a timeout
 or has been closed in the meantime, and then reads the bank again, so the screen never says one
 thing while the flight controller holds another. A second SAVE while the first is still under way
-only shows the progress bar. It asks and writes nothing while the model is armed: the active
+only shows the progress bar. If the flight controller's active bank changes while a save is under
+way, the view writes nothing more (the governor profile carries no bank number over MSP, so a
+rollback could hit the wrong bank), keeps nothing, reports a read-back that differs, marks both
+banks unread and reads the bank the controller is now on. It asks and writes nothing while the model is armed: the active
 bank's card then follows the live head speed, a press on a card, **-**, **+** or **SAVE** answers
 that the model is armed, and the view reads the profile again once the model is disarmed. The view
 never switches the active bank.
@@ -92,7 +95,10 @@ never switches the active bank.
 
 The colour is a theme setting like any other: saved from the tile it is the radio's standard value,
 saved from [*Per-Model Settings*](../pages/settings/dashboard/overrides.md) it is the connected
-model's own. The long press writes to whichever of the two the cockpit is drawing from.
+model's own. The long press writes to whichever of the two the cockpit is drawing from: while the
+model is connected the cockpit notes which of the two owns the colour, and with the model gone it
+leaves a colour the model owns alone. After a flight without a link it also does nothing when it has
+not seen a model since the theme loaded. After a save the cockpit shows the new colour at once.
 
 ## Languages
 
