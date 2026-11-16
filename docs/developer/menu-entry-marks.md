@@ -36,3 +36,6 @@ check-mark character.
 
 - `app/menu_registry.lua` -- `isEntryLockedByArm`, `isEntryDone`, `makeCard`
 - `ui/tiles.lua` -- `appendCornerBadge`, `appendDoneBadge`
+
+A change to `app/manifest.lua` also owes `lua5.3 bin/dashboard/make_menu_list.lua`: the rotary quick menu reads the list it makes,
+`widgets/dashboard/menu_list.lua`, and CI's `bin/dashboard/verify_menu_list.lua` goes red where it was forgotten.

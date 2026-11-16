@@ -23,6 +23,10 @@
 -- behind its refusal screen as while the link is down. And a dashboard built again while the read
 -- has no answer waits as well.
 --
+-- And the voltage bounds at the reconnect: a connection whose cell count is not known when
+-- everything else is ready builds its scene once, on the pack's bounds, when the count arrives,
+-- and still builds it within a few seconds when no count comes.
+--
 --   lua5.3 bin/dashboard/verify_theme_reconnect.lua [runtime.lua] [--trace]
 local runtimePath = "src/rfsuite/widgets/dashboard/runtime.lua"
 local trace = false
@@ -189,7 +193,9 @@ local function newWorld()
     local job = world.w and world.w._job
     world.trees[#world.trees + 1] = { pass = world.pass, kind = job and job.kind, children = children,
       fullscreen = job and (job.fullscreenSplash or job.fullscreen) or false,
-      theme = world.w and world.w.themePath, count = type(children) == "table" and #children or 0 }
+      theme = world.w and world.w.themePath, count = type(children) == "table" and #children or 0,
+      vMin = world.w and world.w.state.themeConfig and world.w.state.themeConfig.v_min,
+      vMax = world.w and world.w.state.themeConfig and world.w.state.themeConfig.v_max }
     return build(children, ...)
   end
   return world
@@ -364,6 +370,39 @@ for _, pending in ipairs({ true, false }) do
   expect(world.w.themePath == "system/urban", tag .. ": the model's theme is back after the UID",
     tostring(world.w.themePath))
   cost(world, tag)
+end
+
+-- A rolling menu that is up keeps its place across the reconnect, and everything else on the session
+-- goes with the old connection, as it does with no rolling menu.
+do
+  if trace then print("scenario: a rolling menu across the reconnect") end
+  local world = newWorld()
+  connectAndSettle(world)
+  local roll = { view = "menu", levels = { { rows = {}, index = 1 } }, base = 1, focus = 1, position = 0, epoch = 0 }
+  world.event = 0
+  world.w.preferences.general.menu_style = "rotary"
+  world.w._viewStack = { rolls = { menu = roll }, { id = "menu" }, { id = "battery_pick", auto = true }, status = { battery_pick = "busy" } }
+  world.linkUp = false
+  passes(world, 30, "down")
+  expect(world.w._viewStack.rolls.menu == roll, "the place stays while the link is down")
+  reconnectWindow(world, 30)
+  world.releaseUid()
+  passes(world, 60, "uid")
+  local session = world.w._viewStack
+  expect(session ~= nil and session.rolls ~= nil and session.rolls.menu == roll, "the rolling menu keeps its place across the reconnect")
+  expect(session ~= nil and session[1] ~= nil and session[1].id == "menu" and session[2] == nil, "the prompt over it goes with the old connection")
+  expect(session ~= nil and session.status == nil, "and so does how a write went")
+
+  local plain = newWorld()
+  connectAndSettle(plain)
+  plain.event = 0
+  plain.w._viewStack = { { id = "confirm" } }
+  plain.linkUp = false
+  passes(plain, 30, "down")
+  reconnectWindow(plain, 30)
+  plain.releaseUid()
+  passes(plain, 60, "uid")
+  expect(plain.w._viewStack == nil or plain.w._viewStack[1] == nil, "control: with no rolling menu the session is emptied")
 end
 
 -- 3. An empty UID answer settles the read without a UID: the radio's theme is let in.
@@ -797,6 +836,61 @@ for _, case in ipairs({ "model", "both", "seq", "seqafter" }) do
   expect(world.w._lastPrefsStamp ~= nil
     and world.w._lastPrefsStamp == upvalue(world.prefsFn, "preferencesStamp")(session.modelPreferencesFile, nil),
     tag .. ": the stamp adopted is the files' stamp as they stand", tostring(world.w._lastPrefsStamp))
+end
+
+-- 10. A reconnect whose battery reading is a fuel figure alone at first. The board detects the
+-- cell count itself (none configured), and on the way back neither the pack voltage nor the cell
+-- count sensor has answered yet, so the theme's voltage bounds are its defaults when everything
+-- else is ready. "late": the count arrives two seconds later, and the scene is built once, on the
+-- pack's bounds, rather than on the defaults and again on the pack's. "never": no count arrives,
+-- and the dashboard is still built, on the defaults, within a few seconds.
+for _, case in ipairs({ "late", "never" }) do
+  if trace then print("scenario: cell count " .. case) end
+  local world = newWorld()
+  FC.replies[32][3] = 0
+  connectAndSettle(world)
+  world.linkUp = false
+  passes(world, 30, "down")
+  Stubs.sensors["Vbat"], Stubs.sensors["Cel#"] = 0, 0
+  world.linkUp = true
+  local start = #world.trees
+  local readyPass
+  for _ = 1, 400 do
+    passes(world, 1, "back")
+    if world.w.readySince ~= nil and not readyPass then readyPass = world.pass end
+    if readyPass and world.pass - readyPass >= 20 then break end
+  end
+  expect(readyPass ~= nil, "control: everything but the cell count is ready (" .. case .. ")")
+  expect(world.w.state.batteryCellCount == 0 and world.w.state.themeConfig.v_min == 18.0,
+    "control: no cell count and the theme's default bounds at the gate (" .. case .. ")",
+    tostring(world.w.state.batteryCellCount) .. ", " .. tostring(world.w.state.themeConfig.v_min))
+  -- Two seconds into the wait: the scene is held, the model's announcement is not.
+  expect(world.w.connectionReady ~= true and world.w.startupComplete == true,
+    case .. ": the scene waits for the count and the announcement does not",
+    "connectionReady=" .. tostring(world.w.connectionReady) .. ", startupComplete=" .. tostring(world.w.startupComplete))
+  if case == "late" then Stubs.sensors["Vbat"], Stubs.sensors["Cel#"] = 24.6, 6 end
+  passes(world, 80, "count " .. case)
+  local scenes = {}
+  for i = start + 1, #world.trees do
+    local tree = world.trees[i]
+    if tree.kind ~= "standby" and tree.count > 20 then scenes[#scenes + 1] = tree end
+  end
+  expect(world.w.connectionReady == true and #scenes >= 1, case .. ": the dashboard is built",
+    tostring(world.w.connectionReady) .. ", " .. #scenes .. " scene(s)")
+  expect(#scenes == 1, case .. ": the scene is built once", #scenes .. " scene(s)")
+  if case == "late" then
+    local first = scenes[1] or {}
+    -- 6 cells at the board's 3.30 / 4.20 V cell limits (tasks/msp/api/battery_config.lua).
+    expect(type(first.vMin) == "number" and math.abs(first.vMin - 19.8) < 0.001
+      and type(first.vMax) == "number" and math.abs(first.vMax - 25.2) < 0.001,
+      "late: the scene is built on the pack's bounds",
+      tostring(first.vMin) .. "/" .. tostring(first.vMax))
+  else
+    local first = scenes[1] or {}
+    expect(first.pass ~= nil and readyPass ~= nil and first.pass - readyPass <= 60,
+      "never: the scene does not wait more than a few seconds for a count",
+      tostring(first.pass and readyPass and (first.pass - readyPass)) .. " pass(es) after ready")
+  end
 end
 
 -- The memory probe's own control: an allocation it must see.
