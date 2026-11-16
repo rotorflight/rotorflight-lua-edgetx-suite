@@ -1,0 +1,8 @@
+{
+  "id": "dashboard-runtime-locals",
+  "name": "Dashboard runtime keeps room under the Lua locals limit",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_runtime_locals.lua"
+  ],
+  "step": "Compile widgets/dashboard/runtime.lua with room to spare under 200 locals"
+}
