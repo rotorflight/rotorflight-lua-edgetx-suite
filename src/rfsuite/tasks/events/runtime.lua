@@ -372,6 +372,15 @@ end
 -- configuration tool open stops the widgets), through which the craft may have flown unseen. The
 -- next disarm reads first, saves, and clears then. A clear already queued is stopped by its own
 -- sendIf (tasks/events/tune_capture.lua).
+--
+-- The link loss is the held one below, on purpose. A shorter gap (RSSI 0 for less than
+-- DISCONNECT_STABLE_SECONDS) keeps an owed clear that is not queued yet: no arm, flight and disarm
+-- fit into it. The gap drops the board's identity (tasks/msp/runtime.lua), so the clear waits
+-- until it is read again and goes only to the flight controller that flew the flight, and an arm
+-- seen meanwhile drops it. Only an arm the radio never sees (no armed state reported after the gap,
+-- so the MSP runtime goes on without it) together with an identity read left unanswered for a
+-- whole flight could let it erase that flight. Dropping the clear on every gap instead leaves the
+-- saved flight in the flight controller, read again with the next one.
 local function dropOwedClear(capture, why)
   if not capture.clearPending then return end
   if Log and type(Log.emit) == "function" then

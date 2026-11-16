@@ -290,6 +290,9 @@ local function sendClear(tc, queue)
     -- tasks/events/runtime.lua), and not after a stretch with no pass or a clock that went back.
     -- The queue ticks before the events runtime, so on the first pass after such a pause only this
     -- can stop a retry.
+    -- A late answer can complete it while a retry is still in the transmit buffer; the next
+    -- message's flush would send that retry without asking sendIf, perhaps after such a pause.
+    dropLeftoverOnComplete = true,
     sendIf = function()
       local seen = tc.seenAt
       if seen == nil then return tc.clearPending == true end

@@ -1205,6 +1205,22 @@ do
   asked = boardPump()
   check("a time without passes before the owed clear was queued: it is not sent afterwards",
     asked == "" and board.seconds == 260, asked .. " / board " .. board.seconds)
+
+  -- Not a drop rule: a link loss too short for the runtime to call the link lost keeps the owed
+  -- clear (tasks/events/runtime.lua says why). It goes out once the link is back, to the same
+  -- flight controller, which holds only the flight it was owed for.
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  asked, owed = boardPumpUntilSaved()
+  check("(setup) flight one saved, its clear owed and not queued yet", owed == true, asked)
+  rig.setLink(false)
+  rig.passes(3, 0.5)
+  rig.setLink(true)
+  asked = boardPump()
+  check("a link loss shorter than the hold keeps the owed clear: sent when the link is back",
+    asked == "clear" and board.seconds == 0 and savedSeconds() == "140",
+    asked .. " / board " .. board.seconds .. " / " .. savedSeconds())
 end
 
 do
@@ -1254,6 +1270,99 @@ do
   rig.clock = rig.clock - 10
   local allowed = msg.sendIf == nil or msg.sendIf(msg) == true
   check("a clear queued before the clock went back is withheld at its next send", not allowed, tostring(allowed))
+end
+
+do
+  -- The clear on the real MSP queue and framing (tasks/msp/queue.lua, tasks/msp/common.lua): its
+  -- first send is answered late, after a retry went into the transmit buffer while the transport
+  -- took nothing. The widget then runs no pass while the craft flies. The next message's flush must
+  -- not send that retry: it would erase the flight unseen, without asking the clear's sendIf.
+  fresh()
+  board.seconds = 0
+  boardFly(140)
+  local _, msg = boardPump(nil, true)
+  check("(setup) a clear on the queue", msg ~= nil and rig.name(msg) == "clear", msg and rig.name(msg))
+  rig.take()
+  local radio = "/SCRIPTS/RFSUITE/core/"
+  local wire = { sent = {}, inbox = {}, refuse = 0 }
+  local transport = {
+    maxTxBufferSize = 8,
+    maxRxBufferSize = 58,
+    mspSend = function(payload)
+      if wire.refuse > 0 then wire.refuse = wire.refuse - 1; return false end
+      local copy = {}
+      for i = 1, #payload do copy[i] = payload[i] end
+      wire.sent[#wire.sent + 1] = copy
+      return true
+    end,
+    mspPoll = function() return table.remove(wire.inbox, 1) end,
+  }
+  local quiet = { tagged = function() return function() end end, emit = function() end,
+    emitf = function() end, wanted = function() return false end }
+  local saved = { loadScript = _G.loadScript, bit32 = _G.bit32, getRSSI = _G.getRSSI,
+    getValue = _G.getValue, system = _G.system }
+  _G.bit32 = _G.bit32 or {
+    band = function(a, b) return a & b end, bor = function(a, b) return a | b end,
+    bxor = function(a, b) return a ~ b end, lshift = function(a, n) return (a << n) & 0xFFFFFFFF end,
+    rshift = function(a, n) return (a & 0xFFFFFFFF) >> n end, btest = function(a, b) return (a & b) ~= 0 end,
+  }
+  _G.getRSSI = function() return 100 end
+  _G.getValue = function() return 0 end
+  _G.system = { getVersion = function() return { simulation = false } end }
+  _G.loadScript = function(path)
+    local relative = string.sub(path, #radio + 1)
+    if relative == "tasks/msp/transports/stub.lua" then return function() return transport end end
+    if relative == "tasks/msp/protocols.lua" then return function() return function() return "stub" end end end
+    if relative == "lib/log.lua" then return function() return quiet end end
+    if relative == "lib/sensors.lua" then
+      return function() return { isSimulator = function() return false end, getValue = function() return nil end } end
+    end
+    return saved.loadScript(path)
+  end
+  local function clearsSent()
+    local n = 0
+    for _, chunk in ipairs(wire.sent) do
+      if (chunk[1] & 0x10) ~= 0 and chunk[3] == (msg.command & 0xFF) and chunk[4] == (msg.command >> 8) then n = n + 1 end
+    end
+    return n
+  end
+  local ok, err = pcall(function()
+    local Common = assert(loadfile("src/rfsuite/tasks/msp/common.lua"))()
+    local Queue = assert(loadfile("src/rfsuite/tasks/msp/queue.lua"))()
+    local queue = Queue.new(assert(Common.new("stub")), { isSimulator = false })
+    local function tick(seconds)
+      rig.clock = rig.clock + seconds
+      queue:processQueue(rig.clock)
+    end
+    queue:add(msg)
+    tick(0.01)
+    local first = clearsSent()
+    wire.refuse = 50                                -- the transport takes nothing for a while
+    for _ = 1, 6 do tick(0.5) end
+    local retried = queue.retryCount or 0
+    local buffered = type(queue.common.txPending) == "function" and queue.common.txPending() == true
+    -- The answer to the first send arrives: an MSPv2 reply chunk with the clear's command
+    wire.inbox[1] = { 0x50, 0, msg.command & 0xFF, msg.command >> 8, 0, 0 }
+    tick(0.01)
+    wire.refuse = 0                                 -- the transport takes frames again
+    check("(setup) the clear went out once, was retried into the buffer and completed on the late answer",
+      first == 1 and retried >= 1 and buffered and clearsSent() == 1 and queue.currentMessage == nil
+        and rig.capture().clearPending ~= true,
+      "first " .. first .. " / on the wire " .. clearsSent() .. " / retry " .. tostring(retried)
+        .. " / buffered " .. tostring(buffered)
+        .. " / current " .. tostring(queue.currentMessage) .. " / owed " .. tostring(rig.capture().clearPending))
+    rig.clock = rig.clock + 200                     -- no pass: the craft flies unseen
+    board.seconds = board.seconds + 120
+    queue:add({ command = 121, payload = {}, client = "other", processReply = function() end,
+      errorHandler = function() end })
+    tick(0.01)
+    tick(0.2)
+    check("a retry still buffered when the clear completed is not sent by the next message",
+      clearsSent() == 1, "clears on the wire " .. clearsSent())
+  end)
+  _G.loadScript, _G.bit32, _G.getRSSI = saved.loadScript, saved.bit32, saved.getRSSI
+  _G.getValue, _G.system = saved.getValue, saved.system
+  check("(setup) the real queue ran", ok, tostring(err))
 end
 
 do
