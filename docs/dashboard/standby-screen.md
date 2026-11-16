@@ -29,7 +29,7 @@ A fixed information strip summarizes the highest-priority prerequisite from the 
 
 Its colors and the logo follow the [color scheme](../pages/settings/general.md), light or dark, like the loading screen it stands in for.
 
-If the radio stops one of the widget's passes at its instruction limit while the standby stands, the screen stays as it is and the widget carries on after a pause of about a second; only a standby that was still being built when the pass stopped is built again.
+If the radio stops one of the widget's passes at its instruction limit while the standby stands, the screen stays as it is and the widget carries on after a pause of about a second; only a standby that was still being built, or whose contents the pass had already changed, is built again.
 
 Configure it under *System* → *Settings* → *Dashboard* → *Standby screen*.
 

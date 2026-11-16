@@ -1,1 +1,1 @@
-- A dashboard pass stopped at the instruction limit while no build was pending no longer rebuilds the screen that is already drawn (the standby screen after a stop on connect, for one), sparing a rebuild and the memory it costs; a stop during a build still rebuilds, says so in the log, and the stop line names the work the pass was doing (widgets/rfsuite).
+- **A dashboard pass stopped at the instruction limit no longer rebuilds a standby screen that is already drawn (`widgets/rfsuite`)**
