@@ -25,7 +25,7 @@ so it matches the code it was generated from.
   an entry (`id`, `title`, `menuId`, `icon`, `row`, `col`) are left out. What a condition
   does is not explained here.
 
-**142 entries, 120 of them open a page, 93 of those pages are documented.**
+**142 entries, 120 of them open a page, 96 of those pages are documented.**
 
 ## Diagrams
 
@@ -161,7 +161,7 @@ flowchart LR
   n0 --> n7
   n8["Swash"]:::undocumented
   n7 --> n8
-  n9["Geometry"]:::undocumented
+  n9["Geometry"]:::documented
   n7 --> n9
   n10["Tail"]:::documented
   n7 --> n10
@@ -169,9 +169,9 @@ flowchart LR
   n7 --> n11
   n12["Servos"]:::menu
   n0 --> n12
-  n13["PWM Output"]:::undocumented
+  n13["PWM Output"]:::documented
   n12 --> n13
-  n14["BUS Output"]:::undocumented
+  n14["BUS Output"]:::documented
   n12 --> n14
   n15["Controls"]:::menu
   n0 --> n15
@@ -470,12 +470,12 @@ Section `configuration`.
 | Setup &rsaquo; Ports | `ports` | `setup_ports_page` | `setup/ports` | [setup/ports.md](../pages/setup/ports.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Mixer | `mixer` | `mixer_menu` | menu, 4 entries | &mdash; | &mdash; |
 | Setup &rsaquo; Mixer &rsaquo; Swash | `swash` | `setup_mixer_swash_page` | `setup/mixer/swash` | **none** | `lockedWhileArmed = true` |
-| Setup &rsaquo; Mixer &rsaquo; Geometry | `swashgeometry` | `setup_mixer_swashgeometry_page` | `setup/mixer/swashgeometry` | **none** | `lockedWhileArmed = true` |
+| Setup &rsaquo; Mixer &rsaquo; Geometry | `swashgeometry` | `setup_mixer_swashgeometry_page` | `setup/mixer/swashgeometry` | [setup/mixer/swashgeometry.md](../pages/setup/mixer/swashgeometry.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Mixer &rsaquo; Tail | `tail` | `setup_mixer_tail_page` | `setup/mixer/tail` | [setup/mixer/tail.md](../pages/setup/mixer/tail.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Mixer &rsaquo; Trims | `trims` | `setup_mixer_trims_page` | `setup/mixer/trims` | [setup/mixer/trims.md](../pages/setup/mixer/trims.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Servos | `servos` | `servos_menu` | menu, 2 entries | &mdash; | &mdash; |
-| Setup &rsaquo; Servos &rsaquo; PWM Output | `pwm` | `setup_servos_pwm_page` | `setup/servos/pwm` | **none** | `lockedWhileArmed = true` |
-| Setup &rsaquo; Servos &rsaquo; BUS Output | `bus` | `setup_servos_bus_page` | `setup/servos/bus` | **none** | `lockedWhileArmed = true` |
+| Setup &rsaquo; Servos &rsaquo; PWM Output | `pwm` | `setup_servos_pwm_page` | `setup/servos/pwm` | [setup/servos/pwm.md](../pages/setup/servos/pwm.md) | `lockedWhileArmed = true` |
+| Setup &rsaquo; Servos &rsaquo; BUS Output | `bus` | `setup_servos_bus_page` | `setup/servos/bus` | [setup/servos/bus.md](../pages/setup/servos/bus.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Controls | `controls` | `controls_menu` | menu, 6 entries | &mdash; | &mdash; |
 | Setup &rsaquo; Controls &rsaquo; Modes | `modes` | `setup_controls_modes_page` | `setup/controls/modes` | [setup/controls/modes.md](../pages/setup/controls/modes.md) | `lockedWhileArmed = true` |
 | Setup &rsaquo; Controls &rsaquo; Adjustments | `adjustments` | `setup_controls_adjustments_page` | `setup/controls/adjustments` | [setup/controls/adjustments.md](../pages/setup/controls/adjustments.md) | `lockedWhileArmed = true` |

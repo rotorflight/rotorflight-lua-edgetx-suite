@@ -32,13 +32,35 @@ end
 -- `false` for good would leave the MSP gate blind for as long as this Lua state lives.
 local DRAIN_RETRY_SECONDS = 1.0
 local drainRetryAt = 0
+-- A failed load of the drain is logged once per streak, and its recovery once. The drain's own
+-- logger cannot say it, since it is the module that did not load.
+local drainLoadFailing = false
+
+-- Returns whether the line went out, so a failure is marked as said only once it was.
+local function logDrainLoad(level, msg)
+    local root = _G.rfsuite
+    local L = root and root.Log
+    if type(L) ~= "table" or type(L.emit) ~= "function" then return false end
+    local session = root.session
+    local host = type(session) == "table" and session.event_context == "widget" and "dash" or "tool"
+    pcall(L.emit, "rfsuite.decoder", host .. ": " .. msg, level)
+    return true
+end
 
 -- Whether this call is spent on the drain's load: the first call, and the first after the wait
 -- that follows a failed one. Shared by both passes, so they share the wait too.
 local function drainLoadStep(now)
     if Drain == false and now < drainRetryAt then return false end
     Drain = loadModule("tasks/events/telemetry_bg/drain.lua") or false
-    if not Drain then drainRetryAt = now + DRAIN_RETRY_SECONDS end
+    if not Drain then
+        drainRetryAt = now + DRAIN_RETRY_SECONDS
+        if not drainLoadFailing then
+            drainLoadFailing = logDrainLoad("warn", "the telemetry decoder failed to load, asked again every 1 s")
+        end
+    elseif drainLoadFailing then
+        drainLoadFailing = false
+        logDrainLoad("info", "the telemetry decoder loaded after a failed attempt")
+    end
     return true
 end
 

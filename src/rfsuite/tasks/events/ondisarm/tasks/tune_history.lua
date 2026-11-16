@@ -34,7 +34,11 @@ function M.owe(s, now)
   end
   tc.pending = true
   tc.failures = 0
+  tc.writeFailures = 0
+  tc.unsaved = false
   tc.replies = {}
+  tc.profilesRead = nil
+  tc.profilesUnknown = nil   -- an unreadable answer before an arm belongs to that flight only
   tc.saveDue = false
   tc.job = nil
   tc.contextPending = false
