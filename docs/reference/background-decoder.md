@@ -73,6 +73,13 @@ just added.
   last drawn cycle cost. A dashboard on another screen page or behind one of the radio's menu pages
   is still called by the radio and still does its work, so it is not reported. A model without this script has nothing
   that can report that.
+- **Its decoding can be followed in the log.** From *DEBUG* up, the decoder's lines (tag
+  `rfsuite.decoder`) start with `bg` when this script decodes and with `dash` or `tool` when the
+  dashboard or the tool does, so a log shows when the dashboard stood aside for it and when it took
+  over; at *TRACE* each decoded frame is listed with the values that changed. Its state line, like
+  the dashboard's and the tool's, says whether that part decoded since its last one and with how
+  many frames and gaps, or that it stood aside for another part (`decoder elsewhere`). See
+  [collecting logs](../troubleshooting/collecting-logs.md).
 - **It writes a log of its own** when *Log Session To Card* is on and the log level is *DEBUG*
   or above, the `function` files of each power-up, beside the tool's and the dashboard's. Unlike
   theirs, it needs both switches to start: *Log Session To Card* alone writes no `function` file. Once it
