@@ -813,12 +813,14 @@ end
 -- source and kept (`directPlans`, three entries per name: sid, divisor, name; false for a source
 -- with none), so a read is a table lookup and one call per candidate.
 local directPlans = {}
--- At most DIRECT_PLANS_PER_TICK plans are worked out per clock tick: after a start every value is
+-- At most DIRECT_PLANS_PER_PASS plans are worked out per widget pass: after a start every value is
 -- read for the first time in the same pass, and that pass is the one closest to the instruction
 -- limit. A value held back is read from the sensors that once and gets its plan on a later read, as
--- the sensor search spaces its first searches (FIRST_SEARCHES_PER_PASS).
-local DIRECT_PLANS_PER_TICK = 3
-local directPlanTick, directPlansThisTick = nil, 0
+-- the sensor search spaces its first searches (FIRST_SEARCHES_PER_PASS). The pass is the one the
+-- search throttles count against (Sensors.passBegins): a pass can span several clock ticks, and each
+-- tick would otherwise hand it a further quota against the same instruction limit.
+local DIRECT_PLANS_PER_PASS = 3
+local directPlanPass, directPlansThisPass = nil, 0
 -- Set by the live read (Sensors.getLiveValue), which reads the radio's sensor on purpose -- it asks
 -- whether the sensor is arriving now -- and calls readValue only to have its path resolved.
 local radioOnly = false
@@ -856,16 +858,18 @@ local function directValue(source, resolved)
   if not values then return nil end
   if plan == nil then
     local tick = type(getTime) == "function" and getTime() or 0
-    if tick ~= directPlanTick then directPlanTick, directPlansThisTick = tick, 0 end
-    if directPlansThisTick >= DIRECT_PLANS_PER_TICK then return nil end
+    local key = tick
+    if tick / 100 < passMarkUntil then key = passMark end
+    if key ~= directPlanPass then directPlanPass, directPlansThisPass = key, 0 end
+    if directPlansThisPass >= DIRECT_PLANS_PER_PASS then return nil end
     plan = directPlan(decoder, source, resolved)
     if plan == nil then
       -- The decoder cannot answer yet (its table or name index is still coming), and it will not
-      -- within this tick: no further attempt until the next one.
-      directPlansThisTick = DIRECT_PLANS_PER_TICK
+      -- within this pass: no further attempt until the next one.
+      directPlansThisPass = DIRECT_PLANS_PER_PASS
       return nil
     end
-    directPlansThisTick = directPlansThisTick + 1
+    directPlansThisPass = directPlansThisPass + 1
     directPlans[source] = plan
     if not plan then return nil end
   end
