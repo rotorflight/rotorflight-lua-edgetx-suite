@@ -331,6 +331,8 @@ PID profile, governor profile and rescue profile. Rate profiles use the same sel
 with bit 7 (`0x80`) and read RC tuning. Governor configuration and accelerometer trim are
 read once globally. Profile indices on the wire are zero-based. STATUS checks bracket each
 profile's records. Work is sliced per widget pass and a partial read never replaces the cache.
+Each profile switch briefly releases and re-asserts the bank on the enable channel; the progress
+bar and step line move in place, and the ground surface is not redrawn for that.
 
 The job always returns to the pair active at its start, including after errors/timeouts.
 Arming aborts the read immediately; no MSP is queued while armed. A disconnected/armed return
