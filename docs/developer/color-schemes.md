@@ -138,7 +138,8 @@ when the put-back keeps stopping as well is the tool built over what the write l
 colours are then put back when it ends, as below (`ui/home.lua`, `writeOwedThemeSlots`; checked by
 `bin/ui/verify_tool_open_theme_slots.lua`). A scheme saved while the tool is open is written at once
 (`applySavedScheme`); a write stopped there is owed to the next passes in the same way, with the same
-tries and put-back, and the page is built again only after it.
+tries and put-back, and the page is built again only after it. Only the saved scheme's name counts as
+written: a write stopped before its first slot still names the scheme before, and stays owed.
 
 `lcd.setColor` changes the whole radio's interface, and EdgeTX restores nothing when a script ends,
 so the radio's colours are put back on every way the tool can end:
