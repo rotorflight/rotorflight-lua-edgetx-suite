@@ -1,0 +1,1 @@
+- **A connect on a part-charged pack builds the dashboard once, waiting briefly for the cell count sensor (`widgets/dashboard`)**

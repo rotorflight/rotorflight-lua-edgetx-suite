@@ -69,11 +69,11 @@ a page file are in [_template.md](../_template.md), and the mechanics are explai
 | Alignment | [setup/alignment.md](setup/alignment.md) | yes | read-only while armed | written |
 | Ports | [setup/ports.md](setup/ports.md) | yes | read-only while armed | written |
 | Mixer → Swash | `setup/mixer/swash.md` | no | read-only while armed | to write |
-| Mixer → Geometry | `setup/mixer/swashgeometry.md` | no | read-only while armed | to write |
+| Mixer → Geometry | [setup/mixer/swashgeometry.md](setup/mixer/swashgeometry.md) | yes | read-only while armed | written |
 | Mixer → Tail | [setup/mixer/tail.md](setup/mixer/tail.md) | yes | read-only while armed | written |
 | Mixer → Trims | [setup/mixer/trims.md](setup/mixer/trims.md) | yes | read-only while armed | written |
-| Servos → PWM Output | `setup/servos/pwm.md` | no | read-only while armed | to write |
-| Servos → BUS Output | `setup/servos/bus.md` | no | read-only while armed | to write |
+| Servos → PWM Output | [setup/servos/pwm.md](setup/servos/pwm.md) | yes | read-only while armed | written |
+| Servos → BUS Output | [setup/servos/bus.md](setup/servos/bus.md) | yes | read-only while armed | written |
 | Controls → Modes | [setup/controls/modes.md](setup/controls/modes.md) | yes | read-only while armed | written |
 | Controls → Adjustments | [setup/controls/adjustments.md](setup/controls/adjustments.md) | yes | read-only while armed | written |
 | Controls → Failsafe | [setup/controls/failsafe.md](setup/controls/failsafe.md) | yes | read-only while armed | written |

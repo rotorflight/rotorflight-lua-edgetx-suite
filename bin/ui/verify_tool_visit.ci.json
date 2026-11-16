@@ -1,0 +1,9 @@
+{
+  "id": "tool-visit",
+  "name": "Tool visit from the rolling menu",
+  "commands": [
+    "lua5.3 bin/ui/verify_tool_visit.lua"
+  ],
+  "step": "Check the landing and the edge of a visit to the tool",
+  "rationale": "A page opened from the rolling menu has to open on its conditions as they stand, and the back key has to walk down to the edge of the visit and close it there, which the landing's own mark does not survive. This loads the real ui/home.lua on the accounting stubs."
+}
