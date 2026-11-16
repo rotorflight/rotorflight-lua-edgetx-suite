@@ -32,7 +32,8 @@ A theme's own settings, such as the voltage range its gauges span, are under
 - **The screen follows the flight, not a switch.** The widget shows the preflight screen until
   the model is armed and flying — the governor active or the throttle above its threshold — then
   the inflight screen, and after disarming the postflight screen with the numbers of the flight that
-  just ended. A model armed on the bench that never spools up goes back to the preflight screen
+  just ended. The postflight screen waits for the work that starts at the landing, the flight log
+  entry among it, usually a second or two. A model armed on the bench that never spools up goes back to the preflight screen
   and shows no postflight screen, because there was no flight. The exact rules are in
   [developer/dashboard-themes.md](../developer/dashboard-themes.md#what-puts-the-widget-into-each-phase).
 - **Before the first screen, a connecting screen.** Until the flight controller answers, battery
@@ -62,8 +63,18 @@ After a connect the battery can be reported before the pack voltage or the cell 
 no cell count is known yet and no voltage bounds are saved, the dashboard waits for one, for up to
 five seconds, with *Dashboard startup is pending* on the standby, so that its gauges first
 appear on the pack's range rather than on the default range and are drawn again a moment later.
-A model that reports no cell count and no pack voltage gets its dashboard on the default range
-once those five seconds are over.
+A model that has reported no cell count and no pack voltage since the widget was loaded gets its
+dashboard on the default range once those five seconds are over.
+
+A count estimated from the pack voltage can be one cell short: a part-charged 6S pack at a
+4.3 V maximum cell voltage reads as 5 cells. On a model whose cell count sensor has already
+reported a count since the widget was loaded, an estimate that differs from that count is
+treated like a missing one after a connect: the dashboard waits for the sensor, for the same
+five seconds at most. An estimate that matches the sensor's last count is used at once, and a
+model without a cell count sensor gets no wait for an estimate, because nothing would replace it.
+If the sensor stays silent through such a wait -- another flight controller on the model, or one
+that no longer sends it -- its last count is forgotten, and the next connect is not held again
+until the sensor has reported.
 
 ## The shipped themes
 
