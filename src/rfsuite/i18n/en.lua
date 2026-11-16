@@ -1332,6 +1332,7 @@ return {
         why_no_flight_arm = "It sees the disarm through the model's ARM sensor. Discover the sensors if it is missing.",
         why_unsaved_fmt = "The flight controller holds %dm %02ds of flight that were not saved.",
         unsupported = "Needs newer firmware",
+        newer_layout = "Needs newer RFSuite",
         clear_prompt = "Erase the saved flights?",
         response = "Response",
         stops = "Stops",
