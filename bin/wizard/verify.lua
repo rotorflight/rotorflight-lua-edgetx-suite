@@ -28,6 +28,35 @@ SMLSIZE, MIDSIZE = 0, 1
 LCD_W, LCD_H = 480, 272
 local armed = false
 _G.rfsuite = { paths = PATHS, session = { fblConnected = true, mcu_id = "test-board", apiVersion = "12.10" } }
+-- The tool's loader that keeps nothing: a step's file goes through it, so the step's code leaves
+-- with its cards. Counted, so the controller's step build is seen taking that route.
+local uncachedStepLoads = 0
+-- What each step build returned, held weakly: once the walk has moved on, a left step's cards
+-- (and with them the code they were built from) must be collectable.
+local stepCards = setmetatable({}, { __mode = "k" })
+local stepBuilds = 0
+-- Each step file's loaded chunk, held weakly, and which chunk the function handed to the controller
+-- runs: a collected card table does not show that the chunk it was built from was collected too.
+local stepChunks = setmetatable({}, { __mode = "k" })
+local loadedChunk = setmetatable({}, { __mode = "k" })
+_G.rfsuite.utils = { loadScriptUncached = function(path, mode)
+  local chunk, err = loadScript(path, mode)
+  if not string.find(path, "/steps/", 1, true) or not chunk then return chunk, err end
+  uncachedStepLoads = uncachedStepLoads + 1
+  stepChunks[chunk] = path
+  local function wrapped(...)
+    local build = chunk(...)
+    if type(build) ~= "function" then return build end
+    return function(w)
+      local cards = build(w)
+      stepBuilds = stepBuilds + 1
+      if type(cards) == "table" then stepCards[cards] = true end
+      return cards
+    end
+  end
+  loadedChunk[wrapped] = chunk
+  return wrapped
+end }
 local q = { messages = {}, sent = {}, pending = nil }
 function q:add(m) self.messages[#self.messages + 1] = m end
 function q:clear(client)
@@ -1615,6 +1644,63 @@ for _,locale in ipairs({"en","de"}) do
   check(#block>1000,"I18N "..locale.." wizard strings found")
   check(not string.find(block,"\226\128\148",1,true) and not string.find(block,"\226\128\166",1,true),
     "I18N "..locale.." wizard strings use glyphs the radio fonts have")
+end
+check(uncachedStepLoads>0,"STEP files are read past the tool's chunk cache")
+-- A card set rebuilt on the same step runs the held chunk again and reads nothing from the card.
+check(stepBuilds > uncachedStepLoads, string.format("STEP rebuilds on the same step reuse the held file (%d builds, %d reads)", stepBuilds, uncachedStepLoads))
+do
+  -- A table held here on purpose is the control: it must survive the same collections.
+  local held = setmetatable({}, { __mode = "k" }); local control = {}; held[control] = true
+  collectgarbage("collect"); collectgarbage("collect")
+  local alive = 0; for _ in pairs(stepCards) do alive = alive + 1 end
+  check(held[control] == true, "STEP collectability control: a held table survives the collections")
+  -- A few controllers of this file stay reachable to its end, each with the cards of its current step; every
+  -- other build must be gone. With the step file read past the cache, nothing else keeps that code alive.
+  check(uncachedStepLoads >= 20 and alive <= 5, string.format("STEP cards of left steps are collectable (%d builds, %d alive)", stepBuilds, alive))
+  -- The same bound for the loaded chunks: each of those controllers holds its current step's chunk only.
+  local chunks = 0; for _ in pairs(stepChunks) do chunks = chunks + 1 end
+  check(uncachedStepLoads >= 20 and chunks <= 5, string.format("STEP chunks of left steps are collectable (%d reads, %d alive)", uncachedStepLoads, chunks))
+end
+-- One controller step by step: a rebuild on the same step runs the held chunk again, a step change
+-- reads the next file, and from then on only the current step's chunk is held.
+do
+  local cw = world()
+  local function settle()
+    for _ = 1, 100 do
+      if not cw.buildRequested and cw.bus:idle() then return true end
+      cw:tick(); pump(); ticks = ticks + 1
+    end
+    return false
+  end
+  -- A chunk is only ever put in a weak table here, from inside a helper: a local of this block that
+  -- still referred to one would keep it alive through the collections.
+  local function current() return cw.stepChunk and loadedChunk[cw.stepChunk.chunk] end
+  local function mark(t) local c = current(); if c then t[c] = true end end
+  local function holds(t) local c = current(); return c ~= nil and t[c] == true end
+  local function count(t) local n = 0; for _ in pairs(t) do n = n + 1 end; return n end
+  local function collect() collectgarbage("collect"); collectgarbage("collect") end
+  local departed = setmetatable({}, { __mode = "k" })
+  local kept = setmetatable({}, { __mode = "k" })
+  check(settle() and current() ~= nil and cw.stepChunk.key == steps[cw.step],
+    "CHUNK the controller holds the chunk of its current step")
+  mark(departed)
+  local reads, builds, from = uncachedStepLoads, stepBuilds, cw.step
+  cw.buildRequested = true
+  check(settle() and uncachedStepLoads == reads and stepBuilds == builds + 1 and holds(departed),
+    string.format("CHUNK a rebuild on the same step runs the held chunk (%d reads, %d builds)",
+      uncachedStepLoads - reads, stepBuilds - builds))
+  -- Control: the departed step's record, still reachable from the controller, keeps its chunk.
+  cw.retainedStepChunk = cw.stepChunk
+  cw:navigate(from + 1, 1)
+  check(settle() and uncachedStepLoads == reads + 1 and cw.step == from + 1 and cw.stepChunk.key == steps[from + 1]
+    and not holds(departed), "CHUNK a step change reads the next step's file")
+  mark(kept)
+  collect()
+  check(count(departed) == 1, "CHUNK control: a departed chunk the controller still reaches survives the collections")
+  cw.retainedStepChunk = nil
+  collect()
+  check(count(departed) == 0, "CHUNK the departed step's chunk is collectable")
+  check(holds(kept) and stepChunks[loadedChunk[cw.stepChunk.chunk]] ~= nil, "CHUNK the current step's chunk stays held")
 end
 print(string.format("Wizard: %d assertions, %d failures",assertions,failures))
 if failures>0 then os.exit(1) end
