@@ -719,14 +719,51 @@ end
 local SEARCH_MISS_SECONDS = 2.0
 local SEARCH_MISS_MAX_SECONDS = 30.0
 -- How many sources may start their FIRST search in one pass; see the throttle in Sensors.getValue.
--- Like the repeated-search throttle beside it, the count is keyed on the clock reading, so a pass
--- that outlasts one 10 ms clock tick gets a fresh count for the rest of it.
+-- Like the repeated-search throttle beside it, the count is kept per widget pass where the widget
+-- marks one, and per clock reading otherwise (see Sensors.passBegins below).
 local FIRST_SEARCHES_PER_PASS = 4
 -- Module-local, like fieldInfoCache and valueMisses above and unlike Sensors.active_paths: it is
 -- a timer of this file's own and nothing outside reads it. Sensors.reset() clears it.
 local searchWaits = {}
 
+-- What "one pass" is for the two search throttles in Sensors.getValue.
+--
+-- The throttles used to be keyed on the clock reading alone, so a pass that outlasts one 10 ms
+-- tick got a fresh count with every tick it spanned, and the caps no longer bounded the one call
+-- the firmware bills. That matters most right after Sensors.reset(), when every source searches
+-- its whole list -- the link-lost edge among those resets. A widget therefore says where its pass
+-- begins (Sensors.passBegins), and the throttles count against that pass, however many ticks it
+-- spans.
+--
+-- A Lua state with no marking widget keeps the clock key, as before: the configuration tool,
+-- whose calls are not billed against a per-call limit, and a service widget on a model without
+-- the dashboard. In a state the dashboard marks, any read within PASS_MARK_SECONDS of its latest
+-- mark counts against that mark's pass, whichever widget makes it (the service widget stands down
+-- while the dashboard drives). A mark older than that is treated as no mark, so a state whose
+-- marking widget went away -- the dashboard taken off the model, the service widget carrying on --
+-- falls back to the clock key instead of keeping one pass number for ever, which would hold every
+-- repeated search back for good.
+local PASS_MARK_SECONDS = 1.0
+local passMark = 0
+-- Until when, in the seconds of nowSeconds(), the current mark counts: worked out once per pass so
+-- that a read held back by the caps -- after a reset, most of them in the same pass -- makes one
+-- comparison. -1 before the first mark, so the comparison needs no nil test either.
+local passMarkUntil = -1
+
+--- Mark the start of a widget pass, for the search throttles in Sensors.getValue.
+function Sensors.passBegins()
+  if passMarkUntil < 0 and debugWanted() then debugLog(nil, "search throttles count per widget pass") end
+  passMark = passMark + 1
+  local clock = getTime
+  if clock then passMarkUntil = clock() / 100 + PASS_MARK_SECONDS end
+end
+
 local readValue
+-- The one source whose next first search is exempt from FIRST_SEARCHES_PER_PASS: set by
+-- Sensors.getValue for the arming state's fallback word right before that read, taken by the
+-- throttle in readValue (so a read that is answered without a search costs nothing for it), and
+-- cleared by Sensors.reset().
+local capExemptSource = nil
 
 -- Readings the packed status words also carry (rotorflight-firmware
 -- src/main/telemetry/status.h). When the dedicated sensor is not there, the
@@ -745,6 +782,14 @@ local DERIVED = {
 function Sensors.getValue(source)
   local value = readValue(source)
   if value ~= nil then return value end
+  -- The arming state's packed fallback is exempt from the first-search cap like `armflags` itself
+  -- (see the throttle in readValue): a board that sends no ARM row has its armed bit only there.
+  -- Marked only where that read can search: a word already adopted is read without one, and an
+  -- unspent mark would wait for some later search.
+  if source == "armflags" then
+    local word = DERIVED.armflags.word
+    if not (Sensors.active_paths and Sensors.active_paths[word]) then capExemptSource = word end
+  end
 
   local derived = DERIVED[source]
   if not derived then return nil end
@@ -862,14 +907,25 @@ readValue = function(source)
   -- `armflags` is not held back. It is the one source whose absence reads as "not armed", and
   -- the widget asks for it after five others, so a cap would delay the arming state by a read
   -- after every reset. Its list is short, and before the limit it was searched on the first read.
+  -- The pass the throttles count against (see Sensors.passBegins): inline, because after a reset
+  -- this runs once for every source the caps hold back, in the same pass.
+  local key = now
+  if now < passMarkUntil then key = passMark end
+  local exempt = false
+  if capExemptSource then
+    exempt = capExemptSource == source
+    capExemptSource = nil
+  end
   if previousWait ~= nil then
-    if Sensors.last_search == now then return nil end
-    Sensors.last_search = now
-  elseif source ~= "armflags" then
-    if Sensors.first_search_at ~= now then
-      Sensors.first_search_at = now
+    if Sensors.last_search == key then return nil end
+    Sensors.last_search = key
+  elseif source ~= "armflags" and not exempt then
+    if Sensors.first_search_at ~= key then
+      Sensors.first_search_at = key
       Sensors.first_searches = 0
     end
+    -- No line for a source held here: after a reset most sources are, in the same pass, and the
+    -- line's text was built before the logger's own cap dropped it.
     if Sensors.first_searches >= FIRST_SEARCHES_PER_PASS then return nil end
     Sensors.first_searches = Sensors.first_searches + 1
   end
@@ -974,6 +1030,7 @@ function Sensors.reset()
   -- The level is asked again after a reset, so a level changed on the radio reaches these lines at
   -- the next connect rather than at the next start.
   debugEnabled = nil
+  capExemptSource = nil
   -- These lines say once per connection which source was taken or missed, not once per start.
   loggedSources = {}
   if Sensors.active_paths then

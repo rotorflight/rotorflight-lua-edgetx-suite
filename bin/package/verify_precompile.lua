@@ -220,6 +220,18 @@ local function installGlobals(card)
   return record
 end
 
+-- What the pass logged, read into the record the start returned. What it reports as a fault is a
+-- warning; its account of itself (how much it checked and compiled, and why) is kept apart, so a
+-- clean pass still reports nothing.
+local function collectReports(record)
+  for _, entry in ipairs(_G.rfsuite.log_history or {}) do
+    if entry.tag == "rfsuite.precompile" then
+      local list = (entry.level == "warn" or entry.level == "error") and record.warnings or record.notes
+      list[#list + 1] = entry.level .. " " .. entry.msg
+    end
+  end
+end
+
 -- One start of the configuration tool: a fresh module, run until it reports finished.
 local function launch(card)
   local record = installGlobals(card)
@@ -239,14 +251,7 @@ local function launch(card)
   end
   _G.print = hostPrint
   _G.io = hostIo
-  for _, entry in ipairs(_G.rfsuite.log_history or {}) do
-    if entry.tag == "rfsuite.precompile" then
-      -- What the pass reports as a fault is a warning; its account of itself (how much it checked
-      -- and compiled, and why) is kept apart, so a clean pass still reports nothing.
-      local list = (entry.level == "warn" or entry.level == "error") and record.warnings or record.notes
-      list[#list + 1] = entry.level .. " " .. entry.msg
-    end
-  end
+  collectReports(record)
   return record
 end
 
@@ -421,6 +426,48 @@ local function driveShared(Precompile, advance)
     advance()
     steps = steps + 1
   end
+end
+
+-- Folders of pictures: the rolling quick menu ships each icon once per colour, a hundred pictures to a
+-- folder. A picture costs no timestamp, so the entry loop used to take a whole folder in one call. Every
+-- widget call of the pass is counted in the module's own instructions (the card's dir() here is a test
+-- stand-in and is left out), and the most expensive one has to stay well under the widget's limit.
+do
+  local card = installedCard()
+  local folders = { { "widgets/dashboard/roll_icons/light", 100 }, { "widgets/dashboard/roll_icons/dark", 100 } }
+  for _, folder in ipairs(folders) do
+    for n = 1, folder[2] do
+      card.put(string.format("%s/%s/roll_icon_%03d.png", CORE, folder[1], n), "png", 100)
+    end
+  end
+  local Precompile, record, advance, close = widgetState(card, true)
+  local source = "=" .. modulePath
+  local worst, steps = 0, 0
+  if hasWidgetApi(Precompile) and Precompile.startIfStale("0.2.0") then
+    while Precompile.isRunning() and steps < 10000 do
+      local n = 0
+      debug.sethook(function()
+        local info = debug.getinfo(2, "S")
+        if info and info.source == source then n = n + 1 end
+      end, "", 1)
+      Precompile.stepShared()
+      debug.sethook()
+      if n > worst then worst = n end
+      advance()
+      steps = steps + 1
+    end
+  end
+  local finished = hasWidgetApi(Precompile) and not Precompile.isRunning()
+  close()
+  collectReports(record)
+  check("picture folders: the pass finishes on its own, not at the step cap", finished and steps < 10000,
+    steps .. " steps")
+  check("picture folders: it compiles both sources, each once, and reports nothing",
+    #record.loads == 2 and record.loads[1] ~= record.loads[2] and #record.warnings == 0,
+    table.concat(record.loads, ", ") .. "; " .. table.concat(record.warnings, "; "))
+  check("picture folders: the stamp is written", card.files[USER .. "/precompiled.txt"] ~= nil)
+  check("picture folders: no call takes more than 6000 of the module's instructions", worst > 0 and worst <= 6000,
+    "worst call " .. worst)
 end
 
 -- After an install the widgets run the whole pass, and it leaves the stamp the tool reads.
