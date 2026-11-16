@@ -324,9 +324,60 @@ function registry.get(menuId)
   return loaded
 end
 
+-- Pages whose code leaves the tool's loader once the pilot has left their area.
+--
+-- The tool's loader keeps the compiled chunk of every file it loads, except a page's own
+-- page.lua, until the tool closes (src/main.lua, widgets/dashboard/tool_host.lua). That makes a
+-- second load of a shared file cheap, and it also keeps a large page's helpers in memory after
+-- the pilot has moved on. A page that sets `visitMenu` to the id of the menu its entries sit in
+-- asks for the chunks under its own folder to be let go once the pilot is neither on that menu
+-- nor on a page of that folder. Several menu entries opening the same page (the helicopter
+-- setup's steps) therefore keep their code while the pilot moves between them, and the next
+-- visit after leaving the area reads the files from the card again. Files outside the page's
+-- folder -- MSP APIs, libraries shared with other pages -- are never let go here, and module
+-- instances are not touched: a page drops its own in its onClose.
+local openVisits = {}
+
+local function noteVisit(menuId, module)
+  if type(module) ~= "table" or type(module.visitMenu) ~= "string" then return end
+  local pagePath = pagePathByMenuId[menuId]
+  local folder = type(pagePath) == "string" and string.match(pagePath, "^(.*/)[^/]+$") or nil
+  if folder then
+    openVisits[_G.rfsuite.paths.core .. "/app/pages/" .. folder] = module.visitMenu
+  end
+end
+
+--- Ends the visits whose area the pilot has left, now that `currentMenuId` is on screen (a page
+--- or a menu id). Returns how many visits ended and how many chunks the loader let go. The tool
+--- calls it after releasing the outgoing page; without a loader hook (an older host) the visits
+--- still end and nothing is let go.
+function registry.endVisits(currentMenuId)
+  if next(openVisits) == nil then return 0, 0 end
+  local currentPath = currentMenuId ~= nil and pagePathByMenuId[currentMenuId] or nil
+  local currentFull = type(currentPath) == "string" and (_G.rfsuite.paths.core .. "/app/pages/" .. currentPath) or nil
+  local utils = _G.rfsuite and _G.rfsuite.utils
+  local releaseChunksUnder = type(utils) == "table" and utils.releaseChunksUnder or nil
+  local ended, chunks = 0, 0
+  for folder, visitMenu in pairs(openVisits) do
+    local inside = currentMenuId == visitMenu
+      or (currentFull ~= nil and string.sub(currentFull, 1, #folder) == folder)
+    if not inside then
+      -- Ended only once the release has returned: a pass stopped inside it leaves the visit
+      -- open, and the next change of menu or page finishes it.
+      if type(releaseChunksUnder) == "function" then
+        chunks = chunks + (releaseChunksUnder(folder) or 0)
+      end
+      openVisits[folder] = nil
+      ended = ended + 1
+    end
+  end
+  return ended, chunks
+end
+
 function registry.release(menuId, ctx)
   if menuId ~= nil then
     failedByMenuId[menuId] = nil
+    noteVisit(menuId, loadedByMenuId[menuId])
   end
   local released = false
   if not isCacheableMenuId(menuId) then
