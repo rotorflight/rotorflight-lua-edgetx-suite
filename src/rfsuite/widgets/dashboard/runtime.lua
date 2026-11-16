@@ -2922,7 +2922,8 @@ local function updateConnectionState(self)
   -- fuel reading alone, before this connection has heard a pack voltage or a cell count, so the
   -- first scene would be built on the theme's defaults and again a moment later.
   -- updateVoltageThemeConfig marks exactly that state (`_voltageBoundsPending`: the defaults in
-  -- hand and no count), and the gate's FIRST opening waits for the count -- for at most
+  -- hand and no count, or a count guessed from the pack voltage that differs from the last one
+  -- the cell count sensor gave), and the gate's FIRST opening waits for the count -- for at most
   -- five seconds from the moment everything else was ready, so a model that never reports
   -- a pack voltage still gets its dashboard. The wait overlaps the reconnect hold rather than
   -- adding to it, and a gate that is already open is never shut by it -- nor pays for it: an open
