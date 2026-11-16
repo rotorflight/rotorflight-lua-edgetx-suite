@@ -1,1 +1,1 @@
-- **ESC load shows -- and stays silent when the ESC reports no current limit; a limit typed in by hand stays (`setup/esc_motors/esc_tools/esc_current_limit`)**
+- **An ESC reporting no current limit clears the limit its own family stored, so ESC load shows -- and stays silent; a limit typed in by hand stays (`setup/esc_motors/esc_tools/esc_current_limit`)**

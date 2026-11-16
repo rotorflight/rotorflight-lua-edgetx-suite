@@ -1,1 +1,1 @@
-- **The configuration tool compiles only after an install or update instead of checking every file on each start (`ui/home`)**
+- **The configuration tool no longer checks every installed file on each start; it compiles after an install or an update (`ui/home`)**

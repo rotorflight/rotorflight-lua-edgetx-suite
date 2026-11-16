@@ -1,1 +1,1 @@
-- **With the GOVERNOR feature off, the governor reads as OFF and its gains and Tail Torque Assist are hidden (`flight_tuning/governor`)** (#908)
+- **With the GOVERNOR feature read as off, the governor reads as OFF and its gains and Tail Torque Assist are hidden (`flight_tuning/governor`)** (#908)

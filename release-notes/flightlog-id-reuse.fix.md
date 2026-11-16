@@ -1,1 +1,1 @@
-- **A new battery id no longer inherits a deleted pack's logged flights (`tools/flight_log`)** (#861)
+- **The id suggested for a new battery no longer inherits a deleted pack's logged flights (`tools/flight_log`)** (#861)
