@@ -135,13 +135,14 @@ local function releaseStandby(self, reason)
   cancelStandbyElrs(self, reason)
   if self._job and self._job.kind == "standby" then self._job = nil end
   if self._treeKind == "standby" then
-    -- The key is forgotten before the clear: a pass stopped between the two must not leave a
-    -- record that lets a cleared key keep an empty screen. The kind stays until after the clear,
-    -- so the next release still clears a tree that a stop left standing.
-    self._treeKey = nil
-    if lvgl and type(lvgl.clear) == "function" then lvgl.clear() end
+    -- Built, key and the record's key first: a stop between the clear and them would leave an
+    -- empty screen marked as built, or on record as the build for this key, and the entry point
+    -- keeps `built` after a stop that interrupted no job. The kind stays until after the clear,
+    -- so the next release still clears a tree that a stop before the clear left standing.
     self.built = false
     self.renderKey = nil
+    self._treeKey = nil
+    if lvgl and type(lvgl.clear) == "function" then lvgl.clear() end
     self._treeKind = nil
   end
   local module = self._standbyModule
@@ -497,12 +498,18 @@ local function traceInstructionUsage(self)
   -- Kept for the phase and link lines, which fall on the armed pass, the closest to its limit.
   self._recordingOn = Log and type(Log.recording) == "function" and Log.recording() or false
   if self._recordingOn then
+    -- What the telemetry decoder in this state did since the last line (telemetry_bg/drain.lua).
+    -- Reached through the root rather than a module handle: this chunk is at Lua's limit of top-level
+    -- locals.
+    local decoder = _G.rfsuite.telemetryDecoder
     Log.emitf("rfsuite.widget", "info",
       "state: instruction budget %d%% now, %d%% peak/%ds, %d%% peak since load, %d objects, %s, "
-        .. "peak work %s, lua peak %d kB, theme=%s",
+        .. "peak work %s, lua peak %d kB, theme=%s, %s",
       percent, self._usageWindowPeak, USAGE_REPORT_INTERVAL, self._usagePeak,
       self._lastChildCount, Log.resources(), tostring(self._usageWindowWork),
-      utils.luaKb(self) and self._luaPeak, tostring(self.themePath))
+      utils.luaKb(self) and self._luaPeak, tostring(self.themePath),
+      type(decoder) == "table" and type(decoder.summary) == "function" and decoder.summary()
+        or "decoder -")
   end
 
   self._usageWindowPeak = -1
@@ -2400,7 +2407,7 @@ end
 -- what this function did unconditionally before. Three cases answer nil:
 --
 --   * no stamp on one side, or a shape change (one side carrying a per-model half, the other
---     not). There is nothing to compare half against half;
+--     not) other than the one below. There is nothing to compare half against half;
 --   * both halves differ, which needs no attribution;
 --   * **the changed half's TIMESTAMP did not move.** That is the case this test exists for. A
 --     half is `<size>:<time>`, and a file can change without its stamp moving if the clock is
@@ -2409,6 +2416,15 @@ end
 --     file is unchanged while the clock is demonstrably running, and the changed half's own
 --     timestamp is what demonstrates it. Where only a SIZE moved, the clock has proved nothing
 --     and both files are read.
+--
+-- The one shape change that is answered: the per-model half APPEARING beside a global half that
+-- has not moved. That is the first connect after the radio is switched on -- the widget took its
+-- first look with no board identified, and the board's file is addressed once its UID is read --
+-- and reading the global file again there re-parses bytes nobody wrote, in the pass the connect
+-- work already fills. It is marked `appeared`, because no timestamp of the model's proves the
+-- clock is running here: the caller withdraws it when the reload request moved in the same look,
+-- which is the signal a same-size save with a stopped clock leaves, and takes the stamp as the
+-- baseline without reading anything where the session already holds that file's preferences.
 local function stampTime(half)
   return string.match(half or "", "^[^:]*:(.*)$")
 end
@@ -2419,6 +2435,9 @@ local function changedHalves(oldStamp, newStamp)
   local oldGlobal, oldModel = string.match(oldStamp, "^([^|]*)|?(.*)$")
   local newGlobal, newModel = string.match(newStamp, "^([^|]*)|?(.*)$")
   if oldGlobal == nil or newGlobal == nil then return nil end
+  if oldModel == "" and newModel ~= "" and oldGlobal == newGlobal then
+    return { global = false, model = true, appeared = true }
+  end
   if (oldModel == "") ~= (newModel == "") then return nil end
 
   local globalMoved = oldGlobal ~= newGlobal
@@ -2536,6 +2555,7 @@ reloadPreferencesIfNeeded = function(self, force, isBackground)
     --    the trigger.
     if type(fstat) == "function" then
       local reqPaths = reloadRequestPaths()
+      local seqMoved = false
       for i = 1, #reqPaths do
         local reqPath = reqPaths[i]
         local ok, info = pcall(fstat, reqPath)
@@ -2551,7 +2571,26 @@ reloadPreferencesIfNeeded = function(self, force, isBackground)
         elseif seq ~= lastSeq then
           logGv("reloadPreferencesIfNeeded: %s sequence changed (%s -> %s)", reqPath, tostring(lastSeq), tostring(seq))
           signalReload = true
+          seqMoved = true
         end
+      end
+      -- A model file that has only just appeared in the stamp says nothing about the global file
+      -- by its own clock (see changedHalves). A save names no file when the reload request moves
+      -- with it, so both are read then, as before.
+      -- Where nothing moved but the model's file joining the stamp, the session already holds what
+      -- that file says: the board's UID read loaded the preferences and set the path together, from
+      -- the same read, and every writer of that file moves the reload request. That is the state a
+      -- reconnect is in, which reloads nothing, so the stamp is taken as the baseline here too
+      -- rather than read again in the pass the connect work already fills.
+      if seqMoved and halves and halves.appeared then
+        halves = nil
+        logGv("reloadPreferencesIfNeeded: the reload request moved with the model's file appearing, both files are read")
+      elseif halves and halves.appeared and type(session) == "table"
+        and type(session.modelPreferences) == "table" and session.modelPreferencesFile ~= nil then
+        self._lastPrefsStamp = stamp
+        signalReload = false
+        halves = nil
+        logGv("reloadPreferencesIfNeeded: the model's file joined the stamp with its preferences in hand, taken as the baseline")
       end
     else
       logGv("reloadPreferencesIfNeeded: fstat unavailable")
