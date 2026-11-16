@@ -235,9 +235,9 @@ it once, fly, and check both again.
    read. The flight controller writes a setting into whichever profile is active when it arrives, so right before
    each write the page asks the flight controller again which PID and rate profile are active, and reads the
    *PID#* and *RTE#* sensors. If either no longer names the profiles of the advice, the save stops there: that
-   write and every later one are not sent, and nothing is saved. A write sent again after its answer was lost goes
-   out only while the *PID#* and *RTE#* sensors still name those profiles; without those sensors it is not sent
-   again and the save stops. Closing the page does not stop a save that is running.
+   write and every later one are not sent, and nothing is saved. Each of these writes is sent once: if its answer
+   is lost, it is not sent again, unchecked, and the save stops as a failed write. Closing the page does not stop a
+   save that is running.
 4. **Saves to the flight controller** without a reboot, so the changes survive a restart.
 5. **Checks the saved settings**: reads them back and reports how many changes were written and read back, or
    names the first one that differs. If the settings cannot be read back, it says the save is unverified; if a
@@ -258,8 +258,7 @@ If saving fails, the page says what may still be active until a restart:
 - "Writing failed. Nothing was saved: restart the flight controller to undo any part already sent." means a write
   failed or timed out before the save. Some values may already be active; restart the flight controller to
   restore the stored settings. It is also shown when the flight controller's answer to the profile check before a
-  write was missing or too short to read, and when a write had to be sent again on a model without the *PID#* and
-  *RTE#* sensors.
+  write was missing or too short to read.
 - "The profile changed during the save, so it stopped. Nothing was saved: restart the flight controller to undo
   any part already sent." means a PID or rate profile switch was seen between two writes. The writes before it
   were checked against the profile of the advice and are active until a restart; the ones after it were not sent.

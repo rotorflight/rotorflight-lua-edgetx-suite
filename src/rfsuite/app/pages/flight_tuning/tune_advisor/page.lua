@@ -1551,18 +1551,7 @@ local function buildSteps(snapshot, records, buffers)
   local tune, Status, P = snapshot.tune, StatusApi, Profile
   local check = {
     command = Status.command,
-    holds = function(buf) return profilesHold(tune, buf, Status, P) end,
-    -- A retry of a write after a lost reply is not checked by the board again; the live PID# and RTE#
-    -- readings are. Without them only the first send, right after the board's answer, goes out.
-    sendIf = function(msg)
-      local pid = P and type(P.getLive) == "function" and P.getLive("pid") or nil
-      local rate = P and type(P.getLive) == "function" and P.getLive("rate") or nil
-      if pid == nil or rate == nil then
-        if type(msg) == "table" and msg.__sentAt ~= nil then return nil end
-        return true
-      end
-      return pid == tune.pidProfile and rate == tune.rateProfile
-    end
+    holds = function(buf) return profilesHold(tune, buf, Status, P) end
   }
   for _, step in ipairs(steps) do step.check = check end
   return steps

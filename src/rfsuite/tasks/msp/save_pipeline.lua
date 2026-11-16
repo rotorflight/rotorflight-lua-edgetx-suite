@@ -64,18 +64,16 @@
 -- label. EdgeTX's instruction-limit stop is raised on instead, before anything is changed, so
 -- the queue keeps the previous write's reply handler current and runs it again on a later pass.
 --
--- A step may also carry `check = { command = <read command>, holds = function(buf), sendIf = fn }`
--- for a write that is only right while something on the board stays as it was -- a write that
--- lands on whichever profile is active, for one. The read goes out right before that step's
--- write, and the write is sent only when `holds` returns true for the reply. Anything else ends
--- the save at that step with nothing more sent and no EEPROM commit: `check = "refused"` in the
--- result when `holds` returned false (or raised), `check = "unanswered"` when it returned nil (a
--- reply it cannot judge) or the read got no reply; a read lost without either ends at the
--- step backstop as a timeout. The optional `sendIf(msg)` is asked at every send of the write, its
--- retries included -- what the radio can tell without asking the board. Once it returns false
--- (`check = "refused"`) or nil (`"unanswered"`, it cannot tell) the write is withheld for good, and
--- a retry's bytes still buffered when an earlier attempt's reply completes it are dropped. A
--- write acknowledged before such a stop has reached the board (`sentAny`).
+-- A step may also carry `check = { command = <read command>, holds = function(buf) }` for a write
+-- that is only right while something on the board stays as it was -- a write that lands on
+-- whichever profile is active, for one. The read goes out right before that step's write, and the
+-- write is sent only when `holds` returns true for the reply. Anything else ends the save at that
+-- step with nothing more sent and no EEPROM commit: `check = "refused"` in the result when `holds`
+-- returned false (or raised), `check = "unanswered"` when it returned nil (a reply it cannot judge)
+-- or the read got no reply; a read lost without either ends at the step backstop as a timeout. A
+-- checked write is sent once, never retried, so nothing of it goes out later than its check; a lost
+-- reply ends the save as a failed write. A write acknowledged before such a stop has reached the
+-- board (`sentAny`).
 --
 -- Progress is exposed through getProgress() and drawn by whoever is on screen, which is the
 -- same split the start screen uses for the connect chain. Nothing here opens a native modal,
@@ -704,36 +702,16 @@ local function queueWrite(run, index, step, payload)
     fail(step.label or tostring(step.command))
     return
   end
-  local sendIf = whileCurrent(run)
-  local stillHolds = type(step.check) == "table" and step.check.sendIf or nil
-  local lapsed = nil
-  if type(stillHolds) == "function" then
-    -- Asked at every send of the write, the first and each retry: a retry after a lost reply goes
-    -- out only while the check's own condition still holds as far as the radio can tell. Once it
-    -- lapses the write never goes out again, whatever a later call would say.
-    local current = sendIf
-    sendIf = function(given)
-      if lapsed then return false end
-      if not current() then return false end
-      local ok, holds = pcall(stillHolds, given)
-      if not ok and isCpuLimitError(holds) then error(holds, 0) end
-      if ok and holds == true then return true end
-      lapsed = (ok and holds == nil) and "unanswered" or "refused"
-      logf("warn", "write withheld, its check %s page=%s step=%d",
-        lapsed == "refused" and "no longer holds" or "cannot be told", tostring(run.desc.pageId), index)
-      return false
-    end
-  end
   local msg
   msg = {
     command = step.command,
     payload = payload,
     isWrite = true,
     client = run.client,
-    sendIf = sendIf,
-    -- Bytes of a retry still buffered when an earlier attempt's reply completes it are dropped, so
-    -- they cannot go out later, past the check
-    dropLeftoverOnComplete = type(stillHolds) == "function" or nil,
+    sendIf = whileCurrent(run),
+    -- A checked write is sent once: a retry after a lost reply would go out unchecked, possibly after
+    -- what the check was about has changed
+    maxRetries = step.check ~= nil and 0 or nil,
     processReply = function()
       if not isCurrent(run) then return end
       if not S.run.sentAny then
@@ -753,10 +731,6 @@ local function queueWrite(run, index, step, payload)
         logf("debug", "write unanswered after it was sent page=%s step=%d reason=%s",
           tostring(S.run.desc.pageId), index, tostring(reason))
         S.run.sentAny = true
-      end
-      if lapsed then
-        finish("failed", { step = step.label or tostring(step.command), check = lapsed })
-        return
       end
       fail(step.label or tostring(step.command))
     end,
