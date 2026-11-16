@@ -155,8 +155,8 @@ local function installLoader(host)
     if chunk then
       local inPages = string.find(path, "/app/pages/", 1, true) ~= nil
       if not (inPages and string.sub(path, -9) == "/page.lua") then
-        chunks[path] = chunk
         if inPages then pageChunkPaths[path] = true end
+        chunks[path] = chunk
       end
     end
     return chunk, err
@@ -176,8 +176,11 @@ local function installLoader(host)
       if type(prefix) ~= "string" or prefix == "" then return released end
       for path in pairs(pageChunkPaths) do
         if string.sub(path, 1, #prefix) == prefix then
-          pageChunkPaths[path] = nil
+          -- The chunk goes before its entry, and a load lists a path before it keeps the chunk:
+          -- the CPU limit can stop this state between any two writes, and the worst it leaves
+          -- is an entry with no chunk, never a kept chunk that no later release can find.
           chunks[path] = nil
+          pageChunkPaths[path] = nil
           released = released + 1
         end
       end

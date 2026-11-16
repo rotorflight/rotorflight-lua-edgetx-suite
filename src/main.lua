@@ -29,8 +29,11 @@ _G.rfsuite.utils.releaseChunksUnder = function(prefix)
   if type(prefix) ~= "string" or prefix == "" then return released end
   for path in pairs(pageChunkPaths) do
     if string.sub(path, 1, #prefix) == prefix then
-      pageChunkPaths[path] = nil
+      -- The chunk goes before its entry, and a load lists a path before it keeps the chunk: a
+      -- pass stopped between the two writes then leaves at worst an entry with no chunk, never
+      -- a kept chunk that no later release can find.
       chunkCache[path] = nil
+      pageChunkPaths[path] = nil
       released = released + 1
     end
   end
@@ -55,8 +58,8 @@ _G.loadScript = function(path, mode)
   if chunk and type(path) == "string" then
     local inPages = string.find(path, "/app/pages/", 1, true) ~= nil
     if not (inPages and string.sub(path, -9) == "/page.lua") then
-      chunkCache[path] = chunk
       if inPages then pageChunkPaths[path] = true end
+      chunkCache[path] = chunk
     end
   end
   return chunk, err

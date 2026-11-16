@@ -158,5 +158,78 @@ Host.abandon(widget, "test")
 equal(_G.rfsuite.utils.releaseChunksUnder == nil or _G.rfsuite.utils.releaseChunksUnder ~= hook, true,
   "hosted release hook taken back when the tool closes")
 
+-- 3. A stop at any instruction of a load or of the release leaves nothing kept that the release
+-- can no longer find. In the dashboard's widget state the radio raises its CPU limit from an
+-- instruction-count hook, so the error can land between any two writes of either function; a
+-- count hook here stops the function at its 1st, 2nd, 3rd ... instruction until a pass completes.
+-- After each stopped pass the area is released again, and the next load must read the file from
+-- the card: a chunk kept but no longer listed would be handed back from the cache instead.
+local function standaloneLoader()
+  resetGlobals()
+  assert(loadfile("src/main.lua"))()
+  return _G.loadScript, _G.rfsuite.utils.releaseChunksUnder
+end
+
+local function hostedLoader()
+  resetGlobals()
+  _G.rfsuite.require = function(path) return stubs[path] end
+  _G.rfsuite.loadMode = "bt"
+  local host = assert(loadfile("src/rfsuite/widgets/dashboard/tool_host.lua"))()
+  local w = {}
+  host.request(w)
+  host.step(w, 0)
+  return _G.loadScript, _G.rfsuite.utils.releaseChunksUnder
+end
+
+-- Runs `fn(...)` under pcall, raising "CPU limit" at the n-th instruction executed inside `target`
+-- itself (instructions of the functions it calls are not counted). Returns pcall's status.
+local function stopAt(n, target, fn, ...)
+  local count = 0
+  debug.sethook(function()
+    if debug.getinfo(2, "f").func == target then
+      count = count + 1
+      if count == n then error("CPU limit") end
+    end
+  end, "", 1)
+  local ok = pcall(fn, ...)
+  debug.sethook()
+  return ok
+end
+
+local function sweep(label, makeLoader)
+  -- The release, stopped at every instruction in turn, with the wizard file kept beforehand.
+  local stopped, n = 0, 0
+  repeat
+    n = n + 1
+    local load, release = makeLoader()
+    load(WIZARD_FILE, "t")
+    local ok = stopAt(n, release, release, WIZARD)
+    if not ok then stopped = stopped + 1 end
+    release(WIZARD)
+    load(WIZARD_FILE, "t")
+    equal(reads[WIZARD_FILE], 2, label .. " release stopped at instruction " .. n .. ": the next load reads the card")
+  until ok or n >= 200
+  equal(stopped > 0, true, label .. " release sweep stopped the release at least once (control)")
+  equal(n < 200, true, label .. " release sweep reached a pass that completes (control)")
+
+  -- A load, stopped at every instruction in turn, then the release.
+  stopped, n = 0, 0
+  repeat
+    n = n + 1
+    local load, release = makeLoader()
+    local ok = stopAt(n, load, load, WIZARD_FILE, "t")
+    if not ok then stopped = stopped + 1 end
+    release(WIZARD)
+    local before = reads[WIZARD_FILE] or 0
+    load(WIZARD_FILE, "t")
+    equal(reads[WIZARD_FILE], before + 1, label .. " load stopped at instruction " .. n .. ": after the release the card is read")
+  until ok or n >= 200
+  equal(stopped > 0, true, label .. " load sweep stopped the load at least once (control)")
+  equal(n < 200, true, label .. " load sweep reached a pass that completes (control)")
+end
+
+sweep("standalone", standaloneLoader)
+sweep("hosted", hostedLoader)
+
 print("Page visit chunks: " .. checks .. " assertions, " .. failures .. " failures")
 if failures > 0 then os.exit(1) end
