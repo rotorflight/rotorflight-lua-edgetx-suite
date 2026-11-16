@@ -629,11 +629,13 @@ function M.new(w, ctx, diagrams)
           all[#all + 1] = { type = "toggle", x = editX, y = y+math.floor((rowControlH-sh)/2), w = sw, h = sh,
             get = function() return r.get() == 2 end,
             set = function(v)
-              -- While an edit of this switch waits for a fresh status, the latest input decides: one back to
-              -- the value the row holds calls the waiting edit off. Kept on the page by card and row, so a rebuild
-              -- keeps it and two rows of the same label stay apart.
-              local waiting = w.switchEdit
-              if not (waiting and waiting.key == switchKey and waiting.edit == w.pendingEdit) then waiting = nil end
+              -- While switch edits wait for a fresh status, each switch keeps its own, applied in the order they
+              -- came: a switch's latest input decides, and one back to the value its row holds calls that switch's
+              -- edit off and leaves the others. Kept on the page by card and row, so a rebuild keeps them and two
+              -- rows of the same label stay apart.
+              local batch = w.switchEdit
+              if not (batch and batch.run == w.pendingEdit) then batch = nil end
+              local waiting = batch and batch.byKey[switchKey]
               local on
               -- Some EdgeTX builds call set() without a payload: that is a flip, of the waiting value if any.
               if v == nil then
@@ -642,16 +644,30 @@ function M.new(w, ctx, diagrams)
               else on = (tonumber(v) or 0) ~= 0 end
               if waiting then
                 if on ~= waiting.on then
-                  w.pendingEdit, w.pendingEditDropped, w.switchEdit = nil, nil, nil
-                  if w.logTrace then w:log("trace", "switch %s %s: the waiting edit is called off", tostring(r.label), tostring(on)) end
+                  batch.byKey[switchKey] = nil
+                  for j = #batch.order, 1, -1 do
+                    if batch.order[j] == waiting then table.remove(batch.order, j) end
+                  end
+                  if #batch.order == 0 then w.pendingEdit, w.pendingEditDropped, w.switchEdit = nil, nil, nil end
+                  if w.logTrace then w:log("trace", "switch %s %s: its waiting edit is called off, %d still wait",
+                    tostring(r.label), tostring(on), #batch.order) end
                 end
                 return
               end
               if on == (r.get() == 2) then return end
+              local edit = { on = on, run = function() if editable() then r.set(on and 2 or 1) end end }
+              if batch then
+                batch.byKey[switchKey] = edit
+                batch.order[#batch.order + 1] = edit
+                if w.logTrace then w:log("trace", "switch %s %s: waits beside %d other", tostring(r.label), tostring(on),
+                  #batch.order - 1) end
+                return
+              end
               if w.logTrace then w:log("trace", "switch %s %s", tostring(r.label), tostring(on)) end
-              local edit = function() if editable() then r.set(on and 2 or 1) end end
-              w:applyEdit(edit)
-              w.switchEdit = w.pendingEdit == edit and { key = switchKey, on = on, edit = edit } or nil
+              local fresh = { byKey = { [switchKey] = edit }, order = { edit } }
+              fresh.run = function() for j = 1, #fresh.order do fresh.order[j].run() end end
+              w:applyEdit(fresh.run)
+              w.switchEdit = w.pendingEdit == fresh.run and fresh or nil
             end, active = enabled }
         elseif r.kind == "toggle" then
           local function set(v) w:applyEdit(function() if editable() then r.set(v) end end) end

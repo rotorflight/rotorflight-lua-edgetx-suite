@@ -40,7 +40,7 @@
     "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua": "918ff62ce8f30cfdb50a392b9dc2c0c04b299623d972df1dbf8e6a9f4c39678b",
     "src/rfsuite/app/pages/helicopter_setup/steps/throttle.lua": "bc1745c86d27c2a43d9c063dfd64635c104d81a1d08c76eff7f8c7e09800f774",
     "src/rfsuite/app/pages/helicopter_setup/transport.lua": "f8dc9fc96e6cc65ad50fa8ebab9b5f58245dfab79aa0e26b1b4e649314f764ab",
-    "src/rfsuite/app/pages/helicopter_setup/view.lua": "60a95fdeeab2df550da1e1653b35beecf679d6e4f4510de4fa0d47e1e3dc132b",
+    "src/rfsuite/app/pages/helicopter_setup/view.lua": "a5b5f020941690d99dfbce52ff0453b55c26635843e8caed4aeccf8430417ead",
     "src/rfsuite/app/pages/helicopter_setup/workflow.lua": "3edbd986956bbbbc6d88e9d0ed3a22e8a751a9485bfc1a78d2f14399995f78ed",
     "src/rfsuite/app/pages/setup/esc_motors/throttle/page.lua": "76542a5f84b98f8715c6ed938a463483e76e205912cd70f01555b7cf94fbe5aa",
     "src/rfsuite/app/pages/setup/power/battery/page.lua": "bb94e95ab8cac06d560110554faf9ba0b4ab634abc0eb8bba9fde032a6468949",

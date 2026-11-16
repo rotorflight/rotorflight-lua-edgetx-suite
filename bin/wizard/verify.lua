@@ -1679,6 +1679,25 @@ do
   pair[2].set(false)                           -- the second row is off already: nothing to do for it
   settle(lw)
   check(lw.checks.probeA == true and not lw.checks.probeB, "SWITCH a second switch of the same label leaves the first one's edit")
+  -- Both switches turned on while the status is pending: each keeps its own edit, and both apply.
+  lw.checks.probeA, lw.checks.probeB = nil, nil
+  lw.statusAt = ticks - 301
+  pair = toggles()
+  pair[1].set(true)
+  pair[2].set(true)
+  check(not lw.checks.probeA and not lw.checks.probeB, "SWITCH control: two switch edits wait for a fresh status")
+  settle(lw)
+  check(lw.checks.probeA == true and lw.checks.probeB == true, "SWITCH two switches turned on while pending both apply")
+  -- One of two waiting switch edits called off: the other one still applies.
+  lw.checks.probeA, lw.checks.probeB = nil, nil
+  lw.statusAt = ticks - 301
+  pair = toggles()
+  pair[1].set(true)
+  pair[2].set(true)
+  pair[1].set(false)
+  check(lw.pendingEdit ~= nil, "SWITCH one of two waiting edits called off keeps the other waiting")
+  settle(lw)
+  check(not lw.checks.probeA and lw.checks.probeB == true, "SWITCH one of two waiting switches called off leaves the other's edit")
   lw.cards, lw.card = { lw:cardDef("T", "d", { lw:check("probe", "Probe") }) }, 1
   lw.checks.probe = nil
   lw.statusAt = ticks - 301

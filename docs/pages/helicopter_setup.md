@@ -90,7 +90,7 @@ pending writes still fail closed and release overrides. During an idle read-only
 visit, or while an accelerometer calibration runs, the page displays **Checking current FC status; controls paused** while the
 fresh STATUS request completes. It does not extend the safety window. A switch moved
 while that request runs takes its last position: moved back before the answer, it changes
-nothing. A failed
+nothing. Each switch moved meanwhile keeps its own change, and all of them apply with the answer. A failed
 request displays an error and a receiver-link hint. **Try again** starts a new
 arming-disable/readback handshake; the expired timestamp cannot abort that handshake.
 Status processing continues during resumable scene assembly. On firmware without
