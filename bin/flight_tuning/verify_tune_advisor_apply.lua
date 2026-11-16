@@ -117,6 +117,7 @@ _G.rfsuite = { palette = { text = 0, border = 0 }, session = { mcu_id = MCU } }
 _G.rfsuite.paths = dofile(ROOT .. "lib/paths.lua")
 
 local profiles = { pid = 1, rate = 1 }
+local statusBytes = nil
 local dialogs = {}
 local axisSetter = nil
 
@@ -166,6 +167,7 @@ local compactRaises = false
 local ui
 function loadScript(path)
   local relative = string.match(path, "^/SCRIPTS/RFSUITE/core/(.+)$")
+  if stubs[relative] == false then return nil end   -- a module that does not load
   if stubs[relative] then local mod = stubs[relative]; return function() return mod end end
   assert(real[relative], "unexpected module: " .. tostring(path))
   local chunk = assert(loadfile(ROOT .. relative))
@@ -212,6 +214,8 @@ local function statusReply()
   local buf = {}
   for i, b in ipairs(codecs.status.simulatorResponse) do buf[i] = b end
   buf[24], buf[26] = profiles.pid - 1, profiles.rate - 1
+  -- statusBytes: a reply cut short after that many bytes
+  if statusBytes then for i = #buf, statusBytes + 1, -1 do buf[i] = nil end end
   return buf
 end
 
@@ -425,6 +429,20 @@ end
 
 clearCard()
 resetFc()
+
+print("Differences from the Ethos suite: lib/profile.lua does not load")
+do
+  -- First, before the page has loaded it once: the status read's reply must not index the missing
+  -- module, and the flights are still read (on the profiles read, PID 1 / rates 1 here)
+  local saved = stubs["lib/profile.lua"]
+  stubs["lib/profile.lua"] = false
+  local ok, err = pcall(openPage)
+  check("the status reply without lib/profile.lua: no error, the flights are read and shown",
+    ok and ui.loadStep == nil and ui.activePid == 1 and string.find(ui.view.data or "", "1/5", 1, true) ~= nil,
+    ok and tostring(ui.view.data) or tostring(err))
+  stubs["lib/profile.lua"] = saved
+  resetFlights()
+end
 
 print("Ethos suite: Apply writes only the advised fields")
 do
@@ -1033,12 +1051,26 @@ end
 
 print("Differences from the Ethos suite: the profiles the flights were flown on")
 do
+  -- Since #1166 the page shows the flights of the ACTIVE profiles; a flight on others is kept for them
+  local function noteFor(pid, rate) return string.format(ui.text.noFlightProfileFmt or "?", pid, rate) end
   resetFc()
   flightContext = { pidProfile = 2, rateProfile = 1 }
   openPage()
-  check("flown on another PID profile: the page says which, and Save is off", not canSave()
-    and ui.view.actions[1] == string.format(T().profileSwitchFmt, 2, 1), ui.view.actions[1])
-  check("the profiles are named", shown(string.format(T().profileFmt, 2, 1)))
+  check("flown on another PID profile: no flight on the active ones, the page says so and Save is off",
+    not canSave() and ui.view.data == noteFor(1, 1), ui.view.data)
+  check("the active profiles are named", shown(string.format(T().profileFmt, 1, 1)))
+  profiles.pid = 2
+  openPage(true)
+  check("(control) with that PID profile active its flight is shown", ui.view.data ~= noteFor(2, 1)
+    and shown(string.format(T().profileFmt, 2, 1)) and string.find(ui.view.data, "1/5", 1, true) ~= nil, ui.view.data)
+  -- A status reply cut short before the profile bytes: their parser reads a missing byte as 0, so
+  -- it would name PID 1, rates 1; the session's profiles are kept instead
+  statusBytes = 20
+  openPage(true)
+  check("a status reply too short for the profiles keeps the session's (PID 2), not PID 1", ui.view.data ~= noteFor(1, 1)
+    and shown(string.format(T().profileFmt, 2, 1)), ui.view.data)
+  statusBytes = nil
+  profiles.pid = 1
 
   -- The same values on both profiles: still another profile
   resetFc()
@@ -1051,13 +1083,138 @@ do
   flightContext = { pidProfile = 2, rateProfile = 2, cyclicPolarity = 1 }
   openPage()
   check("polar cyclic of another profile is not used", not contains(ui.view.actions, T().ratesCyclic)
-    and contains(ui.view.actions, T().ratesAxis[1]), table.concat(ui.view.actions, " | "))
+    and ui.view.data == noteFor(1, 1), table.concat(ui.view.actions, " | "))
 
   resetFc()
   flightContext = { unknownProfile = true }
   openPage()
-  check("flights of unknown profiles: Save is off and the page says why", not canSave()
-    and ui.view.actions[1] == T().profileUnknown, ui.view.actions[1])
+  check("flights of unknown profiles are not shown: Save is off and the page says no flight is on the active ones",
+    not canSave() and ui.view.data == noteFor(1, 1), ui.view.data)
+  resetFlights()
+end
+
+print("Differences from the Ethos suite: flights per PID and rate profile (#1166)")
+do
+  local OTHER = "Flights on other profiles are kept for those profiles."
+  -- An older flight with `older` as its context overrides, then the newest on profile 1 / 1
+  local function twoFlights(older)
+    resetFc()
+    resetFlights()
+    files[TuneHistory.path(MCU)] = nil
+    files[TuneHistory.path(MCU) .. ".bak"] = nil
+    flightContext = older
+    saveFlight()
+    flightContext = nil
+    saveFlight()
+    openPage(true)
+  end
+  local function seen() return ui.view.data .. " | " .. table.concat(ui.view.whys, " | ") end
+  twoFlights(nil)
+  check("(control) two flights on the same profiles: combined, no line about other profiles",
+    shown("2/5") and not contains(ui.view.whys, OTHER), seen())
+  twoFlights({ pidProfile = 2 })
+  check("an older flight on another PID profile is not combined, and the first reason says it is kept",
+    shown("1/5") and ui.view.whys[1] == OTHER, seen())
+  twoFlights({ rateProfile = 2 })
+  check("an older flight on another rate profile is not combined, and the first reason says it is kept",
+    shown("1/5") and ui.view.whys[1] == OTHER, seen())
+  twoFlights({ unknownProfile = true })
+  check("an older flight of unknown profiles is not combined, without the line", shown("1/5")
+    and not contains(ui.view.whys, OTHER), seen())
+  twoFlights({ cyclicRing = 80 })
+  check("an older flight ended by another setting on the same profiles: no line about profiles", shown("1/5")
+    and not contains(ui.view.whys, OTHER), seen())
+  resetFlights()
+
+  -- Reload while the status read is still out: only the newest read settles the profiles. A flight
+  -- on PID 2 and one on PID 1; the stale read answers PID 2, the new one PID 1
+  resetFc()
+  files[TuneHistory.path(MCU)] = nil
+  files[TuneHistory.path(MCU) .. ".bak"] = nil
+  flightContext = { pidProfile = 2, rateProfile = 1 }
+  saveFlight()
+  flightContext = nil
+  saveFlight()
+  local function statusFor(pid)
+    local buf = {}
+    for i, b in ipairs(codecs.status.simulatorResponse) do buf[i] = b end
+    buf[24], buf[26] = pid - 1, 0
+    return buf
+  end
+  local function nextStatus()
+    for _ = 1, 40 do
+      ticks = ticks + 5
+      Page.wakeup(ctx)
+      for i, m in ipairs(queue.entries) do
+        if m.command == codecs.status.command then return table.remove(queue.entries, i) end
+      end
+    end
+  end
+  if opened then Page.onClose() end
+  queue.entries = {}
+  build()
+  opened = true
+  local first = nextStatus()
+  Page.onReload()
+  local second = nextStatus()
+  if first then first.processReply(first, statusFor(2)) end
+  for _ = 1, 3 do ticks = ticks + 5; Page.wakeup(ctx) end
+  if second then second.processReply(second, statusFor(1)) end
+  queue.entries = {}
+  pump()
+  check("Reload while a status read is out: the stale reply does not settle the profiles, PID 1's flight is shown",
+    first ~= nil and second ~= nil and ui.activePid == 1
+      and ui.view.data ~= string.format(ui.text.noFlightProfileFmt or "?", 1, 1)
+      and string.find(ui.view.data or "", "1/5", 1, true) ~= nil,
+    tostring(first ~= nil) .. "/" .. tostring(second ~= nil) .. " / PID " .. tostring(ui.activePid) .. " / "
+      .. tostring(ui.view.data))
+  resetFlights()
+
+  -- A profile switch while the page is open (the sensors, here the session): the flights of the
+  -- new profiles are read without Reload, and the way back reads the first ones again
+  resetFc()
+  files[TuneHistory.path(MCU)] = nil
+  files[TuneHistory.path(MCU) .. ".bak"] = nil
+  flightContext = { pidProfile = 2, rateProfile = 1 }
+  saveFlight()
+  flightContext = nil
+  profiles.pid = 1
+  openPage(true)
+  local noP1 = string.format(ui.text.noFlightProfileFmt or "?", 1, 1)
+  check("(setup) opened on PID 1 with flights only on PID 2: no flight on the active profiles", ui.view.data == noP1,
+    ui.view.data)
+  profiles.pid = 2
+  pump()
+  check("switched to PID 2 while the page is open: its flight is read and shown without Reload",
+    ui.activePid == 2 and string.find(ui.view.data or "", "1/5", 1, true) ~= nil
+      and shown(string.format(T().profileFmt, 2, 1)),
+    "PID " .. tostring(ui.activePid) .. " / " .. tostring(ui.view.data))
+  profiles.pid = 1
+  pump()
+  check("switched back to PID 1: the page reads PID 1 again", ui.activePid == 1 and ui.view.data == noP1,
+    "PID " .. tostring(ui.activePid) .. " / " .. tostring(ui.view.data))
+
+  -- The switch while the flights are still being read (the profiles settled, the axes not built
+  -- yet): the first look at the profiles after the read finds the switch too
+  if opened then Page.onClose() end
+  queue.entries = {}
+  build()
+  opened = true
+  for _ = 1, 40 do
+    ticks = ticks + 5
+    Page.wakeup(ctx)
+    local m = table.remove(queue.entries, 1)
+    if m and m.command == codecs.status.command then m.processReply(m, statusReply())
+    elseif m and m.command == Api.command then m.processReply(m, Api.simulatorResponseFor(1)) end
+    if ui.activePid ~= nil and not ui.axes then break end
+  end
+  local midRead = ui.activePid == 1 and not ui.axes
+  profiles.pid = 2
+  pump()
+  check("switched to PID 2 while the flights are read: PID 2's flight is shown once the read ends",
+    midRead and ui.activePid == 2 and string.find(ui.view.data or "", "1/5", 1, true) ~= nil,
+    tostring(midRead) .. " / PID " .. tostring(ui.activePid) .. " / " .. tostring(ui.view.data))
+  profiles.pid = 1
   resetFlights()
 end
 
@@ -1461,6 +1618,59 @@ do
   check("(control) one that refuses the command is shown as needing newer firmware", ui.unsupported
     and shown(T().unsupported))
   _G.rfsuite.session.mcu_id = MCU
+end
+
+print("A reply layout newer than this suite reads")
+do
+  -- The probe's reply as the simulator sends it, with the payload version byte replaced
+  local function probeVersion(version)
+    local buf = {}
+    for i, v in ipairs(Api.simulatorResponseFor(1)) do buf[i] = v end
+    buf[1] = version
+    return function(m) if m.command == Api.command then return buf end end
+  end
+  -- The firmware's error reply, as the queue hands it on: the bytes are the board's and say
+  -- nothing, the flag the queue sets on the message does
+  local function errorReply(bytes)
+    return function(m)
+      if m.command ~= Api.command then return nil end
+      m.__errorReply = true
+      m.processReply(m, bytes)
+      return "handled"
+    end
+  end
+  local NEWER = "Needs newer RFSuite"
+
+  openPage()
+  Page.onReload()
+  pump(probeVersion(Api.PAYLOAD_VERSION + 1))
+  check("a newer payload version says the suite needs updating, not the firmware",
+    shown(NEWER) and not shown("Needs newer firmware") and not canSave(), ui.view.data)
+
+  Page.onReload()
+  pump(probeVersion(Api.PAYLOAD_VERSION - 1))
+  check("an older payload version still says the firmware needs updating",
+    shown("Needs newer firmware") and not shown(NEWER) and not canSave(), ui.view.data)
+
+  Page.onReload()
+  pump(errorReply({ Api.PAYLOAD_VERSION + 2 }))
+  check("the error reply needs newer firmware whatever its bytes",
+    shown("Needs newer firmware") and not shown(NEWER) and not canSave(), ui.view.data)
+
+  local wrongLength = {}
+  for i, v in ipairs(Api.simulatorResponseFor(1)) do wrongLength[i] = v end
+  wrongLength[#wrongLength + 1] = 0
+  Page.onReload()
+  pump(function(m) if m.command == Api.command then return wrongLength end end)
+  check("a version-3 reply of another length still needs newer firmware",
+    shown("Needs newer firmware") and not shown(NEWER), ui.view.data)
+
+  Page.onReload()
+  pump(probeVersion(Api.PAYLOAD_VERSION + 1))
+  Page.onReload()
+  pump()
+  check("(control) after a newer reply, Reload answered in this suite's layout shows the flights again",
+    not ui.unsupported and not shown(NEWER) and not shown("Needs newer firmware") and canSave(), ui.view.data)
 end
 
 print("No flight saved")

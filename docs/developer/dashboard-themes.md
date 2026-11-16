@@ -135,6 +135,19 @@ in autorotation does not send the screen back to `armed`. The latch is cleared o
 arm edge, and on the flight controller reconnect edge; the disarm hands it to the postflight
 phase, which is what makes a landing produce a summary screen and a bench arm not produce one.
 
+**The postflight module waits for the disarm's event tasks, up to three seconds.** The disarm
+starts the `ondisarm` tasks (`tasks/events/ondisarm/manifest.lua`: the flight record, the flight
+log entry, the flight statistics, the dataflash summary and the tune history, which only
+schedules its own reads for later). While that runner still has tasks, the widget keeps the
+inflight screen and holds the reload of the postflight module, until three seconds after the hold
+began, whether or not the tasks have finished by then. The tasks run in the widget's own calls,
+one logic tick after another, and the phase change follows the telemetry read cadence, so
+without the hold the theme load can fall into the same widget call as the flight log write and,
+together with the read and the first postflight reads, run into the instruction limit. The hold does not use up the one
+carry a reload gets off a telemetry-read pass, so a reload released on a read pass can still move
+one logic tick further. In practice the hold ends after one to two seconds; at the three-second
+limit, with that carry and the logic tick on top, it can last a little longer.
+
 Two consequences worth knowing before writing a theme:
 
 - **The post-flight screen outlives the link, and that is what `offline` names.** While the
@@ -252,6 +265,12 @@ after a flight, off screen, or for the UID) is not looked for again until the re
 reload then checks the files once and reads only the one that moved since the last reload, as an
 undeferred reload does; both where both moved, the check cannot tell which, or a change was
 signalled only by the reload request, which names no file -- when it was found, or while it waited.
+The first connect after the radio is switched on reloads nothing either: the widget's first look
+was taken with no board identified, so the model's file joins the check only once the UID is read,
+and that read has already loaded the model's preferences from it, so with the radio's file and the
+reload request unmoved the new stamp is taken as it stands, as a reconnect does. Where the reload
+request moved in the same look both files are read; where the session holds no preferences for
+that file, the model's file alone.
 A battery picked on the dashboard is saved to the model's preferences and moves the reload request
 like any save, so that the tool and the other widgets read it. The dashboard that saved it already
 holds what it wrote: it looks at the files just before and just after its own save, and where they
@@ -301,7 +320,9 @@ build the radio stops at its instruction limit. The widget tries that build thre
 times in a row, then stops trying and shows *Dashboard error* in its place; the error is in
 the log, and the first of the three goes to the card as a fault when *Log to card* is on (a
 stop at the instruction limit goes to the card every time, as the widget's own `widget.refresh`
-fault, and the widget waits 1.2 s before the next try). A
+fault, and the widget waits 1.2 s before the next try). A stop that falls outside a build while
+the standby screen stands leaves it standing, unless the pass had already changed what it shows;
+a theme's screen is built again after any stop, as is a build that was under way or queued. A
 build that is stopped at the limit only sometimes is drawn again as soon as one try completes,
 which starts the count over; one that is stopped three times in a row stays *Dashboard error*. A
 theme reload starts over: choosing a theme, any change to the preferences (a battery picked on the
