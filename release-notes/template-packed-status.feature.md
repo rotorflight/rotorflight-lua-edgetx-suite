@@ -1,2 +1,1 @@
-- **The Rotorflight model template carries the System Status and System Config sensors (`templates/5.Rotorflight/Rotorflight.yml`, `docs/reference/telemetry-sensors.md`)**:
-  - A model created from the template has the raw `STAT` and `SCFG` sensors, logging on, beside every sensor it had before. Existing models are not changed.
+- **The Rotorflight model template carries the System Status and System Config sensors (`templates`)**

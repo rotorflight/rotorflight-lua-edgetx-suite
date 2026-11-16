@@ -1,2 +1,1 @@
-- **The tool opened from the dashboard releases its memory after confirmation dialogs (`ui/confirm_dialog.lua`, `widgets/dashboard/tool_host.lua`)**:
-  - Confirm on Save and all other confirmation dialogs no longer keep the closed tool in memory after Yes or No, or when the tool closes with a dialog still pending (#842).
+- **The tool opened from the dashboard releases its memory after a confirmation dialog (`ui/confirm_dialog`)** (#842)
