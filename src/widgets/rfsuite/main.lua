@@ -156,7 +156,8 @@ local function refresh(widget, event, touchState)
       -- for ever when a job step raises and unwinds past refresh (see #280).
       --
       -- The tree is kept only where nothing it shows can have moved: no job pending, before the
-      -- pass or after it (what stands may be half built), and the standby screen on record as
+      -- pass or after it (what stands may be half built), a tree still marked built (one marked
+      -- unbuilt is owed a build, whatever its key says), and the standby screen on record as
       -- the build for the key that stands, or for a key some path has cleared. The standby's key
       -- names everything its build reads, so a pass that changed what it shows has moved the key
       -- away from the record, however far it got before it stopped; a cleared key is computed
@@ -168,8 +169,8 @@ local function refresh(widget, event, touchState)
       local job = jobBefore or widget._job
       widget._job = nil
       local key = widget.renderKey
-      local kept = job == nil and widget._treeKind == "standby" and widget._treeKey ~= nil
-        and (key == nil or key == widget._treeKey)
+      local kept = job == nil and widget.built == true and widget._treeKind == "standby"
+        and widget._treeKey ~= nil and (key == nil or key == widget._treeKey)
       if kept then
         -- Its key is cleared, so the next pass takes the standby's keep path: the tree stays, and the
         -- texts its per-pass caches are keyed on are handed over afresh, which drops a cached ELRS or

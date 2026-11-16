@@ -22,6 +22,8 @@
 --                        leaving the screen leaves it marked unbuilt and still to be cleared;
 --   key cleared          a pass after some other path cleared the standby's key (a reload, the
 --                        reconnect edge) that stops in its state read keeps the standby;
+--   marked unbuilt       a tree marked unbuilt between passes is still built when the next pass
+--                        stops before it queues the build;
 --   key moved            a stop on the line after a pass moved the render key gives the tree up --
 --                        the standby's, whose record no longer matches, and the scene's -- and the
 --                        surface is built again for the new key;
@@ -399,6 +401,19 @@ do
   check("key cleared: the stop happened in a state pass", stoppedHere)
   check("key cleared: the standby on screen is not built again", rebuilt == 0, rebuilt)
   check("key cleared: no rebuild is claimed", not logged("rebuild: after a stopped pass"))
+end
+-- The tree marked unbuilt between passes without its key moving (new widget options do that), and
+-- the next pass stops in its state read before it queues the build: the build is still owed.
+check("the standby stands again before the unbuilt case", settle())
+do
+  widget.built = false
+  lines = {}
+  local before = standbyBuilds
+  local stoppedHere = stopInStatePass("CPU limit")
+  check("marked unbuilt: the stop happened in a state pass", stoppedHere)
+  local rebuilt = standbyBuilds - before
+  check("marked unbuilt: the standby is built, once", rebuilt == 1, rebuilt)
+  check("marked unbuilt: it stands built afterwards", widget.built == true and widget._job == nil)
 end
 do
   local Standby = assert(_G.rfsuite.require("widgets/dashboard/standby.lua"))
