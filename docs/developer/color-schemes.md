@@ -159,7 +159,9 @@ so the radio's colours are put back on every way the tool can end:
 - A marker file, `theme_slots.txt` in the user folder, written before the first slot -- unless one
   that holds the radio's colour of every slot is already there: a scheme change, or a start that took
   the colours from an earlier run's marker, keeps it as it is, since opening it for writing empties it
-  and a write stopped part way would leave only some of the colours. Should neither
+  and a write stopped part way would leave only some of the colours. A marker written is kept only
+  once it reads back whole: a row the card refuses, or rows lost at the close, leave it to the next
+  `apply()` to write again. Should neither
   of the above run, the dashboard widget's first refresh after a pause (EdgeTX stops widget refresh
   while a tool window is open) puts the radio's colours back and deletes it, and tries again on the
   next passes, three times at most, while the marker is still there; the next start of the
