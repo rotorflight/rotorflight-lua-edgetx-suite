@@ -135,13 +135,14 @@ local function releaseStandby(self, reason)
   cancelStandbyElrs(self, reason)
   if self._job and self._job.kind == "standby" then self._job = nil end
   if self._treeKind == "standby" then
-    -- The key is forgotten before the clear: a pass stopped between the two must not leave a
-    -- record that lets a cleared key keep an empty screen. The kind stays until after the clear,
-    -- so the next release still clears a tree that a stop left standing.
-    self._treeKey = nil
-    if lvgl and type(lvgl.clear) == "function" then lvgl.clear() end
+    -- Built, key and the record's key first: a stop between the clear and them would leave an
+    -- empty screen marked as built, or on record as the build for this key, and the entry point
+    -- keeps `built` after a stop that interrupted no job. The kind stays until after the clear,
+    -- so the next release still clears a tree that a stop before the clear left standing.
     self.built = false
     self.renderKey = nil
+    self._treeKey = nil
+    if lvgl and type(lvgl.clear) == "function" then lvgl.clear() end
     self._treeKind = nil
   end
   local module = self._standbyModule
@@ -497,12 +498,18 @@ local function traceInstructionUsage(self)
   -- Kept for the phase and link lines, which fall on the armed pass, the closest to its limit.
   self._recordingOn = Log and type(Log.recording) == "function" and Log.recording() or false
   if self._recordingOn then
+    -- What the telemetry decoder in this state did since the last line (telemetry_bg/drain.lua).
+    -- Reached through the root rather than a module handle: this chunk is at Lua's limit of top-level
+    -- locals.
+    local decoder = _G.rfsuite.telemetryDecoder
     Log.emitf("rfsuite.widget", "info",
       "state: instruction budget %d%% now, %d%% peak/%ds, %d%% peak since load, %d objects, %s, "
-        .. "peak work %s, lua peak %d kB, theme=%s",
+        .. "peak work %s, lua peak %d kB, theme=%s, %s",
       percent, self._usageWindowPeak, USAGE_REPORT_INTERVAL, self._usagePeak,
       self._lastChildCount, Log.resources(), tostring(self._usageWindowWork),
-      utils.luaKb(self) and self._luaPeak, tostring(self.themePath))
+      utils.luaKb(self) and self._luaPeak, tostring(self.themePath),
+      type(decoder) == "table" and type(decoder.summary) == "function" and decoder.summary()
+        or "decoder -")
   end
 
   self._usageWindowPeak = -1
