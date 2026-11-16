@@ -32,7 +32,8 @@ A theme's own settings, such as the voltage range its gauges span, are under
 - **The screen follows the flight, not a switch.** The widget shows the preflight screen until
   the model is armed and flying — the governor active or the throttle above its threshold — then
   the inflight screen, and after disarming the postflight screen with the numbers of the flight that
-  just ended. A model armed on the bench that never spools up goes back to the preflight screen
+  just ended. The postflight screen waits for the work that starts at the landing, the flight log
+  entry among it, usually a second or two. A model armed on the bench that never spools up goes back to the preflight screen
   and shows no postflight screen, because there was no flight. The exact rules are in
   [developer/dashboard-themes.md](../developer/dashboard-themes.md#what-puts-the-widget-into-each-phase).
 - **Before the first screen, a connecting screen.** Until the flight controller answers, battery
@@ -57,6 +58,13 @@ count from telemetry takes priority, followed by the configured cell count. If n
 available, the dashboard estimates the count from the pack voltage and maximum cell voltage,
 including when the controller supplies its cell limits in centivolts. Saved voltage bounds
 keep their configured range.
+
+After a connect the battery can be reported before the pack voltage or the cell count is. While
+no cell count is known yet and no voltage bounds are saved, the dashboard waits for one, for up to
+five seconds, with *Dashboard startup is pending* on the standby, so that its gauges first
+appear on the pack's range rather than on the default range and are drawn again a moment later.
+A model that reports no cell count and no pack voltage gets its dashboard on the default range
+once those five seconds are over.
 
 ## The shipped themes
 

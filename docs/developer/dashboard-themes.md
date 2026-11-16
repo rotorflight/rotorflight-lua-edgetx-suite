@@ -135,6 +135,19 @@ in autorotation does not send the screen back to `armed`. The latch is cleared o
 arm edge, and on the flight controller reconnect edge; the disarm hands it to the postflight
 phase, which is what makes a landing produce a summary screen and a bench arm not produce one.
 
+**The postflight module waits for the disarm's event tasks, up to three seconds.** The disarm
+starts the `ondisarm` tasks (`tasks/events/ondisarm/manifest.lua`: the flight record, the flight
+log entry, the flight statistics, the dataflash summary and the tune history, which only
+schedules its own reads for later). While that runner still has tasks, the widget keeps the
+inflight screen and holds the reload of the postflight module, until three seconds after the hold
+began, whether or not the tasks have finished by then. The tasks run in the widget's own calls,
+one logic tick after another, and the phase change follows the telemetry read cadence, so
+without the hold the theme load can fall into the same widget call as the flight log write and,
+together with the read and the first postflight reads, run into the instruction limit. The hold does not use up the one
+carry a reload gets off a telemetry-read pass, so a reload released on a read pass can still move
+one logic tick further. In practice the hold ends after one to two seconds; at the three-second
+limit, with that carry and the logic tick on top, it can last a little longer.
+
 Two consequences worth knowing before writing a theme:
 
 - **The post-flight screen outlives the link, and that is what `offline` names.** While the

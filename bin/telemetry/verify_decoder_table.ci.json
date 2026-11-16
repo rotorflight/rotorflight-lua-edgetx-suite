@@ -1,0 +1,7 @@
+{
+  "id": "decoder-table",
+  "name": "Telemetry decoder table",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_decoder_table.lua"
+  ]
+}
