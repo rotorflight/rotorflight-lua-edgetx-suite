@@ -64,7 +64,8 @@ service widget and a tool hosted by the dashboard all use the same event runtime
    - While the link is held down, the widget context puts back a model name that
      `model_name_sync` replaced (`restorePendingModelName`). Because this is a check of the
      current state rather than an event, it also catches a radio that was switched off while
-     connected.
+     connected. It is not done in the call that publishes the disconnect, which already
+     carries the runner resets, but on the next one.
 2. **A flight kept across a link loss.** If the link dropped while the craft was armed, the
    flight is kept. Once the link is back, the runtime waits up to 5 s for an armed reading
    received since then (`settleFlightAfterGap`). If the craft is armed, it is the same flight. If
