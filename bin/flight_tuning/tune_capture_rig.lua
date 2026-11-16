@@ -16,7 +16,7 @@ local Rig = {}
 
 local ROOT = "src/rfsuite/"
 local CORE = "/SCRIPTS/RFSUITE/core/"
-local READ, CLEAR, RC_TUNING, PID_PROFILE = 0x5F10, 0x5F11, 111, 94
+local READ, CLEAR, RC_TUNING, PID_PROFILE, STATUS = 0x5F10, 0x5F11, 111, 94, 101
 local NAMES = { "roll", "pitch", "yaw" }
 
 Rig.READ, Rig.CLEAR = READ, CLEAR
@@ -38,12 +38,15 @@ function Rig.new(opts)
     clock = 1000,
     requests = {},       -- every message put on the MSP queue, oldest first, until answered
     contextAsked = {},   -- names of the RC_TUNING / PID_PROFILE reads, in order
+    statusAsked = {},    -- the MSP_STATUS reads (the profiles before a save without PID#/RTE#)
     loads = {},          -- every path loaded through loadScript
     shared = {},         -- path -> module instance handed out on every load of that path
     logs = {},
     states = {},
     reply = { seconds = 147, F = 100 },
     rtc = 1761900000,
+    sensors = {},        -- telemetry values lib/sensors.lua answers, by name
+    status = {},         -- MSP_STATUS profile indices (0-based) when set, else the session's
   }
   local mspState = { lastConnected = true, lastArmed = false, unsupportedApi = false }
   local queue = {}
@@ -70,7 +73,8 @@ function Rig.new(opts)
       }
     end,
     ["lib/log.lua"] = function() return log end,
-    ["lib/sensors.lua"] = function() return { getValue = function() return nil end } end,
+    -- rig.sensors[name] (e.g. pid_profile, rate_profile) answers getValue; nil reads as absent
+    ["lib/sensors.lua"] = function() return { getValue = function(name) return h.sensors[name] end } end,
     ["lib/model_name_store.lua"] = function()
       return { invalidate = noop, hasAny = function() return false end }
     end,
@@ -162,12 +166,24 @@ function Rig.new(opts)
     if msg.command == READ then return NAMES[(msg.payload and msg.payload[1] or 0) + 1] end
     if msg.command == RC_TUNING then return "rc_tuning" end
     if msg.command == PID_PROFILE then return "pid_profile" end
+    if msg.command == STATUS then return "status" end
     return tostring(msg.command)
   end
 
   -- The bytes the flight controller answers a message with: for a Tune Advisor read, the
   -- simulator reply of that axis with this rig's flight seconds and F gain.
   function h.replyFor(msg)
+    if msg.command == STATUS then
+      -- The status reply with the profiles the flight controller flies: h.status, else the session's
+      local buf = {}
+      for i, b in ipairs(msg.simulatorResponse) do buf[i] = b end
+      local s = _G.rfsuite.session
+      buf[24] = h.status.pid or s.activeProfile or 0
+      buf[26] = h.status.rate or s.activeRateProfile or 0
+      -- h.status.bytes: a reply cut short after that many bytes
+      if h.status.bytes then for i = #buf, h.status.bytes + 1, -1 do buf[i] = nil end end
+      return buf
+    end
     if msg.command ~= READ then return msg.simulatorResponse end
     local axis = msg.payload[1] + 1
     local src = h.api.simulatorResponseFor(axis)
