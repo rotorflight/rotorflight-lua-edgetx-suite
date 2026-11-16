@@ -982,7 +982,13 @@ do
     readyWidget.state.batteryTelemetrySeen = true
     readyWidget.state.rfTelemetrySeen = true
     readyWidget.pendingSince = -1000
+    -- A board with its cell count configured: without any count the first build waits for one
+    -- (up to five seconds), and this widget is meant to be ready.
+    local session = _G.rfsuite.session
+    local savedBatteryConfig = session and session.batteryConfig
+    if session then session.batteryConfig = { batteryCellCount = 6 } end
     for _ = 1, 8 do Stubs.tick(); readyWidget:refresh(0, nil) end
+    if session then session.batteryConfig = savedBatteryConfig end
     if flown then
       readyWidget.state.hadInflightFlight = true
       for _ = 1, 3 do Stubs.tick(); readyWidget:refresh(0, nil) end
