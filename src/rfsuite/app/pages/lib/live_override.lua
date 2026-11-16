@@ -58,13 +58,40 @@ end
 local Override = {}
 Override.__index = Override
 
---- opts: command (MSP id), inputs (list of indices), on, off (values), cadence ("periodic" or
---- "settle"), interval (seconds).
+-- Reached through the global lib/log.lua publishes rather than loaded here, so a page that uses
+-- the override pays for no second copy of the logger. Absent logger, absent lines.
+local function log(level, fmt, ...)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.override", level, fmt, ...)
+  end
+end
+
+-- A save is still writing: a step or the EEPROM commit is ahead. The pipeline queues each step
+-- from the previous reply, so a write queued now would land between them and EEPROM could keep
+-- the old value while the save reports the new one. A save that needs no restart lets the page
+-- be left meanwhile (SavePipeline.blocksNavigation()). Asked of the pipeline rather than kept in
+-- a flag: a dismissed save's outcome is delivered late, and a flag cleared there could stay set.
+-- The restart a failed save offers (PREFLIGHT .. VERIFY) is not counted: whatever a rollback
+-- writes then is the stored record, which is what the board boots with anyway.
+function M.saveWriting()
+  local SavePipeline = loadModule("tasks/msp/save_pipeline.lua")
+  if not SavePipeline or type(SavePipeline.getProgress) ~= "function" then return false end
+  local progress = SavePipeline.getProgress()
+  local phases = SavePipeline.PHASE or {}
+  return type(progress) == "table"
+    and (progress.phase == (phases.WRITE or "write") or progress.phase == (phases.COMMIT or "commit"))
+end
+
+--- opts: command (MSP id), inputs, on, off (values), cadence ("periodic" or "settle"), interval
+--- (seconds). `inputs` is the list of indices the command takes one write each for, with the
+--- payload { index, lo, hi } (MSP_SET_MIXER_OVERRIDE). Left out, the command sets every output in
+--- one write with the payload { lo, hi } (MSP_SET_SERVO_OVERRIDE_ALL).
 function M.new(opts)
   opts = opts or {}
   return setmetatable({
     command = opts.command,
-    inputs = opts.inputs or {},
+    inputs = opts.inputs,
     onValue = opts.on,
     offValue = opts.off,
     cadence = opts.cadence == "settle" and "settle" or "periodic",
@@ -83,6 +110,15 @@ local function queueValue(self, queue, value)
   if not queue or type(queue.add) ~= "function" then return false end
   local lo = value % 256
   local hi = math.floor(value / 256) % 256
+  if type(self.inputs) ~= "table" then
+    queue:add({
+      command = self.command,
+      payload = { lo, hi },
+      isWrite = true,
+      processReply = function() end
+    })
+    return true
+  end
   for _, index in ipairs(self.inputs) do
     queue:add({
       command = self.command,
@@ -95,12 +131,21 @@ local function queueValue(self, queue, value)
 end
 
 function Override:enable(queue)
-  if queueValue(self, queue, self.onValue) then self.active = true end
+  if queueValue(self, queue, self.onValue) then
+    self.active = true
+    log("info", "on: command %s, value %s", tostring(self.command), tostring(self.onValue))
+  else
+    log("warn", "on: no MSP queue, override not sent")
+  end
   return self.active
 end
 
 function Override:disable(queue)
-  queueValue(self, queue, self.offValue)
+  if queueValue(self, queue, self.offValue) then
+    log("info", "off: command %s, value %s", tostring(self.command), tostring(self.offValue))
+  else
+    log("warn", "off: no MSP queue, release not sent")
+  end
   self.active = false
 end
 
@@ -127,12 +172,14 @@ function Override:snapshot(record, values)
   self.sentAny = false
   self.seen = copyFlat(values)
   self.seenAt = M.now()
+  log("debug", "snapshot: the board's record taken")
 end
 
 --- A save reached EEPROM: from now on this is what leaving without Save puts back.
 function Override:stored(record, values)
   self.original = { record = copyFlat(record), values = copyFlat(values) }
   self.sentAny = false
+  log("debug", "stored: a save reached EEPROM, its record is what a rollback puts back")
 end
 
 --- A save queued `values`: they need no live write until they change, and until the save is
@@ -141,12 +188,24 @@ end
 function Override:markSent(values)
   self.sent = copyFlat(values)
   self.sentAny = true
+  log("debug", "save queued: its values count as sent until stored")
 end
 
 --- A live write the board did not answer is sent again on the next due pass; one it refused is not
 --- repeated until the value changes.
 function Override:writeFailed(reason)
   if reason ~= "refused" then self.sent = nil end
+  log("warn", "live write failed (%s); %s", tostring(reason),
+    reason == "refused" and "not repeated until the value changes" or "sent again on the next due pass")
+end
+
+--- A save that did not reach EEPROM: which of its writes the board took is not known, so what went
+--- out last is forgotten. Leaving then always puts the board's record back, and the live loop sends
+--- the values on screen again when they are due.
+function Override:saveFailed()
+  self.sent = nil
+  self.sentAny = true
+  log("info", "save not stored: the last values sent are unknown, a rollback will put the record back")
 end
 
 --- Called from the page's wakeup while the override is on. `send(values)` queues the write and
@@ -169,6 +228,7 @@ function Override:tick(values, send)
   self.sent = copyFlat(values)
   self.sentAny = true
   self.lastSentAt = now
+  log("trace", "live write queued (%s)", self.cadence)
   return true
 end
 
@@ -181,10 +241,20 @@ function Override:rollback(send)
   local lastSent = self.sent
   self.sentAny = false
   self.sent = orig and copyFlat(orig.values) or nil
-  if not wasSent or type(orig) ~= "table" or type(orig.record) ~= "table" then return nil end
+  if not wasSent or type(orig) ~= "table" or type(orig.record) ~= "table" then
+    log("trace", "rollback: nothing was sent live, nothing to put back")
+    return nil
+  end
   -- What went out last is what the board already holds: nothing to put back.
-  if lastSent and sameFlat(lastSent, orig.values) then return nil end
-  if send(orig.record) ~= true then return nil end
+  if lastSent and sameFlat(lastSent, orig.values) then
+    log("trace", "rollback: the last write already carried the board's record")
+    return nil
+  end
+  if send(orig.record) ~= true then
+    log("warn", "rollback: the board's record could not be queued")
+    return nil
+  end
+  log("info", "rollback: the board's record queued")
   return orig
 end
 
