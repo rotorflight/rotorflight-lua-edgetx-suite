@@ -366,14 +366,43 @@ end
 -- left the module is dropped again.
 --
 -- Arming ends any capture in progress: the flight controller keeps adding to its numbers, so
--- the next disarm reads this flight together with the one it was still reading.
+-- the next disarm reads this flight together with the one it was still reading. A clear still
+-- owed for a saved flight is dropped too: sent after the next disarm, it would erase that new
+-- flight unread. The same holds across a link loss and across a stretch with no pass (the
+-- configuration tool open stops the widgets), through which the craft may have flown unseen. The
+-- next disarm reads first, saves, and clears then. A clear already queued is stopped by its own
+-- sendIf (tasks/events/tune_capture.lua).
+--
+-- The link loss is the held one below, on purpose. A shorter gap (RSSI 0 for less than
+-- DISCONNECT_STABLE_SECONDS) keeps an owed clear that is not queued yet: no arm, flight and disarm
+-- fit into it. The gap drops the board's identity (tasks/msp/runtime.lua), so the clear waits
+-- until it is read again and goes only to the flight controller that flew the flight, and an arm
+-- seen meanwhile drops it. Only an arm the radio never sees (no armed state reported after the gap,
+-- so the MSP runtime goes on without it) together with an identity read left unanswered for a
+-- whole flight could let it erase that flight. Dropping the clear on every gap instead leaves the
+-- saved flight in the flight controller, read again with the next one.
+local function dropOwedClear(capture, why)
+  if not capture.clearPending then return end
+  if Log and type(Log.emit) == "function" then
+    pcall(Log.emit, "rfsuite.events", "tune capture: clear owed dropped (" .. why .. "); the next disarm reads first", "debug")
+  end
+  capture.clearPending, capture.clearMcu = false, nil
+  -- The capture's own module may not be loaded to say so: with no flight to read, nothing is owed
+  if not capture.pending then capture.state = "idle" end
+end
+
 local function driveTuneCapture(capture, armed, linkUp, t, carry, mspState)
+  local seen = capture.seenAt
+  capture.seenAt = t
+  if seen ~= nil and (t < seen or t - seen > 5) then dropOwedClear(capture, "no pass for a while") end
   if armed then
+    dropOwedClear(capture, "armed")
     capture.pending = false
     capture.state = "idle"
     TuneCapture = nil
     return
   end
+  if linkUp ~= true then dropOwedClear(capture, "link lost") end
   if carry then return end
   if TuneCapture == nil then
     local work = capture.pending or (capture.clearPending and not capture.refusedOnFc)
