@@ -195,6 +195,9 @@ function Rig.new(opts)
     local p, b = gains % 1024, (gains // (1024 * 1024)) % 1024
     gains = p + h.reply.F * 1024 + b * 1024 * 1024
     buf[5], buf[6], buf[7], buf[8] = gains & 0xFF, (gains >> 8) & 0xFF, (gains >> 16) & 0xFF, (gains >> 24) & 0xFF
+    -- releases (U16 at byte 41) when the caller sets one
+    local r = h.reply.releases
+    if r then buf[41], buf[42] = r & 0xFF, (r >> 8) & 0xFF end
     return buf
   end
 
