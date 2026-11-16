@@ -351,6 +351,8 @@ end
 
 scenario("plan_quota_per_pass", function()
   newWorld()
+  -- A radio-side offset on Vbec, so its read from the decoder and its read from the sensor differ.
+  W.offset.Vbec = 0.5
   W.payload = sixRows()
   seconds(1)
   W.askEarly = false
