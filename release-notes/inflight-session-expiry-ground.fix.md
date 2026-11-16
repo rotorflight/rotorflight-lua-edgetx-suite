@@ -1,5 +1,1 @@
-- **In-flight tuning keeps its session in the air when a link gap on the ground was still pending (`widgets/dashboard/runtime.lua`, `widgets/dashboard/inflight/profiles.lua`, `widgets/dashboard/inflight/prime.lua`, `widgets/dashboard/inflight/drive.lua`, `widgets/dashboard/inflight/screen.lua`)**:
-  - A session end noted after five seconds without a link on the ground is taken only on the ground: never while armed, in the live phase, or before this link has read the arm state, so releasing the bank variable in the air no longer drops the start values, the undo and the comparison (#993).
-  - A ground read that begins while that end is still pending, the automatic one or **Read again**, ends the old session as it starts and begins a new one, also when arming interrupts it. The mark no longer carries into the next session.
-  - While the end is pending the **Session** status says so (**Battery changed: new session at next read**), and the restores are shown disabled instead of writing back the old start values.
-  - A full read, whoever starts it, counts as every read still due: **Read again** after a link gap is no longer followed by a second full read.
+- **In-flight tuning keeps its session in the air when a link gap on the ground was still pending (`widgets/dashboard/inflight`)** (#993)
