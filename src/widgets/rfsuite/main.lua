@@ -73,10 +73,18 @@ end
 -- module is loaded here rather than at the top of the file because this one is read for every
 -- widget at boot and a fault is not the common case; lib/log_sink.lua then makes the same check
 -- again itself and writes nothing while the option is off.
-local function logFault(context, err)
+--
+-- `work`, where given, is the work class the dashboard last named for the pass (its `_passWork`,
+-- the word its `long pass:` and `pass gap` lines carry), so the line says where the pass stopped and
+-- not only why. The dashboard names it part way into a pass, so a stop before that point names the
+-- previous pass's work; hence "last work". Only the log line carries it: the card's fault record
+-- keeps the error text as it was.
+local function logFault(context, err, work)
   local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
   if type(Log) == "table" and type(Log.emit) == "function" then
-    pcall(Log.emit, "rfsuite.widget", tostring(context) .. " stopped: " .. tostring(err), "error")
+    local line = tostring(context) .. " stopped: " .. tostring(err)
+    if work ~= nil then line = line .. " (last work " .. tostring(work) .. ")" end
+    pcall(Log.emit, "rfsuite.widget", line, "error")
   end
 
   local fn = type(_G) == "table" and _G.rfsuite and _G.rfsuite.logFault
@@ -199,17 +207,50 @@ local function refresh(widget, event, touchState)
       return
     end
 
+    -- Read before the call: a job step that raises has its job dropped by the dashboard before the
+    -- error reaches this point.
+    local jobBefore = widget._job
     local ok, err = pcall(widget.refresh, widget, event, touchState)
     if not ok then
-      logFault("widget.refresh", err)
+      logFault("widget.refresh", err, widget._passWork)
       if isCpuLimitError(err) then
         widget._cpuBackoffUntil = now + 1.2
         letGoWhileBackedOff(widget)
       end
       -- Clear any pending job so the widget cannot be pinned in the JOB branch
       -- for ever when a job step raises and unwinds past refresh (see #280).
-      widget._job   = nil
-      widget.built  = false
+      --
+      -- The tree is kept only where nothing it shows can have moved: no job pending, before the
+      -- pass or after it (what stands may be half built), a tree still marked built (one marked
+      -- unbuilt is owed a build, whatever its key says), and the standby screen on record as
+      -- the build for the key that stands, or for a key some path has cleared. The standby's key
+      -- names everything its build reads, so a pass that changed what it shows has moved the key
+      -- away from the record, however far it got before it stopped; a cleared key is computed
+      -- again by the next pass, which keeps the standby or builds it by that key. Building it
+      -- again there made the next pass draw the same screen -- after a stop on connect, for one --
+      -- for nothing but the memory a rebuild costs. Any other surface is given up as before: a
+      -- scene can change without its key moving (a zone view, a view's outcome, a theme load),
+      -- and a pass stopped part way through such a change may not have marked the tree unbuilt.
+      local job = jobBefore or widget._job
+      widget._job = nil
+      local key = widget.renderKey
+      local kept = job == nil and widget.built == true and widget._treeKind == "standby"
+        and widget._treeKey ~= nil and (key == nil or key == widget._treeKey)
+      if kept then
+        -- Its key is cleared, so the next pass takes the standby's keep path: the tree stays, and the
+        -- texts its per-pass caches are keyed on are handed over afresh, which drops a cached ELRS or
+        -- GPS answer the stopped pass had begun to replace -- the part of a rebuild a kept tree needs.
+        widget.renderKey = nil
+      else
+        local wasBuilt = widget.built
+        widget.built = false
+        local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+        if (job ~= nil or wasBuilt) and type(Log) == "table" and type(Log.emit) == "function" then
+          local why = job ~= nil and ("job " .. tostring(job.kind))
+            or ("the " .. tostring(widget._treeKind or "screen") .. " is not kept")
+          pcall(Log.emit, "rfsuite.widget", "rebuild: after a stopped pass, " .. why, "debug")
+        end
+      end
     end
   end
 end
