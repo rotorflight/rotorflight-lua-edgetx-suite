@@ -45,7 +45,15 @@ Stubs.installTool()
 -- own colour is its flag. `stops` makes setColor calls raise, as the instruction limit does part way through
 -- a write; `stopAfter` lets that many calls through first, so a stop can land after some slots were written.
 local slots, writes, stops, stopAfter = {}, 0, 0, 0
-lcd.getColor = function(flag) return slots[flag] or flag end
+-- `readStops` makes getColor calls raise, as a stop in the write's preparation does, before any slot is written.
+local readStops = 0
+lcd.getColor = function(flag)
+  if readStops > 0 then
+    readStops = readStops - 1
+    error("instruction limit")
+  end
+  return slots[flag] or flag
+end
 lcd.setColor = function(flag, color)
   if stops > 0 then
     if stopAfter > 0 then
@@ -114,7 +122,7 @@ local function pass()
 end
 
 local function restore()
-  stops, stopAfter = 0, 0
+  stops, stopAfter, readStops = 0, 0, 0
   local ThemeSlots = _G.rfsuite.require("lib/theme_slots.lua")
   if type(ThemeSlots) == "table" then ThemeSlots.restore("case end") end
 end
@@ -435,6 +443,48 @@ do
   check(ThemeSlots.current() == other and state.themeSlotsOwed == nil, "a save that goes through clears what was owed")
   pass()
   check(ThemeSlots.current() == other, "and the next pass leaves the saved scheme in the slots", ThemeSlots.current())
+  general.color_scheme = saved
+  restore()
+end
+
+-- A save's slot write that stops in its preparation, before a slot is written, while the slots still carry the
+-- scheme before: the module still answers that scheme's name, which is not the saved one, so the write stays owed.
+-- The owed write on the next pass stopping the same way stays owed too; the one after writes the saved scheme,
+-- and the page is built again only on the pass after that.
+do
+  connected = true
+  local state = open({ hosted = true })
+  pass()
+  pass()
+  local ThemeSlots = _G.rfsuite.require("lib/theme_slots.lua")
+  local before = ThemeSlots.current()
+  check(builds > 0 and before ~= nil, "control: the tool is built in a scheme", builds)
+  local general = state.preferences.general
+  local saved = general.color_scheme
+  local other = (before == "light") and "dark" or "light"
+  general.color_scheme = other
+  local applySaved = assert(find(Home.run, "applySavedScheme"), "applySavedScheme missing")
+  local written = writes
+  readStops = 1
+  applySaved()
+  check(readStops == 0 and writes == written and ThemeSlots.current() == before,
+    "control: the save's write stopped in its preparation, nothing written, the old name kept", ThemeSlots.current())
+  check(state.themeSlotsOwed == true, "a save's write stopped before any slot is owed to the next pass")
+  -- The owed write on its own: stopped the same way, it is not taken for the saved scheme written either.
+  state.themeSlotsOwed, state.themeSlotsTries = true, 0
+  local built = builds
+  readStops = 1
+  pass()
+  check(readStops == 0 and ThemeSlots.current() == before, "control: the owed write stopped in its preparation too")
+  check(state.themeSlotsOwed == true and state.themeSlotsTries == 1, "a stopped owed write stays owed for its next try",
+    tostring(state.themeSlotsOwed) .. "/" .. tostring(state.themeSlotsTries))
+  check(builds == built, "and nothing is built over the old scheme's slots", builds - built)
+  pass()
+  check(ThemeSlots.current() == other and state.themeSlotsOwed == nil, "the next try writes the saved scheme",
+    ThemeSlots.current())
+  check(builds == built, "and builds nothing", builds - built)
+  pass()
+  check(builds > built, "the page is built again on the pass after", builds - built)
   general.color_scheme = saved
   restore()
 end

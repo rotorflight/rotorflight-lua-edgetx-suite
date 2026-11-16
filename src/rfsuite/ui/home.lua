@@ -773,10 +773,11 @@ local function applySavedScheme()
   logf("info", "colour scheme %s applied on save", tostring(Palette.scheme))
   -- A write that stops part way (the instruction limit) leaves slots of both schemes: it is owed to the next
   -- passes as the opening write is (writeOwedThemeSlots, same tries and the same put-back if it never goes
-  -- through), and the page waits for it rather than being built over the mix.
+  -- through), and the page waits for it rather than being built over the mix. Only the saved scheme's name
+  -- counts as written: a stop before the module lets go of the old name still answers the previous scheme.
   if ThemeSlots then
     local ok, err = pcall(ThemeSlots.apply, scheme)
-    if ok or ThemeSlots.current() ~= nil then
+    if ok or ThemeSlots.current() == Palette.scheme then
       state.themeSlotsOwed = nil
     else
       state.themeSlotsTries, state.themeSlotsOwed = 0, true
@@ -831,7 +832,9 @@ local function writeOwedThemeSlots()
     return
   end
   local ok, result = pcall(writeThemeSlots)
-  if not ok and ThemeSlots ~= nil and ThemeSlots.current() ~= nil then
+  -- The scheme asked for, not any name: a save's owed write that stops before the module lets go of the old
+  -- name still answers the previous scheme (Palette.scheme is the saved one, applied before this pass).
+  if not ok and ThemeSlots ~= nil and ThemeSlots.current() == Palette.scheme then
     logf("debug", "theme slots: the write stopped after its last slot (%s), taken as written", tostring(result))
     ok = true
   end
