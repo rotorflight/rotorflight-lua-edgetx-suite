@@ -1,0 +1,1 @@
+- **Tune Advisor no longer loses a flight to a late clear, and says when a flight could not be saved to the card (`flight_tuning/tune_advisor`)**

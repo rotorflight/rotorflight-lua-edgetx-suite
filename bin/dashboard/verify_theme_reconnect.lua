@@ -23,6 +23,12 @@
 -- behind its refusal screen as while the link is down. And a dashboard built again while the read
 -- has no answer waits as well.
 --
+-- And the voltage bounds at the reconnect: a connection whose cell count is not known when
+-- everything else is ready builds its scene once, on the pack's bounds, when the count arrives,
+-- and still builds it within a few seconds when no count comes. A count guessed from the pack
+-- voltage counts as not known when it differs from the last count the cell count sensor gave, and
+-- as known when it matches or the model has no such sensor.
+--
 --   lua5.3 bin/dashboard/verify_theme_reconnect.lua [runtime.lua] [--trace]
 local runtimePath = "src/rfsuite/widgets/dashboard/runtime.lua"
 local trace = false
@@ -189,7 +195,9 @@ local function newWorld()
     local job = world.w and world.w._job
     world.trees[#world.trees + 1] = { pass = world.pass, kind = job and job.kind, children = children,
       fullscreen = job and (job.fullscreenSplash or job.fullscreen) or false,
-      theme = world.w and world.w.themePath, count = type(children) == "table" and #children or 0 }
+      theme = world.w and world.w.themePath, count = type(children) == "table" and #children or 0,
+      vMin = world.w and world.w.state.themeConfig and world.w.state.themeConfig.v_min,
+      vMax = world.w and world.w.state.themeConfig and world.w.state.themeConfig.v_max }
     return build(children, ...)
   end
   return world
@@ -364,6 +372,39 @@ for _, pending in ipairs({ true, false }) do
   expect(world.w.themePath == "system/urban", tag .. ": the model's theme is back after the UID",
     tostring(world.w.themePath))
   cost(world, tag)
+end
+
+-- A rolling menu that is up keeps its place across the reconnect, and everything else on the session
+-- goes with the old connection, as it does with no rolling menu.
+do
+  if trace then print("scenario: a rolling menu across the reconnect") end
+  local world = newWorld()
+  connectAndSettle(world)
+  local roll = { view = "menu", levels = { { rows = {}, index = 1 } }, base = 1, focus = 1, position = 0, epoch = 0 }
+  world.event = 0
+  world.w.preferences.general.menu_style = "rotary"
+  world.w._viewStack = { rolls = { menu = roll }, { id = "menu" }, { id = "battery_pick", auto = true }, status = { battery_pick = "busy" } }
+  world.linkUp = false
+  passes(world, 30, "down")
+  expect(world.w._viewStack.rolls.menu == roll, "the place stays while the link is down")
+  reconnectWindow(world, 30)
+  world.releaseUid()
+  passes(world, 60, "uid")
+  local session = world.w._viewStack
+  expect(session ~= nil and session.rolls ~= nil and session.rolls.menu == roll, "the rolling menu keeps its place across the reconnect")
+  expect(session ~= nil and session[1] ~= nil and session[1].id == "menu" and session[2] == nil, "the prompt over it goes with the old connection")
+  expect(session ~= nil and session.status == nil, "and so does how a write went")
+
+  local plain = newWorld()
+  connectAndSettle(plain)
+  plain.event = 0
+  plain.w._viewStack = { { id = "confirm" } }
+  plain.linkUp = false
+  passes(plain, 30, "down")
+  reconnectWindow(plain, 30)
+  plain.releaseUid()
+  passes(plain, 60, "uid")
+  expect(plain.w._viewStack == nil or plain.w._viewStack[1] == nil, "control: with no rolling menu the session is emptied")
 end
 
 -- 3. An empty UID answer settles the read without a UID: the radio's theme is let in.
@@ -797,6 +838,257 @@ for _, case in ipairs({ "model", "both", "seq", "seqafter" }) do
   expect(world.w._lastPrefsStamp ~= nil
     and world.w._lastPrefsStamp == upvalue(world.prefsFn, "preferencesStamp")(session.modelPreferencesFile, nil),
     tag .. ": the stamp adopted is the files' stamp as they stand", tostring(world.w._lastPrefsStamp))
+end
+
+-- 10. A reconnect whose battery reading is a fuel figure alone at first. The board detects the
+-- cell count itself (none configured), and on the way back neither the pack voltage nor the cell
+-- count sensor has answered yet, so the theme's voltage bounds are its defaults when everything
+-- else is ready. "late": the count arrives two seconds later, and the scene is built once, on the
+-- pack's bounds, rather than on the defaults and again on the pack's. "never": no count arrives,
+-- and the dashboard is still built, on the defaults, within a few seconds.
+for _, case in ipairs({ "late", "never" }) do
+  if trace then print("scenario: cell count " .. case) end
+  local world = newWorld()
+  FC.replies[32][3] = 0
+  connectAndSettle(world)
+  world.linkUp = false
+  passes(world, 30, "down")
+  Stubs.sensors["Vbat"], Stubs.sensors["Cel#"] = 0, 0
+  world.linkUp = true
+  local start = #world.trees
+  local readyPass
+  for _ = 1, 400 do
+    passes(world, 1, "back")
+    if world.w.readySince ~= nil and not readyPass then readyPass = world.pass end
+    if readyPass and world.pass - readyPass >= 20 then break end
+  end
+  expect(readyPass ~= nil, "control: everything but the cell count is ready (" .. case .. ")")
+  expect(world.w.state.batteryCellCount == 0 and world.w.state.themeConfig.v_min == 18.0,
+    "control: no cell count and the theme's default bounds at the gate (" .. case .. ")",
+    tostring(world.w.state.batteryCellCount) .. ", " .. tostring(world.w.state.themeConfig.v_min))
+  -- Two seconds into the wait: the scene is held, the model's announcement is not.
+  expect(world.w.connectionReady ~= true and world.w.startupComplete == true,
+    case .. ": the scene waits for the count and the announcement does not",
+    "connectionReady=" .. tostring(world.w.connectionReady) .. ", startupComplete=" .. tostring(world.w.startupComplete))
+  if case == "late" then Stubs.sensors["Vbat"], Stubs.sensors["Cel#"] = 24.6, 6 end
+  passes(world, 80, "count " .. case)
+  local scenes = {}
+  for i = start + 1, #world.trees do
+    local tree = world.trees[i]
+    if tree.kind ~= "standby" and tree.count > 20 then scenes[#scenes + 1] = tree end
+  end
+  expect(world.w.connectionReady == true and #scenes >= 1, case .. ": the dashboard is built",
+    tostring(world.w.connectionReady) .. ", " .. #scenes .. " scene(s)")
+  expect(#scenes == 1, case .. ": the scene is built once", #scenes .. " scene(s)")
+  if case == "late" then
+    local first = scenes[1] or {}
+    -- 6 cells at the board's 3.30 / 4.20 V cell limits (tasks/msp/api/battery_config.lua).
+    expect(type(first.vMin) == "number" and math.abs(first.vMin - 19.8) < 0.001
+      and type(first.vMax) == "number" and math.abs(first.vMax - 25.2) < 0.001,
+      "late: the scene is built on the pack's bounds",
+      tostring(first.vMin) .. "/" .. tostring(first.vMax))
+  else
+    local first = scenes[1] or {}
+    expect(first.pass ~= nil and readyPass ~= nil and first.pass - readyPass <= 60,
+      "never: the scene does not wait more than a few seconds for a count",
+      tostring(first.pass and readyPass and (first.pass - readyPass)) .. " pass(es) after ready")
+  end
+end
+
+-- 11. A reconnect on a part-charged pack whose cell count is a guess at first. The board detects
+-- the count itself and the model carries a cell count sensor, which answered on the first
+-- connection; on the way back it has not answered yet, while the pack voltage has: 22.0 V over the
+-- 4.20 V cell limit reads as 5 cells for a 6-cell pack. The sensor's 6 then arrives `k` passes
+-- after everything else was ready -- before the reconnect hold ends, on the pass it ends, after
+-- it -- and the scene is built once, on the pack's bounds, rather than on 5 cells and again on 6.
+-- "late": the count comes after the wait's limit, and the dashboard is not held past it.
+-- "nosensor": a model with no cell count sensor at all gets its dashboard as soon as before, on
+-- the count the voltage gives, because there is nothing to wait for.
+-- "full": a full pack (24.6 V reads 6) whose guess matches the sensor's last count is not held,
+-- though the sensor answers late.
+-- "stale": the pack voltage has not answered either; the guess comes from the voltage the last
+-- connection left behind, and the scene still waits for the sensor and is built once.
+local function sceneTrees(world, start)
+  local scenes = {}
+  for i = start + 1, #world.trees do
+    local tree = world.trees[i]
+    if tree.kind ~= "standby" and tree.count > 20 then scenes[#scenes + 1] = tree end
+  end
+  return scenes
+end
+
+local function guessReconnect(case, k)
+  local label = case .. (k and (" k=" .. k) or "")
+  if trace then print("scenario: guessed cell count " .. label) end
+  local world = newWorld()
+  FC.replies[32][3] = 0
+  local volts = (case == "full") and 24.6 or 22.0
+  Stubs.sensors["Vbat"] = volts
+  if case == "nosensor" then Stubs.sensors["Cel#"] = nil end
+  connectAndSettle(world)
+  world.linkUp = false
+  passes(world, 30, "down")
+  if case ~= "nosensor" then Stubs.sensors["Cel#"] = 0 end
+  if case == "stale" then Stubs.sensors["Vbat"] = nil end
+  world.linkUp = true
+  local start = #world.trees
+  local readyPass, sensorSet
+  for _ = 1, 400 do
+    if readyPass and k and not sensorSet and world.pass - readyPass >= k then
+      Stubs.sensors["Cel#"], sensorSet = 6, true
+      Stubs.sensors["Vbat"] = volts
+    end
+    passes(world, 1, "back")
+    if world.w.readySince ~= nil and not readyPass then
+      readyPass = world.pass
+      local cfg = world.w.state.themeConfig or {}
+      if case == "stale" then
+        expect(world.w.state.batteryCellCount == 0 and cfg.v_min == 16.5,
+          "control: no count read and the bounds on the left-behind voltage's guess (" .. label .. ")",
+          tostring(world.w.state.batteryCellCount) .. ", " .. tostring(cfg.v_min))
+      else
+        local guess = (case == "full") and 6 or 5
+        expect(world.w.state.batteryCellCount == guess,
+          "control: the count in use when everything else is ready is the voltage's guess (" .. label .. ")",
+          tostring(world.w.state.batteryCellCount))
+      end
+    end
+    if readyPass and world.pass - readyPass >= (k or 0) + 80 then break end
+  end
+  expect(readyPass ~= nil, "control: the reconnect got ready (" .. label .. ")")
+  local scenes = sceneTrees(world, start)
+  local first = scenes[1] or {}
+  expect(world.w.connectionReady == true and #scenes >= 1, label .. ": the dashboard is built",
+    tostring(world.w.connectionReady) .. ", " .. #scenes .. " scene(s)")
+  if case == "guess" or case == "stale" then
+    expect(#scenes == 1, label .. ": the scene is built once", #scenes .. " scene(s)")
+    expect(type(first.vMin) == "number" and math.abs(first.vMin - 19.8) < 0.001
+      and type(first.vMax) == "number" and math.abs(first.vMax - 25.2) < 0.001,
+      label .. ": the scene is built on the pack's bounds",
+      tostring(first.vMin) .. "/" .. tostring(first.vMax))
+  elseif case == "late" then
+    expect(first.pass ~= nil and first.pass - readyPass <= 60,
+      label .. ": the scene does not wait past the limit for the sensor",
+      tostring(first.pass and (first.pass - readyPass)) .. " pass(es) after ready")
+  else
+    expect(#scenes == 1, label .. ": the scene is built once", #scenes .. " scene(s)")
+    -- The reconnect hold is one second, ten passes; nothing is added to it.
+    expect(first.pass ~= nil and first.pass - readyPass <= 14,
+      label .. ": the scene does not wait for a count it already has",
+      tostring(first.pass and (first.pass - readyPass)) .. " pass(es) after ready")
+    local wantMin = (case == "full") and 19.8 or 16.5
+    expect(type(first.vMin) == "number" and math.abs(first.vMin - wantMin) < 0.001,
+      label .. ": the scene is built on the guessed count's bounds", tostring(first.vMin))
+  end
+  return world
+end
+
+-- "gone": the sensor answered on the first connection and never again (another flight controller
+-- on the model, or the sensor taken off its telemetry list). The first reconnect on a guess that
+-- differs waits out the limit once and forgets the sensor's count; the next reconnect is not held.
+-- "gone stale": the same, while the pack voltage has not answered either, so the guess comes from
+-- the voltage the last connection left behind and no count is in use; the count is forgotten all
+-- the same.
+local function sensorGone(stale)
+  local label = stale and "gone stale" or "gone"
+  if trace then print("scenario: guessed cell count " .. label) end
+  local world = newWorld()
+  FC.replies[32][3] = 0
+  Stubs.sensors["Vbat"] = 22.0
+  connectAndSettle(world)
+  expect(world.w.state.cellSensorCount == 6, label .. ": control: the sensor's count is kept from the first connection",
+    tostring(world.w.state.cellSensorCount))
+  Stubs.sensors["Cel#"] = 0
+  if stale then Stubs.sensors["Vbat"] = nil end
+  local function reconnect()
+    world.linkUp = false
+    passes(world, 30, "down")
+    world.linkUp = true
+    local start, readyPass = #world.trees, nil
+    for _ = 1, 400 do
+      passes(world, 1, "back")
+      if world.w.readySince ~= nil and not readyPass then readyPass = world.pass end
+      if readyPass and world.pass - readyPass >= 80 then break end
+    end
+    local first = sceneTrees(world, start)[1] or {}
+    return first.pass and readyPass and (first.pass - readyPass) or nil
+  end
+  local wait1 = reconnect()
+  if stale then
+    expect(world.w.state.batteryCellCount == 0 and world.w.state.batteryCellSource == nil,
+      label .. ": control: no count is in use, the guess is the left-behind voltage's",
+      tostring(world.w.state.batteryCellCount) .. ", " .. tostring(world.w.state.batteryCellSource))
+  end
+  expect(wait1 ~= nil and wait1 > 14 and wait1 <= 60,
+    label .. ": the first reconnect waits for the sensor, not past the limit", tostring(wait1) .. " pass(es) after ready")
+  expect(world.w.state.cellSensorCount == nil, label .. ": the silent sensor's count is forgotten after the wait",
+    tostring(world.w.state.cellSensorCount))
+  local wait2 = reconnect()
+  expect(wait2 ~= nil and wait2 <= 14, label .. ": the next reconnect is not held for a sensor that stays silent",
+    tostring(wait2) .. " pass(es) after ready")
+end
+sensorGone(false)
+sensorGone(true)
+
+for _, k in ipairs({ 0, 5, 9, 10, 11, 20, 40 }) do guessReconnect("guess", k) end
+guessReconnect("late", 70)
+guessReconnect("nosensor", nil)
+guessReconnect("full", 40)
+guessReconnect("stale", 20)
+
+-- 11. The first connect after the radio is switched on. The widget takes its first look at the
+-- preferences with no board identified, so its stamp has no per-model half; the board's file
+-- joins the stamp once the UID is read. The radio's file has not moved and the session already
+-- holds what the model's file says (the UID read loaded it), so the new half is taken as the
+-- baseline and nothing is read again -- unless the reload request moved in the same look, which
+-- names no file: then both are read. Either way the model's theme is the one on screen.
+for _, bump in ipairs({ false, true }) do
+  local tag = bump and "first connect, reload request moved with the model's file"
+    or "first connect after power-on"
+  if trace then print("scenario: " .. tag) end
+  local world = newWorld()
+  local loads = { global = 0, model = 0 }
+  local loadPreferences, gi = upvalue(world.prefsFn, "loadPreferences")
+  debug.setupvalue(world.prefsFn, gi, function(...)
+    if world.inPrefs then loads.global = loads.global + 1 end
+    return loadPreferences(...)
+  end)
+  local MP, mi = upvalue(world.prefsFn, "ModelPreferences")
+  debug.setupvalue(world.prefsFn, mi, setmetatable({ loadByMcuId = function(...)
+    if world.inPrefs then loads.model = loads.model + 1 end
+    return MP.loadByMcuId(...)
+  end }, { __index = MP }))
+  world.linkUp = false
+  passes(world, 30, "down")
+  local first = world.w._lastPrefsStamp
+  expect(type(first) == "string" and not string.find(first, "|", 1, true),
+    "control: the first stamp carries no model half (" .. tag .. ")", tostring(first))
+  world.holdUid = true
+  world.linkUp = true
+  passes(world, 30, "held")
+  expect(_G.rfsuite.session.mcu_id == nil, "control: no board is identified while the UID is held (" .. tag .. ")",
+    tostring(_G.rfsuite.session.mcu_id))
+  loads.global, loads.model, world.prefReloads = 0, 0, 0
+  if bump then
+    local paths = upvalue(world.prefsFn, "reloadRequestPaths")()
+    for i = 1, #paths do world.stats[paths[i]] = { size = 7 } end
+  end
+  world.releaseUid()
+  passes(world, 60, "uid")
+  local stamp = world.w._lastPrefsStamp
+  expect(type(stamp) == "string" and string.find(stamp, "|", 1, true) ~= nil,
+    "control: the model's file joined the stamp (" .. tag .. ")", tostring(stamp))
+  if bump then
+    expect(world.prefReloads == 1, tag .. ": the preferences are reloaded once", world.prefReloads .. " reload(s)")
+    expect(loads.model == 1 and loads.global == 1, tag .. ": both files are read",
+      "model " .. loads.model .. ", radio " .. loads.global)
+  else
+    expect(world.prefReloads == 0 and loads.model == 0 and loads.global == 0,
+      tag .. ": nothing is read again", world.prefReloads .. " reload(s), model " .. loads.model
+        .. ", radio " .. loads.global)
+  end
+  expect(world.w.themePath == "system/urban", tag .. ": the model's theme is on screen",
+    tostring(world.w.themePath))
 end
 
 -- The memory probe's own control: an allocation it must see.
