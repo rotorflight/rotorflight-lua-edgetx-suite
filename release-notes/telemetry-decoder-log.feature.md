@@ -1,0 +1,1 @@
+- **The telemetry decoder and the adjustment announcement can be followed in the log at DEBUG and TRACE (`tasks/events/telemetry_bg`)**
