@@ -1,0 +1,1 @@
+- **In-flight tuning: the ground screen is no longer rebuilt twice for every profile while the profiles are read (`widgets/dashboard/inflight`)** (#1209)
