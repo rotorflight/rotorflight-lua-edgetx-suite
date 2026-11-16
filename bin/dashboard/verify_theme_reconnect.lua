@@ -366,6 +366,39 @@ for _, pending in ipairs({ true, false }) do
   cost(world, tag)
 end
 
+-- A rolling menu that is up keeps its place across the reconnect, and everything else on the session
+-- goes with the old connection, as it does with no rolling menu.
+do
+  if trace then print("scenario: a rolling menu across the reconnect") end
+  local world = newWorld()
+  connectAndSettle(world)
+  local roll = { view = "menu", levels = { { rows = {}, index = 1 } }, base = 1, focus = 1, position = 0, epoch = 0 }
+  world.event = 0
+  world.w.preferences.general.menu_style = "rotary"
+  world.w._viewStack = { rolls = { menu = roll }, { id = "menu" }, { id = "battery_pick", auto = true }, status = { battery_pick = "busy" } }
+  world.linkUp = false
+  passes(world, 30, "down")
+  expect(world.w._viewStack.rolls.menu == roll, "the place stays while the link is down")
+  reconnectWindow(world, 30)
+  world.releaseUid()
+  passes(world, 60, "uid")
+  local session = world.w._viewStack
+  expect(session ~= nil and session.rolls ~= nil and session.rolls.menu == roll, "the rolling menu keeps its place across the reconnect")
+  expect(session ~= nil and session[1] ~= nil and session[1].id == "menu" and session[2] == nil, "the prompt over it goes with the old connection")
+  expect(session ~= nil and session.status == nil, "and so does how a write went")
+
+  local plain = newWorld()
+  connectAndSettle(plain)
+  plain.event = 0
+  plain.w._viewStack = { { id = "confirm" } }
+  plain.linkUp = false
+  passes(plain, 30, "down")
+  reconnectWindow(plain, 30)
+  plain.releaseUid()
+  passes(plain, 60, "uid")
+  expect(plain.w._viewStack == nil or plain.w._viewStack[1] == nil, "control: with no rolling menu the session is emptied")
+end
+
 -- 3. An empty UID answer settles the read without a UID: the radio's theme is let in.
 do
   if trace then print("scenario: UID settles without a UID") end
