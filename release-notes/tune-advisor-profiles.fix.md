@@ -1,0 +1,1 @@
+- **Tune Advisor keeps flights per PID and rate profile and combines only those of the active profiles (`flight_tuning/tune_advisor`)** (#1166)

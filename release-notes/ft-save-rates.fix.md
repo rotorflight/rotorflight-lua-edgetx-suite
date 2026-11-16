@@ -1,3 +1,1 @@
-- **Rate tuning pages report confirmed saves and failures (`flight_tuning/rates`, `flight_tuning/advanced/rates_advanced/advanced`, `flight_tuning/advanced/rates_advanced/cyclic_behaviour`, `flight_tuning/advanced/rates_advanced/table`)**:
-  - Route the existing RC-tuning write and one EEPROM commit through the shared save pipeline without a reboot. Success is reported and edits are marked saved only after the flight controller acknowledges both; refused or lost writes and failed commits report an outcome (#594). Rates no longer stores twice per save.
-  - Keep the same save-time payload, the Rate Table reset confirmation and a re-read after a successful save. Align the advanced pages' help with their settings and document all three pages.
+- **The rate pages report Saved only once the flight controller stored the values, and report a failed save (`flight_tuning/rates`)** (#594)

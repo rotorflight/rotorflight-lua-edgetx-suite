@@ -1,2 +1,1 @@
-- **Every check job runs again (`.github/workflows/checks.yml`, `.github/workflows/pr.yml`)**:
-  - Four jobs had lost their steps, so GitHub rejected both workflow files and no check ran on master or on any pull request. The YGE and the four Flight Tuning save checks are separate jobs again, each running its own verify script.
+- **Every CI check runs again on master and on pull requests (`.github/workflows`)**
