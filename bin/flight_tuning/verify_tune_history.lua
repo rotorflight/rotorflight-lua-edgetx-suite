@@ -1679,6 +1679,34 @@ do
     asked .. " / " .. #rig.statusAsked .. " status / saved " .. savedProfiles())
   rig.status.bytes = nil
 
+  -- The same short reply, then an arm before that flight is saved: the next disarm is a new
+  -- capture, and a status reply that reads well saves its flight under the profiles it names
+  fresh()
+  rig.status.bytes = 20
+  rig.reply.seconds = 120
+  rig.clock = rig.clock + 60
+  update(true)
+  update(false)
+  for _ = 1, 80 do
+    if #rig.statusAsked > 0 then break end
+    rig.clock = rig.clock + 0.5
+    rig.pass()
+    while rig.requests[1] do
+      local msg = rig.take()
+      if rig.name(msg) == "status" then rig.statusAsked[#rig.statusAsked + 1] = "status" end
+      rig.answer(msg)
+    end
+  end
+  update(true)
+  check("(setup) the short status reply answered, the pilot arms before the flight is saved",
+    #rig.statusAsked == 1 and #tuneHistory.read(MCU) == 0, #rig.statusAsked .. " status / "
+      .. #tuneHistory.read(MCU) .. " saved")
+  rig.status.bytes = nil
+  rig.status.pid, rig.status.rate = 1, 2
+  asked = flyThrough(150)
+  check("after an arm, a status reply that reads well saves the next flight under its profiles",
+    asked == "roll,pitch,yaw,clear" and savedProfiles() == "2/3", asked .. " / saved " .. savedProfiles())
+
   -- Dropped again and again: not a link error, so not given up on
   fresh()
   rig.status.pid, rig.status.rate = 1, 2
