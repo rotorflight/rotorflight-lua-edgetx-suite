@@ -15,12 +15,13 @@ local t = Common.pageT("settings_dashboard_settings")
 -- eigenen Schluessel. Das Literal gilt, wenn kein Theme gereicht wird
 local THEME_PATH = "system/@novafly"
 local THEME_NAME = "@NovaFly RC"
-local FARBEN = {"blau", "tuerkis", "gruen", "gelb", "gold", "orange", "rot", "magenta", "violett", "silber"}
+-- die gespeicherten Werte sind englisch, wie jeder Wert in den Einstellungen der Suite (cockpit.lua FARBWORT, dieselbe Reihe)
+local FARBEN = {"blue", "turquoise", "green", "yellow", "gold", "orange", "red", "magenta", "violet", "silver"}
 local FARBE_OK = {}
 for i = 1, #FARBEN do FARBE_OK[FARBEN[i]] = true end
-local THEME_DEFAULTS = {colour = "blau"}
+local THEME_DEFAULTS = {colour = "blue"}
 
-local ui = {loaded = false, wahl = "blau"}
+local ui = {loaded = false, wahl = "blue"}
 
 local function session()
   local s = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
@@ -37,7 +38,7 @@ end
 local function loadConfig(prefs)
   if ui.loaded then return end
   local cfg = DashboardLib.getThemeConfig(prefs, THEME_PATH, THEME_DEFAULTS, modelStore())
-  ui.wahl = FARBE_OK[cfg.colour] and cfg.colour or "blau"
+  ui.wahl = FARBE_OK[cfg.colour] and cfg.colour or "blue"
   ui.loaded = true
 end
 
@@ -111,16 +112,16 @@ function M.build(ctx)
   Controls.appendSectionHeader(children, x, y, w, THEME_NAME, true, function() end)
   y = y + Controls.SECTION_H
   local wahlen = {
-    {value = "blau", label = t(i18n, "novafly_colour_blue", "Blue")},
-    {value = "tuerkis", label = t(i18n, "novafly_colour_turquoise", "Turquoise")},
-    {value = "gruen", label = t(i18n, "novafly_colour_green", "Green")},
-    {value = "gelb", label = t(i18n, "novafly_colour_yellow", "Yellow")},
+    {value = "blue", label = t(i18n, "novafly_colour_blue", "Blue")},
+    {value = "turquoise", label = t(i18n, "novafly_colour_turquoise", "Turquoise")},
+    {value = "green", label = t(i18n, "novafly_colour_green", "Green")},
+    {value = "yellow", label = t(i18n, "novafly_colour_yellow", "Yellow")},
     {value = "gold", label = t(i18n, "novafly_colour_gold", "Gold")},
     {value = "orange", label = t(i18n, "novafly_colour_orange", "Orange")},
-    {value = "rot", label = t(i18n, "novafly_colour_red", "Red")},
+    {value = "red", label = t(i18n, "novafly_colour_red", "Red")},
     {value = "magenta", label = t(i18n, "novafly_colour_magenta", "Magenta")},
-    {value = "violett", label = t(i18n, "novafly_colour_violet", "Violet")},
-    {value = "silber", label = t(i18n, "novafly_colour_silver", "Silver")},
+    {value = "violet", label = t(i18n, "novafly_colour_violet", "Violet")},
+    {value = "silver", label = t(i18n, "novafly_colour_silver", "Silver")},
   }
   Controls.appendComboSelect(children, x, y, w, t(i18n, "novafly_colour", "Colour"), wahlen, ui.wahl,
     function(v) if FARBE_OK[v] then ui.wahl = v end end)

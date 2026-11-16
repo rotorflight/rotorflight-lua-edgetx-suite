@@ -3354,7 +3354,22 @@ local function loadThemeModuleForState(themePath, flightMode)
     scriptPath = base .. folder .. "/widget.lua"
   end
 
-  local chunk, loadError = loadScript(scriptPath, themeLoadMode(base))
+  -- A theme drawn for one screen size says so in its init.lua (`screen = { w, h }`, which the
+  -- settings list reads to leave it out elsewhere). Loaded on another size its layout would be
+  -- cut off or squeezed, so it is not loaded: the default theme takes its place, as for a theme
+  -- that fails to load, and the log line below says why.
+  local chunk, loadError = nil, nil
+  local declaredScreen = initTable and initTable.screen
+  if type(declaredScreen) == "table" then
+    local w, h = tonumber(LCD_W), tonumber(LCD_H)
+    local dw, dh = tonumber(declaredScreen.w), tonumber(declaredScreen.h)
+    if w and h and ((dw and dw ~= w) or (dh and dh ~= h)) then
+      loadError = string.format("drawn for %dx%d, this screen is %dx%d", dw or w, dh or h, w, h)
+    end
+  end
+  if loadError == nil then
+    chunk, loadError = loadScript(scriptPath, themeLoadMode(base))
+  end
   if chunk then
     local ok, theme = pcall(chunk)
     if ok and type(theme) == "table" and (

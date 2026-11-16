@@ -200,7 +200,10 @@ local function statusLesen(fertig, fehler, eigen)
         sim[STATUS_LAENGE] = (lage.bank or 1) - 1
     end
     return fragen("status", nil, function(buf)
-        if type(buf) ~= "table" or #buf < STATUS_LAENGE then fehler("unvollstaendig") return end
+        -- der Satz muss bis zur Banknummer reichen, und Byte 16 (Zahl weiterer Flugmodus-Bytes) muss 0 sein: die Suite liest
+        -- STATUS an festen Stellen, mit weiteren Bytes laegen alle Felder danach, die Bank eingeschlossen, auf falschen Bytes
+        -- (so prueft es auch tasks/msp/save_pipeline.lua)
+        if type(buf) ~= "table" or #buf < STATUS_LAENGE or buf[16] ~= 0 then fehler("unvollstaendig") return end
         local st = a.parse(buf)
         if type(st) ~= "table" or st.current_pid_profile_index == nil or st.flight_mode_flags == nil then
             fehler("unvollstaendig")
@@ -776,6 +779,9 @@ local M = {}
 
 function M.sources() return {"pid_profile", "rpm"} end
 
+-- Der ganze Schritt des Schirms (Lesen, neue Versuche, Fristen) laeuft im Schluessel, nicht im Bau: die Suite loest den
+-- Schluessel einer offenen Ansicht in jedem Durchgang auf (core/widgets/dashboard/views.lua resolve), gebaut wird nur, wenn er
+-- sich aendert. So kommt der Schirm in jedem Durchgang an die Lage, auch wenn nichts neu zu bauen ist
 function M.renderKey(zone, state)
     if D == nil then return "bank|leer|" .. floor(zeit() / 300) end   -- die Daten fehlen: alle 3 s ein neuer Versuch
     if zu then return "bank|zu" end

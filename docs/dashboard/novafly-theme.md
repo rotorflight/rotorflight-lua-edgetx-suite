@@ -13,7 +13,8 @@ which is why it is drawn for one screen size and listed on that size only.
 ## Where to find it
 
 *System* → *Settings* → *Dashboard* → *Theme*: choose *@NovaFly RC*. The theme is listed on an 800 x 480
-radio (TX16S, TX16S MK3, T16, TX15 and the like) and on no other screen size. Its one setting is under
+radio (the TX16S MK3; the TX16S and T16 are 480 x 272 and the TX15 is 480 x 320) and on no other
+screen size. Its one setting is under
 *System* → *Settings* → *Dashboard* → *Settings* → *@NovaFly RC*; a model with per-model settings
 switched on keeps its own colour under
 [*Per-Model Settings*](../pages/settings/dashboard/overrides.md).
@@ -29,17 +30,23 @@ figures a reading has not supplied yet are drawn as dashes:
   *DISARMED* in red or *ARMED* in green), the MCU temperature and the flight controller's load (*RT*
   where the RT load sensor answers, *CPU* otherwise) in the middle, and the link at the right: the
   RSSI of the first antenna in dB and *VFR*, the link quality (the *RQly* sensor on an ExpressLRS
-  link).
+  link). The MCU temperature and the link quality take their colours from the suite's announcement
+  levels (*Settings* → *Audio* → *Events*): amber from the warning level, red from the critical one
+  (the suite's defaults are 80 and 95 °C for the MCU and 70 and 50 % for the link).
 - **Left** — the flight timer, as the suite counts it, and the PID bank and the rate profile the
   flight controller is on; the two numbers turn red while they differ.
 - **Middle** — the head speed on a dial, its needle scaled to the highest head speed seen since the
   theme was loaded (2 000 rpm at least), with the model's name under it.
-- **Right** — the BEC voltage (amber below 5.0 V), the radio's own battery voltage, the current the
-  speed controller reports and the ESC temperature, which turns amber at 60 °C and red at 80 °C.
-- **Foot** — the pack voltage, the battery as a percentage of the cell voltage between 3.5 V and
-  4.2 V, with a bar of five segments beside it, and, where the speed controller reports no
-  temperature, the cell voltage in its place. Voltage, percentage and bar take the colour of the cell
-  voltage: green above 3.75 V, yellow, orange, and red below 3.45 V.
+- **Right** — the BEC voltage (amber below 5.0 V), the radio's own battery voltage (amber within
+  0.4 V above the radio's own battery warning voltage, red below it), the current the speed
+  controller reports and the ESC temperature, coloured by the suite's ESC temperature announcement
+  levels (90 and 110 °C by default).
+- **Foot** — the pack voltage, the battery as a percentage between the pack bounds the suite derives
+  from the flight controller's cell limits (`v_min` and `v_max` of the theme configuration), with a
+  bar of five segments beside it, and, where the speed controller reports no temperature, the cell
+  voltage in its place. Voltage, percentage and bar are red below the lower bound, orange in the
+  lowest fifth of that range, yellow up to about a third, green above. Without those bounds the
+  cockpit falls back to the cell voltage: 3.5 to 4.2 V for the percentage, red below 3.45 V.
 
 Every figure keeps its own node on screen; a new reading changes a picture and builds nothing anew.
 
@@ -82,7 +89,9 @@ thing while the flight controller holds another. A second SAVE while the first i
 only shows the progress bar. If the flight controller's active bank changes while a save is under
 way, the view writes nothing more (the governor profile carries no bank number over MSP, so a
 rollback could hit the wrong bank), keeps nothing, reports a read-back that differs, marks both
-banks unread and reads the bank the controller is now on. It asks and writes nothing while the model is armed: the active
+banks unread and reads the bank the controller is now on. Do not switch banks while SAVE is under
+way: a switch away and back between the two STATUS reads cannot be seen, and the save would then
+keep what landed in the other bank. It asks and writes nothing while the model is armed: the active
 bank's card then follows the live head speed, a press on a card, **-**, **+** or **SAVE** answers
 that the model is armed, and the view reads the profile again once the model is disarmed. The view
 never switches the active bank.
@@ -110,7 +119,9 @@ installed package, like every other page of the suite.
 
 ## What it does not do
 
-- It draws for 800 x 480 only, and is not offered on a 480 x 272 or 480 x 320 radio.
+- It draws for 800 x 480 only, is not offered on a 480 x 272 or 480 x 320 radio, and is not loaded
+  there either: a radio of another size that still has it selected shows the default theme, and the
+  log says why.
 - It has no screen of its own for the time after the flight: the cockpit stays, with the timer
   stopped and the last readings.
 - It offers no Keys page and binds no key itself beyond the three presses above; the radio-wide

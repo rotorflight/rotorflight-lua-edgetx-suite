@@ -102,11 +102,40 @@ local function fmtT(sec)
     return string.format("%02d:%02d", floor(sec / 60), sec % 60)
 end
 
-local function cellKey(v)
-    if v == nil then return "w" end
-    if v < 3.45 then return "r" end
-    if v < 3.65 then return "o" end
-    if v < 3.75 then return "y" end
+-- Die Grenzen kommen von der Suite: die Grenzen des Akkus aus den Zellgrenzen des FC (state.themeConfig.v_min und v_max, rot
+-- unter v_min; die Suite richtet sie nach der Zellenzahl, darum erst, wenn die bekannt ist) und die Stufen ihrer Ansagen
+-- (state.alerts: escTemp, mcuTemp, lq mit warn und critical, Grenzen wie in lib/audio.lua: Temperatur ab warn gelb, ab
+-- critical rot; Link bis warn gelb, bis critical rot). Reicht sie nichts, gelten ihre Werkswerte (90/110, 80/95, 70/50) und
+-- fuer den Akku die Zelle: 3,5 bis 4,2 V fuer Prozent und Balken, rot unter 3,45 V. Die Stufen orange und gelb sind die
+-- alten Zellgrenzen 3,65 und 3,75 V, auf den Bereich 3,5 bis 4,2 V bezogen
+local ANTEIL_ORANGE, ANTEIL_GELB, ANTEIL_ROT_ZELLE = (3.65 - 3.5) / 0.7, (3.75 - 3.5) / 0.7, (3.45 - 3.5) / 0.7
+local function akkuAnteil(state, pack, cell)        -- der Anteil und die Grenze, unter der er rot ist
+    local c = state and state.themeConfig
+    local vmin, vmax = type(c) == "table" and tonumber(c.v_min) or nil, type(c) == "table" and tonumber(c.v_max) or nil
+    if pack and cell and vmin and vmax and vmax > vmin then return (pack - vmin) / (vmax - vmin), 0 end
+    if cell then return (cell - 3.5) / 0.7, ANTEIL_ROT_ZELLE end
+    return nil, 0
+end
+local function akkuFarbe(anteil, rot)
+    if anteil == nil then return "w" end
+    if anteil < rot then return "r" end
+    if anteil < ANTEIL_ORANGE then return "o" end
+    if anteil < ANTEIL_GELB then return "y" end
+    return "g"
+end
+local function stufen(state, name, warn, krit)
+    local a = state and state.alerts
+    local s = type(a) == "table" and a[name] or nil
+    if type(s) == "table" then
+        if tonumber(s.warn) then warn = tonumber(s.warn) end
+        if tonumber(s.critical) then krit = tonumber(s.critical) end
+    end
+    return warn, krit
+end
+local function warmFarbe(v, warn, krit)             -- Temperaturen: hoeher ist schlechter, ab der Stufe wie die Ansage (>=)
+    if v == nil then return "d" end
+    if v >= krit then return "r" end
+    if v >= warn then return "y" end
     return "g"
 end
 
@@ -238,31 +267,36 @@ local function stand(state)
     anz.rate, anz.rateF = fmt(rate), bf
     anz.rpm, anz.rpmF = fmt(rpm), "g"
     anz.bec, anz.becF = fmt(bec, 1), (bec and bec >= 5.0) and "g" or "y"
-    anz.tx, anz.txF = fmt(tx, 1), tx and ((tx >= 7.4) and "g" or ((tx >= 7.0) and "y" or "r")) or "g"
+    local txWarn = G.txWarn or 7.0                   -- die Warnspannung des Senders selbst (getGeneralSettings), sonst 7,0 V
+    anz.tx, anz.txF = fmt(tx, 1), tx and ((tx >= txWarn + 0.4) and "g" or ((tx >= txWarn) and "y" or "r")) or "g"
     anz.amp, anz.ampF = fmt(last, 1), "g"
-    local ck = cellKey(cell)
+    local anteil, rotAb = akkuAnteil(state, pack, cell)
+    local ck = akkuFarbe(anteil, rotAb)
     anz.pack, anz.packF = fmt(pack, 1), ck
     local p = nil
-    if cell then
-        p = (cell - 3.5) / 0.7 * 100
+    if anteil then
+        p = anteil * 100
         if p < 0 then p = 0 elseif p > 100 then p = 100 end
     end
     anz.pct, anz.pctF = fmt(p), ck
-    anz.temp, anz.tempF = fmt(temp), temp and ((temp < 60) and "g" or ((temp < 80) and "y" or "r")) or "g"
+    local tWarn, tKrit = stufen(state, "escTemp", 90, 110)
+    anz.temp, anz.tempF = fmt(temp), temp and warmFarbe(temp, tWarn, tKrit) or "g"
     anz.zelle, anz.zelleF = (temp == nil) and fmt(cell, 2) or nil, ck
     anz.balken, anz.balkenFarbe = 0, FARBE[ck]
-    if cell then
-        local a = (cell - 3.5) / 0.7
+    if anteil then
+        local a = anteil
         if a < 0 then a = 0 elseif a > 1 then a = 1 end
         anz.balken = floor(a * BATT.n + 0.5)
     end
+    local mWarn, mKrit = stufen(state, "mcuTemp", 80, 95)
     anz.mcu = "MCU " .. (mcutemp and (fmt(mcutemp) .. " \194\176C") or "--")
-    anz.mcuFarbe = FARBE[mcutemp and ((mcutemp < 70) and "g" or ((mcutemp < 90) and "y" or "r")) or "d"]
+    anz.mcuFarbe = FARBE[warmFarbe(mcutemp, mWarn, mKrit)]
     anz.cpu = (anz.lastWort or "CPU") .. " " .. (cpu and (fmt(cpu) .. " %") or "--")
     anz.cpuFarbe = FARBE[cpu and ((cpu < 50) and "g" or ((cpu < 80) and "y" or "r")) or "d"]
     anz.rssi = rssi and ("RSSI " .. fmt(rssi) .. "dB") or ""
     anz.vfr = vfr and ("VFR " .. fmt(vfr)) or ""
-    anz.vfrFarbe = FARBE[vfr and ((vfr >= 90) and "w" or ((vfr >= 80) and "y" or "r")) or "w"]
+    local lWarn, lKrit = stufen(state, "lq", 70, 50)   -- die Stufen der Link-Ansage der Suite: bis warn gelb, bis critical rot
+    anz.vfrFarbe = FARBE[vfr and ((vfr > lWarn) and "w" or ((vfr > lKrit) and "y" or "r")) or "w"]
     if rpm ~= nil then
         local grad = rpmGrad(rpm)
         if grad ~= anz.grad then
@@ -363,10 +397,14 @@ local function nameBauen(n, text)
 end
 
 local M = {}
-local FARBWORT = {"blau", "tuerkis", "gruen", "gelb", "gold", "orange", "rot", "magenta", "violett", "silber"}
+-- die gespeicherten Werte der Farbe sind englisch, wie jeder Wert in den Einstellungen der Suite; die Bilder heissen weiter
+-- deutsch (gfx/cockpit_blau.png, kopf_, tuer_), BILD uebersetzt
+local FARBWORT = {"blue", "turquoise", "green", "yellow", "gold", "orange", "red", "magenta", "violet", "silver"}
+local BILD = {blue = "blau", turquoise = "tuerkis", green = "gruen", yellow = "gelb", gold = "gold", orange = "orange",
+              red = "rot", magenta = "magenta", violet = "violett", silver = "silber"}
 local FARBE_NR = {}
 for i = 1, #FARBWORT do FARBE_NR[FARBWORT[i]] = i end
-local farbe = "blau"
+local farbe = "blue"
 
 -- die Farbe steht in den Theme-Einstellungen der Suite: in den Standardwerten des Senders oder in den eigenen Werten des
 -- Modells, wenn es welche hat. Die Suite reicht sie als state.themeConfig; ohne Eintrag oder mit einem fremden Wort gilt Blau.
@@ -383,7 +421,7 @@ local function farbeAus(state)
         else wort = neu.farbe end
     end
     if FARBE_NR[wort] then return wort end
-    return "blau"
+    return "blue"
 end
 
 -- Wem die Farbe gehoert: dem Modell (eigene Werte eingeschaltet) oder dem Sender. Solange der Heli da ist, sieht das Theme
@@ -434,7 +472,7 @@ local function farbeSpeichern(neu, state)
         if state and state.hadInflightFlight == true and state.rfConnected ~= true then return false end
         local dashboard = type(prefs.dashboard) == "table" and prefs.dashboard or {}
         local standard = dashboard["cfg_" .. string.gsub(THEME_PFAD, "[^%w]", "_") .. "_colour"]
-        if (standard or "blau") ~= farbe then return false end
+        if (standard or "blue") ~= farbe then return false end
     end
     local Prefs = suiteModul("lib/preferences.lua")
     if Prefs == nil or type(Prefs.save) ~= "function" then return false end
@@ -469,6 +507,9 @@ function M.renderKey(zone, state)
         namenTakt = 100
         anz.name = modellName()
         besitzMerken(suiteModul("app/pages/settings/dashboard/lib.lua"), rfsuite and rfsuite.preferences)
+        local okg, gs = pcall(getGeneralSettings)   -- die Warnspannung des Senders fuer die Farbe seiner Akkuspannung
+        local w = okg and type(gs) == "table" and tonumber(gs.battWarn) or nil
+        if w and w > 0 then G.txWarn = w end
     end
     return "novafly|" .. farbe .. "|" .. schritt .. "|" .. tostring(anz.name)
 end
@@ -476,7 +517,7 @@ end
 local function bauen(zone, state, ctx)
     local n = {}
     farbe = farbeAus(state)
-    n[#n + 1] = {type = "image", x = 0, y = 0, w = 800, h = 480, file = ORDNER .. "gfx/cockpit_" .. farbe .. ".png"}
+    n[#n + 1] = {type = "image", x = 0, y = 0, w = 800, h = 480, file = ORDNER .. "gfx/cockpit_" .. BILD[farbe] .. ".png"}
     if schritt == 0 then              -- das Laden auf drei Aufrufe verteilt: je Aufruf hat ein Widget 20 000 Rechenschritte
         D = laden("daten.lua")
         G.D = D
@@ -505,7 +546,7 @@ local function bauen(zone, state, ctx)
         local k = D.kopf
         n[#n + 1] = {type = "box", x = k[1], y = k[2], w = k[3], h = k[4], borderPad = 0, children = {
             {type = "button", x = 0, y = 0, w = k[3], h = k[4], cornerRadius = 0, color = C_GRAY,
-             children = {{type = "image", x = -10, y = -5, w = k[3], h = k[4], file = ORDNER .. "gfx/kopf_" .. farbe .. ".png"}},
+             children = {{type = "image", x = -10, y = -5, w = k[3], h = k[4], file = ORDNER .. "gfx/kopf_" .. BILD[farbe] .. ".png"}},
              press = function() end, longpress = farbeWeiter}}}
     end
 
@@ -515,7 +556,7 @@ local function bauen(zone, state, ctx)
     local tuer = nil
     if ctx ~= nil and D.tuer then
         local t = D.tuer
-        local kinder = {{type = "image", x = -10, y = -5, w = t[3], h = t[4], file = ORDNER .. "gfx/tuer_" .. farbe .. ".png"}}
+        local kinder = {{type = "image", x = -10, y = -5, w = t[3], h = t[4], file = ORDNER .. "gfx/tuer_" .. BILD[farbe] .. ".png"}}
         tuer = {kinder = kinder, dx = t[1] + 10, dy = t[2] + 5,
                 lagen = {[W.bank] = true, [W.rate] = true, [D.frage.bank] = true, [D.frage.rate] = true}}
         n[#n + 1] = {type = "box", x = t[1], y = t[2], w = t[3], h = t[4], borderPad = 0, children = {
