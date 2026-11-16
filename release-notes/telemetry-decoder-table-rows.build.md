@@ -1,0 +1,1 @@
+- **The custom telemetry decoder loads with less work and less garbage, and decodes values with fewer steps (`lib/rf2tlm_sensors`)**

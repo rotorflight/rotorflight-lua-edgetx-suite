@@ -58,6 +58,13 @@ available, the dashboard estimates the count from the pack voltage and maximum c
 including when the controller supplies its cell limits in centivolts. Saved voltage bounds
 keep their configured range.
 
+After a connect the battery can be reported before the pack voltage or the cell count is. While
+no cell count is known yet and no voltage bounds are saved, the dashboard waits for one, for up to
+five seconds, with *Dashboard startup is pending* on the standby, so that its gauges first
+appear on the pack's range rather than on the default range and are drawn again a moment later.
+A model that reports no cell count and no pack voltage gets its dashboard on the default range
+once those five seconds are over.
+
 ## The shipped themes
 
 The pictures were taken on a TX16S MK3 (800x480) during a short simulated flight of a 6S
