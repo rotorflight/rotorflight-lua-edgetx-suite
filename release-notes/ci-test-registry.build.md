@@ -1,1 +1,1 @@
-- **Each plain Lua test script runs as its own CI job, and six checks that no job ran now run (`bin/ci/test_jobs`)**
+- **Most test scripts now run as their own CI job, and six checks that no job ran now run (`bin/ci/test_jobs`)**
