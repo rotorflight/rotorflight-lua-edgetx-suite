@@ -9,6 +9,15 @@
 local M = {}
 
 local RFSensors = nil
+-- Sensor name -> sid of the decoder table, for M.customSensor: the table is keyed by sid, and a
+-- reader asks by the name the radio shows. Built only once a reader has asked (a state nobody reads
+-- through, such as the background function script's, never builds it), and then INDEX_PER_PASS
+-- entries per drain pass (indexStep), so no single pass carries the whole table -- the pass that
+-- loads the table least of all. `nameToSid` is nil until the last entry is in: a partial index must
+-- not answer that a name is not a custom sensor, because readers keep that answer.
+local nameToSid = nil
+local INDEX_PER_PASS = 12
+local indexWanted, indexPartial, indexKey = false, nil, nil
 
 local function loadModule(path, ...)
   local fullPath = _G.rfsuite.paths.core .. "/" .. path
@@ -209,6 +218,16 @@ local decodeNow = 0
 -- that raised part-way cannot leave the full pass silenced.
 local walkOnly = false
 
+-- The single-value rows a group also publishes (lib/rf2tlm_sensors.lua: decCells, decControl,
+-- decAttitude, decAccel, decAdjFunc).
+local GROUP_MEMBERS = {
+    [0x102F] = { 0x1020 },
+    [0x1030] = { 0x1031, 0x1032, 0x1033, 0x1034 },
+    [0x1100] = { 0x1101, 0x1102, 0x1103 },
+    [0x1110] = { 0x1111, 0x1112, 0x1113 },
+    [0x1220] = { 0x1221, 0x1222 },
+}
+
 local function traceGroup(sid, frame, data, first, last)
     if frame and lastGroupLength[sid] == last - first then
         local offset = lastGroupFirst[sid] - first
@@ -234,6 +253,13 @@ local function groupDue(sid, data, first, last)
     -- A group's values are published by its decoder, so the trace line names the group only, and
     -- only when its bytes changed rather than for a refresh.
     if traceOn then traceGroup(sid, frame, data, first, last) end
+    -- The group publishes these single-value sensors too, so a value one of them published on its
+    -- own earlier is not current any more: forgotten, and read from the radio's sensor
+    -- (M.directValues). It is published again when its own row comes in a frame.
+    local members = GROUP_MEMBERS[sid]
+    if members then
+        for i = 1, #members do lastPublishedValue[members[i]] = nil end
+    end
     lastPublishedValue[sid] = data
     lastGroupFirst[sid] = first
     lastGroupLength[sid] = last - first
@@ -497,6 +523,14 @@ function M.remoteAlive(now)
     local alive = remoteMovedAt ~= nil and (now - remoteMovedAt) < M.REMOTE_STALE_SECONDS
     -- The handoff, for both of a host's passes (telemetry_bg/tasks.lua), on its edge only.
     if alive ~= remoteLast then
+        -- Taking the decoding over: what this state published before it stood aside is older than
+        -- what the other state published since, so it is forgotten, as a lost link forgets it
+        -- (M.reset). The next frame then publishes every value it carries again, and M.directValues
+        -- hands out only what this state decoded after the take-over.
+        if remoteLast and not alive then
+            lastPublishedValue = {}
+            lastPublishedAt = {}
+        end
         if now >= logCheckAt then refreshLog(now) end
         if debugOn then
             if alive then
@@ -515,6 +549,24 @@ function M.remoteAlive(now)
     return alive
 end
 
+-- INDEX_PER_PASS more entries of the name index (see nameToSid). The decoder table is never written
+-- after its load, so a traversal started at the last key resumes where the last pass stopped. Every
+-- entry is a table: lib/rf2tlm_sensors.lua builds them.
+local function indexStep()
+    local partial, n = indexPartial or {}, 0
+    for sid, sensor in next, RFSensors, indexKey do
+        local name = sensor.name
+        if name then partial[name] = sid end
+        n = n + 1
+        if n == INDEX_PER_PASS then
+            indexPartial, indexKey = partial, sid
+            return
+        end
+    end
+    nameToSid, indexWanted, indexPartial, indexKey = partial, false, nil, nil
+    if debugOn then logf("debug", "sensor name index ready") end
+end
+
 -- The two modules a drain pass needs, one load per wakeup; false while either is still missing.
 -- The decoder table gets a wakeup of its own, and a wakeup that loads returns without popping:
 -- loading its top-level chunk costs more than a steady drain pass does, and loading it in the same
@@ -530,7 +582,11 @@ local function modulesReady(now)
     if not RFSensors then
         if now < loadRetryAt then return false end
         RFSensors = loadModule("lib/rf2tlm_sensors.lua", nil, groupDue)
-        if RFSensors then loadRecovered("sensor table") else loadFailed("sensor table", now) end
+        if RFSensors then
+            loadRecovered("sensor table")
+        else
+            loadFailed("sensor table", now)
+        end
         return false
     end
 
@@ -553,7 +609,10 @@ local function modulesReady(now)
             return false
         end
         loadRecovered("CRSF module")
+        return true
     end
+    -- Not on a pass that loaded a module above: those are the heavier ones already.
+    if indexWanted then indexStep() end
     return true
 end
 
@@ -770,6 +829,38 @@ function M.wakeupArmingFlags(now)
     end
     if not ok then error(found, 0) end
     return popped, found
+end
+
+local DIRECT_SCALE = { 10, 100, 1000 }
+
+--- The sensor of the custom telemetry a name stands for: its sid and the divisor its precision asks
+-- for (1 for none); false for a name that is not one; nil while the decoder table is not loaded or
+-- its name index not yet complete, so the question is asked again -- the first such question starts
+-- the index (see nameToSid). A reader asks this once per name and keeps the answer, because the
+-- table does not change.
+function M.customSensor(name)
+    if not nameToSid then
+        indexWanted = true
+        return nil
+    end
+    local sid = nameToSid[name]
+    if sid == nil then return false end
+    local prec = RFSensors[sid].prec or 0
+    return sid, prec > 0 and (DIRECT_SCALE[prec] or 10 ^ prec) or 1
+end
+
+--- The values this state decoded last, by sid: a number for a single-value sensor, unscaled, as the
+-- decoder took it from the frame -- before any setting of the radio's own sensor page (ratio,
+-- offset, filter, unit), which belong to the radio's sensor; the flight controller is where a value
+-- is calibrated --, and a frame for a group (cells, GPS, attitude, ...: a group's values are
+-- published by its decoder and only its frame is kept here), so a reader tests with type. A value
+-- published before this state last took over, or before a reset, is not in it (forgotten then).
+-- nil while another Lua state is decoding: this state's values are then not current. One call per
+-- read instead of one per candidate name; the table is replaced on a reset and on a take-over, so
+-- it is asked for again on every read, never kept.
+function M.directValues()
+    if remoteLast then return nil end
+    return lastPublishedValue
 end
 
 --- One fragment for a host's state line: who decoded since the last call, and what it saw.

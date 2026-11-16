@@ -13,6 +13,42 @@ why a sensor the radio is not receiving is not taken for a reading.
 It applies everywhere a telemetry value is used: the dashboard widget, the audio announcements,
 the flight log and the flight record.
 
+## While the suite decodes the telemetry itself
+
+The flight controller's own values arrive in Rotorflight's custom telemetry frames, and a part of
+the suite decodes them: the [background decoder](background-decoder.md) when the model runs it,
+otherwise the dashboard's script, or the tool started from the radio's *Tools* menu while it is
+open. Whichever part decodes, it publishes every value as a radio sensor, so the radio's telemetry
+page, alarms, logical switches and SD log keep working as before.
+
+**The part that decodes reads its own values straight from its decoder.** When the dashboard or
+the tool decodes for itself, a value of the custom telemetry -- voltage, current, headspeed, the
+profiles, the arming state, the temperatures and the rest -- comes from what the decoder took from
+the last frame, not from the radio's sensor of that name. It therefore does not depend on the
+radio having discovered that sensor, and a sensor of the same name that some other source created
+cannot stand in for it. While the background decoder runs, the dashboard reads the radio's sensors,
+because its values are in the background decoder's script, not in the dashboard's.
+
+**Such a value is the flight controller's, as it sends it.** The radio applies the settings of
+its own telemetry page -- ratio, offset, filter, a changed unit or number of decimals, a headspeed
+multiplier -- when it stores a value in its sensor, and a value read from the decoder has none of
+them. Calibrate a value in the flight controller; a correction made on the radio's sensor page
+shows on the radio's own screens, its alarms and its SD log, and, for a value the dashboard reads
+from its decoder, in the dashboard only while the background decoder runs. A value read from the
+radio's sensors, as below, carries it as before.
+
+Not from the decoder, and searched for as described below: a value the flight controller does not
+send (the next name on the list answers, as before), a value whose list starts with a sensor that
+is not part of the custom telemetry -- smart fuel, which the suite computes itself, or the link
+statistics -- and the values that come as a group, such as the cells, the attitude or the GPS
+position -- and a single value such a group also carries, once the group has come in. After the
+link is lost, and after the dashboard takes the decoding back from the background decoder, the
+sensors are read until the decoder has taken new frames. The first time the dashboard or the
+tool decodes for itself -- when it starts, or when it first takes the decoding over from the
+background decoder -- they are also read for about a second more, until its decoder has looked up
+which values it carries. The configuration pages that ask whether a
+sensor is arriving right now (the feedback during the helicopter setup) ask the radio's sensor.
+
 ## Choosing a sensor
 
 Each value has a list of sensor names, most preferred first -- fuel is looked for as `Bat%`,

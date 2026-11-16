@@ -262,6 +262,34 @@ local cycleFor, cycle = nil, nil
 -- frame ids walk the cycle, so a backlog carries consecutive frames of it. A fresh table every
 -- time, as crossfireTelemetryPop hands out: the drain keeps a reference to a frame it published a
 -- group from.
+-- A single-value entry carries what the scenario has set for its sensor (Stubs.sensors, by the
+-- decoder table's name, scaled by its precision), as a flight controller sends the state the run
+-- models: a state that decodes reads its values from these frames, not from the radio's sensors
+-- (lib/sensors.lua). An entry with no value set, and every group entry, keeps its zero bytes.
+-- Filled in when the frame is built, never in the cycle, so a value the run moves reaches the next
+-- frame.
+-- The scenarios name two sensors by the radio label they were written with, not by the decoder
+-- table's name: the battery profile (BatP, the frame row is BAT#) and the throttle (Thr%, the frame
+-- row is Thr).
+local SCENARIO_ALIAS = { ["BAT#"] = "BatP", ["Thr"] = "Thr%" }
+
+local function scenarioBytes(sid, width)
+  if width > 4 or sid == 0x102F or sid == 0x1126 then return nil end
+  local sensor = World.sensorInfo and World.sensorInfo[sid]
+  local value = sensor and (Stubs.sensors[sensor.name] or Stubs.sensors[SCENARIO_ALIAS[sensor.name] or ""])
+  if type(value) ~= "number" then return nil end
+  local raw = math.floor(value * 10 ^ (sensor.prec or 0) + 0.5)
+  -- A cell voltage goes out as hundredths of a volt less 2 V (decCellV adds the 200 back), 0 for none.
+  if sid == 0x1021 then raw = raw > 0 and math.max(1, math.min(255, raw - 200)) or 0 end
+  raw = raw % (1 << (8 * width))
+  local bytes = {}
+  for i = width, 1, -1 do
+    bytes[i] = raw & 0xFF
+    raw = raw >> 8
+  end
+  return bytes
+end
+
 local function buildTelemetryFrame(frameId, sensorIds)
   if cycleFor ~= sensorIds then
     cycle, cycleFor = packTelemetryFrames(sensorIds), sensorIds
@@ -270,7 +298,8 @@ local function buildTelemetryFrame(frameId, sensorIds)
   for _, entry in ipairs(cycle[frameId % #cycle + 1]) do
     frame[#frame + 1] = (entry.sid >> 8) & 0xFF
     frame[#frame + 1] = entry.sid & 0xFF
-    for _, b in ipairs(entry.bytes) do frame[#frame + 1] = b end
+    local bytes = scenarioBytes(entry.sid, #entry.bytes) or entry.bytes
+    for _, b in ipairs(bytes) do frame[#frame + 1] = b end
   end
   return frame
 end
@@ -1348,6 +1377,7 @@ end
 table.sort(sensorIds)
 if #sensorIds == 0 then error("accounting: no sensor decoders found") end
 World.sensorIds = sensorIds
+World.sensorInfo = RFSensors
 local telemetryCycle, telemetryFewest, telemetryMost = checkTelemetryFrames(sensorIds, RFSensors)
 local telemetryShape = string.format("%d to %d sensors per frame, a cycle of %d frames",
   telemetryFewest, telemetryMost, telemetryCycle)
