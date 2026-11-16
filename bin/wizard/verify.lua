@@ -671,6 +671,193 @@ check(w.error and not w.advanced,"failed write blocks advance")
 local eeprom=false;for _,m in ipairs(q.sent) do if m.command==250 then eeprom=true end end
 check(not eeprom,"failed write never reaches EEPROM")
 failCommand=nil
+-- A row is put in the sent snapshot when its write is generated, before the flight controller
+-- answers. A failure, a cancel or a late status can drop that write, so the next save or discard
+-- must write the row again rather than take it for one the flight controller already holds.
+do
+  local function u16at(p,i) return (p[i] or 0) | ((p[i+1] or 0) << 8) end
+  -- Writes of one row since `from`: their count, and the last value written.
+  local function rowWrites(from, command, index, field)
+    local n, value, eeprom = 0, nil, false
+    for i=from,#q.sent do
+      local m=q.sent[i]
+      if m.command==command and m.payload[1]==index then n=n+1; value=field and u16at(m.payload,field) end
+      if m.command==250 then eeprom=true end
+    end
+    return n, value, eeprom
+  end
+  -- Run the bus until a write of that row is queued, and leave it unsent.
+  local function queueRow(w, command, index)
+    for _=1,300 do
+      w:tick();ticks=ticks+1
+      for _,m in ipairs(q.messages) do if m.command==command and m.payload[1]==index then return true end end
+      pump()
+    end
+    return false
+  end
+  local function settle(w)
+    for _=1,300 do w:tick();pump();ticks=ticks+1;if not w.transition and w.bus:idle() then break end end
+  end
+  -- The status reading is let go stale while the write waits, so the controller fails on its own.
+  local function staleFail(w)
+    ticks=ticks+400; w:tick()
+    local dropped=true
+    for _,m in ipairs(q.messages) do if m.isWrite and m.client=="helicopter-setup" then dropped=false end end
+    return w.error~=nil and string.find(w.error,"status",1,true)~=nil and dropped
+  end
+  local function retry(w)
+    if w.error then w:retry() end
+    settle(w)
+    check(not w.error and w.ready,"CUT the visit goes on after Retry")
+  end
+  local function saveNow(w)
+    local from=#q.sent+1
+    w.savedAgain=nil
+    w:save(function() w.savedAgain=true end)
+    for _=1,1500 do w:tick();pump();ticks=ticks+1;if w.savedAgain or w.error then break end end
+    check(w.savedAgain,"CUT the later save completes")
+    return from
+  end
+  local function servo0(w) return w.data.servo_configurations.servos[0] end
+  -- (1) The row's write is refused: the save stops; the save after Retry writes the row.
+  local w=world();local mid=servo0(w).mid+10;servo0(w).mid=mid
+  w:touch("servo_configurations");failCommand=212
+  w:save(function() w.advanced=true end)
+  for _=1,500 do w:tick();pump();ticks=ticks+1;if w.error then break end end
+  check(w.error and not w.advanced,"CUT a refused servo row stops the save")
+  failCommand=nil;retry(w)
+  local n,value,eeprom=rowWrites(saveNow(w),212,0,2)
+  check(eeprom,"CUT EEPROM written after a refused row")
+  eq(n,1,"CUT the save after a refused row writes that row again");eq(value,mid,"CUT the refused row's value is written")
+  -- (2) The row's write waits in the queue and a late status stops the visit before it is sent.
+  w=world();mid=servo0(w).mid+10;servo0(w).mid=mid;w:touch("servo_configurations")
+  -- The row written again is named at DEBUG; the first write of it is not.
+  local again=0
+  w.logDebug=true
+  w.log=function(_,_,fmt,...) if string.find(string.format(fmt,...),"servo_configurations row 0 written again",1,true) then again=again+1 end end
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,212,0),"CUT the servo row write is queued")
+  eq(again,0,"CUT the first write of a row is not logged as written again")
+  check(staleFail(w),"CUT a late status fails the visit and drops the queued write")
+  retry(w)
+  n,value=rowWrites(saveNow(w),212,0,2)
+  eq(n,1,"CUT the save after a dropped row writes that row");eq(value,mid,"CUT the dropped row's value is written")
+  eq(again,1,"CUT the row written again is logged at DEBUG")
+  -- (3) The same through a bare transport cancel.
+  w=world();mid=servo0(w).mid+10;servo0(w).mid=mid;w:touch("servo_configurations")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,212,0),"CUT the servo row write is queued before the bare cancel")
+  w.bus:cancel();w:release();w.error="cancelled"
+  retry(w)
+  n,value=rowWrites(saveNow(w),212,0,2)
+  eq(n,1,"CUT the save after a bare cancel writes the dropped row");eq(value,mid,"CUT the bare cancel's row value is written")
+  -- (4) A live edit back to the saved value is cut: the flight controller still runs the edit
+  -- before it, so both Save and Discard have to write the saved value.
+  for _,finish in ipairs({"save","discard"}) do
+    w=world();local saved=servo0(w).mid
+    servo0(w).mid=saved+25;w:touch("servo_configurations",false,true);settle(w)
+    local live=false
+    for _,m in ipairs(q.sent) do if m.command==212 and m.payload[1]==0 and u16at(m.payload,2)==saved+25 then live=true end end
+    check(live,"CUT the live edit reached the flight controller ("..finish..")")
+    servo0(w).mid=saved;w:touch("servo_configurations",false,true)
+    check(queueRow(w,212,0),"CUT the live edit back is queued ("..finish..")")
+    check(staleFail(w),"CUT a late status drops the live edit back ("..finish..")")
+    retry(w)
+    local from=#q.sent+1
+    if finish=="save" then saveNow(w)
+    else
+      w.discarded=nil;w:discard(function() w.discarded=true end)
+      for _=1,800 do w:tick();pump();ticks=ticks+1;if w.discarded or w.error then break end end
+      check(w.discarded,"CUT the discard completes")
+    end
+    n,value=rowWrites(from,212,0,2)
+    eq(n,1,"CUT "..finish.." after a dropped live edit writes the row");eq(value,saved,"CUT "..finish.." writes the saved value back")
+  end
+  -- (5) The other blocks written row by row: a mixer input, an adjustment range, a mode range's extras.
+  w=world();local input=w.data.mixer_input.inputs[2];input.rate=input.rate+7;w:touch("mixer_input")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,171,2),"CUT the mixer input write is queued")
+  check(staleFail(w),"CUT a late status drops the mixer input write")
+  retry(w);n=rowWrites(saveNow(w),171,2)
+  eq(n,1,"CUT the save after a dropped mixer input writes it")
+  w=world();local range=w.data.adjustment_ranges.adjustment_ranges[3];range.adjStep=(range.adjStep or 0)+1;w:touch("adjustment_ranges")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,53,2),"CUT the adjustment range write is queued")
+  check(staleFail(w),"CUT a late status drops the adjustment range write")
+  retry(w);n=rowWrites(saveNow(w),53,2)
+  eq(n,1,"CUT the save after a dropped adjustment range writes it")
+  w=world()
+  local modes=w.data.mode_ranges.mode_ranges
+  check(#modes>=1,"CUT the world has a mode range")
+  local extras=w.data.mode_ranges_extra.mode_ranges_extra
+  extras[1]=extras[1] or {};extras[1].modeLogic=((extras[1].modeLogic or 0)==0) and 1 or 0
+  w:touch("mode_ranges")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,35,0),"CUT the mode range write is queued")
+  check(staleFail(w),"CUT a late status drops the mode range write")
+  retry(w);n=rowWrites(saveNow(w),35,0)
+  eq(n,1,"CUT the save after a dropped mode range writes its extras")
+  -- (6) A lost link reloads before anything else: what the screen then holds is what the flight
+  -- controller holds, so nothing is left for a save to skip.
+  w=world();local before=servo0(w).mid;servo0(w).mid=before+10;w:touch("servo_configurations")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,212,0),"CUT the servo row write is queued before the link is lost")
+  rfsuite.session.fblConnected=false;w:tick();ticks=ticks+1
+  check(w.suspended,"CUT the lost link suspends the visit")
+  rfsuite.session.fblConnected=true;w:tick();ticks=ticks+1
+  eq(w.error,"link","CUT the returning link asks for a reload")
+  w:retry()
+  for _=1,1500 do w:tick();pump();ticks=ticks+1;if (w.ready and not w.transition) or (w.error and w.error~="link") then break end end
+  check(w.ready and not w.error,"CUT the reload after a lost link completes")
+  eq(servo0(w).mid,w.sent.servo_configurations.servos[0].mid,"CUT after a reload the screen and the snapshot agree")
+  -- (7) The flight controller applied the write, but its answer was lost or reached a visit that
+  -- had already stopped: what FC RAM holds is unknown, so Discard and a save of the saved value
+  -- both write the row.
+  local function discardNow(w)
+    local from=#q.sent+1
+    w.discarded=nil;w:discard(function() w.discarded=true end)
+    for _=1,800 do w:tick();pump();ticks=ticks+1;if w.discarded or w.error then break end end
+    check(w.discarded,"CUT the discard completes")
+    return from
+  end
+  for _,finish in ipairs({"discard","save"}) do
+    w=world();local saved=servo0(w).mid;servo0(w).mid=saved+30;w:touch("servo_configurations")
+    w:save(function() w.advanced=true end)
+    check(queueRow(w,212,0),"CUT the applied row write is queued ("..finish..")")
+    pump()
+    check(staleFail(w),"CUT a late status stops the visit before the answer is handled ("..finish..")")
+    retry(w)
+    local from
+    if finish=="discard" then from=discardNow(w) else servo0(w).mid=saved;from=saveNow(w) end
+    n,value=rowWrites(from,212,0,2)
+    eq(n,1,"CUT "..finish.." after an unhandled answer writes the row");eq(value,saved,"CUT "..finish.." after an unhandled answer writes the saved value")
+  end
+  w=world();local saved=servo0(w).mid;servo0(w).mid=saved+30;w:touch("servo_configurations");failCommand=212
+  w:save(function() w.advanced=true end)
+  for _=1,500 do w:tick();pump();ticks=ticks+1;if w.error then break end end
+  failCommand=nil;retry(w)
+  n,value=rowWrites(discardNow(w),212,0,2)
+  eq(n,1,"CUT discard after an unanswered row writes the row");eq(value,saved,"CUT discard after an unanswered row writes the saved value")
+  -- (8) Two writes of one row are out, as when an adjustment is set back and changed again before
+  -- the first is answered: the first answer must not make the second, cut off, look written.
+  local function copy(t) local c={};for k,v in pairs(t) do c[k]=type(v)=='table' and copy(v) or v end;return c end
+  w=world()
+  local slot=w.data.adjustment_ranges.adjustment_ranges
+  local original=slot[3]
+  slot[3]=copy(original);w.bus:add(w:rangeJob("adjustment_ranges",3))
+  local changed=copy(original);changed.adjStep=(changed.adjStep or 0)+1;slot[3]=changed
+  w.bus:add(w:rangeJob("adjustment_ranges",3));w:touch("adjustment_ranges")
+  check(queueRow(w,53,2),"CUT the first of two row writes is queued")
+  pump()
+  check(queueRow(w,53,2),"CUT the second of two row writes is queued")
+  check(staleFail(w),"CUT a late status drops the second row write")
+  retry(w)
+  local from=discardNow(w)
+  local wrote=nil
+  for i=from,#q.sent do local m=q.sent[i];if m.command==53 and m.payload[1]==2 then wrote=m.payload end end
+  local expect=w.math.adjustPayload(2,original)
+  check(wrote~=nil and table.concat(wrote,",")==table.concat(expect,","),"CUT discard writes the saved row back after two writes of it")
+end
 -- Whole-table work is generated one record per pass, with EEPROM last.
 w=world()
 q.sent = {}

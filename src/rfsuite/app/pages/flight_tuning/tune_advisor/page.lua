@@ -222,6 +222,7 @@ local ui = {
   probeOwed = false,
   probing = false,
   unsupported = false,      -- this flight controller refused the command: until another is asked
+  newerLayout = false,      -- refused with a reply layout newer than this suite reads: update the suite
   unsavedSeconds = 0,       -- the board's own seconds in the probe's reply: measured, maybe never saved
   flightCount = 0,          -- flights read from the card, whichever axes of them read
   captureState = nil,       -- the flight capture's state, when it runs in this Lua state
@@ -334,6 +335,7 @@ local function loadTexts(i18n)
     profileFmt = pageText(i18n, "profile_fmt", "PID %d, rates %d"),
     noAircraft = pageText(i18n, "no_aircraft", "Connect to a model first"),
     unsupported = pageText(i18n, "unsupported", "Needs newer firmware"),
+    newerLayout = pageText(i18n, "newer_layout", "Needs newer RFSuite"),
     readingFlight = pageText(i18n, "reading_flight", "Reading the last flight..."),
     notRead = pageText(i18n, "not_read", "Last flight not read. It is read at the next disarm."),
     noFlight = pageText(i18n, "no_flight", "No flight saved yet"),
@@ -794,7 +796,7 @@ local function render()
   local view = newView()
   ui.view = view
   if ui.unsupported then
-    view.data = T.unsupported
+    view.data = ui.newerLayout and T.newerLayout or T.unsupported
   elseif not ui.mcu then
     view.data = T.noAircraft
   elseif captureState() == "reading" then
@@ -948,7 +950,15 @@ local function readHistoryStep()
 end
 
 -- One request, on open and on Reload: whether the firmware has the command at all. The flight
--- controller's error reply, or a reply of another layout, means it does not.
+-- controller's error reply, or a reply of another layout, means it does not. A reply that is not
+-- the error reply and carries a payload version above the one api.parse reads comes from firmware
+-- newer than this suite: then it is the suite that needs updating, not the firmware.
+local function newerLayout(msg, buf, api)
+  if type(msg) == "table" and msg.__errorReply == true then return false end
+  local version = type(buf) == "table" and tonumber(buf[1]) or nil
+  return version ~= nil and version > api.PAYLOAD_VERSION
+end
+
 local function probe()
   -- Loaded for the request alone, which holds it until the answer; the build does not need it,
   -- and Clear loads it again
@@ -966,19 +976,31 @@ local function probe()
     -- Only this field lets the error reply reach processReply instead of being retried
     completeOnErrorReplyAttempt = 1,
     simulatorResponse = api.simulatorResponseFor(AXIS_ROLL),
-    processReply = function(_, buf)
+    processReply = function(msg, buf)
       if generation ~= ui.generation then return end
       ui.probing = false
-      local reply = api.parse(buf)
+      local reply, reason = api.parse(buf)
       local supported = reply ~= nil
+      local newer = not supported and newerLayout(msg, buf, api)
+      if not supported then
+        if newer then
+          pageLog("warn", "probe: reply payload version %s is newer than the %s this suite reads",
+            tostring(buf[1]), tostring(api.PAYLOAD_VERSION))
+        else
+          pageLog("info", "probe: not supported (%s)",
+            type(msg) == "table" and msg.__errorReply == true and "error reply" or tostring(reason))
+        end
+      end
       -- What the board measured since it was last cleared: with no flight saved, a time here is
       -- a flight that was flown and never saved
       local unsaved = reply and tonumber(reply.seconds) or 0
       local changed = unsaved ~= (ui.unsavedSeconds or 0)
       ui.unsavedSeconds = unsaved
-      pageLog("trace", "probe reply: supported %s, board seconds %d", tostring(supported), unsaved)
-      if supported == ui.unsupported or changed then
+      pageLog("trace", "probe reply: supported %s, newer layout %s, board seconds %d", tostring(supported),
+        tostring(newer), unsaved)
+      if supported == ui.unsupported or changed or newer ~= ui.newerLayout then
         ui.unsupported = not supported
+        ui.newerLayout = newer
         render()
       end
     end,
@@ -1012,6 +1034,7 @@ local function clear()
         -- command carries one.
         if type(buf) == "table" and #buf > 0 then
           ui.unsupported = true
+          ui.newerLayout = false
           render()
         end
       end
@@ -1029,6 +1052,7 @@ local function ensureLoaded(i18n)
   if type(ui.runtime) ~= "table" then ui.runtime = newRuntime() end
   ui.selected = AXIS_ROLL
   ui.unsupported = false
+  ui.newerLayout = false
   ui.probing = false
   ui.captureState = captureState()
   ui.profileKey = nil
@@ -1373,7 +1397,7 @@ function M.wakeup(ctx)
   local mcu = sessionMcu()
   if mcu ~= nil and mcu ~= ui.mcu then
     -- Another flight controller: whether its firmware has the command is asked afresh
-    ui.unsupported = false
+    ui.unsupported, ui.newerLayout = false, false
     queueHistoryRead()
     render()
     return
@@ -1491,7 +1515,7 @@ function M.onReload()
   if ui.applying then return false end
   ui.snapshot = nil
   -- Ask again, e.g. after a firmware update, and read the flights again
-  ui.unsupported = false
+  ui.unsupported, ui.newerLayout = false, false
   queueHistoryRead()
   render()
   return false
@@ -1518,6 +1542,7 @@ function M.onClose()
   ui.mcu, ui.loadStep, ui.readJob, ui.journalJob, ui.flights, ui.axes = nil, nil, nil, nil, nil, nil
   ui.axesBuilt = nil
   ui.probeOwed, ui.probing, ui.unsupported, ui.unsavedSeconds, ui.flightCount = false, false, false, 0, 0
+  ui.newerLayout = false
   ui.captureState, ui.seenSaved, ui.profileKey = nil, nil, nil
   for axis = AXIS_ROLL, AXIS_YAW do ui.applied[axis] = nil end
   ui.text, ui.i18n = nil, nil
