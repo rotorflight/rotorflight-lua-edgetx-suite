@@ -5954,7 +5954,16 @@ return function(h)
     controller.plan={steps={{kind="fc"}},at=1}
     controller:stop()
     check(controller.plan==nil,"S02 a stop ends an unfinished Set on both")
-    w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
+    -- A memory stop waits for the whole of Set on both on its card (the module changed, the FC not
+    -- yet), not only for a running task; off the card a leftover plan holds nothing.
+    controller:enter(card);w.active=true
+    controller.plan={steps={{kind="rate",index=1},{kind="fc"}},at=2}
+    check(w.linkBusy and w.linkBusy()==true,"S02 the memory stop waits between the steps of Set on both")
+    local other=w:cardDef(L.linkTitle,L.linkHint,{});w.cards={card,other};w.card=2
+    check(w.linkBusy()==false,"S02 a plan on a card that is not shown holds no stop")
+    w.card=1;controller.plan=nil
+    check(w.linkBusy()==false,"S02 without a plan or task the link holds no stop")
+    w.loadModule=realLoad;w.linkTick,w.stopLink,w.linkBusy=nil,nil,nil
   end)
   case("S02.elrs-set-on-both-after-a-stop-reads-the-module-first",function()
     local w=world();settle(w);w.step=2;w.rx={}
@@ -6618,6 +6627,63 @@ return function(h)
     measured=1000;c[1].rows[2].press();run()
     check(w.motorHold~=nil,"PWM restarted calibration waits for a new full reading")
     w:stopMotor();drain(w);q.reply=nil
+  end)
+  case("STOP.save-notice-on-the-page",function()
+    -- Through the page as on the radio: a stop scene already on screen, Save & exit whose commit
+    -- has something to say, and the page's scene cache between the two.
+    local realLoad,realMemory=loadScript,getAvailableMemory
+    -- The visit records its history in the session; later cases start from the one they expect.
+    local session=_G.rfsuite.session
+    local keptRecovery,keptHistory=session.helicopterSetupRecovery,session.helicopterSetupHistory
+    local keptMask=keptHistory and keptHistory.mask
+    local w,closed
+    loadScript=function(file,...)
+      local chunk=realLoad(file,...)
+      if not string.find(file,"helicopter_setup/controller.lua",1,true) then return chunk end
+      return function()
+        local module=chunk()
+        local new=module.new
+        return setmetatable({new=function(...) w=new(...);return w end},{__index=module})
+      end
+    end
+    local page=load("app/pages/helicopter_setup/page.lua")
+    local ctx={w=480,h=272,children={},menu={getCurrentMenuId=function() return "helicopter_setup_page" end},
+      requestClose=function() closed=true end}
+    ctx.requestRebuild=function() ctx.children={};page.build(ctx) end
+    local function pass() page.wakeup(ctx);h.pump();h.advance(1) end
+    local function shown(text)
+      for _,item in ipairs(ctx.children) do
+        local value=item.text;if type(value)=="function" then value=value() end
+        if value==text then return item end
+      end
+    end
+    page.build(ctx)
+    for _=1,1500 do pass();if w and w.ready and (w.overview or w.cards) then break end end
+    loadScript=realLoad
+    check(w and w.ready,"STOP the page reaches a ready visit")
+    -- The page loads its own labels, unresolved: compare with those, not with the translated ones here.
+    local PL=w.L
+    w:touch("motor_config");w.commit=function() w.stayNotice=PL.tailPinRefused end
+    getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+    for _=1,200 do pass();if w.memoryStop==true and shown(PL.saveExit) then break end end
+    local save=shown(PL.saveExit)
+    check(w.memoryStop==true and save~=nil,"STOP the page shows the stop screen with Save & exit")
+    if save then save.press() end
+    for _=1,800 do pass();if not w.transition and next(w.dirty)==nil and w.stopNotice then break end end
+    for _=1,20 do pass() end
+    check(shown(PL.tailPinRefused)~=nil,"STOP the page shows what the save had to say on the stop screen")
+    check(shown(PL.closeWizard)~=nil,"STOP after that save the page offers Close")
+    check(shown(PL.saveExit)==nil,"STOP after that save the page no longer offers Save & exit")
+    local close=shown(PL.closeWizard)
+    check(not closed,"STOP the visit is still open before Close is pressed")
+    if close then close.press() end
+    for _=1,400 do pass();if closed then break end end
+    check(closed,"STOP Close on that screen closes the visit")
+    getAvailableMemory=realMemory
+    page.onClose();for _=1,30 do h.pump() end
+    eq(session.helicopterSetupRecovery,keptRecovery,"STOP a visit closed with Close leaves no recovery marker")
+    session.helicopterSetupHistory=keptHistory
+    if keptHistory then keptHistory.mask=keptMask end
   end)
   return cases
 end

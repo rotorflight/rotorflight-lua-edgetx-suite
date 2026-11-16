@@ -210,6 +210,28 @@ function M.new(w, ctx, diagrams)
   if w.disconnectExit then
     all[#all+1]=label(12,48,width-24,w.L.disconnectedExitHint);all[#all].h=100;all[#all].color=palette.warning
     button(12,160,width-24,w.L.powerOffLeave,function() w:leaveDisconnected() end)
+  elseif w.memoryStop and w.error then
+    -- Out of radio memory: every test is released; the visit can only be left.
+    all[#all+1]=label(12,48,width-24,w.L.memoryStop);all[#all].h=72;all[#all].color=palette.error
+    local y=124
+    -- "Released" only when every release was answered; a lost link sent none.
+    if w.cleanupFailed or w.needsRelease then
+      all[#all+1]=label(12,y,width-24,w.L.cleanupFailed);all[#all].h=48;all[#all].color=palette.warning;y=y+52
+    elseif w.error~="memory" then
+      all[#all+1]=label(12,y,width-24,w.errorText and w:errorText() or w.error);all[#all].color=palette.error;y=y+28
+    else
+      all[#all+1]=label(12,y,width-24,w.L.testsReleased);all[#all].color=palette.text;y=y+28
+    end
+    if w.stopNotice then
+      all[#all+1]=label(12,y,width-24,w.stopNotice);all[#all].h=48;all[#all].color=palette.warning;y=y+52
+    end
+    local idle=function() return not w.transition end
+    if next(w.dirty) then
+      button(12,y,math.floor(width/2)-18,w.L.saveExit,function() if not w.transition then w:save(function() w:close() end) end end,idle)
+      button(math.floor(width/2)+6,y,math.floor(width/2)-18,w.L.discardExit,function() if not w.transition then w:discard() end end,idle)
+    else
+      button(12,y,width-24,w.L.closeWizard,function() if not w.transition then w:close() end end,idle)
+    end
   elseif w.confirmExit then
     local leavingStep=w.exitToSteps or w.backTarget or w.jumpTarget
     all[#all + 1] = label(12, 48, width-24, leavingStep and w.L.leaveStepHint or w.L.exitHint)

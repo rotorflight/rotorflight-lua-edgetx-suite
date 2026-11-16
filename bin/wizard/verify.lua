@@ -359,6 +359,30 @@ for _,size in ipairs({{480,272},{480,320},{800,480}}) do
   while not failure.done do failure:step() end
   exported[#exported+1]={step=0,name="status-error",task="status-error",width=size[1],height=size[2],children=resolve(failure.children)}
   historyPreview.error,historyPreview.statusFailure=nil,nil
+  -- The memory stop: with unsaved changes, without, and with a release not confirmed. Everything
+  -- stays on the screen and its buttons end above the footer's Back.
+  local savedDirty=historyPreview.dirty
+  for _,variant in ipairs({{"memory-stop-changes",{motor_config=true}},{"memory-stop",{}},{"memory-stop-cleanup",{},true}}) do
+    historyPreview.error,historyPreview.memoryStop=variant[3] and "cleanup: x" or "memory",true
+    historyPreview.dirty,historyPreview.cleanupFailed=variant[2],variant[3]
+    local stop=view.new(historyPreview,{w=size[1],h=size[2]},diagrams)
+    while not stop.done do stop:step() end
+    local nodes=resolve(stop.children)
+    local backY,lowest,inside=nil,0,true
+    for _,node in ipairs(nodes) do
+      if node.x and node.y and node.w and node.h then
+        if node.x<0 or node.y<0 or node.x+node.w>size[1] or node.y+node.h>size[2] then inside=false end
+      end
+      if node.type=="button" and node.text==L.back then backY=node.y end
+      if node.type=="button" and (node.text==L.saveExit or node.text==L.discardExit or node.text==L.closeWizard) then
+        lowest=math.max(lowest,node.y+node.h)
+      end
+    end
+    check(inside,variant[1].." stays on a "..size[1].."x"..size[2].." screen")
+    check(backY and lowest>0 and lowest<backY,variant[1].." buttons end above Back on "..size[1].."x"..size[2])
+    exported[#exported+1]={step=0,name=variant[1],task=variant[1],width=size[1],height=size[2],children=nodes}
+  end
+  historyPreview.error,historyPreview.memoryStop,historyPreview.dirty,historyPreview.cleanupFailed=nil,nil,savedDirty,nil
   historyPreview.recoveryRequired=true;historyPreview:buildModelPreparation()
   local recovery=view.new(historyPreview,{w=size[1],h=size[2]},diagrams)
   while not recovery.done do recovery:step() end
@@ -714,6 +738,194 @@ check(w.error and not w.advanced,"failed write blocks advance")
 local eeprom=false;for _,m in ipairs(q.sent) do if m.command==250 then eeprom=true end end
 check(not eeprom,"failed write never reaches EEPROM")
 failCommand=nil
+-- Low radio memory. The figure is read at the page's post-build collect; below the warn level the
+-- status line says so, below the stop level every override is released before the stop screen is
+-- built, and nothing new starts from it. Without the platform function nothing changes.
+do
+  local savedFree=getAvailableMemory
+  local function stopScreen(world)
+    local scene=view.new(world,{w=480,h=272},diagrams)
+    while not scene.done do scene:step() end
+    local texts={}
+    for _,item in ipairs(scene.children) do
+      local text=type(item.text)=="function" and item.text() or item.text
+      if type(text)=="string" then texts[text]=item end
+    end
+    return texts
+  end
+  w=world();w.rebuilds=0
+  load(PATH.."feedback.lua").attach(w,load("lib/system_state.lua"),{})
+  getAvailableMemory=nil;w:checkMemory()
+  check(not w.memoryLow and not w.memoryStop,"no memory function: the guard does nothing")
+  getAvailableMemory=function() return 1000 end;w:checkMemory()
+  check(not w.memoryLow and not w.memoryStop,"the simulator's constant reading is not a low heap")
+  getAvailableMemory=function() return 600*1024 end;w:checkMemory()
+  check(not w.memoryLow and not w.memoryStop,"plenty of memory changes nothing")
+  getAvailableMemory=function() return 300*1024 end;w:checkMemory()
+  check(w.memoryLow and not w.memoryStop,"below the warn level the wizard warns and goes on")
+  w.message=L.ready
+  eq(w:feedbackText(),L.memoryLow,"the warning is on the status line")
+  w.message=L.pendingSave
+  eq(w:feedbackText(),L.memoryLow,"the warning replaces the unsaved-changes reminder")
+  w.message=L.tailPinRefused
+  eq(w:feedbackText(),L.tailPinRefused,"the warning never hides an answer to the pilot")
+  w.message=L.ready
+  eq(w.rebuilds,0,"the warning builds no scene")
+  -- Below the stop level with a servo and a mixer test held and an unsaved change.
+  w:hold("servo",0,400);w:hold("mixer",1,2502);w:touch("motor_config")
+  for _=1,6 do w:tick();pump();ticks=ticks+1 end
+  check(next(w.holds)~=nil,"tests are held before the stop")
+  w.buildRequested=true
+  -- The stop fires on the exit question, with a profile loop cut off half way.
+  w.confirmExit,w.restoreProfile=true,2
+  local inputs={}
+  local fields={"step","card","cards","confirmExit","disconnectExit","overview","historyFailure","error","stepMenu"}
+  for i,name in ipairs(fields) do inputs[i]=w[name] end
+  q.sent={}
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  eq(w.memoryStop,"releasing","below the stop level the wizard stops")
+  local unchanged=true
+  for i,name in ipairs(fields) do if inputs[i]~=w[name] then unchanged=false end end
+  check(unchanged,"the stop changes no scene input until the releases are answered")
+  check(next(w.holds)==nil and w.motorHold==nil,"the stop drops every held test")
+  check(w.buildRequested==nil,"the stop drops a card build still owed")
+  check(not w.error,"the stop screen waits for the releases")
+  for _=1,60 do w:tick();pump();ticks=ticks+1;if w.memoryStop==true then break end end
+  eq(w.memoryStop,true,"the stop screen follows the releases")
+  eq(w.error,"memory","the stop is shown as the visit's end")
+  check(not w.confirmExit and w.restoreProfile==nil,"the stop screen replaces the exit question")
+  local reselected=false
+  for _,m in ipairs(q.sent) do
+    if m.command==api("set_pid_profile").command and m.payload[1]==2 then reselected=true end
+  end
+  check(reselected,"a profile loop cut off by the stop selects its profile again")
+  local offs={}
+  for _,m in ipairs(q.sent) do offs[m.command]=(offs[m.command] or 0)+1 end
+  eq(offs[api("servo_override").writeCommand],8,"every servo override released")
+  eq(offs[api("mixer_override").writeCommand],4,"every mixer override released")
+  eq(offs[api("motor_override").writeCommand],4,"every motor override released")
+  check(not w.cleanupFailed,"the releases were confirmed")
+  local step,card=w.step,w.card
+  w:navigate(step,card+1);w:next();w:retry();w:back();w:openStepMenu();w:requestSteps()
+  for _=1,20 do w:tick();pump();ticks=ticks+1 end
+  check(w.step==step and w.card==card,"from the stop no card is reached")
+  check(w.error=="memory" and w.memoryStop==true,"from the stop Retry does not resume")
+  check(not w.stepMenu and not w.confirmExit,"from the stop neither the step menu nor the exit question opens")
+  check(not w.closing,"Back with unsaved changes does not close")
+  local texts=stopScreen(w)
+  check(texts[L.memoryStop]~=nil,"the stop screen says why")
+  check(texts[L.saveExit]~=nil and texts[L.discardExit]~=nil and texts[L.retry]==nil,"with unsaved changes it offers save and discard, no Retry")
+  -- A failure while stopped keeps the stop screen.
+  w:fail("cleanup","x")
+  texts=stopScreen(w)
+  check(w.memoryStop==true and texts[L.memoryStop]~=nil and texts[L.retry]==nil,"a later failure keeps the stop screen")
+  w.error="memory"
+  -- Save and close from the stop: the change is written, nothing is copied, the page closes.
+  local savedTable=w.saved.motor_config
+  w.closed=nil;w.requestClose=function() w.closed=true end
+  q.sent={}
+  texts[L.saveExit].press()
+  for _=1,800 do w:tick();pump();ticks=ticks+1;if w.closed then break end end
+  check(w.closed,"save and close from the stop closes the wizard")
+  local eepromAt,unlockAt
+  for i,m in ipairs(q.sent) do
+    if m.command==250 then eepromAt=i end
+    if m.command==99 and m.payload[1]==0 then unlockAt=i end
+  end
+  check(eepromAt and unlockAt and eepromAt<unlockAt,"the change is saved before arming is allowed again")
+  check(w.saved.motor_config==savedTable,"no configuration copy is taken after the stop")
+  -- Without unsaved changes the stop offers Close, and Back closes too.
+  w=world()
+  getAvailableMemory=function() return 100*1024 end;w:checkMemory()
+  for _=1,60 do w:tick();pump();ticks=ticks+1;if w.memoryStop==true then break end end
+  texts=stopScreen(w)
+  check(texts[L.closeWizard]~=nil and texts[L.saveExit]==nil,"without changes the stop offers Close")
+  w.closed=nil;w.requestClose=function() w.closed=true end
+  w:back()
+  for _=1,200 do w:tick();pump();ticks=ticks+1;if w.closed then break end end
+  check(w.closed,"Back on a clean stop closes the wizard")
+  -- A save in progress finishes before the stop.
+  w=world();w.transition=true
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  check(not w.memoryStop and w.memoryOwed,"a running operation is not cut off")
+  w.transition=nil;w:tick()
+  eq(w.memoryStop,"releasing","the owed stop follows the operation")
+  w=world();w.escBusy=true
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  check(not w.memoryStop and w.memoryOwed,"an ESC transaction is not cut off")
+  w.escBusy=nil;w:tick()
+  eq(w.memoryStop,"releasing","the owed stop follows the ESC transaction")
+  -- From the stop on, only the transport runs: a pending live write is not sent, and a card build
+  -- asked for later (the model-preparation pass, say) loads no step file.
+  w=world();w.live={motor_config=true}
+  q.sent={}
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  for _=1,60 do w:tick();pump();ticks=ticks+1;if w.memoryStop==true then break end end
+  local liveSent=false
+  for _,m in ipairs(q.sent) do if m.command==api("motor_config").writeCommand then liveSent=true end end
+  check(w.memoryStop==true and not liveSent,"no live write is sent after the stop")
+  local stopCards=w.cards
+  w.buildRequested=true
+  for _=1,20 do w:tick();pump();ticks=ticks+1 end
+  check(w.cards==stopCards and w.buildRequested==true,"a card build asked for after the stop loads no step")
+  -- A running ELRS link sync owns FC writes and their EEPROM commit: the stop waits for it.
+  w=world();local syncing=true;w.linkBusy=function() return syncing end
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  check(not w.memoryStop and w.memoryOwed,"an ELRS link sync is not cut off")
+  syncing=false;w:tick()
+  eq(w.memoryStop,"releasing","the owed stop follows the ELRS link sync")
+  -- The stop screen says "released" only when every release was answered.
+  for _=1,60 do w:tick();pump();ticks=ticks+1;if w.memoryStop==true then break end end
+  local shown=stopScreen(w)
+  check(shown[L.testsReleased]~=nil and shown[L.cleanupFailed]==nil,"a confirmed release says the tests were released")
+  w.needsRelease=true
+  shown=stopScreen(w)
+  check(shown[L.testsReleased]==nil and shown[L.cleanupFailed]~=nil,"a release never sent is not called released")
+  local function untilStopped(world)
+    for _=1,60 do world:tick();pump();ticks=ticks+1;if world.memoryStop==true then break end end
+  end
+  local function saveFromStop(world)
+    world.closed=nil;world.requestClose=function() world.closed=true end
+    stopScreen(world)[L.saveExit].press()
+    for _=1,800 do world:tick();pump();ticks=ticks+1;if world.closed or world.error~="memory" then break end end
+  end
+  -- A live servo write the stop cuts off before it reached the FC is written by Save & exit.
+  w=world();w.step=13
+  local servoWrite=api("servo_configurations").writeCommand
+  w.data.servo_configurations.servos[0].mid=w.data.servo_configurations.servos[0].mid+5
+  w:touch("servo_configurations",false,true)
+  for _=1,20 do w:tick();ticks=ticks+1;if #q.messages>0 then break end end
+  local queuedServo=false
+  for _,m in ipairs(q.messages) do if m.command==servoWrite then queuedServo=true end end
+  check(queuedServo,"the live servo write is queued, not yet sent")
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  untilStopped(w)
+  q.sent={};saveFromStop(w)
+  local servoWritten=false
+  for _,m in ipairs(q.sent) do if m.command==servoWrite then servoWritten=true end end
+  check(w.closed and servoWritten,"Save & exit writes the servo change the stop cut off")
+  -- A stop before the override modules are loaded (a history-only visit, an FC below API 12.10, a
+  -- stop on the loading card) sends no release it cannot send, and Close still closes.
+  w=world();w.bus.apis.servo_override,w.bus.apis.mixer_override,w.bus.apis.motor_override=nil,nil,nil
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  untilStopped(w)
+  check(w.memoryStop==true and not w.cleanupFailed and not w.needsRelease,"nothing to release is not a failed release")
+  w.closed=nil;w.requestClose=function() w.closed=true end
+  stopScreen(w)[L.closeWizard].press()
+  for _=1,200 do w:tick();pump();ticks=ticks+1;if w.closed then break end end
+  check(w.closed,"Close works after a stop with no override modules")
+  -- Save & exit whose commit has something to say (a refused tail pin move): the stop screen shows it.
+  -- feedback.lua attached as on the radio: its status line says nothing while the stop is shown.
+  w=world();load(PATH.."feedback.lua").attach(w,load("lib/system_state.lua"),{});w:touch("motor_config")
+  w.commit=function() w.stayNotice=L.tailPinRefused end
+  getAvailableMemory=function() return 200*1024 end;w:checkMemory()
+  untilStopped(w)
+  saveFromStop(w)
+  local after=stopScreen(w)
+  check(not w.closed and after[L.tailPinRefused]~=nil,"the stop screen shows what the save had to say")
+  check(after[L.closeWizard]~=nil,"after that save the stop screen offers Close")
+  getAvailableMemory=savedFree
+end
 -- A row is put in the sent snapshot when its write is generated, before the flight controller
 -- answers. A failure, a cancel or a late status can drop that write, so the next save or discard
 -- must write the row again rather than take it for one the flight controller already holds.
@@ -1092,9 +1304,55 @@ do
     end
   end
   scheduled.onClose()
+  _G.rfsuite.session.helicopterSetupRecovery=nil
   check(presses>=12,"scheduled walk moves through twelve cards ("..presses..")")
   check(scenes>=12,"scheduled walk publishes a scene after each move ("..scenes..")")
   eq(maxLoadingRun,1,"a card move shows the loading scene in one build")
+end
+-- The same host-like walk with the radio's free memory dropping below the stop level: the page
+-- reads it after the next published scene, and the walk ends on the stop screen.
+do
+  local savedFree=getAvailableMemory
+  local guarded=load(PATH.."page.lua")
+  local pending=true
+  local gctx={children={},x=0,y=0,w=480,h=272,menu={getCurrentMenuId=function() return "helicopter_setup_page" end},
+    requestRebuild=function() pending=true end,requestClose=function() end}
+  local presses,lowered,stopSeen,after,gpaused=0,nil,false,0,false
+  getAvailableMemory=function() return 900*1024 end
+  for _=1,3000 do
+    guarded.wakeup(gctx)
+    if pending then
+      pending=false;gctx.children={};guarded.build(gctx)
+      for _,item in ipairs(gctx.children) do
+        if item.text=="@i18n(app.modules.helicopter_setup.memoryStop)@" then stopSeen=true end
+      end
+    end
+    resolve(gctx.children)
+    pump();ticks=ticks+5
+    if stopSeen then after=after+1;if after>100 then break end end
+    if presses>=4 and not lowered then lowered=presses;getAvailableMemory=function() return 200*1024 end end
+    for _,item in ipairs(gctx.children) do
+      local active=type(item.active)~="function" or item.active()
+      if active and item.type=="toggle" and item.get and not item.get() and not settingSwitch(gctx.children,item) then
+        if not gpaused then ticks=ticks+400;gpaused=true end
+        item.set(true)
+      end
+      local caption=item.type=="button" and (type(item.text)=="function" and item.text() or item.text)
+      local key=type(caption)=="string" and string.match(caption,"^@i18n%(app%.modules%.helicopter_setup%.([%w_]+)%)@$")
+      if active and item.press and key=="no" then
+        if not gpaused then ticks=ticks+400;gpaused=true end
+        item.press()
+      end
+      if active and item.press and (key=="continue" or key=="nextStep" or key=="completeSetup") then
+        presses=presses+1;item.press();break
+      end
+    end
+  end
+  guarded.onClose()
+  _G.rfsuite.session.helicopterSetupRecovery=nil
+  getAvailableMemory=savedFree
+  check(lowered~=nil and stopSeen,"the page shows the stop screen once free memory falls below the stop level")
+  check(lowered and presses<=lowered+1,"no card is reached after the stop ("..presses.."/"..tostring(lowered)..")")
 end
 historyFiles:restore()
 getValue,getFieldInfo,getSourceValue,model=originalSources.getValue,originalSources.getFieldInfo,originalSources.getSourceValue,originalSources.model

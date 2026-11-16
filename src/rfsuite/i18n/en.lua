@@ -235,6 +235,10 @@ return {
 
         cleanupFailed = "Test outputs were not confirmed OFF. Keep the FC powered off until checked.",
         releasingTests = "Releasing test outputs...",
+        memoryLow = "Radio memory is low: save and leave soon.",
+        memoryStop = "Not enough radio memory to go on. Leave the wizard and restart the radio.",
+        testsReleased = "All tests were released.",
+        closeWizard = "Close",
         recoveryRequired = "Previous session interrupted. Power-cycle the FC.",
 
         statusUnavailable = "FC status could not be confirmed.",
