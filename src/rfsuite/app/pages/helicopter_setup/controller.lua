@@ -392,17 +392,34 @@ function M.new(runtime, transport, mathModule, labels)
     local saved, d = self.saved[api], self.data[api]
     self.sent[api] = same(saved, d) and saved or copy(d)
   end
-  -- Snapshot the exact row queued for FC RAM, including the extras carried by a mode write.
+  -- While a row's write is out, FC RAM may hold the old row or the new one. The sent snapshot
+  -- holds the write's job in the row's place, which no row equals, so a save or a discard writes
+  -- the row. The answer records the row only while its own job still holds the place: a later
+  -- write of the same row keeps it unknown until that write is answered. A write cut off by a
+  -- failure, a cancel or a late status, applied or not, leaves the row unknown.
+  function w:rowJob(job, rows, index, r, extras, extra)
+    rows[index] = job
+    if extras then extras[index] = job end
+    job.after = function()
+      if rows[index] ~= job then return end
+      rows[index] = r
+      if extras then extras[index] = extra end
+      if self.logTrace then self:log("trace", "%s row %s answered", job.api, index) end
+    end
+    return job
+  end
+  -- Snapshot the exact row written to FC RAM, including the extras carried by a mode write.
   function w:rangeJob(api, index, from)
     local d = from or self.data
-    local r = copy(d[api][api][index]); self:sentRows(api, api)[index] = r
+    local r = copy(d[api][api][index])
     if api == "mode_ranges" then
       local extra = copy(d.mode_ranges_extra.mode_ranges_extra[index] or {})
-      self:sentRows("mode_ranges_extra", "mode_ranges_extra")[index] = extra
-      return { api = "set_mode_range", write = true, payload = { index - 1, r.id, r.auxChannelIndex,
+      local job = { api = "set_mode_range", write = true, payload = { index - 1, r.id, r.auxChannelIndex,
         self.math.step(r.range.start), self.math.step(r.range["end"]), extra.modeLogic or 0, extra.linkedTo or 0 } }
+      return self:rowJob(job, self:sentRows(api, api), index, r, self:sentRows("mode_ranges_extra", "mode_ranges_extra"), extra)
     end
-    return { api = "set_adjustment_range", write = true, payload = self.math.adjustPayload(index - 1, r) }
+    local job = { api = "set_adjustment_range", write = true, payload = self.math.adjustPayload(index - 1, r) }
+    return self:rowJob(job, self:sentRows(api, api), index, r)
   end
   function w:sendDirty(api, from)
     local d = from or self.data
@@ -414,7 +431,7 @@ function M.new(runtime, transport, mathModule, labels)
       api == "mode_ranges" and #d[api].mode_ranges or
       api == "adjustment_ranges" and #d[api].adjustment_ranges
     -- Mode and adjustment tables are written row by row, and a full table is dozens of
-    -- messages. Only rows that differ from the last queued FC RAM snapshot are sent.
+    -- messages. Only rows that differ from the last answered FC RAM snapshot are sent.
     -- Live edits can return to the saved value while FC RAM still holds an earlier edit.
     local other = self.sent
     local servos, mixer = api == "servo_configurations", api == "mixer_input"
@@ -441,12 +458,22 @@ function M.new(runtime, transport, mathModule, labels)
         end
         if cursor > count then return nil end
         local index = cursor
+        if self.logDebug and rows then
+          -- A job still holding the row's place is a write that was cut off before its answer.
+          local slot = servos and index - 1 or index
+          local held = rows[slot]
+          if type(held) == "table" and held.after then
+            self:log("debug", "%s row %s written again, its last write was not answered", api, slot)
+          end
+        end
         if api == "servo_configurations" then
-          local r = copy(d[api].servos[index - 1]); rows[index - 1] = r
-          return { api = api, write = true, data = { index = index - 1, servo = r } }
+          local r = copy(d[api].servos[index - 1])
+          local job = { api = api, write = true, data = { index = index - 1, servo = r } }
+          return self:rowJob(job, rows, index - 1, r)
         elseif api == "mixer_input" then
-          local r = copy(d[api].inputs[index]); rows[index] = r
-          return { api = api, write = true, data = { index = index, rate = r.rate, min = r.min, max = r.max } }
+          local r = copy(d[api].inputs[index])
+          local job = { api = api, write = true, data = { index = index, rate = r.rate, min = r.min, max = r.max } }
+          return self:rowJob(job, rows, index, r)
         elseif api == "serial_config" then
           local p = {}
           for _, key in ipairs({ "identifier", "function_mask", "msp_baud_index", "gps_baud_index", "telem_baud_index", "blackbox_baud_index" }) do

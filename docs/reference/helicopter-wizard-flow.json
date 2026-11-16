@@ -5,7 +5,7 @@
   "inputs": {
     "bin/wizard/source-map.json": "c4cc0185cbf9644c6750654e77d21a0f01759db0ad0a1ab9dad4c1ba490fedbe",
     "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "1750296f3f160c4c328b331cf34673bb803e936266f19712698dac996c6ea56a",
-    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "d0772150d1deadbdb1904cfee55aab78b4ac4000b14bc2a1c058eb73f706ba55",
+    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "c6c56d2401b4ba4f80aa792399c4a8c014e1a7e0a9be04843c073e492959efc7",
     "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "632a4b83778b59aff2d452005be884114472e6f16ff0f8bb832743e093203a1e",
     "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "4accd43d44b95d3a8f5a853d85149fdb07bc26f8ae2d69f39b9f789f3fb7cd6d",
     "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "532fdca33b26f78b2120756d80870ada8d318bf718592948564fa6e4e6099d36",
@@ -46,7 +46,7 @@
     "src/rfsuite/app/pages/setup/power/battery/page.lua": "bb94e95ab8cac06d560110554faf9ba0b4ab634abc0eb8bba9fde032a6468949",
     "src/rfsuite/app/pages/setup/power/smartfuel/page.lua": "70eac48cbea056fe6b0644e7d4f980bd2af16f229e16a888330bbcbfcf2a5d5f",
     "src/rfsuite/app/pages/setup/power/sources/page.lua": "ff0846f7298aefacba5e522a01f2945e8111fe94110344dad9e4832c5cbc724e",
-    "src/rfsuite/i18n/en.lua": "4debecce6fc4184d503eee128db739e965c215d9822b9c8502babd8babe7addd",
+    "src/rfsuite/i18n/en.lua": "ed3a4317aa1df1908f804731dc72b381b20a664cebd7f3bc2e7d35de7687a341",
     "src/rfsuite/lib/esc_params.lua": "2a9f2fb0fd6f762ef396ed20da5a48081a5583687bb2803b870a34ca2635eeaf",
     "src/rfsuite/lib/governor_fields.lua": "2c7407a6d75e7b00de9002dbb4be49696a6a3468b2d76013e1998549a2932a3c",
     "src/rfsuite/lib/power_fields.lua": "2204f3bd87281732a784d9aacd45a432d91cd3ab99a7a649c5976192c345c41e",
