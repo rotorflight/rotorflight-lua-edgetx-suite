@@ -20,6 +20,13 @@
 --   one-shot job         a stop in a one-shot job's pass over a finished tree still rebuilds;
 --   release              a stop right after, or right before, the standby's tree is cleared on
 --                        leaving the screen leaves it marked unbuilt and still to be cleared;
+--   key cleared          a pass after some other path cleared the standby's key (a reload, the
+--                        reconnect edge) that stops in its state read keeps the standby;
+--   key moved            a stop on the line after a pass moved the render key gives the tree up --
+--                        the standby's, whose record no longer matches, and the scene's -- and the
+--                        surface is built again for the new key;
+--   scene                a stop over a standing scene with no job gives it up and builds it once:
+--                        a scene can change without its key moving, so it is not kept;
 --   log                  the stop line names the pass's last work; a rebuild after a stop says so,
 --                        and a stop that keeps the tree does not claim one.
 --
@@ -350,6 +357,115 @@ do
   rideOut()
   local rebuilt = standbyBuilds - standbyBefore
   check("job queued in the pass: the standby is built again, once", rebuilt == 1, rebuilt)
+end
+
+-- A pass that moves the render key and stops on the next line of the dashboard, before it queues
+-- anything: no job is pending, so the entry point keeps `built`, and the dashboard must already
+-- have given the old tree up by the time the new key stands, or the old screen stays on record as
+-- the build for the new key and no later pass builds it. The stop is raised from a line hook at the
+-- first line of the dashboard run after the stored key moved.
+local function stopAfterKeyMoves(trigger)
+  local startKey = widget.renderKey
+  local fired, builtAtStop = false, nil
+  trigger()
+  recordLog()
+  Stubs.tick()
+  debug.sethook(function()
+    if fired or widget.renderKey == startKey then return end
+    local info = debug.getinfo(2, "S")
+    if info and string.find(info.source, "widgets/dashboard/runtime.lua", 1, true) then
+      fired, builtAtStop = true, widget.built
+      debug.sethook()
+      error("CPU limit", 0)
+    end
+  end, "l")
+  local ok = pcall(Entry.refresh, widget, nil, nil)
+  debug.sethook()
+  return fired and ok, widget.renderKey ~= startKey, widget.built
+end
+
+lvgl.build = realBuild
+newWorld()
+check("a fresh world: the standby stands before the key-move case", settle())
+-- Some other path cleared the key between passes while the standby stands, as a preferences reload
+-- or the reconnect edge does; the next pass stops in its state read. Nothing the standby shows moved,
+-- and the pass puts the key back before it reads (the kept path), so the tree stays.
+do
+  widget.renderKey = nil
+  lines = {}
+  local stoppedHere, rebuilt = stopInStatePass("CPU limit")
+  check("key cleared: the stop happened in a state pass", stoppedHere)
+  check("key cleared: the standby on screen is not built again", rebuilt == 0, rebuilt)
+  check("key cleared: no rebuild is claimed", not logged("rebuild: after a stopped pass"))
+end
+do
+  local Standby = assert(_G.rfsuite.require("widgets/dashboard/standby.lua"))
+  local trees = standbyBuilds
+  -- The layout the standby already draws, now named in the preferences: a new key, a stable one.
+  lines = {}
+  local stopped, moved, builtAfter = stopAfterKeyMoves(function()
+    widget.preferences.dashboard.standby_layout = Standby.defaultLayout(widget.zone.w)
+  end)
+  check("standby key moved: the stop happened after the key moved", stopped and moved)
+  check("standby key moved: the tree is given up", builtAfter == false, builtAfter)
+  check("standby key moved: the rebuild says why", logged("rebuild: after a stopped pass, the standby is not kept"))
+  rideOut()
+  local rebuilt = standbyBuilds - trees
+  check("standby key moved: the standby is built again for the new key, once", rebuilt == 1, rebuilt)
+end
+
+-- The same on the dashboard's own surface, once the stub flight controller has connected.
+do
+  local scene = false
+  for _ = 1, 400 do
+    pass()
+    if widget._treeKind == "scene" and widget.built and widget._job == nil then
+      scene = true
+      break
+    end
+  end
+  check("the dashboard's scene stands before its key-move case", scene)
+  -- A stop in a state pass over the standing scene with no job: given up and built once.
+  do
+    local realPump = MspRuntime.pump
+    local sceneFired = false
+    MspRuntime.pump = function(...)
+      if not sceneFired then
+        sceneFired = true
+        error("CPU limit", 0)
+      end
+      return realPump(...)
+    end
+    lines = {}
+    local before = builds
+    pass()
+    MspRuntime.pump = realPump
+    check("scene, no job: the stop happened", sceneFired and widget._job == nil)
+    check("scene, no job: the tree is given up", widget.built == false)
+    check("scene, no job: the rebuild says why", logged("rebuild: after a stopped pass, the scene is not kept"))
+    rideOut()
+    local rebuiltScene = builds - before
+    check("scene, no job: the scene is built again, once", rebuiltScene == 1, rebuiltScene)
+    check("scene, no job: it stands built afterwards", widget.built == true and widget._job == nil)
+  end
+  local theme = widget.theme
+  local realKey = theme and rawget(theme, "renderKey")
+  local trees = builds
+  lines = {}
+  local stopped, moved, builtAfter = stopAfterKeyMoves(function()
+    -- What the scene shows changed for good: the theme's key says so from now on.
+    theme.renderKey = function() return "a changed scene" end
+    widget._renderKeyCached = false
+  end)
+  check("scene key moved: the stop happened after the key moved", stopped and moved)
+  check("scene key moved: the tree is given up", builtAfter == false, builtAfter)
+  check("scene key moved: the rebuild says why", logged("rebuild: after a stopped pass, the scene is not kept"))
+  rideOut()
+  local rebuilt = builds - trees
+  check("scene key moved: the scene is built again for the new key", rebuilt >= 1, rebuilt)
+  check("scene key moved: it stands built under that key", widget.built == true
+    and widget._treeKey == "a changed scene", widget._treeKey)
+  if theme then theme.renderKey = realKey end
 end
 
 for Log, realEmit in pairs(wrapped) do Log.emit = realEmit end

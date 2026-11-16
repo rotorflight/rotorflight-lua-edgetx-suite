@@ -155,19 +155,29 @@ local function refresh(widget, event, touchState)
       -- Clear any pending job so the widget cannot be pinned in the JOB branch
       -- for ever when a job step raises and unwinds past refresh (see #280).
       --
-      -- The tree is given up only when a job was pending, before the pass or after it: that is
-      -- the case where what stands on screen may be half built. A pass that stopped with no job
-      -- in front of it was reading values onto a finished tree, which is still whole; clearing
-      -- `built` there made the next pass build the same surface again -- the standby screen after
-      -- a stop on connect, for one -- for nothing but the memory a rebuild costs. A path that takes
-      -- a tree down outside a job clears `built` itself before it does.
+      -- The tree is kept only where nothing it shows can have moved: no job pending, before the
+      -- pass or after it (what stands may be half built), and the standby screen on record as
+      -- the build for the key that stands, or for a key some path has cleared. The standby's key
+      -- names everything its build reads, so a pass that changed what it shows has moved the key
+      -- away from the record, however far it got before it stopped; a cleared key is computed
+      -- again by the next pass, which keeps the standby or builds it by that key. Building it
+      -- again there made the next pass draw the same screen -- after a stop on connect, for one --
+      -- for nothing but the memory a rebuild costs. Any other surface is given up as before: a
+      -- scene can change without its key moving (a zone view, a view's outcome, a theme load),
+      -- and a pass stopped part way through such a change may not have marked the tree unbuilt.
       local job = jobBefore or widget._job
       widget._job = nil
-      if job ~= nil then
+      local key = widget.renderKey
+      local kept = job == nil and widget._treeKind == "standby" and widget._treeKey ~= nil
+        and (key == nil or key == widget._treeKey)
+      if not kept then
+        local wasBuilt = widget.built
         widget.built = false
         local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
-        if type(Log) == "table" and type(Log.emit) == "function" then
-          pcall(Log.emit, "rfsuite.widget", "rebuild: after a stopped pass, job " .. tostring(job.kind), "debug")
+        if (job ~= nil or wasBuilt) and type(Log) == "table" and type(Log.emit) == "function" then
+          local why = job ~= nil and ("job " .. tostring(job.kind))
+            or ("the " .. tostring(widget._treeKind or "screen") .. " is not kept")
+          pcall(Log.emit, "rfsuite.widget", "rebuild: after a stopped pass, " .. why, "debug")
         end
       end
     end
