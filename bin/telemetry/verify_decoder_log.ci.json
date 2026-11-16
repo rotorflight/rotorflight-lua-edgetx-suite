@@ -1,0 +1,7 @@
+{
+  "id": "telemetry-decoder-log",
+  "name": "Telemetry decoder and adjustment teller log lines",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_decoder_log.lua"
+  ]
+}
