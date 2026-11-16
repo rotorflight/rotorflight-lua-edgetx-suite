@@ -1,0 +1,10 @@
+{
+  "id": "quick-menu-tree",
+  "name": "Quick menu main menu roll",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_menu_tree.lua --self-test",
+    "lua5.3 bin/dashboard/verify_menu_tree.lua"
+  ],
+  "step": "Check the way through the suite's menu in the rotary style",
+  "rationale": "The rotary style rolls on from MAIN MENU through the manifest: what is absent and what is grey, the columns shifting by a level, a page opened as a visit and the return to the same place. This drives the real modules and the real manifest, and its self-test proves the checks go red for a press that never shifts, a close that always returns, an ancestor's condition that stays with the ancestor and a reconnect that loses the place."
+}
