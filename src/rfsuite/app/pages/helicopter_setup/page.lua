@@ -1,5 +1,7 @@
 -- Lazy, visit-local dependencies: opening from a widget never loads the wizard in one call.
-local M = { hideSuiteFrame = true, handlesDisconnect = true }
+-- visitMenu: the wizard's chunks leave the tool's loader once the pilot has left the Helicopter
+-- Setup menu and its pages (app/pages/init.lua); moving between its entries keeps them.
+local M = { hideSuiteFrame = true, handlesDisconnect = true, visitMenu = "helicopter_setup_menu" }
 local BASE = _G.rfsuite.paths.core .. "/"
 local PATH = "app/pages/helicopter_setup/"
 local modules, stage, w, context, viewJob, scene, sceneInputs, pendingInputs = {}, 1

@@ -173,7 +173,10 @@ selected step definition is loaded. Complete setup starts at step 1 in the origi
 order. An individual step starts directly, using current FC settings. Its last card
 moves on to the next step, which is again a single step with its own preparation card;
 Exit returns to the Suite menu after saving or discarding pending changes. RTN/EXIT
-follows the same Back route.
+follows the same Back route. The wizard's code stays in memory while you move between
+these entries; once you leave the Helicopter Setup menu for another menu or page, it is let go,
+and the next opening reads it from the card again, which takes a little longer than a reopening
+inside the menu. A step's own file is read when you enter the step and kept while you stay on it.
 
 Direct configuration steps ask for blades removed and servos unplugged; direct
 servo/control tests, including a servo tail, ask for blades removed and the servo
