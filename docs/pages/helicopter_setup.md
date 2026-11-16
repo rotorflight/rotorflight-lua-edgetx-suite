@@ -83,7 +83,9 @@ to be powered off first, because test outputs cannot be confirmed off.
 
 An unanswered attitude or power reading keeps its last value until the next one. Any other request
 that goes unanswered shows the error with **Try again**. These requests are not sent twice, because
-a late reply could not be told from the answer to a later one.
+a late reply could not be told from the answer to a later one. A servo, mixer input, mode or
+adjustment row counts as written only once the flight controller has answered its write: a row
+whose write an error or a late status cut off is written again by the next Save or Discard.
 
 A status older than three seconds immediately blocks editing. Active tests and
 pending writes still fail closed and release overrides. During an idle read-only
@@ -583,9 +585,9 @@ wizard's own messages, the flight controller hints and the cleanup and recovery 
 label key, where a line filled in from a template is named by the template's key, save, discard,
 live writes, restart and reconnect, what a step queues for the flight controller (a mode's range, a calibrated rate, collective and styles per
 profile, an ESC range or mode), and closing. *DEBUG* adds the picture file shown, the helpers loaded and released on
-demand, whether a step's cards were reused or built anew, the profile loops, a refused Next and a
-reversal. *TRACE* adds the flow, for reading live over the serial port: each move between cards, a hold and its
-release, an edit, an answer given, a gear or servo centre change, the published scene and a build request
+demand, whether a step's cards were reused or built anew, the profile loops, a refused Next, a
+reversal and a row written again because its last write was not answered. *TRACE* adds the flow, for reading live over the serial port: each move between cards, a hold and its
+release, an edit, an answer given, a row write answered, a gear or servo centre change, the published scene and a build request
 left out while the loading view is shown. The lines appear under *Session
 Logs* and, with *Log Session To Card* on, in the card log; the level is read when the wizard
 opens.
