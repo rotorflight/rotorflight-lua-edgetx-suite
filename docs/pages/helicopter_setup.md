@@ -590,7 +590,8 @@ live writes, restart and reconnect, what a step queues for the flight controller
 profile, an ESC range or mode), and closing. *DEBUG* adds the picture file shown, the helpers loaded and released on
 demand, whether a step's cards were reused or built anew, the profile loops, a refused Next, a
 reversal and a row written again because its last write was not answered. *TRACE* adds the flow, for reading live over the serial port: each move between cards, a hold and its
-release, an edit, an answer given, a row write answered, a gear or servo centre change and the published scene. The lines appear under *Session
+release, an edit, an answer given, a row write answered, a gear or servo centre change, the published scene and a build request
+left out while the loading view is shown. The lines appear under *Session
 Logs* and, with *Log Session To Card* on, in the card log; the level is read when the wizard
 opens.
 
@@ -606,7 +607,9 @@ The sequence is fixed; conditional variants stay inside their steps.
 
 API loads, reply decoding, indexed writes, profile transactions and scene assembly
 are resumed across calls. MSP replies update cached values; they do not rebuild LVGL.
-Reactive properties read cached page state. `bin/wizard/verify.lua` exercises the
+Reactive properties read cached page state. A move to another card shows the loading view in
+one build: while that view is on screen and no finished scene is current, the wizard asks for no
+further build, and the finished scene replaces it in the next one. `bin/wizard/verify.lua` exercises the
 protocol, failure paths, lifecycle, geometry and per-call instruction costs without
 starting an EdgeTX or flight-controller simulator.
 The previously published native tree remains valid while a replacement scene is
