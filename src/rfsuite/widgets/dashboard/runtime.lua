@@ -363,6 +363,8 @@ local SHM_PASS_WRAP = 0x400000
 -- Nothing here tests the debug level. Log.emitf does that, and below "trace" the line is neither
 -- printed, nor put in the session ring, nor written to the card.
 local function traceInstructionUsage(self)
+  -- Set again below once this pass is timed; a pass that returns before that leaves no hole to act on.
+  self._passGap = nil
   if type(getUsage) ~= "function" then return end
   local ok, percent = pcall(getUsage)
   if not ok then return end
@@ -459,10 +461,14 @@ local function traceInstructionUsage(self)
   -- second read behind and the line says -1 rather than guessing: killed by the instruction limit
   -- is exactly the case worth telling apart.
   --
-  -- The cost on an ordinary pass is one field read, one field write and one comparison; the
-  -- arithmetic and the formatting are inside the branch, which on a healthy radio is never taken.
+  -- The cost on an ordinary pass is one field read, two field writes (three with `_passGap`'s reset at the
+  -- top), a subtraction and one comparison; the formatting is inside the branch, which on a healthy radio
+  -- is never taken.
   local lastPassAt = self._passAt
   self._passAt = now
+  -- The hole in front of THIS pass, for work that can wait a pass (menu_roll.lua, a rest of the
+  -- wheel): a pass after a long hole catches up on what the hole held back, and that is billed here.
+  self._passGap = lastPassAt and (now - lastPassAt) or 0
   if lastPassAt and (now - lastPassAt) > PASS_GAP_REPORT
     and Log and type(Log.emitf) == "function" then
     local endAt = self._passEndAt
