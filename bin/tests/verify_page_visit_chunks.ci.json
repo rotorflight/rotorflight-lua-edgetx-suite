@@ -1,0 +1,7 @@
+{
+  "id": "page-visit-chunks",
+  "name": "Page visit chunks leave the loader with the area",
+  "commands": [
+    "lua5.3 bin/tests/verify_page_visit_chunks.lua"
+  ]
+}
