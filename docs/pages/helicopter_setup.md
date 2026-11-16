@@ -75,7 +75,9 @@ to be powered off first, because test outputs cannot be confirmed off.
 
 An unanswered attitude or power reading keeps its last value until the next one. Any other request
 that goes unanswered shows the error with **Try again**. These requests are not sent twice, because
-a late reply could not be told from the answer to a later one.
+a late reply could not be told from the answer to a later one. A servo, mixer input, mode or
+adjustment row counts as written only once the flight controller has answered its write: a row
+whose write an error or a late status cut off is written again by the next Save or Discard.
 
 A status older than three seconds immediately blocks editing. Active tests and
 pending writes still fail closed and release overrides. During an idle read-only
@@ -147,7 +149,10 @@ The Suite menu offers **Complete setup**, each of the 19 individual steps, and
 **Setup history**. All entry points share the same lazy-loaded page: only the
 selected step definition is loaded. Complete setup starts at step 1 in the original
 order. An individual step starts directly, using current FC settings, and returns
-to the Suite menu after completion. The step title also returns to that menu after
+to the Suite menu after completion. The wizard's code stays in memory while you move between
+these entries; once you leave the Helicopter Setup menu for another menu or page, it is let go,
+and the next opening reads it from the card again, which takes a little longer than a reopening
+inside the menu. A step's own file is read when you enter the step and kept while you stay on it. The step title also returns to that menu after
 saving or discarding pending changes. RTN/EXIT follows the same Back route.
 
 Direct configuration steps ask for blades removed and servos unplugged; direct
@@ -548,9 +553,9 @@ wizard's own messages, the flight controller hints and the cleanup and recovery 
 label key, where a line filled in from a template is named by the template's key, save, discard,
 live writes, restart and reconnect, what a step queues for the flight controller (a mode's range, a calibrated rate, collective and styles per
 profile, an ESC range or mode), and closing. *DEBUG* adds the picture file shown, the helpers loaded and released on
-demand, whether a step's cards were reused or built anew, the profile loops, a refused Next and a
-reversal. *TRACE* adds the flow, for reading live over the serial port: each move between cards, a hold and its
-release, an edit, an answer given, a gear or servo centre change and the published scene. The lines appear under *Session
+demand, whether a step's cards were reused or built anew, the profile loops, a refused Next, a
+reversal and a row written again because its last write was not answered. *TRACE* adds the flow, for reading live over the serial port: each move between cards, a hold and its
+release, an edit, an answer given, a row write answered, a gear or servo centre change and the published scene. The lines appear under *Session
 Logs* and, with *Log Session To Card* on, in the card log; the level is read when the wizard
 opens.
 
