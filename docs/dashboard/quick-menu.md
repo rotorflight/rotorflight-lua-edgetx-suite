@@ -215,7 +215,9 @@ In the rotary style MAIN MENU leads on through the menu in place of the first of
 [the rotary style](#the-rotary-style).
 
 While it is open the tool works as it does when started from the radio's tool list, on the
-widget's own connection to the flight controller. The return key at the top of its menu closes
+widget's own connection to the flight controller. That includes memory: the helicopter setup's code
+is let go once you leave the Helicopter Setup menu, not only when the tool closes (see
+[Helicopter Setup](../pages/helicopter_setup.md)). The return key at the top of its menu closes
 it, and so does the return key on the *Flight Log* page where *FLIGHT LOG* opened it there. Arming the model closes it as well, because while it is open the dashboard does not run and
 nothing is announced. So does leaving full screen with a long press on the return key. In both
 cases the tool's own closing sequence runs, so a page's changes that were already sent still
@@ -299,7 +301,9 @@ pack only counts once its profile has reached the flight controller:
 - **A pack in force that has lost its profile stays in force**, marked and paler, until another
   answer replaces it.
 
-With that setting off, every pack can be picked and the picker closes at once.
+With that setting off, every pack can be picked and the picker closes at once. The profile a pack
+shows is then only what the pack would get: the pick does not send it, and the flight controller
+stays on the battery profile it is on.
 
 ## Closing it
 
