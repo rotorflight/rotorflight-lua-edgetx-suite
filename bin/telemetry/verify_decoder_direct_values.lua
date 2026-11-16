@@ -20,7 +20,9 @@
 --   * the live read used for configuration feedback still resolves the radio's sensor;
 --   * the decoder's name index is built over several passes after the first read asks for it: reads
 --     in between come from the sensors, and once it is complete from the decoder (a partial index
---     answering "not a custom sensor" would keep the sensors for good).
+--     answering "not a custom sensor" would keep the sensors for good);
+--   * at most three plans are worked out per widget pass, also when the clock ticks inside the pass,
+--     and a state no widget marks keeps one quota per clock tick.
 -- Exit status: 0 green, 1 a FAIL line was printed.
 
 local ROOT = "."
@@ -316,6 +318,74 @@ scenario("index_window", function()
   pass(10)
   check(near(S.getValue("voltage"), 22.4), "index_window: the decoded value once the index is complete",
     S.getValue("voltage"))
+end)
+
+-- 9. The plans a read works out are capped per widget pass, and a pass can span several clock ticks:
+-- a refresh that crosses a tick must not be handed a second quota. Each plan asks the decoder for the
+-- first name of its source, so the distinct first names asked count the plans.
+local SIX = {
+  { "voltage", "Vbat" }, { "current", "Curr" }, { "fuel", "Bat%" },
+  { "rpm", "Hspd" }, { "temp_esc", "EscT" }, { "bec_voltage", "Vbec" },
+}
+local function sixRows()
+  return { u16(0x1011, 2240), u16(0x1012, 1500), u8(0x1014, 70), u16(0x10C0, 1520), u8(0x1047, 40),
+    u16(0x1081, 820) }
+end
+local function countPlans()
+  local decoder = _G.rfsuite.telemetryDecoder
+  local customWas, firsts, isFirst = decoder.customSensor, {}, {}
+  for _, pair in ipairs(SIX) do isFirst[pair[2]] = true end
+  decoder.customSensor = function(name, ...)
+    if isFirst[name] then firsts[name] = true end
+    return customWas(name, ...)
+  end
+  return function()
+    local n = 0
+    for _ in pairs(firsts) do n = n + 1 end
+    return n
+  end
+end
+local function readRange(from, to)
+  for i = from, to do W.sensors.getValue(SIX[i][1]) end
+end
+
+scenario("plan_quota_per_pass", function()
+  newWorld()
+  W.payload = sixRows()
+  seconds(1)
+  W.askEarly = false
+  local S = W.sensors
+  local plans = countPlans()
+  S.passBegins()
+  readRange(1, 3)
+  check(plans() == 3, "plan_quota_per_pass: three plans in the first half of the pass", plans())
+  -- The clock ticks inside the same widget pass.
+  W.ticks = W.ticks + 1
+  readRange(4, 6)
+  check(plans() == 3, "plan_quota_per_pass: no further plan after a tick inside the same pass", plans())
+  -- Positive control: the next pass works out the ones held back.
+  W.ticks = W.ticks + PASS_TICKS
+  S.passBegins()
+  readRange(4, 6)
+  check(plans() == 6, "plan_quota_per_pass: the next pass plans the three held back (control)", plans())
+  check(near(S.getValue("bec_voltage"), 8.2), "plan_quota_per_pass: a held-back source answers from the decoder",
+    S.getValue("bec_voltage"))
+end)
+
+-- 10. A state no widget marks (the configuration tool) keeps the clock as its pass: each tick has its
+-- own quota.
+scenario("plan_quota_unmarked", function()
+  newWorld()
+  W.payload = sixRows()
+  seconds(1)
+  W.askEarly = false
+  local plans = countPlans()
+  readRange(1, 3)
+  readRange(4, 6)
+  check(plans() == 3, "plan_quota_unmarked: three plans within one tick", plans())
+  W.ticks = W.ticks + 1
+  readRange(4, 6)
+  check(plans() == 6, "plan_quota_unmarked: the next tick plans the rest", plans())
 end)
 
 print = realPrint
