@@ -117,7 +117,7 @@ function M.new(runtime, transport, mathModule, labels)
     self.escBusy = nil
     self.bus:cancel()
     local dropped = self.pendingEditDropped
-    self.statusQueued, self.pendingEdit, self.pendingEditDropped = nil, nil, nil
+    self.statusQueued, self.pendingEdit, self.pendingEditDropped, self.switchEdit = nil, nil, nil, nil
     if dropped then dropped() end
     self.statusFailure = api == "status" or api == "arming_disable"
     self.error = api .. ": " .. tostring(reason)
@@ -206,7 +206,7 @@ function M.new(runtime, transport, mathModule, labels)
       self:log("warn", "accelerometer calibration flags did not clear")
     end
     local edit, dropped = self.pendingEdit, self.pendingEditDropped
-    self.pendingEdit, self.pendingEditDropped = nil, nil
+    self.pendingEdit, self.pendingEditDropped, self.switchEdit = nil, nil, nil
     if edit and self:usable() then edit()
     else
       if edit then self:log("warn", "edit dropped, the fresh status did not confirm the lock") end
@@ -585,7 +585,7 @@ function M.new(runtime, transport, mathModule, labels)
     self:run(function()
       self.transition = nil
       -- A commit may report something the pilot has to see before moving on; the save itself
-      -- is complete, and the next Save & next goes on.
+      -- is complete, and the next Next step goes on.
       if self.stayNotice then
         self.message, self.stayNotice = self.stayNotice, nil
         if self.logInfo then self:keyMessage(self.stayNoticeKey) end
@@ -735,7 +735,16 @@ function M.new(runtime, transport, mathModule, labels)
       self.message = self.L.historyNotSaved
       self:rebuild(); return
     end
-    if self.confirmExit then self.confirmExit, self.exitToSteps, self.backTarget = nil, nil, nil; self:rebuild(); return end
+    if self.confirmExit then
+      self.confirmExit, self.exitToSteps, self.backTarget, self.jumpTarget = nil, nil, nil, nil
+      -- Back to the card the question came from: its entry runs again, so a hold it keeps (a zero
+      -- hold while trimming, a test) is set again rather than left released.
+      if self.cards and self.cards[self.card] and self.ready and not self.transition then self:navigate(self.step, self.card)
+      else self:rebuild() end
+      return
+    end
+    -- Back on the step menu returns to the card it was opened from.
+    if self.stepMenu then self:closeStepMenu(); return end
     if self.overview then
       if next(self.dirty) then self.confirmExit = true; self:rebuild() else self:close() end
       return
@@ -1149,7 +1158,22 @@ function M.new(runtime, transport, mathModule, labels)
         if self.logDebug then self:log("debug", "cards %s built, %s", key, #self.cards) end
       end
       self.card = math.min(self.card, #self.cards)
-      if self.cards[self.card].enter then self:afterRelease(self.cards[self.card].enter) end
+      if self.cards[self.card].enter and not self.stepMenu then
+        -- The entry runs after the release before it, a pass or more later. By then the step menu may be
+        -- open or a question asked (a jump with staged changes), both of which release the card's holds, or
+        -- another card entered: only the latest card entry runs, and only on its card.
+        local enter, cards, card = self.cards[self.card].enter, self.cards, self.card
+        self.entrySeq = (self.entrySeq or 0) + 1
+        local seq = self.entrySeq
+        self:afterRelease(function()
+          if seq ~= self.entrySeq or self.stepMenu or self.confirmExit or self.transition
+            or self.cards ~= cards or self.card ~= card then
+            if self.logTrace then self:log("trace", "card %s entry skipped: left before it ran", card) end
+            return
+          end
+          enter()
+        end)
+      end
       self:rebuild(); return
     end
     if not self.ready or self.error or self.transition then return end

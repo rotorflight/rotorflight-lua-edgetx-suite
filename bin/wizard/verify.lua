@@ -199,6 +199,21 @@ end
 L.steps = { L.sensors,L.receiver,L.modeSwitches,L.profiles,L.rates,L.swash,L.servoType,L.governor,L.motor,L.connect,
   L.escTelemetry,L.spinTest,L.servoDirectionCentre,L.controlDirections,L.level,L.bladePitch,L.tail,L.gyroCheck,L.finish }
 local rawLabels = load(PATH .. "labels.lua")
+-- Settings drawn as switches; the label drawn just before a switch names it.
+local SETTING_SWITCHES = { geometryCorrection=true, bidirectionalDshot=true, rescueEnable=true, rescueFlip=true }
+local function settingSwitch(children, item)
+  for j, it in ipairs(children) do
+    if it == item then
+      local before = children[j-1]
+      local key = before and type(before.text)=="string" and string.match(before.text,"^@i18n%(app%.modules%.helicopter_setup%.([%w_]+)%)@$")
+      return key ~= nil and SETTING_SWITCHES[key] == true
+    end
+  end
+  return false
+end
+-- The header names the step in its own label; the rendered run counts a visit by that name.
+local rawStepIndex = {}
+for i, name in ipairs(rawLabels.steps) do rawStepIndex[name] = i end
 check(#rawLabels.numberedSteps == 19 and rawLabels.numberedSteps[1] == "1. " .. rawLabels.sensors
   and rawLabels.numberedSteps[19] == "19. " .. rawLabels.finish, "step chooser entries are numbered like the source")
 L.numberedSteps = {}
@@ -347,7 +362,7 @@ for t,keys in pairs({label="color,font,h,pos,text,type,visible,w,x,y,align",
   momentaryButton="active,color,h,press,release,text,textColor,type,w,x,y",numberEdit="active,display,get,h,max,min,set,type,w,x,y",
   button="active,color,font,h,press,text,textColor,type,visible,w,x,y",choice="active,get,h,set,title,type,values,w,x,y",
   rectangle="color,filled,h,thickness,type,w,x,y",line="color,pts,thickness,type,visible",
-  image="file,h,type,visible,w,x,y"}) do
+  image="file,h,type,visible,w,x,y",toggle="active,get,h,set,type,w,x,y"}) do
   RADIO_PROPS[t]={};for k in string.gmatch(keys,"[^,]+") do RADIO_PROPS[t][k]=true end
 end
 for _, size in ipairs({ {480,272},{480,320},{800,480} }) do
@@ -529,6 +544,11 @@ for _,size in ipairs({{480,272},{480,320},{800,480}}) do
     while not job.done do job:step() end
     exported[#exported+1]={step=w.step,name=name,task=task,width=size[1],height=size[2],children=resolve(job.children)}
   end
+  -- The step menu behind a card's header, opened on step 5 with step 1 recorded done.
+  local history=w.history
+  w.history={mask=1}
+  export("rates","step-menu",function() w.stepMenu=true end)
+  w.stepMenu,w.history=nil,history
   for _,value in ipairs({1000,1900}) do
     export("modes",value==1000 and "off" or "on",function()
       w.data.mode_ranges.mode_ranges[1]={id=0,auxChannelIndex=0,range={start=1800,["end"]=2100}}
@@ -971,8 +991,14 @@ for _=1,5000 do
   for _,item in ipairs(frameCtx.children) do
     local active=type(item.active)~="function" or item.active()
     if (item.type=="label" or item.type=="button") and type(item.text)=="string" then
-      local number=string.match(item.text,"^(%d+)/19")
+      local number=string.match(item.text,"^(%d+)/19") or rawStepIndex[item.text]
       if number then frameVisited[tonumber(number)]=true end
+    end
+    -- A switch that answers a question is answered, as the No/Yes buttons were; a setting that
+    -- became a switch (it was an Off/On list before) is left as the run found it.
+    if active and item.type=="toggle" and item.get and not item.get() and not settingSwitch(frameCtx.children,item) then
+      if not pausedModelChoice then ticks=ticks+400;pausedModelChoice=true end
+      measure("page input",function() item.set(true) end)
     end
     if active and item.type=="choice" and item.set and
       (item.title==L.modelChecked or item.title=="@i18n(app.modules.helicopter_setup.modelChecked)@") and
@@ -991,8 +1017,8 @@ for _=1,5000 do
       if shown and (key=="servoTestUp" or key=="answerUp" or caption==L.servoTestUp or caption==L.answerUp) then
         measure("page input",item.press)
       end
-      if key=="continue" or key=="saveNext" or key=="finish" or key=="completeSetup" or
-        caption==L.continue or caption==L.saveNext or caption==L.finish or caption==L.completeSetup then
+      if key=="continue" or key=="nextStep" or key=="finish" or key=="completeSetup" or
+        caption==L.continue or caption==L.nextStep or caption==L.finish or caption==L.completeSetup then
         measure("page input",item.press)
       end
     end
@@ -1122,6 +1148,7 @@ local function contractWorld()
 end
 local contractCases=assert(loadfile("bin/wizard/contracts.lua"))()({
   world=contractWorld,load=load,H=H,L=L,q=q,check=check,eq=eq,pump=pump,measure=measure,api=api,stepNames=steps,
+  settingSwitch=settingSwitch,
   fixtures=fixtures,advance=function(value) ticks=ticks+value end,
   beginWorld=beginWorld,mutation=mutation,
   setServoCount=function(count) statusServoCount=count end,
@@ -1445,6 +1472,141 @@ do
   cd.protocol = 2
   check(found:escTelemetryOnly() == false, "HALF no such claim for an ESC this page cannot program")
   q.sent = {}
+end
+-- A card's entry is queued behind the release of the card before. The step menu opened, or a jump with
+-- staged changes asked about, before that entry runs takes it with it: nothing is held behind the menu or the
+-- question. Closing the menu runs the card's entry again.
+do
+  local function settle(lw)
+    for _ = 1, 200 do lw:tick(); pump(); ticks = ticks + 1; if lw.bus:idle() and not lw.buildRequested then break end end
+  end
+  local function prepared()
+    local lw = world()
+    settle(lw)
+    local entered = 0
+    lw.cards[lw.card].enter = function() entered = entered + 1; lw:holdAxes(1, 500) end
+    lw.statusAt = ticks
+    lw:navigate(lw.step, lw.card)
+    lw:tick(); ticks = ticks + 1
+    return lw, function() return entered end
+  end
+  local lw, entered = prepared()
+  check(not lw.bus:idle() and entered() == 0, "ENTRY control: the card's entry is queued, not run yet")
+  lw:openStepMenu()
+  settle(lw)
+  check(lw.stepMenu == true, "ENTRY control: the step menu is open")
+  eq(entered(), 0, "ENTRY a queued entry does not run behind the step menu")
+  check(next(lw.holds) == nil, "ENTRY nothing is held behind the step menu")
+  lw:closeStepMenu()
+  settle(lw)
+  eq(entered(), 1, "ENTRY closing the step menu runs the card's entry")
+  check(next(lw.holds) ~= nil, "ENTRY and its hold is set again")
+  lw:release(); settle(lw)
+  lw, entered = prepared()
+  lw:openStepMenu()
+  lw.dirty.test = true
+  lw:jumpToStep(lw.step == 1 and 2 or 1)
+  settle(lw)
+  check(lw.confirmExit == true, "ENTRY control: the jump asks about the staged change")
+  eq(entered(), 0, "ENTRY a queued entry does not run behind the jump's question")
+  check(next(lw.holds) == nil, "ENTRY nothing is held behind the jump's question")
+  -- Nothing of this world stays queued: a later check counts the controllers still reachable.
+  q.messages, q.sent = {}, {}
+end
+-- While an ESC read or write runs, neither the step menu nor a jump leaves the visit its replies belong to.
+do
+  local lw = world()
+  lw.escBusy = true
+  lw:openStepMenu()
+  check(lw.stepMenu == nil, "ESC the step menu does not open while an ESC operation runs")
+  lw.escBusy = nil
+  lw:openStepMenu()
+  check(lw.stepMenu == true, "ESC control: it opens once the operation is over")
+  local step = lw.step
+  lw.escBusy = true
+  lw.statusAt = ticks
+  lw:jumpToStep(step == 1 and 2 or 1)
+  check(lw.step == step and lw.stepMenu == true, "ESC a jump waits for the ESC operation")
+  lw.escBusy = nil
+  -- Nothing of this world stays queued: a later check counts the controllers still reachable.
+  q.messages, q.sent = {}, {}
+end
+-- A switch whose edit waits for a fresh status follows the latest input: back to the value the row holds
+-- calls the waiting edit off, also across a rebuild, and a flip without a value flips the waiting one.
+do
+  local function settle(lw)
+    for _ = 1, 200 do lw:tick(); pump(); ticks = ticks + 1; if lw.bus:idle() and not lw.buildRequested then break end end
+  end
+  local function toggleOf(lw)
+    local job = view.new(lw, { w = 480, h = 272 }, diagrams)
+    while not job.done do job:step() end
+    for _, item in ipairs(job.children) do if item.type == "toggle" then return item end end
+  end
+  local lw = world()
+  settle(lw)
+  lw.cards, lw.card = { lw:cardDef("T", "d", { lw:check("probe", "Probe") }) }, 1
+  local item = toggleOf(lw)
+  check(item ~= nil, "SWITCH control: the card draws a switch")
+  lw.statusAt = ticks - 301
+  item.set(true)
+  check(lw.pendingEdit ~= nil and not lw.checks.probe, "SWITCH control: an edit waits for a fresh status")
+  item.set(false)
+  settle(lw)
+  check(not lw.checks.probe, "SWITCH on then off while the status is pending leaves it off")
+  lw.checks.probe = nil
+  lw.statusAt = ticks - 301
+  item = toggleOf(lw)
+  item.set(true)
+  item = toggleOf(lw)                          -- a rebuild in between makes the switch anew
+  item.set(false)
+  settle(lw)
+  check(not lw.checks.probe, "SWITCH on, a rebuild, then off while pending leaves it off")
+  -- Two rows of the same label are two switches: each one's input is its own.
+  lw.cards, lw.card = { lw:cardDef("T", "d", { lw:check("probeA", "Probe"), lw:check("probeB", "Probe") }) }, 1
+  local function toggles()
+    local job = view.new(lw, { w = 480, h = 272 }, diagrams)
+    while not job.done do job:step() end
+    local found = {}
+    for _, it in ipairs(job.children) do if it.type == "toggle" then found[#found + 1] = it end end
+    return found
+  end
+  lw.statusAt = ticks - 301
+  local pair = toggles()
+  check(#pair == 2, "SWITCH control: two switches of the same label are drawn")
+  pair[1].set(true)
+  pair[2].set(false)                           -- the second row is off already: nothing to do for it
+  settle(lw)
+  check(lw.checks.probeA == true and not lw.checks.probeB, "SWITCH a second switch of the same label leaves the first one's edit")
+  -- Both switches turned on while the status is pending: each keeps its own edit, and both apply.
+  lw.checks.probeA, lw.checks.probeB = nil, nil
+  lw.statusAt = ticks - 301
+  pair = toggles()
+  pair[1].set(true)
+  pair[2].set(true)
+  check(not lw.checks.probeA and not lw.checks.probeB, "SWITCH control: two switch edits wait for a fresh status")
+  settle(lw)
+  check(lw.checks.probeA == true and lw.checks.probeB == true, "SWITCH two switches turned on while pending both apply")
+  -- One of two waiting switch edits called off: the other one still applies.
+  lw.checks.probeA, lw.checks.probeB = nil, nil
+  lw.statusAt = ticks - 301
+  pair = toggles()
+  pair[1].set(true)
+  pair[2].set(true)
+  pair[1].set(false)
+  check(lw.pendingEdit ~= nil, "SWITCH one of two waiting edits called off keeps the other waiting")
+  settle(lw)
+  check(not lw.checks.probeA and lw.checks.probeB == true, "SWITCH one of two waiting switches called off leaves the other's edit")
+  lw.cards, lw.card = { lw:cardDef("T", "d", { lw:check("probe", "Probe") }) }, 1
+  lw.checks.probe = nil
+  lw.statusAt = ticks - 301
+  item = toggleOf(lw)
+  item.set(true)
+  item.set(nil)                                -- a flip: from the waiting on, that is off
+  settle(lw)
+  check(not lw.checks.probe, "SWITCH a flip while an edit waits flips the waiting value")
+  check(lw.switchEdit == nil, "SWITCH nothing of the switch is kept once the status has answered")
+  -- Nothing of this world stays queued: a later check counts the controllers still reachable.
+  q.messages, q.sent = {}, {}
 end
 print("Source contracts: "..#contractCases.." scenario groups")
 for name,count in pairs(worst) do print(string.format("BUDGET %-12s %d / 14000",name,count)) end

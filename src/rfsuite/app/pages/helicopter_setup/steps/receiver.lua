@@ -202,7 +202,7 @@ return function(w)
     return 0
   end
   local cards = {
-    w:cardDef(L.receiver, L.receiverHint, {
+    w:cardDef(L.cardReceiverProtocol, L.receiverHint, {
       { kind = "toggle", label = L.advanced, values = { L.no, L.yes },
         get = function() return unlocked() and 2 or 1 end, set = function(v) r.advanced = v == 2 end },
       locked(protocol),
@@ -309,7 +309,7 @@ return function(w)
     end
     cards[#cards+1]=card
   end
-  -- The step closes on what it has set; the text says whether Save & next has anything to store.
+  -- The step closes on what it has set; the text says whether Next step has anything to store.
   local rangeMin, rangeMax, rangeText
   local done = w:cardDef(L.receiverDone, L.receiverDoneHint, {
     w:value(L.protocol, function() return protocol.values[protocol.get()] or L.notSet end),

@@ -65,7 +65,7 @@ local keys = { "sensors", "receiver", "modes", "profiles", "rates", "swash", "se
   "connect", "escTelemetry", "throttle", "servos", "direction", "level", "pitch", "tail", "gyro", "finish" }
 -- What a scene is built from. A published scene stays current while every input still holds the
 -- value it was built with; comparing them leaves a steady frame without a new string to collect.
-local SCENE_FIELDS = { "step", "card", "cards", "confirmExit", "disconnectExit", "overview", "historyFailure", "error" }
+local SCENE_FIELDS = { "step", "card", "cards", "confirmExit", "disconnectExit", "overview", "historyFailure", "error", "stepMenu" }
 local SCENE_W, SCENE_H = #SCENE_FIELDS + 1, #SCENE_FIELDS + 2
 local function captureInputs(into)
   for i, name in ipairs(SCENE_FIELDS) do into[i] = w[name] end

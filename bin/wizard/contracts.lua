@@ -3,6 +3,7 @@
 return function(h)
   local world,load,H,L,q=h.world,h.load,h.H,h.L,h.q
   local eq,check=h.eq,h.check
+  local settingSwitch=h.settingSwitch
   local cases={}
   local function case(id,fn)
     cases[#cases+1]=id
@@ -449,6 +450,182 @@ return function(h)
       h.setRecordFault(nil)
     end
   end)
+  case("CORE.step-menu",function()
+    -- The step menu behind a card's header keeps the step as it is, starts no hold behind it,
+    -- and a jump is a new visit that asks its preparation, in Complete setup too.
+    local w=world();settle(w)
+    w:navigate(14,1);drain(w)
+    check(w.step==14 and w.cards and next(w.holds)~=nil,"MENU control directions holds the swash on entry")
+    local cards,checks=w.cards,w.checks
+    w.checks.control1=true
+    w:openStepMenu();drain(w)
+    check(w.stepMenu==true and next(w.holds)==nil,"MENU opening releases the card's holds")
+    check(w.cards==cards and w.checks.control1==true,"MENU opening keeps the step's cards and answers")
+    -- A rebuild while the menu is open (a retry after a lost link) starts no entry behind it.
+    w.buildRequested=true;w:rebuild();drain(w)
+    check(next(w.holds)==nil,"MENU a rebuild behind the menu starts no hold")
+    w:back();drain(w)
+    check(not w.stepMenu and w.step==14 and next(w.holds)~=nil,"MENU Back returns to the card and its hold")
+    check(w.checks.control1==true,"MENU Back keeps the step's answers")
+    -- Not on a preparation card.
+    w.preparationCard=true;w:openStepMenu();check(not w.stepMenu,"MENU no step menu on a preparation card");w.preparationCard=nil
+    -- A restart owed: steps from 11 on wait for it.
+    w:openStepMenu();drain(w);w.statusAt=getTime();check(w:usable(),"MENU the status is fresh for the refusal");w.rebootPending=true;w:jumpToStep(16)
+    check(w.stepMenu and w.step==14,"MENU a jump to step 16 waits for the owed restart")
+    w.rebootPending=nil
+    -- A clean jump in Complete setup: a new visit with its preparation card.
+    -- A press counts only while the status is fresh, as for every other control.
+    drain(w);w.statusAt=getTime();w:jumpToStep(16);drain(w)
+    check(not w.stepMenu and w.step==16 and not w.singleStep,"MENU a jump keeps Complete setup")
+    check(w.checks.control1==nil,"MENU a jump carries no answer of the step left")
+    check(w.preparationCard==true and w.cards and w.cards[1].title==L.prepareStep,"MENU a jump in Complete setup asks the step's preparation")
+    check(next(w.holds)==nil,"MENU the preparation card holds nothing")
+    -- A jump with staged changes asks first; Back on that question stays on the step.
+    w.preparationCard,w.preparationDone=nil,true;w:navigate(16,1);drain(w)
+    w:touch("mixer_config")
+    w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(5)
+    check(w.confirmExit and w.jumpTarget==5 and w.step==16,"MENU a jump with changes asks to save or discard")
+    w:back();check(not w.confirmExit and w.jumpTarget==nil and w.step==16,"MENU Back on the question stays on the step")
+    drain(w);check(next(w.holds)~=nil,"MENU Back on the question sets the card's hold again")
+    w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(5)
+    local question=h.view.new(w,{w=480,h=272},h.diagrams);while not question:step() do end
+    local saveText
+    for _,item in ipairs(question.children) do if item.type=="button" and item.text==L.saveChanges then saveText=true end end
+    check(saveText,"MENU the question of a jump offers Save, not Save & exit")
+    w:back();drain(w)
+    w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(5);w:resolveExit(false);drain(w)
+    check(w.step==5 and next(w.dirty)==nil,"MENU discarding opens the chosen step")
+    -- Leaving to the step list or starting a step ends the menu.
+    w:openStepMenu();w:showSteps();check(not w.stepMenu,"MENU the step list ends the menu")
+  end)
+  case("LAYOUT.header-and-menu-fit",function()
+    -- With the radio's own font widths, every card's header and every step-menu button holds its
+    -- text, in English and German, on all three screens: a long header gives up the large step
+    -- font, then "Step n/19", then the card's name for its place.
+    local fonts=assert(loadfile("bin/dashboard/edgetx_font_widths.lua"))()
+    local set
+    local function width(text,font)
+      local face=set[font==MIDSIZE and "L" or "XS"];local n=0
+      for _,code in utf8.codes(tostring(text)) do n=n+assert(face[code],"glyph "..code.." is measured") end
+      return n
+    end
+    -- Nothing below the header reaches into the ? button (it stands controlH high from y 2).
+    local function clearOfHelp(scene,label)
+      local help
+      for _,item in ipairs(scene.children) do if item.type=="button" and item.text=="?" then help=item end end
+      if not help then return end
+      for _,item in ipairs(scene.children) do
+        if item~=help and item.x and item.y and item.w and item.h and item.type~="rectangle" and item.y>help.y then
+          local apart=item.x+item.w<=help.x or item.x>=help.x+help.w or item.y>=help.y+help.h or item.y+item.h<=help.y
+          check(apart,string.format("FIT %s: %s at %d,%d clears the ? button",label,tostring(item.type),item.x,item.y))
+        end
+      end
+    end
+    local saved=lcd.sizeText
+    lcd.sizeText=function(text,font) return width(text,font),20 end
+    local raw=load("app/pages/helicopter_setup/labels.lua")
+    for _,locale in ipairs({"en","de"}) do
+      local bundle=load("i18n/"..locale..".lua").app.modules.helicopter_setup
+      local LL={}
+      for k,v in pairs(raw) do
+        local key=type(v)=="string" and string.match(v,"^@i18n%(app%.modules%.helicopter_setup%.(.-)%)@$")
+        LL[k]=key and bundle[key] or v
+      end
+      LL.steps={LL.sensors,LL.receiver,LL.modeSwitches,LL.profiles,LL.rates,LL.swash,LL.servoType,LL.governor,LL.motor,LL.connect,
+        LL.escTelemetry,LL.spinTest,LL.servoDirectionCentre,LL.controlDirections,LL.level,LL.bladePitch,LL.tail,LL.gyroCheck,LL.finish}
+      LL.numberedSteps={};for i,n in ipairs(LL.steps) do LL.numberedSteps[i]=i..". "..n end
+      for _,size in ipairs({{480,272},{480,320},{800,480}}) do
+        set=size[1]>=700 and fonts.lrg or fonts.std
+        local headRight=size[1]-(size[1]>=700 and 44 or 32)-12
+        local w=world();settle(w);w.L=LL;w.wideScreen=size[1]>=700
+        for index,name in ipairs(h.stepNames) do
+          w.step=index
+          local cards=step(w,name)
+          for c,card in ipairs(cards) do
+            w.card=c
+            local scene=h.view.new(w,{w=size[1],h=size[2]},h.diagrams);while not scene:step() do end
+            clearOfHelp(scene,string.format("%s %dx%d step %d card %d",locale,size[1],size[2],index,c))
+            local named=false
+            for _,item in ipairs(scene.children) do
+              -- The header band: the card name sits lower below a large step name (shared baseline).
+              if item.type=="label" and type(item.text)=="string" and item.y and item.y<(size[1]>=700 and 30 or 20) then
+                local right=item.x+width(item.text,item.font)
+                check(right<=headRight,string.format("FIT %s %dx%d step %d card %d header '%s' ends at %d <= %d",
+                  locale,size[1],size[2],index,c,item.text,right,headRight))
+                if item.text==card.title or string.find(item.text,card.title,1,true)==1 or string.match(item.text,"^%(%d+/%d+%)$") then named=true end
+              end
+            end
+            check(named or card.title==LL.steps[index] and #cards==1,string.format("FIT %s %dx%d step %d card %d header names the card or its place",locale,size[1],size[2],index,c))
+            -- Below the header: a label or value may wrap, but its wrapped lines must end before
+            -- the next control below it (or the status line), and a button's caption must fit inside
+            -- the button's padding. Measured with the radio's font widths; a label wraps word by
+            -- word like an EdgeTX label, one line SMLSIZE being 17 px on the 480-wide screens.
+            local pad=size[1]>=700 and 20 or 16
+            local lineH=size[1]>=700 and 23 or 17
+            local statusTop=size[2]-(size[1]>=700 and 44 or 32)-(size[1]>=700 and 40 or 27)
+            for _,item in ipairs(scene.children) do
+              local text=item.text
+              if type(text)=="function" then text=text() end
+              if type(text)=="string" and text~="" and item.y and item.w and item.y>=(size[1]>=700 and 30 or 20)
+                and not string.find(text,"@i18n(",1,true) then
+                local font=item.font or SMLSIZE
+                if item.type=="label" and not string.find(text,string.char(10),1,true) and width(text,font)>item.w then
+                  local lines,line=1,""
+                  for word in string.gmatch(text,"%S+") do
+                    local joined=line=="" and word or line.." "..word
+                    if width(joined,font)<=item.w then line=joined else lines,line=lines+1,word end
+                  end
+                  local room=statusTop-item.y
+                  for _,other in ipairs(scene.children) do
+                    if other~=item and other.type~="rectangle" and other.y and other.y>item.y+2 and other.x and other.w
+                      and other.x<item.x+item.w and other.x+other.w>item.x then
+                      room=math.min(room,other.y-item.y)
+                    end
+                  end
+                  check(lines*lineH<=room+2,string.format("FIT %s %dx%d step %d card %d label '%s' wraps to %d line(s) in %d px, room %d",
+                    locale,size[1],size[2],index,c,text,lines,item.w,room))
+                elseif item.type=="button" and text~="?" then
+                  local need=width(text,font)+pad
+                  check(need<=item.w,string.format("FIT %s %dx%d step %d card %d button '%s' %d fits %d",locale,size[1],size[2],index,c,text,need,item.w))
+                end
+              end
+            end
+          end
+        end
+        -- The step menu's buttons.
+        w.step,w.card=5,1;step(w,"rates");w.stepMenu=true
+        local scene=h.view.new(w,{w=size[1],h=size[2]},h.diagrams);while not scene:step() do end
+        clearOfHelp(scene,string.format("%s %dx%d step menu",locale,size[1],size[2]))
+        local buttons,names=0,0
+        for _,item in ipairs(scene.children) do
+          if item.type=="button" and item.w and item.w<size[1]/2 and type(item.text)=="string" and item.text~="?" and item.text~=LL.back and item.text~=LL.exit then
+            buttons=buttons+1
+            -- EdgeTX pads a text button PAD_MEDIUM each side inside a 2 px frame: 6+2 px on the
+            -- 480-wide screens, 8+2 px at 800x480 (LAYOUT_SCALE x11/8).
+            check(width(item.text,SMLSIZE)+(size[1]>=700 and 20 or 16)<=item.w,string.format("FIT %s %dx%d step menu '%s' %d fits %d",locale,size[1],size[2],item.text,width(item.text,SMLSIZE),item.w))
+            check(item.h>=(size[2]<=272 and 21 or 24),string.format("FIT %dx%d step menu buttons are %d px high",size[1],size[2],item.h))
+          end
+          -- On the 480-wide screens the number and name stand in a label over the button, on up to
+          -- two lines: every word fits a line and the whole fits two.
+          if item.type=="label" and type(item.text)=="string" and string.match(item.text,"^%d+%. ") and item.y>30 then
+            names=names+1
+            -- Wrapped the way a label wraps: word by word, a word that does not fit opens a line.
+            local lines,line=1,""
+            for word in string.gmatch(item.text,"%S+") do
+              check(width(word,SMLSIZE)<=item.w,"FIT step menu word '"..word.."' fits its line")
+              local joined=line=="" and word or line.." "..word
+              if width(joined,SMLSIZE)<=item.w then line=joined else lines,line=lines+1,word end
+            end
+            check(lines<=2 and item.h>=lines*17,string.format("FIT %s %dx%d step menu '%s' takes %d line(s) in %d px",locale,size[1],size[2],item.text,lines,item.w))
+          end
+        end
+        check(names==0 or names==19,"FIT the step menu names all 19 steps with their numbers")
+        eq(buttons,19,"FIT step menu shows 19 steps")
+        w.stepMenu=nil
+      end
+    end
+    lcd.sizeText=saved
+  end)
   case("CORE.individual-step-entry",function()
     for selected=1,19 do
       local w=world();settle(w);w:showSteps()
@@ -476,9 +653,11 @@ return function(h)
           if w.step==13 then for _,s in pairs(w.data.servo_configurations.servos) do s.mid=s.mid>1040 and 1520 or 760 end end
           w:next()
         end
-        if w.overview or w.error then break end
+        if w.overview or w.error or w.step~=selected then break end
       end
-      check(w.overview and not w.error,"CORE completed individual step returns to overview")
+      -- A completed single step opens the next one as a single step; step 19 returns to the list.
+      if selected==19 then check(w.overview and not w.error,"CORE completed individual step 19 returns to overview")
+      else check(w.step==selected+1 and w.singleStep and not w.overview and not w.error,"CORE completed individual step opens the next step") end
       check(w.active and w.locked,"CORE individual completion retains arming lock")
     end
   end)
@@ -542,11 +721,12 @@ return function(h)
       local font=size[1]>=700 and widths.lrg.XS or widths.std.XS
       check(feedback.y+font.line<=back.y,"LAYOUT feedback remains above navigation")
       local bottom,count=0,0
-      for i=4,#nodes-3 do
+      for i=4,#nodes-2 do
         local item=nodes[i]
         local value=item.type=="label" and item.h and item.text~=card.summary and
           item.text~=card.detail and item.text~=L.orientationModelHint
-        if item.y and item.h and item.y>2 and (controls[item.type] or value) then
+        local exit=item.type=="button" and item.text==L.exit
+        if item.y and item.h and item.y>2 and not exit and (controls[item.type] or item.type=="toggle" or value) then
           bottom=math.max(bottom,item.y+item.h);count=count+1
         end
       end
@@ -590,8 +770,9 @@ return function(h)
     for _,item in ipairs(scene.children) do
       if item.type=="choice" and item.title==L.rpmSource then choice=item end
       if item.type=="label" and item.text==L.linkStatus then statusLabel=item end
-      if item.type=="label" and item.text==L.rpmSource then
-        if item.y==50 then title=item else duplicate=item end
+      -- The header carries the card's name with its place: "RPM source (n/m)".
+      if item.type=="label" and type(item.text)=="string" and string.find(item.text,L.rpmSource,1,true)==1 then
+        if item.y<50 then title=item else duplicate=item end
       end
       if item.type=="label" and type(item.text)=="function" and item.h then status=item end
     end
@@ -2340,7 +2521,7 @@ return function(h)
     c[1].rows[3].set(2);c[1].rows[4].set(2)
     check(w.validate(),"S10 both confirmations complete the step")
     noConfigWrites(w,"S10")
-    w.rebootPending=true;c=step(w,"connect");cardOrder(c,{L.connect},"S10 restart")
+    w.rebootPending=true;c=step(w,"connect");cardOrder(c,{L.cardRestart},"S10 restart")
     eq(c[1].rows[1].label,L.servosUnplugged,"S10 restart retains unplugged confirmation")
     eq(c[1].art,"servo","S10 restart retains its picture")
   end)
@@ -2371,7 +2552,7 @@ return function(h)
     w.checks.connected,w.checks.blades=true,true;w.card=#w.cards;w:next();drain(w)
     eq(w.step,11,"CORE connect advances to ESC telemetry")
     eq(w.cards[1].detail,L.telemetryBatteryHint,"CORE ESC telemetry begins with battery connection")
-    eq(w.cards[2].title,L.escTelemetry,"CORE controller loads telemetry at step 11")
+    eq(w.cards[2].title,L.cardTelemetryProtocol,"CORE controller loads telemetry at step 11")
     local function polls(command,name)
       q.sent={};w.pollIndex=2;w.lastPoll=nil;w:poll();drain(w)
       local found=false
@@ -2435,7 +2616,7 @@ return function(h)
     local w=world();settle(w);w.step=11;w.data.motor_config.motor_pwm_protocol=5
     w.data.esc_sensor_config.protocol=1
     local c=step(w,"escTelemetry")
-    cardOrder(c,{L.connectBattery,L.escTelemetry,L.port,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 serial")
+    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.port,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 serial")
     eq(c[1].detail,L.telemetryBatteryHint,"S11 powers the ESC before configuration and live readings")
     c[2].rows[1].set(3);c[3].rows[1].set(1)
     eq(w.data.esc_sensor_config.protocol,2,"S11 protocol field")
@@ -2460,9 +2641,9 @@ return function(h)
     eq(serialWrites,#expected,"S11 saves every configured serial port")
     check(serialWrites>0,"S11 port assignment is saved")
     c=step(w,"escTelemetry");c[2].rows[1].set(1);c=step(w,"escTelemetry")
-    cardOrder(c,{L.connectBattery,L.escTelemetry,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Off")
+    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Off")
     w.data.motor_config.motor_pwm_protocol=9;c=step(w,"escTelemetry")
-    cardOrder(c,{L.connectBattery,L.escTelemetry,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Castle")
+    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Castle")
     eq(c[1].detail,L.telemetryBatteryHint,"S11 Castle also starts with battery connection")
     eq(c[2].detail,L.castleTelemetryHint,"S11 Castle explains its throttle wire")
     check(not c[2].rows[1].enabled(),"S11 Castle protocol stays read-only")
@@ -3207,7 +3388,7 @@ return function(h)
         eq(w.message,string.format(L.servoBlocked,w.cards[2].servo.title,w.cards[2].servo.role,L.servoFar),"S13 far-centre validation names its servo")
         w.data.servo_configurations.servos[0].mid=1620
         w:next();shown()
-        check(single and w.overview or not single and w.step==14,"S13 valid Save and next completes the step")
+        check(w.step==14 and (w.singleStep==true)==(single==true),"S13 valid Next step completes the step and opens the next")
       end
     end
   end)
@@ -3446,7 +3627,7 @@ return function(h)
     eq(w.data.mixer_input.inputs[1].rate,-before,"S14 reverse input scale")
     check(not w.checks.control1,"S14 reversal invalidates previous physical answer")
     c=step(w,"level");c[2].enter()
-    cardOrder(c,{L.motorOffTitle,L.level,L.levelCheck,L.bladeZeroTitle},"S15")
+    cardOrder(c,{L.motorOffTitle,L.cardSwashTrims,L.levelCheck,L.bladeZeroTitle},"S15")
     eq(c[1].rows[1].label,L.motorUnplugged,"S15 the motor card comes first")
     check(c[1].enter==nil,"S15 nothing is held before the motor answer")
     eq(c[2].rows[1].label,L.roll,"S15 first trim is roll axis")
@@ -3840,11 +4021,15 @@ return function(h)
     -- The scene control routes through the same path.
     w.error=nil;w.locked=true;settle(w);w.cards=c;w.card=1
     local job=h.view.new(w,{w=800,h=480},h.diagrams);while not job.done do job:step() end
+    -- With every servo of the group agreeing, the answer is a switch after its label.
     local choice
-    for _,item in ipairs(job.children) do if item.type=="choice" and item.title==L.geometryCorrection then choice=item end end
-    check(choice~=nil,"CORE geometry choice is on the scene")
+    for j,item in ipairs(job.children) do
+      local before=job.children[j-1]
+      if item.type=="toggle" and before and before.text==L.geometryCorrection then choice=item end
+    end
+    check(choice~=nil,"CORE geometry switch is on the scene")
     if choice then
-      w.statusAt=getTime()-301;choice.set(1)
+      w.statusAt=getTime()-301;choice.set(false)
       eq(servos[0].flags,2,"CORE a scene edit waits for fresh STATUS")
       drain(w)
       eq(servos[0].flags,0,"CORE a scene edit made while a list was open applies")
@@ -4362,6 +4547,8 @@ return function(h)
     local function entry(id,number,history,width,height)
       q.messages,q.sent,loaded={},{},{}
       local page=load("app/pages/helicopter_setup/page.lua")
+      -- The header names the step by its own label, as the source writes it.
+      local rawSteps=load("app/pages/helicopter_setup/labels.lua").steps
       local closed=false
       local ctx={children={},w=width or 480,h=height or 272,menu={getCurrentMenuId=function() return id end},
         requestClose=function() closed=true end,requestRebuild=function() end}
@@ -4375,7 +4562,7 @@ return function(h)
         for _,item in ipairs(ctx.children) do
           if type(item.text)=="string" then
             if history and item.text=="@i18n(app.modules.helicopter_setup.historyTitle)@" then found=true end
-            if not history and tonumber(string.match(item.text,"^(%d+)/19"))==number then found=true end
+            if not history and (tonumber(string.match(item.text,"^(%d+)/19"))==number or item.text==rawSteps[number]) then found=true end
           end
         end
         if not found and not history then
@@ -4387,6 +4574,7 @@ return function(h)
             if item.type=="button" and type(item.text)=="function" and item.text()=="@i18n(app.modules.helicopter_setup.no)@" then
               item.press()
             end
+            if item.type=="toggle" and item.get and not item.get() and not settingSwitch(ctx.children,item) then item.set(true) end
           end
           for _,item in ipairs(ctx.children) do
             local caption=type(item.text)=="function" and item.text() or item.text
@@ -4405,6 +4593,9 @@ return function(h)
         check(#loaded<=1,"CORE direct entry loads at most its own step definition")
       end
       if string.find(id,"_step_",1,true) then
+        -- A direct Suite step ends with Next step, which opens the following step; Exit there
+        -- returns to the Suite menu. Step 19 finishes and returns at once.
+        local movedOn=false
         for _=1,2000 do
           h.measure("suite completion",function()
             page.wakeup(ctx);ctx.children={};page.build(ctx);h.resolve(ctx.children)
@@ -4412,21 +4603,32 @@ return function(h)
           h.pump();h.advance(1)
           if closed then break end
           for _,item in ipairs(ctx.children) do
+            if number<19 and type(item.text)=="string" and item.text==rawSteps[number+1] then movedOn=true end
+          end
+          for _,item in ipairs(ctx.children) do
             local active=type(item.active)~="function" or item.active()
+            if movedOn then
+              if active and item.type=="button" and item.text=="@i18n(app.modules.helicopter_setup.exit)@" then item.press() end
+              goto nextItem
+            end
             if active and item.type=="button" and type(item.text)=="function" and
               item.text()=="@i18n(app.modules.helicopter_setup.no)@" then item.press() end
+            if active and item.type=="toggle" and item.get and not item.get() and not settingSwitch(ctx.children,item) then item.set(true) end
             local caption=type(item.text)=="function" and item.text() or item.text
             local shown=type(item.visible)~="function" or item.visible()
             if active and shown and item.type=="button" and (caption=="@i18n(app.modules.helicopter_setup.servoTestUp)@" or
               caption=="@i18n(app.modules.helicopter_setup.answerUp)@") then item.press() end
             if active and item.type=="button" and (caption=="@i18n(app.modules.helicopter_setup.continue)@" or
-              caption=="@i18n(app.modules.helicopter_setup.saveNext)@" or caption=="@i18n(app.modules.helicopter_setup.saveStep)@" or
-              caption=="@i18n(app.modules.helicopter_setup.backToSuite)@") then item.press() end
+              caption=="@i18n(app.modules.helicopter_setup.nextStep)@" or caption=="@i18n(app.modules.helicopter_setup.finish)@") then item.press() end
+            ::nextItem::
           end
         end
-        check(closed,"CORE direct Suite step completes back to its menu "..number)
+        check(closed,"CORE direct Suite step completes, then Exit returns to its menu "..number)
+        check(number==19 or movedOn,"CORE Next step on a direct Suite step opens the following step "..number)
         for _,path in ipairs(loaded) do
-          check(string.find(path,"/steps/"..h.stepNames[number]..".lua",1,true)~=nil,"CORE individual visit loads no other step")
+          check(string.find(path,"/steps/"..h.stepNames[number]..".lua",1,true)~=nil or
+            (number<19 and string.find(path,"/steps/"..h.stepNames[number+1]..".lua",1,true)~=nil),
+            "CORE individual visit loads only its own step and the one Next step opens")
         end
         local unlock=false
         for _,m in ipairs(q.sent) do if m.command==99 and m.payload[1]==0 then unlock=true end end
@@ -4561,7 +4763,7 @@ return function(h)
     eq(w.history.mask,0,"CORE unconfirmed step cannot enter history")
     w.checks.control1,w.checks.control2,w.checks.control4=true,true,true
     w:next();drain(w)
-    check(w.overview and (w.history.mask&(1<<13))~=0,"CORE validated single step is recorded before returning")
+    check(w.step==15 and w.singleStep and (w.history.mask&(1<<13))~=0,"CORE validated single step is recorded before the next step opens")
     w:startStep(14);w:tick()
     check(w.historyHint==L.historyRecheck,"CORE repeated step asks for recheck")
     check(not w:ack("control1") and next(w.holds)==nil,"CORE past completion cannot bypass fresh preparation")
@@ -4586,12 +4788,12 @@ return function(h)
     eq(w.history.mask,0,"CORE card failure has no completion badge")
     w:back();check(not w.historyFailure and not w.overview,"CORE Back cancels history failure without advancing")
     w:next();drain(w);fs.failure=nil;w.historyRetry();drain(w)
-    check(w.overview and w.history.mask==(1<<13),"CORE explicit retry records the completed step")
+    check(w.step==15 and w.history.mask==(1<<13),"CORE explicit retry records the completed step")
     w.overview=nil;w.singleStep=true;w.step=15;step(w,"level");w.card=#w.cards;w.checks.level,w.checks.motorUnplugged,w.checks.bladeZero=true,true,true
     fs.failure="short";w:next();drain(w)
     check(w.historyFailure,"CORE failed readback is visible")
     w.historySkip();drain(w)
-    check(w.overview and (w.history.mask&(1<<14))==0,"CORE explicit continue leaves failed visit unrecorded")
+    check(w.step==16 and (w.history.mask&(1<<14))==0,"CORE explicit continue leaves failed visit unrecorded")
     fs:restore()
   end)
   local function escWorld(protocol, throttle, governor)
@@ -4616,6 +4818,34 @@ return function(h)
     w.motorTelemetryAt=getTime()
     return step(w,"escTelemetry")
   end
+  case("S11.half-duplex-switch",function()
+    -- The ESC link card shows the port's half-duplex state as a switch: on sets half-duplex with
+    -- the board's pin swap, off goes back to receive-only and takes the pin swap back.
+    local w=escWorld(9)
+    local config=w.data.esc_sensor_config
+    config.half_duplex,config.pin_swap=0,0
+    w.saved.esc_sensor_config={half_duplex=0,pin_swap=0,protocol=9}
+    local card=findCard(step(w,"escTelemetry"),L.escLink)
+    local row
+    for _,r in ipairs(card and card.rows or {}) do if r.label==L.escUseHalfDuplex then row=r end end
+    check(row~=nil and row.kind=="toggle" and row.values[1]==L.no and row.values[2]==L.yes,"S11 half-duplex is a yes/no switch")
+    if not row then return end
+    eq(row.get(),1,"S11 the switch reads the port: off")
+    row.set(2)
+    eq(config.half_duplex,1,"S11 switching on sets half-duplex")
+    eq(config.pin_swap,w:escPinSwap(),"S11 switching on sets the board's pin swap")
+    eq(row.get(),2,"S11 the switch reads the port: on")
+    check(w.rebootPending==true or w.dirty.esc_sensor_config~=nil,"S11 the wiring change is an edit that is saved")
+    row.set(1)
+    eq(config.half_duplex,0,"S11 switching off goes back to receive-only")
+    eq(config.pin_swap,0,"S11 switching off takes the pin swap back")
+    -- An FC that was half-duplex already: off leaves no pin swap behind.
+    config.half_duplex,config.pin_swap=1,1
+    w.saved.esc_sensor_config={half_duplex=1,pin_swap=1,protocol=9}
+    row.set(1)
+    eq(config.half_duplex,0,"S11 off from a saved half-duplex port")
+    eq(config.pin_swap,0,"S11 off from a saved half-duplex port clears the pin swap")
+  end)
   case("S11.incomplete-and-smaller-blocks",function()
     local yge=h.api("esc_parameters_yge")
     local shared=load("lib/esc_params.lua")
@@ -4701,7 +4931,7 @@ return function(h)
       else w:readEsc();settle(w) end
       check(not s.changes and not s.restart and w.validate(),"S11 verified re-read clears unresolved expectation")
       s.changes,s.restart={governor=2},true
-      local protocol=findCard(step(w,"escTelemetry"),L.escTelemetry).rows[1]
+      local protocol=findCard(step(w,"escTelemetry"),L.cardTelemetryProtocol).rows[1]
       protocol.set(protocol.get())
       check(w.escParams==s and s.changes,"S11 unchanged protocol retains expectation")
       w.data.esc_sensor_config.protocol=3;step(w,"escTelemetry")
