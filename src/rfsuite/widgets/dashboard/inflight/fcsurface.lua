@@ -164,7 +164,7 @@ function M.build(children, widget, m, w, h, t, p, label, action, wrap)
   end
   local function cancel() M.close(widget, drive) end
   local cancelText = t("widgets.dashboard.inflight_pick_cancel", "Cancel")
-  text(t("widgets.dashboard.inflight_fc_setup_action", "Set up suggested functions"), p.accent)
+  text(t("widgets.dashboard.inflight_fc_setup_action", "Set up suggested functions"), p.accentInk)
   if not state then text(t("widgets.dashboard.inflight_fc_preparing", "Preparing setup")); return end
   if state.phase == "choices" then
     local first = Functions.STANDARD_FIRST_SLOT + 1
@@ -236,7 +236,7 @@ function M.build(children, widget, m, w, h, t, p, label, action, wrap)
     end
     text(counters)
     y = y + lineH
-    children[#children + 1] = {type = "rectangle", x = m.pad, y = y, w = width, h = lineH, color = p.button, filled = true}
+    children[#children + 1] = {type = "rectangle", x = m.pad, y = y, w = width, h = lineH, color = p.border, filled = true}
     -- lvgl.build takes only numbers for w and h; a live width goes through `size`.
     children[#children + 1] = {type = "rectangle", x = m.pad, y = y, w = 0, h = lineH,
       color = p.accent, filled = true,
