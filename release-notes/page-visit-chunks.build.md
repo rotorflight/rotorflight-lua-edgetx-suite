@@ -1,0 +1,1 @@
+- The helicopter setup's code no longer stays in the tool's memory after you leave the Helicopter Setup menu, and each step's file leaves with its step; a page can ask for its folder's compiled files to be let go once the pilot leaves its area (app/pages/init.lua, src/main.lua, widgets/dashboard/tool_host.lua).
