@@ -1,2 +1,1 @@
-- **The flight controller is asked for its identity again when it answers without one (`tasks/msp/runtime.lua`)**:
-  - An MSP_UID answer that carries no UID was taken as final for the whole connection, so the board stayed unidentified until the next connect: its model preferences did not load and in-flight tuning kept waiting for the board's identity. The read is now repeated after the same backoff as an unanswered one, and a later answer with a UID identifies the board and loads its preferences.
+- **The flight controller is asked for its identity again when it answers without one, so its model preferences load (`tasks/msp/runtime`)**

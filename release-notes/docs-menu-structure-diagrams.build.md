@@ -1,3 +1,1 @@
-- **The menu structure page draws the menus as charts (`bin/docs/menu_structure.py`, `docs/reference/menu-structure.md`, `mkdocs.yml`)**:
-  - `docs/reference/menu-structure.md` opens with Mermaid flowcharts of the menu tree: an overview of the sections and every menu, then one chart per menu with every entry below it, coloured by menu, documented page and page without documentation. They are generated from the same reading as the tables, so CI keeps them current the same way.
-  - The documentation site renders Mermaid code blocks as diagrams (`pymdownx.superfences` with a `mermaid` fence in `mkdocs.yml`).
+- **The documentation's menu structure page draws the menus as charts (`bin/docs/menu_structure`)**

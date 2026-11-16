@@ -1,3 +1,1 @@
-- **MSP over telemetry speaks the compact framing on Rotorflight 4.7 (`tasks/msp/common.lua`, `tasks/msp/runtime.lua`)**:
-  - From MSP API 12.10 on, requests use version 3 of the telemetry framing: the MSPv2 command with a 3-byte header instead of 5. Over CRSF this saves a reply frame only at a few reply sizes; the larger gain is on links with smaller frames.
-  - Every link still reads the API version in MSPv2. The unused MSPv1 path is removed.
+- **MSP over telemetry uses the shorter framing on Rotorflight 4.7 (`tasks/msp/common`)**
