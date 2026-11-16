@@ -482,6 +482,12 @@ function Events.isOnconnectActive()
   return false
 end
 
+--- The edge whose tasks are still being driven ("onarm" or "ondisarm"), or nil once its runner
+-- reports nothing left. The dashboard keeps its post-flight theme reload out of the disarm's passes.
+function Events.edgeChainActive()
+  return state.edgeRunner
+end
+
 function Events.getOnconnectProgress()
   local onconnect = ensureEventRunner("onconnect")
   if onconnect and type(onconnect.getProgress) == "function" then

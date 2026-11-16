@@ -1,0 +1,8 @@
+{
+  "id": "disarm-reload-hold",
+  "name": "Post-flight reload kept apart from the disarm's flight log write",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_disarm_reload_hold.lua"
+  ],
+  "step": "Check that the post-flight theme reload does not share a pass with the flight log write"
+}
