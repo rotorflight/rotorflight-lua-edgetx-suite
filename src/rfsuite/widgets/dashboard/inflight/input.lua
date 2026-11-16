@@ -333,9 +333,12 @@ function M.sensor(widget, rowHeight, count, valueMode)
           -- The sweep itself scrolls no ladder (the reverse box is hidden while it runs), so a scroll
           -- during it is a detent that moved the focus into a ladder: no step, and the sweep ends in
           -- a build rather than in a reset that would misstate where the focus is.
+          -- It counts as a ladder move too: a second tap before this sweep has ended replaces the
+          -- sweep (and its `moved`), and M.refocus then sees the move by the count and builds.
           if drive.tapSweep ~= nil then
             drive.tapSweep.swallowed = drive.tapSweep.swallowed + 1
             drive.tapSweep.moved = true
+            sensor.scrolls = sensor.scrolls + 1
             return
           end
           if window.pending ~= nil and y == window.pending then

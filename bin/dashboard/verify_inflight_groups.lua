@@ -1317,6 +1317,77 @@ do
     check(instance.valueMode ~= true and instance.entry == entryBefore,
       "refocus: ENTER after a detent " .. direction .. " before the sweep leaves value mode and changes no function")
   end
+  -- The same from '-', forward: the next object in the walk is the reverse ladder's resting row,
+  -- already in its box's view, so focusing it scrolls nothing. Hiding the box then leaves the focus
+  -- on that row (a focused child of a hidden box keeps it); the sweep has to build instead.
+  local function tapMinus()
+    for index, object in ipairs(scene.focus) do
+      local node = object.node
+      if node.children and node.children[1] and node.children[1].text == "-" then
+        scene:click(index)
+        node.press()
+        node.release()
+        return
+      end
+    end
+    error("no - button")
+  end
+  -- Two routes reach that row: one detent forward from '-', two from '+'. Each is checked once with a
+  -- detent after the sweep (it steps) and once with ENTER (it leaves value mode and steps nothing).
+  for _, route in ipairs({{"-", 1}, {"+", 2}}) do
+    for _, after in ipairs({"detent", "enter"}) do
+      local label = route[2] .. " detent(s) forward from '" .. route[1] .. "' before the sweep, then " .. after
+      render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+      settle()
+      local epochBefore, entryBefore = instance.ladderEpoch or 0, instance.entry
+      if route[1] == "-" then tapMinus() else tapPlus() end
+      for _ = 1, route[2] do scene:rotate(1) end
+      check(scene.at ~= 0 and scene.focus[scene.at].parent == scene.reverse,
+        "control: " .. label .. ": the focus is on a reverse ladder row")
+      for _ = 1, 4 do scene:refsSweep() end
+      if (instance.ladderEpoch or 0) ~= epochBefore then render() end
+      check(scene.at == 0, "refocus: " .. label .. ": the sweep ends with the focus on the widget (at "
+        .. tostring(scene.at) .. ")")
+      settle()
+      local fired = instance.fired
+      if after == "detent" then
+        scene:rotate(1); scene:sweep()
+        check(instance.fired == fired + 1, "refocus: " .. label .. ": that detent steps once (fired "
+          .. fired .. " -> " .. instance.fired .. ")")
+      else
+        scene:press()
+        check(instance.fired == fired and instance.valueMode ~= true and instance.entry == entryBefore,
+          "refocus: " .. label .. ": ENTER leaves value mode and steps nothing")
+      end
+    end
+  end
+  -- A detent during a sweep that moves the focus into a ladder, then a repeat tap on the same button
+  -- (which does not take the focus, LVGL's last_pressed) before the sweep has ended: the second tap
+  -- must not restart the sweep as if the ladder were at rest.
+  do
+    render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
+    settle()
+    local epochBefore = instance.ladderEpoch or 0
+    tapPlus()
+    scene:refsSweep()
+    check(instance.tapSweep ~= nil and instance.tapSweep.state == "hide" and scene.reverse.hidden,
+      "control: the first pass hides the reverse ladder")
+    -- '+' -> '-' -> the widget (the reverse rows are hidden) -> the forward ladder's first row.
+    local scrollsBefore = scene.scrolls
+    scene:rotate(1); scene:rotate(1); scene:rotate(1)
+    check(scene.scrolls > scrollsBefore and scene.at ~= 0 and scene.focus[scene.at].parent == scene.sensor,
+      "control: three detents during the sweep move the focus onto a forward ladder row")
+    -- The next pass pulls that ladder back to its own scrollTo: the row stays focused, out of view.
+    scene:refsSweep()
+    check(instance.tapSweep ~= nil and instance.tapSweep.moved == true and scene.at ~= 0,
+      "control: the sweep has seen the ladder move and the focus is still on the ladder row")
+    tapPlus()
+    for _ = 1, 4 do scene:refsSweep() end
+    if (instance.ladderEpoch or 0) ~= epochBefore then render() end
+    check((instance.ladderEpoch or 0) == epochBefore + 1 and scene.at == 0,
+      "refocus: a repeat tap during a sweep that saw the ladder move builds (epoch "
+      .. epochBefore .. " -> " .. tostring(instance.ladderEpoch) .. ", focus at " .. tostring(scene.at) .. ")")
+  end
   -- A sweep that never comes: the fallback builds after SWEEP_PASSES passes.
   render(); instance.valueMode = true; instance.valueEpoch = instance.valueEpoch + 1; render()
   local epoch = instance.ladderEpoch or 0

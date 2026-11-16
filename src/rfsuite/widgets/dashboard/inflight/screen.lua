@@ -588,12 +588,6 @@ local function appendFlight(children, widget, m, w, h, t, p)
         return sweep == nil or sweep.state ~= "hide" or drive.holdRow ~= nil
       end
       local color, textColor = p.header, p.text
-      -- The transparent resting window still participates in pointer hit testing.
-      previous[1] = {
-        type = "button", y = first * nameH, w = lineW, h = nameH,
-        pos = function() return 0, sensor.positions[first - 1] + nameH * 2 end,
-        color = color, textColor = textColor, font = nameFont, text = nameText, press = leave
-      }
       local function guard(list, index)
         list[#list + 1] = {
           type = "button", x = 0, y = index * nameH, w = lineW, h = nameH,
@@ -601,7 +595,17 @@ local function appendFlight(children, widget, m, w, h, t, p)
           text = t("widgets.dashboard.inflight_encoder", "Encoder"), press = sensor.leave
         }
       end
+      -- The top guard comes first in the reverse box: it is the first object after '-' in the walk
+      -- and lies out of the box's view, so a detent from '-' into this box always scrolls it, which a
+      -- tap's refocus sweep sees (Input.refocus). With the resting window first, in view, focusing it
+      -- scrolled nothing and the sweep hid the box over the focus.
       guard(previous, 0)
+      -- The transparent resting window still participates in pointer hit testing.
+      previous[#previous + 1] = {
+        type = "button", y = first * nameH, w = lineW, h = nameH,
+        pos = function() return 0, sensor.positions[first - 1] + nameH * 2 end,
+        color = color, textColor = textColor, font = nameFont, text = nameText, press = leave
+      }
       local list, window = previous, reverse
       local position = window.position
       for index = 1, ladderRows do
