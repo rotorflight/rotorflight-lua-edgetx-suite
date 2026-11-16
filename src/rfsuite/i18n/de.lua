@@ -1332,6 +1332,7 @@ return {
         why_no_flight_arm = "Das Entschärfen erkennt es am ARM-Sensor des Modells. Fehlt er, die Sensoren suchen lassen.",
         why_unsaved_fmt = "Der Flugregler hält %dm %02ds Flug, die nicht gespeichert wurden.",
         unsupported = "Neuere Firmware nötig",
+        newer_layout = "Neuere RFSuite nötig",
         clear_prompt = "Gespeicherte Flüge löschen?",
         response = "Ansprechen",
         stops = "Stopps",
