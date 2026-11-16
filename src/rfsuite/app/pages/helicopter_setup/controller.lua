@@ -68,10 +68,13 @@ function M.new(runtime, transport, mathModule, labels)
         local key = labelKey(shown)
         if not key then
           if shown == self.messageText then key = self.messageKey
+          elseif shown == self.loadingText then key = "loading"
           elseif shown == self.systemHint and self.systemProfiles then key = "fcProfiles"
           elseif shown == self.prerequisiteHint then key = "historyPrerequisites" end
         end
-        self:log("info", "message %s", key or "?")
+        -- The load counter changes with every read; its key is logged once per load.
+        if not (key == "loading" and self.loggedKey == "loading") then self:log("info", "message %s", key or "?") end
+        self.loggedKey = key
       end
     end
     local e = self.error
@@ -419,7 +422,6 @@ function M.new(runtime, transport, mathModule, labels)
     self.bus:dropOverrides()
     local q = self.bus:queue()
     if not q then return end
-    q:clear("helicopter-overrides")
     if not self:allowed() then self.needsRelease = true; return end
     -- These modules are preloaded on entry. The cleanup owner survives the host's page clear.
     local apis = self.bus.apis
@@ -515,8 +517,6 @@ function M.new(runtime, transport, mathModule, labels)
     if self.logTrace then self:log("trace", "motor stop") end
     self.motorHold = nil
     self.bus:dropOverrides()
-    local q = self.bus:queue()
-    if q then q:clear("helicopter-overrides") end
     if self:allowed() then
       for i = 0, 1 do self:write("motor_override", { index = i, value = 0 }) end
     end
@@ -868,6 +868,9 @@ function M.new(runtime, transport, mathModule, labels)
     local mcuId=self:session().mcu_id
     self.recoveryRequired=mcuId~=nil and self:session().helicopterSetupRecovery==mcuId
     self.loadingText, self.loadTotal = self.L.loading, #READS + 66
+    -- The status line shows the load and its count until the load is ready, also over the card a
+    -- restart left on screen, so a reload never reads like the restart still to come.
+    self.loadActive, self.message = true, self.L.loading
     self.locked = false
     self:blockArming()
     self:read("status", function(d)
@@ -904,6 +907,8 @@ function M.new(runtime, transport, mathModule, labels)
     -- timeout. Probe each parser with OFF only: valid five bytes must succeed
     -- and invalid four bytes must be explicitly refused, never just time out.
     local servoCandidate,mixerCandidate=false,false
+    -- The two four-byte writes are refused on purpose; the queue logs each refusal as a warning.
+    if self.logDebug then self:log("debug", "override probe: two four-byte OFF writes, a refusal is the expected answer") end
     self:write("servo_override",{servo_id=0,action=2001,timeout=500},function(_,err) servoCandidate=err==nil end,true)
     self:action("servo_override",{0,209,7,0},function(_,err) self.timedServo=servoCandidate and err=="refused" end,true)
     self:write("mixer_override",{index=0,value=2501,timeout=500},function(_,err) mixerCandidate=err==nil end,true)
@@ -953,10 +958,19 @@ function M.new(runtime, transport, mathModule, labels)
       if not inputs[4] or not self.data.status.pid_profile_count or self.data.status.pid_profile_count < 1 then
         self:fail("status", "configuration"); return
       end
+      -- A 4.7 development build can report API 12.10 before it carried a cell count per
+      -- battery profile; the wizard is not offered there either.
+      local battery = self.data.battery_config
+      if battery and not battery.hasProfileCells then
+        self.ready, self.transition, self.buildRequested, self.apiTooOld = true, nil, true, true
+        if self.logInfo then self:log("info", "load stopped, no per-profile battery cells") end
+        self.message = self.L.apiTooOld; self:rebuild(); return
+      end
       self.startTail = self.data.mixer_config.tail_rotor_mode
       self.savedRebootPending = self.rebootPending
       self.ready, self.transition, self.buildRequested = true, nil, true
       if self.logInfo then self:log("info", "load ready") end
+      self.loadActive = nil
       self.message = self.L.ready
       self:rebuild()
     end)
@@ -970,7 +984,11 @@ function M.new(runtime, transport, mathModule, labels)
     -- Switch learning reads the channels three polls in four; STATUS keeps its turn.
     local switches=self.step==3 or self.step==4
     self.pollIndex = (self.pollIndex or 0) % ((attitudeCheck or switches) and 4 or 3) + 1
+    -- The receiver step shows only the channels: no servo poll there, so the bars follow the
+    -- sticks twice as often; STATUS keeps its turn.
+    local channelsOnly = self.step == 2 and not self.motorHold
     local api = switches and (self.pollIndex==1 and "status" or "rc") or
+      channelsOnly and (self.pollIndex==1 and "status" or "rx_channels") or
       attitudeCheck and (self.pollIndex%2==1 and "attitude" or self.pollIndex==2 and "status" or "servo") or
       self.pollIndex == 1 and "status" or self.pollIndex == 2 and "servo" or
       ({ [1] = "attitude", [2] = "rx_channels", [3] = "rc", [4] = "rc", [10] = "motor", [11] = "motor_telemetry",

@@ -5,48 +5,48 @@
   "inputs": {
     "bin/wizard/source-map.json": "c4cc0185cbf9644c6750654e77d21a0f01759db0ad0a1ab9dad4c1ba490fedbe",
     "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "1750296f3f160c4c328b331cf34673bb803e936266f19712698dac996c6ea56a",
-    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "9a44b0546e41a49832ebeb1a3376cbd611926c8a0454b22bfb61bb3696d8d7c6",
+    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "69cc42d9968e1709ca552bb1b0eb73fed45f69dabee135568002776f5ea0c998",
     "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "632a4b83778b59aff2d452005be884114472e6f16ff0f8bb832743e093203a1e",
-    "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "2da65f54ecf424df2a75e37bdf7c4f8618429eb3c623a1bdf0939a21579431bf",
+    "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "9acb744f05bc1d94afaf70a8887c90f7c9a9f1ceaf5fa61b6f0718cfa66adc46",
     "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "532fdca33b26f78b2120756d80870ada8d318bf718592948564fa6e4e6099d36",
-    "src/rfsuite/app/pages/helicopter_setup/feedback.lua": "b56069199ada87dfa22e0cb01ca01b230e005582a0ecbf3a279c88d8d3ec98be",
+    "src/rfsuite/app/pages/helicopter_setup/feedback.lua": "c349e4c4e96cd0c6c3dc9adad714b6dc2fc0a4583c6c1319dd0be8d3c1d3061d",
     "src/rfsuite/app/pages/helicopter_setup/forms.lua": "22830b0484f787a3379c3cb8f61caa85d0c905da109b9636fc8ad9d9844830f4",
     "src/rfsuite/app/pages/helicopter_setup/help.lua": "210bc647674c7bdf88e1ac00cf623c53858bb0721623f089caa1f95465ac2c46",
     "src/rfsuite/app/pages/helicopter_setup/history.lua": "7a5378a01b8bb4ca80a7a367b7e02978fda35c7cf7f54625ae89ebf57eace9e2",
     "src/rfsuite/app/pages/helicopter_setup/history_store.lua": "4fddb757f91ab30116513d2b71938690b9f2af5ba8383aff15cd60f88d1ffbfa",
-    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "c7ad6ab16dd977aa22ef0d3f874f996180a47becf28c78f22a9e9ac48e1fd141",
+    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "8d0fe25010eb761af326ed8799c9cb5d8e82e4ed2e27278490e8cd8ee98e09ad",
     "src/rfsuite/app/pages/helicopter_setup/math.lua": "f125cbdc577a170e8060688d69552d248e5ed6b092852c03139cc2d11d05b1a0",
     "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "d918fbcb0ebad8d9e3a23b2c0388d64d0b155b76a6f491633e9c170e8f6ef6b0",
-    "src/rfsuite/app/pages/helicopter_setup/page.lua": "19d75495053762e09bc45691845c00d06ba847ba71888d06586889dfe7dba062",
-    "src/rfsuite/app/pages/helicopter_setup/power_cards.lua": "734db46a2307e95eae81ded09d3ef077dedde2f10123004f53a0edac6a341744",
+    "src/rfsuite/app/pages/helicopter_setup/page.lua": "3f68fc7ea3493da602434620294be8463234d4a1e2c2eac33c0fae72c4195dfc",
+    "src/rfsuite/app/pages/helicopter_setup/power_cards.lua": "2ba4097e9b25d9f4b4a9c19ab692f9b11165a04d48f4a91b5e067546b615aa05",
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",
     "src/rfsuite/app/pages/helicopter_setup/steps/connect.lua": "82e04684846ddad8bbcd76b00b77292aaffa7c12907e048d482fb20f07850076",
     "src/rfsuite/app/pages/helicopter_setup/steps/direction.lua": "a423aa3c4712965c5d12a0a265d0476c82c8a6beda2b714284b80c3ba83548b2",
     "src/rfsuite/app/pages/helicopter_setup/steps/escTelemetry.lua": "29f8b1d34e1eb2135cdca2d3337d05079be09aad687f36f3de5bda4d2ec980ad",
     "src/rfsuite/app/pages/helicopter_setup/steps/finish.lua": "5eba2b19b6852afbfc4cb0f36543bfc74a2449725ba4a98f73cbda94ee987889",
-    "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "1fc741fbd225890a7a4753bcbf158321681e90c7fd6fdb8020547e86127445d5",
+    "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua": "2fb4f03958217be9d38e7f4fe3c12865331cec3e49c31628027364caa7c6838f",
     "src/rfsuite/app/pages/helicopter_setup/steps/gyro.lua": "934b4990c6eae2c40a352551325e9b866607ade22208427f0ab7e7f5af0a59d8",
     "src/rfsuite/app/pages/helicopter_setup/steps/level.lua": "6a318a5534dedf1039c3b56e2f85025cc3f145705cafc1a5152fb6c1e1110d74",
     "src/rfsuite/app/pages/helicopter_setup/steps/modes.lua": "24045aabadef81d85cc7f31fe54d42edd182a51ab416f710fb460ae6985dde44",
     "src/rfsuite/app/pages/helicopter_setup/steps/motor.lua": "86e24e10ffeb7096f26e5815a889dd503366be64e7f46320dfbb5dcaed3a9ca7",
     "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "0e85a424aaed649eb347aeef420a78c097a1ae0a4566038d365ec3c24f4ce464",
     "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "f2622e0780be301ad1f42a4335af35c9c9541f1d0e0bb58feca4e348a9df3ed3",
-    "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "8081c501b7351d5457773d6c0d44ce9191d63fb8ad0c74d15c7d26988a33d8a1",
-    "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "d8d4c594c797c75a22151c0f09a36a5802cb2d0fef9fb231e57bf9c14a1ca477",
+    "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "301a240de5b9c9961c1cf040fbac2a4d06a050704a3d0d0dcb45ef8bda6490d4",
+    "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "dd1cdc28848878d7389f57ad7f956bd306adc0879cdc355c85af2531263c6ab4",
     "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua": "a6d4e469340696022acfd8ed5008961f6fd953f27164518737741d658c2822d7",
     "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua": "689ba4df4c1cd81eae70ed25b73509a1ab0974a11fda1ebc1d5e50d357b09b37",
     "src/rfsuite/app/pages/helicopter_setup/steps/servos.lua": "b6fd582c7ab57fc8602ef0c6e54a74f729541c8af766ec51c08f967a6aee63d4",
     "src/rfsuite/app/pages/helicopter_setup/steps/swash.lua": "fce6fd1478b723edb24e4cd710187b567162b47254e46807a8f1a28c261d22be",
     "src/rfsuite/app/pages/helicopter_setup/steps/tail.lua": "918ff62ce8f30cfdb50a392b9dc2c0c04b299623d972df1dbf8e6a9f4c39678b",
     "src/rfsuite/app/pages/helicopter_setup/steps/throttle.lua": "bc1745c86d27c2a43d9c063dfd64635c104d81a1d08c76eff7f8c7e09800f774",
-    "src/rfsuite/app/pages/helicopter_setup/transport.lua": "86eed267086eac1692aac61ee8b32751e62f4e553a4aa75146fdaf2877125ab9",
-    "src/rfsuite/app/pages/helicopter_setup/view.lua": "7f3d85858fc561bc371bf1c49848650d9b8d2badf602b8da457ac709fe6e85ad",
+    "src/rfsuite/app/pages/helicopter_setup/transport.lua": "f8dc9fc96e6cc65ad50fa8ebab9b5f58245dfab79aa0e26b1b4e649314f764ab",
+    "src/rfsuite/app/pages/helicopter_setup/view.lua": "e654cdf436c6d8ec20f447d8cdaa6251049b08c0b0ee1916e686bea6fabb365a",
     "src/rfsuite/app/pages/helicopter_setup/workflow.lua": "3edbd986956bbbbc6d88e9d0ed3a22e8a751a9485bfc1a78d2f14399995f78ed",
     "src/rfsuite/app/pages/setup/esc_motors/throttle/page.lua": "76542a5f84b98f8715c6ed938a463483e76e205912cd70f01555b7cf94fbe5aa",
     "src/rfsuite/app/pages/setup/power/battery/page.lua": "bb94e95ab8cac06d560110554faf9ba0b4ab634abc0eb8bba9fde032a6468949",
     "src/rfsuite/app/pages/setup/power/smartfuel/page.lua": "70eac48cbea056fe6b0644e7d4f980bd2af16f229e16a888330bbcbfcf2a5d5f",
     "src/rfsuite/app/pages/setup/power/sources/page.lua": "ff0846f7298aefacba5e522a01f2945e8111fe94110344dad9e4832c5cbc724e",
-    "src/rfsuite/i18n/en.lua": "a36b68ba820e343a4e58a64299ea15394278b1928a7a1eaeefb8f5c902babdb2",
+    "src/rfsuite/i18n/en.lua": "e1b000f3f2c359ab3673657c753d3ec29c27a01605f8be5c5f6081045c64758b",
     "src/rfsuite/lib/esc_params.lua": "2a9f2fb0fd6f762ef396ed20da5a48081a5583687bb2803b870a34ca2635eeaf",
     "src/rfsuite/lib/governor_fields.lua": "2c7407a6d75e7b00de9002dbb4be49696a6a3468b2d76013e1998549a2932a3c",
     "src/rfsuite/lib/power_fields.lua": "2204f3bd87281732a784d9aacd45a432d91cd3ab99a7a649c5976192c345c41e",
@@ -83,12 +83,12 @@
       "smartfuel_config"
     ],
     "functions": {
-      "release": "if self . stopLink then self : stopLink ( ) end local held , motor = self . holds , self . motorHold if self . logTrace and ( next ( held ) or motor or all ) then self : log ( \"trace\" , \"release all=%s motor=%s\" , tostring ( all ) , tostring ( motor ~= nil ) ) end self . holds , self . motorHold , self . listen , self . legacyHold = { } , nil , nil , nil if self . rx then self . rx . detect , self . rx . record = nil , nil end if self . modeListen then self . modeListen . id = nil end if self . profile then self . profile . listen , self . profile . record = nil , nil end if self . stopTrial then self : stopTrial ( ) end self . bus : dropOverrides ( ) local q = self . bus : queue ( ) if not q then return end q : clear ( \"helicopter-overrides\" ) if not self : allowed ( ) then self . needsRelease = true ; return end local apis = self . bus . apis local jobs = { } local full = all or self . needsRelease local function send ( api , data ) local mod = apis [ api ] if not mod then self . cleanupFailed , self . needsRelease = true , true ; return end jobs [ # jobs + 1 ] = { command = mod . writeCommand , payload = mod . buildWritePayload ( data ) } end if full then for i = 0 , 7 do send ( \"servo_override\" , { servo_id = i , action = 2001 } ) end for i = 1 , 4 do send ( \"mixer_override\" , { index = i , value = 2501 } ) end for i = 0 , 3 do send ( \"motor_override\" , { index = i , value = 0 } ) end else for _ , h in pairs ( held ) do if h . kind == \"servo\" then send ( \"servo_override\" , { servo_id = h . index , action = 2001 } ) else send ( \"mixer_override\" , { index = h . index , value = 2501 } ) end end if motor then send ( \"motor_override\" , { index = motor . index , value = 0 } ) end end if # jobs == 0 then return end local index , failed = 1 , false self . cleanupPending = ( self . cleanupPending or 0 ) + # jobs self . canEdit , self . canNext = false , false self . needsRelease = nil local dispatch local function complete ( _ , reason ) self . cleanupPending = self . cleanupPending - 1 if reason then failed , self . cleanupFailed , self . needsRelease = true , true , true self : log ( \"warn\" , \"override cleanup not confirmed: %s\" , reason ) end index = index + 1 local session = self : session ( ) local armed = self . runtime . armedReading ( ) local connected = session . fblConnected == true and session . mcu_id == self . identity and armed ~= true if reason == \"cleared\" or not connected then self . cleanupPending = self . cleanupPending - ( # jobs - index + 1 ) self . cleanupFailed , self . needsRelease = true , true ; return end if index <= # jobs then dispatch ( ) elseif full then self . cleanupFailed , self . needsRelease = failed , failed or nil end end dispatch = function ( ) local job = jobs [ index ] q : add ( { command = job . command , payload = job . payload , isWrite = true , client = \"helicopter-cleanup\" , maxRetries = 0 , processReply = function ( m ) complete ( m , nil ) end , errorHandler = complete } ) end dispatch ( )",
+      "release": "if self . stopLink then self : stopLink ( ) end local held , motor = self . holds , self . motorHold if self . logTrace and ( next ( held ) or motor or all ) then self : log ( \"trace\" , \"release all=%s motor=%s\" , tostring ( all ) , tostring ( motor ~= nil ) ) end self . holds , self . motorHold , self . listen , self . legacyHold = { } , nil , nil , nil if self . rx then self . rx . detect , self . rx . record = nil , nil end if self . modeListen then self . modeListen . id = nil end if self . profile then self . profile . listen , self . profile . record = nil , nil end if self . stopTrial then self : stopTrial ( ) end self . bus : dropOverrides ( ) local q = self . bus : queue ( ) if not q then return end if not self : allowed ( ) then self . needsRelease = true ; return end local apis = self . bus . apis local jobs = { } local full = all or self . needsRelease local function send ( api , data ) local mod = apis [ api ] if not mod then self . cleanupFailed , self . needsRelease = true , true ; return end jobs [ # jobs + 1 ] = { command = mod . writeCommand , payload = mod . buildWritePayload ( data ) } end if full then for i = 0 , 7 do send ( \"servo_override\" , { servo_id = i , action = 2001 } ) end for i = 1 , 4 do send ( \"mixer_override\" , { index = i , value = 2501 } ) end for i = 0 , 3 do send ( \"motor_override\" , { index = i , value = 0 } ) end else for _ , h in pairs ( held ) do if h . kind == \"servo\" then send ( \"servo_override\" , { servo_id = h . index , action = 2001 } ) else send ( \"mixer_override\" , { index = h . index , value = 2501 } ) end end if motor then send ( \"motor_override\" , { index = motor . index , value = 0 } ) end end if # jobs == 0 then return end local index , failed = 1 , false self . cleanupPending = ( self . cleanupPending or 0 ) + # jobs self . canEdit , self . canNext = false , false self . needsRelease = nil local dispatch local function complete ( _ , reason ) self . cleanupPending = self . cleanupPending - 1 if reason then failed , self . cleanupFailed , self . needsRelease = true , true , true self : log ( \"warn\" , \"override cleanup not confirmed: %s\" , reason ) end index = index + 1 local session = self : session ( ) local armed = self . runtime . armedReading ( ) local connected = session . fblConnected == true and session . mcu_id == self . identity and armed ~= true if reason == \"cleared\" or not connected then self . cleanupPending = self . cleanupPending - ( # jobs - index + 1 ) self . cleanupFailed , self . needsRelease = true , true ; return end if index <= # jobs then dispatch ( ) elseif full then self . cleanupFailed , self . needsRelease = failed , failed or nil end end dispatch = function ( ) local job = jobs [ index ] q : add ( { command = job . command , payload = job . payload , isWrite = true , client = \"helicopter-cleanup\" , maxRetries = 0 , processReply = function ( m ) complete ( m , nil ) end , errorHandler = complete } ) end dispatch ( )",
       "profileLoop": "local status = self . data . status local original = kind == \"rates\" and status . current_control_rate_profile_index + 128 or status . current_pid_profile_index local api = kind == \"rates\" and \"rc_tuning\" or kind == \"rescue\" and \"rescue_profile\" or \"governor_profile\" if self . logDebug then self : log ( \"debug\" , \"profile loop %s, %s profiles, %s\" , kind , indexes and # indexes or count , apply and \"write\" or \"read\" ) end self . restoreProfile = original for i = 0 , math . min ( indexes and # indexes or count , 6 ) - 1 do local index = indexes and indexes [ i + 1 ] or i self : action ( \"set_pid_profile\" , { index + ( kind == \"rates\" and 128 or 0 ) } ) self : read ( api , function ( d ) self . profileData = d if loaded then loaded ( d , index ) end if apply then self . profileOriginal = self . profileOriginal or { } self . profileOriginal [ kind ] = self . profileOriginal [ kind ] or { } self . profileOriginal [ kind ] [ index ] = self . profileOriginal [ kind ] [ index ] or copy ( d ) end end ) if apply then self : write ( api , function ( ) if apply ( self . profileData , index ) == false then return false end return self . profileData end ) end end self : action ( \"set_pid_profile\" , { original } , function ( ) self . restoreProfile = nil end ) self : read ( api , function ( d ) self . data [ api ] = d end ) self : read ( \"status\" , function ( d ) self . data . status = d end )",
       "save": "if self . logInfo then local names = { } for api in pairs ( self . dirty ) do names [ # names + 1 ] = api end self : log ( \"info\" , \"save %s\" , table . concat ( names , \",\" ) ) end self . transition = true ; self . message = self . L . saving self . edits = self . edits + 1 self : release ( ) if self . commit then self . commit ( ) end for api in pairs ( self . dirty ) do if not PROFILE_APIS [ api ] and api ~= \"tail_motor_output\" then self : sendDirty ( api ) end end local written self : write ( \"eeprom_write\" , { } , function ( ) written = self . dirty if self . logInfo then self : log ( \"info\" , \"save ok\" ) end self . dirty , self . live , self . profileOriginal = { } , { } , nil self . savedRebootPending = self . rebootPending self . snapshotIndex = 1 end ) for _ , api in ipairs ( READS ) do local name = api self : run ( function ( ) if ( written and written [ name ] ) or not same ( self . saved [ name ] , self . data [ name ] ) then self . saved [ name ] = copy ( self . data [ name ] ) end end ) self : run ( function ( ) self : sentFromData ( name ) end ) end self : run ( function ( ) self . transition = nil if self . stayNotice then self . message , self . stayNotice = self . stayNotice , nil if self . logInfo then self : keyMessage ( self . stayNoticeKey ) end self : rebuild ( ) ; return end self . message = self . L . saved ; if after then after ( ) end end )",
       "next": "if self . escBusy then return end if not self : usable ( ) or not self . cards then return end if self . recoveryCard then if not self : ack ( \"recoveryPowerCycle\" ) then return end self : session ( ) . helicopterSetupRecovery = nil self . recoveryRequired , self . recoveryCard , self . cards = nil , nil , nil self . buildRequested = true ; self : rebuild ( ) ; return end if self . modelPreparationCard then if not self : ack ( \"modelReady\" ) then return end if self . systemStatus == nil or self . systemConfig == nil then self . message = self . L . sensorsRequired ; return end self . modelPreparationDone , self . modelPreparationCard = true , nil if self . history and self . history . markPrepared and not self . history : markPrepared ( ) then self : log ( \"warn\" , \"radio model preparation not remembered\" ) self . message = self . L . preparedNotSaved end self . cards , self . buildRequested = nil , true ; self : rebuild ( ) ; return end if self . entryRebootGate then if self : ack ( \"unplugged\" ) and self : ack ( \"blades\" ) then self : reboot ( ) end return end if self . preparationCard then if not self : preparationComplete ( ) then return end self . preparationDone , self . preparationCard = true , nil self . cards , self . buildRequested = nil , true self : rebuild ( ) ; return end if self . trial then if self . trial . success then self : reboot ( ) else self . message = self . L . detecting end return end if self . step == 1 and ( not self : ack ( \"unplugged\" ) or not self : ack ( \"blades\" ) ) then return end local card = self . cards [ self . card ] if card and card . power and self . card < # self . cards and next ( self . dirty ) then local target = self . card + 1 self : save ( function ( ) self : navigate ( self . step , target ) end ) ; return end if card and card . requires and not self : ack ( card . requires ) then return end if self . card < # self . cards then self : navigate ( self . step , self . card + 1 ) ; return end if self . validate and not self . validate ( ) then if self . logDebug then self : log ( \"debug\" , \"next refused on %s\" , STEPS [ self . step ] ) end return end if self . rebootPending and self . step >= 10 then self : reboot ( ) ; return end if not next ( self . dirty ) then if self . finishStep then self : finishStep ( ) elseif self . step == 19 then self : close ( ) else self : navigate ( self . step + 1 , 1 ) end return end self : save ( function ( ) if self . finishStep then self : finishStep ( ) elseif self . step == 19 then self : close ( ) else self : navigate ( self . step + 1 , 1 ) end end )",
-      "load": "if self . logInfo then self : log ( \"info\" , \"load start\" ) end self . ready , self . error , self . progress , self . transition = false , nil , 0 , true self . edits = self . edits + 1 self . checks , self . card , self . bladesOff , self . calibratedEsc = { } , 1 , false , nil if self . escParams then self . escParams . block = nil end self . escAttempted , self . escBusy , self . rangeSource = nil , nil , nil self . rangeNeedsVerification = self . rangeChoice == \"esc_link\" and self . escRangeExpected ~= nil self . preparationDone , self . preparationCard = nil , nil self . tailPinRefused , self . tailPinNotice , self . stayNotice = nil , nil , nil self . governorLoaded , self . governorSpeeds , self . governorChanged , self . governorFilterLoaded = nil , nil , nil , nil self . rescue = nil if not self . pitchFullChanged then self . pitchLoaded , self . pitchFull = nil , nil end self . data . battery_config , self . data . battery_profile , self . data . smartfuel_config = nil , nil , nil self . data . analog , self . analogAt = nil , nil self . statusQueued , self . statusWaiting , self . beforeStatusWait = nil , nil , nil local mcuId = self : session ( ) . mcu_id self . recoveryRequired = mcuId ~= nil and self : session ( ) . helicopterSetupRecovery == mcuId self . loadingText , self . loadTotal = self . L . loading , # READS + 66 self . locked = false self : blockArming ( ) self : read ( \"status\" , function ( d ) if ( d . arming_disable_flags & ( 1 << 16 ) ) == 0 then self : fail ( \"arming_disable\" , \"not active\" ) ; return end local count = d . servo_count if count > 26 or ( count > 8 and count < 18 ) then self : fail ( \"status\" , \"servo count\" ) ; return end self . loadTotal = # READS + 40 + count self . locked = true ; self : acceptStatus ( d ) end ) if self . loadHistory then self : run ( function ( ) self : loadHistory ( ) end ) end if self . historyMode then self : run ( function ( ) self . ready , self . transition , self . buildRequested = true , nil , true if self . logInfo then self : log ( \"info\" , \"load ready, history only\" ) end self . message = self . L . ready ; self : rebuild ( ) end ) return end if not self : apiSupported ( ) then self : run ( function ( ) self . ready , self . transition , self . buildRequested , self . apiTooOld = true , nil , true , true if self . logInfo then self : log ( \"info\" , \"load stopped, API %s\" , self : session ( ) . apiVersion ) end self . message = self . L . apiTooOld ; self : rebuild ( ) end ) return end for _ , api in ipairs ( { \"servo_override\" , \"mixer_override\" , \"motor_override\" } ) do local name = api self : run ( function ( ) self . bus : load ( name ) end ) end self : run ( function ( ) self : release ( true ) end ) local servoCandidate , mixerCandidate = false , false self : write ( \"servo_override\" , { servo_id = 0 , action = 2001 , timeout = 500 } , function ( _ , err ) servoCandidate = err == nil end , true ) self : action ( \"servo_override\" , { 0 , 209 , 7 , 0 } , function ( _ , err ) self . timedServo = servoCandidate and err == \"refused\" end , true ) self : write ( \"mixer_override\" , { index = 0 , value = 2501 , timeout = 500 } , function ( _ , err ) mixerCandidate = err == nil end , true ) self : action ( \"mixer_override\" , { 0 , 197 , 9 , 0 } , function ( _ , err ) self . timedMixer = mixerCandidate and err == \"refused\" self . timed = self . timedServo and self . timedMixer if self . logDebug then self : log ( \"debug\" , \"timed overrides servo=%s mixer=%s\" , tostring ( self . timedServo ) , tostring ( self . timedMixer ) ) end end , true ) for _ , name in ipairs ( READS ) do local api = name if api == \"smartfuel_config\" and not self . powerFields . supportsSmartFuel ( self : session ( ) . apiVersion , self . powerApiVersion ) then self : run ( function ( ) self : loadProgress ( ) end ) elseif api == \"adjustment_ranges\" then self : readRecords ( api , \"get_adjustment_range\" , \"adjustment_range\" ) elseif api == \"servo_configurations\" then self : readRecords ( api , \"get_servo_config\" , \"servo_config\" , true ) else self : read ( api , function ( d , err ) if err and ( api == \"battery_config\" or api == \"battery_profile\" or api == \"smartfuel_config\" ) then d = nil end if api == \"board_alignment_config\" and d then for _ , key in ipairs ( { \"roll_degrees\" , \"pitch_degrees\" , \"yaw_degrees\" } ) do d [ key ] = self . math . signed ( d [ key ] ) end end self . data [ api ] = d ; self : loadProgress ( ) if api == \"status\" then self : acceptStatus ( d ) end end , api == \"tail_motor_output\" or api == \"board_info\" or api == \"telemetry_config\" or api == \"battery_config\" or api == \"battery_profile\" or api == \"smartfuel_config\" , api == \"tail_motor_output\" and { 0 } or nil ) end self : run ( function ( ) if not self . dirty [ api ] and not ( api == \"mode_ranges_extra\" and self . dirty . mode_ranges ) then self . saved [ api ] = copy ( self . data [ api ] ) end end ) self : run ( function ( ) self : sentFromData ( api ) end ) end self : read ( \"status\" , function ( d ) self : acceptStatus ( d ) end ) self : run ( function ( ) self . identity = self : session ( ) . mcu_id local inputs = self . data . mixer_input . inputs if not inputs [ 4 ] or not self . data . status . pid_profile_count or self . data . status . pid_profile_count < 1 then self : fail ( \"status\" , \"configuration\" ) ; return end self . startTail = self . data . mixer_config . tail_rotor_mode self . savedRebootPending = self . rebootPending self . ready , self . transition , self . buildRequested = true , nil , true if self . logInfo then self : log ( \"info\" , \"load ready\" ) end self . message = self . L . ready self : rebuild ( ) end )",
-      "poll": "if self . historyMode or self . modelPreparationCard then return end local time = now ( ) if time - ( self . lastPoll or 0 ) < 20 then return end self . lastPoll = time local attitudeCheck = self . step == 1 and self . cards and self . cards [ self . card ] and self . cards [ self . card ] . art == \"attitude\" local switches = self . step == 3 or self . step == 4 self . pollIndex = ( self . pollIndex or 0 ) % ( ( attitudeCheck or switches ) and 4 or 3 ) + 1 local api = switches and ( self . pollIndex == 1 and \"status\" or \"rc\" ) or attitudeCheck and ( self . pollIndex % 2 == 1 and \"attitude\" or self . pollIndex == 2 and \"status\" or \"servo\" ) or self . pollIndex == 1 and \"status\" or self . pollIndex == 2 and \"servo\" or ( { [ 1 ] = \"attitude\" , [ 2 ] = \"rx_channels\" , [ 3 ] = \"rc\" , [ 4 ] = \"rc\" , [ 10 ] = \"motor\" , [ 11 ] = \"motor_telemetry\" , [ 12 ] = \"motor\" , [ 14 ] = \"rc_command\" , [ 17 ] = self : motorised ( ) and \"motor\" or \"rc_command\" } ) [ self . step ] local card = self . cards and self . cards [ self . card ] if self . step == 11 and card and card . power and self . pollIndex == 2 then api = \"analog\" end if self . motorHold then api = \"motor\" end if not api then return end local selectedSources = self . sent . battery_config or self . saved . battery_config local job = self . bus : idle ( ) and self . pollJob if not job then job = { } job . after = function ( d , err ) self : pollReply ( job , d , err ) end self . pollJob = job end job . api , job . optional = api , api == \"analog\" or api == \"attitude\" job . voltageSource = selectedSources and selectedSources . voltageMeterSource job . currentSource = selectedSources and selectedSources . currentMeterSource self . bus : add ( job )",
+      "load": "if self . logInfo then self : log ( \"info\" , \"load start\" ) end self . ready , self . error , self . progress , self . transition = false , nil , 0 , true self . edits = self . edits + 1 self . checks , self . card , self . bladesOff , self . calibratedEsc = { } , 1 , false , nil if self . escParams then self . escParams . block = nil end self . escAttempted , self . escBusy , self . rangeSource = nil , nil , nil self . rangeNeedsVerification = self . rangeChoice == \"esc_link\" and self . escRangeExpected ~= nil self . preparationDone , self . preparationCard = nil , nil self . tailPinRefused , self . tailPinNotice , self . stayNotice = nil , nil , nil self . governorLoaded , self . governorSpeeds , self . governorChanged , self . governorFilterLoaded = nil , nil , nil , nil self . rescue = nil if not self . pitchFullChanged then self . pitchLoaded , self . pitchFull = nil , nil end self . data . battery_config , self . data . battery_profile , self . data . smartfuel_config = nil , nil , nil self . data . analog , self . analogAt = nil , nil self . statusQueued , self . statusWaiting , self . beforeStatusWait = nil , nil , nil local mcuId = self : session ( ) . mcu_id self . recoveryRequired = mcuId ~= nil and self : session ( ) . helicopterSetupRecovery == mcuId self . loadingText , self . loadTotal = self . L . loading , # READS + 66 self . loadActive , self . message = true , self . L . loading self . locked = false self : blockArming ( ) self : read ( \"status\" , function ( d ) if ( d . arming_disable_flags & ( 1 << 16 ) ) == 0 then self : fail ( \"arming_disable\" , \"not active\" ) ; return end local count = d . servo_count if count > 26 or ( count > 8 and count < 18 ) then self : fail ( \"status\" , \"servo count\" ) ; return end self . loadTotal = # READS + 40 + count self . locked = true ; self : acceptStatus ( d ) end ) if self . loadHistory then self : run ( function ( ) self : loadHistory ( ) end ) end if self . historyMode then self : run ( function ( ) self . ready , self . transition , self . buildRequested = true , nil , true if self . logInfo then self : log ( \"info\" , \"load ready, history only\" ) end self . message = self . L . ready ; self : rebuild ( ) end ) return end if not self : apiSupported ( ) then self : run ( function ( ) self . ready , self . transition , self . buildRequested , self . apiTooOld = true , nil , true , true if self . logInfo then self : log ( \"info\" , \"load stopped, API %s\" , self : session ( ) . apiVersion ) end self . message = self . L . apiTooOld ; self : rebuild ( ) end ) return end for _ , api in ipairs ( { \"servo_override\" , \"mixer_override\" , \"motor_override\" } ) do local name = api self : run ( function ( ) self . bus : load ( name ) end ) end self : run ( function ( ) self : release ( true ) end ) local servoCandidate , mixerCandidate = false , false if self . logDebug then self : log ( \"debug\" , \"override probe: two four-byte OFF writes, a refusal is the expected answer\" ) end self : write ( \"servo_override\" , { servo_id = 0 , action = 2001 , timeout = 500 } , function ( _ , err ) servoCandidate = err == nil end , true ) self : action ( \"servo_override\" , { 0 , 209 , 7 , 0 } , function ( _ , err ) self . timedServo = servoCandidate and err == \"refused\" end , true ) self : write ( \"mixer_override\" , { index = 0 , value = 2501 , timeout = 500 } , function ( _ , err ) mixerCandidate = err == nil end , true ) self : action ( \"mixer_override\" , { 0 , 197 , 9 , 0 } , function ( _ , err ) self . timedMixer = mixerCandidate and err == \"refused\" self . timed = self . timedServo and self . timedMixer if self . logDebug then self : log ( \"debug\" , \"timed overrides servo=%s mixer=%s\" , tostring ( self . timedServo ) , tostring ( self . timedMixer ) ) end end , true ) for _ , name in ipairs ( READS ) do local api = name if api == \"smartfuel_config\" and not self . powerFields . supportsSmartFuel ( self : session ( ) . apiVersion , self . powerApiVersion ) then self : run ( function ( ) self : loadProgress ( ) end ) elseif api == \"adjustment_ranges\" then self : readRecords ( api , \"get_adjustment_range\" , \"adjustment_range\" ) elseif api == \"servo_configurations\" then self : readRecords ( api , \"get_servo_config\" , \"servo_config\" , true ) else self : read ( api , function ( d , err ) if err and ( api == \"battery_config\" or api == \"battery_profile\" or api == \"smartfuel_config\" ) then d = nil end if api == \"board_alignment_config\" and d then for _ , key in ipairs ( { \"roll_degrees\" , \"pitch_degrees\" , \"yaw_degrees\" } ) do d [ key ] = self . math . signed ( d [ key ] ) end end self . data [ api ] = d ; self : loadProgress ( ) if api == \"status\" then self : acceptStatus ( d ) end end , api == \"tail_motor_output\" or api == \"board_info\" or api == \"telemetry_config\" or api == \"battery_config\" or api == \"battery_profile\" or api == \"smartfuel_config\" , api == \"tail_motor_output\" and { 0 } or nil ) end self : run ( function ( ) if not self . dirty [ api ] and not ( api == \"mode_ranges_extra\" and self . dirty . mode_ranges ) then self . saved [ api ] = copy ( self . data [ api ] ) end end ) self : run ( function ( ) self : sentFromData ( api ) end ) end self : read ( \"status\" , function ( d ) self : acceptStatus ( d ) end ) self : run ( function ( ) self . identity = self : session ( ) . mcu_id local inputs = self . data . mixer_input . inputs if not inputs [ 4 ] or not self . data . status . pid_profile_count or self . data . status . pid_profile_count < 1 then self : fail ( \"status\" , \"configuration\" ) ; return end local battery = self . data . battery_config if battery and not battery . hasProfileCells then self . ready , self . transition , self . buildRequested , self . apiTooOld = true , nil , true , true if self . logInfo then self : log ( \"info\" , \"load stopped, no per-profile battery cells\" ) end self . message = self . L . apiTooOld ; self : rebuild ( ) ; return end self . startTail = self . data . mixer_config . tail_rotor_mode self . savedRebootPending = self . rebootPending self . ready , self . transition , self . buildRequested = true , nil , true if self . logInfo then self : log ( \"info\" , \"load ready\" ) end self . loadActive = nil self . message = self . L . ready self : rebuild ( ) end )",
+      "poll": "if self . historyMode or self . modelPreparationCard then return end local time = now ( ) if time - ( self . lastPoll or 0 ) < 20 then return end self . lastPoll = time local attitudeCheck = self . step == 1 and self . cards and self . cards [ self . card ] and self . cards [ self . card ] . art == \"attitude\" local switches = self . step == 3 or self . step == 4 self . pollIndex = ( self . pollIndex or 0 ) % ( ( attitudeCheck or switches ) and 4 or 3 ) + 1 local channelsOnly = self . step == 2 and not self . motorHold local api = switches and ( self . pollIndex == 1 and \"status\" or \"rc\" ) or channelsOnly and ( self . pollIndex == 1 and \"status\" or \"rx_channels\" ) or attitudeCheck and ( self . pollIndex % 2 == 1 and \"attitude\" or self . pollIndex == 2 and \"status\" or \"servo\" ) or self . pollIndex == 1 and \"status\" or self . pollIndex == 2 and \"servo\" or ( { [ 1 ] = \"attitude\" , [ 2 ] = \"rx_channels\" , [ 3 ] = \"rc\" , [ 4 ] = \"rc\" , [ 10 ] = \"motor\" , [ 11 ] = \"motor_telemetry\" , [ 12 ] = \"motor\" , [ 14 ] = \"rc_command\" , [ 17 ] = self : motorised ( ) and \"motor\" or \"rc_command\" } ) [ self . step ] local card = self . cards and self . cards [ self . card ] if self . step == 11 and card and card . power and self . pollIndex == 2 then api = \"analog\" end if self . motorHold then api = \"motor\" end if not api then return end local selectedSources = self . sent . battery_config or self . saved . battery_config local job = self . bus : idle ( ) and self . pollJob if not job then job = { } job . after = function ( d , err ) self : pollReply ( job , d , err ) end self . pollJob = job end job . api , job . optional = api , api == \"analog\" or api == \"attitude\" job . voltageSource = selectedSources and selectedSources . voltageMeterSource job . currentSource = selectedSources and selectedSources . currentMeterSource self . bus : add ( job )",
       "tick": "self . editLogged = nil if self . logInfo then self : logChanges ( ) end if self . escParams and self . escParams : observe ( self . escSignature ) and not self . escBusy then self : escResult ( nil , \"restart\" ) end if self . linkTick then self : linkTick ( ) end if self . attitudeView then self . attitudeView : update ( self . data . attitude , self . attitudeAt , now ( ) , self . active and self . ready and self . locked and not self . transition and not self . error and self : allowed ( ) ) end if not self . active then return end if not self : allowed ( ) then if not self . suspended then self : log ( \"warn\" , \"link lost or armed, tests stopped\" ) self . suspended , self . escBusy = true , nil ; self . bus : cancel ( ) ; self : release ( ) ; self . message = self . L . disconnected self . ready = false ; self : rebuild ( ) end return end if self . suspended then self . suspended , self . disconnectExit = nil , nil if self . logInfo then self : log ( \"info\" , \"link back\" ) end if self . rebootPhase then self . rebootPhase = nil ; self . rebootPending = nil ; self : load ( ) elseif not self . bus . wrote then self : load ( ) else self . error = \"link\" ; self . message = self . L . reload end return end if self . rebootPhase and self . rebootPhase ~= \"sent\" then if now ( ) - self . rebootAt > 3000 then self . rebootPhase = nil ; self : fail ( \"reboot\" , \"timeout\" ) end if now ( ) - self . rebootAt >= 200 and self . bus : idle ( ) then self : read ( \"status\" , function ( d , err ) if err or not d or d . reboot_required ~= 0 then return end self . rebootPhase , self . rebootPending = nil , nil if self . logInfo then self : log ( \"info\" , \"reboot done\" ) end self : load ( ) end , true ) end if not self . bus : idle ( ) then self . bus : tick ( ) end return end if self . cleanupFailed and ( self . cleanupPending or 0 ) == 0 and not self . error then self : fail ( \"cleanup\" , self . L . cleanupFailed ) ; return end if self . ready and self . locked and not self . error and not self . rebootPhase then local age = now ( ) - ( self . statusAt or 0 ) if age > 300 then if self . transition or self . motorHold or next ( self . holds ) or self . trial or not self . bus : readOnly ( ) then self : fail ( \"status\" , self . L . stale ) ; self . message = self . L . stale ; return end if not self . statusWaiting then self : log ( \"warn\" , \"status late, controls paused\" ) self . beforeStatusWait , self . statusWaiting = self . message , true self . canEdit , self . canNext , self . message = false , false , self . L . checkingStatus self : release ( ) end end if age > 100 and not self . statusQueued then self . statusQueued = true self . bus : urgent ( { api = \"status\" , after = function ( d ) self . statusQueued = nil ; self : acceptStatus ( d ) end } ) end end if not self . bus : idle ( ) then self . bus : tick ( ) ; return end if self . buildRequested and self . ready then local kept = self . buildRequested == \"card\" and self . keptCards self . buildRequested , self . keptCards = nil , nil if self . overview then self : rebuild ( ) ; return end if self . historyMode then self : buildHistory ( ) ; self : rebuild ( ) ; return end if self . apiTooOld and not self . recoveryRequired then self . cards = { self : cardDef ( self . L . apiTooOldTitle , self . L . apiTooOld , { self : value ( self . L . fcApi , function ( ) return tostring ( self : session ( ) . apiVersion or \"--\" ) end ) } ) } self . cards [ 1 ] . summary = self . L . apiTooOld self . card = 1 ; self . validate = function ( ) self . message = self . L . apiTooOld ; return false end self : rebuild ( ) ; return end if self : buildModelPreparation ( ) then self : rebuild ( ) ; return end self . entryRebootGate = self . returnToSuite and self . step >= 11 and self . rebootPending and not ( self . step == 11 and self . escRangeExpected ) or nil if self . entryRebootGate then self : showRebootGate ( ) ; return end local key = STEPS [ self . step ] self . validate , self . onLive , self . commit = nil , nil , nil if self . buildPreparation and self : buildPreparation ( ) then self : rebuild ( ) ; return end local model = kept and kept . model if model and model . step == self . step and model . edits == self . edits and model . rebootPending == self . rebootPending and not ( kept . stale and kept . stale ( ) ) then self . cards , self . validate , self . onLive , self . commit = kept , model . validate , model . onLive , model . commit if self . logDebug then self : log ( \"debug\" , \"cards %s kept\" , key ) end else local held = self . stepChunk if not held or held . key ~= key then local root = _G . rfsuite local uncached = root and root . utils and root . utils . loadScriptUncached local stepPath = BASE .. \"app/pages/helicopter_setup/steps/\" .. key .. \".lua\" local stepChunk , err if type ( uncached ) == \"function\" then stepChunk , err = uncached ( stepPath , root . loadMode or \"t\" ) else stepChunk , err = loadScript ( stepPath , \"t\" ) end held = { key = key , chunk = assert ( stepChunk , err ) } self . stepChunk = held if self . logTrace then self : log ( \"trace\" , \"step file %s read\" , key ) end end self . cards = held . chunk ( ) ( self ) self . cards . model = { step = self . step , edits = self . edits , rebootPending = self . rebootPending , validate = self . validate , onLive = self . onLive , commit = self . commit } if self . logDebug then self : log ( \"debug\" , \"cards %s built, %s\" , key , # self . cards ) end end self . card = math . min ( self . card , # self . cards ) if self . cards [ self . card ] . enter and not self . stepMenu then local enter , cards , card = self . cards [ self . card ] . enter , self . cards , self . card self . entrySeq = ( self . entrySeq or 0 ) + 1 local seq = self . entrySeq self : afterRelease ( function ( ) if seq ~= self . entrySeq or self . stepMenu or self . confirmExit or self . transition or self . cards ~= cards or self . card ~= card then if self . logTrace then self : log ( \"trace\" , \"card %s entry skipped: left before it ran\" , card ) end return end enter ( ) end ) end self : rebuild ( ) ; return end if not self . ready or self . error or self . transition then return end if self . trialTick and self : trialTick ( ) then return end if self . live and next ( self . live ) then local api = next ( self . live ) ; self . live [ api ] = nil if self . logInfo then self : log ( \"info\" , \"live write %s\" , api ) end self : sendDirty ( api ) ; return end if self . escTick and self : escTick ( ) then return end if self . holdPollTurn then self . holdPollTurn , self . lastPoll = nil , nil self : poll ( ) ; return end if self . motorHold then local h = self . motorHold if h . untilAt and now ( ) >= h . untilAt then self : stopMotor ( ) ; return end if now ( ) >= h . due and not h . pollTurn then if self . logTrace then self : log ( \"trace\" , \"motor %s refresh\" , h . index ) end if h . mode == \"spin\" then h . value = self . percent * 10 * h . direction end if h . mode == \"idle\" then h . value = self . data . mixer_config . tail_motor_idle end h . due , h . pollTurn = now ( ) + 25 , true self . bus : add ( { api = \"motor_override\" , write = true , override = true , data = { index = h . index , value = h . value } } ) ; return end if h . pollTurn then h . pollTurn = nil ; self . lastPoll = nil end end local refreshed = false for _ , h in pairs ( self . holds ) do if now ( ) >= h . due then h . due = now ( ) + 100 local d = h . kind == \"servo\" and { servo_id = h . index , action = h . value } or { index = h . index , value = h . value } if h . timed then d . timeout = 3000 end self . bus : add ( { api = h . kind .. \"_override\" , write = true , override = true , data = d } ) refreshed = true end end if refreshed then self . holdPollTurn = true ; return end self : poll ( )"
     }
   },
@@ -2258,226 +2258,6 @@
               "expression": "w : touch ( \"rx_config\" , true )"
             },
             {
-              "kind": "gate",
-              "label": "validation",
-              "api": null,
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/ReceiverArt.svelte",
-                "tabs/setup_wizard/StepReceiver.svelte",
-                "tabs/setup_wizard/StickIcon.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-              "expression": "validate = function ( ) local raw = w . data . rx_channels local ok = raw and # raw . channels >= 5 and ( w . data . status . arming_disable_flags & 4 ) == 0 if not ok then w . message = L . noReceiver ; return false end if r . detect then return false end if not travelOk ( ) then w . message = L . sticksShort ; return false end return true end"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Advanced",
-              "api": null,
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/ReceiverArt.svelte",
-                "tabs/setup_wizard/StepReceiver.svelte",
-                "tabs/setup_wizard/StickIcon.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-              "expression": "{ kind = \"toggle\" , label = L . advanced , values = { L . no , L . yes } , get = function ( ) return unlocked ( ) and 2 or 1 end , set = function ( v ) r . advanced = v == 2 end }"
-            },
-            {
-              "kind": "MSP write",
-              "label": "feature_config (record/payload)",
-              "api": "feature_config",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "js/features.svelte.js",
-                "js/tail_motor.js",
-                "tabs/configuration/AutoAlignWizard.svelte",
-                "tabs/governor/state.svelte.js",
-                "tabs/motors/EscWiringDetectWizard.svelte",
-                "tabs/motors/state.svelte.js",
-                "tabs/receiver/RxWiringDetectWizard.svelte",
-                "tabs/receiver/channelPresets.js",
-                "tabs/receiver/protocols.js",
-                "tabs/setup_wizard/MainMotorTest.svelte",
-                "tabs/setup_wizard/MotorCheck.svelte",
-                "tabs/setup_wizard/TailMotorTest.svelte",
-                "tabs/setup_wizard/governor.js"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/workflow.lua",
-              "expression": "self : touch ( \"feature_config\" , true )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "feature_config.enabledFeatures",
-              "api": "feature_config",
-              "field": "enabledFeatures",
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "js/features.svelte.js",
-                "js/tail_motor.js",
-                "tabs/configuration/AutoAlignWizard.svelte",
-                "tabs/governor/state.svelte.js",
-                "tabs/motors/EscWiringDetectWizard.svelte",
-                "tabs/motors/state.svelte.js",
-                "tabs/receiver/RxWiringDetectWizard.svelte",
-                "tabs/receiver/channelPresets.js",
-                "tabs/receiver/protocols.js",
-                "tabs/setup_wizard/MainMotorTest.svelte",
-                "tabs/setup_wizard/MotorCheck.svelte",
-                "tabs/setup_wizard/TailMotorTest.svelte",
-                "tabs/setup_wizard/governor.js"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/workflow.lua",
-              "expression": "d . enabledFeatures ="
-            },
-            {
-              "kind": "read",
-              "label": "MSP status",
-              "api": "status",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "w:poll",
-              "scope": "live poll"
-            },
-            {
-              "kind": "read",
-              "label": "MSP servo",
-              "api": "servo",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "w:poll",
-              "scope": "live poll"
-            },
-            {
-              "kind": "read",
-              "label": "MSP rx_channels",
-              "api": "rx_channels",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
-              "expression": "w:poll",
-              "scope": "live poll"
-            }
-          ]
-        },
-        {
-          "title": "Channel order",
-          "title_expression": "L . channelOrder",
-          "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-          "configurator_reference": [
-            "tabs/setup_wizard/ReceiverArt.svelte",
-            "tabs/setup_wizard/StepReceiver.svelte",
-            "tabs/setup_wizard/StickIcon.svelte"
-          ],
-          "configurator_status": [
-            "same"
-          ],
-          "additions": [],
-          "rows": [
-            {
-              "kind": "MSP write",
-              "label": "rx_map (record/payload)",
-              "api": "rx_map",
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/ReceiverArt.svelte",
-                "tabs/setup_wizard/StepReceiver.svelte",
-                "tabs/setup_wizard/StickIcon.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-              "expression": "w : touch ( \"rx_map\" )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Standard channel order",
-              "api": null,
-              "field": null,
-              "deviation": false,
-              "configurator_status": [
-                "same"
-              ],
-              "configurator_reference": [
-                "tabs/setup_wizard/ReceiverArt.svelte",
-                "tabs/setup_wizard/StepReceiver.svelte",
-                "tabs/setup_wizard/StickIcon.svelte"
-              ],
-              "additions": [],
-              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-              "expression": "{ kind = \"choice\" , label = L . standardOrder , allowUnset = true , values = { \"ELRS\" , \"FrSky\" , \"Futaba / Hitec\" , \"DSM / Graupner / JR\" } , get = presetIndex , set = function ( v ) local preset = { { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } , { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } , { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } , { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } } [ v ] if not preset then return end r . detect = nil ; w . data . rx_map [ \"aileron\" ] = preset [ 1 ] w . data . rx_map [ \"elevator\" ] = preset [ 2 ] w . data . rx_map [ \"rudder\" ] = preset [ 3 ] w . data . rx_map [ \"collective\" ] = preset [ 4 ] w . data . rx_map [ \"throttle\" ] = preset [ 5 ] w . data . rx_map [ \"aux1\" ] = preset [ 6 ] w . data . rx_map [ \"aux2\" ] = preset [ 7 ] w . data . rx_map [ \"aux3\" ] = preset [ 8 ] ; w : touch ( \"rx_map\" ) end , enabled = unlocked }"
-            }
-          ]
-        },
-        {
-          "title": "Check sticks",
-          "title_expression": "L . checkSticks",
-          "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-          "configurator_reference": [
-            "tabs/setup_wizard/ReceiverArt.svelte",
-            "tabs/setup_wizard/StepReceiver.svelte",
-            "tabs/setup_wizard/StickIcon.svelte"
-          ],
-          "configurator_status": [
-            "same"
-          ],
-          "additions": [],
-          "rows": []
-        },
-        {
-          "title": "Throttle range",
-          "title_expression": "L . throttleRange",
-          "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-          "configurator_reference": [
-            "tabs/setup_wizard/ReceiverArt.svelte",
-            "tabs/setup_wizard/StepReceiver.svelte",
-            "tabs/setup_wizard/StickIcon.svelte"
-          ],
-          "configurator_status": [
-            "same"
-          ],
-          "additions": [],
-          "rows": [
-            {
               "kind": "read",
               "label": "Throttle",
               "api": null,
@@ -2494,6 +2274,96 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
               "expression": "w : value ( L . throttle , throttleNow )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "rc_config.rc_min_throttle",
+              "api": "rc_config",
+              "field": "rc_min_throttle",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : field ( \"rc_config\" , \"rc_min_throttle\" , 0 )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "rc_config.rc_max_throttle",
+              "api": "rc_config",
+              "field": "rc_max_throttle",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : field ( \"rc_config\" , \"rc_max_throttle\" , 0 )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "rc_config.rc_min_throttle",
+              "api": "rc_config",
+              "field": "rc_min_throttle",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : field ( \"rc_config\" , \"rc_min_throttle\" , low )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "rc_config.rc_max_throttle",
+              "api": "rc_config",
+              "field": "rc_max_throttle",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : field ( \"rc_config\" , \"rc_max_throttle\" , high )"
+            },
+            {
+              "kind": "read",
+              "label": "Range (us)",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : value ( L . throttleAutoRange , function ( ) return string . format ( L . throttleAutoValue , autoRange ( ) ) end )"
             },
             {
               "kind": "MSP write",
@@ -2604,10 +2474,10 @@
               "expression": "w : n ( \"rc_config\" , \"rc_max_throttle\" , L . maximum , 0 , 2100 )"
             },
             {
-              "kind": "MSP write",
-              "label": "rc_config.rc_min_throttle",
-              "api": "rc_config",
-              "field": "rc_min_throttle",
+              "kind": "gate",
+              "label": "validation",
+              "api": null,
+              "field": null,
               "deviation": false,
               "configurator_status": [
                 "same"
@@ -2619,13 +2489,166 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-              "expression": "w : field ( \"rc_config\" , \"rc_min_throttle\" , 0 )"
+              "expression": "validate = function ( ) local raw = w . data . rx_channels local ok = raw and # raw . channels >= 5 and ( w . data . status . arming_disable_flags & 4 ) == 0 if not ok then w . message = L . noReceiver ; return false end if r . detect then return false end if not travelOk ( ) then w . message = L . sticksShort ; return false end return true end"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Automatic throttle range",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "{ kind = \"toggle\" , label = L . throttleAuto , values = { L . no , L . yes } , get = function ( ) return automatic ( ) and 2 or 1 end , set = function ( v ) r . record = nil if v == 2 then if w . logDebug then w : log ( \"debug\" , \"throttle range automatic\" ) end w : field ( \"rc_config\" , \"rc_min_throttle\" , 0 ) w : field ( \"rc_config\" , \"rc_max_throttle\" , 0 ) else local low , high = autoRange ( ) if w . logDebug then w : log ( \"debug\" , \"throttle range manual from %s to %s\" , low , high ) end w : field ( \"rc_config\" , \"rc_min_throttle\" , low ) w : field ( \"rc_config\" , \"rc_max_throttle\" , high ) end w . buildRequested = true ; w : rebuild ( ) end }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Advanced",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "{ kind = \"toggle\" , label = L . advanced , values = { L . no , L . yes } , get = function ( ) return unlocked ( ) and 2 or 1 end , set = function ( v ) r . advanced = v == 2 end }"
             },
             {
               "kind": "MSP write",
-              "label": "rc_config.rc_max_throttle",
-              "api": "rc_config",
-              "field": "rc_max_throttle",
+              "label": "feature_config (record/payload)",
+              "api": "feature_config",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "js/features.svelte.js",
+                "js/tail_motor.js",
+                "tabs/configuration/AutoAlignWizard.svelte",
+                "tabs/governor/state.svelte.js",
+                "tabs/motors/EscWiringDetectWizard.svelte",
+                "tabs/motors/state.svelte.js",
+                "tabs/receiver/RxWiringDetectWizard.svelte",
+                "tabs/receiver/channelPresets.js",
+                "tabs/receiver/protocols.js",
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte",
+                "tabs/setup_wizard/governor.js"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/workflow.lua",
+              "expression": "self : touch ( \"feature_config\" , true )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "feature_config.enabledFeatures",
+              "api": "feature_config",
+              "field": "enabledFeatures",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "js/features.svelte.js",
+                "js/tail_motor.js",
+                "tabs/configuration/AutoAlignWizard.svelte",
+                "tabs/governor/state.svelte.js",
+                "tabs/motors/EscWiringDetectWizard.svelte",
+                "tabs/motors/state.svelte.js",
+                "tabs/receiver/RxWiringDetectWizard.svelte",
+                "tabs/receiver/channelPresets.js",
+                "tabs/receiver/protocols.js",
+                "tabs/setup_wizard/MainMotorTest.svelte",
+                "tabs/setup_wizard/MotorCheck.svelte",
+                "tabs/setup_wizard/TailMotorTest.svelte",
+                "tabs/setup_wizard/governor.js"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/workflow.lua",
+              "expression": "d . enabledFeatures ="
+            },
+            {
+              "kind": "read",
+              "label": "MSP status",
+              "api": "status",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "w:poll",
+              "scope": "live poll"
+            },
+            {
+              "kind": "read",
+              "label": "MSP rx_channels",
+              "api": "rx_channels",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "w:poll",
+              "scope": "live poll"
+            },
+            {
+              "kind": "read",
+              "label": "MSP servo",
+              "api": "servo",
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/controller.lua",
+              "expression": "w:poll",
+              "scope": "live poll"
+            }
+          ]
+        },
+        {
+          "title": "Channel order",
+          "title_expression": "L . channelOrder",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/ReceiverArt.svelte",
+            "tabs/setup_wizard/StepReceiver.svelte",
+            "tabs/setup_wizard/StickIcon.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
+            {
+              "kind": "MSP write",
+              "label": "rx_map (record/payload)",
+              "api": "rx_map",
+              "field": null,
               "deviation": false,
               "configurator_status": [
                 "same"
@@ -2637,9 +2660,57 @@
               ],
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
-              "expression": "w : field ( \"rc_config\" , \"rc_max_throttle\" , 0 )"
+              "expression": "w : touch ( \"rx_map\" )"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Standard channel order",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "{ kind = \"choice\" , label = L . standardOrder , allowUnset = true , values = { \"ELRS\" , \"FrSky\" , \"Futaba / Hitec\" , \"DSM / Graupner / JR\" } , get = presetIndex , set = function ( v ) local preset = { { 0 , 1 , 3 , 2 , 5 , 4 , 6 , 7 } , { 0 , 1 , 3 , 4 , 2 , 5 , 6 , 7 } , { 0 , 1 , 3 , 5 , 2 , 4 , 6 , 7 } , { 1 , 2 , 3 , 5 , 0 , 4 , 6 , 7 } } [ v ] if not preset then return end r . detect = nil ; w . data . rx_map [ \"aileron\" ] = preset [ 1 ] w . data . rx_map [ \"elevator\" ] = preset [ 2 ] w . data . rx_map [ \"rudder\" ] = preset [ 3 ] w . data . rx_map [ \"collective\" ] = preset [ 4 ] w . data . rx_map [ \"throttle\" ] = preset [ 5 ] w . data . rx_map [ \"aux1\" ] = preset [ 6 ] w . data . rx_map [ \"aux2\" ] = preset [ 7 ] w . data . rx_map [ \"aux3\" ] = preset [ 8 ] ; w : touch ( \"rx_map\" ) end , enabled = unlocked }"
             }
           ]
+        },
+        {
+          "title": "Check sticks",
+          "title_expression": "L . checkSticks",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/ReceiverArt.svelte",
+            "tabs/setup_wizard/StepReceiver.svelte",
+            "tabs/setup_wizard/StickIcon.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": []
+        },
+        {
+          "title": "Throttle range",
+          "title_expression": "L . throttleRange",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/ReceiverArt.svelte",
+            "tabs/setup_wizard/StepReceiver.svelte",
+            "tabs/setup_wizard/StickIcon.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": []
         },
         {
           "title": "ELRS link",
@@ -2748,17 +2819,17 @@
       ],
       "msp_reads": [
         "status",
-        "servo",
-        "rx_channels"
+        "rx_channels",
+        "servo"
       ],
       "msp_writes": [
         "rx_config.serialrx_provider",
         "rx_config",
+        "rc_config.rc_min_throttle",
+        "rc_config.rc_max_throttle",
         "feature_config",
         "feature_config.enabledFeatures",
-        "rx_map",
-        "rc_config.rc_min_throttle",
-        "rc_config.rc_max_throttle"
+        "rx_map"
       ],
       "configurator_status": [
         "same"
@@ -5688,54 +5759,48 @@
           ]
         },
         {
-          "title": "PID profile {n}",
-          "title_expression": "string . format ( L . headspeedProfile , index + 1 )",
+          "title": "Full headspeed (rpm)",
+          "title_expression": "L . headspeed",
           "source": "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua",
           "configurator_reference": [
             "tabs/setup_wizard/StepGovernor.svelte"
           ],
           "configurator_status": [
-            "beyond the Configurator"
+            "same"
           ],
-          "additions": [
-            "governor-targets-and-filter-signal"
-          ],
+          "additions": [],
           "rows": [
             {
               "kind": "MSP write",
               "label": "governor_profile (record/payload)",
               "api": "governor_profile",
               "field": null,
-              "deviation": true,
+              "deviation": false,
               "configurator_status": [
-                "beyond the Configurator"
+                "same"
               ],
               "configurator_reference": [
                 "tabs/setup_wizard/StepGovernor.svelte"
               ],
-              "additions": [
-                "governor-targets-and-filter-signal"
-              ],
+              "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua",
               "expression": "w : touch ( \"governor_profile\" )"
             },
             {
               "kind": "pilot sets",
-              "label": "Full headspeed (rpm)",
+              "label": "PID profile {n}",
               "api": null,
               "field": null,
-              "deviation": true,
+              "deviation": false,
               "configurator_status": [
-                "beyond the Configurator"
+                "same"
               ],
               "configurator_reference": [
                 "tabs/setup_wizard/StepGovernor.svelte"
               ],
-              "additions": [
-                "governor-targets-and-filter-signal"
-              ],
+              "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/governor.lua",
-              "expression": "{ kind = \"number\" , label = L . headspeed , min = spec . min , max = spec . max , display = function ( v ) return w . governorSpeeds and w . governorSpeeds [ index ] ~= nil and tostring ( v ) or \"--\" end , get = function ( ) return w . governorSpeeds and w . governorSpeeds [ index ] or 0 end , set = function ( v ) if not governs ( ) or not w . governorLoaded or w . governorSpeeds [ index ] == nil then return end local value = v if value == w . governorSpeeds [ index ] then return end w . governorSpeeds [ index ] = value w . governorChanged = w . governorChanged or { } ; w . governorChanged [ index ] = true w : touch ( \"governor_profile\" ) end , enabled = function ( ) return governs ( ) and w . governorLoaded == true and w . governorSpeeds [ index ] ~= nil end }"
+              "expression": "{ kind = \"number\" , label = string . format ( L . headspeedProfile , index + 1 ) , min = spec . min , max = spec . max , display = function ( v ) return w . governorSpeeds and w . governorSpeeds [ index ] ~= nil and tostring ( v ) or \"--\" end , get = function ( ) return w . governorSpeeds and w . governorSpeeds [ index ] or 0 end , set = function ( v ) if not governs ( ) or not w . governorLoaded or w . governorSpeeds [ index ] == nil then return end local value = v if value == w . governorSpeeds [ index ] then return end w . governorSpeeds [ index ] = value w . governorChanged = w . governorChanged or { } ; w . governorChanged [ index ] = true if w . logTrace then w : log ( \"trace\" , \"headspeed PID profile %s set\" , index ) end w : touch ( \"governor_profile\" ) end , enabled = function ( ) return governs ( ) and w . governorLoaded == true and w . governorSpeeds [ index ] ~= nil end }"
             }
           ]
         }
@@ -7952,8 +8017,8 @@
           ]
         },
         {
-          "title": "Voltage Source",
-          "title_expression": "L . voltageSource",
+          "title": "Voltage and current",
+          "title_expression": "L . powerSources",
           "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
           "configurator_reference": [],
           "configurator_status": [
@@ -7965,9 +8030,9 @@
           "rows": [
             {
               "kind": "pilot sets",
-              "label": "Voltage Source",
+              "label": "{label}",
               "api": "battery_config",
-              "field": "voltageMeterSource",
+              "field": "{key}",
               "deviation": true,
               "configurator_status": [
                 "beyond the Configurator"
@@ -7977,13 +8042,13 @@
                 "esc-telemetry-power-and-battery"
               ],
               "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : enum ( \"battery_config\" , \"voltageMeterSource\" , L . voltageSource , entries ( options ) )"
+              "expression": "w : enum ( \"battery_config\" , key , label , entries ( options ) )"
             },
             {
               "kind": "MSP write",
-              "label": "battery_config.voltageMeterSource",
+              "label": "battery_config.{key}",
               "api": "battery_config",
-              "field": "voltageMeterSource",
+              "field": "{key}",
               "deviation": true,
               "configurator_status": [
                 "beyond the Configurator"
@@ -7993,7 +8058,7 @@
                 "esc-telemetry-power-and-battery"
               ],
               "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : enum ( \"battery_config\" , \"voltageMeterSource\" , L . voltageSource , entries ( options ) )"
+              "expression": "w : enum ( \"battery_config\" , key , label , entries ( options ) )"
             },
             {
               "kind": "MSP write",
@@ -8013,9 +8078,9 @@
             },
             {
               "kind": "read",
-              "label": "Voltage / Current",
-              "api": null,
-              "field": null,
+              "label": "battery_config.voltageMeterSource",
+              "api": "battery_config",
+              "field": "voltageMeterSource",
               "deviation": true,
               "configurator_status": [
                 "beyond the Configurator"
@@ -8025,13 +8090,14 @@
                 "esc-telemetry-power-and-battery"
               ],
               "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : value ( \"voltage\" == \"voltage\" and L . voltage or L . current , function ( ) return sourceValue ( \"voltageMeterSource\" , \"voltage\" , \"V\" ) end )"
+              "expression": "source-map additions: esc-telemetry-power-and-battery",
+              "scope": "mapped dependency"
             },
             {
               "kind": "read",
-              "label": "battery_config.voltageMeterSource",
+              "label": "battery_config.currentMeterSource",
               "api": "battery_config",
-              "field": "voltageMeterSource",
+              "field": "currentMeterSource",
               "deviation": true,
               "configurator_status": [
                 "beyond the Configurator"
@@ -8420,6 +8486,23 @@
             },
             {
               "kind": "MSP write",
+              "label": "battery_config.currentMeterSource",
+              "api": "battery_config",
+              "field": "currentMeterSource",
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-telemetry-power-and-battery"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
+              "expression": "source-map additions: esc-telemetry-power-and-battery",
+              "scope": "mapped transaction"
+            },
+            {
+              "kind": "MSP write",
               "label": "battery_config.batteryCapacity_0..5",
               "api": "battery_config",
               "field": "batteryCapacity_0..5",
@@ -8455,8 +8538,8 @@
           ]
         },
         {
-          "title": "Current Source",
-          "title_expression": "L . currentSource",
+          "title": "Batteries",
+          "title_expression": "L . packTable",
           "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
           "configurator_reference": [],
           "configurator_status": [
@@ -8467,56 +8550,8 @@
           ],
           "rows": [
             {
-              "kind": "pilot sets",
-              "label": "Current Source",
-              "api": "battery_config",
-              "field": "currentMeterSource",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : enum ( \"battery_config\" , \"currentMeterSource\" , L . currentSource , entries ( options ) )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config.currentMeterSource",
-              "api": "battery_config",
-              "field": "currentMeterSource",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : enum ( \"battery_config\" , \"currentMeterSource\" , L . currentSource , entries ( options ) )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config (record/payload)",
-              "api": "battery_config",
-              "field": null,
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : touch ( \"battery_config\" , false , true )"
-            },
-            {
               "kind": "read",
-              "label": "Current",
+              "label": "Voltage / Current",
               "api": null,
               "field": null,
               "deviation": true,
@@ -8528,56 +8563,8 @@
                 "esc-telemetry-power-and-battery"
               ],
               "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : value ( \"current\" == \"voltage\" and L . voltage or L . current , function ( ) return sourceValue ( \"currentMeterSource\" , \"current\" , \"A\" ) end )"
+              "expression": "w : value ( signal == \"voltage\" and L . voltage or L . current , function ( ) return sourceValue ( key , signal , unit ) end )"
             },
-            {
-              "kind": "read",
-              "label": "battery_config.currentMeterSource",
-              "api": "battery_config",
-              "field": "currentMeterSource",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "source-map additions: esc-telemetry-power-and-battery",
-              "scope": "mapped dependency"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config.currentMeterSource",
-              "api": "battery_config",
-              "field": "currentMeterSource",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "source-map additions: esc-telemetry-power-and-battery",
-              "scope": "mapped transaction"
-            }
-          ]
-        },
-        {
-          "title": "Battery",
-          "title_expression": "L . powerBattery",
-          "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-          "configurator_reference": [],
-          "configurator_status": [
-            "beyond the Configurator"
-          ],
-          "additions": [
-            "esc-telemetry-power-and-battery"
-          ],
-          "rows": [
             {
               "kind": "pilot sets",
               "label": "Cell count",
@@ -8611,22 +8598,6 @@
               "expression": "w : n ( \"battery_config\" , cellKey , L . cellCount , fields . cellCount . min , fields . cellCount . max )"
             },
             {
-              "kind": "read",
-              "label": "Cell count",
-              "api": null,
-              "field": null,
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : value ( L . cellCount , function ( ) return battery . batteryCellCount end )"
-            },
-            {
               "kind": "MSP write",
               "label": "battery_config.batteryCellCount",
               "api": "battery_config",
@@ -8643,8 +8614,56 @@
               "expression": "w : field ( \"battery_config\" , \"batteryCellCount\" , v )"
             },
             {
-              "kind": "read",
-              "label": "Selected",
+              "kind": "pilot sets",
+              "label": "Capacity",
+              "api": "battery_config",
+              "field": "{capKey}",
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-telemetry-power-and-battery"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
+              "expression": "w : n ( \"battery_config\" , capKey , L . capacity , fields . capacity . min , fields . capacity . max )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "battery_config.{capKey}",
+              "api": "battery_config",
+              "field": "{capKey}",
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-telemetry-power-and-battery"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
+              "expression": "w : n ( \"battery_config\" , capKey , L . capacity , fields . capacity . min , fields . capacity . max )"
+            },
+            {
+              "kind": "MSP write",
+              "label": "battery_config.batteryCapacity",
+              "api": "battery_config",
+              "field": "batteryCapacity",
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-telemetry-power-and-battery"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
+              "expression": "w : field ( \"battery_config\" , \"batteryCapacity\" , v )"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Different packs",
               "api": null,
               "field": null,
               "deviation": true,
@@ -8656,7 +8675,56 @@
                 "esc-telemetry-power-and-battery"
               ],
               "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : value ( L . selectedBattery , function ( ) return profile ~= nil and L . batterySlot .. \" \" .. ( profile + 1 ) or L . powerProfileUnknown end )"
+              "expression": "{ kind = \"choice\" , label = L . packCount , values = counts , get = function ( ) return w . packCount end , set = function ( v ) if v == w . packCount or not counts [ v ] then return end if w . logDebug then w : log ( \"debug\" , \"pack count %s\" , v ) end local saved = w . saved and w . saved . battery_config for i = v , 5 do if saved and saved [ \"batteryCellCount_\" .. i ] ~= nil and battery [ \"batteryCellCount_\" .. i ] ~= saved [ \"batteryCellCount_\" .. i ] then battery [ \"batteryCellCount_\" .. i ] = saved [ \"batteryCellCount_\" .. i ] end if saved and saved [ \"batteryCapacity_\" .. i ] ~= nil and battery [ \"batteryCapacity_\" .. i ] ~= saved [ \"batteryCapacity_\" .. i ] then battery [ \"batteryCapacity_\" .. i ] = saved [ \"batteryCapacity_\" .. i ] end end w . packCount = v ; w . buildRequested = true ; w : rebuild ( ) end }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "{cells . label}",
+              "api": null,
+              "field": null,
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-telemetry-power-and-battery"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
+              "expression": "{ kind = \"choice\" , label = cells . label , values = values , enabled = cells . enabled , get = function ( ) local v = cells . get ( ) ; return type ( v ) == \"number\" and v - first + 1 or 1 end , set = function ( index ) if values [ index ] then cells . set ( index - 1 + first ) end end }"
+            },
+            {
+              "kind": "pilot sets",
+              "label": "Battery",
+              "api": null,
+              "field": null,
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-telemetry-power-and-battery"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
+              "expression": "{ kind = \"pair\" , label = L . batterySlot .. \" \" .. ( index + 1 ) , left = cells , right = capacity , separator = \"\" }"
+            },
+            {
+              "kind": "read",
+              "label": "battery_config.batteryCapacity",
+              "api": "battery_config",
+              "field": "batteryCapacity",
+              "deviation": true,
+              "configurator_status": [
+                "beyond the Configurator"
+              ],
+              "configurator_reference": [],
+              "additions": [
+                "esc-telemetry-power-and-battery"
+              ],
+              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
+              "expression": "source-map additions: esc-telemetry-power-and-battery",
+              "scope": "mapped dependency"
             },
             {
               "kind": "read",
@@ -8691,321 +8759,6 @@
               "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
               "expression": "source-map additions: esc-telemetry-power-and-battery",
               "scope": "mapped transaction"
-            }
-          ]
-        },
-        {
-          "title": "Capacity",
-          "title_expression": "L . capacity",
-          "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-          "configurator_reference": [],
-          "configurator_status": [
-            "beyond the Configurator"
-          ],
-          "additions": [
-            "esc-telemetry-power-and-battery"
-          ],
-          "rows": [
-            {
-              "kind": "MSP write",
-              "label": "battery_config.batteryCapacity",
-              "api": "battery_config",
-              "field": "batteryCapacity",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : field ( \"battery_config\" , \"batteryCapacity\" , v )"
-            }
-          ]
-        },
-        {
-          "title": "Capacity",
-          "title_expression": "L . capacity",
-          "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-          "configurator_reference": [],
-          "configurator_status": [
-            "beyond the Configurator"
-          ],
-          "additions": [
-            "esc-telemetry-power-and-battery"
-          ],
-          "rows": [
-            {
-              "kind": "MSP write",
-              "label": "battery_config.batteryCapacity",
-              "api": "battery_config",
-              "field": "batteryCapacity",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : field ( \"battery_config\" , \"batteryCapacity\" , v )"
-            }
-          ]
-        },
-        {
-          "title": "Capacity",
-          "title_expression": "L . capacity",
-          "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-          "configurator_reference": [],
-          "configurator_status": [
-            "beyond the Configurator"
-          ],
-          "additions": [
-            "esc-telemetry-power-and-battery"
-          ],
-          "rows": [
-            {
-              "kind": "pilot sets",
-              "label": "Battery",
-              "api": "battery_config",
-              "field": "batteryCapacity_0",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_0\" , L . batterySlot .. \" \" .. ( 1 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config.batteryCapacity_0",
-              "api": "battery_config",
-              "field": "batteryCapacity_0",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_0\" , L . batterySlot .. \" \" .. ( 1 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Battery",
-              "api": "battery_config",
-              "field": "batteryCapacity_1",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_1\" , L . batterySlot .. \" \" .. ( 2 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config.batteryCapacity_1",
-              "api": "battery_config",
-              "field": "batteryCapacity_1",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_1\" , L . batterySlot .. \" \" .. ( 2 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Battery",
-              "api": "battery_config",
-              "field": "batteryCapacity_2",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_2\" , L . batterySlot .. \" \" .. ( 3 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config.batteryCapacity_2",
-              "api": "battery_config",
-              "field": "batteryCapacity_2",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_2\" , L . batterySlot .. \" \" .. ( 3 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Battery",
-              "api": "battery_config",
-              "field": "batteryCapacity_3",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_3\" , L . batterySlot .. \" \" .. ( 4 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config.batteryCapacity_3",
-              "api": "battery_config",
-              "field": "batteryCapacity_3",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_3\" , L . batterySlot .. \" \" .. ( 4 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Battery",
-              "api": "battery_config",
-              "field": "batteryCapacity_4",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_4\" , L . batterySlot .. \" \" .. ( 5 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config.batteryCapacity_4",
-              "api": "battery_config",
-              "field": "batteryCapacity_4",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_4\" , L . batterySlot .. \" \" .. ( 5 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Battery",
-              "api": "battery_config",
-              "field": "batteryCapacity_5",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_5\" , L . batterySlot .. \" \" .. ( 6 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config.batteryCapacity_5",
-              "api": "battery_config",
-              "field": "batteryCapacity_5",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity_5\" , L . batterySlot .. \" \" .. ( 6 ) , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "pilot sets",
-              "label": "Capacity",
-              "api": "battery_config",
-              "field": "batteryCapacity",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity\" , L . capacity , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "MSP write",
-              "label": "battery_config.batteryCapacity",
-              "api": "battery_config",
-              "field": "batteryCapacity",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "w : n ( \"battery_config\" , \"batteryCapacity\" , L . capacity , fields . capacity . min , fields . capacity . max )"
-            },
-            {
-              "kind": "read",
-              "label": "battery_config.batteryCapacity",
-              "api": "battery_config",
-              "field": "batteryCapacity",
-              "deviation": true,
-              "configurator_status": [
-                "beyond the Configurator"
-              ],
-              "configurator_reference": [],
-              "additions": [
-                "esc-telemetry-power-and-battery"
-              ],
-              "source": "src/rfsuite/app/pages/helicopter_setup/power_cards.lua",
-              "expression": "source-map additions: esc-telemetry-power-and-battery",
-              "scope": "mapped dependency"
             },
             {
               "kind": "MSP write",
@@ -9596,6 +9349,7 @@
         "esc_sensor_config.protocol",
         "esc_sensor_trial",
         "battery_config.voltageMeterSource",
+        "battery_config.currentMeterSource",
         "battery_config.vbatmincellvoltage",
         "battery_config.vbatmaxcellvoltage",
         "battery_config.vbatfullcellvoltage",
@@ -9616,9 +9370,8 @@
         "motor_telemetry.current",
         "analog.voltage",
         "analog.current",
-        "battery_config.currentMeterSource",
-        "battery_config.batteryCellCount",
         "battery_config.batteryCapacity",
+        "battery_config.batteryCellCount",
         "smartfuel_config.smartfuel_mode"
       ],
       "msp_writes": [
@@ -9639,20 +9392,16 @@
         "esc_sensor_config.protocol",
         "serial_config.port_{n}_function_mask",
         "esc_sensor_trial",
-        "battery_config.voltageMeterSource",
+        "battery_config.{key}",
         "battery_config",
+        "battery_config.voltageMeterSource",
+        "battery_config.currentMeterSource",
         "battery_config.batteryCapacity_0..5",
         "battery_config.batteryCellCount_0..5",
-        "battery_config.currentMeterSource",
         "battery_config.{cellKey}",
         "battery_config.batteryCellCount",
+        "battery_config.{capKey}",
         "battery_config.batteryCapacity",
-        "battery_config.batteryCapacity_0",
-        "battery_config.batteryCapacity_1",
-        "battery_config.batteryCapacity_2",
-        "battery_config.batteryCapacity_3",
-        "battery_config.batteryCapacity_4",
-        "battery_config.batteryCapacity_5",
         "smartfuel_config.smartfuel_mode"
       ],
       "configurator_status": [

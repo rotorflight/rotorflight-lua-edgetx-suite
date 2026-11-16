@@ -18,9 +18,10 @@ The Wizards group is hidden until *System* → *Settings* → *General* → *Pre
 *Setup Assistant* is enabled (`visibleWhen = "previewSetupWizard"` on the parent).
 The page is greyed out until the flight controller answers
 (`enabledWhen = "fblConnected"`), locked while armed (`lockedWhileArmed = true`),
-and offered from MSP API 12.09 (`minApiVersion = {12, 0, 9}`), the Suite's packaged API. The setup
-steps themselves need MSP API 12.10 (Rotorflight 4.7): on an older flight controller the page shows
-**Firmware too old** with the reported version and reads no configuration. It works from
+and offered only from MSP API 12.10 (`minApiVersion = {12, 0, 10}`, Rotorflight 4.7): on an older
+flight controller the menu entries stay greyed out. The page checks the version again, and a 4.7
+development build that reports 12.10 but has no cell count per battery profile is refused as well;
+both show **Firmware too old** with the reported version instead of the steps. It works from
 the TOOLS menu and when the tool is hosted by the dashboard widget.
 
 ## Colors
@@ -38,16 +39,23 @@ receiver wiring detection in USB Configurator: that test reinitializes the same
 UART that carries the radio link. ESC wiring detection and board auto-alignment
 remain available on the radio when supported by firmware.
 The single ELRS card applies only to a serial CRSF receiver (provider 9, serial receiver feature enabled)
-with CRSF telemetry. Otherwise its summary explains that the link is unavailable and cannot start
+with CRSF telemetry. Otherwise its Result row explains that the link is unavailable and it cannot start
 reads or writes. STATUS freshness and the wizard's arming lock guard the task; leaving the card
 cancels its pending FC requests. A request already sent to the FC cannot be undone by leaving.
-The card reads both sides once on entry and again after an action. Both sync directions,
-packet rate and telemetry ratio share the card with normal-height touch controls.
-Each sync or picker change requires its own confirmation because the link may drop briefly;
-the receiver Advanced switch is not required. Unsaved wizard changes must be saved first.
-The summary shows the status and, when both sides are known, only differing rates and/or telemetry
-ratios, for example **Differs: FC 1:8, module 1:4**. Matching or unknown values add no line.
-For DVDA module modes such as D500 and D250, only the telemetry ratio is compared.
+The card reads both sides once on entry and again after an action. A table shows packet rate and
+telemetry ratio for the **Flight controller** and the **ELRS module**, and one **Result** row says
+**Settings match** or **Settings differ**; while a side is not read it says so, never that they
+match. For DVDA module modes such as D500 and D250, only the telemetry ratio is compared.
+**Make them match** offers the two directions, **Module takes FC values** and **FC takes module
+values**. **Or choose other values** has a packet-rate and a telemetry-ratio list and **Set on
+both**: choosing in the lists writes nothing; Set on both asks once, writes the module (one value
+after the other, each read back), and only then lets the flight controller take the module's
+values and save them. If the module does not take a value, it stops there and the flight
+controller is not changed; if the flight controller does not save, the card says so and the module
+keeps its new values (Set on both tries again, and saves the flight controller even when it already holds them). Every change asks first because the link may drop briefly; the
+receiver Advanced switch is not required. Unsaved wizard changes must be saved first. The card has no
+text band, so the table starts at the top and the controls fit 480x272; the ? sheet says why both sides
+must match. On the 480-wide screens the two groups show their controls without the group names.
 
 The accelerometer calibration card reports **Calibrated: Yes/No** from the live FC
 status (ACC calibration arming-disable flag, bit 23), or **Unavailable** without an
@@ -256,7 +264,7 @@ The short instruction area may show only its first lines; **?** opens the full t
 | # | Step | Controls and checks |
 | --- | --- | --- |
 | 1 | Board orientation | Four cards. Confirm servos unplugged and all blades removed. Calibrate the accelerometer with the model standing level and still. Enter roll, pitch and yaw in degrees, or **Detect** them below the three values by lifting the tail. Angles go to the flight controller as they are typed or detected, so the live model shows them; compare it with real roll/pitch movements and confirm the directions. Changing an angle takes that confirmation back. Automatic alignment requires firmware support. |
-| 2 | Receiver | The first card shows the Configurator receiver picture; channel-order detection shows the stick icon for the requested function (centred for ARM or while idle). The throttle-range card shows the blades-off side view. Receiver protocol, Save & reboot, channel detection and presets stay locked until **Advanced** is switched on, under a bold warning: a setting that cuts the receiver link ends the setup, because the wizard talks over that link. From API 12.10 the protocol list offers FBUS only, because the firmware detects FBUS or F.Port2 speed on either id; a stored F.Port2 id stays listed, as FBUS. Keep the established receiver UART; receiver wiring detection belongs to the USB Configurator (a trial interrupts the radio MSP link). The channel-order card says that choosing the radio's standard order and continuing is enough; detection is the alternative. Detect collective, roll, pitch, yaw, the throttle switch (hold / governor) and the arm switch one control at a time, with **Skip this control** for one that is not there, or select ELRS, FrSky, Futaba/Hitec or DSM/Graupner/JR presets. Detection uses a fresh pre-click snapshot, so an immediate stick/switch movement is retained. **Check sticks** shows one live bar per control and is guided: it asks for one end stop at a time (roll right, roll left, pitch forward, pitch back, yaw right, yaw left, collective up, collective down), counts a direction at 95% of the FC's stick range, and says when the asked control moves the wrong way (reverse that channel in the transmitter) or another control moves (wrong channel order). The throttle-range card and its Minimum/Maximum limits are available without Advanced: **Record travel**, visit all throttle-switch positions (or both proportional endpoints), starting and finishing OFF, then **Use measured range**, which needs at least 300 µs travel and adds a 20 µs margin at each end; Minimum and Maximum can be edited, and 0 selects the firmware default; **Defaults** sets both to 0. **(low)** beside the live throttle compares the mapped input with the low threshold; it is not permission to arm. The single ELRS link card compares the FC's declared rate and telemetry ratio with the transmitter module, automatically probes the link, and aligns either side after confirmation. Module pickers offer supported 333 Hz, 500 Hz, D500 and 1:4, 1:8, 1:16, 1:32 options and also require confirmation; save wizard changes first, keep the model disarmed, and keep telemetry running. **Receiver done** closes the step with the protocol, the channel order and the throttle range. |
+| 2 | Receiver | The first card shows the Configurator receiver picture; channel-order detection shows the stick icon for the requested function (centred for ARM or while idle). The throttle-range card shows the blades-off side view. Receiver protocol, Save & reboot, channel detection and presets stay locked until **Advanced** is switched on, under a bold warning: a setting that cuts the receiver link ends the setup, because the wizard talks over that link. From API 12.10 the protocol list offers FBUS only, because the firmware detects FBUS or F.Port2 speed on either id; a stored F.Port2 id stays listed, as FBUS. Keep the established receiver UART; receiver wiring detection belongs to the USB Configurator (a trial interrupts the radio MSP link). The channel-order card says that choosing the radio's standard order and continuing is enough; detection is the alternative. Detect collective, roll, pitch, yaw, the throttle switch (hold / governor) and the arm switch one control at a time, with **Skip this control** for one that is not there, or select ELRS, FrSky, Futaba/Hitec or DSM/Graupner/JR presets. Detection uses a fresh pre-click snapshot, so an immediate stick/switch movement is retained. **Check sticks** shows one live bar per control and is guided: it asks for one end stop at a time (roll right, roll left, pitch forward, pitch back, yaw right, yaw left, collective up, collective down), counts a direction at 95% of the FC's stick range, and says when the asked control moves the wrong way (reverse that channel in the transmitter) or another control moves (wrong channel order). The throttle-range card and its Minimum/Maximum limits are available without Advanced: **Record travel**, visit all throttle-switch positions (or both proportional endpoints), starting and finishing OFF, then **Use measured range**, which needs at least 300 µs travel and adds a 20 µs margin at each end; Minimum and Maximum can be edited. **(low)** beside the live throttle compares the mapped input with the low threshold; it is not permission to arm. The single ELRS link card reads the FC's declared rate and telemetry ratio and the transmitter module automatically and shows both in a table with one result; it aligns either side after confirmation, or sets chosen values (333 Hz, 500 Hz, D500; 1:4, 1:8, 1:16, 1:32) on both with **Set on both** (described above); save wizard changes first, keep the model disarmed, and keep telemetry running. **Receiver done** closes the step with the protocol, the channel order and the throttle range (**Automatic** when Minimum and Maximum are 0). **Throttle range** has the switch **Automatic throttle range**, as in the Configurator: on sets Minimum and Maximum to 0, the firmware then uses the stick centre ∓ 90 % of the stick range (1041-1959 us with the defaults), and the card shows that range; off starts from that range and shows Minimum, Maximum and Record travel. Opening the card writes nothing. **Check sticks** marks each end of each bar in the ok colour once that direction has reached 95 %. While the receiver step is open, the wizard polls only STATUS and the channels, so the bars follow the sticks about twice as often as before. |
 | 3 | Mode switches | Assign ARM, RESCUE and TRAINER when the FC exposes them. Move the switch to its intended ON position; a clear AUX movement and settled position determine the active window. ARM is read from AUX1 only, the arm channel set in step 2, because ExpressLRS 4.x also outputs its arm flag on CH14 (AUX9), which moves with the arm switch. Reassign or Remove an assignment; both clear every range of that mode, because the firmware ORs them and a second ARM range would keep arming. ARM assignment is required. No unrelated mode slots are overwritten. Each card says what its mode does, and ARM carries a *Required* badge. Its first row says where the switch stands now; for ARM that is whether arming would be ON or OFF at that switch position, while the wizard itself keeps arming inhibited. Left/right switch pictures follow the same live state; unavailable input keeps its text cue. A last card, **Switches done**, shows one block per mode with its channel, its range and where the switch stands now, and says whether Next step has anything to store. |
 | 4 | Profiles & gain | Detect a two- or three-position switch; select PID + rate profiles, PID only or None. Visit the positions and Use switch. Optional gain uses a knob, or four trim-button values on one spare channel. Mapped gain is 50–150%; button gain is ±5%, bounded to 25–200%. For Buttons only, the trim guide gives MAX mix weights 30/40/50/60%, with 100% at rest. Configure those mixes in EdgeTX; this page does not rewrite the transmitter model. The switch picture remains a labelled example. The last card, **Rescue**, turns rescue on or off and sets whether it flips the helicopter upright. The flight controller keeps these per PID profile; the card shows the active profile's setting, read again each time the card opens, and Save writes what was changed to every PID profile, keeping every other rescue value, then selects the active profile again. Rescue on keeps a profile's own mode (climb or altitude hold) and gives a profile that had rescue off the active profile's mode, or climb; a flip change leaves every mode alone. It needs a rescue switch from Mode switches and names the switch's channel. The picture follows the flip answer. The rescue tuning (gains, times, collective) stays on Flight Tuning > Rescue. A **Channel use** card shows each mode with its live ON or OFF, and says so when a channel past the eighth is in use. |
 | 5 | Rates | One card per offered rate profile, in switch-position order, or one for the active profile. Each has four tiles: Custom, which keeps the profile's own rates, Trainer, Sport and 3D, two to a row below the 800×480 layout. The tile in the accent colour is the style the profile will have: the one chosen, or the one its rates already match, or Custom when none does. Under the curve, which follows that style, stand the cyclic and yaw rates with their expo and the collective the profile will hold; below the 800×480 layout they share one line, without the expo. Unmatched rates keep the sketch and explain replacement; **Suggest styles** sits above the first profile and, for a three-position switch, pre-selects Trainer, Sport and 3D on the three profiles' cards in switch order; one line names the profiles it set, and each card can still change its own. Trainer uses 180/270°/s, Sport 250/400°/s and 3D 400/600°/s. Collective pitch, its expo and its shape are preserved; only a change of rates type writes what the new type needs to keep the same degrees. Profiles are selected, read and written sequentially, then the original rate profile is restored. A last card, **Rates set**, shows everything the step sets in a table with a column per rate profile: the rates type, the Rotorflight curve shape or the Actual centre rates, roll, pitch and yaw rate with their expo, and the collective with its expo; it says whether Next step has anything to store. |
@@ -278,9 +286,13 @@ The short instruction area may show only its first lines; **?** opens the full t
 <!-- radio pictures: begin -->
 ## Power and battery cards (step 11)
 
-After **Check** and **Telemetry readings**, step 11 adds Voltage Source, Current
-Source, Battery, two Capacity cards and SmartFuel Mode. Each card has at most
-three rows and fits at 480x320 without scrolling. The existing ESC throttle-range
+After **Check** and **Telemetry readings**, step 11 adds **Voltage and current** (both
+sources with their live readings on one card), **Batteries** and SmartFuel Mode. On a flight
+**Batteries** asks first how many
+different packs are flown (**Different packs**, 1-6; it starts at the number of battery profiles
+that hold a capacity) and then shows one row per battery profile with its cell count, picked from a list (Auto or 1S-24S), and
+capacity. Profiles beyond that number are not changed, and a profile that leaves the table goes
+back to the values read. The existing ESC throttle-range
 and operating-mode cards follow this block. Settings use the wizard's normal
 Save/Discard/EEPROM boundary; no source, battery-profile or SmartFuel setting is
 written by opening a card. Existing ESC reboot requirements still apply.
@@ -291,21 +303,14 @@ written by opening a card. Existing ESC reboot requirements still apply.
 | Voltage | Live ESC voltage in V from motor telemetry, including an explicit missing-voltage message. Other sources show the FC's selected-source analog reading as soon as the changed source has been written to the FC, before the card is saved; until then the row reads *Applying source...*. Missing or stale readings show no telemetry. |
 | Current Source | FC current input with the same options and version rule as Voltage Source. |
 | Current | Live ESC current in A, or the FC's selected-source analog reading once the source is written. Zero current can be normal at rest. A source not yet written never claims another source's reading. |
-| Selected | Read-only active battery profile, obtained from the optional battery_profile API. It is never switched by these cards. An unanswered or out-of-range profile is shown as unknown. |
-| Cell count | 0-24, with 0 for automatic detection. With per-profile cells, edits affect the active slot and preserve every other slot. If its active profile is unknown, the received active cell count is read-only. Legacy single cell count remains editable. |
-| Battery 1 | Capacity of slot 1, 0-40000 mAh; editing does not activate it. |
-| Battery 2 | Capacity of slot 2, 0-40000 mAh; editing does not activate it. |
-| Battery 3 | Capacity of slot 3, 0-40000 mAh; editing does not activate it. |
-| Battery 4 | Capacity of slot 4, 0-40000 mAh; editing does not activate it. |
-| Battery 5 | Capacity of slot 5, 0-40000 mAh; editing does not activate it. |
-| Battery 6 | Capacity of slot 6, 0-40000 mAh; editing does not activate it. |
-| Capacity | A single 0-40000 mAh editor replaces the six slots when battery_config contains no slot block. |
-| Firmware Source | SmartFuel OFF (LOCAL), VOLTAGE, CURRENT or COMBINED. VOLTAGE and COMBINED show a warning when the draft Voltage Source is NONE. The three tuning values are preserved. |
+| Different packs | 1-6: how many kinds of flight battery are flown, one battery profile each. Starts at the number of profiles that hold a capacity. |
+| Battery n | One row per battery profile: the cell count from a list, Auto (stored as 0, the FC detects the cells) or 1S-24S, and the capacity, 0-40000 mAh. Editing a row does not activate that profile; the active profile's values are also the FC's current ones. |
+| Firmware Source | SmartFuel OFF (LOCAL), VOLTAGE, CURRENT or COMBINED. A line under the choice says what the chosen mode does: the radio estimates the remaining capacity itself, or the FC estimates it from the pack voltage, counts the used mAh against the capacity, or takes the lower of both. VOLTAGE and COMBINED show a warning when the draft Voltage Source is NONE. The three tuning values are preserved. |
 
 Battery and Sources have no API-version gate in the current Power pages. The
 wizard uses optional, single-message startup reads for battery_config and
-battery_profile and hides unavailable settings; reply length determines slot and
-per-profile-cell support. SmartFuel follows the Power menu's API 12.0.9 gate and
+battery_profile; reply length determines per-profile-cell support, which the wizard
+requires. SmartFuel follows the Power menu's API 12.0.9 gate and
 is hidden if its optional read fails. The wizard's existing overall API 12.10
 requirement remains in force.
 
@@ -464,8 +469,10 @@ steps. Records are separate, versioned files under `rfsuite.user/wizard-history/
 ## Loading and live feedback
 
 Startup reads adjustment ranges and servo settings one indexed record per request.
-The progress text updates in place while loading. The larger USB bulk replies do
-not fit the firmware telemetry response buffer and are never requested here.
+The progress text updates in place while loading. A reload after a restart shows
+the same count in the status line, under the card that is still on screen, until
+the wizard is ready again. The larger USB bulk replies do not fit the firmware
+telemetry response buffer and are never requested here.
 
 When live System Status (`STAT`) or System Config (`SCFG`) telemetry is available,
 the footer can show FC saving, unsaved changes, restart needed, active override,
@@ -523,9 +530,9 @@ angles to be entered manually; that refusal does not change the current angles.
 
 ## Feedback and detailed settings
 
-Governor headspeed cards appear only in **Electric** and **Nitro**, where
-the FC governs. All editors start with values read from the FC. One headspeed card
-is offered for each PID profile selected by the Profiles & gain adjustment range,
+The governor's headspeeds appear only in **Electric** and **Nitro**, where
+the FC governs, on one card with a row for each PID profile. All editors start with values read
+from the FC. A row is offered for each PID profile selected by the Profiles & gain adjustment range,
 bounded by the configured positions (at most three) and the FC profile count.
 Without a known assignment, only PID profile 1 is offered. Entry reads every
 offered profile's target: it selects each profile in turn, reads it and selects the

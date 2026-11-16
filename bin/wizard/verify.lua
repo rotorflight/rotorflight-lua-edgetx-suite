@@ -231,6 +231,20 @@ do
     end
   end
   eq(numbered, 19, "all nineteen step entries in the wizard menu are numbered")
+  -- The wizard is offered from MSP API 12.10 only: its entry in the Wizards menu and every tile of
+  -- its own menu ask for it, as its page does.
+  local gated, entries = 0, 0
+  local function api1210(entry)
+    local v = entry.minApiVersion
+    return type(v) == "table" and v[1] == 12 and v[2] == 0 and v[3] == 10
+  end
+  for _, entry in ipairs(manifest.menus.wizards_menu.pages) do
+    if entry.id == "helicopter_setup" then entries = entries + 1; if api1210(entry) then gated = gated + 1 end end
+  end
+  for _, entry in ipairs(manifest.menus.helicopter_setup_menu.pages) do
+    entries = entries + 1; if api1210(entry) then gated = gated + 1 end
+  end
+  check(entries > 19 and gated == entries, "MENU every wizard entry asks for API 12.10 (" .. gated .. "/" .. entries .. ")")
   -- Done marks: each step tile reads its bit of the connected FC's completion record.
   local steps = {}
   for _, entry in ipairs(manifest.menus.helicopter_setup_menu.pages) do

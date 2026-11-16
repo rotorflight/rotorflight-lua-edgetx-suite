@@ -335,8 +335,12 @@ function M.new(w, ctx, diagrams)
       rowH = math.min(rowH, math.max(18, math.floor((cardBottom-2-rowY)/slots)))
       rowControlH = math.min(rowControlH, rowH-2)
     end
-    -- Rows may sit at the foot of the card, under a full-width overview.
-    if card.rowsAtFoot then rowY = cardBottom-2-slots*rowH end
+    -- Rows may sit at the foot of the card, under a full-width overview; on the 480-wide screens
+    -- each takes only its control's height, so the overview keeps its room.
+    if card.rowsAtFoot then
+      if not large then rowH = math.min(rowH, controlH+2) end
+      rowY = cardBottom-2-slots*rowH
+    end
     if attitudeCard then
       all[#all+1]=label(large and 10 or formX,textY,large and width-20 or formW,w.L.orientationModelHint)
       all[#all].h=large and 48 or 4*17;all[#all].color=palette.muted
@@ -414,7 +418,9 @@ function M.new(w, ctx, diagrams)
       local cols = #t.columns
       local firstW = math.floor((width-20)*(large and 0.22 or 0.26))
       local cw = math.floor((width-20-firstW)/math.max(1,cols))
-      local lineH = math.min(large and 40 or 24, math.floor((cardBottom-2-overviewY)/(#t.rows+1)))
+      -- It ends above rows at the foot of the card, else above the status line.
+      local tableBottom = card.rowsAtFoot and rowY-2 or cardBottom-2
+      local lineH = math.min(large and 40 or 24, math.floor((tableBottom-overviewY)/(#t.rows+1)))
       local y = overviewY
       for c, head in ipairs(t.columns) do
         all[#all+1] = label(10+firstW+(c-1)*cw, y, cw-6, head)
@@ -468,6 +474,14 @@ function M.new(w, ctx, diagrams)
         end }
         all[#all+1] = label(barX+barW+6, y, wordW-4, bar.right)
         all[#all].h, all[#all].color = lineH-2, palette.muted
+        -- A mark at each end of the bar turns to the ok colour once that direction reached 95 %.
+        if bar.reached then
+          local d = large and 8 or 6
+          for side, x in ipairs({ barX, barX+barW-d }) do
+            all[#all+1] = { type = "rectangle", x = x, y = mid-math.floor(d/2), w = d, h = d, filled = true,
+              color = function() return bar.reached(side) and palette.ok or palette.rule end }
+          end
+        end
         all[#all+1] = label(width-10-pctW, y, pctW, bar.percent)
         all[#all].h = lineH-2
         all[#all].color = function() return bar.done() and palette.accentInk or palette.text end
@@ -503,6 +517,40 @@ function M.new(w, ctx, diagrams)
           all[#all].h = rowControlH
           if chosen then all[#all].color, all[#all].textColor = palette.accent, palette.onAccent end
           all[#all].visible = function() return (r.selected() == true) == chosen end
+        end
+      elseif r.kind == "group" then
+        -- Several controls in one row: the label in the label column on 800x480, the controls
+        -- side by side in equal shares of the rest; the 480-wide screens give them the full width.
+        local gx = formX + (large and labelW or 0)
+        if large and labelW then all[#all + 1] = label(formX, centredTop(y, rowControlH), labelW-8, r.label) end
+        local n, gap = #r.items, large and 8 or 4
+        local share = math.floor((formX+formW-gx-(n-1)*gap)/n)
+        for k, item in ipairs(r.items) do
+          local ix = gx+(k-1)*(share+gap)
+          local function itemEditable() return current() and (not item.enabled or item.enabled()) end
+          local function itemEnabled() return w.canEdit == true and itemEditable() end
+          if item.kind == "choice" then
+            local values, get = item.values, item.get
+            local unset = item.allowUnset and item.get() == 0
+            local offset = unset and 1 or 0
+            if unset then
+              values = { w.L.notSet }
+              for _, value in ipairs(item.values) do values[#values+1] = value end
+              get = function() return item.get() + 1 end
+            end
+            all[#all + 1] = { type = "choice", x = ix, y = y, w = share, h = rowControlH, title = item.label,
+              values = values, get = get,
+              set = function(v)
+                if v <= offset or not values[v] then return end
+                w:applyEdit(function() if itemEditable() then item.set(v - offset) end end)
+              end, active = itemEnabled }
+          else
+            -- An item without an action (a list the ELRS module has not offered yet) is drawn inactive.
+            local press = item.press
+            local active = press and itemEnabled or function() return false end
+            button(ix, y, share, item.label, function() if press and itemEnabled() and w:usable() then press() end end, active)
+            all[#all].h = rowControlH
+          end
         end
       elseif r.kind == "button" or r.kind == "hold" then
         -- An action button is as wide as its label; a label that changes keeps a fixed width.
@@ -643,11 +691,12 @@ function M.new(w, ctx, diagrams)
             end
             -- update() reads get() when the native editor closes, before a queued
             -- STATUS reply can authorize the final value. Keep that draft visible.
+            local look = field.display and field or r
             all[#all + 1] = { type = "numberEdit", x = x, y = y, w = fieldW, h = rowControlH,
-              min = r.min, max = r.max, get = get, set = set,
+              min = field.min or r.min, max = field.max or r.max, get = get, set = set,
               display = function(v)
-                if r.display then return r.display(v) end
-                if r.divisor then return string.format("%.1f", v / r.divisor) end
+                if look.display then return look.display(v) end
+                if look.divisor then return string.format("%.1f", v / look.divisor) end
                 return tostring(v)
               end, active = enabled }
           end
@@ -660,8 +709,16 @@ function M.new(w, ctx, diagrams)
           elseif r.kind == "pair" then
             -- Two counts of one gear pair side by side, "a : b".
             local half = math.floor((editW - 12) / 2)
-            numberField(editX, half, r.left)
-            all[#all + 1] = label(editX+half, centredTop(y, rowControlH), 12, ":")
+            local left = r.left
+            if left.kind == "choice" then
+              all[#all + 1] = { type = "choice", x = editX, y = y, w = half, h = rowControlH,
+                title = left.label, values = left.values, get = left.get,
+                set = function(v) w:applyEdit(function() if editable() then left.set(v) end end) end,
+                active = enabled }
+            else
+              numberField(editX, half, left)
+            end
+            all[#all + 1] = label(editX+half, centredTop(y, rowControlH), 12, r.separator or ":")
             numberField(editX+editW-half, half, r.right)
           else
             numberField(editX, editW, r)

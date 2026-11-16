@@ -225,13 +225,12 @@ return function(h)
     local indices=kind=="rate" and {1,3,2} or {4,3,2,1}
     for i, index in ipairs(indices) do
       question=nil;item.set(i+1)
-      check(question~=nil,"ELRS real entry still asks for confirmation")
-      eq(#selected,i-1,"ELRS real entry writes nothing before confirmation")
-      if question then question.onConfirm() end
-      eq(#selected,i,"ELRS confirmed entry selects exactly one option")
-      eq(selected[i] and selected[i][1],kind,"ELRS retains the field kind")
-      eq(selected[i] and selected[i][2],index,"ELRS retains the zero-based option index")
-      eq(item.get(),i+1,"ELRS displays the real entry");ignore()
+      -- A list entry is a draft: Set on both writes it, after asking once.
+      check(question==nil,"ELRS a list entry asks nothing by itself")
+      eq(#selected,0,"ELRS a list entry writes nothing by itself")
+      eq(controller.draft[kind],i,"ELRS the entry is kept as the draft")
+      eq(controller.choices[kind].indices[i],index,"ELRS the draft maps to the zero-based option index")
+      eq(item.get(),i+1,"ELRS displays the drafted entry");ignore()
     end
     w.data.rx_config.serialrx_provider=2
     eq(item.get(),1,"ELRS applicability loss displays the placeholder in the existing scene")
@@ -263,8 +262,10 @@ return function(h)
     for _,entry in ipairs(manifest.menus.helicopter_setup_menu.pages) do entries[#entries+1]=entry end
     eq(#entries,22,"CORE all wizard entry points are covered by the API contract")
     for _,entry in ipairs(entries) do
-      eq(type(entry.minApiVersion)=="table" and table.concat(entry.minApiVersion,".") or "","12.0.9",
-        "CORE "..entry.id.." stays reachable on the Suite's packaged API")
+      -- Offered only where the steps can run: API 12.10. The Suite's own simulator reply (12.09)
+      -- greys the entries out rather than opening a page that can only refuse.
+      eq(type(entry.minApiVersion)=="table" and table.concat(entry.minApiVersion,".") or "","12.0.10",
+        "CORE "..entry.id.." is offered from API 12.10 only")
     end
     local session=_G.rfsuite.session
     local old=session.apiVersion
@@ -1180,7 +1181,7 @@ return function(h)
     for _,channel in ipairs({1,2,3,5,7}) do values[channel]=2000;h.measure("RX learning",function() w.onLive("rx_channels",raw()) end) end
     check(w.rx.detect==nil and w.data.rx_map.throttle==4,"REVIEW subsequent controls need no extra baseline reply")
     w.data.rx_map.throttle=4;values[5]=1000;raw()
-    cards[4].rows[2].press();values[5]=2000;w.onLive("rx_channels",raw());cards[4].rows[2].press()
+    cards[4].rows[3].press();values[5]=2000;w.onLive("rx_channels",raw());cards[4].rows[3].press()
     eq(w.data.rc_config.rc_min_throttle,1020,"REVIEW throttle recording includes the current OFF switch endpoint")
     eq(w.data.rc_config.rc_max_throttle,1980,"REVIEW one ON switch transition completes the range")
     -- Stick travel: percent of the FC's stick range, both ways, per control.
@@ -1248,7 +1249,7 @@ return function(h)
     -- Link-affecting receiver settings stay locked; throttle range stays available.
     check(not cards[1].rows[2].enabled() and not cards[1].rows[3].enabled() and not cards[2].rows[1].enabled()
       and not cards[2].rows[2].enabled(),"S02 receiver configuration is locked until Advanced is on")
-    for i=2,4 do check(cards[4].rows[i].enabled==nil,"S02 throttle range row stays usable without Advanced") end
+    for i=2,5 do check(cards[4].rows[i].enabled==nil,"S02 throttle range row stays usable without Advanced") end
     eq(cards[4].summary(),L.throttleQuick,"S02 throttle summary does not ask for Advanced")
     check(cards[3].rows[1].enabled==nil,"S02 the stick check stays usable")
     cards[1].rows[1].set(2)
@@ -1309,21 +1310,57 @@ return function(h)
     -- A refused telemetry read on the card is not a wizard failure.
     h.setFailCommand(73);w.card=index;cards[index].enter();w:tick();drain(w);h.setFailCommand(nil)
     check(not w.error,"S02 a refused link read on the ELRS card does not fail the wizard")
-    local gated=0
+    -- Rows: the result, the two directions, the two lists with Set on both.
+    local controls={}
     for _,row in ipairs(cards[index].rows) do
-      if row.enabled then gated=gated+1;check(row.enabled(),"S02 ELRS controls work without Advanced") end
+      for _,item in ipairs(row.kind=="group" and row.items or {row}) do
+        if item.enabled then controls[#controls+1]=item;check(item.enabled(),"S02 ELRS controls work without Advanced") end
+      end
     end
-    eq(gated,4,"S02 both sync buttons and pickers work without Advanced")
+    eq(#controls,5,"S02 both directions, both lists and Set on both work without Advanced")
     check(not w.rx.advanced,"S02 link access does not enable receiver Advanced")
-    -- A picker write is followed by a fresh walk of the module.
+    eq(cards[index].rows[1].label,L.linkResult,"S02 the card states one result")
+    check(cards[index].table and #cards[index].table.rows==2,"S02 the table shows rate and ratio for both sides")
+    -- Set on both: the module first, its value read back, then the FC takes the module's values.
     h.fixtures[73]=h.api("telemetry_config").simulatorResponse
+    fake.selectOption=function(kind,option)
+      choices[#choices+1]={kind,option};running=true
+      if kind=="rate" then rate.selectedIndex=option else ratio.selectedIndex=option end
+    end
     w.cards=cards;w.card=index;cards[index].enter();w:tick();drain(w);w:tick();drain(w)
+    local link=w.linkController or cards[index].controller
+    local picker;for _,row in ipairs(cards[index].rows) do
+      for _,item in ipairs(row.items or {}) do if item.kind=="choice" and not picker then picker=item end end
+    end
+    check(picker~=nil,"S02 the card offers a packet-rate list")
+    local setBoth=controls[5]
+    question=nil;setBoth.press()
+    check(question==nil,"S02 Set on both without a chosen value asks nothing")
+    picker.set(2);eq(#choices,0,"S02 a chosen value writes nothing by itself")
+    check(question==nil,"S02 a chosen value asks nothing by itself")
+    setBoth.press();check(question~=nil,"S02 Set on both asks once")
+    eq(#choices,0,"S02 nothing is written before the answer")
     local probes=#starts
-    local picker;for _,row in ipairs(cards[index].rows) do if row.kind=="choice" then picker=row;break end end
-    check(picker~=nil,"S02 the combined card offers a module picker")
-    picker.set(2);eq(#choices,0,"S02 picker waits for confirmation before its module walk")
-    question.onConfirm();w:tick();drain(w);w:tick();drain(w);w:tick();drain(w)
-    check(#choices==1 and #starts>probes,"S02 a picker write is followed by a fresh module walk")
+    question.onConfirm()
+    for _=1,24 do w.statusAt=getTime();w:tick();drain(w) end
+    eq(#choices,1,"S02 the module takes the one chosen value")
+    local fcAt,probeBetween
+    for i=probes+1,#starts do
+      if starts[i]==fake.MODE_ELRS_TO_ROTORFLIGHT and not fcAt then fcAt=i end
+      if starts[i]==fake.MODE_PROBE and not fcAt then probeBetween=true end
+    end
+    check(fcAt~=nil,"S02 then the FC takes the module's values")
+    check(probeBetween,"S02 the module is read again before the FC step")
+    check(link==nil or link.plan==nil,"S02 Set on both ends with its last step")
+    -- A module that does not take the value stops there; the FC is not changed.
+    fake.selectOption=function(kind,option) choices[#choices+1]={kind,option};running=true end
+    cards[index].enter();w:tick();drain(w);w:tick();drain(w)
+    picker.set(1);question=nil;setBoth.press();question.onConfirm()
+    local before=#starts
+    for _=1,24 do w.statusAt=getTime();w:tick();drain(w) end
+    local fcAfter=false
+    for i=before+1,#starts do if starts[i]==fake.MODE_ELRS_TO_ROTORFLIGHT then fcAfter=true end end
+    check(not fcAfter,"S02 a value the module did not take leaves the FC alone")
     h.fixtures[73]=nil;session.telemetryType=oldType
   end)
   case("CORE.fc-sensor-list-complete",function()
@@ -1380,15 +1417,14 @@ return function(h)
     local controller=w.linkController
     eq(controller:boardText(),string.format(L.linkPair,333,8),"S02 CRSF shows FC rate and ratio in confirmation")
     eq(controller:moduleText(),string.format(L.linkModulePair,"500 Hz","1:4"),"S02 CRSF shows module rate and ratio in confirmation")
-    controller:updateSummary()
-    eq(cards[index].summary(),"task status\n"..string.format(L.linkDiffPair,333,8,500,4),"S02 summary shows status and FC/module difference")
+    eq(cards[index].summary,"","S02 the table starts at the top; the ? sheet carries the explanation")
+    eq(rows[1].get(),L.linkDiffer,"S02 the result says the settings differ")
     local difference={get=function() return controller:difference() end}
     if difference.get then
       local function differs(rate,ratio,expected)
         session.crsfTelemetryConfig={mode=1,linkRate=rate,linkRatio=ratio}
         eq(difference.get(),expected,"S02 ELRS names only differing known values")
-        controller:updateSummary()
-        eq(cards[index].summary(),expected~="" and "task status\n"..expected or "task status","S02 summary follows the current difference")
+        eq(rows[1].get(),expected~="" and L.linkDiffer or L.linkMatch,"S02 the result follows the current difference")
       end
       differs(333,8,string.format(L.linkDiffPair,333,8,500,4))
       differs(500,8,string.format(L.linkDiffRatio,8,4))
@@ -1424,6 +1460,12 @@ return function(h)
     local before=wakes;h.measure("ELRS wakeup",function() w:tick() end);check(wakes>before,"S02 current ELRS card wakes its task")
     eq(#starts,1,"S02 the combined card never probes twice without an action")
     rows=w.cards[index].rows
+    -- The card: one result row, the two directions, the two lists with Set on both.
+    eq(#rows,3,"S02 the ELRS card has a result row and two control groups")
+    local useFc,useModule=rows[2].items[1],rows[2].items[2]
+    local ratePick,ratioPick,setBothBtn=rows[3].items[1],rows[3].items[2],rows[3].items[3]
+    eq(useFc.label,L.linkUseFc,"S02 the first direction is named by what it does");eq(useModule.label,L.linkUseModule,"S02 the second direction too")
+    eq(setBothBtn.label,L.linkSetBoth,"S02 the lists are written by Set on both")
     local function ask(row,mode)
       local count=#starts;question=nil;row.press()
       check(question~=nil,"S02 sync asks for confirmation")
@@ -1433,60 +1475,67 @@ return function(h)
       row.press();question.onConfirm();eq(starts[#starts],mode,"S02 confirmed sync starts the requested mode")
       running=false
     end
-    ask(rows[1],1);ask(rows[2],2)
-    shown=false;local count=#starts;rows[1].press()
+    ask(useFc,1);ask(useModule,2)
+    shown=false;local count=#starts;useFc.press()
     eq(#starts,count,"S02 impossible confirmation writes nothing")
     eq(w.linkNotice,L.linkNoDialog,"S02 impossible confirmation explains nothing written")
     eq(w.message,L.linkNoDialog,"S02 impossible confirmation is visible on the combined card")
-    shown=true;rows[1].press();local deferred=question
+    shown=true;useFc.press();local deferred=question
     w:release();w.statusAt=getTime();deferred.onConfirm()
     eq(#starts,count,"S02 a confirmation from a released visit writes nothing")
-    rows[1].press();h.advance(301);question.onConfirm()
+    useFc.press();h.advance(301);question.onConfirm()
     eq(#starts,count,"S02 confirmation rechecks STATUS freshness")
-    w.statusAt=getTime();w.dirty.rx_config=true;rows[2].press()
+    w.statusAt=getTime();w.dirty.rx_config=true;useModule.press()
     eq(#starts,count,"S02 FC save cannot commit unsaved wizard changes")
     w.dirty={}
-    rows[1].press();question.onConfirm()
+    useFc.press();question.onConfirm()
     eq(starts[#starts],1,"S02 a fresh confirmation works again after release")
     check(type(w.linkTick)=="function","S02 resuming after release restores task wakeup")
     running=false
-    check(rows[3].kind=="choice" and rows[4].kind=="choice","S02 walked module fields offer two pickers")
-    eq(table.concat(rows[3].values,","),table.concat({L.link333,L.link500,L.linkD500},","),"S02 rate picker is the project subset")
+    check(ratePick.kind=="choice" and ratioPick.kind=="choice","S02 walked module fields offer two lists")
+    eq(table.concat(ratePick.values,","),table.concat({L.link333,L.link500,L.linkD500},","),"S02 rate list is the project subset")
     rate.selectedIndex=3
-    for _,pick in ipairs({{row=rows[3],value=2,index=2,kind="rate"},{row=rows[3],value=3,index=1,kind="rate"},
-      {row=rows[4],value=4,index=4,kind="ratio"}}) do
+    for _,pick in ipairs({{row=ratePick,value=2,index=2,kind="rate"},{row=ratePick,value=3,index=1,kind="rate"},
+      {row=ratioPick,value=4,index=4,kind="ratio"}}) do
+      controller.draft,controller.plan=nil,nil
       local picked=#choices
-      local function askPicker()
-        question=nil;pick.row.set(pick.value)
-        check(question~=nil,"S02 picker asks for confirmation")
-        eq(#choices,picked,"S02 picker writes nothing before confirmation")
-        eq(question.message,string.format(L.linkPickerQuestion,pick.row.values[pick.value]),
-          "S02 picker confirmation names the new value and link warning")
+      question=nil;pick.row.set(pick.value)
+      check(question==nil and #choices==picked,"S02 a list entry asks and writes nothing by itself")
+      eq(pick.row.get(),pick.value,"S02 the list shows the drafted entry")
+      local function askSet()
+        question=nil;setBothBtn.press()
+        check(question~=nil,"S02 Set on both asks for confirmation")
+        eq(#choices,picked,"S02 Set on both writes nothing before confirmation")
+        check(string.find(question.message,pick.row.values[pick.value],1,true)~=nil,
+          "S02 the question names the new value")
         return question
       end
-      askPicker().onCancel();eq(#choices,picked,"S02 cancelled picker writes nothing")
-      eq(w.linkNotice,L.linkCancelled,"S02 cancelled picker reports cancellation")
-      shown=false;askPicker();eq(w.linkNotice,L.linkNoDialog,"S02 picker reports unavailable dialog")
+      askSet().onCancel();eq(#choices,picked,"S02 cancelled Set on both writes nothing")
+      eq(w.linkNotice,L.linkCancelled,"S02 cancelled Set on both reports cancellation")
+      shown=false;askSet();eq(w.linkNotice,L.linkNoDialog,"S02 Set on both reports an unavailable dialog")
       shown=true
-      local deferred=askPicker();w:release();w.statusAt=getTime();deferred.onConfirm()
-      eq(#choices,picked,"S02 picker rejects a confirmation from a released visit")
-      deferred=askPicker();h.advance(301);deferred.onConfirm()
-      eq(#choices,picked,"S02 picker rechecks fresh STATUS on confirmation")
-      w.statusAt=getTime();deferred=askPicker();w.dirty.rx_config=true;deferred.onConfirm()
-      eq(#choices,picked,"S02 picker rechecks dirty draft on confirmation")
-      question=nil;pick.row.set(pick.value)
-      check(question==nil and w.linkNotice==L.saveFirst,"S02 dirty draft blocks picker dialog")
-      w.dirty={};deferred=askPicker();controller.started=true;running=true
+      local deferred=askSet();w:release();w.statusAt=getTime();deferred.onConfirm()
+      check(controller.plan==nil,"S02 Set on both rejects a confirmation from a released visit")
+      deferred=askSet();h.advance(301);deferred.onConfirm()
+      check(controller.plan==nil,"S02 Set on both rechecks fresh STATUS on confirmation")
+      w.statusAt=getTime();deferred=askSet();w.dirty.rx_config=true;deferred.onConfirm()
+      check(controller.plan==nil,"S02 Set on both rechecks the dirty draft on confirmation")
+      question=nil;setBothBtn.press()
+      check(question==nil and w.linkNotice==L.saveFirst,"S02 a dirty draft blocks the Set on both dialog")
+      w.dirty={};deferred=askSet();controller.started=true;running=true
       check(controller:busy(),"S02 busy confirmation control has an owned running task");deferred.onConfirm()
-      eq(#choices,picked,"S02 picker rechecks task busy state on confirmation")
-      running=false;deferred=askPicker();w.data.rx_config.serialrx_provider=2;deferred.onConfirm()
-      eq(#choices,picked,"S02 picker rechecks CRSF applicability on confirmation")
+      check(controller.plan==nil,"S02 Set on both rechecks the task's busy state on confirmation")
+      running=false;deferred=askSet();w.data.rx_config.serialrx_provider=2;deferred.onConfirm()
+      check(controller.plan==nil,"S02 Set on both rechecks CRSF applicability on confirmation")
       w.data.rx_config.serialrx_provider=9
-      askPicker().onConfirm()
-      eq(#choices,picked+1,"S02 confirmed picker performs one write")
-      eq(choices[#choices][1],pick.kind,"S02 picker selects the requested field")
-      eq(choices[#choices][2],pick.index,"S02 picker uses the correct module option index")
+      askSet().onConfirm();check(controller.plan~=nil,"S02 a confirmed Set on both starts its plan")
+      for _=1,4 do w.statusAt=getTime();w:tick();drain(w) end
+      eq(#choices,picked+1,"S02 the module write is one option")
+      eq(choices[#choices][1],pick.kind,"S02 the write selects the requested field")
+      eq(choices[#choices][2],pick.index,"S02 the write uses the correct module option index")
+      running=false;for _=1,8 do w.statusAt=getTime();w:tick();drain(w) end
     end
+    controller.draft,controller.plan=nil,nil
     for _,size in ipairs({{480,272},{480,320},{800,480}}) do
       for _,i in ipairs({index}) do
         w.card=i
@@ -1496,25 +1545,24 @@ return function(h)
         local firstButtonY=size[2]-(size[1]>=700 and 44 or size[1]>=480 and 32 or 26)-6
         for _,item in ipairs(scene.children) do
           if item.y and item.h then check(item.y+item.h<=size[2],"S02 ELRS widgets fit "..size[1].."x"..size[2]) end
-          if item.type=="choice" then check(item.y+item.h<firstButtonY,"S02 ELRS pickers stay above navigation") end
+          if item.type=="choice" then check(item.y+item.h<firstButtonY,"S02 ELRS lists stay above navigation") end
         end
-        eq(#card.rows,4,"S02 combined ELRS card keeps both sync directions and both pickers")
+        eq(#card.rows,3,"S02 combined ELRS card keeps the result and both control groups")
         local controls={}
-        local summary
         for _,item in ipairs(scene.children) do
-          if item.text==card.summary then summary=item end
-          if item.type=="choice" or item.text==L.linkUseFc or item.text==L.linkUseModule then controls[#controls+1]=item end
+          if item.type=="choice" or item.text==L.linkUseFc or item.text==L.linkUseModule or item.text==L.linkSetBoth then controls[#controls+1]=item end
           check(item.text~=L.linkProbe,"S02 automatic probe needs no duplicate button")
         end
-        eq(#controls,4,"S02 all four ELRS controls are rendered")
-        check(summary and summary.w>=size[1]*.35,"S02 status and difference use the summary area")
-        local bottom=summary and summary.x+summary.w>controls[1].x and summary.y+summary.h or 0
-        for _,item in ipairs(controls) do
-          eq(item.h,size[1]>=700 and 44 or size[1]>=480 and 32 or 26,"S02 controls retain normal touch height")
-          check(item.y>=bottom,"S02 ELRS controls do not overlap preceding content")
-          bottom=item.y+item.h
+        eq(#controls,5,"S02 all five ELRS controls are rendered")
+        for k,item in ipairs(controls) do
+          check(item.h>=(size[1]>=700 and 32 or 24),"S02 controls keep a usable touch height")
+          for m=k+1,#controls do
+            local o=controls[m]
+            check(item.x+item.w<=o.x or o.x+o.w<=item.x or item.y+item.h<=o.y or o.y+o.h<=item.y,
+              "S02 ELRS controls do not overlap each other "..size[1].."x"..size[2])
+          end
+          check(item.y+item.h<=firstButtonY-(size[1]>=700 and 34 or 21),"S02 controls stay above the status line "..size[1].."x"..size[2])
         end
-        check(bottom<=firstButtonY-(size[1]>=700 and 34 or 21),"S02 controls stay above the status line")
       end
     end
     w.card=index
@@ -1523,12 +1571,12 @@ return function(h)
       w.data.feature_config.enabledFeatures=fault=="feature" and 0 or 1<<3
       session.telemetryType=fault=="telemetry" and "sport" or "crsf"
       local n=#starts;local picked=#choices
-      rows[1].press();rows[3].set(1);w:tick()
+      useFc.press();ratePick.set(1);setBothBtn.press();w:tick()
       eq(w.message,L.linkNeedsCrsf,"S02 non-CRSF settings explain why: "..fault)
-      check(not rows[1].enabled() and not rows[2].enabled(),"S02 non-CRSF sync buttons are inactive: "..fault)
+      check(not useFc.enabled() and not useModule.enabled() and not setBothBtn.enabled(),"S02 non-CRSF buttons are inactive: "..fault)
       eq(#starts,n,"S02 non-CRSF cannot start a task: "..fault)
       eq(#choices,picked,"S02 non-CRSF cannot change module options: "..fault)
-      eq(rows[3].get(),0,"S02 unavailable picker has a safe value: "..fault)
+      eq(ratePick.get(),0,"S02 unavailable list has a safe value: "..fault)
     end
     w.data.rx_config.serialrx_provider=9;w.data.feature_config.enabledFeatures=1<<3;session.telemetryType="crsf"
     w:navigate(2,1);check(resets>0,"S02 leaving the combined card resets the task")
@@ -1607,6 +1655,15 @@ return function(h)
     eq(session.crsfTelemetryConfig.linkRate,500,"S02 FC rate is published only after EEPROM acknowledgement")
     eq(session.crsfTelemetryConfig.linkRatio,4,"S02 FC ratio is published only after EEPROM acknowledgement")
     check(not task.isRunning(),"S02 acknowledged FC save completes the task")
+    -- An FC whose RAM already holds the module values ends the sync without a write and without an
+    -- EEPROM save, also when a save of those values failed before (Set on both saves them itself).
+    task.reset();w.statusAt=getTime();q.messages={}
+    session.crsfTelemetryConfig={mode=1,linkRate=500,linkRatio=4}
+    session.telemetryConfigBuffer=h.api("telemetry_config").simulatorResponse
+    task.start(task.MODE_ELRS_TO_ROTORFLIGHT)
+    for _=1,3 do h.measure("ELRS task",task.wakeup);h.advance(60) end
+    eq(task.getStatus(),"status_rf_matches_elrs","S02 an FC already holding the module values ends the sync as matching")
+    eq(#q.messages,0,"S02 an FC already holding the module values gets no write and no EEPROM save from the task")
     task.reset()
     session.telemetryType,session.isConnected,_G.rfsuite.require=oldType,oldConnected,oldRequire
     session.crsfTelemetryConfig,session.telemetryConfigBuffer,session.elrsLinkConfig=nil,nil,nil
@@ -1690,14 +1747,14 @@ return function(h)
     eq(w.data.rx_map.throttle,4,"S02 throttle detected")
     eq(w.data.rx_map.aux1,6,"S02 arm switch detected as AUX1")
     check(w.rx.detect==nil and w.dirty.rx_map,"S02 permutation completes")
-    values[5]=1100;reply();c[4].rows[2].press();values[5]=1399;reply();c[4].rows[2].press()
+    values[5]=1100;reply();c[4].rows[3].press();values[5]=1399;reply();c[4].rows[3].press()
     check(w.message==L.travelShort and w.rx.record,"S02 travel below 300 rejected and still recording")
-    eq(c[4].rows[2].label(),L.useRange,"S02 the record button turns into Use range while recording")
-    values[5]=1900;reply();c[4].rows[2].press()
+    eq(c[4].rows[3].label(),L.useRange,"S02 the record button turns into Use range while recording")
+    values[5]=1900;reply();c[4].rows[3].press()
     eq(w.data.rc_config.rc_min_throttle,1120,"S02 low range margin")
     eq(w.data.rc_config.rc_max_throttle,1880,"S02 high range margin")
-    eq(c[4].rows[2].label(),L.record,"S02 applying the range ends the recording")
-    c[4].rows[3].set(0);c[4].rows[4].set(0);w.data.rx_channels={channels={1500,1500,1500,1500,1030}}
+    eq(c[4].rows[3].label(),L.record,"S02 applying the range ends the recording")
+    c[4].rows[4].set(0);c[4].rows[5].set(0);w.data.rx_channels={channels={1500,1500,1500,1500,1030}}
     eq(c[4].rows[1].get(),string.format(L.throttleLowNow,1030),"S02 default 1041 minus deadband allows 1030")
     w.data.rx_channels.channels[5]=0
     check(c[4].rows[1].get()~=string.format(L.throttleLowNow,0),"S02 absent throttle is not low confirmation")
@@ -1908,11 +1965,20 @@ return function(h)
       local v=w.data.rx_map[k];check(v~=nil and not seen[v],"W12 the map has no gap or double");seen[v]=true end
     local throttleCard=c[4]
     w.data.rc_config.rc_min_throttle,w.data.rc_config.rc_max_throttle=1100,1900
-    throttleCard.rows[5].press()
-    eq(w.data.rc_config.rc_min_throttle,0,"W12 Defaults clears the minimum");eq(w.data.rc_config.rc_max_throttle,0,"W12 Defaults clears the maximum")
+    eq(throttleCard.rows[2].label,L.throttleAuto,"W12 the throttle card has the automatic-range switch")
+    eq(throttleCard.rows[2].get(),1,"W12 a stored range reads as manual")
+    throttleCard.rows[2].set(2)
+    eq(w.data.rc_config.rc_min_throttle,0,"W12 automatic clears the minimum");eq(w.data.rc_config.rc_max_throttle,0,"W12 automatic clears the maximum")
+    c=step(w,"receiver");throttleCard=c[4]
+    eq(#throttleCard.rows,3,"W12 automatic shows the range instead of the fields")
+    eq(throttleCard.rows[3].get(),string.format(L.throttleAutoValue,1041,1959),"W12 the automatic range is centre -/+ 90 % of the deflection")
+    throttleCard.rows[2].set(1)
+    eq(w.data.rc_config.rc_min_throttle,1041,"W12 manual starts from the automatic minimum")
+    eq(w.data.rc_config.rc_max_throttle,1959,"W12 manual starts from the automatic maximum")
+    w.data.rc_config.rc_min_throttle,w.data.rc_config.rc_max_throttle=0,0
     local done=c[#c]
     eq(done.title,L.receiverDone,"W12 the step closes on its summary")
-    eq(done.rows[3].get(),L.throttleDefaults,"W12 the summary names the default range")
+    eq(done.rows[3].get(),L.throttleDefaults,"W12 the summary names the automatic range")
     w.data.rc_config.rc_min_throttle,w.data.rc_config.rc_max_throttle=1100,1900
     eq(done.rows[3].get(),string.format(L.rangeUs,1100,1900),"W12 the summary names the set range")
   end)
@@ -2362,7 +2428,7 @@ return function(h)
     end
     local c=step(w,"governor");cardOrder(c,{L.governorMode},"S08 Off")
     c[1].rows[1].set(4);c=step(w,"governor")
-    cardOrder(c,{L.governorMode,L.rpmSource,L.throttleType,string.format(L.headspeedProfile,1)},"S08 On")
+    cardOrder(c,{L.governorMode,L.rpmSource,L.throttleType,L.headspeed},"S08 On")
     eq(#c[3].rows[1].values,3,"W9 Electric offers all three throttle types")
     c[3].rows[1].set(2)
     eq(w.data.governor_config.gov_mode,3,"S08 Electric mode field")
@@ -2616,7 +2682,7 @@ return function(h)
     local w=world();settle(w);w.step=11;w.data.motor_config.motor_pwm_protocol=5
     w.data.esc_sensor_config.protocol=1
     local c=step(w,"escTelemetry")
-    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.port,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 serial")
+    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.port,L.telemetryCheck,L.telemetryStatus,L.powerSources,L.packTable,L.smartFuel},"S11 serial")
     eq(c[1].detail,L.telemetryBatteryHint,"S11 powers the ESC before configuration and live readings")
     c[2].rows[1].set(3);c[3].rows[1].set(1)
     eq(w.data.esc_sensor_config.protocol,2,"S11 protocol field")
@@ -2641,9 +2707,9 @@ return function(h)
     eq(serialWrites,#expected,"S11 saves every configured serial port")
     check(serialWrites>0,"S11 port assignment is saved")
     c=step(w,"escTelemetry");c[2].rows[1].set(1);c=step(w,"escTelemetry")
-    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Off")
+    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.telemetryCheck,L.telemetryStatus,L.powerSources,L.packTable,L.smartFuel},"S11 Off")
     w.data.motor_config.motor_pwm_protocol=9;c=step(w,"escTelemetry")
-    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.telemetryCheck,L.telemetryStatus,L.voltageSource,L.currentSource,L.powerBattery,L.capacity,L.capacity,L.smartFuel},"S11 Castle")
+    cardOrder(c,{L.connectBattery,L.cardTelemetryProtocol,L.telemetryCheck,L.telemetryStatus,L.powerSources,L.packTable,L.smartFuel},"S11 Castle")
     eq(c[1].detail,L.telemetryBatteryHint,"S11 Castle also starts with battery connection")
     eq(c[2].detail,L.castleTelemetryHint,"S11 Castle explains its throttle wire")
     check(not c[2].rows[1].enabled(),"S11 Castle protocol stays read-only")
@@ -2860,8 +2926,8 @@ return function(h)
     local queued=#w.bus.jobs
     local c=step(w,"governor")
     eq(#w.bus.jobs,queued,"S08 build queues no MSP reads")
-    eq(#c,6,"S08 offers exactly three configured PID cards")
-    eq(c[#c].title,string.format(L.headspeedProfile,3),"S08 the last card is a headspeed target: no ramp card")
+    eq(#c,4,"S08 offers one headspeed card");eq(#c[4].rows,3,"S08 a row for each of the three configured PID profiles")
+    eq(c[4].title,L.headspeed,"S08 the last card holds the headspeeds: no ramp card");eq(c[4].rows[3].label,string.format(L.headspeedProfile,3),"S08 each row names its PID profile")
     check(not c[4].rows[1].enabled(),"S08 headspeed waits for per-profile readback")
     check(c[1].rows[#c[1].rows].kind~="button","S08 no Read all profiles button: entry reads every profile")
     c[1].enter();settle(w);c=step(w,"governor")
@@ -2884,7 +2950,7 @@ return function(h)
     end
     eq(table.concat(selections,","),"0,1,2,"..original,"S08 entry walks the profiles then restores the selection")
     for i=1,3 do
-      local row=c[3+i].rows[1]
+      local row=c[4].rows[i]
       eq(row.get(),values[i],"S08 shows exact FC RPM, including non-tens values")
       eq(row.min,fields.headspeed.min,"S08 shared headspeed minimum")
       eq(row.max,fields.headspeed.max,"S08 shared headspeed maximum")
@@ -2894,7 +2960,7 @@ return function(h)
     for _,key in ipairs({"gov_spoolup_time","gov_spooldown_time","gov_recovery_time"}) do
       ramps[key]=w.data.governor_config[key]
     end
-    c[4].rows[1].set(1817);c[6].rows[1].set(2561)
+    c[4].rows[1].set(1817);c[4].rows[3].set(2561)
     q.sent={};w:save();settle(w)
     eq(selected,original,"S08 save restores active PID profile")
     local writes,chosen=0,{}
@@ -2940,24 +3006,25 @@ return function(h)
     for _,mode in ipairs({0,1,2,3,4}) do
       w.data.governor_config.gov_mode=mode
       local c=step(w,"governor")
-      eq(#c,mode==0 and 1 or mode<3 and 3 or 5,"S08 headspeed cards only in Electric/Nitro")
+      eq(#c,mode==0 and 1 or mode<3 and 3 or 4,"S08 the headspeed card only in Electric/Nitro")
+      if mode>=3 then eq(#c[4].rows,2,"S08 a row per PID profile on the switch") end
     end
     w.data.governor_config.gov_mode=3;w.data.status.pid_profile_count=1
     eq(#step(w,"governor"),4,"S08 configured profile count is bounded by FC capacity")
     w.data.status.pid_profile_count=3;ranges[1]=H.mapped(2,1,1000,2000,2,3)
     local c=step(w,"governor")
-    eq(c[4].title,string.format(L.headspeedProfile,2),"S08 respects configured first PID profile")
+    eq(c[4].rows[1].label,string.format(L.headspeedProfile,2),"S08 respects configured first PID profile")
     w.data.status.pid_profile_count=6;ranges[1]=H.mapped(2,1,1000,2000,4,6)
     c=step(w,"governor")
-    eq(#c,6,"S08 three configured targets may use higher PID profile numbers")
-    eq(c[4].title,string.format(L.headspeedProfile,4),"S08 higher configured first PID profile is retained")
-    eq(c[6].title,string.format(L.headspeedProfile,6),"S08 higher configured last PID profile is retained")
+    eq(#c[4].rows,3,"S08 three configured targets may use higher PID profile numbers")
+    eq(c[4].rows[1].label,string.format(L.headspeedProfile,4),"S08 higher configured first PID profile is retained")
+    eq(c[4].rows[3].label,string.format(L.headspeedProfile,6),"S08 higher configured last PID profile is retained")
     ranges[1]=H.mapped(2,1,1000,2000,1,6)
-    eq(#step(w,"governor"),6,"S08 offers at most the three positions supported by Profiles setup")
+    eq(#step(w,"governor")[4].rows,3,"S08 offers at most the three positions supported by Profiles setup")
     ranges[1]=H.mapped(0,0,1500,1500,0,0)
     c=step(w,"governor")
-    eq(#c,4,"S08 unknown profile setup offers one target")
-    eq(c[4].title,string.format(L.headspeedProfile,1),"S08 unknown setup uses profile one, not the active profile")
+    eq(#c[4].rows,1,"S08 unknown profile setup offers one target")
+    eq(c[4].rows[1].label,string.format(L.headspeedProfile,1),"S08 unknown setup uses profile one, not the active profile")
     for _,locale in ipairs({"en","de"}) do
       local bundle=load("i18n/"..locale..".lua")
       local strings=bundle.app.modules.helicopter_setup
@@ -5411,9 +5478,13 @@ return function(h)
       elseif command==0x4000 then
         check(not powerCard(cards,L.smartFuel),"POWER missing SmartFuel API hides its card")
       else
-        local battery=powerCard(cards,L.powerBattery)
-        eq(battery.rows[1].get(),L.powerProfileUnknown,"POWER absent profile is never guessed")
-        eq(battery.rows[2].kind,"value","POWER unknown per-profile cells stay read-only")
+        -- Without the active profile the table still edits each profile, and never the FC's current values.
+        local battery=powerCard(cards,L.packTable)
+        check(battery~=nil,"POWER an absent profile API still shows the battery table")
+        local before=absent.data.battery_config.batteryCellCount
+        battery.rows[2].left.set(5)
+        eq(absent.data.battery_config.batteryCellCount_0,4,"POWER the row edits its own profile block")
+        eq(absent.data.battery_config.batteryCellCount,before,"POWER an unknown active profile is never guessed")
       end
     end
     local session=_G.rfsuite.session;local version=session.apiVersion
@@ -5426,11 +5497,14 @@ return function(h)
   case("S11.power-live-sources-and-warning",function()
     local w=world();settle(w);w.step=11
     local cards=step(w,"escTelemetry")
-    local voltage=powerCard(cards,L.voltageSource);local current=powerCard(cards,L.currentSource)
+    -- Both sources share one card: each source with its live reading below it.
+    local sources=powerCard(cards,L.powerSources)
+    local voltage,current={rows={sources.rows[1],sources.rows[2]}},{rows={sources.rows[3],sources.rows[4]}}
+    eq(#sources.rows,4,"POWER one card holds both sources and their readings")
     local liveIndex,powerIndex
     for i,card in ipairs(cards) do
       if card.title==L.telemetryStatus then liveIndex=i end
-      if card==voltage then powerIndex=i end
+      if card==sources then powerIndex=i end
     end
     check(powerIndex>liveIndex,"POWER cards follow existing live telemetry cards")
     for _,row in ipairs({voltage.rows[1],current.rows[1]}) do row.set(3) end
@@ -5472,12 +5546,14 @@ return function(h)
     check(not w.error and not w.data.analog,"POWER unavailable analog is optional and clears its sample")
     local smart=powerCard(cards,L.smartFuel)
     voltage.rows[1].set(1)
+    local modeLine={[0]=L.smartFuelModeOff,L.smartFuelModeVoltage,L.smartFuelModeCurrent,L.smartFuelModeCombined}
     for mode=0,3 do
       smart.rows[1].set(mode+1)
-      eq(smart.rows[2].get(),(mode==1 or mode==3) and L.powerVoltageWarning or "","POWER only voltage-dependent modes warn with source off")
+      eq(smart.rows[2].get(),modeLine[mode],"POWER the line under the choice says what the chosen mode does")
+      eq(smart.rows[3].get(),(mode==1 or mode==3) and L.powerVoltageWarning or "","POWER only voltage-dependent modes warn with source off")
     end
     voltage.rows[1].set(2)
-    eq(smart.rows[2].get(),"","POWER warning clears with a voltage source")
+    eq(smart.rows[3].get(),"","POWER warning clears with a voltage source")
   end)
   case("S10.back-before-connect-asks-unplugged-again",function()
     local w=world();settle(w);w.step=10;w.rebootPending=nil;w.checks.unplugged=true
@@ -5516,7 +5592,7 @@ return function(h)
   case("S11.power-card-saves-before-the-next",function()
     local w=world();settle(w);w.step=11;w.rebootPending=nil
     local cards=step(w,"escTelemetry");w.cards=cards
-    local voltage=powerCard(cards,L.voltageSource);local index
+    local voltage=powerCard(cards,L.powerSources);local index
     for i,card in ipairs(cards) do if card==voltage then index=i end end
     w.card=index;voltage.rows[1].set(3);settle(w)
     q.sent={};w:next();settle(w)
@@ -5539,19 +5615,21 @@ return function(h)
     end
     local originalSmart=h.api("smartfuel_config").buildWritePayload(w.saved.smartfuel_config)
     local cards=step(w,"escTelemetry");local caps={}
-    for _,card in ipairs(cards) do
-      if card.power and card.title==L.capacity then for _,row in ipairs(card.rows) do caps[#caps+1]=row end end
-    end
-    eq(#caps,6,"POWER all six capacity slots fit two cards")
+    local battery=powerCard(cards,L.packTable)
+    eq(battery.rows[1].label,L.packCount,"POWER the table asks how many packs first")
+    for i=2,#battery.rows do caps[#caps+1]=battery.rows[i].right end
+    eq(#caps,6,"POWER every profile that holds a capacity has its row")
     for i,row in ipairs(caps) do
       eq(row.min,w.powerFields.capacity.min,"POWER capacity minimum shares Battery page spec")
       eq(row.max,w.powerFields.capacity.max,"POWER capacity maximum shares Battery page spec")
       row.set(2000+i*100)
     end
-    local battery=powerCard(cards,L.powerBattery)
-    eq(battery.rows[2].max,w.powerFields.cellCount.max,"POWER cell count shares Battery page range")
-    battery.rows[2].set(12)
     local profile=w.data.battery_profile.batteryProfile
+    local cells=battery.rows[profile+2].left
+    eq(cells.kind,"choice","POWER the cell count is a list")
+    eq(#cells.values,w.powerFields.cellCount.max-w.powerFields.cellCount.min+1,"POWER the list spans the Battery page range")
+    eq(cells.values[1],L.cellsAuto,"POWER the list starts with Auto (0)")
+    cells.set(13)
     eq(w.data.battery_config["batteryCellCount_"..profile],12,"POWER cell count edits active profile block")
     eq(w.data.battery_config.batteryCellCount,12,"POWER active legacy cell count stays consistent")
     powerCard(cards,L.smartFuel).rows[1].set(4)
@@ -5575,7 +5653,7 @@ return function(h)
     for i=2,4 do eq(smart and smart[i],originalSmart[i],"POWER SmartFuel tuning preserved") end
     eq(next(w.dirty),nil,"POWER successful save clears drafts after EEPROM")
     w=world();settle(w);w.step=11;cards=step(w,"escTelemetry")
-    powerCard(cards,L.voltageSource).rows[1].set(3)
+    powerCard(cards,L.powerSources).rows[1].set(3)
     powerCard(cards,L.smartFuel).rows[1].set(4)
     q.sent={};w:discard(function() end);settle(w)
     eq(w.data.battery_config.voltageMeterSource,w.saved.battery_config.voltageMeterSource,"POWER discard restores battery source")
@@ -5586,7 +5664,7 @@ return function(h)
     end
     for _,command in ipairs({33,0x4001}) do
       w=world();settle(w);w.step=11;cards=step(w,"escTelemetry")
-      powerCard(cards,command==33 and L.voltageSource or L.smartFuel).rows[1].set(3)
+      powerCard(cards,command==33 and L.powerSources or L.smartFuel).rows[1].set(3)
       q.sent={};h.setFailCommand(command);w:save();drain(w);h.setFailCommand(nil)
       check(w.error~=nil,"POWER failed configuration write remains visible")
       for _,m in ipairs(q.sent) do check(m.command~=250,"POWER failed write prevents EEPROM") end
@@ -5597,9 +5675,30 @@ return function(h)
     w.data.battery_config=h.api("battery_config").parse(legacy)
     w.data.battery_profile=nil
     cards=step(w,"escTelemetry")
-    eq(#powerCard(cards,L.capacity).rows,1,"POWER legacy battery has one capacity editor")
-    eq(powerCard(cards,L.powerBattery).rows[2].kind,"number","POWER legacy cells remain editable without profile API")
+    -- The wizard refuses such firmware at load; its cards offer no battery editor either.
+    check(powerCard(cards,L.packTable)==nil,"POWER without per-profile cells there is no battery table")
+    check(powerCard(cards,L.powerSources)~=nil,"POWER the sources card stays")
     eq(#h.api("battery_config").buildWritePayload(w.data.battery_config),15,"POWER legacy round-trip adds no capacity or cell blocks")
+  end)
+  case("S11.battery-table-pack-count-and-firmware-refusal",function()
+    -- Profiles that leave the table go back to the values read; nothing changed in them is written.
+    local w=world();settle(w);w.step=11
+    local cards=step(w,"escTelemetry");local battery=powerCard(cards,L.packTable)
+    local saved=w.saved.battery_config
+    battery.rows[7].left.set(9);battery.rows[7].right.set(4400)
+    check(w.data.battery_config.batteryCellCount_5==8 and w.data.battery_config.batteryCapacity_5==4400,"PACKS a row edits its profile")
+    battery.rows[1].set(2)
+    eq(w.packCount,2,"PACKS the table keeps the chosen number of packs")
+    eq(w.data.battery_config.batteryCellCount_5,saved.batteryCellCount_5,"PACKS a profile leaving the table gets its cells back")
+    eq(w.data.battery_config.batteryCapacity_5,saved.batteryCapacity_5,"PACKS a profile leaving the table gets its capacity back")
+    cards=step(w,"escTelemetry");eq(#powerCard(cards,L.packTable).rows,3,"PACKS two packs, two rows")
+    -- A 4.7 build that reports API 12.10 without per-profile cells is refused at load, like older firmware.
+    local short={};for i=1,27 do short[i]=h.api("battery_config").simulatorResponse[i] end
+    h.fixtures[32]=short
+    local refused=world();settle(refused);h.fixtures[32]=nil
+    check(refused.apiTooOld==true and refused.ready and not refused.error,"PACKS no per-profile cells: the wizard refuses")
+    eq(refused.cards and refused.cards[1].title,L.apiTooOldTitle,"PACKS the refusal names the firmware as too old")
+    check(not refused.validate(),"PACKS the refusal never moves on")
   end)
   case("S11.power-help-and-layout",function()
     for _,locale in ipairs({"en","de"}) do
@@ -5608,16 +5707,9 @@ return function(h)
       local expected={
         powerVoltageHelp={p.setup_power_sources.voltage_meter_source,s.voltage},
         powerCurrentHelp={p.setup_power_sources.current_meter_source,s.current},
-        powerBatteryHelp={p.setup_power_battery.selected,p.setup_power_battery.cell_count},
-        powerCapacityHelp={p.setup_power_battery.capacity},
+        packTableHelp={s.packCount,p.setup_power_battery.battery_slot.." n"},
         powerSmartFuelHelp={p.setup_power_smartfuel.firmware_mode}
       }
-      for first=1,4,3 do
-        expected[first==1 and "powerCapacityFirstHelp" or "powerCapacityLastHelp"]={}
-        for i=first,first+2 do
-          table.insert(expected[first==1 and "powerCapacityFirstHelp" or "powerCapacityLastHelp"],p.setup_power_battery.battery_slot.." "..i)
-        end
-      end
       for key,labels in pairs(expected) do
         check(utf8.len(s[key])<=600,"POWER help key fits 600 characters")
         local index=0
@@ -5633,7 +5725,7 @@ return function(h)
       local cards=step(w,"escTelemetry")
       for _,size in ipairs({{480,320},{480,272},{800,480}}) do
         for i,card in ipairs(cards) do if card.power then
-          check(#card.rows<=3,"POWER card has at most three rows")
+          check(#card.rows<=(card.dense and 7 or 4),"POWER a card keeps its rows; the battery table is dense")
           w.cards,w.card=cards,i
           local job=h.view.new(w,{w=size[1],h=size[2]},h.diagrams)
           while not job.done do h.measure("Power view slice",function() job:step() end) end
@@ -5789,7 +5881,129 @@ return function(h)
     eq(w.message,L.linkNeedsCrsf,"R26 entering the ELRS card without CRSF says so once")
     w.message=L.pendingSave;controller:tick();controller:tick()
     eq(w.message,L.pendingSave,"R26 the unsaved-changes reminder survives the ELRS card's ticks")
+    -- Without module fields the two lists are value placeholders: drawn, never pressable.
+    w.canEdit=true;w.statusAt=getTime()
+    local scene=h.view.new(w,{w=800,h=480},h.diagrams)
+    while not scene:step() do end
+    local placeholders=0
+    for _,item in ipairs(scene.children) do
+      if item.type=="button" and (item.text==L.linkRate or item.text==L.linkRatio) then
+        placeholders=placeholders+1
+        check(not (item.active and item.active()),"S02 an ELRS list placeholder is inactive")
+        local ok,err=pcall(item.press)
+        check(ok,"S02 a tap on an ELRS list placeholder does not raise: "..tostring(err))
+      end
+    end
+    eq(placeholders,2,"S02 both ELRS list placeholders are drawn")
     w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
+  end)
+  case("S02.elrs-set-on-both-reads-the-fc-outcome",function()
+    local w=world();settle(w);w.step=2;w.rx={}
+    local status="status_idle"
+    local task={getRateField=function() return nil end,getRatioField=function() return nil end,
+      isRunning=function() return false end,reset=function() end,setOwner=function() end,
+      getStatus=function() return status end,getStatusText=function() return "" end,
+      wakeup=function() end,start=function() end,MODE_ELRS_TO_ROTORFLIGHT=2}
+    local realLoad=w.loadModule
+    w.loadModule=function(self,path)
+      if string.find(path,"elrslink_task",1,true) then return task end
+      return realLoad(self,path)
+    end
+    local controller=load("app/pages/helicopter_setup/elrs_link.lua").new(w)
+    local card=w:cardDef(L.linkTitle,L.linkHint,{});w.cards={card};w.card=1
+    controller:enter(card)
+    -- The FC step's task finishes with an outcome; the module walk after it replaces the task's
+    -- status before the plan looks again, so the outcome is the one kept when the task ended.
+    local function finishFcStep(outcome)
+      w.linkNotice=nil
+      controller.plan={steps={{kind="fc"}},at=1,started=true}
+      status=outcome;controller.rewalk=true;controller:taskDone()
+      status="status_elrs_probe_complete";controller.asked,controller.started=true,nil
+      controller:runPlan();controller:runPlan()
+    end
+    for _,bad in ipairs({"status_rotorflight_save_failed","status_rotorflight_write_failed","status_read_timeout"}) do
+      finishFcStep(bad)
+      check(controller.plan==nil,"S02 a failed FC step ends Set on both: "..bad)
+      eq(w.linkNotice,L.linkSetBothFcFailed,"S02 a failed FC step says the FC did not save: "..bad)
+    end
+    finishFcStep("status_rotorflight_updated")
+    check(controller.plan==nil,"S02 an FC step that saved finishes Set on both")
+    check(w.linkNotice~=L.linkSetBothFcFailed,"S02 an FC step that saved is not reported as failed")
+    -- An FC whose RAM already holds the module values is saved by the wizard: the task saves
+    -- nothing then, which is also the state after a save of those values failed.
+    local eepromCommand=h.api("eeprom_write").writeCommand
+    local function eepromSent()
+      for _,m in ipairs(q.sent) do if m.command==eepromCommand then return true end end
+      return false
+    end
+    q.sent={};finishFcStep("status_rf_matches_elrs")
+    check(controller.plan~=nil,"S02 an FC already holding the module values is not done before it is saved")
+    drain(w);controller:runPlan();controller:runPlan()
+    check(eepromSent(),"S02 an FC already holding the module values is saved by Set on both")
+    check(controller.plan==nil,"S02 Set on both finishes once that save is answered")
+    check(w.linkNotice~=L.linkSetBothFcFailed,"S02 an answered save is not reported as failed")
+    q.sent={};h.setFailCommand(eepromCommand);finishFcStep("status_rf_matches_elrs")
+    drain(w);controller:runPlan();h.setFailCommand(nil)
+    check(eepromSent(),"S02 the save is tried when the FC already holds the module values")
+    check(controller.plan==nil and w.error==nil,"S02 a refused save ends Set on both and leaves the visit open")
+    eq(w.linkNotice,L.linkSetBothFcFailed,"S02 a refused save says the FC did not save")
+    -- Leaving the card (a stop) before the save went out drops it unsent.
+    q.sent={};finishFcStep("status_rf_matches_elrs");controller:stop();drain(w)
+    check(not eepromSent(),"S02 a save Set on both queued is not sent after the card was left")
+    -- A stop (released tests, stale STATUS) ends an unfinished plan, so Set on both can be pressed again.
+    controller.plan={steps={{kind="fc"}},at=1}
+    controller:stop()
+    check(controller.plan==nil,"S02 a stop ends an unfinished Set on both")
+    w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
+  end)
+  case("S02.elrs-set-on-both-after-a-stop-reads-the-module-first",function()
+    local w=world();settle(w);w.step=2;w.rx={}
+    -- A walk of the module fills its fields; a reset clears them, as the shared task does.
+    local field={id=1,options={"333Hz","500Hz"},selectedIndex=1}
+    local fields,running,selected=nil,false,{}
+    local task={getRateField=function() return fields end,getRatioField=function() return nil end,
+      isRunning=function() return running end,reset=function() fields,running=nil,false end,setOwner=function() end,
+      getStatus=function() return "status_probe_complete" end,getStatusText=function() return "" end,
+      wakeup=function() fields,running=field,false end,start=function() running=true end,
+      selectOption=function(kind,index)
+        selected[#selected+1]=fields~=nil
+        if not fields then return false end
+        running=true;return true
+      end,MODE_ELRS_TO_ROTORFLIGHT=2,MODE_PROBE=0}
+    local realLoad=w.loadModule
+    w.loadModule=function(self,path)
+      if string.find(path,"elrslink_task",1,true) then return task end
+      return realLoad(self,path)
+    end
+    local session=w:session()
+    local oldType,oldProvider,oldFeatures=session.telemetryType,w.data.rx_config.serialrx_provider,w.data.feature_config.enabledFeatures
+    session.telemetryType,w.data.rx_config.serialrx_provider="crsf",9
+    w.data.feature_config.enabledFeatures=oldFeatures|(1<<3)
+    w.statusAt=getTime()
+    local controller=load("app/pages/helicopter_setup/elrs_link.lua").new(w)
+    local card=w:cardDef(L.linkTitle,L.linkHint,{});w.cards={card};w.card=1
+    controller:enter(card)
+    -- A stop that lands between two steps of a plan (no walk owed), then Set on both again.
+    controller.plan={steps={{kind="rate",index=0},{kind="fc"}},at=1}
+    controller.rewalk=nil;controller:stop()
+    check(controller.plan==nil,"S02 the stop ended the plan")
+    controller:bind();controller.plan={steps={{kind="rate",index=0},{kind="fc"}},at=1}
+    for _=1,40 do
+      w:tick();h.pump();h.advance(1)
+      if #selected>0 then break end
+    end
+    eq(#selected,1,"S02 Set on both after a stop writes its module value")
+    check(selected[1]==true,"S02 Set on both after a stop reads the module before it writes")
+    -- While Set on both runs, neither sync nor the lists can start a task whose end would be taken
+    -- for the plan's step.
+    task.reset();controller.plan=nil;w.statusAt=getTime()
+    check(controller:writable(),"S02 the sync buttons and lists are usable with no Set on both running")
+    controller.plan={steps={{kind="fc"}},at=1}
+    check(not controller:writable(),"S02 the sync buttons and lists are inactive while Set on both runs")
+    controller.plan=nil
+    session.telemetryType,w.data.rx_config.serialrx_provider,w.data.feature_config.enabledFeatures=oldType,oldProvider,oldFeatures
+    session.crsfTelemetryConfig,session.telemetryConfigBuffer=nil,nil
+    task.reset();w.loadModule=realLoad;w.linkTick,w.stopLink=nil,nil
   end)
   case("REVIEW26.esc-sensor-feature-asks-for-a-restart",function()
     local w=world();settle(w);w.step=9
