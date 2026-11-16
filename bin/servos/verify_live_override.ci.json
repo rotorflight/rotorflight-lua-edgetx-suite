@@ -1,0 +1,7 @@
+{
+  "id": "servos-live-override",
+  "name": "Servo live override (PWM and BUS Output)",
+  "commands": [
+    "lua5.3 bin/servos/verify_live_override.lua"
+  ]
+}

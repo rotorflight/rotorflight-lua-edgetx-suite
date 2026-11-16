@@ -947,7 +947,7 @@ local function buildBatteryForm(children, x, y, w, h, i18n)
       min = 0,
       max = PROFILE_MAX,
       helpText = pageText(i18n, "help_row_profile",
-        "The flight controller's battery profile for this pack, 1 to 6; it wins over the capacity match. 0 leaves it out of the file."),
+        "The flight controller's battery profile, 1 to 6; wins over the capacity match, shown in the picker, sent only with Set the pack's battery profile on. Leave 0 where profile capacities differ."),
       get = function() return math.floor(tonumber(edit.profile) or 0) end,
       set = function(value) edit.profile = math.floor(tonumber(value) or 0) end
     })
