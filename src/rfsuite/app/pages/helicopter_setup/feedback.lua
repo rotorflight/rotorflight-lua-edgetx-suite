@@ -31,6 +31,11 @@ function M.attach(w, state, sensors)
     end
     if self.logTrace and hint ~= self.systemHint then self:log("trace", "FC hint changed") end
     self.systemHint = hint
+    if self.modelPreparationCard and self.modelPreparationAuto and status and config then
+      if self.logInfo then self:log("info", "radio model prepared before for this FC, both sensors live: card passed") end
+      self.modelPreparationDone, self.modelPreparationCard, self.modelPreparationAuto = true, nil, nil
+      self.cards, self.buildRequested = nil, true; self:rebuild()
+    end
   end
   function w:feedbackText()
     if self.error or self.historyFailure then return "" end

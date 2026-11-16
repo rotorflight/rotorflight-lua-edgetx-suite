@@ -82,6 +82,9 @@ return function(w)
     if switched and position==1 then
       rows[#rows+1]=w:button(L.suggest,function()
         for i,profile in ipairs(profiles) do w.rateStyles[profile]=i end;w:touch("rc_tuning")
+        -- One line says what was set, with the profiles the switch really selects.
+        w.message=string.format(L.suggestDone,profiles[1]+1,profiles[2]+1,profiles[3]+1)
+        if w.logDebug then w:log("debug","rate styles suggested for profiles %s, %s, %s",profiles[1],profiles[2],profiles[3]) end
       end,function() return #profiles==3 end)
     end
     -- One tile per style; Custom keeps the profile's own rates and is marked while none matches.

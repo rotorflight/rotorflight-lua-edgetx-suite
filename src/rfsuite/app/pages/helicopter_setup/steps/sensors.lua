@@ -36,10 +36,11 @@ return function(w)
       w:value(L.accCalibrated, function() return calibrated end)
     }, nil, "heliLevel"),
     w:cardDef(L.cardMounting, L.alignHint, {
-      w:button(L.autoAlign, function() w:startTrial("board_auto_align") end, function() return acc end),
       angle(w:n("board_alignment_config", "roll_degrees", L.roll, -180, 180, false, true), "roll_degrees"),
       angle(w:n("board_alignment_config", "pitch_degrees", L.pitch, -180, 180, false, true), "pitch_degrees"),
-      angle(w:n("board_alignment_config", "yaw_degrees", L.yaw, -180, 180, false, true), "yaw_degrees")
+      angle(w:n("board_alignment_config", "yaw_degrees", L.yaw, -180, 180, false, true), "yaw_degrees"),
+      -- Detect sits below the values it fills.
+      w:button(L.autoAlign, function() w:startTrial("board_auto_align") end, function() return acc end)
     }, nil, "heliLift"),
     w:cardDef(L.checkOrientation, L.orientationHint, {
       w:check("orientation", L.directionCorrect)

@@ -601,7 +601,7 @@ function M.new(runtime, transport, mathModule, labels)
     if self.logTrace then self:log("trace", "visit %s reset", STEPS[step]) end
     local owned = ({ [1] = {"orientation", "unplugged", "blades"}, [10] = {"connected"}, [12] = {"motorDirection", "escBlades"},
       [13] = {"servoUp0", "servoUp1", "servoUp2", "servoCentre0", "servoCentre1", "servoCentre2", "servoCentre3"},
-      [14] = {"control1", "control2", "control4"}, [15] = {"motorUnplugged", "level", "bladeZero"}, [16] = {"pitch"},
+      [14] = {"control1", "control2", "control4"}, [15] = {"motorUnplugged", "level", "bladeZero"}, [16] = {"pitch", "bladesBoom"},
       [17] = {"tailCentre", "tailDirection"}, [18] = {"gyro1", "gyro2", "gyro3"}, [19] = {"finish"} })[step]
     for _, name in ipairs(owned or {}) do self.checks[name] = nil end
     if step == 12 or step == 17 then self.bladesOff, self.percent = false, 10 end
@@ -667,6 +667,11 @@ function M.new(runtime, transport, mathModule, labels)
       if not self:ack("modelReady") then return end
       if self.systemStatus == nil or self.systemConfig == nil then self.message = self.L.sensorsRequired; return end
       self.modelPreparationDone,self.modelPreparationCard=true,nil
+      -- Remembered for this FC: later single steps pass the card while both sensors are live.
+      if self.history and self.history.markPrepared and not self.history:markPrepared() then
+        self:log("warn", "radio model preparation not remembered")
+        self.message = self.L.preparedNotSaved
+      end
       self.cards,self.buildRequested=nil,true;self:rebuild();return
     end
     if self.entryRebootGate then
@@ -690,6 +695,8 @@ function M.new(runtime, transport, mathModule, labels)
       local target = self.card + 1
       self:save(function() self:navigate(self.step, target) end); return
     end
+    -- A card may name a confirmation the cards after it depend on.
+    if card and card.requires and not self:ack(card.requires) then return end
     if self.card < #self.cards then self:navigate(self.step, self.card + 1); return end
     if self.validate and not self.validate() then
       if self.logDebug then self:log("debug", "next refused on %s", STEPS[self.step]) end
