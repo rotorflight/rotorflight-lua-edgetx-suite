@@ -1,0 +1,7 @@
+{
+  "id": "sensor-search-per-pass",
+  "name": "Sensor searches per widget pass",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_sensor_search_per_pass.lua"
+  ]
+}

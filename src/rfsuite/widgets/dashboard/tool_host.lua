@@ -129,10 +129,8 @@ end
 
 -- A page's own module file. The page registry holds the module for as long as it wants it, so
 -- its chunk is not kept: kept, the bytecode of every page opened would stay until the tool
--- closes. The same rule as the tool script's loader (src/main.lua).
-local function isPageModule(path)
-  return string.sub(path, -9) == "/page.lua" and string.find(path, "/app/pages/", 1, true) ~= nil
-end
+-- closes. The same rule as the tool script's loader (src/main.lua); the other files under
+-- app/pages/ are kept and listed for releaseChunksUnder, both answered by one search.
 
 -- The tool script's loader, for as long as the tool is open: the suite's load mode in place of
 -- the one a caller passed, and every chunk but a page's kept until the tool closes. The global
@@ -143,6 +141,8 @@ end
 local function installLoader(host)
   local original = _G.loadScript
   local chunks = {}
+  -- The kept chunks of files under app/pages/: releaseChunksUnder walks only these.
+  local pageChunkPaths = {}
   local function load(path, mode)
     if host.loader ~= load or type(path) ~= "string" or string.sub(path, 1, #BASE_PATH) ~= BASE_PATH then
       return original(path, mode)
@@ -152,13 +152,43 @@ local function installLoader(host)
     local root = _G.rfsuite
     local err
     chunk, err = original(path, (root and root.loadMode) or mode)
-    if chunk and not isPageModule(path) then chunks[path] = chunk end
+    if chunk then
+      local inPages = string.find(path, "/app/pages/", 1, true) ~= nil
+      if not (inPages and string.sub(path, -9) == "/page.lua") then
+        if inPages then pageChunkPaths[path] = true end
+        chunks[path] = chunk
+      end
+    end
     return chunk, err
   end
   host.loader = load
   host.chunks = chunks
   host.originalLoadScript = original
   _G.loadScript = load
+
+  -- The page registry's hook for letting go of a page area's chunks (visitMenu in
+  -- app/pages/init.lua), for this loader's cache; src/main.lua publishes the same function for
+  -- the tool started from the Tools menu. Taken back in removeLoader.
+  local utils = _G.rfsuite and _G.rfsuite.utils
+  if type(utils) == "table" then
+    local function releaseChunksUnder(prefix)
+      local released = 0
+      if type(prefix) ~= "string" or prefix == "" then return released end
+      for path in pairs(pageChunkPaths) do
+        if string.sub(path, 1, #prefix) == prefix then
+          -- The chunk goes before its entry, and a load lists a path before it keeps the chunk:
+          -- the CPU limit can stop this state between any two writes, and the worst it leaves
+          -- is an entry with no chunk, never a kept chunk that no later release can find.
+          if chunks[path] ~= nil then released = released + 1 end
+          chunks[path] = nil
+          pageChunkPaths[path] = nil
+        end
+      end
+      return released
+    end
+    host.releaseChunksUnder = releaseChunksUnder
+    utils.releaseChunksUnder = releaseChunksUnder
+  end
 end
 
 -- Puts back the function installLoader replaced, unless something has been put over it since;
@@ -175,6 +205,11 @@ local function removeLoader(host)
   for path in pairs(chunks) do
     chunks[path] = nil
   end
+  local utils = _G.rfsuite and _G.rfsuite.utils
+  if type(utils) == "table" and host.releaseChunksUnder ~= nil and utils.releaseChunksUnder == host.releaseChunksUnder then
+    utils.releaseChunksUnder = nil
+  end
+  host.releaseChunksUnder = nil
 end
 
 local function dropToolModules()
@@ -224,8 +259,10 @@ local function reclaimSave()
   toSavePipeline("reclaim")
 end
 
--- Hand the screen and the globals back to the dashboard. Safe to run in any phase.
-local function finish(widget, reason)
+-- Hand the screen and the globals back to the dashboard. Safe to run in any phase. `outcome` is what
+-- the close means for a visit from the rolling menu (views.lua, `toolClosed`): "back" returns to its
+-- place, "failed" does too and says the page could not be opened, anything else forgets the place.
+local function finish(widget, reason, outcome)
   local host = widget._toolHost
   widget._toolHost = nil
   if host == nil then return end
@@ -280,6 +317,13 @@ local function finish(widget, reason)
   widget._cachedFullscreenKey = nil
   if collectgarbage then collectgarbage("collect") end
   hostLogTransition("tool closed (" .. tostring(reason) .. ")")
+
+  if host.visit == true then
+    local Views = requireModule("widgets/dashboard/views.lua")
+    if type(Views) == "table" and type(Views.toolClosed) == "function" then
+      Views.toolClosed(widget, outcome)
+    end
+  end
 end
 
 --- Ask for the tool to be opened. The work is done by the next pass of the widget, not by the
@@ -288,14 +332,16 @@ end
 --
 -- `landing`, where given, is the menuId of the page the tool opens on instead of its menu
 -- (`init({ hosted = true, landing = ... })` in ui/home.lua); the back key there closes the tool.
-function M.request(widget, landing)
+-- `visit` marks the rolling menu's way in: that page stays the edge of the tool below which the back
+-- key walks, and the close reports how it went (`finish`).
+function M.request(widget, landing, visit)
   if widget._toolHost ~= nil then return false end
   if _G.rfsuite.logSteps then hostStep("tool asked for, landing " .. tostring(landing)) end
   if modelArmed() then
     hostLog("tool not opened: the model is armed", "warn")
     return false
   end
-  widget._toolHost = { phase = "load", cpuHits = 0, landing = landing }
+  widget._toolHost = { phase = "load", cpuHits = 0, landing = landing, visit = visit == true or nil }
   widget.built = false
   widget.renderKey = nil
   return true
@@ -312,17 +358,20 @@ function M.abandon(widget, reason)
 end
 
 local function stopped(widget, host, err, phase)
+  -- A tool already closing (fullscreen left, the model armed) forgets the menu's place as a close
+  -- that runs to its end does (runStep): the pilot left, so the menu is not put back.
+  local outcome = host.closing and "forget" or "failed"
   if isCpuLimit(err) then
     host.cpuHits = host.cpuHits + 1
     hostLog("tool " .. phase .. " stopped at the instruction limit (" .. host.cpuHits .. "/" .. CPU_GIVE_UP .. ")",
       host.cpuHits >= CPU_GIVE_UP and "error" or "warn")
     if host.cpuHits >= CPU_GIVE_UP then
-      finish(widget, phase .. " stopped at the instruction limit " .. host.cpuHits .. " times")
+      finish(widget, phase .. " stopped at the instruction limit " .. host.cpuHits .. " times", outcome)
     end
     return
   end
-  hostLog("tool " .. phase .. " failed: " .. tostring(err), "error")
-  finish(widget, phase .. " failed")
+  hostLog("tool " .. phase .. " failed: " .. tostring(err) .. (host.closing and " while closing" or ""), "error")
+  finish(widget, phase .. " failed", outcome)
 end
 
 local function loadStep(widget, host)
@@ -340,14 +389,14 @@ local function loadStep(widget, host)
   local chunk, err = loadScript(HOME_PATH, root.loadMode or "bt")
   if not chunk then
     hostLog("tool not opened: " .. tostring(err), "error")
-    finish(widget, "load failed")
+    finish(widget, "load failed", "failed")
     return
   end
   local ok, home = pcall(chunk)
   if not ok then return stopped(widget, host, home, "load") end
   if type(home) ~= "table" or type(home.init) ~= "function" or type(home.run) ~= "function" then
     hostLog("tool not opened: ui/home.lua is not a tool", "error")
-    finish(widget, "load failed")
+    finish(widget, "load failed", "failed")
     return
   end
   if _G.rfsuite.logSteps then hostStep("tool loaded") end
@@ -358,7 +407,7 @@ end
 
 local function initStep(widget, host)
   reclaimSave()
-  local ok, err = callInWidgetContext(host.home.init, { hosted = true, landing = host.landing })
+  local ok, err = callInWidgetContext(host.home.init, { hosted = true, landing = host.landing, visit = host.visit })
   if not ok then return stopped(widget, host, err, "init") end
   host.phase = "run"
   host.cpuHits = 0
@@ -378,7 +427,15 @@ local function runStep(widget, host, event, touchState)
   local ok, result = callInWidgetContext(home.run, event, touchState)
   if not ok then return stopped(widget, host, result, "run") end
   host.cpuHits = 0
-  if result == 2 then finish(widget, host.closing and "closed by the widget" or "closed by the pilot") end
+  if result == 2 then
+    if host.closing then
+      finish(widget, "closed by the widget", "forget")
+    elseif type(home.landingRefused) == "function" and home.landingRefused() then
+      finish(widget, "the page was refused", "failed")
+    else
+      finish(widget, "closed by the pilot", "back")
+    end
+  end
 end
 
 --- One pass of the open tool, in place of the dashboard's own. Returns nothing; the tool is
