@@ -394,12 +394,12 @@ local function speichern()
                         -- gerade steht. Lag der Schalter seit dem ersten STATUS um, kann der Satz in der neuen Bank stehen, und
                         -- ein Rueckweg traefe sie auch - darum ab hier kein Schreiben mehr und nichts sichern
                         if steht2 ~= b then bankGewechselt(steht2); return end
+                        if scharf2 then ende("armiert"); return end   -- scharf wird nichts mehr geschrieben: kein Rueckweg, kein Sichern
                         if not unveraendert then   -- der alte Satz geht zurueck in den FC, die Bank ist noch dieselbe
                             satzSchreiben(altBytes, function() if lebt() then endeDaneben() end end,
                                           function() if lebt() then ende("abweichung") end end, true)
                             return
                         end
-                        if scharf2 then ende("armiert"); return end   -- scharf sichert nichts
                         fragen("eeprom_write", {}, function()
                             if not lebt() then return end
                             if zeigt() then start, speicherStufe = zeit(), 3 end
@@ -530,7 +530,10 @@ local function takt(state)
     if D == nil then return end
     -- eben entschaerft: der Satz fuer scharf gilt nicht mehr. Nur beim Wechsel - meldet der FC selbst scharf, waehrend die
     -- Telemetrie unscharf sagt, bleibt der Satz stehen
-    if scharfVorher == true and lage.scharf ~= true and hinweis == T.grund.armiert then hinweis = "" end
+    if scharfVorher == true and lage.scharf ~= true and hinweis == T.grund.armiert then
+        hinweis = ""
+        if not laeuft and zustand == "bereit" and lage.bank ~= nil then lesen() end   -- was scharf stehen blieb, wird frisch gelesen
+    end
     scharfVorher = lage.scharf
 
     if letzterTakt == nil or jetzt - letzterTakt > WEG_NACH then warVerbunden = false end

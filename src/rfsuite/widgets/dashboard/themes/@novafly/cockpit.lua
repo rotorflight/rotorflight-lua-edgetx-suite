@@ -377,7 +377,9 @@ local function farbeAus(state)
     local wort = type(c) == "table" and c.colour or nil
     local neu = G.farbeNeu
     if type(neu) == "table" then
-        if wort ~= neu.vorher then G.farbeNeu = nil   -- die Suite hat neu geladen: ab jetzt gilt, was sie reicht
+        local session = rfsuite and rfsuite.session
+        local id = type(session) == "table" and session.mcu_id or nil
+        if wort ~= neu.vorher or id ~= neu.id then G.farbeNeu = nil   -- die Suite hat neu geladen, oder ein anderer Heli: es gilt, was sie reicht
         else wort = neu.farbe end
     end
     if FARBE_NR[wort] then return wort end
@@ -411,7 +413,7 @@ local function farbeSpeichern(neu, state)
     local c = state and state.themeConfig
     local vorher = type(c) == "table" and c.colour or nil
     local function gilt()
-        G.farbeNeu = {farbe = neu, vorher = vorher}
+        G.farbeNeu = {farbe = neu, vorher = vorher, id = id}   -- gilt nur fuer diesen Heli (oder ohne Heli), bis die Suite neu reicht
         farbe = neu
         return true
     end

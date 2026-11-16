@@ -117,6 +117,10 @@ installed package, like every other page of the suite.
   [Keys](../pages/settings/dashboard/keys.md) choices apply as on every theme.
 - Its bank view edits the governor head speed or maximum throttle only. The rest of the governor is
   on *Setup* → *Governor*.
+- It shows the two temperatures in °C whatever *Settings* → *Localization* says: the readings the
+  suite hands a theme are Celsius, the cockpit's unit lettering is a picture, and its amber and red
+  limits are Celsius limits. A radio set to Fahrenheit sees Fahrenheit in the suite's own boxes and
+  Celsius here.
 - A copy of the theme in the pilot's own folder beside the shipped one is not supported: the copy
   draws from the shipped folder, and its long press writes the shipped theme's colour. Without the
   shipped theme, a copy under `user/dashboard/novafly` works on its own.
