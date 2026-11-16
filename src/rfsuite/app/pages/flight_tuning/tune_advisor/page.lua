@@ -1491,21 +1491,23 @@ end
 
 -- Every write lands on the profile active when it arrives, so before each one the flight controller
 -- is asked again (the pipeline's step check): its status reply and the radio's profile sensors must
--- still name the profiles the advice was worked out for. nil when the reply cannot tell.
-local function profilesHold(tune, buf)
+-- still name the profiles the advice was worked out for. nil when the reply cannot tell. The save
+-- outlives the page, whose close drops the module upvalues, so the modules come in as arguments.
+local function profilesHold(tune, buf, Status, P)
   if type(buf) ~= "table" or #buf < 27 then
     pageLog("warn", "status reply before a write too short (%s bytes); save stopped",
       tostring(type(buf) == "table" and #buf))
     return nil
   end
-  local status = StatusApi.parse(buf)
+  local status = Status.parse(buf)
   if not status then
     pageLog("warn", "status reply before a write unreadable; save stopped")
     return nil
   end
   local boardPid = status.current_pid_profile_index + 1
   local boardRate = status.current_control_rate_profile_index + 1
-  local pid, rate = currentProfiles()
+  local pid, rate = 1, 1
+  if P then pid, rate = P.getActivePidProfile(1), P.getActiveRateProfile(1) end
   if boardPid == tune.pidProfile and boardRate == tune.rateProfile and pid == tune.pidProfile
       and rate == tune.rateProfile then
     pageLog("trace", "profiles still PID %s, rates %s before a write", tostring(pid), tostring(rate))
@@ -1546,13 +1548,19 @@ local function buildSteps(snapshot, records, buffers)
     end
     if payload then steps[#steps + 1] = { label = spec.label, command = spec.api.writeCommand, payload = payload } end
   end
-  local tune = snapshot.tune
+  local tune, Status, P = snapshot.tune, StatusApi, Profile
   local check = {
-    command = StatusApi.command,
-    holds = function(buf) return profilesHold(tune, buf) end,
-    -- A retry of a write after a lost reply is not checked by the board again; the sensors are asked
-    sendIf = function()
-      local pid, rate = currentProfiles()
+    command = Status.command,
+    holds = function(buf) return profilesHold(tune, buf, Status, P) end,
+    -- A retry of a write after a lost reply is not checked by the board again; the live PID# and RTE#
+    -- readings are. Without them only the first send, right after the board's answer, goes out.
+    sendIf = function(msg)
+      local pid = P and type(P.getLive) == "function" and P.getLive("pid") or nil
+      local rate = P and type(P.getLive) == "function" and P.getLive("rate") or nil
+      if pid == nil or rate == nil then
+        if type(msg) == "table" and msg.__sentAt ~= nil then return nil end
+        return true
+      end
       return pid == tune.pidProfile and rate == tune.rateProfile
     end
   }

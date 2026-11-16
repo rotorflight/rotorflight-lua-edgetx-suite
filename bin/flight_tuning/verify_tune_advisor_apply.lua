@@ -117,6 +117,7 @@ _G.rfsuite = { palette = { text = 0, border = 0 }, session = { mcu_id = MCU } }
 _G.rfsuite.paths = dofile(ROOT .. "lib/paths.lua")
 
 local profiles = { pid = 1, rate = 1 }
+local liveSensors = false         -- true: the model has PID#/RTE# sensors (getLive answers)
 local boardPid = nil              -- the board's PID profile when it differs from the radio's sensor
 local statusBytes = nil
 local dialogs = {}
@@ -142,7 +143,12 @@ local stubs = {
   ["ui/confirm_dialog.lua"] = { show = function(d) dialogs[#dialogs + 1] = d; return true end },
   ["lib/profile.lua"] = {
     getActivePidProfile = function() return profiles.pid end,
-    getActiveRateProfile = function() return profiles.rate end
+    getActiveRateProfile = function() return profiles.rate end,
+    -- the PID#/RTE# readings; nil on a model without those sensors (liveSensors = false)
+    getLive = function(kind)
+      if not liveSensors then return nil end
+      return kind == "rate" and profiles.rate or profiles.pid
+    end
   },
   ["tasks/msp/runtime.lua"] = { getState = function() return mspState end },
   ["tasks/msp/cache.lua"] = { clear = function() end },
@@ -565,11 +571,12 @@ do
   openPage()
   local before = snapshot()
   -- The check before the first write held; then the sensor reads PID 2 while the board still answers PID 1
+  liveSensors = true
   beforeSend = function(m)
     if m.command == codecs.tuning.writeCommand then profiles.pid, boardPid = 2, 1 end
   end
   local sent = applyNow()
-  beforeSend, profiles.pid, boardPid = nil, 1, nil
+  beforeSend, profiles.pid, boardPid, liveSensors = nil, 1, nil, false
   check("the write is withheld and nothing more is sent", not has(sent, codecs.tuning.writeCommand)
     and not has(sent, codecs.rates.writeCommand) and not has(sent, EEPROM), table.concat(sent, ","))
   check("nothing changed on the board, reported as nothing changed", changedFields(before) == ""
@@ -581,18 +588,55 @@ do
   resetFc()
   openPage()
   local before = snapshot()
+  -- The FIRST write's retry: an earlier attempt went out and its reply was lost, so only its own
+  -- send can tell that something may have reached the board
+  liveSensors = true
   beforeSend = function(m)
-    if m.command == codecs.rates.writeCommand then
-      m.__sentAt = ticks            -- an earlier attempt went out and its reply was lost
+    if m.command == codecs.tuning.writeCommand then
+      m.__sentAt = ticks
       profiles.pid, boardPid = 2, 1
     end
   end
   local sent = applyNow()
-  beforeSend, profiles.pid, boardPid = nil, 1, nil
-  check("the retry is not sent and nothing is committed", has(sent, codecs.tuning.writeCommand)
+  beforeSend, profiles.pid, boardPid, liveSensors = nil, 1, nil, false
+  check("the retry is not sent and nothing more is", not has(sent, codecs.tuning.writeCommand)
     and not has(sent, codecs.rates.writeCommand) and not has(sent, EEPROM), table.concat(sent, ","))
-  check("the pilot is told the save stopped and how to undo the part sent", changedFields(before) == "pid_0_F"
+  check("an attempt may have reached the board: the pilot is told to restart", changedFields(before) == ""
     and lastReport().message == T().profileStopped, lastReport().message)
+end
+
+print("Without the PID# and RTE# sensors a retry is withheld as a failed write; a first send goes out")
+do
+  resetFc()
+  openPage()
+  beforeSend = function(m)
+    if m.command == codecs.rates.writeCommand then m.__sentAt = ticks end
+  end
+  local sent = applyNow()
+  beforeSend = nil
+  check("the first write goes out, the retried one is withheld, nothing is committed",
+    has(sent, codecs.tuning.writeCommand) and not has(sent, codecs.rates.writeCommand) and not has(sent, EEPROM),
+    table.concat(sent, ","))
+  check("reported as a failed write, not as a profile change", lastReport().message == T().writeFailed,
+    lastReport().message)
+  resetFc()
+  openPage()
+  sent = applyNow()
+  check("(control) without the sensors a save with no retry writes and commits", has(sent, codecs.rates.writeCommand)
+    and has(sent, EEPROM) and lastReport().ok == true, table.concat(sent, ","))
+end
+
+print("A save goes on to its end when the page is closed after its first write")
+do
+  resetFc()
+  openPage()
+  local sent = applyNow(function(m)
+    if m.command == codecs.tuning.writeCommand and opened then Page.onClose(); opened = false end
+  end)
+  check("the remaining write and the EEPROM write go out after the close", has(sent, codecs.rates.writeCommand)
+    and has(sent, EEPROM), table.concat(sent, ","))
+  check("both writes reached the board", fc.tuning.pid_0_F == 96 and fc.rates.rcRates_1 == 23,
+    "F " .. tostring(fc.tuning.pid_0_F) .. " rates " .. tostring(fc.rates.rcRates_1))
 end
 
 print("A check reply too short to tell the profiles is a failed write, not a profile change")

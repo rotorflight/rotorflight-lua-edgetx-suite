@@ -71,10 +71,11 @@
 -- the save at that step with nothing more sent and no EEPROM commit: `check = "refused"` in the
 -- result when `holds` returned false (or raised), `check = "unanswered"` when it returned nil (a
 -- reply it cannot judge) or the read got no reply; a read lost without either ends at the
--- step backstop as a timeout. The optional `sendIf` is asked at every send of the write, its
--- retries included, and withholds it (`check = "refused"`) once it no longer returns true: it is
--- what the radio can tell without asking the board. A write acknowledged before such a stop has
--- reached the board (`sentAny`).
+-- step backstop as a timeout. The optional `sendIf(msg)` is asked at every send of the write, its
+-- retries included -- what the radio can tell without asking the board. Once it returns false
+-- (`check = "refused"`) or nil (`"unanswered"`, it cannot tell) the write is withheld for good, and
+-- a retry's bytes still buffered when an earlier attempt's reply completes it are dropped. A
+-- write acknowledged before such a stop has reached the board (`sentAny`).
 --
 -- Progress is exposed through getProgress() and drawn by whoever is on screen, which is the
 -- same split the start screen uses for the connect chain. Nothing here opens a native modal,
@@ -705,18 +706,21 @@ local function queueWrite(run, index, step, payload)
   end
   local sendIf = whileCurrent(run)
   local stillHolds = type(step.check) == "table" and step.check.sendIf or nil
-  local lapsed = false
+  local lapsed = nil
   if type(stillHolds) == "function" then
     -- Asked at every send of the write, the first and each retry: a retry after a lost reply goes
-    -- out only while the check's own condition still holds as far as the radio can tell.
+    -- out only while the check's own condition still holds as far as the radio can tell. Once it
+    -- lapses the write never goes out again, whatever a later call would say.
     local current = sendIf
-    sendIf = function()
+    sendIf = function(given)
+      if lapsed then return false end
       if not current() then return false end
-      local ok, holds = pcall(stillHolds)
+      local ok, holds = pcall(stillHolds, given)
       if not ok and isCpuLimitError(holds) then error(holds, 0) end
       if ok and holds == true then return true end
-      lapsed = true
-      logf("warn", "write withheld, its check no longer holds page=%s step=%d", tostring(run.desc.pageId), index)
+      lapsed = (ok and holds == nil) and "unanswered" or "refused"
+      logf("warn", "write withheld, its check %s page=%s step=%d",
+        lapsed == "refused" and "no longer holds" or "cannot be told", tostring(run.desc.pageId), index)
       return false
     end
   end
@@ -727,6 +731,9 @@ local function queueWrite(run, index, step, payload)
     isWrite = true,
     client = run.client,
     sendIf = sendIf,
+    -- Bytes of a retry still buffered when an earlier attempt's reply completes it are dropped, so
+    -- they cannot go out later, past the check
+    dropLeftoverOnComplete = type(stillHolds) == "function" or nil,
     processReply = function()
       if not isCurrent(run) then return end
       if not S.run.sentAny then
@@ -748,7 +755,7 @@ local function queueWrite(run, index, step, payload)
         S.run.sentAny = true
       end
       if lapsed then
-        finish("failed", { step = step.label or tostring(step.command), check = "refused" })
+        finish("failed", { step = step.label or tostring(step.command), check = lapsed })
         return
       end
       fail(step.label or tostring(step.command))
