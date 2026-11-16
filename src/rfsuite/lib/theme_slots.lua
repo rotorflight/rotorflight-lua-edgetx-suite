@@ -99,15 +99,28 @@ local function readMarker(path)
   return rows
 end
 
+-- True only once the card holds every row: io.write answers nil without raising when the card takes fewer
+-- bytes (full, a FAT error), and io.close says nothing, though the rows reach the card only there (they are
+-- less than a sector, held in the file's buffer until it closes), so the marker is read back. A short marker
+-- is left where it is: its rows are still the radio's colours, and the next apply writes it again.
 local function writeMarker(path, rows)
   if not path then return false end
   local f = io.open(path, "w")
   if not f then return false end
   for i = 1, #rows do
     local row = rows[i]
-    io.write(f, string.format("%d %d %d\n", row[1], row[2], row[3]))
+    if not io.write(f, string.format("%d %d %d\n", row[1], row[2], row[3])) then
+      io.close(f)
+      return false
+    end
   end
   io.close(f)
+  local back = readMarker(path)
+  if back == nil or #back ~= #rows then return false end
+  for i = 1, #rows do
+    local a, b = back[i], rows[i]
+    if a[1] ~= b[1] or a[2] ~= b[2] or a[3] ~= b[3] then return false end
+  end
   return true
 end
 
