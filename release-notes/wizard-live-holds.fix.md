@@ -1,1 +1,1 @@
-- Restore live switch ranges on Discard without redundant Save writes, keep servo output readings active during holds, shorten unanswered override refreshes, and stop PWM calibration when measured full throttle is interrupted (helicopter_setup).
+- **Helicopter Setup restores live switch ranges on Discard and stops PWM calibration when full throttle is interrupted (`helicopter_setup`)**

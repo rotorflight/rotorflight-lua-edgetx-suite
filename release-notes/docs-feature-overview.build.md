@@ -1,3 +1,1 @@
-- **A feature overview for the documentation site and the README (`docs/features.md`, `README.md`)**:
-  - `docs/features.md` lists what the suite does, one section per area, and links each feature to the page that describes it; the site lists it right after the menu.
-  - The README's feature list names the features added since it was last written — the Tune Advisor, the full-screen and customizable dashboards, the in-flight tuning preview, the Flight Log with its battery registry and the newer announcement categories — and points to the overview and the documentation site.
+- **The documentation site and the README gain a feature overview linking each feature to its page (`docs`)**

@@ -8,7 +8,10 @@
 -- clear never gets through before the next arm, that next flight also holds this one's data:
 -- the flight controller cannot tell. The clear owed then is not sent after the arm (nor across a
 -- link loss or a stretch with no pass, tasks/events/runtime.lua): it would erase the next flight
--- before it is read.
+-- before it is read. That reading is then saved marked as containing the saved flight, which the
+-- page leaves out rather than counting twice, when this capture can tell: no clear answered and
+-- no new link since that save, the same profiles and tune, more seconds and no count smaller
+-- (containsHeld). Nothing saved is ever removed for it; where it cannot tell, both are kept.
 --
 -- Three files, and the state of a capture in none of them:
 --   * The ondisarm task tasks/events/ondisarm/tasks/tune_history.lua (last in the ondisarm
@@ -39,6 +42,12 @@
 -- is owed. A flight controller that answers with an MSP error reply has no such command: the
 -- capture stays off until the next connection.
 --
+-- Without the PID# and RTE# telemetry sensors, MSP_STATUS is read once after the axes and before
+-- the save, so the flight is saved under the profiles the flight controller flies now (readProfiles);
+-- a read the queue dropped starts the reading again from the first axis, a read that fails is asked
+-- again as a failed axis read is (so is a status module that does not load), and a reply that cannot
+-- be read saves the flight without profiles.
+--
 -- After the flight is saved and the clear has gone through, RC_TUNING and PID_PROFILE are read
 -- and the cyclic polarity, the cyclic ring and the I-term relax type are added to the flight,
 -- since they change what its numbers mean; a value that could not be read stays unknown.
@@ -65,6 +74,7 @@ local CORE = _G.rfsuite.paths.core .. "/"
 -- module once the capture is idle. Held together they would be most of what the capture costs
 -- in memory, for steps that never need more than one of them.
 local TuneAdvisorApi, TuneHistory, ChangeJournal, RcTuningApi, PidProfileApi = nil, nil, nil, nil, nil
+local StatusApi = nil
 
 local function nowSeconds()
   if type(getTime) == "function" then
@@ -169,6 +179,8 @@ end
 
 local function clearReplies(tc)
   tc.replies = {}
+  tc.profilesRead = nil
+  tc.profilesUnknown = nil
   tc.saveDue = false
   tc.job = nil
 end
@@ -303,8 +315,11 @@ local function sendClear(tc, queue)
       if msg.__errorReply then handleError(tc, "nocommand"); return end
       tc.clearPending = false
       -- The statistics are gone from the flight controller: its next flight is a new one, even
-      -- with the same flight time as the one just saved
-      if tc.clearMcu ~= nil then tc.lastSeconds[tc.clearMcu] = nil end
+      -- with the same flight time as the one just saved, and contains none saved before
+      if tc.clearMcu ~= nil then
+        tc.lastSeconds[tc.clearMcu] = nil
+        if tc.held then tc.held[tc.clearMcu] = nil end
+      end
       tc.clearMcu = nil
       TuneAdvisorApi = nil
       waitFor(tc, tc.contextPending and GAP_SECONDS or 0)
@@ -331,6 +346,76 @@ local function activeProfiles()
   local okP, pid = pcall(Profile.getActivePidProfile)
   local okR, rate = pcall(Profile.getActiveRateProfile)
   return okP and pid or nil, okR and rate or nil
+end
+
+-- Whether both profiles come from the telemetry right now (PID#, RTE#). Without these sensors
+-- the session holds what the flight controller reported at connect, which a switch on the
+-- transmitter does not change.
+local function profilesLive()
+  local Profile = loadShared("lib/profile.lua")
+  if type(Profile) ~= "table" or type(Profile.getLive) ~= "function" then return false end
+  local okP, pid = pcall(Profile.getLive, "pid")
+  local okR, rate = pcall(Profile.getLive, "rate")
+  return okP and pid ~= nil and okR and rate ~= nil
+end
+
+-- Without the profile sensors: one MSP_STATUS read after the axes and before the save, so the
+-- flight is saved under the profiles the flight controller flies now, and the session -- what
+-- the Tune Advisor page takes for the active profiles -- follows a switch made on the
+-- transmitter. A read the queue dropped (a link loss, however short) is "cleared" as a dropped axis
+-- read is (handleError): the flight controller may have flown or restarted meanwhile, so the axes
+-- are read again before anything is saved or cleared. A read that fails on the link counts as a
+-- failed axis read does (failed): asked again RETRY_SECONDS later, and after MAX_FAILURES nothing more
+-- until the next disarm, with nothing saved and nothing cleared, so that disarm reads the flight
+-- again. The session's profiles are never taken instead: a switch on the transmitter does not
+-- change them. A reply that cannot be read would come back the same, so the flight is saved
+-- without profiles; such a flight is never combined with any.
+-- The rate profile index is byte 26 of MSP_STATUS (tasks/msp/api/status.lua). Its parser reads a
+-- missing byte as 0, so a reply cut shorter would name PID 1 and rates 1: it is taken as not
+-- understood instead.
+local STATUS_PROFILE_BYTES = 26
+
+local function readProfiles(tc, queue)
+  tc.busy = true
+  local api = StatusApi
+  queue:add({
+    command = api.command,
+    isWrite = false,
+    maxRetries = 2,
+    simulatorResponse = api.simulatorResponse,
+    processReply = function(_, buf)
+      local p = type(buf) == "table" and #buf >= STATUS_PROFILE_BYTES and api.parse(buf) or nil
+      local pid = p and tonumber(p.current_pid_profile_index)
+      local rate = p and tonumber(p.current_control_rate_profile_index)
+      if pid and rate then
+        local Profile = loadShared("lib/profile.lua")
+        if type(Profile) == "table" then
+          pcall(Profile.setSessionPidProfile, pid)
+          pcall(Profile.setSessionRateProfile, rate)
+        end
+        log(string.format("profiles read for the save: PID %s, rates %s", tostring(pid + 1), tostring(rate + 1)),
+          "debug")
+      else
+        log("profile read not understood; the flight is saved without profiles", "warn")
+        tc.profilesUnknown = true
+      end
+      tc.profilesRead = true
+      StatusApi = nil
+      waitFor(tc, GAP_SECONDS)
+      publishState(tc)
+    end,
+    errorHandler = function(_, reason)
+      StatusApi = nil
+      if reason == "cleared" then
+        log("profile read dropped by the queue; the axes are read again", "debug")
+        handleError(tc, "cleared")
+        return
+      end
+      log("profile read failed (" .. tostring(reason) .. "); asked again", "info")
+      failed(tc)
+      publishState(tc)
+    end,
+  })
 end
 
 -- The settings are read from the active profiles, so they are the flight's only while those are
@@ -364,6 +449,57 @@ local function readContext(tc, queue, api, onParsed)
   })
 end
 
+-- The counts the flight controller only ever adds to until its statistics are reset
+-- (src/main/flight/tune_advisor.c): a reading that holds a saved flight has none smaller than it.
+-- Not ffCount, which is the count of the best feedforward lag, and that lag can move.
+local GROWING = { "fullCount", "fullSatCount", "releases", "bigRebounds", "shakeCount" }
+
+-- What a later reading is checked against (held): per axis the tune bytes and the counts, in one
+-- array, with the profiles, the radio time and the seconds the flight was saved with
+local function heldOf(replies, tuneKeys, pid, rate, time, seconds)
+  local v, n = {}, 0
+  for axis = 1, AXIS_COUNT do
+    local a = replies[axis].a
+    for _, k in ipairs(tuneKeys) do n = n + 1; v[n] = a[k] end
+    for _, k in ipairs(GROWING) do n = n + 1; v[n] = a[k] or 0 end
+    for i = 1, 3 do
+      n = n + 1; v[n] = a.spBands[i].count
+      n = n + 1; v[n] = a.collBands[i].count
+    end
+  end
+  return { pid = pid, rate = rate, time = time, seconds = seconds, v = v }
+end
+
+-- Whether this reading holds the held flight as well: the flight controller was not cleared
+-- since it was saved (a clear the board answered drops it, and so does a new link -- a pack
+-- swapped restarts the board), it flew on the same profiles and tune (any change restarts its
+-- statistics), it counts more seconds, and none of its counts is smaller. False and the first
+-- test that failed otherwise.
+local function containsHeld(held, replies, tuneKeys, pid, rate, seconds)
+  if not held then return false, "no saved flight held" end
+  if pid == nil or rate == nil or pid ~= held.pid or rate ~= held.rate then return false, "profiles" end
+  if seconds <= held.seconds then return false, "seconds" end
+  local v, n = held.v, 0
+  for axis = 1, AXIS_COUNT do
+    local a = replies[axis].a
+    for _, k in ipairs(tuneKeys) do
+      n = n + 1
+      if a[k] ~= v[n] then return false, "tune" end
+    end
+    for _, k in ipairs(GROWING) do
+      n = n + 1
+      if (a[k] or 0) < v[n] then return false, "count" end
+    end
+    for i = 1, 3 do
+      n = n + 1
+      if a.spBands[i].count < v[n] then return false, "count" end
+      n = n + 1
+      if a.collBands[i].count < v[n] then return false, "count" end
+    end
+  end
+  return true
+end
+
 -- All three axes are in: save them as one flight. Each call is one pass: a module to load, or
 -- the save itself.
 local function finishCapture(tc, mcuId)
@@ -389,9 +525,27 @@ local function finishCapture(tc, mcuId)
     local job = tc.job
     if not job then
       local pid, rate = activeProfiles()
+      -- The flight controller's answer could not be read: no profiles rather than the session's
+      if tc.profilesUnknown then pid, rate = nil, nil end
       local time = ChangeJournal and ChangeJournal.timestamp and ChangeJournal.timestamp() or 0
       ChangeJournal = false       -- its clock was all the save needed of it
-      job = TuneHistory and TuneHistory.saveJob(mcuId, replies, { pidProfile = pid, rateProfile = rate }, time)
+      -- A flight saved before and not cleared off the board since: this reading may hold it too
+      local held = tc.held and tc.held[mcuId]
+      local previous = nil
+      -- Without the history module (it did not load) there is nothing to compare with: the save
+      -- below fails as a write does
+      if held and TuneHistory then
+        local contains, why = containsHeld(held, replies, TuneHistory.TUNE_KEYS, pid, rate, seconds)
+        if contains then
+          previous = { time = held.time, seconds = held.seconds }
+          log(string.format("reading of %s s holds the saved %s s flight: the board was not cleared", seconds,
+            held.seconds), "debug")
+        else
+          log("the saved flight is not held in this reading (" .. tostring(why) .. ")", "debug")
+        end
+      end
+      job = TuneHistory and TuneHistory.saveJob(mcuId, replies, { pidProfile = pid, rateProfile = rate }, time,
+        previous)
       if not job then
         writeFailed(tc, "module")
         return
@@ -409,6 +563,12 @@ local function finishCapture(tc, mcuId)
       return
     end
     tc.lastSeconds[mcuId] = seconds
+    tc.held = tc.held or {}
+    tc.held[mcuId] = heldOf(replies, TuneHistory.TUNE_KEYS, flown and flown.pidProfile, flown and flown.rateProfile,
+      job.time, seconds)
+    if job.marked then
+      log("flight saved as containing the one before it, which the advice now leaves out", "info")
+    end
     saved = true
   end
   clearReplies(tc)
@@ -514,7 +674,19 @@ function M.tick(tc, mspState, linkUp, now)
       tc.mcuId = mcuId
     end
     if tc.saveDue or #tc.replies >= AXIS_COUNT then
-      finishCapture(tc, tc.mcuId)
+      if tc.profilesRead or profilesLive() then
+        finishCapture(tc, tc.mcuId)
+      elseif StatusApi == nil then
+        StatusApi = loadPlain("tasks/msp/api/status.lua")
+      elseif StatusApi then
+        readProfiles(tc, queue)
+      else
+        -- No status module (low memory): as a failed read, loaded again on the next try, and
+        -- never the session's profiles in its place
+        log("status module not loaded; the profiles are asked again", "info")
+        StatusApi = nil
+        failed(tc)
+      end
     else
       requestAxis(tc, queue, #tc.replies + 1)
     end

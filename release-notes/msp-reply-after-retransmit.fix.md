@@ -1,1 +1,1 @@
-- MSP queue: for one reply window of at most 2 s after a request that was sent again, given up or cleared, a late answer no longer completes the next request with the same command, which could store one servo's or profile's values under the next; an answer later than that window is still not caught (`tasks/msp/queue.lua`)
+- **A late MSP answer within the reply window (at most 2 s) of a resent or dropped request no longer stores one servo's or profile's values under the next; a later one still can (`tasks/msp/queue`)**
