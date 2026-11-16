@@ -150,7 +150,8 @@ the values move to the flight controller's rows by themselves.
   sensor, which the native telemetry creates and the suite never does. On such a model the suite
   lists the model's sensors about two seconds after each connection, and again when a search meets
   a sensor that has never received anything while one has been added since; a model without
-  `RxBt` reads every name as before.
+  `RxBt` reads every name as before. A lost link keeps the list -- the model's sensors have not
+  changed -- so it is not made again in the seconds after the link goes.
 - **A sensor added after that list is noticed by a search.** On a model that meets custom
   telemetry for the first time while the native rows still hold a value -- the telemetry mode
   changed with the radio left on -- the values stay on the native rows until the next connection.

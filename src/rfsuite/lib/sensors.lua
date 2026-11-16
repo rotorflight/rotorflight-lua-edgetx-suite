@@ -163,6 +163,7 @@ local function walkSlots()
   end
   local labels = {}
   for label in pairs(names) do labels[#labels + 1] = label end
+  if debugWanted() then debugLog(nil, "slot walk: " .. i .. " slots, " .. #labels .. " duplicate labels") end
   for _, label in ipairs(labels) do
     local slots = slotsOf[label]
     local plain, high, low = {}, {}, {}
@@ -1026,7 +1027,16 @@ function Sensors.getLiveValue(source)
 end
 
 -- Flush cached sensor paths and miss / probe timers (e.g. on model disconnect/reconnect).
-function Sensors.reset()
+--
+-- `reason` "link_lost" keeps the slot walk (duplicateNames, firstEmptySlot): a link that drops
+-- changes nothing in the model's sensor table, and a walk SLOT_WALK_DELAY_SECONDS after the
+-- edge lands on the passes that already carry the link-down work -- the event runtime publishes
+-- the disconnect DISCONNECT_STABLE_SECONDS (also 2 s) after the same edge, and every source
+-- searches again. A sensor added while the link is down is still found by rewalkIfTableGrew, and
+-- the reset at the reconnect walks the table afresh. Where no walk has happened yet -- the link
+-- went within two seconds of coming up -- none is started until that reconnect either, and the
+-- labels are read as they are before any walk.
+function Sensors.reset(reason)
   -- The level is asked again after a reset, so a level changed on the radio reaches these lines at
   -- the next connect rather than at the next start.
   debugEnabled = nil
@@ -1066,9 +1076,20 @@ function Sensors.reset()
       valueMisses[k] = nil
     end
   end
+  if reason == "link_lost" and duplicateNames ~= nil then
+    if debugWanted() then
+      debugLog(nil, "reset on link loss: slot walk kept (" .. (duplicateNames and "duplicates" or "none possible") .. ")")
+    end
+    return
+  end
   duplicateNames = nil
   firstEmptySlot = nil
   slotWalkAt = nil
+  if reason == "link_lost" then
+    -- No walk on record: none until the reconnect's reset, which clears this.
+    slotWalkAt = math.huge
+    if debugWanted() then debugLog(nil, "reset on link loss: no slot walk yet, it waits for the reconnect") end
+  end
 end
 
 -- Get all 4-char sensor names (for tool enumeration)
