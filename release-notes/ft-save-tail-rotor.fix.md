@@ -1,3 +1,1 @@
-- **Tail Rotor reports the result of its save (`app/pages/flight_tuning/advanced/tail_rotor/page.lua`, `docs/pages/flight_tuning/advanced/tail_rotor.md`)**:
-  - The PID profile write, the governor profile write when available, and one EEPROM commit use the shared save, with payloads built when Save is pressed. A refused or unanswered write or commit now reports a failure instead of the save ending without a word (#594).
-  - A successful save clears the unsaved change and reads the page again if it is still open, without rebooting the flight controller. The help follows the on-screen labels and setting order, including Inertia Precomp.
+- **Tail Rotor reports a failed save instead of ending without a word (`flight_tuning/advanced/tail_rotor`)** (#594)

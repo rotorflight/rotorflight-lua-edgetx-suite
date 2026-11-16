@@ -1,3 +1,1 @@
-- **A quick start and a page on the background service (`README.md`, `docs/dashboard/service-widget.md`)**:
-  - The README says what to do after installing: add the *RFSuite* dashboard widget, which runs the background work itself, or, without the dashboard, the *RFSuite Service* widget.
-  - The new page explains what runs the background work, which widget to add to a model, what the service tile shows, and what to avoid: both widgets on one model, relying on the tool alone, and skipping the restart after an install.
+- **The README gains a quick start, and the documentation a page on the background service widget (`docs`)**
