@@ -953,15 +953,20 @@ end
 -- "gone": the sensor answered on the first connection and never again (another flight controller
 -- on the model, or the sensor taken off its telemetry list). The first reconnect on a guess that
 -- differs waits out the limit once and forgets the sensor's count; the next reconnect is not held.
-do
-  if trace then print("scenario: guessed cell count gone") end
+-- "gone stale": the same, while the pack voltage has not answered either, so the guess comes from
+-- the voltage the last connection left behind and no count is in use; the count is forgotten all
+-- the same.
+local function sensorGone(stale)
+  local label = stale and "gone stale" or "gone"
+  if trace then print("scenario: guessed cell count " .. label) end
   local world = newWorld()
   FC.replies[32][3] = 0
   Stubs.sensors["Vbat"] = 22.0
   connectAndSettle(world)
-  expect(world.w.state.cellSensorCount == 6, "gone: control: the sensor's count is kept from the first connection",
+  expect(world.w.state.cellSensorCount == 6, label .. ": control: the sensor's count is kept from the first connection",
     tostring(world.w.state.cellSensorCount))
   Stubs.sensors["Cel#"] = 0
+  if stale then Stubs.sensors["Vbat"] = nil end
   local function reconnect()
     world.linkUp = false
     passes(world, 30, "down")
@@ -976,14 +981,21 @@ do
     return first.pass and readyPass and (first.pass - readyPass) or nil
   end
   local wait1 = reconnect()
+  if stale then
+    expect(world.w.state.batteryCellCount == 0 and world.w.state.batteryCellSource == nil,
+      label .. ": control: no count is in use, the guess is the left-behind voltage's",
+      tostring(world.w.state.batteryCellCount) .. ", " .. tostring(world.w.state.batteryCellSource))
+  end
   expect(wait1 ~= nil and wait1 > 14 and wait1 <= 60,
-    "gone: the first reconnect waits for the sensor, not past the limit", tostring(wait1) .. " pass(es) after ready")
-  expect(world.w.state.cellSensorCount == nil, "gone: the silent sensor's count is forgotten after the wait",
+    label .. ": the first reconnect waits for the sensor, not past the limit", tostring(wait1) .. " pass(es) after ready")
+  expect(world.w.state.cellSensorCount == nil, label .. ": the silent sensor's count is forgotten after the wait",
     tostring(world.w.state.cellSensorCount))
   local wait2 = reconnect()
-  expect(wait2 ~= nil and wait2 <= 14, "gone: the next reconnect is not held for a sensor that stays silent",
+  expect(wait2 ~= nil and wait2 <= 14, label .. ": the next reconnect is not held for a sensor that stays silent",
     tostring(wait2) .. " pass(es) after ready")
 end
+sensorGone(false)
+sensorGone(true)
 
 for _, k in ipairs({ 0, 5, 9, 10, 11, 20, 40 }) do guessReconnect("guess", k) end
 guessReconnect("late", 70)

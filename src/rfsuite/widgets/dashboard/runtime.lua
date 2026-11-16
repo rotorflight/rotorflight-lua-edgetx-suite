@@ -2926,9 +2926,11 @@ local function updateConnectionState(self)
       -- A wait that ran out on a guessed count: the cell count sensor did not answer, so the count
       -- it gave on an earlier connection is forgotten. Another flight controller on this model, or
       -- one that no longer sends the sensor, would otherwise hold every later connect for the full
-      -- five seconds; the next connect waits again only once the sensor has answered.
+      -- five seconds; the next connect waits again only once the sensor has answered. The guess is
+      -- the one the wait was held on (updateVoltageThemeConfig), which also covers a guess from the
+      -- voltage the last connection left behind, before any count of this one is in use.
       if not boundsHold and rawReady and self._voltageBoundsPending == true
-        and self.state.batteryCellSource == "voltage" and self.state.cellSensorCount ~= nil then
+        and self._voltageCellsGuessed == true and self.state.cellSensorCount ~= nil then
         if Log and type(Log.emitf) == "function" then
           Log.emitf("rfsuite.widget", "debug", "cell count sensor silent through the wait, its last count %s is forgotten",
             tostring(self.state.cellSensorCount))
