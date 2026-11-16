@@ -32,9 +32,9 @@ _G.rfsuite.utils.releaseChunksUnder = function(prefix)
       -- The chunk goes before its entry, and a load lists a path before it keeps the chunk: a
       -- pass stopped between the two writes then leaves at worst an entry with no chunk, never
       -- a kept chunk that no later release can find.
+      if chunkCache[path] ~= nil then released = released + 1 end
       chunkCache[path] = nil
       pageChunkPaths[path] = nil
-      released = released + 1
     end
   end
   return released

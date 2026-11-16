@@ -179,9 +179,9 @@ local function installLoader(host)
           -- The chunk goes before its entry, and a load lists a path before it keeps the chunk:
           -- the CPU limit can stop this state between any two writes, and the worst it leaves
           -- is an entry with no chunk, never a kept chunk that no later release can find.
+          if chunks[path] ~= nil then released = released + 1 end
           chunks[path] = nil
           pageChunkPaths[path] = nil
-          released = released + 1
         end
       end
       return released
