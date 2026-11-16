@@ -202,10 +202,15 @@ local function sweep(label, makeLoader)
   repeat
     n = n + 1
     local load, release = makeLoader()
-    load(WIZARD_FILE, "t")
+    -- The kept chunk is watched weakly, from a helper, so nothing in this frame holds it.
+    local weak = setmetatable({}, { __mode = "k" })
+    local function watch() weak[load(WIZARD_FILE, "t")] = true end
+    watch()
     local ok = stopAt(n, release, release, WIZARD)
     if not ok then stopped = stopped + 1 end
-    release(WIZARD)
+    local kept = not collected(weak)
+    equal(release(WIZARD), kept and 1 or 0,
+      label .. " release stopped at instruction " .. n .. ": the next release counts only a chunk still kept")
     load(WIZARD_FILE, "t")
     equal(reads[WIZARD_FILE], 2, label .. " release stopped at instruction " .. n .. ": the next load reads the card")
   until ok or n >= 200
