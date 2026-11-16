@@ -80,17 +80,34 @@ _G.del = function(path) return os.remove(path) and 0 or 4 end
 local stdio = io
 local writeFailAfter = nil   -- io.write raises once this many more calls have gone through
 local openFails = 0          -- io.open answers nil this many more times (a card that does not answer)
+local writeNilAfter = nil    -- io.write answers nil, as EdgeTX does for a short write, once this many went through
+local closeLoses = false     -- the next io.close leaves the file empty (what it buffered never reached the card)
+local openPaths = setmetatable({}, { __mode = "k" })
 _G.io = {
   open = function(path, mode)
     if openFails > 0 then openFails = openFails - 1; return nil end
-    return stdio.open(path, mode)
+    local f = stdio.open(path, mode)
+    if f then openPaths[f] = path end
+    return f
   end,
-  close = function(f) return f:close() end,
+  close = function(f)
+    local result = f:close()
+    if closeLoses and openPaths[f] then
+      closeLoses = false
+      local g = stdio.open(openPaths[f], "w")
+      g:close()
+    end
+    return result
+  end,
   read = function(f, n) return f:read(n) end,
   write = function(f, s)
     if writeFailAfter then
       if writeFailAfter == 0 then writeFailAfter = nil; error("instruction limit") end
       writeFailAfter = writeFailAfter - 1
+    end
+    if writeNilAfter then
+      if writeNilAfter == 0 then writeNilAfter = nil; return nil, "disk full" end
+      writeNilAfter = writeNilAfter - 1
     end
     return f:write(s)
   end,
@@ -514,6 +531,37 @@ do
   end
   check(tries == 3, "an unread marker is tried three times per pause, not on every pass (" .. tries .. ")")
   rfsuite.require("lib/theme_slots.lua").recover()
+  resetRadio()
+end
+
+-- 21. A marker the card did not take whole is not kept: a row io.write refuses (it answers nil, without raising,
+--     for a short write) or rows a close lost (they reach the card only there) leave the marker owed, and the next
+--     apply writes it again rather than taking the short one for the radio's colours.
+do
+  local function markerRows()
+    local n = 0
+    local f = stdio.open(MARKER, "r")
+    if f == nil then return 0 end
+    for _ in f:lines() do n = n + 1 end
+    f:close()
+    return n
+  end
+  T = load()
+  writeNilAfter = 1
+  check(T.apply("dark") == true, "control: a marker row the card refuses leaves the slots written")
+  check(writeNilAfter == nil and markerRows() < #T.SLOTS, "control: the refused row leaves a short marker (" .. markerRows() .. " rows)")
+  T.apply("light")
+  check(markerRows() == #T.SLOTS, "the next apply writes the marker again after a refused row (" .. markerRows() .. " rows)")
+  T.restore("test")
+  resetRadio()
+
+  T = load()
+  closeLoses = true
+  T.apply("dark")
+  check(closeLoses == false and markerRows() == 0, "control: a close that lost the rows leaves an empty marker")
+  T.apply("light")
+  check(markerRows() == #T.SLOTS, "the next apply writes the marker again after a close lost it (" .. markerRows() .. " rows)")
+  T.restore("test")
   resetRadio()
 end
 
