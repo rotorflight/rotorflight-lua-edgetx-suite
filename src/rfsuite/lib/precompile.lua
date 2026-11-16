@@ -45,6 +45,11 @@ local STAMP_LIMIT = 64
 -- to revisit is STATS_PER_STEP, once the cost of a timestamp on a real card has been measured.
 local DIRS_PER_STEP = 8
 local STATS_PER_STEP = 16
+-- Every entry counts as well, a picture included: a picture costs no timestamp, so a directory of a
+-- hundred of them (the rolling quick menu's icons, one folder per colour) used to be taken whole in one
+-- call, and the most expensive call of the pass came to about 12 600 of the module's own instructions
+-- in a desktop count. With this cap it stays under 4 500.
+local ENTRIES_PER_STEP = 48
 local FILES_PER_STEP = 1
 local GC_EVERY = 8
 
@@ -258,6 +263,7 @@ end
 local function walk()
   local dirsTaken = 0
   local statsTaken = 0
+  local entriesTaken = 0
 
   while true do
     local cursor = state.cursor
@@ -279,7 +285,8 @@ local function walk()
 
     while cursor.index <= #cursor.entries do
       statsTaken = statsTaken + takeEntry(cursor)
-      if statsTaken >= STATS_PER_STEP then
+      entriesTaken = entriesTaken + 1
+      if statsTaken >= STATS_PER_STEP or entriesTaken >= ENTRIES_PER_STEP then
         return
       end
     end
