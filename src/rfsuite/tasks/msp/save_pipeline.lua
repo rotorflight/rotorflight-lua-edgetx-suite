@@ -64,13 +64,17 @@
 -- label. EdgeTX's instruction-limit stop is raised on instead, before anything is changed, so
 -- the queue keeps the previous write's reply handler current and runs it again on a later pass.
 --
--- A step may also carry `check = { command = <read command>, holds = function(buf) -> boolean }`
+-- A step may also carry `check = { command = <read command>, holds = function(buf), sendIf = fn }`
 -- for a write that is only right while something on the board stays as it was -- a write that
 -- lands on whichever profile is active, for one. The read goes out right before that step's
 -- write, and the write is sent only when `holds` returns true for the reply. Anything else ends
 -- the save at that step with nothing more sent and no EEPROM commit: `check = "refused"` in the
--- result when the answer did not hold (or `holds` raised), `check = "unanswered"` when the read
--- got no reply. A write acknowledged before such a stop has reached the board (`sentAny`).
+-- result when `holds` returned false (or raised), `check = "unanswered"` when it returned nil (a
+-- reply it cannot judge) or the read got no reply; a read lost without either ends at the
+-- step backstop as a timeout. The optional `sendIf` is asked at every send of the write, its
+-- retries included, and withholds it (`check = "refused"`) once it no longer returns true: it is
+-- what the radio can tell without asking the board. A write acknowledged before such a stop has
+-- reached the board (`sentAny`).
 --
 -- Progress is exposed through getProgress() and drawn by whoever is on screen, which is the
 -- same split the start screen uses for the connect chain. Nothing here opens a native modal,
@@ -699,13 +703,30 @@ local function queueWrite(run, index, step, payload)
     fail(step.label or tostring(step.command))
     return
   end
+  local sendIf = whileCurrent(run)
+  local stillHolds = type(step.check) == "table" and step.check.sendIf or nil
+  local lapsed = false
+  if type(stillHolds) == "function" then
+    -- Asked at every send of the write, the first and each retry: a retry after a lost reply goes
+    -- out only while the check's own condition still holds as far as the radio can tell.
+    local current = sendIf
+    sendIf = function()
+      if not current() then return false end
+      local ok, holds = pcall(stillHolds)
+      if not ok and isCpuLimitError(holds) then error(holds, 0) end
+      if ok and holds == true then return true end
+      lapsed = true
+      logf("warn", "write withheld, its check no longer holds page=%s step=%d", tostring(run.desc.pageId), index)
+      return false
+    end
+  end
   local msg
   msg = {
     command = step.command,
     payload = payload,
     isWrite = true,
     client = run.client,
-    sendIf = whileCurrent(run),
+    sendIf = sendIf,
     processReply = function()
       if not isCurrent(run) then return end
       if not S.run.sentAny then
@@ -725,6 +746,10 @@ local function queueWrite(run, index, step, payload)
         logf("debug", "write unanswered after it was sent page=%s step=%d reason=%s",
           tostring(S.run.desc.pageId), index, tostring(reason))
         S.run.sentAny = true
+      end
+      if lapsed then
+        finish("failed", { step = step.label or tostring(step.command), check = "refused" })
+        return
       end
       fail(step.label or tostring(step.command))
     end,
@@ -758,9 +783,11 @@ local function queueCheck(run, index, step, payload, queue)
         queueWrite(run, index, step, payload)
         return
       end
-      logf("warn", "check refused the write page=%s step=%d err=%s", tostring(run.desc.pageId), index,
-        ok and "-" or tostring(holds))
-      finish("failed", { step = label, check = "refused" })
+      -- nil: the reply could not be judged (too short, unreadable), which is not a "no"
+      local outcome = (ok and holds == nil) and "unanswered" or "refused"
+      logf("warn", "check %s the write page=%s step=%d err=%s", outcome == "refused" and "refused" or "could not judge",
+        tostring(run.desc.pageId), index, ok and "-" or tostring(holds))
+      finish("failed", { step = label, check = outcome })
     end,
     errorHandler = function(_, reason)
       if not isCurrent(run) then return end

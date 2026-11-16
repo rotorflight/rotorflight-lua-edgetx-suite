@@ -1491,16 +1491,20 @@ end
 
 -- Every write lands on the profile active when it arrives, so before each one the flight controller
 -- is asked again (the pipeline's step check): its status reply and the radio's profile sensors must
--- still name the profiles the advice was worked out for.
+-- still name the profiles the advice was worked out for. nil when the reply cannot tell.
 local function profilesHold(tune, buf)
   if type(buf) ~= "table" or #buf < 27 then
     pageLog("warn", "status reply before a write too short (%s bytes); save stopped",
       tostring(type(buf) == "table" and #buf))
-    return false
+    return nil
   end
   local status = StatusApi.parse(buf)
-  local boardPid = status and status.current_pid_profile_index + 1
-  local boardRate = status and status.current_control_rate_profile_index + 1
+  if not status then
+    pageLog("warn", "status reply before a write unreadable; save stopped")
+    return nil
+  end
+  local boardPid = status.current_pid_profile_index + 1
+  local boardRate = status.current_control_rate_profile_index + 1
   local pid, rate = currentProfiles()
   if boardPid == tune.pidProfile and boardRate == tune.rateProfile and pid == tune.pidProfile
       and rate == tune.rateProfile then
@@ -1542,7 +1546,16 @@ local function buildSteps(snapshot, records, buffers)
     end
     if payload then steps[#steps + 1] = { label = spec.label, command = spec.api.writeCommand, payload = payload } end
   end
-  local check = { command = StatusApi.command, holds = function(buf) return profilesHold(snapshot.tune, buf) end }
+  local tune = snapshot.tune
+  local check = {
+    command = StatusApi.command,
+    holds = function(buf) return profilesHold(tune, buf) end,
+    -- A retry of a write after a lost reply is not checked by the board again; the sensors are asked
+    sendIf = function()
+      local pid, rate = currentProfiles()
+      return pid == tune.pidProfile and rate == tune.rateProfile
+    end
+  }
   for _, step in ipairs(steps) do step.check = check end
   return steps
 end

@@ -300,6 +300,7 @@ end
 
 -- One pass as the tool makes it: a build when one was asked for, the page's wakeup, the
 -- pipeline's wakeup, then the flight controller answers the oldest request.
+local beforeSend = nil            -- called with each message before the queue asks its sendIf
 local function pass(reply, sent)
   ticks = ticks + 5
   if wantBuild then build() end
@@ -308,6 +309,13 @@ local function pass(reply, sent)
   note()
   local m = table.remove(queue.entries, 1)
   if not m then return false end
+  if beforeSend then beforeSend(m) end
+  -- As the suite's queue does at every send: a message whose sendIf is not true is withheld
+  if m.sendIf and m.sendIf(m) ~= true then
+    if m.errorHandler then m.errorHandler(m, "withheld") end
+    note()
+    return true
+  end
   sent[#sent + 1] = m.command
   local custom = reply and reply(m)
   if custom == "error" then
@@ -548,6 +556,58 @@ do
   end)
   check("the second write is not sent and nothing is committed", has(sent, codecs.tuning.writeCommand)
     and not has(sent, codecs.rates.writeCommand) and not has(sent, EEPROM), table.concat(sent, ","))
+  check("reported as a failed write", lastReport().message == T().writeFailed, lastReport().message)
+end
+
+print("A switch the radio sees before a write goes out withholds that write")
+do
+  resetFc()
+  openPage()
+  local before = snapshot()
+  -- The check before the first write held; then the sensor reads PID 2 while the board still answers PID 1
+  beforeSend = function(m)
+    if m.command == codecs.tuning.writeCommand then profiles.pid, boardPid = 2, 1 end
+  end
+  local sent = applyNow()
+  beforeSend, profiles.pid, boardPid = nil, 1, nil
+  check("the write is withheld and nothing more is sent", not has(sent, codecs.tuning.writeCommand)
+    and not has(sent, codecs.rates.writeCommand) and not has(sent, EEPROM), table.concat(sent, ","))
+  check("nothing changed on the board, reported as nothing changed", changedFields(before) == ""
+    and lastReport().message == T().changed, lastReport().message)
+end
+
+print("A retry after a lost reply is withheld once the radio sees the switch")
+do
+  resetFc()
+  openPage()
+  local before = snapshot()
+  beforeSend = function(m)
+    if m.command == codecs.rates.writeCommand then
+      m.__sentAt = ticks            -- an earlier attempt went out and its reply was lost
+      profiles.pid, boardPid = 2, 1
+    end
+  end
+  local sent = applyNow()
+  beforeSend, profiles.pid, boardPid = nil, 1, nil
+  check("the retry is not sent and nothing is committed", has(sent, codecs.tuning.writeCommand)
+    and not has(sent, codecs.rates.writeCommand) and not has(sent, EEPROM), table.concat(sent, ","))
+  check("the pilot is told the save stopped and how to undo the part sent", changedFields(before) == "pid_0_F"
+    and lastReport().message == T().profileStopped, lastReport().message)
+end
+
+print("A check reply too short to tell the profiles is a failed write, not a profile change")
+do
+  resetFc()
+  openPage()
+  local statusReads = 0
+  local sent = applyNow(function(m)
+    if m.command == codecs.status.command then
+      statusReads = statusReads + 1
+      if statusReads == 2 then return { 1, 2, 3 } end
+    end
+  end)
+  check("no write is sent", not has(sent, codecs.tuning.writeCommand) and not has(sent, EEPROM),
+    table.concat(sent, ","))
   check("reported as a failed write", lastReport().message == T().writeFailed, lastReport().message)
 end
 
