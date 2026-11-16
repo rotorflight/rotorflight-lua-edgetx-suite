@@ -363,6 +363,8 @@ local SHM_PASS_WRAP = 0x400000
 -- Nothing here tests the debug level. Log.emitf does that, and below "trace" the line is neither
 -- printed, nor put in the session ring, nor written to the card.
 local function traceInstructionUsage(self)
+  -- Set again below once this pass is timed; a pass that returns before that leaves no hole to act on.
+  self._passGap = nil
   if type(getUsage) ~= "function" then return end
   local ok, percent = pcall(getUsage)
   if not ok then return end
@@ -459,10 +461,14 @@ local function traceInstructionUsage(self)
   -- second read behind and the line says -1 rather than guessing: killed by the instruction limit
   -- is exactly the case worth telling apart.
   --
-  -- The cost on an ordinary pass is one field read, one field write and one comparison; the
-  -- arithmetic and the formatting are inside the branch, which on a healthy radio is never taken.
+  -- The cost on an ordinary pass is one field read, two field writes (three with `_passGap`'s reset at the
+  -- top), a subtraction and one comparison; the formatting is inside the branch, which on a healthy radio
+  -- is never taken.
   local lastPassAt = self._passAt
   self._passAt = now
+  -- The hole in front of THIS pass, for work that can wait a pass (menu_roll.lua, a rest of the
+  -- wheel): a pass after a long hole catches up on what the hole held back, and that is billed here.
+  self._passGap = lastPassAt and (now - lastPassAt) or 0
   if lastPassAt and (now - lastPassAt) > PASS_GAP_REPORT
     and Log and type(Log.emitf) == "function" then
     local endAt = self._passEndAt
@@ -2400,7 +2406,7 @@ end
 -- what this function did unconditionally before. Three cases answer nil:
 --
 --   * no stamp on one side, or a shape change (one side carrying a per-model half, the other
---     not). There is nothing to compare half against half;
+--     not) other than the one below. There is nothing to compare half against half;
 --   * both halves differ, which needs no attribution;
 --   * **the changed half's TIMESTAMP did not move.** That is the case this test exists for. A
 --     half is `<size>:<time>`, and a file can change without its stamp moving if the clock is
@@ -2409,6 +2415,15 @@ end
 --     file is unchanged while the clock is demonstrably running, and the changed half's own
 --     timestamp is what demonstrates it. Where only a SIZE moved, the clock has proved nothing
 --     and both files are read.
+--
+-- The one shape change that is answered: the per-model half APPEARING beside a global half that
+-- has not moved. That is the first connect after the radio is switched on -- the widget took its
+-- first look with no board identified, and the board's file is addressed once its UID is read --
+-- and reading the global file again there re-parses bytes nobody wrote, in the pass the connect
+-- work already fills. It is marked `appeared`, because no timestamp of the model's proves the
+-- clock is running here: the caller withdraws it when the reload request moved in the same look,
+-- which is the signal a same-size save with a stopped clock leaves, and takes the stamp as the
+-- baseline without reading anything where the session already holds that file's preferences.
 local function stampTime(half)
   return string.match(half or "", "^[^:]*:(.*)$")
 end
@@ -2419,6 +2434,9 @@ local function changedHalves(oldStamp, newStamp)
   local oldGlobal, oldModel = string.match(oldStamp, "^([^|]*)|?(.*)$")
   local newGlobal, newModel = string.match(newStamp, "^([^|]*)|?(.*)$")
   if oldGlobal == nil or newGlobal == nil then return nil end
+  if oldModel == "" and newModel ~= "" and oldGlobal == newGlobal then
+    return { global = false, model = true, appeared = true }
+  end
   if (oldModel == "") ~= (newModel == "") then return nil end
 
   local globalMoved = oldGlobal ~= newGlobal
@@ -2536,6 +2554,7 @@ reloadPreferencesIfNeeded = function(self, force, isBackground)
     --    the trigger.
     if type(fstat) == "function" then
       local reqPaths = reloadRequestPaths()
+      local seqMoved = false
       for i = 1, #reqPaths do
         local reqPath = reqPaths[i]
         local ok, info = pcall(fstat, reqPath)
@@ -2551,7 +2570,26 @@ reloadPreferencesIfNeeded = function(self, force, isBackground)
         elseif seq ~= lastSeq then
           logGv("reloadPreferencesIfNeeded: %s sequence changed (%s -> %s)", reqPath, tostring(lastSeq), tostring(seq))
           signalReload = true
+          seqMoved = true
         end
+      end
+      -- A model file that has only just appeared in the stamp says nothing about the global file
+      -- by its own clock (see changedHalves). A save names no file when the reload request moves
+      -- with it, so both are read then, as before.
+      -- Where nothing moved but the model's file joining the stamp, the session already holds what
+      -- that file says: the board's UID read loaded the preferences and set the path together, from
+      -- the same read, and every writer of that file moves the reload request. That is the state a
+      -- reconnect is in, which reloads nothing, so the stamp is taken as the baseline here too
+      -- rather than read again in the pass the connect work already fills.
+      if seqMoved and halves and halves.appeared then
+        halves = nil
+        logGv("reloadPreferencesIfNeeded: the reload request moved with the model's file appearing, both files are read")
+      elseif halves and halves.appeared and type(session) == "table"
+        and type(session.modelPreferences) == "table" and session.modelPreferencesFile ~= nil then
+        self._lastPrefsStamp = stamp
+        signalReload = false
+        halves = nil
+        logGv("reloadPreferencesIfNeeded: the model's file joined the stamp with its preferences in hand, taken as the baseline")
       end
     else
       logGv("reloadPreferencesIfNeeded: fstat unavailable")
@@ -2928,7 +2966,8 @@ local function updateConnectionState(self)
   -- fuel reading alone, before this connection has heard a pack voltage or a cell count, so the
   -- first scene would be built on the theme's defaults and again a moment later.
   -- updateVoltageThemeConfig marks exactly that state (`_voltageBoundsPending`: the defaults in
-  -- hand and no count), and the gate's FIRST opening waits for the count -- for at most
+  -- hand and no count, or a count guessed from the pack voltage that differs from the last one
+  -- the cell count sensor gave), and the gate's FIRST opening waits for the count -- for at most
   -- five seconds from the moment everything else was ready, so a model that never reports
   -- a pack voltage still gets its dashboard. The wait overlaps the reconnect hold rather than
   -- adding to it, and a gate that is already open is never shut by it -- nor pays for it: an open
@@ -2942,7 +2981,8 @@ local function updateConnectionState(self)
       self._boundsHold = boundsHold
       if Log and type(Log.emitf) == "function" then
         if boundsHold then
-          Log.emitf("rfsuite.widget", "debug", "first build waits for a cell count (voltage bounds %s/%s)",
+          Log.emitf("rfsuite.widget", "debug", "first build waits for a cell count (in hand %s from %s, voltage bounds %s/%s)",
+            tostring(self.state.batteryCellCount), tostring(self.state.batteryCellSource),
             tostring(self.state.themeConfig and self.state.themeConfig.v_min),
             tostring(self.state.themeConfig and self.state.themeConfig.v_max))
         elseif not rawReady then
@@ -2954,6 +2994,20 @@ local function updateConnectionState(self)
           Log.emitf("rfsuite.widget", "info", "no cell count after %.1f s, the dashboard is built on the theme's voltage bounds",
             now - (self.readySince or now))
         end
+      end
+      -- A wait that ran out on a guessed count: the cell count sensor did not answer, so the count
+      -- it gave on an earlier connection is forgotten. Another flight controller on this model, or
+      -- one that no longer sends the sensor, would otherwise hold every later connect for the full
+      -- five seconds; the next connect waits again only once the sensor has answered. The guess is
+      -- the one the wait was held on (updateVoltageThemeConfig), which also covers a guess from the
+      -- voltage the last connection left behind, before any count of this one is in use.
+      if not boundsHold and rawReady and self._voltageBoundsPending == true
+        and self._voltageCellsGuessed == true and self.state.cellSensorCount ~= nil then
+        if Log and type(Log.emitf) == "function" then
+          Log.emitf("rfsuite.widget", "debug", "cell count sensor silent through the wait, its last count %s is forgotten",
+            tostring(self.state.cellSensorCount))
+        end
+        self.state.cellSensorCount = nil
       end
     end
   end
@@ -4285,9 +4339,17 @@ readTelemetry = function(state, audioState)
     state.mainPowerLost = DashboardAudio.mainPowerLost(state, audioState)
   end
 
+  -- Where the count in use came from, kept beside it: "sensor", "config" or "voltage". A count
+  -- from the voltage is a guess; the last count the sensor gave is kept across connections
+  -- (`cellSensorCount`, forgotten when a wait for it runs out), and a guess that differs from it
+  -- holds the gate's first opening for the sensor's answer (updateVoltageThemeConfig). Logged when the count or its source changes,
+  -- never per pass.
+  local cellsBefore, cellSourceBefore = state.batteryCellCount, state.batteryCellSource
   local batteryCellCountValue = getSensor("battery_cell_count")
   if type(batteryCellCountValue) == "number" and batteryCellCountValue > 0 then
     setField("batteryCellCount", roundInt(batteryCellCountValue, state.batteryCellCount or 0))
+    state.batteryCellSource = "sensor"
+    state.cellSensorCount = state.batteryCellCount
   elseif type(voltageValue) == "number" and voltageValue > 0 then
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
     local batteryConfig = session and (session.batteryConfig or session.battery_config) or nil
@@ -4299,6 +4361,7 @@ readTelemetry = function(state, audioState)
     local configuredCells = tonumber(batteryConfig and batteryConfig.batteryCellCount)
     if configuredCells and configuredCells > 0 then
       setField("batteryCellCount", roundInt(configuredCells, state.batteryCellCount or 0))
+      state.batteryCellSource = "config"
     else
       -- Otherwise infer it from the battery config's max cell voltage. A voltage below half a
       -- cell is not a 1S pack but no pack at all -- a meter with nothing on it, or a pack that is
@@ -4311,14 +4374,26 @@ readTelemetry = function(state, audioState)
         local existingCells = tonumber(state.batteryCellCount)
         if not existingCells or existingCells <= 0 then
           setField("batteryCellCount", inferredCells)
+          state.batteryCellSource = "voltage"
         else
           local perCell = voltageValue / existingCells
           -- Reconnect-safe: replace stale cell count if implied per-cell voltage is implausible.
           if perCell < 2.5 or perCell > 4.5 then
             setField("batteryCellCount", inferredCells)
+            state.batteryCellSource = "voltage"
           end
         end
       end
+    end
+  end
+  if (state.batteryCellCount ~= cellsBefore or state.batteryCellSource ~= cellSourceBefore) and Log then
+    if state.batteryCellSource == "voltage" then
+      Log.emitf("rfsuite.widget", "debug", "cell count guessed from the pack voltage: %s (%s V, %s before)",
+        tostring(state.batteryCellCount), tostring(voltageValue), tostring(cellsBefore))
+    else
+      Log.emitf("rfsuite.widget", "debug", "cell count from the %s: %s (%s before)",
+        state.batteryCellSource == "sensor" and "cell count sensor" or "flight controller's battery config",
+        tostring(state.batteryCellCount), tostring(cellsBefore))
     end
   end
 
@@ -4661,17 +4736,19 @@ function Runtime.new(zone, options)
   -- The old flat names of the record answer through this, and nothing else does: __index is
   -- reached only for a key the state table does not hold.
 
+  -- The count the bounds are derived for, and whether it is a guess from the pack voltage rather
+  -- than the cell count sensor's or the flight controller's count.
   local function resolveVoltageCellCount(state)
     local cells = tonumber(state and state.batteryCellCount)
     if cells and cells > 0 then
-      return math.floor(cells + 0.5)
+      return math.floor(cells + 0.5), state.batteryCellSource == "voltage"
     end
 
     local session = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
     local batteryConfig = session and (session.batteryConfig or session.battery_config) or nil
     local sessionCells = tonumber(batteryConfig and batteryConfig.batteryCellCount)
     if sessionCells and sessionCells > 0 then
-      return math.floor(sessionCells + 0.5)
+      return math.floor(sessionCells + 0.5), false
     end
 
     local voltage = tonumber(state and state.voltage)
@@ -4679,7 +4756,7 @@ function Runtime.new(zone, options)
     -- The same rule as readTelemetry's: a voltage below half a cell gives no count.
     if type(voltage) == "number" and voltage > 0 and maxCellVoltage > 0 then
       local implied = math.floor((voltage / maxCellVoltage) + 0.5)
-      if implied > 0 then return implied end
+      if implied > 0 then return implied, true end
     end
 
     return nil
@@ -4725,9 +4802,12 @@ function Runtime.new(zone, options)
 
   local function logVoltageThemeDecision(self, reason, cells, inMin, inMax, outMin, outMax)
     if not shouldLogAudio(self) then return end
+    -- Whether `cells` is a guess from the pack voltage, set by updateVoltageThemeConfig beside it.
+    local guessed = self._voltageCellsGuessed == true
     local key = table.concat({
       tostring(reason or "?"),
       tostring(cells or "x"),
+      guessed and "g" or "k",
       tostring(inMin or "x"),
       tostring(inMax or "x"),
       tostring(outMin or "x"),
@@ -4740,7 +4820,8 @@ function Runtime.new(zone, options)
       "voltage theme normalize reason=" .. tostring(reason)
         .. " cells=" .. tostring(cells)
         .. " in=" .. tostring(inMin) .. "/" .. tostring(inMax)
-        .. " out=" .. tostring(outMin) .. "/" .. tostring(outMax),
+        .. " out=" .. tostring(outMin) .. "/" .. tostring(outMax)
+        .. (guessed and " (count guessed from the pack voltage)" or ""),
       "debug"
     )
   end
@@ -4758,17 +4839,25 @@ function Runtime.new(zone, options)
     -- exactly what it computed before.
     local curMin = tonumber(currentConfig.v_min)
     local curMax = tonumber(currentConfig.v_max)
-    -- Whether the bounds in hand are the theme's unnormalized defaults with no cell count to
-    -- normalize them yet: the one state in which a count arriving is certain to rewrite them.
-    -- updateConnectionState holds the scene's first build on it. Set only on the two no-cells
-    -- returns below, so every other outcome of this call leaves it clear.
+    -- Whether the bounds in hand are about to be rewritten by a count still on its way: the
+    -- theme's unnormalized defaults with no cell count to normalize them yet, or bounds for a
+    -- count guessed from the pack voltage that differs from the last count the cell count sensor
+    -- gave (a part-charged 6-cell pack reads as 5 cells until the sensor answers).
+    -- updateConnectionState holds the scene's first build on it. Set only on those outcomes
+    -- below, so every other outcome of this call leaves it clear. A guess that matches the
+    -- sensor's last count is not held, and a model with no such sensor is never held for a
+    -- guess: nothing would ever replace it.
     self._voltageBoundsPending = nil
+    self._voltageCellsGuessed = nil
     if curMin ~= nil and curMax ~= nil then
       if currentConfig._customVoltage == true then
         logVoltageThemeDecision(self, "custom-config", nil, currentConfig.v_min, currentConfig.v_max, curMin, curMax)
         return
       end
-      local cells = resolveVoltageCellCount(self.state)
+      local cells, guessed = resolveVoltageCellCount(self.state)
+      self._voltageCellsGuessed = guessed
+      local sensorCells = self.state.cellSensorCount
+      if guessed and sensorCells and cells ~= sensorCells then self._voltageBoundsPending = true end
       if not cells or cells <= 0 then
         if math.abs(curMin - 18.0) <= 0.01 and math.abs(curMax - 25.2) <= 0.01 then
           self._voltageBoundsPending = true
@@ -4818,7 +4907,10 @@ function Runtime.new(zone, options)
 
     local defaultMin = 18.0
     local defaultMax = 25.2
-    local cells = resolveVoltageCellCount(self.state)
+    local cells, guessed = resolveVoltageCellCount(self.state)
+    self._voltageCellsGuessed = guessed
+    local sensorCells = self.state.cellSensorCount
+    if guessed and sensorCells and cells ~= sensorCells then self._voltageBoundsPending = true end
     if not cells or cells <= 0 then
       applyThemeConfig(self, nextConfig)
       if math.abs(nextConfig.v_min - defaultMin) <= 0.01 and math.abs(nextConfig.v_max - defaultMax) <= 0.01 then
@@ -5201,6 +5293,7 @@ function Runtime.new(zone, options)
       -- a new flight controller is a new answer to that question.
       self.state.armedSeen = false
       self.state.batteryCellCount = 0
+      self.state.batteryCellSource = nil
       -- What the link sources derived for the last session. The diversity latch above all:
       -- it only ever rises, so carrying it over would report a second antenna on a receiver
       -- that has none. The packet-rate memo goes with it so that the first pass of the new
@@ -5419,9 +5512,41 @@ function Runtime.new(zone, options)
     -- theme of its own then has its preferences read, the radio's theme released and the model's
     -- loaded in one widget call. Carried the same way, once, and marked as such, so that the tick it
     -- is carried to may still carry it off a read pass.
-    if wantReload and ((readThisPass and self._themeReloadPending ~= true)
+    --
+    -- Nor does the post-flight reload share a pass with the disarm edge's event tasks. Those tasks
+    -- run in this widget's calls, one logic tick after another (the flight log write among them),
+    -- and the read that sees the disarm falls on whichever of those ticks the read cadence gives
+    -- it, so the reload, carried once off that read pass, could run on the next tick in the same
+    -- widget call as the flight log write and the first post-flight reads. It waits while
+    -- the edge's runner still has tasks, until 3 s after the wait began (the flight log write, the
+    -- flight statistics and the dataflash reads after a disarm; a literal, because this file's main
+    -- chunk is at Lua's 200-local limit). That wait does not use up the one carry off a read pass,
+    -- so a reload released on a read pass can still move one tick further. While it waits, the
+    -- foreground queues no scene job for the theme it is about to replace (_edgeHoldBusy).
+    local edgeBusy = false
+    local edge = wantReload and modeChanged and EventsRuntime and type(EventsRuntime.edgeChainActive) == "function"
+      and EventsRuntime.edgeChainActive() or nil
+    if edge == "ondisarm" then
+      if self._edgeHoldSince == nil then
+        self._edgeHoldSince = now
+        Log.emitf("rfsuite.widget", "debug", "%s reload waits for the %s tasks, %s screen stays", tostring(nextMode),
+          tostring(edge), tostring(self.flightMode))
+      end
+      edgeBusy = (now - self._edgeHoldSince) < 3.0
+    elseif self._edgeHoldSince ~= nil then
+      if self._traceOn then
+        Log.emitf("rfsuite.widget", "trace", "edge hold over after %.1f s", now - self._edgeHoldSince)
+      end
+      self._edgeHoldSince = nil
+    end
+    self._edgeHoldBusy = edgeBusy or nil
+    if wantReload and (edgeBusy or (readThisPass and self._themeReloadPending ~= true)
         or (modelPrefsChanged and self._themeReloadPending == nil)) then
-      self._themeReloadPending = (readThisPass and self._themeReloadPending ~= true) or "preferences"
+      if edgeBusy then
+        if modelPrefsChanged and self._themeReloadPending == nil then self._themeReloadPending = "preferences" end
+      else
+        self._themeReloadPending = (readThisPass and self._themeReloadPending ~= true) or "preferences"
+      end
       -- As the reload itself would: a job already queued belongs to the theme being replaced. In
       -- a foreground pass none is (a job pass never reaches this function), but widget.background
       -- runs this work whatever is queued.
@@ -6013,8 +6138,14 @@ function Runtime.new(zone, options)
     -- A theme reload that fell on a read pass waits for the next logic tick; the deferral itself
     -- is in performBackgroundWork. Queuing a scene job here would build against the theme that
     -- reload is about to replace, and run ahead of it. widget.background queues no scene jobs. The
-    -- same holds between the two halves of a staged load: the module is in, its readings are not.
-    if (self._themeReloadPending or self._themeSourcesPending) and not tuningMode then
+    -- same holds between the two halves of a staged load: the module is in, its readings are not,
+    -- and, outside fullscreen, while the post-flight reload waits for the disarm's event tasks
+    -- (_edgeHoldBusy). In fullscreen (`event` not nil) a menu or view on top must follow its keys
+    -- for the up to 3 s of that wait, so there the surface keeps building -- also when the reload
+    -- had already been carried off a read pass before the hold began.
+    if (self._themeSourcesPending or (self._themeReloadPending and not (self._edgeHoldBusy and isInteractive))
+        or (self._edgeHoldBusy and not isInteractive))
+        and not tuningMode then
       self._passEndAt = nowSeconds()
       return
     end
