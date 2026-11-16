@@ -1,1 +1,1 @@
-- **Saves and the MSP queue no longer take a missing ARM sensor as disarmed (`lib/armed`)** (#598)
+- **Saves and the MSP queue keep a model last read armed as armed for up to 5 s while its ARM reading is missing (`lib/armed`)** (#598)

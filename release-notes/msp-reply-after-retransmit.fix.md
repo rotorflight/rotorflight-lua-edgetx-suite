@@ -1,1 +1,1 @@
-- **A late MSP answer no longer stores one servo's or profile's values under the next request (`tasks/msp/queue`)**
+- **A late MSP answer within 2 s of a resent or dropped request no longer stores one servo's or profile's values under the next; a later one still can (`tasks/msp/queue`)**

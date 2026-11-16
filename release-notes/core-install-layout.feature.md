@@ -1,1 +1,1 @@
-- **The suite installs under one main folder on the card and moves the pilot's data there on the first start (`lib/user_move`)**
+- **The suite installs under one main folder on the card and copies the pilot's data there on the first start (`lib/user_move`)**

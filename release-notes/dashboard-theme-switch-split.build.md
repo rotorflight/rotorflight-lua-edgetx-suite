@@ -1,1 +1,1 @@
-- **Switching to a model's own dashboard theme at connect is spread out, so it no longer risks a stall of the dashboard (`widgets/dashboard/runtime`)** (#950)
+- **Switching to a model's own dashboard theme at connect is spread out, so it stays further from the instruction limit that stalls the dashboard (`widgets/dashboard/runtime`)** (#950)
