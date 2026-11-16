@@ -27,6 +27,8 @@
 --                        surface is built again for the new key;
 --   scene                a stop over a standing scene with no job gives it up and builds it once:
 --                        a scene can change without its key moving, so it is not kept;
+--   cached ELRS text     a kept standby whose pass stopped while it turned a finished ELRS read into
+--                        text shows that text afterwards, not the "Reading" it had before;
 --   log                  the stop line names the pass's last work; a rebuild after a stop says so,
 --                        and a stop that keeps the tree does not claim one.
 --
@@ -466,6 +468,76 @@ do
   check("scene key moved: it stands built under that key", widget.built == true
     and widget._treeKey == "a changed scene", widget._treeKey)
   if theme then theme.renderKey = realKey end
+end
+
+-- A standby kept after a stop must not keep the per-pass answers the stopped pass had begun to
+-- replace. The standby reads the ELRS module while the link is down; the read runs on a stub that
+-- answers "reading" until it is switched to a finished one. The pass that turns the finished read
+-- into text stops at the first line of the standby module after it has recorded which read it is
+-- turning into text (Standby.elrsText notes that before it builds the text).
+lvgl.build = realBuild
+newWorld()
+_G.getRSSI = function() return 0, 45, 42 end
+do
+  local readingSnap = { status = "reading", readAt = 0 }
+  local doneSnap = { status = "ok", readAt = 1, identity = "id", packetRate = "250Hz", telemetryRatio = "1:64",
+    maxPower = "100", dynamic = "Off", fields = {} }
+  local answer = readingSnap
+  local function stubElrs()
+    local cfg = widget._standbyElrsConfig
+    if cfg and not rawget(cfg, "__stubbed") then
+      cfg.__stubbed = true
+      cfg.step = function() return answer end
+      cfg.request = function() end
+      cfg.currentIdentity = function() return "id" end
+      cfg.invalidate = function() end
+    end
+  end
+  local function painted()
+    local out = {}
+    for _, ref in ipairs(Stubs.lvgl.refs) do
+      local ok, v = pcall(ref)
+      if ok and type(v) == "string" then out[#out + 1] = v end
+    end
+    return table.concat(out, "|")
+  end
+  local ready = false
+  for _ = 1, 200 do
+    Stubs.tick(); stubElrs(); Entry.refresh(widget, nil, nil)
+    if widget.built and widget._job == nil and widget._standbyElrsConfig ~= nil
+        and widget._standbyCache and widget._standbyCache.elrsShown == readingSnap then
+      ready = true
+      break
+    end
+  end
+  check("cached ELRS text: the standby stands with the read in progress", ready)
+  answer = doneSnap
+  for _ = 1, 60 do Stubs.tick() end -- the standby's own read of the radio falls due as well
+  local fired = false
+  debug.sethook(function()
+    if fired then return end
+    local cache = widget._standbyCache
+    if not (cache and cache.elrsShown == doneSnap) then return end
+    local info = debug.getinfo(2, "S")
+    if info and string.find(info.source, "widgets/dashboard/standby.lua", 1, true) then
+      fired = true
+      debug.sethook()
+      error("CPU limit", 0)
+    end
+  end, "l")
+  local trees = builds
+  Stubs.tick(); stubElrs()
+  pcall(Entry.refresh, widget, nil, nil)
+  debug.sethook()
+  check("cached ELRS text: the stop happened while the finished read was turned into text", fired)
+  check("cached ELRS text: the standby is kept", widget.built == true, widget.built)
+  -- The back-off, then longer than one read of the radio stands (5 s), which is cached by time.
+  for _ = 1, 90 do Stubs.tick(); stubElrs(); Entry.refresh(widget, nil, nil) end
+  check("cached ELRS text: the standby is not built again", builds - trees == 0, builds - trees)
+  local text = painted()
+  check("cached ELRS text: it shows the finished read", string.find(text, "Packet Rate 250 Hz", 1, true) ~= nil,
+    string.sub(text, 1, 160))
+  _G.getRSSI = nil
 end
 
 for Log, realEmit in pairs(wrapped) do Log.emit = realEmit end

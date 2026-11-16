@@ -170,7 +170,12 @@ local function refresh(widget, event, touchState)
       local key = widget.renderKey
       local kept = job == nil and widget._treeKind == "standby" and widget._treeKey ~= nil
         and (key == nil or key == widget._treeKey)
-      if not kept then
+      if kept then
+        -- Its key is cleared, so the next pass takes the standby's keep path: the tree stays, and the
+        -- texts its per-pass caches are keyed on are handed over afresh, which drops a cached ELRS or
+        -- GPS answer the stopped pass had begun to replace -- the part of a rebuild a kept tree needs.
+        widget.renderKey = nil
+      else
         local wasBuilt = widget.built
         widget.built = false
         local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
