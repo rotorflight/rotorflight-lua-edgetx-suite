@@ -28,6 +28,35 @@ SMLSIZE, MIDSIZE = 0, 1
 LCD_W, LCD_H = 480, 272
 local armed = false
 _G.rfsuite = { paths = PATHS, session = { fblConnected = true, mcu_id = "test-board", apiVersion = "12.10" } }
+-- The tool's loader that keeps nothing: a step's file goes through it, so the step's code leaves
+-- with its cards. Counted, so the controller's step build is seen taking that route.
+local uncachedStepLoads = 0
+-- What each step build returned, held weakly: once the walk has moved on, a left step's cards
+-- (and with them the code they were built from) must be collectable.
+local stepCards = setmetatable({}, { __mode = "k" })
+local stepBuilds = 0
+-- Each step file's loaded chunk, held weakly, and which chunk the function handed to the controller
+-- runs: a collected card table does not show that the chunk it was built from was collected too.
+local stepChunks = setmetatable({}, { __mode = "k" })
+local loadedChunk = setmetatable({}, { __mode = "k" })
+_G.rfsuite.utils = { loadScriptUncached = function(path, mode)
+  local chunk, err = loadScript(path, mode)
+  if not string.find(path, "/steps/", 1, true) or not chunk then return chunk, err end
+  uncachedStepLoads = uncachedStepLoads + 1
+  stepChunks[chunk] = path
+  local function wrapped(...)
+    local build = chunk(...)
+    if type(build) ~= "function" then return build end
+    return function(w)
+      local cards = build(w)
+      stepBuilds = stepBuilds + 1
+      if type(cards) == "table" then stepCards[cards] = true end
+      return cards
+    end
+  end
+  loadedChunk[wrapped] = chunk
+  return wrapped
+end }
 local q = { messages = {}, sent = {}, pending = nil }
 function q:add(m) self.messages[#self.messages + 1] = m end
 function q:clear(client)
@@ -651,6 +680,193 @@ check(w.error and not w.advanced,"failed write blocks advance")
 local eeprom=false;for _,m in ipairs(q.sent) do if m.command==250 then eeprom=true end end
 check(not eeprom,"failed write never reaches EEPROM")
 failCommand=nil
+-- A row is put in the sent snapshot when its write is generated, before the flight controller
+-- answers. A failure, a cancel or a late status can drop that write, so the next save or discard
+-- must write the row again rather than take it for one the flight controller already holds.
+do
+  local function u16at(p,i) return (p[i] or 0) | ((p[i+1] or 0) << 8) end
+  -- Writes of one row since `from`: their count, and the last value written.
+  local function rowWrites(from, command, index, field)
+    local n, value, eeprom = 0, nil, false
+    for i=from,#q.sent do
+      local m=q.sent[i]
+      if m.command==command and m.payload[1]==index then n=n+1; value=field and u16at(m.payload,field) end
+      if m.command==250 then eeprom=true end
+    end
+    return n, value, eeprom
+  end
+  -- Run the bus until a write of that row is queued, and leave it unsent.
+  local function queueRow(w, command, index)
+    for _=1,300 do
+      w:tick();ticks=ticks+1
+      for _,m in ipairs(q.messages) do if m.command==command and m.payload[1]==index then return true end end
+      pump()
+    end
+    return false
+  end
+  local function settle(w)
+    for _=1,300 do w:tick();pump();ticks=ticks+1;if not w.transition and w.bus:idle() then break end end
+  end
+  -- The status reading is let go stale while the write waits, so the controller fails on its own.
+  local function staleFail(w)
+    ticks=ticks+400; w:tick()
+    local dropped=true
+    for _,m in ipairs(q.messages) do if m.isWrite and m.client=="helicopter-setup" then dropped=false end end
+    return w.error~=nil and string.find(w.error,"status",1,true)~=nil and dropped
+  end
+  local function retry(w)
+    if w.error then w:retry() end
+    settle(w)
+    check(not w.error and w.ready,"CUT the visit goes on after Retry")
+  end
+  local function saveNow(w)
+    local from=#q.sent+1
+    w.savedAgain=nil
+    w:save(function() w.savedAgain=true end)
+    for _=1,1500 do w:tick();pump();ticks=ticks+1;if w.savedAgain or w.error then break end end
+    check(w.savedAgain,"CUT the later save completes")
+    return from
+  end
+  local function servo0(w) return w.data.servo_configurations.servos[0] end
+  -- (1) The row's write is refused: the save stops; the save after Retry writes the row.
+  local w=world();local mid=servo0(w).mid+10;servo0(w).mid=mid
+  w:touch("servo_configurations");failCommand=212
+  w:save(function() w.advanced=true end)
+  for _=1,500 do w:tick();pump();ticks=ticks+1;if w.error then break end end
+  check(w.error and not w.advanced,"CUT a refused servo row stops the save")
+  failCommand=nil;retry(w)
+  local n,value,eeprom=rowWrites(saveNow(w),212,0,2)
+  check(eeprom,"CUT EEPROM written after a refused row")
+  eq(n,1,"CUT the save after a refused row writes that row again");eq(value,mid,"CUT the refused row's value is written")
+  -- (2) The row's write waits in the queue and a late status stops the visit before it is sent.
+  w=world();mid=servo0(w).mid+10;servo0(w).mid=mid;w:touch("servo_configurations")
+  -- The row written again is named at DEBUG; the first write of it is not.
+  local again=0
+  w.logDebug=true
+  w.log=function(_,_,fmt,...) if string.find(string.format(fmt,...),"servo_configurations row 0 written again",1,true) then again=again+1 end end
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,212,0),"CUT the servo row write is queued")
+  eq(again,0,"CUT the first write of a row is not logged as written again")
+  check(staleFail(w),"CUT a late status fails the visit and drops the queued write")
+  retry(w)
+  n,value=rowWrites(saveNow(w),212,0,2)
+  eq(n,1,"CUT the save after a dropped row writes that row");eq(value,mid,"CUT the dropped row's value is written")
+  eq(again,1,"CUT the row written again is logged at DEBUG")
+  -- (3) The same through a bare transport cancel.
+  w=world();mid=servo0(w).mid+10;servo0(w).mid=mid;w:touch("servo_configurations")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,212,0),"CUT the servo row write is queued before the bare cancel")
+  w.bus:cancel();w:release();w.error="cancelled"
+  retry(w)
+  n,value=rowWrites(saveNow(w),212,0,2)
+  eq(n,1,"CUT the save after a bare cancel writes the dropped row");eq(value,mid,"CUT the bare cancel's row value is written")
+  -- (4) A live edit back to the saved value is cut: the flight controller still runs the edit
+  -- before it, so both Save and Discard have to write the saved value.
+  for _,finish in ipairs({"save","discard"}) do
+    w=world();local saved=servo0(w).mid
+    servo0(w).mid=saved+25;w:touch("servo_configurations",false,true);settle(w)
+    local live=false
+    for _,m in ipairs(q.sent) do if m.command==212 and m.payload[1]==0 and u16at(m.payload,2)==saved+25 then live=true end end
+    check(live,"CUT the live edit reached the flight controller ("..finish..")")
+    servo0(w).mid=saved;w:touch("servo_configurations",false,true)
+    check(queueRow(w,212,0),"CUT the live edit back is queued ("..finish..")")
+    check(staleFail(w),"CUT a late status drops the live edit back ("..finish..")")
+    retry(w)
+    local from=#q.sent+1
+    if finish=="save" then saveNow(w)
+    else
+      w.discarded=nil;w:discard(function() w.discarded=true end)
+      for _=1,800 do w:tick();pump();ticks=ticks+1;if w.discarded or w.error then break end end
+      check(w.discarded,"CUT the discard completes")
+    end
+    n,value=rowWrites(from,212,0,2)
+    eq(n,1,"CUT "..finish.." after a dropped live edit writes the row");eq(value,saved,"CUT "..finish.." writes the saved value back")
+  end
+  -- (5) The other blocks written row by row: a mixer input, an adjustment range, a mode range's extras.
+  w=world();local input=w.data.mixer_input.inputs[2];input.rate=input.rate+7;w:touch("mixer_input")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,171,2),"CUT the mixer input write is queued")
+  check(staleFail(w),"CUT a late status drops the mixer input write")
+  retry(w);n=rowWrites(saveNow(w),171,2)
+  eq(n,1,"CUT the save after a dropped mixer input writes it")
+  w=world();local range=w.data.adjustment_ranges.adjustment_ranges[3];range.adjStep=(range.adjStep or 0)+1;w:touch("adjustment_ranges")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,53,2),"CUT the adjustment range write is queued")
+  check(staleFail(w),"CUT a late status drops the adjustment range write")
+  retry(w);n=rowWrites(saveNow(w),53,2)
+  eq(n,1,"CUT the save after a dropped adjustment range writes it")
+  w=world()
+  local modes=w.data.mode_ranges.mode_ranges
+  check(#modes>=1,"CUT the world has a mode range")
+  local extras=w.data.mode_ranges_extra.mode_ranges_extra
+  extras[1]=extras[1] or {};extras[1].modeLogic=((extras[1].modeLogic or 0)==0) and 1 or 0
+  w:touch("mode_ranges")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,35,0),"CUT the mode range write is queued")
+  check(staleFail(w),"CUT a late status drops the mode range write")
+  retry(w);n=rowWrites(saveNow(w),35,0)
+  eq(n,1,"CUT the save after a dropped mode range writes its extras")
+  -- (6) A lost link reloads before anything else: what the screen then holds is what the flight
+  -- controller holds, so nothing is left for a save to skip.
+  w=world();local before=servo0(w).mid;servo0(w).mid=before+10;w:touch("servo_configurations")
+  w:save(function() w.advanced=true end)
+  check(queueRow(w,212,0),"CUT the servo row write is queued before the link is lost")
+  rfsuite.session.fblConnected=false;w:tick();ticks=ticks+1
+  check(w.suspended,"CUT the lost link suspends the visit")
+  rfsuite.session.fblConnected=true;w:tick();ticks=ticks+1
+  eq(w.error,"link","CUT the returning link asks for a reload")
+  w:retry()
+  for _=1,1500 do w:tick();pump();ticks=ticks+1;if (w.ready and not w.transition) or (w.error and w.error~="link") then break end end
+  check(w.ready and not w.error,"CUT the reload after a lost link completes")
+  eq(servo0(w).mid,w.sent.servo_configurations.servos[0].mid,"CUT after a reload the screen and the snapshot agree")
+  -- (7) The flight controller applied the write, but its answer was lost or reached a visit that
+  -- had already stopped: what FC RAM holds is unknown, so Discard and a save of the saved value
+  -- both write the row.
+  local function discardNow(w)
+    local from=#q.sent+1
+    w.discarded=nil;w:discard(function() w.discarded=true end)
+    for _=1,800 do w:tick();pump();ticks=ticks+1;if w.discarded or w.error then break end end
+    check(w.discarded,"CUT the discard completes")
+    return from
+  end
+  for _,finish in ipairs({"discard","save"}) do
+    w=world();local saved=servo0(w).mid;servo0(w).mid=saved+30;w:touch("servo_configurations")
+    w:save(function() w.advanced=true end)
+    check(queueRow(w,212,0),"CUT the applied row write is queued ("..finish..")")
+    pump()
+    check(staleFail(w),"CUT a late status stops the visit before the answer is handled ("..finish..")")
+    retry(w)
+    local from
+    if finish=="discard" then from=discardNow(w) else servo0(w).mid=saved;from=saveNow(w) end
+    n,value=rowWrites(from,212,0,2)
+    eq(n,1,"CUT "..finish.." after an unhandled answer writes the row");eq(value,saved,"CUT "..finish.." after an unhandled answer writes the saved value")
+  end
+  w=world();local saved=servo0(w).mid;servo0(w).mid=saved+30;w:touch("servo_configurations");failCommand=212
+  w:save(function() w.advanced=true end)
+  for _=1,500 do w:tick();pump();ticks=ticks+1;if w.error then break end end
+  failCommand=nil;retry(w)
+  n,value=rowWrites(discardNow(w),212,0,2)
+  eq(n,1,"CUT discard after an unanswered row writes the row");eq(value,saved,"CUT discard after an unanswered row writes the saved value")
+  -- (8) Two writes of one row are out, as when an adjustment is set back and changed again before
+  -- the first is answered: the first answer must not make the second, cut off, look written.
+  local function copy(t) local c={};for k,v in pairs(t) do c[k]=type(v)=='table' and copy(v) or v end;return c end
+  w=world()
+  local slot=w.data.adjustment_ranges.adjustment_ranges
+  local original=slot[3]
+  slot[3]=copy(original);w.bus:add(w:rangeJob("adjustment_ranges",3))
+  local changed=copy(original);changed.adjStep=(changed.adjStep or 0)+1;slot[3]=changed
+  w.bus:add(w:rangeJob("adjustment_ranges",3));w:touch("adjustment_ranges")
+  check(queueRow(w,53,2),"CUT the first of two row writes is queued")
+  pump()
+  check(queueRow(w,53,2),"CUT the second of two row writes is queued")
+  check(staleFail(w),"CUT a late status drops the second row write")
+  retry(w)
+  local from=discardNow(w)
+  local wrote=nil
+  for i=from,#q.sent do local m=q.sent[i];if m.command==53 and m.payload[1]==2 then wrote=m.payload end end
+  local expect=w.math.adjustPayload(2,original)
+  check(wrote~=nil and table.concat(wrote,",")==table.concat(expect,","),"CUT discard writes the saved row back after two writes of it")
+end
 -- Whole-table work is generated one record per pass, with EEPROM last.
 w=world()
 q.sent = {}
@@ -1252,6 +1468,63 @@ for _,locale in ipairs({"en","de"}) do
   check(#block>1000,"I18N "..locale.." wizard strings found")
   check(not string.find(block,"\226\128\148",1,true) and not string.find(block,"\226\128\166",1,true),
     "I18N "..locale.." wizard strings use glyphs the radio fonts have")
+end
+check(uncachedStepLoads>0,"STEP files are read past the tool's chunk cache")
+-- A card set rebuilt on the same step runs the held chunk again and reads nothing from the card.
+check(stepBuilds > uncachedStepLoads, string.format("STEP rebuilds on the same step reuse the held file (%d builds, %d reads)", stepBuilds, uncachedStepLoads))
+do
+  -- A table held here on purpose is the control: it must survive the same collections.
+  local held = setmetatable({}, { __mode = "k" }); local control = {}; held[control] = true
+  collectgarbage("collect"); collectgarbage("collect")
+  local alive = 0; for _ in pairs(stepCards) do alive = alive + 1 end
+  check(held[control] == true, "STEP collectability control: a held table survives the collections")
+  -- A few controllers of this file stay reachable to its end, each with the cards of its current step; every
+  -- other build must be gone. With the step file read past the cache, nothing else keeps that code alive.
+  check(uncachedStepLoads >= 20 and alive <= 5, string.format("STEP cards of left steps are collectable (%d builds, %d alive)", stepBuilds, alive))
+  -- The same bound for the loaded chunks: each of those controllers holds its current step's chunk only.
+  local chunks = 0; for _ in pairs(stepChunks) do chunks = chunks + 1 end
+  check(uncachedStepLoads >= 20 and chunks <= 5, string.format("STEP chunks of left steps are collectable (%d reads, %d alive)", uncachedStepLoads, chunks))
+end
+-- One controller step by step: a rebuild on the same step runs the held chunk again, a step change
+-- reads the next file, and from then on only the current step's chunk is held.
+do
+  local cw = world()
+  local function settle()
+    for _ = 1, 100 do
+      if not cw.buildRequested and cw.bus:idle() then return true end
+      cw:tick(); pump(); ticks = ticks + 1
+    end
+    return false
+  end
+  -- A chunk is only ever put in a weak table here, from inside a helper: a local of this block that
+  -- still referred to one would keep it alive through the collections.
+  local function current() return cw.stepChunk and loadedChunk[cw.stepChunk.chunk] end
+  local function mark(t) local c = current(); if c then t[c] = true end end
+  local function holds(t) local c = current(); return c ~= nil and t[c] == true end
+  local function count(t) local n = 0; for _ in pairs(t) do n = n + 1 end; return n end
+  local function collect() collectgarbage("collect"); collectgarbage("collect") end
+  local departed = setmetatable({}, { __mode = "k" })
+  local kept = setmetatable({}, { __mode = "k" })
+  check(settle() and current() ~= nil and cw.stepChunk.key == steps[cw.step],
+    "CHUNK the controller holds the chunk of its current step")
+  mark(departed)
+  local reads, builds, from = uncachedStepLoads, stepBuilds, cw.step
+  cw.buildRequested = true
+  check(settle() and uncachedStepLoads == reads and stepBuilds == builds + 1 and holds(departed),
+    string.format("CHUNK a rebuild on the same step runs the held chunk (%d reads, %d builds)",
+      uncachedStepLoads - reads, stepBuilds - builds))
+  -- Control: the departed step's record, still reachable from the controller, keeps its chunk.
+  cw.retainedStepChunk = cw.stepChunk
+  cw:navigate(from + 1, 1)
+  check(settle() and uncachedStepLoads == reads + 1 and cw.step == from + 1 and cw.stepChunk.key == steps[from + 1]
+    and not holds(departed), "CHUNK a step change reads the next step's file")
+  mark(kept)
+  collect()
+  check(count(departed) == 1, "CHUNK control: a departed chunk the controller still reaches survives the collections")
+  cw.retainedStepChunk = nil
+  collect()
+  check(count(departed) == 0, "CHUNK the departed step's chunk is collectable")
+  check(holds(kept) and stepChunks[loadedChunk[cw.stepChunk.chunk]] ~= nil, "CHUNK the current step's chunk stays held")
 end
 print(string.format("Wizard: %d assertions, %d failures",assertions,failures))
 if failures>0 then os.exit(1) end
