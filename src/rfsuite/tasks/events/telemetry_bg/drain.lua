@@ -656,6 +656,80 @@ local function beginPass(now, permanent)
     passFresh = freshFrames
 end
 
+-- The adjustment pair (function, value) the flight controller sends after a step, and the
+-- reason the cap below may not simply drop it. It is a value the board repeats only every few
+-- seconds, not every frame: a pass that pops a backlog after a long one -- a surface build on the
+-- pass before -- keeps the newest DECODE_CAP frames, and a step's report in one of the older ones
+-- would otherwise reach neither the in-flight surface (which reads the AdjF/AdjV sensors) nor the
+-- teller until the board sends it again.
+local SID_ADJUSTMENT = 0x1220
+local ADJ_HI, ADJ_LO = 0x12, 0x20
+
+-- Whether a frame may carry the adjustment entry: its two id bytes anywhere past the header, with
+-- the whole entry still in the frame (id, a 16-bit function, a 32-bit value: eight bytes) and the
+-- function's high byte 0 -- the function ids are below 256, while the byte after a value that only
+-- looks like the id is the next sensor id's high byte, never 0 (0x10, 0x11, 0x12 or 0xDB in
+-- lib/rf2tlm_sensors.lua). A byte search, not a walk, so a frame without them costs a loop over its
+-- bytes and no decoder; a hit that passes can still be a value's bytes, which rescueAdjustment's walk
+-- then sorts out.
+local function mayCarryAdjustment(data)
+    local last = #data
+    for i = 4, last - 7 do
+        if data[i] == ADJ_HI and data[i + 1] == ADJ_LO and data[i + 2] == 0 then return true end
+    end
+    return false
+end
+
+-- Whether a step went out recently enough that its report may still be on the way: the in-flight
+-- drive stamps `rfsuite.adjustmentStepAt` (getTime() ticks) on every step it writes. The board
+-- answers within half a second and repeats the report after 3 s, so the window is the 3 s in
+-- between; outside it a backlog pass pays nothing for the rescue. An adjustment the pilot makes
+-- with a switch of their own, without the drive, is not looked for -- as before the rescue.
+local ADJUSTMENT_AWAIT_SECONDS = 3
+local function adjustmentAwaited(now)
+    local root = _G.rfsuite
+    local at = root and tonumber(root.adjustmentStepAt)
+    return at ~= nil and (now - at / 100) <= ADJUSTMENT_AWAIT_SECONDS
+end
+
+-- At most RESCUE_WALKS byte hits are walked in one pass, newest first. A value whose bytes look
+-- like the id (a pack at 46.40 V reads 0x1220) can sit in every dropped frame, and walking all of
+-- them would cost about what decoding them would, which is what the cap is there to avoid. Past
+-- the bound the report waits for the board's repeat, as it did without the search. Every dropped
+-- frame is still byte-searched: the report can sit in an older one (a board's frames come about
+-- ten a second, a report half a second after the step, the backlog pass a second after it).
+local RESCUE_WALKS = 2
+
+-- Walk one dropped frame to its adjustment entry and decode that entry alone, published as
+-- decodeFrame would; the entries in front are walked with walkOnly so none of them publishes.
+-- Returns whether the entry was found.
+local function rescueAdjustment(data, now)
+    local ptr = 4
+    walkOnly = true
+    decodeNow = now
+    while ptr < #data do
+        local sid
+        sid, ptr = decU16(data, ptr)
+        local sensor = RFSensors[sid]
+        if not sensor or type(sensor.dec) ~= "function" then break end
+        if sid == SID_ADJUSTMENT then
+            walkOnly = false
+            local val
+            val, ptr = sensor.dec(data, ptr)
+            if val then publishSensorValue(sid, val, sensor, now) end
+            return true
+        end
+        local _
+        _, ptr = sensor.dec(data, ptr)
+    end
+    walkOnly = false
+    return false
+end
+
+-- The dropped frames of one pass that may carry the adjustment pair, oldest first; reused like
+-- keptFrames below and emptied before the pass ends.
+local adjustmentCandidates = {}
+
 -- The frames one pass keeps for decoding. One table for every pass rather than a new one per
 -- wakeup, because the drain is woken on every pass whether or not a frame is waiting. Reusing it
 -- is safe because the list never leaves M.wakeup: decodeFrame(kept[i], now) is handed one frame,
@@ -686,17 +760,48 @@ function M.wakeup(now, decodeAll)
     local kept = keptFrames
     for i = #kept, 1, -1 do kept[i] = nil end
     local popped = 0
+    -- The frames the cap drops while a step's report is awaited. The newest one that carries it is
+    -- decoded for that pair alone, ahead of the kept frames, so a newer pair among them still
+    -- lands last; newest first, so a value whose bytes only look like the id does not hide an
+    -- older real report. The board holds a report for ADJUSTMENT_LATENCY_MS (3 s) before its 0,
+    -- so a report and the 0 that ends it do not fall into one pass.
+    local candidates = adjustmentCandidates
+    for i = #candidates, 1, -1 do candidates[i] = nil end
+    -- Asked once, at the first frame the cap drops: a pass without a backlog never asks.
+    local awaited = nil
     while popped < POP_CAP do
         local data = popAndAccount()
         if not data then freshFrames = true break end
         popped = popped + 1
         kept[#kept + 1] = data
         if not decodeAll and #kept > DECODE_CAP then
-            table.remove(kept, 1)
+            local dropped = table.remove(kept, 1)
+            if awaited == nil then awaited = adjustmentAwaited(now) end
+            if awaited then candidates[#candidates + 1] = dropped end
         end
     end
 
     if popped == 0 then return 0 end
+
+    local walked = 0
+    for i = #candidates, 1, -1 do
+        if walked >= RESCUE_WALKS then
+            if traceOn then
+                logf("trace", "pass: the adjustment search stopped after %d walks, %d dropped frame(s) left",
+                    walked, i)
+            end
+            break
+        end
+        local data = candidates[i]
+        if mayCarryAdjustment(data) then
+            walked = walked + 1
+            if rescueAdjustment(data, now) then
+                logf("debug", "pass: the adjustment report taken from a frame the cap dropped (frame %s)", tostring(data[3]))
+                break
+            end
+        end
+    end
+    for i = #candidates, 1, -1 do candidates[i] = nil end
 
     if traceOn then
         if popped > #kept then

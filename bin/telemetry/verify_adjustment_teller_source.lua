@@ -559,5 +559,37 @@ do
   check(_G.rfsuite.adjustmentReport == nil, "decoder: sensor discovery holds a pair for the teller")
 end
 
+-- Widget only: a step's report in a frame the widget drain's decode cap drops. After a long widget
+-- pass (a surface build) one pass pops up to 15 frames and decodes the newest 4; the board sends
+-- the report at once and then only every 3 s, so without the rescue it reaches neither the AdjF
+-- and AdjV rows (the in-flight surface reads them) nor the teller until then. Real drain, real
+-- decoder table, real frames of five governor-state entries in front of and behind the report.
+do
+  newWorld("widget", { enabled = true })
+  W.adj, W.adjEvery = { 0, 0 }, 300
+  warm()
+  W.adj = nil
+  local function filler(n)
+    W.frameId = (W.frameId + 1) % 256
+    local f = { 0xC8, 18, W.frameId }
+    for _ = 1, 5 do f[#f + 1] = 0x12; f[#f + 1] = 0x05; f[#f + 1] = n & 0xFF end
+    return f
+  end
+  W.frames = {}
+  for i = 1, 14 do
+    W.frames[#W.frames + 1] = (i == 3) and frame(20, 11) or filler(i)
+  end
+  -- The in-flight drive's stamp of the step that asked for this report (drive.lua, writeValue).
+  _G.rfsuite.adjustmentStepAt = W.ticks
+  pass(1)
+  check(W.rows.AdjF == 20 and W.rows.AdjV == 11, "widget: a report in a frame the decode cap drops is published ("
+    .. tostring(W.rows.AdjF) .. "/" .. tostring(W.rows.AdjV) .. ")")
+  local r = _G.rfsuite.adjustmentReport
+  check(type(r) == "table" and r[1] == 20 and r[2] == 11, "widget: and held for the teller")
+  check(#W.frames == 0, "widget: the backlog was taken in one pass (positive control for the cap)")
+  seconds(2.0)
+  check(said("inflight/fn/20.wav") and said("#11"), "widget: the rescued report is announced")
+end
+
 print(string.format("%d checks, %d failures", checks, failures))
 os.exit(failures == 0 and 0 or 1)
