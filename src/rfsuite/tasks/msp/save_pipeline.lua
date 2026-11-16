@@ -71,8 +71,9 @@
 -- step with nothing more sent and no EEPROM commit: `check = "refused"` in the result when `holds`
 -- returned false (or raised), `check = "unanswered"` when it returned nil (a reply it cannot judge)
 -- or the read got no reply; a read lost without either ends at the step backstop as a timeout. A
--- checked write is sent once, never retried, so nothing of it goes out later than its check; a lost
--- reply ends the save as a failed write. A write acknowledged before such a stop has reached the
+-- checked write is not retried after a lost reply, which would go out unchecked; the save ends as a
+-- failed write instead. (The queue still repeats a send that an instruction-limit stop interrupted
+-- before it was counted, a pass later.) A write acknowledged before such a stop has reached the
 -- board (`sentAny`).
 --
 -- Progress is exposed through getProgress() and drawn by whoever is on screen, which is the
@@ -709,8 +710,8 @@ local function queueWrite(run, index, step, payload)
     isWrite = true,
     client = run.client,
     sendIf = whileCurrent(run),
-    -- A checked write is sent once: a retry after a lost reply would go out unchecked, possibly after
-    -- what the check was about has changed
+    -- A checked write is not retried after a lost reply: the retry would go out unchecked, possibly
+    -- after what the check was about has changed
     maxRetries = step.check ~= nil and 0 or nil,
     processReply = function()
       if not isCurrent(run) then return end

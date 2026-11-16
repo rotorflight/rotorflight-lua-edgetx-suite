@@ -262,10 +262,10 @@ Save therefore asks the flight controller for the active PID and rate profile ri
 its writes, and stops at the first write for which the flight controller, or the radio's profile
 sensors, report other profiles than the advice's: that write and every later one are not sent and
 no EEPROM commit is queued. A switch in the moment between that answer and the write is not seen
-before the write. Each checked write is sent once, so a write whose answer is lost is not sent again
-unchecked; the save then stops as a failed write. The shared save offers this check before a write to
-any page. The other pages above save one record in a single write and check the profile when Save
-is pressed, as described.
+before the write. A checked write whose answer is lost is not sent again unchecked; the save then
+stops as a failed write. The shared save offers this check before a write to any page. The other
+pages above check the profile when Save is pressed, as described, and not again between their
+writes; Tail Rotor saves its PID profile and then its governor profile in two writes.
 
 Power > Sources writes the battery configuration, whose cell values belong to the battery profiles
 on MSP API 12.10. Its Save sends every profile's cell values back as they were read, so a battery

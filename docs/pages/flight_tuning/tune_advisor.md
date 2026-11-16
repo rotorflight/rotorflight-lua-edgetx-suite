@@ -235,9 +235,8 @@ it once, fly, and check both again.
    read. The flight controller writes a setting into whichever profile is active when it arrives, so right before
    each write the page asks the flight controller again which PID and rate profile are active, and reads the
    *PID#* and *RTE#* sensors. If either no longer names the profiles of the advice, the save stops there: that
-   write and every later one are not sent, and nothing is saved. Each of these writes is sent once: if its answer
-   is lost, it is not sent again, unchecked, and the save stops as a failed write. Closing the page does not stop a
-   save that is running.
+   write and every later one are not sent, and nothing is saved. A write whose answer is lost is not sent again,
+   unchecked, and the save stops as a failed write. Closing the page does not stop a save that is running.
 4. **Saves to the flight controller** without a reboot, so the changes survive a restart.
 5. **Checks the saved settings**: reads them back and reports how many changes were written and read back, or
    names the first one that differs. If the settings cannot be read back, it says the save is unverified; if a
