@@ -1,0 +1,9 @@
+{
+  "id": "tool-open-theme-slots",
+  "name": "Theme slots when the tool opens",
+  "commands": [
+    "lua5.3 bin/ui/verify_tool_open_theme_slots.lua"
+  ],
+  "step": "Check that a hosted tool writes the radio's theme slots after init and before its first build",
+  "rationale": "Opened from the dashboard, the tool's init is one widget call under the instruction limit and the heaviest of the open; the theme slots are written on the pass after it, on a pass of their own, and the first build waits for them so nothing is drawn in the radio's colours. This loads the real ui/home.lua on the accounting stubs."
+}
