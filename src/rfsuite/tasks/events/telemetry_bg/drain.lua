@@ -107,7 +107,8 @@ local function logf(level, fmt, ...)
     pcall(Log.emitf, LOG_TAG, level, "%s: " .. fmt, hostName, ...)
 end
 
--- Reused for every traced frame rather than built per frame; emptied after each line.
+-- Reused for every traced frame rather than built per frame; emptied as each traced frame begins,
+-- so a frame whose walk raised part-way leaves nothing behind for the next frame's line.
 local traceChanged = {}
 local TRACE_MAX_CHARS = 200
 
@@ -374,7 +375,6 @@ end
 -- was consumed by popAndAccount, so the walk starts at byte 4.
 local function traceFrame(data, decoded)
     local text = table.concat(traceChanged, " ")
-    for i = #traceChanged, 1, -1 do traceChanged[i] = nil end
     if #text > TRACE_MAX_CHARS then text = string.sub(text, 1, TRACE_MAX_CHARS) .. "..." end
     logf("trace", "frame %s: %d value(s), changed: %s", tostring(data[3]), decoded,
         text ~= "" and text or "-")
@@ -407,6 +407,7 @@ end
 -- pays nothing per sensor for the trace.
 local function decodeFrameTraced(data, now)
     local sid, val
+    for i = #traceChanged, 1, -1 do traceChanged[i] = nil end
     walkOnly = false
     decodeNow = now
     local ptr = 4

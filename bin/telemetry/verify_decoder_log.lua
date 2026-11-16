@@ -15,7 +15,7 @@
 --     widget standing aside for the background script and taking over again, a link reset, each
 --     report from the flight controller and whether it was spoken are written, and no per-frame line;
 --   * at trace one line per decoded frame names the values that changed, and the teller says what it
---     is waiting for;
+--     is waiting for, and a frame whose walk raised part-way leaves nothing in the next frame's line;
 --   * the state-line fragment says who decoded and how many frames and gaps it saw.
 -- Exit status: 0 green, 1 a FAIL line was printed.
 
@@ -297,6 +297,30 @@ scenario("trace_widget", function()
   check(grep("changed:.*ADJ") == 2, "trace_widget: the ADJ group is named for its two changes only", grep("ADJ"))
   check(grep("changed: %-$") >= 1, "trace_widget: an unchanged frame says so", first)
   check(grep("dash: waiting: function 10 value 5 settles in") >= 1, "trace_widget: the teller says it waits", dump(40))
+end)
+
+-- 3b. trace in the widget, a frame cut short: the ARM row changes, then the ADJ row ends after one
+-- byte, so its decoder raises part-way through the walk. The caller catches it (as
+-- tasks/events/runtime.lua does with pcall), and the next whole frame's line names only its own change.
+scenario("trace_cut_frame", function()
+  newWorld("widget", "trace")
+  seconds(1)
+  local raised = 0
+  for i = 1, 6 do
+    W.frameId = (W.frameId + 1) % 256
+    W.frames[#W.frames + 1] = { 0xC8, 9, W.frameId, 0x12, 0x02, 1 + i % 2, 0x12, 0x20, 0x00 }
+    W.ticks = W.ticks + PASS_TICKS
+    if not pcall(W.step) then raised = raised + 1 end
+  end
+  W.lines = {}
+  W.nextAdjAt = 0
+  pass()
+  print = realPrint
+  check(raised == 6, "trace_cut_frame: each cut frame raises in its decoder", "raised=" .. raised)
+  local n, line = grep("dash: frame %d+: %d+ value%(s%), changed:")
+  check(n == 1, "trace_cut_frame: the whole frame after them gets its line", dump(20))
+  check(line ~= nil and string.match(line, "changed: ARM=0$") ~= nil,
+    "trace_cut_frame: the line names only the whole frame's change, none left from the cut frames", line)
 end)
 
 -- 4. The background script at debug: named bg, and its state line carries the decoder fragment.
