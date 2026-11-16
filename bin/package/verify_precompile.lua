@@ -487,6 +487,49 @@ do
     #second.loads .. " loads")
 end
 
+-- The colour schemes' folders: each tile icon and each shipped theme's picture once per scheme, a hundred-odd
+-- pictures to a folder, walked the same way. A picture costs no timestamp, so the entry loop used to take a whole folder in one call. Every
+-- widget call of the pass is counted in the module's own instructions (the card's dir() here is a test
+-- stand-in and is left out), and the most expensive one has to stay well under the widget's limit.
+do
+  local card = installedCard()
+  local folders = { { "app/icons/light", 113 }, { "app/icons/dark", 113 },
+    { "widgets/dashboard/theme_icons/light", 90 }, { "widgets/dashboard/theme_icons/dark", 90 } }
+  for _, folder in ipairs(folders) do
+    for n = 1, folder[2] do
+      card.put(string.format("%s/%s/setup_esc_motors_esc_tools_escmfg_%03d_icon.png", CORE, folder[1], n), "png", 100)
+    end
+  end
+  local Precompile, record, advance, close = widgetState(card, true)
+  local source = "=" .. modulePath
+  local worst, steps = 0, 0
+  if hasWidgetApi(Precompile) and Precompile.startIfStale("0.2.0") then
+    while Precompile.isRunning() and steps < 10000 do
+      local n = 0
+      debug.sethook(function()
+        local info = debug.getinfo(2, "S")
+        if info and info.source == source then n = n + 1 end
+      end, "", 1)
+      Precompile.stepShared()
+      debug.sethook()
+      if n > worst then worst = n end
+      advance()
+      steps = steps + 1
+    end
+  end
+  local finished = hasWidgetApi(Precompile) and not Precompile.isRunning()
+  close()
+  collectReports(record)
+  check("scheme picture folders: the pass finishes on its own, not at the step cap", finished and steps < 10000,
+    steps .. " steps")
+  check("scheme picture folders: it compiles both sources, each once, and reports nothing",
+    #record.loads == 2 and record.loads[1] ~= record.loads[2] and #record.warnings == 0,
+    table.concat(record.loads, ", ") .. "; " .. table.concat(record.warnings, "; "))
+  check("scheme picture folders: the stamp is written", card.files[USER .. "/precompiled.txt"] ~= nil)
+  check("scheme picture folders: no call takes more than 6000 of the module's instructions", worst > 0 and worst <= 6000,
+    "worst call " .. worst)
+end
+
 -- A tree already compiled: no pass, no walk, nothing loaded, so the connection is not held.
 do
   local card = compiledCard()
