@@ -1,2 +1,1 @@
-- **Accelerometer trims no longer show a misleading degree suffix (`setup/accelerometer`)**:
-  - Roll and Pitch keep their raw -300 to 300 values, in tenths of a degree, without a unit as in the Rotorflight Configurator; inline help explains the unit (#615).
+- **Accelerometer trims no longer show a misleading degree suffix (`setup/accelerometer`)** (#615)
