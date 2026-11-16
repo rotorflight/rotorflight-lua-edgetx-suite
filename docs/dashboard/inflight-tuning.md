@@ -399,8 +399,8 @@ After a touch action the encoder focus returns to the tuning sensor. For the plu
 of value mode that happens without a rebuild: on the screen refresh after the release the two
 buttons and the group row above them blink out once while the focus goes back, so
 the value keeps updating and the screen does not stand still after a tap. The first tap after the encoder was
-turned rebuilds the live scene once instead; taps in a row after it do not. An encoder detent
-turned in the moment between a tap and the focus coming back also rebuilds it once. Other touch actions in browse or value mode rebuild the live scene for it. A
+turned rebuilds the live scene once instead; taps in a row after it do not. If the encoder
+is turned in the moment between a tap and the focus coming back, the live scene can be rebuilt once. Other touch actions in browse or value mode rebuild the live scene for it. A
 held plus/minus target waits until release. This also applies when a touch step is refused during
 a pulse or cooldown; the next encoder detent uses the tuning sensor again and remains subject to
 the same pulse/cooldown rules.
