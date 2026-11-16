@@ -64,6 +64,14 @@
 -- label. EdgeTX's instruction-limit stop is raised on instead, before anything is changed, so
 -- the queue keeps the previous write's reply handler current and runs it again on a later pass.
 --
+-- A step may also carry `check = { command = <read command>, holds = function(buf) -> boolean }`
+-- for a write that is only right while something on the board stays as it was -- a write that
+-- lands on whichever profile is active, for one. The read goes out right before that step's
+-- write, and the write is sent only when `holds` returns true for the reply. Anything else ends
+-- the save at that step with nothing more sent and no EEPROM commit: `check = "refused"` in the
+-- result when the answer did not hold (or `holds` raised), `check = "unanswered"` when the read
+-- got no reply. A write acknowledged before such a stop has reached the board (`sentAny`).
+--
 -- Progress is exposed through getProgress() and drawn by whoever is on screen, which is the
 -- same split the start screen uses for the connect chain. Nothing here opens a native modal,
 -- so the tool's run() and the MSP tick keep going for the whole pipeline.
@@ -685,6 +693,84 @@ local function queueCommit()
   })
 end
 
+local function queueWrite(run, index, step, payload)
+  local queue = getQueue()
+  if not queue then
+    fail(step.label or tostring(step.command))
+    return
+  end
+  local msg
+  msg = {
+    command = step.command,
+    payload = payload,
+    isWrite = true,
+    client = run.client,
+    sendIf = whileCurrent(run),
+    processReply = function()
+      if not isCurrent(run) then return end
+      if not S.run.sentAny then
+        logf("trace", "first write acknowledged page=%s step=%d", tostring(S.run.desc.pageId), index)
+      end
+      S.run.sentAny = true
+      queueStep(index + 1)
+    end,
+    errorHandler = function(given, reason)
+      if not isCurrent(run) then return end
+      -- "refused" means the board answered this write with an error on some attempt. The
+      -- firmware's refusals of a write are a function of its payload, apart from the armed-gated
+      -- ones, and an armed craft clears the queue first; so a write refused once was refused on
+      -- every attempt and was not taken. A write given up unanswered, or cleared after it was
+      -- sent, may have been taken.
+      if reason ~= "refused" and type(given) == "table" and given.__sentAt ~= nil then
+        logf("debug", "write unanswered after it was sent page=%s step=%d reason=%s",
+          tostring(S.run.desc.pageId), index, tostring(reason))
+        S.run.sentAny = true
+      end
+      fail(step.label or tostring(step.command))
+    end,
+  }
+  run.stepMsg = msg
+  queue:add(msg)
+end
+
+--- The read a step's `check` asks for, and its write only when the answer holds.
+local function queueCheck(run, index, step, payload, queue)
+  local check = step.check
+  local label = step.label or tostring(step.command)
+  -- A check that cannot be asked fails closed: the write it guards is not sent unchecked.
+  if type(check) ~= "table" or check.command == nil or type(check.holds) ~= "function" then
+    logf("warn", "check malformed page=%s step=%d", tostring(run.desc.pageId), index)
+    finish("failed", { step = label, check = "refused" })
+    return
+  end
+  logf("trace", "check before write page=%s step=%d command=%s", tostring(run.desc.pageId), index,
+    tostring(check.command))
+  queue:add({
+    command = check.command,
+    payload = {},
+    client = run.client,
+    processReply = function(_, buf)
+      if not isCurrent(run) then return end
+      local ok, holds = pcall(check.holds, buf)
+      if not ok and isCpuLimitError(holds) then error(holds, 0) end
+      if ok and holds == true then
+        logf("trace", "check held page=%s step=%d", tostring(run.desc.pageId), index)
+        queueWrite(run, index, step, payload)
+        return
+      end
+      logf("warn", "check refused the write page=%s step=%d err=%s", tostring(run.desc.pageId), index,
+        ok and "-" or tostring(holds))
+      finish("failed", { step = label, check = "refused" })
+    end,
+    errorHandler = function(_, reason)
+      if not isCurrent(run) then return end
+      logf("warn", "check unanswered page=%s step=%d reason=%s", tostring(run.desc.pageId), index,
+        tostring(reason))
+      finish("failed", { step = label, check = "unanswered" })
+    end,
+  })
+end
+
 -- `payload` is given for the first step only: start() resolves it before the run exists.
 queueStep = function(index, payload)
   local steps = S.run.desc.steps
@@ -714,38 +800,11 @@ queueStep = function(index, payload)
   S.run.stepIndex = index
   enter(PHASE.WRITE)
   local run = S.run
-  local msg
-  msg = {
-    command = step.command,
-    payload = payload,
-    isWrite = true,
-    client = S.run.client,
-    sendIf = whileCurrent(run),
-    processReply = function()
-      if not isCurrent(run) then return end
-      if not S.run.sentAny then
-        logf("trace", "first write acknowledged page=%s step=%d", tostring(S.run.desc.pageId), index)
-      end
-      S.run.sentAny = true
-      queueStep(index + 1)
-    end,
-    errorHandler = function(given, reason)
-      if not isCurrent(run) then return end
-      -- "refused" means the board answered this write with an error on some attempt. The
-      -- firmware's refusals of a write are a function of its payload, apart from the armed-gated
-      -- ones, and an armed craft clears the queue first; so a write refused once was refused on
-      -- every attempt and was not taken. A write given up unanswered, or cleared after it was
-      -- sent, may have been taken.
-      if reason ~= "refused" and type(given) == "table" and given.__sentAt ~= nil then
-        logf("debug", "write unanswered after it was sent page=%s step=%d reason=%s",
-          tostring(S.run.desc.pageId), index, tostring(reason))
-        S.run.sentAny = true
-      end
-      fail(step.label or tostring(step.command))
-    end,
-  }
-  run.stepMsg = msg
-  queue:add(msg)
+  if step.check ~= nil then
+    queueCheck(run, index, step, payload, queue)
+    return
+  end
+  queueWrite(run, index, step, payload)
 end
 
 --- Begin a save. Returns false and a reason when the pipeline refuses to start one.

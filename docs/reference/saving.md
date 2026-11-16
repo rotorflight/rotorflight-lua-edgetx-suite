@@ -256,6 +256,14 @@ cache keeps a PID profile's reply only while one of these sensors reports the pr
 model reads the PID profile from the flight controller on every visit instead of being served the
 profile of an earlier one.
 
+A save that has already started can be overtaken by a switch, too: a save of several writes sends
+them one after another, and each lands in the profile active when it arrives. The Tune Advisor's
+Save therefore asks the flight controller for the active PID and rate profile right before each of
+its writes, and stops at the first one that would land elsewhere: that write and every later one
+are not sent and no EEPROM commit is queued. The shared save offers this check before a write to
+any page. The other pages above save one record in a single write and check the profile when Save
+is pressed, as described.
+
 Power > Sources writes the battery configuration, whose cell values belong to the battery profiles
 on MSP API 12.10. Its Save sends every profile's cell values back as they were read, so a battery
 profile switch while the page is open leaves every profile's values where they were.
