@@ -1,2 +1,1 @@
-- **The German Flight Log page uses real umlauts (`i18n/de.lua`)**:
-  - Its labels, notices, dialogs and help ("Fluege", "Kapazitaet", "Akku loeschen", "Entschaerfen") were written with transliterated umlauts; they now carry the real characters like the rest of the German table.
+- **The German Flight Log page uses real umlauts (`i18n/de`)**
