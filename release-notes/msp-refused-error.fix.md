@@ -1,2 +1,1 @@
-- **Preserve refused MSP API errors and translate Info connection failures (`tasks/msp/runtime.lua`, `app/pages/tools/diagnostics/info`, `i18n/`, `docs/pages/tools/diagnostics/info.md`, `docs/reference/connection-status.md`)**:
-  - A refused board keeps its error instead of losing the message during disconnect handling. Info names the refused version and shows what to check in the pilot's language instead of an English diagnostic string (#598).
+- **Info names a refused MSP API version and what to check, in the pilot's language (`tools/diagnostics/info`)** (#598)
