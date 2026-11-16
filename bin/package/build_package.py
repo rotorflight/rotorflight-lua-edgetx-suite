@@ -141,6 +141,16 @@ def get_theme_metadata(theme_dir, source_name):
         return None
     config_m = re.search(r'configure\s*=\s*"([^"]+)"', content)
     stand_m = re.search(r"standalone\s*=\s*(true|false)", content)
+    # The screen size a theme declares itself drawn for; the radio lists such a theme only on a
+    # screen of that size (app/pages/settings/dashboard/lib.lua, fitsScreen). `w` and `h` in
+    # either order; a table missing one of them declares no size.
+    screen = None
+    screen_m = re.search(r"\bscreen\s*=\s*\{([^}]*)\}", content)
+    if screen_m:
+        w_m = re.search(r"\bw\s*=\s*(\d+)", screen_m.group(1))
+        h_m = re.search(r"\bh\s*=\s*(\d+)", screen_m.group(1))
+        if w_m and h_m:
+            screen = (int(w_m.group(1)), int(h_m.group(1)))
     # A shipped theme's icons are checked here, against the staged tree, and the row says so:
     # the radio then takes them as named instead of opening each one in its theme scan
     # (app/pages/settings/dashboard/lib.lua, appendTheme). An icon that is not there is left out,
@@ -158,7 +168,8 @@ def get_theme_metadata(theme_dir, source_name):
         "configure": config_m.group(1) if config_m else None,
         "standalone": stand_m.group(1) == "true" if stand_m else False,
         "icon": "icon.png" if os.path.isfile(os.path.join(theme_dir, "icon.png")) else None,
-        "pages": pages
+        "pages": pages,
+        "screen": screen
     }
 
 
@@ -207,8 +218,10 @@ def generate_theme_index(target_core_dir, target_user_dir):
         stand_val = "true" if e["standalone"] else "false"
         pages_val = lua_pages_table(e.get("pages"))
         icon_val = f', icon = "{lua_escape(e["icon"])}"' if e.get("icon") else ""
+        screen = e.get("screen")
+        screen_val = f', screen = {{ w = {screen[0]}, h = {screen[1]} }}' if screen else ""
         lines.append(f'  {{ name = "{safe_name}", source = "{e["source"]}", folder = "{safe_folder}", '
-                     f'configure = {cfg_val}, standalone = {stand_val}, checked = true{icon_val}{pages_val} }},')
+                     f'configure = {cfg_val}, standalone = {stand_val}, checked = true{icon_val}{screen_val}{pages_val} }},')
     lines.append("}\n")
     with open(out_file, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))

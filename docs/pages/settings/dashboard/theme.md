@@ -24,7 +24,7 @@ model's values then, as it does when it is opened with the flight controller con
 
 | Setting | What it does |
 | --- | --- |
-| Theme | The dashboard theme of every model without settings of its own. A theme covers all three flight phases — before, during and after the flight — itself. |
+| Theme | The dashboard theme of every model without settings of its own. A theme covers all three flight phases — before, during and after the flight — itself. A theme drawn for one screen size (*@NovaFly RC*, for 800 x 480) is listed only on a radio of that size. |
 | Inflight Override, Postflight Override | Only while *Per-Phase Themes* is on. A different theme for that one phase; left at *Use theme above*, the phase keeps the theme above. |
 
 ### Per-Model Settings

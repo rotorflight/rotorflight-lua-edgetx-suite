@@ -141,10 +141,25 @@ local function themePages(declared, loadBasePath, folder, log, checked)
   return pages
 end
 
+-- A theme drawn for one screen size declares it in its init.lua (`screen = { w = 800, h = 480 }`),
+-- and the packager carries it into the theme's index row. Such a theme is listed only on a radio
+-- of that size; a theme that declares nothing is listed everywhere, and so is every theme on a
+-- radio that does not report its size.
+local function fitsScreen(declared)
+  if type(declared) ~= "table" then return true end
+  local w, h = tonumber(LCD_W), tonumber(LCD_H)
+  if w == nil or h == nil then return true end
+  return (tonumber(declared.w) or w) == w and (tonumber(declared.h) or h) == h
+end
+
 local function appendTheme(themes, nextId, entry, loadBasePath, log)
   if type(entry) ~= "table" then return nextId end
   if type(entry.name) ~= "string" or entry.name == "" then return nextId end
   if type(entry.folder) ~= "string" or entry.folder == "" then return nextId end
+  if not fitsScreen(entry.screen) then
+    scanSkipped(log, "%s (drawn for another screen size)", entry.folder)
+    return nextId
+  end
 
   -- Only a shipped theme's row is trusted: a theme on the pilot's own folder can change after
   -- the build, and is looked up as before.
@@ -278,6 +293,10 @@ local function scanEntry(rawEntry, loadBasePath, source, id, log)
   if not initOk then raiseLimitStop(initTable) end
   if not (initOk and type(initTable) == "table" and type(initTable.name) == "string") then
     scanSkipped(log, "%s/%s (init.lua %s)", source, folder, initOk and "returned no theme" or "failed")
+    return nil
+  end
+  if not fitsScreen(initTable.screen) then
+    scanSkipped(log, "%s/%s (drawn for another screen size)", source, folder)
     return nil
   end
 

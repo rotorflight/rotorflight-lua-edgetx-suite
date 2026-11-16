@@ -224,6 +224,12 @@ return {
     -- hundred. Not the 25 % --emit gives a new row, which would put the target above the 20 000
     -- the theme rows keep their distance to.
     ["theme.deck"] = { target = 18600, measured = 16721 },
+    -- @NovaFly RC is a free-form theme too, so its worst pass is its build. It loads its two tables
+    -- over the first passes and builds one picture node per digit, with a file, a position and a
+    -- visibility getter each: 173 references in the tree, more than any theme above, and a sweep
+    -- that stays small because each getter reads one prepared field. The target is what --emit
+    -- printed for it.
+    ["theme.@novafly"] = { target = 16050, measured = 12813 },
 
     ----------------------------------------------------------------------------
     -- Per box type: one render into the node table, and one sweep of the reactive
@@ -429,7 +435,11 @@ return {
     ["page.settings_audio_volume_page.build"] = { target = 2100, measured = 1674 },
     ["page.settings_dashboard_inflight_page.build"] = { target = 10200, measured = 8152 },
     ["page.settings_dashboard_keys_page.build"] = { target = 1400, measured = 1171 },
-    ["page.settings_dashboard_overrides_page.build"] = { target = 12200, measured = 9725 },
+    -- Raised from 12 200 when @NovaFly RC became the fourteenth shipped theme: the page lists the
+    -- themes to name the one an override belongs to, so every theme adds to its build. Measured
+    -- 11 981 with thirteen themes on the same host and 12 324 with fourteen. The target keeps the
+    -- 10 % the report prints a warning under, rounded up to the next fifty.
+    ["page.settings_dashboard_overrides_page.build"] = { target = 13750, measured = 12324, proposed = 12200 },
     ["page.settings_dashboard_quick_menu_page.build"] = { target = 3750, measured = 2976, proposed = 2500 },
     -- Priced on the Default theme's Before flight page (measure.lua, SETTINGS_THEME/SETTINGS_PAGE):
     -- the heaviest of its pages, which reads a phase module and lists its tiles.

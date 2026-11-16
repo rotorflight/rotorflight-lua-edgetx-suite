@@ -5,7 +5,7 @@ sidebar_label: Themes
 
 # Dashboard themes
 
-A theme decides what the *RFSuite* dashboard widget draws. The suite ships thirteen of them, and
+A theme decides what the *RFSuite* dashboard widget draws. The suite ships fourteen of them, and
 every theme draws three screens: one before the flight, one in flight and one after it. This page
 shows each shipped theme on them, and says how to choose one.
 
@@ -300,6 +300,20 @@ across the foot. The screen keeps its shape in flight; after the flight it shows
 statistics screen under Deck's header. It has a page of its own: [Deck theme](deck-theme.md).
 
 ![Deck before, during and after the flight](../images/dashboard/themes/deck.png)
+
+### @NovaFly RC
+
+A free-form theme drawn for 800 x 480 radios, and listed only on those: it takes the whole screen in
+fullscreen mode and shows the same cockpit in every flight phase. The arm state, the flight timer and
+the PID and rate bank are on the left, the head speed on a dial in the middle with the model name
+under it, the BEC voltage, the radio's battery voltage, the current and the ESC temperature on the
+right, and the pack voltage with the battery percentage and the cell voltage along the foot. The head
+carries the link, the flight controller's load and the MCU temperature. A press on the bank field opens
+its bank view, which reads the active bank's governor head speed from the flight controller and sets it
+on the ground; a long press on the head changes the colour of the cockpit. It has a page of its own:
+[@NovaFly RC theme](novafly-theme.md).
+
+![@NovaFly RC before and during the flight, and its bank view](../images/dashboard/themes/novafly.png)
 
 ## Related
 

@@ -56,6 +56,14 @@ A theme may split its settings into pages. Its tile then opens a second grid, on
 page, and each of those opens part of the theme's settings — the same settings, divided so a
 page fits the screen. Themes that do not split show their settings directly.
 
+### @NovaFly RC
+
+| Setting | What it does |
+| --- | --- |
+| Colour | The colour of the cockpit: Blue, Turquoise, Green, Yellow, Gold, Orange, Red, Magenta, Violet or Silver. The same setting a long press on the cockpit's head changes, one colour further each time. |
+
+The tile is listed on 800 x 480 radios only, like the theme itself ([@NovaFly RC theme](../../../dashboard/novafly-theme.md)).
+
 ### Shared phase, Info bar and Keys pages
 
 Themes that declare boxes can offer shared **Before flight**, **In flight**, **Statistics**,
