@@ -588,6 +588,7 @@ print("A save goes on to its end when the page is closed after its first write")
 do
   resetFc()
   openPage()
+  local logged = #(Journal.read(MCU) or {})
   local sent = applyNow(function(m)
     if m.command == codecs.tuning.writeCommand and opened then Page.onClose(); opened = false end
   end)
@@ -595,6 +596,8 @@ do
     and has(sent, EEPROM), table.concat(sent, ","))
   check("both writes reached the board", fc.tuning.pid_0_F == 96 and fc.rates.rcRates_1 == 23,
     "F " .. tostring(fc.tuning.pid_0_F) .. " rates " .. tostring(fc.rates.rcRates_1))
+  check("the stored save is journalled after the close", #(Journal.read(MCU) or {}) == logged + 3,
+    tostring(#(Journal.read(MCU) or {}) - logged) .. " entries")
 end
 
 print("Ethos suite: A failed or short read writes nothing")
