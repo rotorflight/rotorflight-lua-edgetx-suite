@@ -39,6 +39,10 @@ function M.new(runtime, allowed, failed)
     for i = self.first, #self.jobs do if not self.jobs[i].override then jobs[#jobs + 1] = self.jobs[i] end end
     self.jobs, self.first = jobs, 1
     if self.pending and self.pending.job.override then self.pending = nil end
+    -- The queue holds an override of this visit only after one was handed to it; clearing an empty
+    -- client still logs the clear when another client's request is in flight, on every card change.
+    if not self.overridesQueued then return end
+    self.overridesQueued = false
     local q = self:queue(); if q then q:clear("helicopter-overrides") end
   end
   function b:dropApi(name)
@@ -112,6 +116,7 @@ function M.new(runtime, allowed, failed)
     self.pending = p
     -- From here on the flight controller may hold something of this visit.
     if j.write then self.wrote = true end
+    if j.override then self.overridesQueued = true end
     if container == j then self.first = self.first + 1 else container.current = nil end
     q:add({
       command = j.write and api.writeCommand or api.command,

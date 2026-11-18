@@ -1,0 +1,6 @@
+- **Helicopter setup wizard: clearer single cards (`src/rfsuite/app/pages/helicopter_setup/`)**:
+  - *Prepare the radio model* states the prerequisites once (FC on USB without the flight battery, receiver bound), asks for *Radio model set up*, names the two state sensors with *OK* or *missing*, and offers *Add missing sensors to FC* only when one is missing. It is remembered per flight controller: a step opened on its own passes it by itself while both sensors are live.
+  - Board orientation: *Detect* sits below the roll, pitch and yaw it fills, and the orientation check says in one sentence what to do.
+  - Receiver: the *Wiring: use USB* button is gone; the channel-order card says a standard order is enough and detection is the alternative.
+  - Rates: *Suggest styles* pre-selects Trainer, Sport and 3D on the profiles' cards and names the profiles it set.
+  - Blade pitch: a new first card shows from above how to turn the blades along the tail boom, confirmed before collective and cyclic are measured.

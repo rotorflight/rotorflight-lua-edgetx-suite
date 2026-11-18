@@ -181,6 +181,6 @@ return function(w)
       cards[#cards+1]=card
     end
   end
-  if #cards==0 then cards[1]=w:cardDef(L.servoType,L.servoTypeHint,{w:value(L.servo,function() return L.unavailable end)},nil,"servo") end
+  if #cards==0 then cards[1]=w:cardDef(L.cardNoServos,L.servoTypeHint,{w:value(L.servo,function() return L.unavailable end)},nil,"servo") end
   return cards
 end

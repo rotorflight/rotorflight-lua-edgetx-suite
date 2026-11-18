@@ -77,6 +77,16 @@ def render(scene):
                 lines = lines[:max(1, int(h / line_h))]
             for n,line in enumerate(lines):
                 draw.text((x,y+n*line_h),line,font=face,fill=ink)
+        elif kind == 'toggle':
+            # A switch: the track in the accent colour when on, the knob at that end.
+            on = bool(item.get('get'))
+            draw.rounded_rectangle((x, y, x+w, y+h), radius=h//2, fill='#1c6fb8' if on else '#c9d2db')
+            r = h//2 - 3
+            cx = x+w-h//2 if on else x+h//2
+            draw.ellipse((cx-r, y+h//2-r, cx+r, y+h//2+r), fill='#ffffff')
+        elif kind == 'textEdit':
+            draw.rounded_rectangle((x,y,x+w,y+h),radius=4,fill='#fff',outline='#34404b',width=1)
+            draw.text((x+8,y+h/2),str(item.get('value','')),anchor='lm',font=font(size),fill='#26394c')
         elif kind in ('button','momentaryButton','choice','numberEdit'):
             draw.rounded_rectangle((x,y,x+w,y+h),radius=4,
                                    fill=color(item.get('color'), '#fff'),outline='#34404b',width=1)

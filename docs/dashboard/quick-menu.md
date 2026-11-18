@@ -226,13 +226,18 @@ when the tool closes is finished by the dashboard, and its outcome is shown the 
 opens; a save that gave up sends nothing more from the dashboard either (see
 [Saving configuration](../reference/saving.md)).
 
+The tool draws in *Color scheme* (Settings > General > Appearance) here too, the radio's own
+switches, fields and page header included, and the radio's theme colours are back as soon as it
+closes or full screen is left. Its tile icons and the themes' pictures come in each scheme.
+
 Two things are different from the tool started from the tool list:
 
 - **A page that builds a lot can take a moment longer to appear.** A widget is stopped when one
   call runs too long, where the tool started from the tool list is paused and resumed, so such a
-  page is finished over the next few frames. For the same reason, when **FLIGHT LOG** or a row of
-  the rolling menu opens the tool on a page, the page is drawn one frame after the tool has started
-  up, not in the same frame.
+  page is finished over the next few frames. For the same reason a page shows *Loading...* for one
+  frame when it is opened, and appears on the next; a change made on a page that is open redraws it
+  at once. When **FLIGHT LOG** or a row of the rolling menu opens the tool on a page, that page is
+  built one frame after the tool has started up and appears one frame later.
 - **Some memory stays in use after it is closed.** The pages are released, but the parts of the
   tool the dashboard shares stay loaded until the widget is.
 

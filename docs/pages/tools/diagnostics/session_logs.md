@@ -35,8 +35,9 @@ A line that is wider than the screen is cut short and ends in `...`. As many of 
 are drawn as fit on the page; there is nothing to scroll, so an older line that has been pushed
 off the top cannot be brought back.
 
-Each line is coloured by its level, and *debug* and *trace* lines are dimmed so that *error*,
-*warn* and *info* stand out.
+Each line is coloured by its level: *error* in the colour scheme's error colour, *warn* in its
+warning colour, *info* in the text colour, and *debug* and *trace* dimmed so that the other three
+stand out.
 
 The page redraws itself whenever a new line arrives, so what is on screen is the current end of
 the log. **RELOAD** draws it again and changes nothing else.

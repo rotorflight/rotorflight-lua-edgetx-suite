@@ -23,7 +23,7 @@ return function(w)
   local cards = {
     -- As in the Configurator's step: blades off first, then the accelerometer on a level
     -- helicopter, then the orientation with the tail lifted, then the live check.
-    w:cardDef(L.sensors, L.prepare, {
+    w:cardDef(L.cardPrepare, L.prepare, {
       w:check("blades", L.bladesRemoved), w:check("unplugged", L.servosUnplugged)
     }, nil, "heliBladesOff"),
     w:cardDef(L.calibrateTitle, L.calibrateHint, {
@@ -35,11 +35,12 @@ return function(w)
       w:value(L.accelerometer, function() return acc and L.available or L.unavailable end),
       w:value(L.accCalibrated, function() return calibrated end)
     }, nil, "heliLevel"),
-    w:cardDef(L.orientation, L.alignHint, {
-      w:button(L.autoAlign, function() w:startTrial("board_auto_align") end, function() return acc end),
+    w:cardDef(L.cardMounting, L.alignHint, {
       angle(w:n("board_alignment_config", "roll_degrees", L.roll, -180, 180, false, true), "roll_degrees"),
       angle(w:n("board_alignment_config", "pitch_degrees", L.pitch, -180, 180, false, true), "pitch_degrees"),
-      angle(w:n("board_alignment_config", "yaw_degrees", L.yaw, -180, 180, false, true), "yaw_degrees")
+      angle(w:n("board_alignment_config", "yaw_degrees", L.yaw, -180, 180, false, true), "yaw_degrees"),
+      -- Detect sits below the values it fills.
+      w:button(L.autoAlign, function() w:startTrial("board_auto_align") end, function() return acc end)
     }, nil, "heliLift"),
     w:cardDef(L.checkOrientation, L.orientationHint, {
       w:check("orientation", L.directionCorrect)

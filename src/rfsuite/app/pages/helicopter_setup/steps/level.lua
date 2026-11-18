@@ -3,7 +3,7 @@ return function(w)
   -- Without a swashplate there is nothing to level; the step says so and offers the way there.
   if w.data.mixer_config.swash_type == 0 then
     if w.logDebug then w:log("debug", "level: no swashplate set") end
-    return { w:cardDef(L.level, L.levelNoSwash, { w:button(L.levelToSwash, function() w:navigate(6, 1) end) }) }
+    return { w:cardDef(L.cardNoSwash, L.levelNoSwash, { w:button(L.levelToSwash, function() w:navigate(6, 1) end) }) }
   end
   w.validate = function() return w:ack("motorUnplugged") and w:ack("level") and w:ack("bladeZero") end
   local function zero() w:holdAxes(nil, 0) end
@@ -13,7 +13,7 @@ return function(w)
   if not w.singleStep then
     cards[1] = w:cardDef(L.motorOffTitle, L.motorOffHint, { w:check("motorUnplugged", L.motorUnplugged) }, nil, "level")
   end
-  cards[#cards + 1] = w:cardDef(L.level, L.levelHint, {
+  cards[#cards + 1] = w:cardDef(L.cardSwashTrims, L.levelHint, {
     w:n("mixer_config", "swash_trim_0", L.roll, -1000, 1000, false, true, 10),
     w:n("mixer_config", "swash_trim_1", L.pitch, -1000, 1000, false, true, 10),
     w:n("mixer_config", "swash_trim_2", L.collective, -1000, 1000, false, true, 10),

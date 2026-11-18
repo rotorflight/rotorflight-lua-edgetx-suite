@@ -215,5 +215,38 @@ for _, name in ipairs(NAMES) do
   holdsScheme(name, "tool start, " .. name, true)
 end
 
+-- The tool itself: every palette role is a colour of the scheme, the menu stands on the scheme's page
+-- (ui/home.lua appendPageBackground), and the help sheet carries the page behind its text where the
+-- firmware can float it (ui/help_view.lua).
+local Palette = _G.rfsuite.palette or assert(loadfile(root .. "/src/rfsuite/ui/palette.lua"))()
+local HelpView = assert(loadfile(root .. "/src/rfsuite/ui/help_view.lua"))()
+for _, name in ipairs(NAMES) do
+  check(Palette.apply(name) == name, "palette: applies " .. name)
+  local roles, foreign = 0, {}
+  for _, role in ipairs({ "background", "card", "border", "text", "muted", "accent", "accentText", "warning",
+      "error", "ok", "caution", "panel", "panelText", "settingsText", "tile", "tileMuted" }) do
+    roles = roles + 1
+    if allowed[name][Palette[role]] ~= true then foreign[#foreign + 1] = role end
+  end
+  check(#foreign == 0, "palette, " .. name .. ": every role is a colour of the scheme", table.concat(foreign, ","))
+  check(Palette.background == expectedPage[name], "palette, " .. name .. ": the background is the scheme's page")
+  state.initialLoad = false
+  state.preferences.general = state.preferences.general or {}
+  state.preferences.general.color_scheme = name
+  Stubs.lvgl.trees = {}
+  M.buildUI(true)
+  local menu = standing()
+  check(menu.nodes > 1 and menu.page == expectedPage[name], "tool menu, " .. name .. ": it stands on the scheme's page",
+    tostring(menu.page))
+  local tree = HelpView.build({ title = "Help", message = "One line.", contentW = 400 })
+  local children = tree and tree[1] and tree[1].children or {}
+  if Palette.canFloat() then
+    check(children[1] and children[1].type == "rectangle" and children[1].color == expectedPage[name],
+      "help, " .. name .. ": the page stands behind the text")
+  else
+    check(children[1] and children[1].type ~= "rectangle", "help, " .. name .. ": no background where it cannot float")
+  end
+end
+
 print(string.format("verify_start_scheme: %d checks, %d failures", checks, failures))
 os.exit(failures == 0 and 0 or 1)

@@ -16,13 +16,16 @@ return function(w)
     return w:ack("connected") and w:ack("blades")
   end
   if w.rebootPending then
-    return { w:cardDef(L.connect, L.rebootGateHint, {
+    return { w:cardDef(L.cardRestart, L.rebootGateHint, {
       w:check("unplugged", L.servosUnplugged),
       w:value(L.reboot, function() return L.required end)
     }, nil, "servo") }
   end
-  -- The swash layout cannot change within this step: the list is built once.
-  local servoNames = table.concat(w:servoLabels(), ", ")
+  -- The swash layout cannot change within this step: the list is built once. The row is named
+  -- Servos, so the value lists their output numbers only; four names did not fit one line.
+  local servoNumbers = {}
+  for _, i in ipairs(w:servos()) do servoNumbers[#servoNumbers + 1] = tostring(i + 1) end
+  local servoNames = table.concat(servoNumbers, ", ")
   local cards = { w:cardDef(L.plugServos, L.connectHint, {
     w:value(L.motorOutputs, function() return w:motorOutputsOk() and L.ready or L.motorFailed end),
     w:value(L.servos, function() return servoNames end),

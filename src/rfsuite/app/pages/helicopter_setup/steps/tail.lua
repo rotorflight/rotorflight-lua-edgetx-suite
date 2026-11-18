@@ -13,7 +13,7 @@ return function(w)
         release = function() w:stopMotor() end,enabled=function() return w:canSpin(1) end }
     end
     return {
-      w:cardDef(L.tail, L.tailMotorHint, rows, nil, "tailMotor"),
+      w:cardDef(L.cardTailMotor, L.tailMotorHint, rows, nil, "tailMotor"),
       w:cardDef(L.tailIdle, L.tailIdleHint, {
         w:n("mixer_config", "tail_motor_idle", L.idlePercent, 0, 250, false, true, 10),
         w:button(L.usePower, function() w:field("mixer_config", "tail_motor_idle", math.min(w.percent * 10, 250), false, true) end),

@@ -8,6 +8,10 @@ local function loadModule(path)
 end
 
 local Palette = _G.rfsuite and _G.rfsuite.palette or loadModule("ui/palette.lua")
+-- The radio's theme slots, written from the colour scheme while the tool is open (lib/theme_slots.lua).
+-- Held here for the whole run: the module keeps the finaliser that puts the radio's colours back when
+-- this Lua state is closed, and the closing sequence below lets go of everything else first.
+local ThemeSlots = nil
 
 local state
 
@@ -72,7 +76,10 @@ local MEM_LOW_CLEAR_KB = 96
 -- here" and neither warns nor is logged.
 local MEM_FREE_MIN_KB = 4
 
-local APP_ICON  = _G.rfsuite.paths.core .. "/assets/icon.png"
+-- The page header's icon. EdgeTX draws it at the file's own size, centred in the header's corner
+-- and tinted with the header's title colour (a mask from the picture's darkness), so there is one
+-- file per header height: 45 px on a 480-wide screen, 62 px on an 800-wide one.
+local APP_ICON  = _G.rfsuite.paths.core .. (((LCD_W or 480) >= 800) and "/assets/icon_800.png" or "/assets/icon.png")
 
 local M = {}
 
@@ -508,6 +515,11 @@ local function pageBodyHeight()
   return screenH - headerH
 end
 
+-- The colour scheme's page colour behind the page body (ui/palette.lua).
+local function appendPageBackground(children)
+  Palette.appendBackground(children, LCD_W or 480, pageBodyHeight())
+end
+
 local function toWrappedItems(items, cols)
   local wrapped = {}
   local c = 1
@@ -614,6 +626,13 @@ state = {
   -- How many builds in a row of the page on screen were stopped at the instruction limit; see
   -- BUILD_LIMIT_RETRIES. Counted per visit, like the latch.
   buildLimitStops = 0,
+  -- The page that has been opened and not drawn yet, and, once its build has run, the layout
+  -- that build made, waiting for the next pass to draw it (see drawPendingPage).
+  firstDrawMenuId = nil,
+  pendingLayout = nil,
+  pendingLayoutMenuId = nil,
+  -- The page the previous pass drew from such a layout, whose usage the next pass logs.
+  drawnMenuId = nil,
   helpContent = nil,
   helpPageTitle = nil,
   helpPageSubtitle = nil,
@@ -748,9 +767,105 @@ local function shortenBreadcrumb(breadcrumb)
   return breadcrumb
 end
 
+-- A saved colour scheme recolours at once: the palette and the theme slots take it, and the open page
+-- is built again in it (scheduleBuildUI, declared below, is looked up when this runs).
+local scheduleBuildUI
+local function applySavedScheme()
+  local general = state.preferences and state.preferences.general
+  local scheme = general and general.color_scheme
+  if Palette.scheme == nil or Palette.apply(scheme) == nil then return end
+  -- Slots that carry the saved scheme owe nothing, whatever an earlier save left owed: a put-back still
+  -- waiting from a write given up would otherwise undo them.
+  if ThemeSlots and ThemeSlots.current() == Palette.scheme then state.themeSlotsOwed = nil; return end
+  logf("info", "colour scheme %s applied on save", tostring(Palette.scheme))
+  -- A write that stops part way (the instruction limit) leaves slots of both schemes: it is owed to the next
+  -- passes as the opening write is (writeOwedThemeSlots, same tries and the same put-back if it never goes
+  -- through), and the page waits for it rather than being built over the mix. Only the saved scheme's name
+  -- counts as written: a stop before the module lets go of the old name still answers the previous scheme.
+  if ThemeSlots then
+    local ok, err = pcall(ThemeSlots.apply, scheme)
+    if ok or ThemeSlots.current() == Palette.scheme then
+      state.themeSlotsOwed = nil
+    else
+      state.themeSlotsTries, state.themeSlotsOwed = 0, true
+      logf("warn", "theme slots not written on save: %s; owed to the next pass", tostring(err))
+    end
+  end
+  scheduleBuildUI(false)
+end
+
+-- The radio's theme slots from the saved scheme (lib/theme_slots.lua), the module loaded on the first
+-- call. Hosted, init only marks them owed and run writes them on its first pass, a pass of its own:
+-- init is one widget call under the instruction limit and already the heaviest call of the open, and
+-- the module's load and the write would add a few thousand instructions to it. The first build waits
+-- for the pass after, so nothing is drawn before the colours are in. A write that stops part way (the
+-- instruction limit) is tried again on the next pass, at most THEME_SLOT_TRIES times. If it never
+-- completes, the slots it did write are put back on the passes after it (restore, at most
+-- THEME_SLOT_TRIES tries as well), so the first build meets the radio's colours rather than a scheme
+-- written part way; only then is it built. Should the put-back keep stopping too, the build goes ahead
+-- and the module still holds the radio's colours, which the close puts back. A write that stopped after
+-- its last slot (the module names the scheme only once every slot carries it) counts as written.
+local THEME_SLOT_TRIES = 3
+local function writeThemeSlots()
+  local general = state.preferences and state.preferences.general
+  ThemeSlots = ThemeSlots or loadModule("lib/theme_slots.lua")
+  return ThemeSlots.apply(general and general.color_scheme)
+end
+
+local function writeOwedThemeSlots()
+  local tries = (state.themeSlotsTries or 0) + 1
+  state.themeSlotsTries = tries
+  if tries > THEME_SLOT_TRIES then
+    -- The write was given up and left slots held: put the radio's colours back, a pass per try. Checked
+    -- again here, since a stop can land between the try count and the write and skip the check below.
+    local putBack = tries - THEME_SLOT_TRIES
+    if not (ThemeSlots and ThemeSlots.holding()) then
+      state.themeSlotsOwed = nil
+      logf("info", "theme slots: nothing held to put back, first build on the next pass")
+      return
+    end
+    local ok, result = pcall(ThemeSlots.restore, "scheme write given up")
+    if ok then
+      state.themeSlotsOwed = nil
+      logf("info", "theme slots: radio colours put back (%s), first build on the next pass", tostring(result))
+    elseif putBack >= THEME_SLOT_TRIES then
+      state.themeSlotsOwed = nil
+      logf("error", "theme slots: radio colours not put back after %d tries: %s; put back on close", putBack,
+        tostring(result))
+    else
+      logf("warn", "theme slots: radio colours not put back (try %d of %d): %s", putBack, THEME_SLOT_TRIES,
+        tostring(result))
+    end
+    return
+  end
+  local ok, result = pcall(writeThemeSlots)
+  -- The scheme asked for, not any name: a save's owed write that stops before the module lets go of the old
+  -- name still answers the previous scheme (Palette.scheme is the saved one, applied before this pass).
+  if not ok and ThemeSlots ~= nil and ThemeSlots.current() == Palette.scheme then
+    logf("debug", "theme slots: the write stopped after its last slot (%s), taken as written", tostring(result))
+    ok = true
+  end
+  if ok then
+    state.themeSlotsOwed = nil
+    logf("debug", "theme slots: owed write done (written %s), first build on the next pass", tostring(result))
+  elseif tries >= THEME_SLOT_TRIES then
+    -- Given up. Whatever it wrote is put back on the next passes before the first build; with nothing held
+    -- (the module never loaded, or the write stopped before it took the radio's colours) the radio's
+    -- colours stand and the build goes ahead.
+    local holding = ThemeSlots ~= nil and ThemeSlots.holding()
+    if not holding then state.themeSlotsOwed = nil end
+    logf("error", "theme slots not written after %d tries: %s; %s", tries, tostring(result),
+      holding and "radio colours put back first" or "nothing written")
+  else
+    logf("warn", "theme slots not written (try %d of %d): %s", tries, THEME_SLOT_TRIES, tostring(result))
+  end
+end
+
 local function performSave()
   _G.rfsuite.preferences = state.preferences
-  return savePreferencesSafe(state.preferences)
+  local ok, err = savePreferencesSafe(state.preferences)
+  if ok then applySavedScheme() end
+  return ok, err
 end
 
 local function isSerialMemoryLogEnabled()
@@ -877,7 +992,7 @@ local function releasePages()
   end
 end
 
-local function scheduleBuildUI(withGc)
+function scheduleBuildUI(withGc)
   state.pendingBuildUI = true
   if withGc == true then
     state.pendingGcAfterBuild = true
@@ -944,6 +1059,8 @@ local function syncActivePageModule()
   -- The latch belongs to the page that is leaving. Re-entering it is a fresh attempt.
   state.pageBuildFailed = nil
   state.buildLimitStops = 0
+  -- The page that has just come up has not been drawn yet (see drawPendingPage).
+  state.firstDrawMenuId = currentMenuId
 
   -- From here everything queued belongs to the page that is up, without the page saying so: the
   -- pages hold the queue itself and none of them names a client.
@@ -2597,6 +2714,80 @@ local function appendMenuPendingNotice(children, contentX, contentY, contentW, b
   }
 end
 
+-- A page opened in the tool that runs inside the dashboard widget is drawn on the pass after the
+-- one that builds it. Every pass there is a widget call, stopped at the widget's instruction
+-- limit, and where the stop lands decides what it does. In the suite's own Lua it is caught --
+-- by the page build's guard, or by the host's step -- and the page is built again on the next
+-- pass. But EdgeTX calls into Lua itself: a choice, a number field or a switch reads its value
+-- through the page's `get` function when lvgl.build makes it and again from the radio's own
+-- event loop between calls, on what the last call left, and the reactive sweep that follows the
+-- pass calls every function a widget property is bound to. EdgeTX runs those calls under its own
+-- pcall, and a stop that lands in one of them is not passed back to the script: the widget is
+-- disabled ("CPU limit", "foreground calRefs error"). A page whose first build takes most of a
+-- pass -- the pass that opens it also releases the page before and loads the new one's modules --
+-- leaves the widgets it makes too little of that pass. So that pass makes the page's layout,
+-- where a stop is caught, and shows a notice that calls nothing; the next pass, with a fresh limit,
+-- makes the widgets from that layout before its other work. Only the first build of a visit is moved: a page rebuilt
+-- while it is open has its modules loaded and nothing to release, and a notice in its place
+-- would blink on every change. The tool run as a tool script has no such limit and draws at once.
+
+-- The notice the pass that builds a page shows in its place. Nothing in it calls back into Lua.
+local function pageDrawNotice()
+  return {
+    {
+      type = "rectangle",
+      x = 0, y = 0, w = LCD_W or 320, h = LCD_H or 240,
+      color = Palette.panel,
+      filled = true
+    },
+    {
+      type = "label",
+      x = 0, y = (LCD_H or 240) / 2 - 10, w = LCD_W or 320,
+      text = MENU_PENDING_TEXT,
+      color = Palette.panelText,
+      align = CENTER,
+      font = MIDSIZE
+    }
+  }
+end
+
+-- What the radio says the previous widget call used, in percent of the instruction limit, or nil
+-- where it does not say.
+local function lastCallUsage()
+  if type(getUsage) ~= "function" then return nil end
+  local ok, percent = pcall(getUsage)
+  return ok and tonumber(percent) or nil
+end
+
+-- Draws the layout the previous pass built (see the note above), unless the menu has moved on
+-- since, in which case the screen is built again for where the menu is now. The scene stays owed
+-- until the draw is through, as it does for a build (M.buildUI): a pass stopped before the widgets
+-- are made has already let the layout go, so the next pass builds the page again, and that build,
+-- still the visit's first, is drawn on the pass after it.
+local function drawPendingPage()
+  state.sceneBuildOwed = true
+  local lyt, menuId = state.pendingLayout, state.pendingLayoutMenuId
+  state.pendingLayout = nil
+  state.pendingLayoutMenuId = nil
+  local onScreen = state.menu and state.menu.getCurrentMenuId and state.menu.getCurrentMenuId() or nil
+  if menuId ~= onScreen then
+    logf("trace", "layout of %s dropped, the menu is on %s", tostring(menuId), tostring(onScreen))
+    state.sceneBuildOwed = false
+    scheduleBuildUI(false)
+    return false
+  end
+  logStep("draw page=" .. tostring(menuId))
+  if type(lvgl.clear) == "function" then lvgl.clear() end
+  lvgl.build(lyt)
+  state.sceneBuildOwed = false
+  state.firstDrawMenuId = nil
+  -- Both passes' usage, so a log says how much room each one left: the build pass's now, the
+  -- drawing pass's at the top of the next one (M.run).
+  logf("debug", "page %s drawn, the pass that built it used %s%%", tostring(menuId), tostring(lastCallUsage()))
+  state.drawnMenuId = menuId
+  return true
+end
+
 -- Builds the scene. Answers the grid build whose notice it drew, if it drew one (see
 -- GRID_TILES_PER_STEP); M.buildUI keeps that, and only once the build is through.
 local function buildScene()
@@ -2612,6 +2803,11 @@ local function buildScene()
 
   ensureBuildDeps()
   local loadingGrid = nil
+  -- A layout still waiting to be drawn belongs to the screen this build replaces.
+  state.pendingLayout = nil
+  state.pendingLayoutMenuId = nil
+  -- Whether this build is a page's first after it was opened, to be drawn on the next pass.
+  local drawNextPass = false
   -- Whatever this build draws, the root menu's tiles drawn before it are gone; the root branch
   -- below records the new ones.
   state.rootDrawn = nil
@@ -3061,6 +3257,7 @@ local function buildScene()
   -- Clear and reuse the children table to reduce garbage collection
   local children = state.children
   wipeTable(children)
+  appendPageBackground(children)
 
   local contentX = contentPad
   -- The strip sits flush under the page header and the content starts one gap below it, so
@@ -3244,6 +3441,7 @@ local function buildScene()
       if ok then
         state.pageBuildFailed = nil
         state.buildLimitStops = 0
+        drawNextPass = state.hosted == true and state.firstDrawMenuId == currentMenuId
       else
         -- Stopped at the instruction limit, which happens only where the tool runs inside the
         -- dashboard widget. EdgeTX raises that stop once per call and lets the rest of the call
@@ -3278,6 +3476,7 @@ local function buildScene()
         -- finished, and the armed strip appended before it does not. Both come off, the strip
         -- goes back on, and the failure takes the page body.
         wipeTable(children)
+        appendPageBackground(children)
         if bannerH > 0 then
           appendArmedBanner(children, contentX, 0, contentW, bannerH, currentArmedBannerText())
         end
@@ -3385,6 +3584,13 @@ local function buildScene()
 
   if lvgl and type(lvgl.clear) == "function" then
     lvgl.clear()
+  end
+  if drawNextPass then
+    state.pendingLayout = lyt
+    state.pendingLayoutMenuId = currentMenuId
+    lvgl.build(pageDrawNotice())
+    logf("debug", "page %s built, drawn on the next pass", tostring(currentMenuId))
+    return loadingGrid
   end
   lvgl.build(lyt)
   return loadingGrid
@@ -3504,6 +3710,23 @@ function M.init(opts)
   -- after this point leaves the step file naming the stage it stopped in.
   logStep("init: preferences read", true)
 
+  -- Before the first build, so the first frame and every native control on it are in the scheme. The
+  -- theme slots: here when the tool runs as a script of its own, on run's first pass when hosted
+  -- (writeThemeSlots).
+  local scheme = prefs and prefs.general and prefs.general.color_scheme
+  Palette.apply(scheme)
+  state.themeSlotsTries = 0
+  if state.hosted then
+    state.themeSlotsOwed = true
+    logf("trace", "theme slots owed: written on the first pass after init")
+  else
+    state.themeSlotsOwed = nil
+    local schemeOk, schemeErr = pcall(writeThemeSlots)
+    if not schemeOk then
+      logf("error", "theme slots not written: %s", tostring(schemeErr))
+    end
+  end
+
   local locale = resolveLocaleFromSystem()
   state.i18n       = I18n.new(locale)
   logStep("init: locale " .. tostring(locale), true)
@@ -3586,6 +3809,7 @@ function M.init(opts)
   state.rootRefreshOwed = false
   ensureVersion()
   logf("info", "user folder: %s", tostring(_G.rfsuite.paths.user))
+  logf("debug", "header icon %s (screen width %s)", APP_ICON, tostring(LCD_W))
   -- `developer.precompile = false` skips the pass: every file is then compiled by the loader
   -- when a page first needs it, and the tool opens on its menu without a start screen -- meant for
   -- automated runs on a card that starts without bytecode each time. Like the rest of the
@@ -3660,7 +3884,11 @@ function M.init(opts)
   -- page loads under a pcall of its own can come back nil and fail later in a reply handler. The
   -- start screen used to take this pass. With nothing to compile it is left before the first
   -- build, so the page waits one pass instead; a start screen that still stands is built now.
-  if state.landingMenuId ~= nil and not state.initialLoad then
+  -- Hosted, the theme slots take the next pass and the first build the one after it.
+  if state.themeSlotsOwed then
+    logf("info", "first build after the theme slots (landing %s)", tostring(state.landingMenuId))
+    scheduleBuildUI(false)
+  elseif state.landingMenuId ~= nil and not state.initialLoad then
     logf("info", "landing %s: first build on the next pass", tostring(state.landingMenuId))
     scheduleBuildUI(false)
   else
@@ -3783,6 +4011,11 @@ function M.run(event, touchState)
     local deferBackground = false
     local builtThisPass = false
 
+    if state.drawnMenuId ~= nil then
+      logf("debug", "the pass that drew page %s used %s%%", tostring(state.drawnMenuId), tostring(lastCallUsage()))
+      state.drawnMenuId = nil
+    end
+
     local armed = isModelArmed()
 
 
@@ -3863,6 +4096,9 @@ function M.run(event, touchState)
         logToFile("Closing sequence started (Tick 0).")
         logStep("closing tick 0", true)
         state.closeTicks = 0
+        -- A page built and not drawn yet is not drawn any more.
+        state.pendingLayout = nil
+        state.pendingLayoutMenuId = nil
         -- Tick 0: ONLY build the UI overlay. Do NOT do any cleanup or GC yet.
         -- This ensures the Lua VM yields immediately and EdgeTX can draw the screen.
         if lvgl and lvgl.clear then
@@ -3923,6 +4159,10 @@ function M.run(event, touchState)
       elseif not state.shouldExit then
         -- Tick 16: Finalize library cleanup and detach MSP
         logToFile("Closing sequence finalizing. Detaching MSP.")
+        -- The radio's colours first, while the paths and the log the restore reads are still there.
+        if ThemeSlots then
+          pcall(ThemeSlots.restore, "tool closed")
+        end
         logStep("closing: detaching MSP", true)
         if state.mspAttached then
           if MspRuntime and type(MspRuntime.detach) == "function" then
@@ -3998,10 +4238,22 @@ function M.run(event, touchState)
       return 0
     end
 
+    -- The theme slots a hosted init left owed, on a pass that builds nothing: the build, the menu's step
+    -- and the page's wakeup wait for the next pass; the link's own ticks run as on any pass.
+    -- Never while closing: the closing sequence above has returned by here.
+    local slotsThisPass = false
+    if state.themeSlotsOwed then
+      writeOwedThemeSlots()
+      slotsThisPass = true
+    end
     if state.sceneBuildOwed and not state.isClosing then
       state.pendingBuildUI = true
     end
-    if state.pendingBuildUI and not state.isClosing then
+    -- A page the previous pass built is drawn first, in a pass of its own: a build asked for
+    -- meanwhile waits for the next pass rather than sharing this one (see drawPendingPage).
+    if state.pendingLayout ~= nil and not state.isClosing and drawPendingPage() then
+      builtThisPass = true
+    elseif state.pendingBuildUI and not state.isClosing and not slotsThisPass then
       state.pendingBuildUI = false
       local doGc = state.pendingGcAfterBuild == true
       state.pendingGcAfterBuild = false
@@ -4156,7 +4408,7 @@ function M.run(event, touchState)
     -- being stepped is noted before the step and forgotten only once the screen has been asked
     -- for, so a pass stopped anywhere between the step that completes the build and that request
     -- leaves the note behind, and the next pass makes the request instead.
-    if not transitionedMenuThisTick and not builtThisPass and not state.isClosing then
+    if not transitionedMenuThisTick and not builtThisPass and not slotsThisPass and not state.isClosing then
       local onScreen = state.menu.getCurrentMenuId()
       if state.menu.isCurrentMenuPending() then
         state.steppedMenuId = onScreen
@@ -4269,7 +4521,9 @@ function M.run(event, touchState)
       -- be looking at state the aborted build never created.
       local buildFailedHere = state.pageBuildFailed ~= nil
         and state.pageBuildFailed == state.activePageMenuId
-      if (not transitionedMenuThisTick) and (not buildFailedHere) then
+      -- Nor on the theme slots' pass: a landing page is active from init on, and is built only on the
+      -- pass after, so its wakeup waits for that build as it does without the slots.
+      if (not transitionedMenuThisTick) and (not buildFailedHere) and (not slotsThisPass) then
         local activePage = getActivePageModule()
         local wakeupFn = activePage and (activePage.wakeup or activePage.onWake)
         if type(wakeupFn) == "function" then

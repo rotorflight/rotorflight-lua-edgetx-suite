@@ -1,6 +1,8 @@
 -- Compact illustrated tasks use a drawing beside the controls. Large displays
 -- have a separate instruction column. The scene is published four objects per pass.
 local M = {}
+-- The font a text button draws in: EdgeTX's standard font, flags 0.
+local BUTTON_FONT = _G.STDSIZE or 0
 function M.new(w, ctx, diagrams)
   local palette = w.palette
   local function label(x, y, width, text, font)
@@ -21,7 +23,58 @@ function M.new(w, ctx, diagrams)
     [w.L.servo1Trim]=w.L.shortTrim1, [w.L.servo2Trim]=w.L.shortTrim2, [w.L.servo3Trim]=w.L.shortTrim3
   } or {}
   local controlH = large and 44 or width >= 480 and 32 or 26
-  local rowY = large and 108 or height <= 272 and 80 or 88
+  -- `lcd.sizeText(text, flags)` answers for the font a label is drawn in; the estimate is only
+  -- for a build that does not offer the call.
+  local measured = lcd ~= nil and type(lcd.sizeText) == "function"
+  local function textWidth(text, font)
+    text = tostring(text or "")
+    local fn = lcd and lcd.sizeText
+    if type(fn) == "function" then
+      local ok, tw = pcall(fn, text, font)
+      tw = tonumber(tw)
+      if ok and tw then return tw end
+    end
+    return math.floor(#text * (font == MIDSIZE and (large and 14 or 10) or font == BUTTON_FONT and font ~= SMLSIZE
+      and (large and 12 or 9) or (large and 10 or 7.5)) + 0.5)
+  end
+  -- A label draws its text from the top of its box, so a label beside a control has to be placed
+  -- by where its capital letters sit in that box: measured on the radios' own screens, the middle
+  -- of a capital is 6 px below the top of a small-font label on a 480-wide screen, 11 px on
+  -- 800x480, and 21 px in an 800x480 MIDSIZE label. A label is centred on a band or a control by
+  -- putting that middle on the middle of the band.
+  local function capMid(font)
+    if font == MIDSIZE and large then return 21 end
+    return large and 11 or 6
+  end
+  local function centredTop(top, h, font)
+    return math.max(top, top + math.floor(h / 2) - capMid(font))
+  end
+  -- A card's explanation runs across the full width at the top; the rows start below it. It takes the lines it needs, two at least and three at most, the third
+  -- only where the rows still fit above the status line; the ? sheet carries the whole text.
+  -- The servo grid and the attitude view lay out their own.
+  local cardScene = card and not w.overview and not w.confirmExit and not w.error and not w.historyFailure
+    and not w.disconnectExit and not w.stepMenu
+  local summaryText = cardScene and not card.servo and not attitudeCard and (card.summary or card.detail) or nil
+  if summaryText == "" then summaryText = nil end
+  -- Below the header band and the ? button (controlH high from y 2).
+  local textY = large and 56 or controlH+6
+  local textLineH = large and 24 or height <= 272 and 17 or 18
+  local textLines = 2
+  if summaryText and type(summaryText) == "string" then
+    -- A wrapped line breaks at a word, so a line holds a little less than its width.
+    local need = 0
+    for paragraph in string.gmatch(summaryText .. "\n", "([^\n]*)\n") do
+      need = need + math.max(1, math.ceil(textWidth(paragraph, SMLSIZE) * 1.15 / (width - 20)))
+    end
+    local rowsBelow = card.rows and #card.rows or 0
+    local bottom = height-controlH-(large and 40 or 27)
+    local rowNeed = large and 52 or controlH+6
+    if need >= 3 and textY+3*textLineH+(large and 14 or 8)+rowsBelow*rowNeed <= bottom then textLines = 3 end
+  end
+  local textH = summaryText and textLines*textLineH or 0
+  local textEnd = textY + textH + (large and 4 or 2)
+  local rowY = cardScene and (summaryText and textEnd + (large and 10 or 6) or textY) or
+    (large and 108 or height <= 272 and 80 or 88)
   local rowH = large and 52 or math.min(controlH+6, math.floor((height-2*controlH-31-rowY)/3))
   if card and card.link=="overview" and not large then
     rowH=math.min(rowH,math.floor((height-2*controlH-31-rowY)/4))
@@ -49,36 +102,100 @@ function M.new(w, ctx, diagrams)
     rowControlH=math.min(controlH,rowH-2)
   end
   local all = {}
-  local title = w.historyMode and w.L.historyTitle or (w.overview or w.modelPreparationCard or w.recoveryCard) and w.L.name or string.format("%d/19  %s", w.step, w.L.steps[w.step] or w.L.name)
-  if attitudeCard and not (w.historyMode or w.overview or w.confirmExit or w.modelPreparationCard or w.recoveryCard) then
-    title=string.format("%d/19  %s",w.step,card.title)
-  end
+  -- The header says where the pilot is: the step, then the card's own name and its place.
+  -- Preparation cards are no step's card, so they name the wizard instead.
+  local stepCard = cardScene and not (w.historyMode or w.modelPreparationCard or w.recoveryCard)
+  local headStep = w.historyMode and w.L.historyTitle or (not stepCard or w.overview) and w.L.name
+    or w.L.steps[w.step] or w.L.name
+  -- A card named like its step shows only its place, so no name stands twice.
+  local headCard = cardScene and card.title or nil
+  local counted = headCard and stepCard and not w.preparationCard and #w.cards > 1
+  if headCard == headStep then headCard = counted and string.format(w.L.cardCount, w.card, #w.cards) or nil
+  elseif counted then headCard = string.format(w.L.cardPlace, headCard, w.card, #w.cards) end
   all[#all + 1] = { type = "rectangle", x = 0, y = 0, w = width, h = height, filled = true, color = palette.page }
   if card then
-    local cardY = large and 50 or 27
+    -- The card starts below the header band and the ? button, which are controlH high from y 2.
+    local cardY = large and 50 or controlH+3
     all[#all + 1] = { type = "rectangle", x = 6, y = cardY, w = width-12,
       h = height-controlH-(large and 40 or 27)-cardY, filled = true, color = palette.card }
-  end
-  if w.historyMode or w.overview or w.confirmExit or not w.requestSteps then
-    all[#all + 1] = label(10, 4, width - 54, title, large and MIDSIZE or SMLSIZE)
   end
   local function button(x, y, bw, text, press, active, kind, release)
     all[#all + 1] = { type = kind or "button", x = x, y = y, w = bw, h = controlH, text = text,
       press = press, release = release, active = active, color = palette.card, textColor = palette.text }
   end
   -- Back is deliberately first in focus order.
-  button(8, height-controlH-6, math.floor(width * 0.25), w.L.back, function() w:back() end,
+  button(8, height-controlH-6, math.floor(width * 0.22), w.L.back, function() w:back() end,
     function() return not w.transition end)
-  if not w.historyMode and not w.overview and not w.confirmExit and w.requestSteps then
-    -- Leaving is a visible button of its own; the title still does the same.
-    local exitW = large and 120 or 76
-    button(8, 2, width-controlH-exitW-26, title, function() w:requestSteps() end,
+  local exitOffered = not w.historyMode and not w.overview and not w.confirmExit and w.requestSteps
+  if exitOffered then
+    local exitW = large and 160 or 100
+    button(math.floor((width-exitW)/2), height-controlH-6, exitW, w.L.exit, function() w:requestSteps() end,
       function() return w.canEdit == true end)
-    all[#all].h, all[#all].font = large and 44 or 24, large and MIDSIZE or SMLSIZE
-    all[#all].textColor = palette.accentInk
-    button(width-controlH-exitW-12, 2, exitW, w.L.exit, function() w:requestSteps() end,
-      function() return w.canEdit == true end)
-    all[#all].h, all[#all].textColor = large and 44 or 24, palette.accentInk
+  end
+  -- The header band is as high as the ? button beside it, so the two end on one line.
+  local headH, headFont = controlH, large and MIDSIZE or SMLSIZE
+  local headRight = width-controlH-12
+  -- A step's card opens the step menu from its header; the labels above the button take no taps.
+  local menuHeader = stepCard and not w.preparationCard and w.openStepMenu ~= nil
+  if menuHeader then
+    button(8, 2, headRight-8, "", function() w:openStepMenu() end, function() return w.canEdit == true end)
+    all[#all].h, all[#all].textColor = headH, palette.accentInk
+  end
+  local counter = menuHeader and string.format(w.L.stepCounter, w.step) or nil
+  local chevronW = menuHeader and (large and 12 or 9) or 0
+  local nameX = menuHeader and 18 or 10
+  local chevronX = headRight-10-chevronW
+  local function fits(stepFont, withCounter, cardText)
+    local right = chevronX-(chevronW > 0 and 6 or 0)-(withCounter and counter and textWidth(counter, SMLSIZE) or 0)
+    local used = nameX+textWidth(headStep, stepFont)
+    if cardText then used = used+(large and 22 or 15)+textWidth(cardText, SMLSIZE) end
+    return used+8 <= right
+  end
+  if measured and headCard then
+    local count = stepCard and #w.cards > 1 and string.format(w.L.cardCount, w.card, #w.cards) or nil
+    if not fits(headFont, true, headCard) then
+      if large and fits(SMLSIZE, true, headCard) then headFont = SMLSIZE
+      elseif fits(headFont, false, headCard) then counter = nil
+      elseif large and fits(SMLSIZE, false, headCard) then headFont, counter = SMLSIZE, nil
+      elseif count and fits(headFont, true, count) then headCard = count
+      elseif count then headCard, counter = count, nil end
+    end
+  end
+  local counterW = counter and textWidth(counter, SMLSIZE) or 0
+  local counterX = chevronX-(chevronW > 0 and 6 or 0)-counterW
+  local headNameW = math.min(textWidth(headStep, headFont), (counter and counterX or headRight)-8-nameX)
+  -- The step name is centred on the band, like the ? on its button and the two drawn chevrons.
+  -- The card name and the counter sit on the step name's baseline: below the large step font
+  -- the small text moves down by the difference (measured on the radio: baseline at 33 px in a
+  -- MIDSIZE label, 18 px in a SMLSIZE one).
+  local nameY = centredTop(2, headH, headFont)
+  local smallY = headFont == MIDSIZE and nameY + 15 or nameY
+  all[#all + 1] = label(nameX, nameY, headNameW, headStep, headFont)
+  all[#all].h, all[#all].color = large and 32 or 20, menuHeader and palette.accentInk or palette.text
+  if headCard then
+    -- The step and the card are parted by a drawn chevron: the radio's fonts carry no arrow glyph.
+    local sepX = nameX+headNameW+(large and 8 or 5)
+    local cardX = sepX+(large and 14 or 10)
+    local room = (counter and counterX or headRight)-8-cardX
+    local text = headCard
+    if room > 20 then
+      local cy, s = 2+math.floor(headH/2), large and 5 or 4
+      all[#all + 1] = { type = "line", pts = {{sepX, cy-s}, {sepX+s, cy}}, color = palette.muted, thickness = 2 }
+      all[#all + 1] = { type = "line", pts = {{sepX+s, cy}, {sepX, cy+s}}, color = palette.muted, thickness = 2 }
+      all[#all + 1] = label(cardX, smallY, room, text)
+      all[#all].h, all[#all].color = large and 24 or 18, palette.muted
+    end
+  end
+  if counter then
+    all[#all + 1] = label(counterX, smallY, counterW+8, counter)
+    all[#all].h, all[#all].color = large and 24 or 18, palette.muted
+  end
+  if menuHeader then
+    local cx, cy, s = chevronX, 2+math.floor(headH/2), math.floor(chevronW/2)
+    all[#all + 1] = { type = "line", pts = {{cx, cy-math.floor(s/2)}, {cx+s, cy+math.floor(s/2)+1}},
+      color = palette.accentInk, thickness = 2 }
+    all[#all + 1] = { type = "line", pts = {{cx+s, cy+math.floor(s/2)+1}, {cx+2*s, cy-math.floor(s/2)}},
+      color = palette.accentInk, thickness = 2 }
   end
   button(width-controlH-6, 2, controlH, "?", function()
     local current = w.cards and w.cards[w.card]
@@ -93,8 +210,30 @@ function M.new(w, ctx, diagrams)
   if w.disconnectExit then
     all[#all+1]=label(12,48,width-24,w.L.disconnectedExitHint);all[#all].h=100;all[#all].color=palette.warning
     button(12,160,width-24,w.L.powerOffLeave,function() w:leaveDisconnected() end)
+  elseif w.memoryStop and w.error then
+    -- Out of radio memory: every test is released; the visit can only be left.
+    all[#all+1]=label(12,48,width-24,w.L.memoryStop);all[#all].h=72;all[#all].color=palette.error
+    local y=124
+    -- "Released" only when every release was answered; a lost link sent none.
+    if w.cleanupFailed or w.needsRelease then
+      all[#all+1]=label(12,y,width-24,w.L.cleanupFailed);all[#all].h=48;all[#all].color=palette.warning;y=y+52
+    elseif w.error~="memory" then
+      all[#all+1]=label(12,y,width-24,w.errorText and w:errorText() or w.error);all[#all].color=palette.error;y=y+28
+    else
+      all[#all+1]=label(12,y,width-24,w.L.testsReleased);all[#all].color=palette.text;y=y+28
+    end
+    if w.stopNotice then
+      all[#all+1]=label(12,y,width-24,w.stopNotice);all[#all].h=48;all[#all].color=palette.warning;y=y+52
+    end
+    local idle=function() return not w.transition end
+    if next(w.dirty) then
+      button(12,y,math.floor(width/2)-18,w.L.saveExit,function() if not w.transition then w:save(function() w:close() end) end end,idle)
+      button(math.floor(width/2)+6,y,math.floor(width/2)-18,w.L.discardExit,function() if not w.transition then w:discard() end end,idle)
+    else
+      button(12,y,width-24,w.L.closeWizard,function() if not w.transition then w:close() end end,idle)
+    end
   elseif w.confirmExit then
-    local leavingStep=w.exitToSteps or w.backTarget
+    local leavingStep=w.exitToSteps or w.backTarget or w.jumpTarget
     all[#all + 1] = label(12, 48, width-24, leavingStep and w.L.leaveStepHint or w.L.exitHint)
     button(12, 100, math.floor(width/2)-18, leavingStep and w.L.saveChanges or w.L.saveExit,
       function() if w.resolveExit then w:resolveExit(true) else w:save(function() w:close() end) end end)
@@ -114,6 +253,63 @@ function M.new(w, ctx, diagrams)
     all[#all].color=palette.warning
     button(12,100,width-24,w.L.retry,function() w.historyRetry() end)
     button(12,100+rowH,width-24,w.historyAllowSkip and w.L.historyContinue or w.L.back,function() w.historySkip() end)
+  elseif w.stepMenu and card then
+    -- The step menu: every step as a button, the current one in the accent colour, a done step
+    -- with a mark in the ok colour. Back returns to the card it was opened from.
+    local hint = large or height > 272
+    if hint then
+      all[#all + 1] = label(10, textY, width-20, w.L.stepMenuOpen)
+      all[#all].h, all[#all].color = large and 28 or 18, palette.muted
+    end
+    -- 800x480: three columns, each as wide as its longest name. The 480-wide screens: four
+    -- columns of five, each button carrying its number and name on up to two lines, so the
+    -- order reads at a glance and a long name still fits.
+    local cols, rows = large and 3 or 4, large and 7 or 5
+    local top = hint and textY+(large and 34 or 20) or textY
+    local bottom = height-controlH-(large and 40 or 27)-4
+    local gap = large and 6 or 2
+    local margin = large and 10 or 2
+    local bh = math.min(large and controlH or 2*controlH, math.floor((bottom-top)/rows)-gap)
+    local names = w.L.numberedSteps
+    local colW, colX = {}, { margin }
+    if large then
+      -- Each column is as wide as its longest step name and the button's own padding; what is
+      -- left of the width is shared out, so a long name in one column does not cramp the others.
+      local used = 0
+      for c = 1, cols do
+        local most = 0
+        for index = c, 19, cols do most = math.max(most, textWidth(names[index], SMLSIZE)) end
+        colW[c] = most + 20; used = used + colW[c]
+      end
+      local spare = math.floor((width-2*margin-(cols-1)*gap-used)/cols)
+      for c = 1, cols do colW[c] = math.max(1, colW[c]+spare) end
+    else
+      for c = 1, cols do colW[c] = math.floor((width-2*margin-(cols-1)*gap)/cols) end
+    end
+    for c = 1, cols do colX[c+1] = colX[c]+colW[c]+gap end
+    local mask = w.history and w.history.mask or 0
+    local lineH = large and 23 or 17
+    for index = 1, 19 do
+      local col, row = (index-1) % cols, math.floor((index-1)/cols)
+      local x, y, bw = colX[col+1], top+row*(bh+gap), colW[col+1]
+      local target = index
+      local current = index == w.step
+      button(x, y, bw, large and names[index] or "", function() w:jumpToStep(target) end,
+        function() return w.canEdit == true end)
+      all[#all].h, all[#all].font = bh, SMLSIZE
+      if current then all[#all].color, all[#all].textColor = palette.accent, palette.onAccent end
+      if not large then
+        -- The name above the button wraps within it; a label takes no tap, so the button gets it.
+        local lines = textWidth(names[index], SMLSIZE) <= bw-6 and 1 or 2
+        all[#all + 1] = label(x+3, y+math.max(1, math.floor((bh-lines*lineH)/2)), bw-6, names[index])
+        all[#all].h, all[#all].color = lines*lineH, current and palette.onAccent or palette.text
+      end
+      if (mask & (1 << (index-1))) ~= 0 then
+        local d = large and 8 or 6
+        all[#all + 1] = { type = "rectangle", x = large and x+4 or x+bw-d-3, y = large and y+math.floor((bh-d)/2) or y+3,
+          w = d, h = d, filled = true, color = current and palette.onAccent or palette.ok }
+      end
+    end
   elseif w.overview then
     all[#all + 1] = label(10, large and 55 or 30, width-20, w.L.chooseStep, large and MIDSIZE or SMLSIZE)
     all[#all + 1] = label(10, large and 94 or 48, large and math.floor(width*0.4)-24 or width-20, w.L.stepMenuHint)
@@ -141,60 +337,65 @@ function M.new(w, ctx, diagrams)
     local restartNext = w.entryRebootGate
     local function current()
       return w.cards == cards and w.card == cardIndex and not w.confirmExit and not w.overview
-        and not w.historyFailure and not w.error and not w.disconnectExit
+        and not w.historyFailure and not w.error and not w.disconnectExit and not w.stepMenu
     end
     local illustrated = card.art ~= nil
-    local formX = large and math.floor(width * 0.43) or illustrated and math.floor(width * 0.35)+4 or 10
-    if attitudeCard then formX=large and math.floor(width*.64) or 10;rowY=large and 166 or height-3*controlH-10 end
+    local formX = illustrated and math.floor(width * (large and 0.43 or 0.35))+(large and 0 or 4) or 10
+    -- The attitude card: the helicopter on the left, its hint and the answer on the right.
+    if attitudeCard then formX=math.floor(width*(large and .64 or .5));rowY=large and 166 or textY+4*17+28 end
     local formW = width-formX-(large and 16 or 10)
     -- The status line's top: everything a card draws ends above it.
     local cardBottom = height-controlH-(large and 40 or 27)
-    -- A wide-text card gives its summary the full width on large screens; picture and controls
-    -- move down below it. Smaller screens already run the summary across the full width.
-    local wideText = card.wideText and large
-    if wideText then rowY = 156 end
+    -- Without a picture the controls follow right after a label column, leaving space on the
+    -- right; beside a picture they keep to the form column's right edge. On the 480-wide screens
+    -- there is no room to leave: the label and the control share the width, so a German label or
+    -- value still fits one line.
+    local labelW = not illustrated and not attitudeCard and (large and 280 or math.floor(formW*0.5)) or nil
     -- Overview cards (blocks, a table, bars) draw across the full width below the summary.
     local overviewY = rowY
     if card.dense and slots > 0 then
       rowH = math.min(rowH, math.max(18, math.floor((cardBottom-2-rowY)/slots)))
       rowControlH = math.min(rowControlH, rowH-2)
     end
-    -- Rows may sit at the foot of the card, under a full-width overview.
-    if card.rowsAtFoot then rowY = cardBottom-2-slots*rowH end
+    -- Rows may sit at the foot of the card, under a full-width overview; on the 480-wide screens
+    -- each takes only its control's height, so the overview keeps its room.
+    if card.rowsAtFoot then
+      if not large then rowH = math.min(rowH, controlH+2) end
+      rowY = cardBottom-2-slots*rowH
+    end
     if attitudeCard then
-      all[#all+1]=label(10,large and 58 or 30,width-20,w.L.orientationModelHint)
-      all[#all].h=large and 32 or 23;all[#all].color=palette.muted
-      diagrams.append(all,w,card,10,large and 108 or 56,
-        large and formX-26 or width-20,large and height-controlH-168 or rowY-68)
+      all[#all+1]=label(large and 10 or formX,textY,large and width-20 or formW,w.L.orientationModelHint)
+      all[#all].h=large and 48 or 4*17;all[#all].color=palette.muted
+      diagrams.append(all,w,card,10,large and 108 or textY,
+        formX-26,large and height-controlH-168 or cardBottom-4-textY)
     else
-    -- The title sits above the form rows, so on large screens it takes the full width instead of
-    -- wrapping into the summary below it.
-    all[#all + 1] = label(10, large and 50 or 27, width-20, card.title, large and MIDSIZE or SMLSIZE)
+    -- The card's name is in the header; its explanation leads the card across the full width.
+    local badgeW = 0
     if card.badge then
-      -- A short tag such as Required, at the right end of the title band.
+      -- A short tag such as Required, at the right end of the text band.
       local bw = (large and 10 or 7)*#card.badge+(large and 20 or 12)
       local bh = large and 30 or 18
-      all[#all+1] = { type = "rectangle", x = width-bw-12, y = large and 54 or 28, w = bw, h = bh,
+      badgeW = bw+10
+      all[#all+1] = { type = "rectangle", x = width-bw-12, y = textY, w = bw, h = bh,
         filled = true, color = palette.warning }
-      all[#all+1] = label(width-bw-12+(large and 10 or 6), large and 56 or 28, bw-(large and 12 or 8), card.badge)
+      all[#all+1] = label(width-bw-12+(large and 10 or 6), textY+1, bw-(large and 12 or 8), card.badge)
       all[#all].h, all[#all].color = bh-2, palette.onAccent
-      all[#all-2].w = width-bw-34
     end
-    if not card.servo and not (card.instructions and width<400) then
-    all[#all + 1] = label(10, large and 94 or 48, large and not wideText and formX-30 or width-20, card.summary or card.detail)
-    all[#all].h = wideText and rowY-100 or large and (illustrated and 98 or height-controlH-154) or rowY-48
-    all[#all].color = palette.muted
-    -- A card may lead with a warning or a live prompt instead of a muted summary.
-    if card.summaryColor then all[#all].color = palette[card.summaryColor] or all[#all].color end
-    if card.summaryBold and height > 272 then all[#all].font = BOLD end
+    if summaryText then
+      all[#all + 1] = label(10, textY, width-20-badgeW, summaryText)
+      all[#all].h = textH
+      all[#all].color = palette.muted
+      -- A card may lead with a warning or a live prompt instead of a muted summary.
+      if card.summaryColor then all[#all].color = palette[card.summaryColor] or all[#all].color end
+      if card.summaryBold and height > 272 then all[#all].font = BOLD end
     end
     if illustrated and not card.servo then
       if card.instructions and width<400 then
         -- The picture shares the title band so all three instructions fit below it.
         diagrams.append(all, w, card, width-76, 27, 66, 48)
       else
-        local artY = wideText and rowY or large and 204 or rowY+4
-        local artH = wideText and cardBottom-6-artY or large and 174 or height-controlH-35-artY
+        local artY = rowY + (large and 0 or 2)
+        local artH = cardBottom-(large and 6 or 8)-artY
         -- A caption under the picture carries the values the picture stands for.
         if card.caption then
           local lines = card.captionLines or (large and 3 or 1)
@@ -204,6 +405,11 @@ function M.new(w, ctx, diagrams)
           all[#all].h, all[#all].color = lines*lineH, palette.muted
         end
         diagrams.append(all, w, card, 6, artY, formX-18, artH)
+        -- The controls sit in line with the picture: their block is centred on its frame.
+        if not (card.blocks or card.table or card.bars or card.rowsAtFoot or card.dense or card.instructions) then
+          local blockH = slots*rowH
+          if blockH < artH then rowY = artY + math.floor((artH-blockH)/2) end
+        end
       end
     end
     end
@@ -234,7 +440,9 @@ function M.new(w, ctx, diagrams)
       local cols = #t.columns
       local firstW = math.floor((width-20)*(large and 0.22 or 0.26))
       local cw = math.floor((width-20-firstW)/math.max(1,cols))
-      local lineH = math.min(large and 40 or 24, math.floor((cardBottom-2-overviewY)/(#t.rows+1)))
+      -- It ends above rows at the foot of the card, else above the status line.
+      local tableBottom = card.rowsAtFoot and rowY-2 or cardBottom-2
+      local lineH = math.min(large and 40 or 24, math.floor((tableBottom-overviewY)/(#t.rows+1)))
       local y = overviewY
       for c, head in ipairs(t.columns) do
         all[#all+1] = label(10+firstW+(c-1)*cw, y, cw-6, head)
@@ -288,6 +496,14 @@ function M.new(w, ctx, diagrams)
         end }
         all[#all+1] = label(barX+barW+6, y, wordW-4, bar.right)
         all[#all].h, all[#all].color = lineH-2, palette.muted
+        -- A mark at each end of the bar turns to the ok colour once that direction reached 95 %.
+        if bar.reached then
+          local d = large and 8 or 6
+          for side, x in ipairs({ barX, barX+barW-d }) do
+            all[#all+1] = { type = "rectangle", x = x, y = mid-math.floor(d/2), w = d, h = d, filled = true,
+              color = function() return bar.reached(side) and palette.ok or palette.rule end }
+          end
+        end
         all[#all+1] = label(width-10-pctW, y, pctW, bar.percent)
         all[#all].h = lineH-2
         all[#all].color = function() return bar.done() and palette.accentInk or palette.text end
@@ -324,28 +540,138 @@ function M.new(w, ctx, diagrams)
           if chosen then all[#all].color, all[#all].textColor = palette.accent, palette.onAccent end
           all[#all].visible = function() return (r.selected() == true) == chosen end
         end
+      elseif r.kind == "group" then
+        -- Several controls in one row: the label in the label column on 800x480, the controls
+        -- side by side in equal shares of the rest; the 480-wide screens give them the full width.
+        local gx = formX + (large and labelW or 0)
+        if large and labelW then all[#all + 1] = label(formX, centredTop(y, rowControlH), labelW-8, r.label) end
+        local n, gap = #r.items, large and 8 or 4
+        local share = math.floor((formX+formW-gx-(n-1)*gap)/n)
+        for k, item in ipairs(r.items) do
+          local ix = gx+(k-1)*(share+gap)
+          local function itemEditable() return current() and (not item.enabled or item.enabled()) end
+          local function itemEnabled() return w.canEdit == true and itemEditable() end
+          if item.kind == "choice" then
+            local values, get = item.values, item.get
+            local unset = item.allowUnset and item.get() == 0
+            local offset = unset and 1 or 0
+            if unset then
+              values = { w.L.notSet }
+              for _, value in ipairs(item.values) do values[#values+1] = value end
+              get = function() return item.get() + 1 end
+            end
+            all[#all + 1] = { type = "choice", x = ix, y = y, w = share, h = rowControlH, title = item.label,
+              values = values, get = get,
+              set = function(v)
+                if v <= offset or not values[v] then return end
+                w:applyEdit(function() if itemEditable() then item.set(v - offset) end end)
+              end, active = itemEnabled }
+          else
+            -- An item without an action (a list the ELRS module has not offered yet) is drawn inactive.
+            local press = item.press
+            local active = press and itemEnabled or function() return false end
+            button(ix, y, share, item.label, function() if press and itemEnabled() and w:usable() then press() end end, active)
+            all[#all].h = rowControlH
+          end
+        end
       elseif r.kind == "button" or r.kind == "hold" then
-        button(formX, y, formW, r.label, function() if enabled() and w:usable() then r.press() end end, enabled,
+        -- An action button is as wide as its label; a label that changes keeps a fixed width.
+        local bw
+        if type(r.label) == "string" then
+          -- A text button draws in the standard font (flags 0), not the small one.
+          bw = math.max(2*controlH, math.min(formW, textWidth(r.label, BUTTON_FONT)+(large and 48 or 28)))
+        else
+          bw = math.min(formW, large and 320 or 220)
+        end
+        button(formX, y, bw, r.label, function() if enabled() and w:usable() then r.press() end end, enabled,
           r.kind == "hold" and "momentaryButton" or "button", r.release)
         all[#all].h=rowControlH
+        if r.visible then all[#all].visible = r.visible end
       else
         local editW = large and 190 or math.floor(formW * 0.48)
-        if attitudeCard and large then
-          all[#all+1]=label(formX,y-34,formW,r.label)
-          editW=formW
-        elseif r.fullWidth then
-          editW=formW
-        else
-        all[#all + 1] = label(formX, y+3, formW-editW-8, illustrated and compact[r.label] or r.label)
+        local editX = formX+formW-editW
+        local textW = formW-editW-8
+        if labelW and not r.fullWidth then
+          editW = large and 270 or formW-labelW
+          editX, textW = formX+labelW, labelW-8
         end
+        local bandH = r.kind == "value" and (card.link=="overview" or card.dense or fitRows)
+          and math.min(rowControlH,rowH-3) or rowControlH
+        if attitudeCard then
+          all[#all+1]=label(formX,y-(large and 34 or 22),formW,r.label)
+          editW, editX = formW, formX
+        elseif r.fullWidth then
+          editW, editX = formW, formX
+        else
+        -- The row's label is centred on the row's control, whatever that control is; a value row
+        -- on a dense card is as high as the row really is, not as a control.
+        all[#all + 1] = label(formX, centredTop(y, bandH), textW, illustrated and compact[r.label] or r.label)
+        end
+        -- A plain yes/no or off/on answer is a switch. A choice that can be unknown (not read yet,
+        -- or servos of one group that disagree) keeps its list while it is, so no answer is implied.
+        local answers = r.values
+        local yesNo = type(answers) == "table" and #answers == 2 and
+          ((answers[1] == w.L.no and answers[2] == w.L.yes) or (answers[1] == w.L.off and answers[2] == w.L.on))
+        local switch = yesNo and (r.kind == "toggle" or (r.kind == "choice" and not (r.allowUnset and r.get() == 0)))
         if r.kind == "value" then
-          all[#all + 1] = label(formX+formW-editW, y+3, editW, function() return tostring(r.get() or "--") end)
-          all[#all].h=(card.link=="overview" or card.dense or fitRows) and math.min(rowControlH,rowH-3) or rowControlH
+          local top = centredTop(y, bandH)
+          all[#all + 1] = label(editX, top, editW, function() return tostring(r.get() or "--") end)
+          all[#all].h = bandH - (top - y)
           -- A value row may name a palette role for its live state, e.g. a switch that is on.
           if r.color then all[#all].color=function() return palette[r.color()] or palette.text end end
+        elseif switch then
+          -- Every switch has the same size, whatever the row height of its card. EdgeTX gives a
+          -- Lua switch its own fixed size and ignores w and h (its lua_lvgl_widget.cpp builds the
+          -- ToggleSwitch with a 0 x 0 rectangle): measured, 72 x 44 on 800x480 and 48 x 28 on the
+          -- 480-wide screens. It is centred on the row with that size, like its label.
+          local sw, sh = large and 72 or 48, large and 44 or 28
+          local switchKey = tostring(w.card) .. ":" .. i
+          all[#all + 1] = { type = "toggle", x = editX, y = y+math.floor((rowControlH-sh)/2), w = sw, h = sh,
+            get = function() return r.get() == 2 end,
+            set = function(v)
+              -- While switch edits wait for a fresh status, each switch keeps its own, applied in the order they
+              -- came: a switch's latest input decides, and one back to the value its row holds calls that switch's
+              -- edit off and leaves the others. Kept on the page by card and row, so a rebuild keeps them and two
+              -- rows of the same label stay apart.
+              local batch = w.switchEdit
+              if not (batch and batch.run == w.pendingEdit) then batch = nil end
+              local waiting = batch and batch.byKey[switchKey]
+              local on
+              -- Some EdgeTX builds call set() without a payload: that is a flip, of the waiting value if any.
+              if v == nil then
+                if waiting then on = not waiting.on else on = r.get() ~= 2 end
+              elseif type(v) == "boolean" then on = v
+              else on = (tonumber(v) or 0) ~= 0 end
+              if waiting then
+                if on ~= waiting.on then
+                  batch.byKey[switchKey] = nil
+                  for j = #batch.order, 1, -1 do
+                    if batch.order[j] == waiting then table.remove(batch.order, j) end
+                  end
+                  if #batch.order == 0 then w.pendingEdit, w.pendingEditDropped, w.switchEdit = nil, nil, nil end
+                  if w.logTrace then w:log("trace", "switch %s %s: its waiting edit is called off, %d still wait",
+                    tostring(r.label), tostring(on), #batch.order) end
+                end
+                return
+              end
+              if on == (r.get() == 2) then return end
+              local edit = { on = on, run = function() if editable() then r.set(on and 2 or 1) end end }
+              if batch then
+                batch.byKey[switchKey] = edit
+                batch.order[#batch.order + 1] = edit
+                if w.logTrace then w:log("trace", "switch %s %s: waits beside %d other", tostring(r.label), tostring(on),
+                  #batch.order - 1) end
+                return
+              end
+              if w.logTrace then w:log("trace", "switch %s %s", tostring(r.label), tostring(on)) end
+              local fresh = { byKey = { [switchKey] = edit }, order = { edit } }
+              fresh.run = function() for j = 1, #fresh.order do fresh.order[j].run() end end
+              w:applyEdit(fresh.run)
+              w.switchEdit = w.pendingEdit == fresh.run and fresh or nil
+            end, active = enabled }
         elseif r.kind == "toggle" then
           local function set(v) w:applyEdit(function() if editable() then r.set(v) end end) end
-          all[#all + 1] = { type = "button", x = formX+formW-editW, y = y, w = editW, h = rowControlH,
+          all[#all + 1] = { type = "button", x = editX, y = y, w = editW, h = rowControlH,
             text = function() return r.values[r.get()] end, color = palette.card, textColor = palette.text,
             press = function() if enabled() then set(r.get() == 2 and 1 or 2) end end, active = enabled }
         elseif r.kind == "choice" then
@@ -359,14 +685,18 @@ function M.new(w, ctx, diagrams)
             for _, value in ipairs(r.values) do values[#values+1] = value end
             get = function() return r.get() + 1 end
           end
-          all[#all + 1] = { type = "choice", x = formX+formW-editW, y = y, w = editW, h = rowControlH,
+          all[#all + 1] = { type = "choice", x = editX, y = y, w = editW, h = rowControlH,
             title = r.label, values = values, get = get,
             set = function(v)
               if v <= offset or not values[v] then return end
-              w:applyEdit(function() if editable() then r.set(v - offset) end end)
+              w:applyEdit(function()
+                if not editable() then return end
+                r.set(v - offset)
+                if unset and yesNo then w.buildRequested = true; w:rebuild() end
+              end)
             end, active = enabled }
         elseif r.kind == "text" then
-          all[#all + 1] = { type = "textEdit", x = formX+formW-editW, y = y, w = editW, h = rowControlH,
+          all[#all + 1] = { type = "textEdit", x = editX, y = y, w = editW, h = rowControlH,
             value = r.get(), length = r.length or 16, active = enabled,
             set = function(v) w:applyEdit(function() if editable() then r.set(v) end end) end }
         else
@@ -383,11 +713,12 @@ function M.new(w, ctx, diagrams)
             end
             -- update() reads get() when the native editor closes, before a queued
             -- STATUS reply can authorize the final value. Keep that draft visible.
+            local look = field.display and field or r
             all[#all + 1] = { type = "numberEdit", x = x, y = y, w = fieldW, h = rowControlH,
-              min = r.min, max = r.max, get = get, set = set,
+              min = field.min or r.min, max = field.max or r.max, get = get, set = set,
               display = function(v)
-                if r.display then return r.display(v) end
-                if r.divisor then return string.format("%.1f", v / r.divisor) end
+                if look.display then return look.display(v) end
+                if look.divisor then return string.format("%.1f", v / look.divisor) end
                 return tostring(v)
               end, active = enabled }
           end
@@ -400,24 +731,35 @@ function M.new(w, ctx, diagrams)
           elseif r.kind == "pair" then
             -- Two counts of one gear pair side by side, "a : b".
             local half = math.floor((editW - 12) / 2)
-            numberField(formX+formW-editW, half, r.left)
-            all[#all + 1] = label(formX+formW-editW+half, y+3, 12, ":")
-            numberField(formX+formW-half, half, r.right)
+            local left = r.left
+            if left.kind == "choice" then
+              all[#all + 1] = { type = "choice", x = editX, y = y, w = half, h = rowControlH,
+                title = left.label, values = left.values, get = left.get,
+                set = function(v) w:applyEdit(function() if editable() then left.set(v) end end) end,
+                active = enabled }
+            else
+              numberField(editX, half, left)
+            end
+            all[#all + 1] = label(editX+half, centredTop(y, rowControlH), 12, r.separator or ":")
+            numberField(editX+editW-half, half, r.right)
           else
-            numberField(formX+formW-editW, editW, r)
+            numberField(editX, editW, r)
           end
         end
       end
     end
-    local function nextText() return simpleNext and w.L.continue or restartNext and w.L.reboot or w.trial and w.trial.success and w.L.saveReboot or (step == 10 or step == 11) and finalCard and w.rebootPending and w.L.reboot or step == 19 and not w.singleStep and w.L.finish or
-      finalCard and (w.singleStep and (next(w.dirty) and w.L.saveStep or (w.returnToSuite and w.L.backToSuite or w.L.backToSteps)) or w.L.saveNext) or w.L.continue end
+    -- The last card of a step moves on to the next step, saving what changed; the last step
+    -- finishes. From Connect servos on, a pending restart comes first and the button says so.
+    local function nextText()
+      return simpleNext and w.L.continue or restartNext and w.L.reboot or w.trial and w.trial.success and w.L.saveReboot
+        or finalCard and step >= 10 and w.rebootPending and w.L.reboot
+        or finalCard and step == 19 and w.L.finish or finalCard and w.L.nextStep or w.L.continue
+    end
     if not w.historyMode then
-    button(width-math.floor(width*0.42)-8, height-controlH-6, math.floor(width*0.42), nextText,
+    local nextW = math.floor(width*0.30)
+    button(width-nextW-8, height-controlH-6, nextW, nextText,
       function() if current() then w:next() end end, function() return w.canNext == true and current() end)
     all[#all].color, all[#all].textColor = palette.accent, palette.onAccent
-    all[#all + 1] = label(math.floor(width*0.27)+8, height-controlH, math.floor(width*0.28)-20,
-      string.format("%d/%d", w.card, #w.cards))
-    all[#all].color = palette.accentInk
     end
   end
   all[#all + 1] = label(10, height-controlH-(large and 40 or 27), width-20,
