@@ -181,26 +181,51 @@ for _, case in ipairs(CASES) do
   checks = checks + 1
   if not anyStopped then fail(label .. ": no position stopped the build") end
 
-  -- Reload after a whole build: the page's onReload under the stop, then the build the host runs.
-  world()
-  local Page = loadPage()
-  Page.build(newCtx(menuId))
+  -- Reload after a whole build whose controls the pilot has changed and not saved: the page's
+  -- onReload under the stop, then the build the host runs. A Reload discards the changes, so the
+  -- page has to end as the stored values draw it -- the cold build's reference.
+  local function builtAndEdited()
+    world()
+    local Page = loadPage()
+    local ctx = newCtx(menuId)
+    Page.build(ctx)
+    local edited = 0
+    for i = 1, #ctx.children do
+      local c = ctx.children[i]
+      if c.type == "choice" and type(c.set) == "function" and type(c.values) == "table" and #c.values > 1 then
+        c.set((tonumber(c.get()) or 1) % #c.values + 1)
+        edited = edited + 1
+      end
+    end
+    return Page, edited
+  end
+  local Page, edited = builtAndEdited()
+  local editedCtx = newCtx(menuId)
+  Page.build(editedCtx)
+  -- Control: the changes reach what a build draws, or a Reload that kept them would pass unseen.
+  checks = checks + 1
+  if edited == 0 or shape(editedCtx.children) == reference then
+    fail(label .. ": no control could be changed before the Reload (" .. edited .. " changed)")
+  end
   local reloadTotal = countOf(Page.onReload, newCtx(menuId))
   local reloadCtx = newCtx(menuId)
   Page.build(reloadCtx)
-  local reloaded = shape(reloadCtx.children)
   checks = checks + 1
-  if reloaded ~= reference then fail(label .. ": an unstopped Reload does not draw the page as the cold build") end
+  if shape(reloadCtx.children) ~= reference then
+    fail(label .. ": an unstopped Reload does not draw the stored values")
+  end
+  local reloadStopped = 0
   for at = RELOAD_STEP, reloadTotal, RELOAD_STEP do
-    world()
-    Page = loadPage()
-    Page.build(newCtx(menuId))
-    underLimit(at, Page.onReload, newCtx(menuId))
+    Page = builtAndEdited()
+    local okReload = underLimit(at, Page.onReload, newCtx(menuId))
+    if not okReload then reloadStopped = reloadStopped + 1 end
     local ctx = newCtx(menuId)
     local ok, err = underLimit(RETRY_BUDGET, Page.build, ctx)
     local drawn = settle(Page, menuId, ok, err, shape(ctx.children))
     compare(label .. " (Reload)", at, reloadTotal, drawn, reference)
   end
+  checks = checks + 1
+  if reloadStopped == 0 then fail(label .. ": no position stopped the Reload") end
 end
 
 Stubs.releaseCard()
