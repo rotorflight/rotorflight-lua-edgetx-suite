@@ -263,13 +263,8 @@ local function buildProfileCheck(Status, P, readProfile)
     command = Status.command,
     simulatorResponse = Status.simulatorResponse,
     holds = function(buf)
-      -- current_pid_profile_index is byte 24 of the status reply
-      if type(buf) ~= "table" or #buf < 24 then
-        logf("warn", "status reply before a write too short (%s bytes); save stopped",
-          tostring(type(buf) == "table" and #buf))
-        return nil
-      end
-      local status = Status.parse(buf)
+      -- current_pid_profile_index is byte 24 of the status reply; a shorter one cannot tell
+      local status = type(buf) == "table" and #buf >= 24 and Status.parse(buf) or nil
       local index = status and tonumber(status.current_pid_profile_index)
       if not index then
         logf("warn", "status reply before a write unreadable; save stopped")
