@@ -1,12 +1,16 @@
 -- A theme's settings page opened from the dashboard is built inside one widget call. EdgeTX
 -- (radio/src/lua/widgets.cpp, luaHook) raises "CPU limit" once per call, past the instruction
--- limit, and then lets the call run on. This check builds the real page
--- (app/pages/settings/dashboard/settings/page.lua) cold under a hook that does the same, with
--- the stop put at every position of the build in turn, and then builds again the way ui/home.lua
--- does after a stopped build (a fresh call, at most BUILD_LIMIT_RETRIES = 3 times).
+-- limit, and then lets the call run on. This check runs the real page
+-- (app/pages/settings/dashboard/settings/page.lua) under a hook that does the same, with the stop
+-- put at one position of the call after another (every STEP instructions), and then builds again
+-- the way ui/home.lua does: after a build stopped at the limit, a fresh call, at most
+-- BUILD_LIMIT_RETRIES = 3 times; after any other error, the failure page at once; after a
+-- Reload, stopped or not, one build.
 --
--- Wherever the stop lands, the page must end up as the unstopped build draws it: never with
--- "This theme's settings could not be loaded", never with fewer rows, never on the failure page.
+-- Two calls are stopped: the cold build of the page, and its Reload after a whole build. Wherever
+-- the stop lands, the page must end up as the unstopped run draws it -- the same elements, the
+-- same labels and the same values in its controls: never "This theme's settings could not be
+-- loaded", never fewer rows, never a control showing another value, never the failure page.
 --
 -- Run from the repository root: lua5.3 bin/dashboard/verify_theme_settings_limit_stop.lua
 local Stubs = assert(loadfile("bin/accounting/stubs/edgetx.lua"))()
@@ -21,8 +25,10 @@ local CASES = {
   { "system/@kse4", "postflight" },
   { "system/urban", "telemetry" },
 }
--- How far apart the stop positions are, in instructions.
+-- How far apart the stop positions are, in instructions: through the cold build, and through a
+-- Reload, which is shorter and whose module factory takes only a few dozen instructions.
 local STEP = 400
+local RELOAD_STEP = 50
 -- What a retry pass leaves the build: the limit less the background work the pass runs beside it.
 local RETRY_BUDGET = 16000
 local RETRIES = 3
@@ -58,15 +64,22 @@ local function newCtx(menuId)
     requestRebuild = function() end, requestClose = function() end,
     openPage = function() end, openHelp = function() end,
     askUnsavedChanges = function() return true end,
+    refresh = function() end,
   }
 end
 
--- What a build drew, as one string: the type and text of every element in order.
+-- What a build drew, as one string: the type, the text and, for a control, the value its getter
+-- answers, of every element in order.
 local function shape(children)
   local out = {}
   for i = 1, #children do
     local c = children[i]
-    out[#out + 1] = tostring(c.type) .. ":" .. tostring(c.text or c.label or "")
+    local item = tostring(c.type) .. ":" .. tostring(c.text or c.label or "")
+    if type(c.get) == "function" then
+      local ok, value = pcall(c.get)
+      item = item .. "=" .. (ok and tostring(value) or "error")
+    end
+    out[#out + 1] = item
   end
   return table.concat(out, "|")
 end
@@ -83,10 +96,16 @@ local function hook(event)
   end
 end
 
+-- The hook is set and taken off inside the protected call, so a stop that falls on the last
+-- instructions of the call is still the call's own.
 local function underLimit(n, fn, ...)
+  local args = table.pack(...)
   used, limit = 0, n
-  debug.sethook(hook, "", 1)
-  local ok, err = pcall(fn, ...)
+  local ok, err = pcall(function()
+    debug.sethook(hook, "", 1)
+    fn(table.unpack(args, 1, args.n))
+    debug.sethook()
+  end)
   debug.sethook()
   return ok, err
 end
@@ -100,53 +119,88 @@ local function countOf(fn, ...)
   return n
 end
 
+local function isStop(err)
+  return string.find(tostring(err), "CPU limit", 1, true) ~= nil
+end
+
+-- A build as the host runs it after a first call that answered `ok, err`: retried while it is
+-- stopped at the limit, the failure page on any other error. Answers what the page ends up showing
+-- and whether any call was stopped.
+local function settle(Page, menuId, ok, err, drawn)
+  local stopped, tries = false, 0
+  while not ok do
+    if not isStop(err) then return "the failure page (" .. tostring(err) .. ")", stopped end
+    stopped = true
+    tries = tries + 1
+    if tries > RETRIES then return "the failure page", stopped end
+    local ctx = newCtx(menuId)
+    ok, err = underLimit(RETRY_BUDGET, Page.build, ctx)
+    drawn = shape(ctx.children)
+  end
+  return drawn, stopped
+end
+
+local function compare(label, at, total, drawn, reference)
+  checks = checks + 1
+  if drawn ~= reference then
+    local what = string.find(drawn, "could not be loaded", 1, true) and "'could not be loaded'"
+      or (#drawn < #reference and "less than the unstopped run (fewer rows or a control without its value)")
+      or drawn
+    fail(string.format("%s: stopped at %d of %d instructions, the page ends with %s", label, at, total, what))
+  end
+end
+
 for _, case in ipairs(CASES) do
   local theme, page = case[1], case[2]
   local menuId = "settings_dashboard_settings_" .. hex(theme) .. "_" .. page .. "_page"
   local label = theme .. " " .. page
 
+  -- The cold build.
   world()
   local refCtx = newCtx(menuId)
   local total = countOf(loadPage().build, refCtx)
   local reference = shape(refCtx.children)
-  -- Positive control: the unstopped build draws the theme's own rows, not only the scope line.
+  -- Positive control: the unstopped build draws the theme's own rows, with their values.
   checks = checks + 1
-  if #refCtx.children < 8 or string.find(reference, "could not be loaded", 1, true) then
+  if #refCtx.children < 8 or string.find(reference, "could not be loaded", 1, true)
+    or not string.find(reference, "=", 1, true) then
     fail(label .. ": the unstopped build drew no settings (" .. #refCtx.children .. " elements)")
   end
 
-  local stopped = 0
+  local anyStopped = false
   for at = STEP, total, STEP do
     world()
     local Page = loadPage()
     local ctx = newCtx(menuId)
-    local ok = underLimit(at, Page.build, ctx)
-    local drawn = shape(ctx.children)
-    local tries = 0
-    while not ok do
-      stopped = stopped + 1
-      tries = tries + 1
-      if tries > RETRIES then drawn = "the failure page"; break end
-      ctx = newCtx(menuId)
-      local err
-      ok, err = underLimit(RETRY_BUDGET, Page.build, ctx)
-      if not ok and not string.find(tostring(err), "CPU limit", 1, true) then
-        drawn = "the failure page (" .. tostring(err) .. ")"
-        break
-      end
-      drawn = shape(ctx.children)
-    end
-    checks = checks + 1
-    if drawn ~= reference then
-      local what = string.find(drawn, "could not be loaded", 1, true) and "'could not be loaded'"
-        or (#drawn < #reference and "fewer rows than the unstopped build")
-        or drawn
-      fail(string.format("%s: stopped at %d of %d instructions, the page ends with %s", label, at, total, what))
-    end
+    local ok, err = underLimit(at, Page.build, ctx)
+    local drawn, stopped = settle(Page, menuId, ok, err, shape(ctx.children))
+    anyStopped = anyStopped or stopped
+    compare(label .. " (cold build)", at, total, drawn, reference)
   end
   -- The stop has to land inside the build at all, or nothing above was tested.
   checks = checks + 1
-  if stopped == 0 then fail(label .. ": no position stopped the build") end
+  if not anyStopped then fail(label .. ": no position stopped the build") end
+
+  -- Reload after a whole build: the page's onReload under the stop, then the build the host runs.
+  world()
+  local Page = loadPage()
+  Page.build(newCtx(menuId))
+  local reloadTotal = countOf(Page.onReload, newCtx(menuId))
+  local reloadCtx = newCtx(menuId)
+  Page.build(reloadCtx)
+  local reloaded = shape(reloadCtx.children)
+  checks = checks + 1
+  if reloaded ~= reference then fail(label .. ": an unstopped Reload does not draw the page as the cold build") end
+  for at = RELOAD_STEP, reloadTotal, RELOAD_STEP do
+    world()
+    Page = loadPage()
+    Page.build(newCtx(menuId))
+    underLimit(at, Page.onReload, newCtx(menuId))
+    local ctx = newCtx(menuId)
+    local ok, err = underLimit(RETRY_BUDGET, Page.build, ctx)
+    local drawn = settle(Page, menuId, ok, err, shape(ctx.children))
+    compare(label .. " (Reload)", at, reloadTotal, drawn, reference)
+  end
 end
 
 Stubs.releaseCard()

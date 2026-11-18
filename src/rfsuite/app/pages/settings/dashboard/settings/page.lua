@@ -142,6 +142,7 @@ local ui = {
   activeTheme = nil,
   activeModule = nil,
   loadError = nil,
+  reloadOwed = nil,
 }
 
 ui.runtime = nil
@@ -353,6 +354,8 @@ end
 
 
 function M.onReload(ctx)
+  -- Owed until the theme's own reload has run (see M.build).
+  ui.reloadOwed = true
   ensureDeps()
   ui.loaded = false
   ui.themes = nil
@@ -368,8 +371,11 @@ function M.onReload(ctx)
   ensureLoaded(ctx.preferences)
   local module = loadThemeModule(ctx)
   if type(module) == "table" and type(module.onReload) == "function" then
-    return module.onReload(ctx)
+    local result = module.onReload(ctx)
+    ui.reloadOwed = nil
+    return result
   end
+  ui.reloadOwed = nil
   return true
 end
 
@@ -415,6 +421,15 @@ function M.build(ctx)
   ui.runtime.setRequestRebuild(ctx.requestRebuild)
 
   local module = loadThemeModule(ctx)
+
+  -- A Reload stopped at the instruction limit before the theme's own reload ran leaves the
+  -- theme's module as it was: the module is kept between loads, and it still holds the values it
+  -- read before, beside whatever its factory has set up afresh since. The build after it runs the
+  -- theme's reload first, so the page shows what is stored now.
+  if ui.reloadOwed and type(module) == "table" and type(module.onReload) == "function" then
+    module.onReload(ctx)
+  end
+  ui.reloadOwed = nil
 
   -- Which values the page edits, above whatever the theme draws: the theme's module is the same
   -- in both scopes and cannot say it.
@@ -510,6 +525,7 @@ function M.onClose()
   ui.activeTheme = nil
   ui.activeModule = nil
   ui.loadError = nil
+  ui.reloadOwed = nil
   Common = nil
   DashboardLib = nil
   t = nil
