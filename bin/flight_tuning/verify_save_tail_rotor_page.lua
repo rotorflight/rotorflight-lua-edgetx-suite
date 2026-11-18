@@ -8,7 +8,6 @@ local function equal(actual, expected, label)
   end
 end
 
-local base = "app/pages/flight_tuning/advanced/"
 local pipelinePath = "tasks/msp/save_pipeline.lua"
 local function newPage(spec)
   -- Module handles, the queue and the pipeline's shared state belong to one scenario.
@@ -66,7 +65,7 @@ local function newPage(spec)
   end
   -- The host and page load separate instances; their public views must share the run.
   local pipeline = assert(loadfile("src/rfsuite/" .. pipelinePath))()
-  local page = assert(loadfile("src/rfsuite/" .. base .. "tail_rotor/page.lua"))()
+  local page = assert(loadfile("src/rfsuite/app/pages/flight_tuning/advanced/tail_rotor/page.lua"))()
   local ui
   for i = 1, 20 do
     local key, value = debug.getupvalue(page.hasUnsavedChanges, i)
