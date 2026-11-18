@@ -191,7 +191,10 @@ for _, case in ipairs(CASES) do
 
   -- Reload after a whole build whose controls the pilot has changed and not saved: the page's
   -- onReload under the stop, then the build the host runs. A Reload discards the changes, so the
-  -- page has to end as the stored values draw it -- the cold build's reference.
+  -- page has to end as the stored values draw it -- the cold build's reference. The positions
+  -- start once the page has noted the Reload (its first statement): a stop on the instructions
+  -- before that, like one in ui/home.lua before it calls the page, leaves the page as it was, as
+  -- though Reload had not been pressed.
   local function builtAndEdited()
     world()
     local Page = loadPage()
