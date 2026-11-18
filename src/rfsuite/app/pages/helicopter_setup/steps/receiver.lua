@@ -201,16 +201,62 @@ return function(w)
     end
     return 0
   end
+  local function automatic() return w.data.rc_config.rc_min_throttle == 0 and w.data.rc_config.rc_max_throttle == 0 end
+  local function autoRange()
+    local rc = w.data.rc_config
+    local centre, span = rc.rc_center or 1500, math.floor((rc.rc_deflection or 510) * 0.9 + 0.5)
+    return centre - span, centre + span
+  end
+  local function throttleRows()
+    local rows = {
+      w:value(L.throttle, throttleNow),
+      { kind = "toggle", label = L.throttleAuto, values = { L.no, L.yes },
+        get = function() return automatic() and 2 or 1 end,
+        set = function(v)
+          r.record = nil
+          if v == 2 then
+            if w.logDebug then w:log("debug", "throttle range automatic") end
+            w:field("rc_config", "rc_min_throttle", 0)
+            w:field("rc_config", "rc_max_throttle", 0)
+          else
+            -- Off starts from the range the firmware used, for the pilot to adjust or record.
+            local low, high = autoRange()
+            if w.logDebug then w:log("debug", "throttle range manual from %s to %s", low, high) end
+            w:field("rc_config", "rc_min_throttle", low)
+            w:field("rc_config", "rc_max_throttle", high)
+          end
+          w.buildRequested = true; w:rebuild()
+        end }
+    }
+    if automatic() then
+      rows[#rows+1] = w:value(L.throttleAutoRange, function() return string.format(L.throttleAutoValue, autoRange()) end)
+      return rows
+    end
+    rows[#rows+1] = w:button(function() return r.record and L.useRange or L.record end, function()
+      if r.record then
+        if r.high - r.low < 300 then w.message = L.travelShort; return end
+        r.record = nil
+        w:field("rc_config", "rc_min_throttle", r.low + 20)
+        w:field("rc_config", "rc_max_throttle", r.high - 20)
+        return
+      end
+      local channels=w:channelSnapshot("rx_channels")
+      local v=channels and channels[(w.data.rx_map.throttle or 4)+1]
+      if type(v)~="number" or v<=500 then w.message=L.waitChannels;return end
+      r.low,r.high,r.record=v,v,true;w.message=L.throttleSwitchRange
+    end)
+    rows[#rows+1] = w:n("rc_config", "rc_min_throttle", L.minimum, 0, 2100)
+    rows[#rows+1] = w:n("rc_config", "rc_max_throttle", L.maximum, 0, 2100)
+    return rows
+  end
   local cards = {
-    w:cardDef(L.receiver, L.receiverHint, {
+    w:cardDef(L.cardReceiverProtocol, L.receiverHint, {
       { kind = "toggle", label = L.advanced, values = { L.no, L.yes },
         get = function() return unlocked() and 2 or 1 end, set = function(v) r.advanced = v == 2 end },
       locked(protocol),
-      w:button(L.receiverUsb, function() w.message=L.receiverUsbHint end),
       locked(w:button(L.saveReboot, function() w:serialReceiver(); w:reboot() end))
     }, nil, "receiver"),
     w:cardDef(L.channelOrder, L.channelHint, {
-      locked(w:button(function() return r.detect and L.cancelDetect or L.detect end, detect)),
       { kind="choice",label=L.standardOrder,allowUnset=true,values=PRESET_NAMES,
         get=presetIndex,
         set=function(v)
@@ -218,41 +264,21 @@ return function(w)
           if not preset then return end
           r.detect=nil;for i,k in ipairs(keys) do w.data.rx_map[k]=preset[i] end;w:touch("rx_map")
         end, enabled=unlocked },
+      locked(w:button(function() return r.detect and L.cancelDetect or L.detect end, detect)),
       w:button(L.detectSkip, function() if r.detect then advance(nil, nil) end end, function() return r.detect ~= nil end)
     }, nil, "stickDetect"),
     w:cardDef(L.checkSticks, L.stickGuideHint, {
       w:button(L.travelReset, function() r.travel, r.guideKey = { {0, 0}, {0, 0}, {0, 0}, {0, 0} }, nil end)
     }),
-    w:cardDef(L.throttleRange, L.throttleCardHint, {
-      w:value(L.throttle, throttleNow),
-      w:button(function() return r.record and L.useRange or L.record end, function()
-        if r.record then
-          if r.high - r.low < 300 then w.message = L.travelShort; return end
-          r.record = nil
-          w:field("rc_config", "rc_min_throttle", r.low + 20)
-          w:field("rc_config", "rc_max_throttle", r.high - 20)
-          return
-        end
-        local channels=w:channelSnapshot("rx_channels")
-        local v=channels and channels[(w.data.rx_map.throttle or 4)+1]
-        if type(v)~="number" or v<=500 then w.message=L.waitChannels;return end
-        r.low,r.high,r.record=v,v,true;w.message=L.throttleSwitchRange
-      end),
-      w:n("rc_config", "rc_min_throttle", L.minimum, 0, 2100),
-      w:n("rc_config", "rc_max_throttle", L.maximum, 0, 2100),
-      -- Zero makes the firmware fall back on its stick range.
-      w:button(L.throttleDefaults, function()
-        r.record = nil
-        if w.logTrace then w:log("trace", "throttle range defaults") end
-        w:field("rc_config", "rc_min_throttle", 0)
-        w:field("rc_config", "rc_max_throttle", 0)
-      end)
-    },nil,"heliBladesOff")
+    -- As in the Configurator: the automatic range is Minimum and Maximum 0, and the firmware then
+    -- uses rc_center -/+ 0.9 x rc_deflection. Off shows the two fields and Record travel. Nothing is
+    -- written when the card opens; a stored range, also one with a single 0, stays as it is.
+    w:cardDef(L.throttleRange, L.throttleCardHint, throttleRows(),nil,"heliBladesOff"),
   }
   cards[4].dense = true
   cards[1].summary=function() return unlocked() and L.receiverUnlocked or L.receiverWarning end
   cards[1].summaryColor, cards[1].summaryBold = "warning", true
-  cards[2].summary=function() return r.detect and detectPrompt() or unlocked() and L.channelQuick or L.receiverLocked end
+  cards[2].summary=function() return r.detect and detectPrompt() or unlocked() and L.channelOrderPick or L.receiverLocked end
   cards[2].stickMove=function()
     local move=r.detect and DETECT_MOVES[r.detect.index]
     if move then return move[1],move[2] end
@@ -287,7 +313,9 @@ return function(w)
         return percent
       end,
       -- Navigation clears the measurement before the next scene replaces this one.
-      done = function() local t = r.travel; return t ~= nil and t[n][1] >= TRAVEL and t[n][2] >= TRAVEL end
+      done = function() local t = r.travel; return t ~= nil and t[n][1] >= TRAVEL and t[n][2] >= TRAVEL end,
+      -- Each end on its own: 1 is the left word's direction, 2 the right word's.
+      reached = function(side) local t = r.travel; return t ~= nil and t[n][side] >= TRAVEL end
     }
   end
   cards[3].bars, cards[3].rowsAtFoot, cards[3].wideText = bars, true, true
@@ -309,7 +337,7 @@ return function(w)
     end
     cards[#cards+1]=card
   end
-  -- The step closes on what it has set; the text says whether Save & next has anything to store.
+  -- The step closes on what it has set; the text says whether Next step has anything to store.
   local rangeMin, rangeMax, rangeText
   local done = w:cardDef(L.receiverDone, L.receiverDoneHint, {
     w:value(L.protocol, function() return protocol.values[protocol.get()] or L.notSet end),

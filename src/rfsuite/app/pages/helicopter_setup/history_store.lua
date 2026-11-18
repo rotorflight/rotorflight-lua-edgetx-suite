@@ -30,9 +30,47 @@ function M.mask(identity, modelFile)
   if not found then mask = read(path .. ".tmp") end
   return mask or 0
 end
-function M.new(identity, modelFile)
+-- Whether the radio model was prepared for this FC: a file of its own beside the completion
+-- record, so the record's fixed format and every reader of it stay as they are. It is kept per
+-- FC and radio model, because one board can be flown from another transmitter model; without
+-- the model's name nothing is remembered and the card asks again.
+-- The file name can carry only part of a name ("Heli 1" and "Heli_1" read the same there, and a long one is
+-- cut short), so it ends in a short hash of the whole name: two radio models never share a record.
+local function modelKey(radioModel)
+  if type(radioModel) ~= "string" or radioModel == "" then return nil end
+  local hash = 5381
+  for i = 1, #radioModel do hash = (hash * 33 + string.byte(radioModel, i)) % 16777216 end
+  return string.sub(string.gsub(radioModel, "[^%w_-]", "_"), 1, 24) .. "-" .. string.format("%06x", hash)
+end
+local function preparedPath(path, key)
+  if not path or not key then return nil end
+  return (string.gsub(path, "%.lua$", "-prepared-" .. key .. ".lua"))
+end
+local PREPARED = "return { version = 1, prepared = true }\n"
+local function readPrepared(path)
+  local file = path and io.open(path, "r")
+  if not file then return false end
+  local text = io.read(file, 64)
+  io.close(file)
+  return text == PREPARED
+end
+function M.new(identity, modelFile, radioModel)
   local h = { mask = 0, count = 0 }
   h.directory, h.path = location(identity, modelFile)
+  h.preparedFile = preparedPath(h.path, modelKey(radioModel))
+  h.prepared = readPrepared(h.preparedFile)
+  function h:markPrepared()
+    if self.prepared then return true end
+    if not self.preparedFile or type(mkdir) ~= "function" then return false end
+    local directoryResult = mkdir(self.directory)
+    if directoryResult ~= 0 and directoryResult ~= 8 then return false end
+    local file = io.open(self.preparedFile, "w")
+    if not file then return false end
+    local wrote = io.write(file, PREPARED)
+    io.close(file)
+    self.prepared = wrote and readPrepared(self.preparedFile) or false
+    return self.prepared
+  end
   function h:publish(mask)
     self.mask, self.count = mask, 0
     for bit = 0,18 do if (mask & (1 << bit)) ~= 0 then self.count = self.count + 1 end end

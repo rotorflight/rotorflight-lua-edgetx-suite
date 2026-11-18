@@ -25,11 +25,11 @@ def verify_flow_layout(model):
     assert all(text.startswith('<b>') and '</b>' in text and text.count('<br/>')<=3
                for text, _ in cards.values()), 'Card title plus at most three detail lines'
     assert 'sets: Roll, Pitch, Yaw' in cards['S1c2'][0] and cards['S1c2'][1]=='3', 'Concrete inputs and strongest write fill'
-    assert 'writes: board_auto_align, board_alignment_config' in cards['S1c2'][0], 'More than three write fields collapse to API names'
+    assert 'writes: board_alignment_config, board_auto_align' in cards['S1c2'][0], 'More than three write fields collapse to API names'
     assert 'reads: Accelerometer, Calibrated' in cards['S1c1'][0], 'Displayed English read labels'
     assert 'confirms: All blades removed, Servos unplugged' in cards['S1c0'][0] and cards['S1c0'][1]=='2', 'Confirmations take precedence over reads'
     assert 'blocks until: Direction is correct' in cards['S1c3'][0], 'Simple confirmation gate stays on its card'
-    assert 'sets: Rate profile' in cards['S16c5'][0] and 'blocks until: Full travel without binding' in cards['S16c6'][0], 'A duplicate confirmation must not hide editable values'
+    assert 'sets: Rate profile' in cards['S16c6'][0] and 'blocks until: Full travel without binding' in cards['S16c7'][0], 'A duplicate confirmation must not hide editable values'
     diamonds = re.findall(r'^\s+(S\d+gate)\{".*?"\}:::k4$', diagram, re.M)
     assert diamonds and not re.search(r'c\d+k\d+', diagram), 'Conditional gates replace the old per-kind nodes'
     count = len(cards)+len(diamonds)

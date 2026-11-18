@@ -11,6 +11,11 @@ this build context carries the calls a page needs to act on the tool around it. 
 smaller table with the shared state and `requestRebuild` only, so a page that needs one of the
 other calls later keeps it from its build:
 
+`build` appends the page's widgets to `children` as tables; `lvgl.build` makes them afterwards. In
+the tool opened from the dashboard that happens on the pass after the page's first build of a
+visit (see [Dashboard views](dashboard-views.md)), so a page's `wakeup` can run once before its
+widgets exist, and a page reaches its widgets only through the functions it binds to them.
+
 | Field | What it does |
 | --- | --- |
 | `requestRebuild()` | Builds the scene again on the next pass. |

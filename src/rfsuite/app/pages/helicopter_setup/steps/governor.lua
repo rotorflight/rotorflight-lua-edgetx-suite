@@ -132,24 +132,26 @@ return function(w)
     })
   end
   if governs() then
+    -- Every profile's full headspeed on one card, a row per PID profile the switch selects.
+    local spec, rows = fields.headspeed, {}
     for _, id in ipairs(profiles) do
       local index = id
-      local spec = fields.headspeed
-      cards[#cards+1] = w:cardDef(string.format(L.headspeedProfile, index + 1), L.headspeedHint, {
-        {kind="number", label=L.headspeed, min=spec.min, max=spec.max,
-          display=function(v) return w.governorSpeeds and w.governorSpeeds[index] ~= nil and tostring(v) or "--" end,
-          get=function() return w.governorSpeeds and w.governorSpeeds[index] or 0 end,
-          set=function(v)
-            if not governs() or not w.governorLoaded or w.governorSpeeds[index] == nil then return end
-            local value = v
-            if value == w.governorSpeeds[index] then return end
-            w.governorSpeeds[index] = value
-            w.governorChanged = w.governorChanged or {}; w.governorChanged[index] = true
-            w:touch("governor_profile")
-          end, enabled=function() return governs() and w.governorLoaded == true and w.governorSpeeds[index] ~= nil end}
-      }, enter)
-      cards[#cards].summary = L.headspeedSummary
+      rows[#rows+1] = {kind="number", label=string.format(L.headspeedProfile, index + 1), min=spec.min, max=spec.max,
+        display=function(v) return w.governorSpeeds and w.governorSpeeds[index] ~= nil and tostring(v) or "--" end,
+        get=function() return w.governorSpeeds and w.governorSpeeds[index] or 0 end,
+        set=function(v)
+          if not governs() or not w.governorLoaded or w.governorSpeeds[index] == nil then return end
+          local value = v
+          if value == w.governorSpeeds[index] then return end
+          w.governorSpeeds[index] = value
+          w.governorChanged = w.governorChanged or {}; w.governorChanged[index] = true
+          if w.logTrace then w:log("trace", "headspeed PID profile %s set", index) end
+          w:touch("governor_profile")
+        end, enabled=function() return governs() and w.governorLoaded == true and w.governorSpeeds[index] ~= nil end}
     end
+    cards[#cards+1] = w:cardDef(L.headspeed, L.headspeedHint, rows, enter)
+    cards[#cards].summary = L.headspeedSummary
+    cards[#cards].dense = #rows > 3
   end
   return cards
 end

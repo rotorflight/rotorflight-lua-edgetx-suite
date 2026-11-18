@@ -280,6 +280,19 @@ local function finish(widget, reason, outcome)
 
   leaveSave()
 
+  -- The radio's colours, which the tool wrote over with the colour scheme when it opened: the
+  -- dashboard and the radio's own screens are drawn in them again from here (lib/theme_slots.lua).
+  local ThemeSlots = requireModule("lib/theme_slots.lua")
+  if type(ThemeSlots) == "table" and type(ThemeSlots.restore) == "function" then
+    local ok, err = pcall(ThemeSlots.restore, "hosted tool closed (" .. tostring(reason) .. ")")
+    -- A stopped restore keeps its rows -- and, stopped before the colours were all back, its finaliser and its
+    -- marker (lib/theme_slots.lua); the widget's next refresh calls it again (src/widgets/rfsuite/main.lua).
+    if not ok then
+      widget._themeRestoreOwed = true
+      hostLog("theme slots not restored on close, owed to the next pass: " .. tostring(err), "warn")
+    end
+  end
+
   removeLoader(host)
 
   local MspRuntime = requireModule("tasks/msp/runtime.lua")
@@ -309,6 +322,9 @@ local function finish(widget, reason, outcome)
   end
 
   local dropped = dropToolModules()
+  -- ui/palette.lua publishes itself as rfsuite.palette for the tool's pages; nothing of the
+  -- dashboard reads it, so the closed tool's palette and its icon cache go with its modules.
+  if root then root.palette = nil end
   if _G.rfsuite.logSteps then hostStep("tool modules dropped: " .. tostring(dropped)) end
 
   widget._job = nil

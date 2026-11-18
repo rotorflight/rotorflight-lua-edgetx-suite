@@ -20,18 +20,69 @@ function M.attach(w, ctx)
     if self.logTrace then self:log("trace", "step list") end
     self:release()
     self.overview, self.singleStep, self.confirmExit, self.exitToSteps = true, nil, nil, nil
+    self.stepMenu, self.jumpTarget, self.preparationStep = nil, nil, nil
     self.cards, self.commit, self.validate, self.onLive, self.buildRequested = nil, nil, nil, nil, nil
     self.checks, self.preparationDone, self.preparationCard = {}, nil, nil
     self.message = self.rebootPending and self.L.pendingReboot or self.L.ready
     self:rebuild()
   end
   function w:requestSteps()
-    if not self.ready or self.transition then return end
+    if not self.ready or self.transition or self.memoryStop then return end
     self:release()
     if next(self.dirty) then
       self.confirmExit, self.exitToSteps = true, not self.returnToSuite; self:rebuild()
     elseif self.returnToSuite then self:close()
     else self:showSteps() end
+  end
+  -- The step menu behind a card's header. Opening it releases the card's holds and keeps the
+  -- step as it is (cards, checks, staged changes), so Back returns to the same card and a jump
+  -- leaves through the same save/discard question as Exit.
+  function w:openStepMenu()
+    if not self.ready or self.transition or self.memoryStop or not self.cards or self.stepMenu then return end
+    if self.modelPreparationCard or self.recoveryCard or self.preparationCard or self.entryRebootGate then return end
+    -- Not while an ESC read or write runs: its replies belong to this visit, as Back waits for them too.
+    if self.escBusy then
+      if self.logDebug then self:log("debug", "step menu waits for the ESC operation") end
+      return
+    end
+    if self.logTrace then self:log("trace", "step menu opened on %s card %s", self.step, self.card) end
+    self:release()
+    self.stepMenu = true; self:rebuild()
+  end
+  function w:closeStepMenu()
+    if not self.stepMenu then return end
+    if self.logTrace then self:log("trace", "step menu closed, back to %s card %s", self.step, self.card) end
+    self.stepMenu = nil
+    -- A move to the same card runs its entry again, so a hold the card keeps is set again.
+    self:navigate(self.step, self.card)
+  end
+  function w:jumpToStep(index)
+    if not self.stepMenu or not self:usable() or type(index) ~= "number" or index < 1 or index > 19 or index % 1 ~= 0 then return end
+    if self.escBusy then
+      if self.logDebug then self:log("debug", "jump to step %s waits for the ESC operation", index) end
+      return
+    end
+    if index == self.step then self:closeStepMenu(); return end
+    if index >= 11 and self.rebootPending then
+      if self.logDebug then self:log("debug", "jump to step %s waits for the owed restart", index) end
+      self.message = self.L.pendingReboot; self:rebuild(); return
+    end
+    if self.logInfo then self:log("info", "jump from step %s to %s", self.step, index) end
+    self.stepMenu = nil
+    if next(self.dirty) then
+      self.confirmExit, self.jumpTarget = true, index; self:rebuild(); return
+    end
+    self:enterNewVisit(index)
+  end
+  -- A step reached from the step menu or by Next step is a new visit, as when it is started from
+  -- the menu: no answer of the step left carries over, and its "Before this step" card is asked
+  -- again, in Complete setup too (the steps in between, which would have asked, were skipped).
+  function w:enterNewVisit(index)
+    if self.logDebug then self:log("debug", "new visit of step %s", index) end
+    self.checks, self.preparationDone, self.preparationCard = {}, nil, nil
+    self.preparationStep = index
+    self:resetVisit(index)
+    self:navigate(index, 1)
   end
   function w:startStep(index, complete)
     if not self:usable() or not index or index < 1 or index > 19 or index % 1 ~= 0 then return end
@@ -41,13 +92,14 @@ function M.attach(w, ctx)
     end
     if self.logInfo then self:log("info", "start step %s, complete=%s", index, tostring(complete)) end
     self.overview, self.singleStep, self.selectedStep = nil, not complete, index
+    self.stepMenu, self.jumpTarget, self.preparationStep = nil, nil, nil
     self.checks, self.preparationDone, self.preparationCard = {}, nil, nil
     -- Started from the menu, the step is a new visit even when it is the one just left.
     self:resetVisit(index)
     self:navigate(index, 1)
   end
   function w:standalonePreparation()
-    if not self.singleStep then return false end
+    if not self.singleStep and self.preparationStep ~= self.step then return false end
     return (self.step > 1 and self.step < 10) or self.step == 11 or (self.step >= 13 and self.step <= 16) or
       (self.step == 17 and not self:motorised()) or self.step == 18
   end
@@ -55,6 +107,14 @@ function M.attach(w, ctx)
   function w:sensorState(value)
     if value ~= nil then return self.L.sensorLive end
     return (self.systemReads or 0) >= 4 and self.L.sensorMissing or self.L.sensorChecking
+  end
+  -- A state sensor's row: its name, OK or missing in the scheme's ok and error colours.
+  function w:sensorRow(label, read)
+    return { kind = "value", label = label, get = function() return self:sensorState(read()) end,
+      color = function()
+        if read() ~= nil then return "ok" end
+        return (self.systemReads or 0) >= 4 and "error" or "muted"
+      end }
   end
   -- The FC's own telemetry list (MSP telemetry_config): true when System Status (120) and System
   -- Config (121) are both in it, false when one is missing, nil when it was not read.
@@ -105,23 +165,29 @@ function M.attach(w, ctx)
       self.card,self.recoveryCard=1,true;return true
     end
     if not self.modelPreparationRequired or self.modelPreparationDone then return false end
+    -- Prepared before for this FC: a single step passes the card by itself once both state
+    -- sensors are live. Complete setup always shows it.
+    self.modelPreparationAuto = self.singleStep and self.history ~= nil and self.history.prepared == true
     self.cards={self:cardDef(self.L.modelPreparationTitle,self.L.modelPreparationIntro.."\n"..self.L.modelPreparationHint.."\n"..
       self.L.activeModel..": "..self.activeModelName.."\n"..self.L.craftNameHint.."\n\n"..self.L.sensorsHint,{
       -- The flight controller's own name, set here once so every later screen can show it.
       { kind = "text", label = self.L.craftName, length = 16,
         get = function() return self.data.name and self.data.name.name or "" end,
         set = function(v) if self.data.name then self:field("name", "name", v) end end },
+      self:value(self.L.activeModel,function() return self.activeModelName end),
       self:check("modelReady",self.L.modelChecked),
       -- Prerequisites checked up front: the two packed FC state sensors the hints depend on.
-      self:value(self.L.fcStatusSensor,function() return self:sensorState(self.systemStatus) end),
-      self:value(self.L.fcConfigSensor,function() return self:sensorState(self.systemConfig) end),
-      self:button(function()
-        local listed = self:fcSensorsListed()
-        return listed and self.L.fcSensorsListed or listed == nil and self.L.fcSensorsUnread or self.L.addFcSensors
-      end, function() self:addFcSensors() end, function() return self:fcSensorsListed() == false end)
+      self:sensorRow(self.L.fcStatusSensor, function() return self.systemStatus end),
+      self:sensorRow(self.L.fcConfigSensor, function() return self.systemConfig end),
+      -- Offered only when the FC's own telemetry list lacks a sensor; a sensor that is listed but
+      -- not live has nothing a button could add.
+      { kind = "button", label = self.L.addFcSensors, press = function() self:addFcSensors() end,
+        enabled = function() return self:fcSensorsListed() == false end,
+        visible = function() return self:fcSensorsListed() == false end }
     })}
-    self.cards[1].fitRows=true
-    self.cards[1].summary=self.L.modelPreparationIntro.."\n"..self.L.activeModel..": "..self.activeModelName
+    -- Six rows: they share the space above the status line on every screen.
+    self.cards[1].fitRows,self.cards[1].dense=true,true
+    self.cards[1].summary=self.L.modelPreparationIntro
     self.card,self.modelPreparationCard=1,true
     return true
   end
@@ -146,22 +212,29 @@ function M.attach(w, ctx)
     return true
   end
   function w:finishStep()
+    -- The last card's button moves on to the next step in both modes; a single step stays a
+    -- single step, so its "Before this step" card is asked again. Step 19 finishes.
     local function after()
-      if self.singleStep then
-        if self.returnToSuite then self:close() else self:showSteps() end
-      elseif self.step == 19 then self:close()
-      else self:navigate(self.step + 1, 1) end
+      if self.step == 19 then
+        if self.singleStep and not self.returnToSuite then self:showSteps() else self:close() end
+      elseif self.singleStep then
+        if self.logDebug then self:log("debug", "step %s done, next step %s", self.step, self.step + 1) end
+        self:enterNewVisit(self.step + 1)
+      else
+        self:navigate(self.step + 1, 1)
+      end
     end
     if self.rememberStep then self:rememberStep(after) else after() end
   end
   function w:resolveExit(save)
     if self.transition then return end
     if self.logDebug then self:log("debug", "leaving a changed step, save=%s", tostring(save)) end
-    local steps,target = self.exitToSteps,self.backTarget
-    self.confirmExit, self.exitToSteps,self.backTarget = nil, nil,nil
-    local after = target and function() self:navigate(target,1) end or
+    local steps,target,jump = self.exitToSteps,self.backTarget,self.jumpTarget
+    self.confirmExit, self.exitToSteps,self.backTarget,self.jumpTarget = nil, nil,nil,nil
+    local after = jump and function() self:enterNewVisit(jump) end or
+      target and function() self:navigate(target,1) end or
       steps and function() self:showSteps() end or function() self:close() end
-    if save then self:save(after) else self:discard((steps or target) and after or nil) end
+    if save then self:save(after) else self:discard((steps or target or jump) and after or nil) end
   end
 end
 return M

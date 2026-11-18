@@ -65,7 +65,9 @@ local keys = { "sensors", "receiver", "modes", "profiles", "rates", "swash", "se
   "connect", "escTelemetry", "throttle", "servos", "direction", "level", "pitch", "tail", "gyro", "finish" }
 -- What a scene is built from. A published scene stays current while every input still holds the
 -- value it was built with; comparing them leaves a steady frame without a new string to collect.
-local SCENE_FIELDS = { "step", "card", "cards", "confirmExit", "disconnectExit", "overview", "historyFailure", "error" }
+-- A notice a save from the memory stop screen leaves is drawn on that screen, so it is an input too.
+local SCENE_FIELDS = { "step", "card", "cards", "confirmExit", "disconnectExit", "overview", "historyFailure", "error", "stepMenu",
+  "stopNotice" }
 local SCENE_W, SCENE_H = #SCENE_FIELDS + 1, #SCENE_FIELDS + 2
 local function captureInputs(into)
   for i, name in ipairs(SCENE_FIELDS) do into[i] = w[name] end
@@ -80,6 +82,19 @@ local function sceneCurrent(inputs)
   return inputs[SCENE_W] == context.w and inputs[SCENE_H] == context.h
 end
 local loadingScene
+-- What the last build put on screen: "first" (the minimal label), "loading" or "scene". A card
+-- move asks for a build when it starts and again once its cards are set; both show the same
+-- loading scene, whose text and bar are reactive. While the loading scene is shown and no
+-- published scene is current, the wizard's own request is dropped: the next build that changes
+-- anything is the one that publishes the scene, and that request always passes.
+local lastBuild, hostRebuild
+local function pageRebuild()
+  if lastBuild == "loading" and not (scene and sceneCurrent(sceneInputs)) then
+    if w and w.logTrace then w:log("trace", "rebuild dropped, loading scene shown") end
+    return
+  end
+  if hostRebuild then hostRebuild() end
+end
 local function buildLoading(ctx)
   local y=math.floor(ctx.h*0.38)
   loadingPoints[1][2],loadingPoints[2][2]=y+68,y+68
@@ -105,19 +120,26 @@ function M.build(ctx)
     ctx.children[#ctx.children+1]=body
     ctx=setmetatable({children=body.children},{__index=ctx})
   end
-  if w then w.requestClose, w.requestRebuild, w.openPage = ctx.requestClose, ctx.requestRebuild, ctx.openPage end
+  hostRebuild = ctx.requestRebuild
+  if w then w.requestClose, w.requestRebuild, w.openPage = ctx.requestClose, pageRebuild, ctx.openPage end
   if w then w.openHelp = ctx.openHelp end
   -- Every build makes new native objects, so a line's first-pass guard counts builds.
-  if w then w.buildCount = (w.buildCount or 0) + 1 end
+  if w then
+    w.buildCount = (w.buildCount or 0) + 1
+    if w.logDebug then w:log("debug", "scene build %d", w.buildCount) end
+  end
   if w and ctx.armed then
     w.canEdit, w.canNext, w.message = false, false, w.L.disconnected
     w:release()
   end
   if scene and sceneCurrent(sceneInputs) then
+    lastBuild = "scene"
     table.move(scene, 1, #scene, #ctx.children+1, ctx.children)
   elseif loadingScene then
+    lastBuild = "loading"
     table.move(loadingScene,1,#loadingScene,#ctx.children+1,ctx.children)
   else
+    lastBuild = "first"
     -- The first build stays minimal; the colour scheme is loaded by the first wakeup.
     ctx.children[#ctx.children+1] = { type="label",x=12,y=30,w=ctx.w-24,
       text="@i18n(app.modules.helicopter_setup.loading)@",color=toolText,font=SMLSIZE }
@@ -133,7 +155,14 @@ function M.wakeup(ctx)
   if w and collectAfterBuild and w.buildCount ~= collectAfterBuild then
     collectAfterBuild = nil
     collectgarbage("collect")
-    if w.logTrace then w:log("trace", "collected after a new scene") end
+    -- Right after the collect the Lua count holds no garbage, so this line, read across a walk,
+    -- says what the wizard keeps per scene (and on a radio what stays free).
+    if w.logDebug then
+      local Log = _G.rfsuite and _G.rfsuite.Log
+      w:log("debug", "collected after scene build %d: %s", w.buildCount or 0, Log and Log.resources() or "-")
+    end
+    -- The same point, without garbage, decides whether there is memory left for the next card.
+    w:checkMemory()
   end
   if ctx and ctx.requestRebuild then context.requestRebuild = ctx.requestRebuild end
   loadingFraction = w and (w.ready and 1 or w.suspended and 0 or 0.2+0.8*(w.progress or 0)/math.max(1,w.loadTotal or 1)) or 0.2*(stage-1)/#deps
@@ -167,7 +196,8 @@ function M.wakeup(ctx)
     modules[14].attach(w, modules[12], modules[13])
     modules[16].attach(w, modules[15])
     if modules[23] then modules[23].attach(w, lazyHelper(21), lazyHelper(22)) end
-    w.requestClose, w.requestRebuild, w.openPage = context.requestClose, context.requestRebuild, context.openPage
+    hostRebuild = hostRebuild or context.requestRebuild
+    w.requestClose, w.requestRebuild, w.openPage = context.requestClose, pageRebuild, context.openPage
     w.menuChanged = function()
       local menu = context.menu
       if menu and menu.setCondition then
@@ -223,7 +253,7 @@ function M.onClose()
   end
   modules, stage, w, context, viewJob, scene, sceneInputs, pendingInputs = {}, 1, nil, nil, nil, nil, nil, nil
   loadingScene,loadingFraction,loadingPoints[2][1],historyEntry=nil,0,24,nil
-  collectAfterBuild,palette,schemeName=nil,nil,nil
+  collectAfterBuild,palette,schemeName,lastBuild,hostRebuild=nil,nil,nil,nil,nil
 end
 function M.getHeaderActions() return { save = false, reload = false, help = true } end
 return M

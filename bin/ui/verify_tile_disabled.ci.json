@@ -1,0 +1,8 @@
+{
+  "id": "tile-disabled",
+  "name": "Tiles: a disabled tile's face, text and faded icon",
+  "commands": [
+    "lua5.3 bin/ui/verify_tile_disabled.lua --self-test",
+    "lua5.3 bin/ui/verify_tile_disabled.lua"
+  ]
+}

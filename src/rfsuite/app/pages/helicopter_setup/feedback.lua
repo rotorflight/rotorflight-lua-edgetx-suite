@@ -7,6 +7,9 @@ function M.attach(w, state, sensors)
       self.systemStatus, self.systemConfig, self.systemHint = nil, nil, nil
       return
     end
+    -- While a save, a restart or a close runs, its passes carry the configuration snapshot (one
+    -- block per pass); the hints keep what they last showed and the next read waits for it.
+    if self.transition then return end
     local now = getTime()
     if now < due then return end
     due = now + 25
@@ -31,10 +34,16 @@ function M.attach(w, state, sensors)
     end
     if self.logTrace and hint ~= self.systemHint then self:log("trace", "FC hint changed") end
     self.systemHint = hint
+    if self.modelPreparationCard and self.modelPreparationAuto and status and config then
+      if self.logInfo then self:log("info", "radio model prepared before for this FC, both sensors live: card passed") end
+      self.modelPreparationDone, self.modelPreparationCard, self.modelPreparationAuto = true, nil, nil
+      self.cards, self.buildRequested = nil, true; self:rebuild()
+    end
   end
   function w:feedbackText()
     if self.error or self.historyFailure then return "" end
     if self.disconnectExit then return self.L.disconnected end
+    if self.loadActive and not self.ready and not self.suspended then return self.loadingText or self.L.loading end
     if (self.cleanupPending or 0)>0 then return self.L.releasingTests end
     if self.recoveryRequired then return self.L.recoveryAwaiting end
     if self.historyMode then return self.history.invalid and self.L.historyUnreadable or self.message or "" end
@@ -42,6 +51,9 @@ function M.attach(w, state, sensors)
     local m = self.message
     if self.legacyHold and (m == nil or m == self.L.persistent or m == self.L.holding or m == self.L.neutralHold or
       m == self.L.ready or m == self.L.saved) then return self.L.persistent end
+    -- Low radio memory replaces the plain state messages, never an answer to what the pilot did.
+    if self.memoryLow and not self.transition and (m == self.L.ready or m == self.L.saved or
+      m == self.L.pendingSave or m == self.L.liveApplied) then return self.L.memoryLow end
     if not self.error and not self.transition and (self.message == self.L.ready or self.message == self.L.saved) then
       if self.systemHint and not self.systemProfiles then return self.systemHint end
       return self.prerequisiteHint or self.historyHint or self.systemHint or self.message

@@ -262,6 +262,34 @@ local cycleFor, cycle = nil, nil
 -- frame ids walk the cycle, so a backlog carries consecutive frames of it. A fresh table every
 -- time, as crossfireTelemetryPop hands out: the drain keeps a reference to a frame it published a
 -- group from.
+-- A single-value entry carries what the scenario has set for its sensor (Stubs.sensors, by the
+-- decoder table's name, scaled by its precision), as a flight controller sends the state the run
+-- models: a state that decodes reads its values from these frames, not from the radio's sensors
+-- (lib/sensors.lua). An entry with no value set, and every group entry, keeps its zero bytes.
+-- Filled in when the frame is built, never in the cycle, so a value the run moves reaches the next
+-- frame.
+-- The scenarios name two sensors by the radio label they were written with, not by the decoder
+-- table's name: the battery profile (BatP, the frame row is BAT#) and the throttle (Thr%, the frame
+-- row is Thr).
+local SCENARIO_ALIAS = { ["BAT#"] = "BatP", ["Thr"] = "Thr%" }
+
+local function scenarioBytes(sid, width)
+  if width > 4 or sid == 0x102F or sid == 0x1126 then return nil end
+  local sensor = World.sensorInfo and World.sensorInfo[sid]
+  local value = sensor and (Stubs.sensors[sensor.name] or Stubs.sensors[SCENARIO_ALIAS[sensor.name] or ""])
+  if type(value) ~= "number" then return nil end
+  local raw = math.floor(value * 10 ^ (sensor.prec or 0) + 0.5)
+  -- A cell voltage goes out as hundredths of a volt less 2 V (decCellV adds the 200 back), 0 for none.
+  if sid == 0x1021 then raw = raw > 0 and math.max(1, math.min(255, raw - 200)) or 0 end
+  raw = raw % (1 << (8 * width))
+  local bytes = {}
+  for i = width, 1, -1 do
+    bytes[i] = raw & 0xFF
+    raw = raw >> 8
+  end
+  return bytes
+end
+
 local function buildTelemetryFrame(frameId, sensorIds)
   if cycleFor ~= sensorIds then
     cycle, cycleFor = packTelemetryFrames(sensorIds), sensorIds
@@ -270,7 +298,8 @@ local function buildTelemetryFrame(frameId, sensorIds)
   for _, entry in ipairs(cycle[frameId % #cycle + 1]) do
     frame[#frame + 1] = (entry.sid >> 8) & 0xFF
     frame[#frame + 1] = entry.sid & 0xFF
-    for _, b in ipairs(entry.bytes) do frame[#frame + 1] = b end
+    local bytes = scenarioBytes(entry.sid, #entry.bytes) or entry.bytes
+    for _, b in ipairs(bytes) do frame[#frame + 1] = b end
   end
   return frame
 end
@@ -1114,8 +1143,10 @@ local function openToolPageActual(theme, menuId, pagePath, pad, counted, fault, 
     local before = builds.count
     local n = pass(counted)
     -- The ESC settings are behind a safety notice. Press its real button so the row
-    -- includes the settings build rather than pricing only the notice.
-    if not noticeAccepted and builds.count > 0 then
+    -- includes the settings build rather than pricing only the notice. Opened from the
+    -- dashboard, a page is drawn on the pass after its build (ui/home.lua, drawPendingPage),
+    -- so the button is looked for once nothing waits to be drawn.
+    if not noticeAccepted and builds.count > 0 and state.pendingLayout == nil then
       local tree = Stubs.lvgl.trees[#Stubs.lvgl.trees]
       local children = tree and tree[1] and tree[1].children or {}
       for _, node in ipairs(children) do
@@ -1231,12 +1262,34 @@ local function openTuneAdvisorPage(theme, menuId, pagePath, pad, counted, fault)
   return page
 end
 
+-- The helicopter setup wizard is offered from MSP API 12.10 only (its menu entries carry that
+-- minApiVersion), and the simulator replies report 12.9, so its pages open in a world of their own:
+-- the same replies with the API version at 12.10, on a card of this world's own, because the
+-- wizard keeps its completion record per flight controller there.
+local function openApi1210Page(theme, menuId, pagePath, pad, counted, fault, cardName)
+  local versionApi = assert(loadfile(API_DIR .. "/api_version.lua"))()
+  local replies, cardRoot = FC.replies, Stubs.cardRoot
+  FC.replies = {}
+  for command, reply in pairs(replies) do FC.replies[command] = reply end
+  FC.replies[versionApi.command] = { 0, 12, 10 }
+  Stubs.cardRoot = cardRoot .. "/" .. cardName
+  local ok, page = pcall(openToolPageActual, theme, menuId, pagePath, pad, counted, fault)
+  -- Restore the shared replies and card even when opening the page fails.
+  FC.replies = replies
+  Stubs.releaseCard()
+  Stubs.cardRoot = cardRoot
+  if not ok then error(page, 0) end
+  return page
+end
+
 local function openToolPage(theme, menuId, pagePath, pad, counted, fault)
   local protocol, apiName
   -- The ESC families' pages open behind a safety notice; the SRXL2 ESC page has none.
   local safetyNotice = true
   if pagePath == TUNE_ADVISOR_PAGE then
     return openTuneAdvisorPage(theme, menuId, pagePath, pad, counted, fault)
+  elseif string.sub(pagePath, 1, 17) == "helicopter_setup/" then
+    return openApi1210Page(theme, menuId, pagePath, pad, counted, fault, "helicopter-setup-page")
   elseif pagePath == "setup/esc_motors/esc_tools/escmfg/flrtr/page.lua" then
     protocol, apiName = 10, "esc_parameters_flyrotor"
   elseif pagePath == "setup/esc_motors/esc_tools/escmfg/yge/page.lua" then
@@ -1348,6 +1401,7 @@ end
 table.sort(sensorIds)
 if #sensorIds == 0 then error("accounting: no sensor decoders found") end
 World.sensorIds = sensorIds
+World.sensorInfo = RFSensors
 local telemetryCycle, telemetryFewest, telemetryMost = checkTelemetryFrames(sensorIds, RFSensors)
 local telemetryShape = string.format("%d to %d sensors per frame, a cycle of %d frames",
   telemetryFewest, telemetryMost, telemetryCycle)

@@ -82,6 +82,10 @@ return function(w)
     if switched and position==1 then
       rows[#rows+1]=w:button(L.suggest,function()
         for i,profile in ipairs(profiles) do w.rateStyles[profile]=i end;w:touch("rc_tuning")
+        -- One line says what was set, with the profiles the switch really selects.
+        w.message=string.format(L.suggestDone,profiles[1]+1,profiles[2]+1,profiles[3]+1)
+        if w.logInfo then w:keyMessage("suggestDone") end
+        if w.logDebug then w:log("debug","rate styles suggested for profiles %s, %s, %s",profiles[1],profiles[2],profiles[3]) end
       end,function() return #profiles==3 end)
     end
     -- One tile per style; Custom keeps the profile's own rates and is marked while none matches.
@@ -103,7 +107,7 @@ return function(w)
     cards[#cards+1]=card
   end
   -- The step closes on a table of everything a style sets: a column per profile, the rates type,
-  -- a row per axis with rate and expo, and the collective with its expo, as Save & next will hold them.
+  -- a row per axis with rate and expo, and the collective with its expo, as Next step will hold them.
   local TYPES={[4]="Actual",[6]="Rotorflight"}
   local columns,typeRow,curveRow,collectiveRow={},{},{},{}
   local axisRows={{},{},{}}

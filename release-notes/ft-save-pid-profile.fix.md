@@ -1,3 +1,1 @@
-- **PID profile pages report confirmed saves and failures (`flight_tuning/advanced/autolevel`, `flight_tuning/advanced/main_rotor`, `flight_tuning/advanced/pid_bandwidth`, `flight_tuning/advanced/pid_controller`)**:
-  - Route the existing PID-profile write and one EEPROM commit through the shared save pipeline without a reboot. Success is reported and edits are marked saved only after the flight controller acknowledges both; refused or lost writes and failed commits report an outcome (#594).
-  - Keep the same save-time payload and re-read after a successful save. Align the four help texts with the displayed settings and document Autolevel, Main Rotor and PID Bandwidth.
+- **Autolevel, Main Rotor, PID Bandwidth and PID Controller report Saved only once the flight controller stored the values (`flight_tuning/advanced`)** (#594)

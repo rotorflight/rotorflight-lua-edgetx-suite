@@ -1,4 +1,8 @@
 -- Suggested-functions flow against a queued FC. Every reply and store operation has a pass.
+-- The surface draws in the suite's colour scheme (lib/color_schemes.lua), which asks the firmware
+-- for each colour once: lcd.RGB with one 0xRRGGBB argument, as EdgeTX 2.11 and later take it.
+_G.lcd = _G.lcd or {}
+lcd.RGB = lcd.RGB or function(rgb) return rgb end
 debug.getmetatable("").__index = nil
 local checked, loaded, cache, cleared = 0, {}, {}, {}
 local sourceRoot = arg[1] or "src"
@@ -97,11 +101,11 @@ local groundNodes = build(widget)
 local primary = action(groundNodes, "Set up suggested functions")
 local oldRead = action(groundNodes, "Read again")
 check(primary and oldRead and primary.active() and primary.w == widget.zone.w - primary.x * 2
-  and primary.h > oldRead.h and primary.color == BLUE,
+  and primary.h > oldRead.h and primary.color == rfsuite.require("lib/color_schemes.lua").colors("light").accent,
   "empty board offers an active full-width accented primary taller than secondary cells")
 local full = view(36)
 local nodes = build(full)
-local secondary, choose = action(nodes, "Set up suggested functions"), action(nodes, "Choose parameters")
+local secondary, choose = action(nodes, "Functions"), action(nodes, "Choose parameters")
 check(secondary and choose and secondary.h < choose.h and secondary.color ~= choose.color,
   "populated board offers setup as a secondary action")
 check(not (secondary.h == primary.h and secondary.color == primary.color), "control: secondary cannot masquerade as primary")

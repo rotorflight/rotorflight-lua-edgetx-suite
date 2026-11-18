@@ -1,0 +1,7 @@
+- **Helicopter setup wizard: receiver, governor, power and ELRS link cards do more on one card (`src/rfsuite/app/pages/helicopter_setup/`)**:
+  - Check sticks marks each end of each bar once that direction reached 95 %, and the receiver step polls only STATUS and the channels, so the bars follow the sticks about twice as often.
+  - Throttle range has *Automatic throttle range* as in the Configurator; the Defaults button is gone.
+  - ELRS link: a table of the FC's and the module's values with one result, the two sync directions named by what they do, and *Set on both*, which writes the module first and then lets the FC take its values.
+  - Governor: every PID profile's headspeed on one card.
+  - ESC telemetry / power: voltage and current source on one card; batteries as one table of cell count and capacity per battery profile, after asking how many packs are flown; the cell count is picked from a list (Auto, 1S-24S).
+  - The wizard is offered only from MSP API 12.10 (Rotorflight 4.7); the menu entries were enabled from 12.09 before, where the page could only say the firmware is too old. A 4.7 build without a cell count per battery profile is refused the same way.

@@ -16,6 +16,17 @@ local function copy(v)
 end
 local function now() return getTime() end
 local TAG = "rfsuite.helicopter_setup"
+-- Free radio memory, in kB, below which the wizard warns and below which it stops. Running out
+-- closes the whole Lua state; a servo or mixer test held at that moment on firmware without the
+-- override timeout stays active with nothing left to release it (a motor test lapses on the
+-- flight controller a second after its last refresh). One card change was seen to take about
+-- 100 kB on a radio; the levels leave room for that and for the stop screen.
+local MEMORY_WARN_KB, MEMORY_STOP_KB = 350, 250
+-- A reading this small is not a heap about to run out: the simulator answers a constant 1000 bytes.
+local MEMORY_FLOOR_KB = 4
+-- Blocks written row by row, and the key of their row list in the sent snapshot.
+local ROW_BLOCKS = { servo_configurations = "servos", mixer_input = "inputs", mode_ranges = "mode_ranges",
+  mode_ranges_extra = "mode_ranges_extra", adjustment_ranges = "adjustment_ranges" }
 -- Equal values in an equal shape. A value equal to its counterpart needs no call of its own,
 -- which keeps a whole configuration block within one pass.
 local function same(a, b)
@@ -68,10 +79,13 @@ function M.new(runtime, transport, mathModule, labels)
         local key = labelKey(shown)
         if not key then
           if shown == self.messageText then key = self.messageKey
+          elseif shown == self.loadingText then key = "loading"
           elseif shown == self.systemHint and self.systemProfiles then key = "fcProfiles"
           elseif shown == self.prerequisiteHint then key = "historyPrerequisites" end
         end
-        self:log("info", "message %s", key or "?")
+        -- The load counter changes with every read; its key is logged once per load.
+        if not (key == "loading" and self.loggedKey == "loading") then self:log("info", "message %s", key or "?") end
+        self.loggedKey = key
       end
     end
     local e = self.error
@@ -117,7 +131,7 @@ function M.new(runtime, transport, mathModule, labels)
     self.escBusy = nil
     self.bus:cancel()
     local dropped = self.pendingEditDropped
-    self.statusQueued, self.pendingEdit, self.pendingEditDropped = nil, nil, nil
+    self.statusQueued, self.pendingEdit, self.pendingEditDropped, self.switchEdit = nil, nil, nil, nil
     if dropped then dropped() end
     self.statusFailure = api == "status" or api == "arming_disable"
     self.error = api .. ": " .. tostring(reason)
@@ -183,8 +197,77 @@ function M.new(runtime, transport, mathModule, labels)
   end
   function w:run(fn) self.bus:add({ run = fn }) end
   function w:rebuild() if self.requestRebuild then self.requestRebuild() end end
+  -- Free radio memory in kB, or nil where the platform does not report it.
+  function w:freeMemoryKb()
+    if type(getAvailableMemory) ~= "function" then return nil end
+    local ok, bytes = pcall(getAvailableMemory)
+    local kb = ok and type(bytes) == "number" and math.floor(bytes / 1024 + 0.5) or nil
+    if kb and kb >= MEMORY_FLOOR_KB then return kb end
+    return nil
+  end
+  -- Read once per new scene, right after the page's post-build collect, when the figure holds no
+  -- garbage. Below the warn level the status line says so; below the stop level every test is
+  -- released and the visit ends on the stop screen. A save, load, ESC transaction or ELRS link
+  -- sync in progress finishes first.
+  function w:checkMemory()
+    if self.memoryStop then return end
+    local kb = self:freeMemoryKb()
+    if not kb then return end
+    if self.logTrace then self:log("trace", "free memory %s kB", kb) end
+    if kb < MEMORY_STOP_KB then
+      if self.transition or self.escBusy or (self.linkBusy and self.linkBusy()) then
+        if not self.memoryOwed then self:log("warn", "radio memory low, free %s kB: stop after the running operation", kb) end
+        self.memoryOwed = kb
+      else self:stopForMemory(kb) end
+    elseif kb < MEMORY_WARN_KB and not self.memoryLow then
+      self.memoryLow = true
+      self:log("warn", "radio memory low, free %s kB (warn below %s kB)", kb, MEMORY_WARN_KB)
+    end
+  end
+  -- Nothing new is started: the transport is cancelled, every override is released, a card build
+  -- still owed is dropped. The stop screen is built once the releases are answered, so no new
+  -- scene competes with them for memory.
+  -- Scene inputs are left as they are until the stop screen is built, so the releases run with
+  -- no new scene; a profile loop cut off here selects the profile it started from again.
+  function w:stopForMemory(kb)
+    self:log("error", "radio memory too low, free %s kB (stop below %s kB): tests released, visit stopped", kb, MEMORY_STOP_KB)
+    self.memoryStop, self.memoryLow, self.memoryOwed = "releasing", true, nil
+    self.escBusy = nil
+    self.bus:cancel()
+    -- A row is put in the sent snapshot when its write is generated, before the FC answers; the
+    -- cancel may have dropped it unsent. Forget the row snapshots, so Save & exit or Discard from the
+    -- stop screen writes every row of a changed block again.
+    for api, key in pairs(ROW_BLOCKS) do
+      if self.sent[api] then self.sent[api] = { [key] = {} } end
+    end
+    local dropped = self.pendingEditDropped
+    self.statusQueued, self.pendingEdit, self.pendingEditDropped = nil, nil, nil
+    if dropped then dropped() end
+    self.buildRequested, self.keptCards = nil, nil
+    self.canEdit, self.canNext = false, false
+    -- Before the override modules are loaded (history only, an FC below API 12.10, the loading card)
+    -- nothing can be held, and a full release could not be sent: release only what is held.
+    local apis = self.bus.apis
+    local loaded = apis.servo_override ~= nil and apis.mixer_override ~= nil and apis.motor_override ~= nil
+    if not loaded and self.logDebug then self:log("debug", "memory stop before the override modules: nothing held to release") end
+    self:release(loaded)
+    if self.restoreProfile and self:allowed() then
+      if self.logInfo then self:log("info", "profile %s selected again after the stop", self.restoreProfile) end
+      self.bus:add({ api = "set_pid_profile", write = true, payload = { self.restoreProfile }, optional = true })
+      self.restoreProfile = nil
+    end
+    self.transition = nil
+  end
+  -- The stop screen, once no release is outstanding. A failed release is shown on it, not as Retry.
+  function w:memoryStopTick()
+    if self.memoryStop ~= "releasing" or (self.cleanupPending or 0) > 0 or not self.bus:idle() then return end
+    self.memoryStop, self.error = true, "memory"
+    self.confirmExit, self.exitToSteps, self.backTarget, self.jumpTarget, self.stepMenu = nil, nil, nil, nil, nil
+    if self.logInfo then self:log("info", "memory stop shown, unsaved changes %s", tostring(next(self.dirty) ~= nil)) end
+    self:rebuild()
+  end
   function w:usable()
-    return self.ready and self.locked and not self.error and not self.transition and (self.cleanupPending or 0)==0 and self:allowed()
+    return self.ready and self.locked and not self.error and not self.memoryStop and not self.transition and (self.cleanupPending or 0)==0 and self:allowed()
       and now() - (self.statusAt or 0) <= 300
   end
   function w:acceptStatus(d)
@@ -206,7 +289,7 @@ function M.new(runtime, transport, mathModule, labels)
       self:log("warn", "accelerometer calibration flags did not clear")
     end
     local edit, dropped = self.pendingEdit, self.pendingEditDropped
-    self.pendingEdit, self.pendingEditDropped = nil, nil
+    self.pendingEdit, self.pendingEditDropped, self.switchEdit = nil, nil, nil
     if edit and self:usable() then edit()
     else
       if edit then self:log("warn", "edit dropped, the fresh status did not confirm the lock") end
@@ -259,6 +342,7 @@ function M.new(runtime, transport, mathModule, labels)
     self:write("arming_disable", { disabled = true })
   end
   function w:retry()
+    if self.memoryStop then return end
     if not self.bus:idle() or not self:allowed() or (self.cleanupPending or 0)>0 then return end
     if self.logInfo then self:log("info", "retry") end
     if self.cleanupFailed or self.needsRelease then self:release(true) end
@@ -419,7 +503,6 @@ function M.new(runtime, transport, mathModule, labels)
     self.bus:dropOverrides()
     local q = self.bus:queue()
     if not q then return end
-    q:clear("helicopter-overrides")
     if not self:allowed() then self.needsRelease = true; return end
     -- These modules are preloaded on entry. The cleanup owner survives the host's page clear.
     local apis = self.bus.apis
@@ -515,8 +598,6 @@ function M.new(runtime, transport, mathModule, labels)
     if self.logTrace then self:log("trace", "motor stop") end
     self.motorHold = nil
     self.bus:dropOverrides()
-    local q = self.bus:queue()
-    if q then q:clear("helicopter-overrides") end
     if self:allowed() then
       for i = 0, 1 do self:write("motor_override", { index = i, value = 0 }) end
     end
@@ -573,7 +654,8 @@ function M.new(runtime, transport, mathModule, labels)
     -- Snapshot one API block per wakeup; never clone the whole configuration in a reply. A block
     -- the save did not mark keeps its saved table while that still holds the data's values;
     -- a marked block is copied without comparing, so no pass compares and copies a large one.
-    for _, api in ipairs(READS) do
+    -- After a memory stop the visit only closes: no copy of the configuration is taken.
+    for _, api in ipairs(self.memoryStop and {} or READS) do
       local name = api
       self:run(function()
         if (written and written[name]) or not same(self.saved[name], self.data[name]) then
@@ -585,8 +667,10 @@ function M.new(runtime, transport, mathModule, labels)
     self:run(function()
       self.transition = nil
       -- A commit may report something the pilot has to see before moving on; the save itself
-      -- is complete, and the next Save & next goes on.
+      -- is complete, and the next Next step goes on.
       if self.stayNotice then
+        -- On the stop screen the status line is silent: the notice is shown on the screen itself.
+        if self.memoryStop then self.stopNotice = self.stayNotice end
         self.message, self.stayNotice = self.stayNotice, nil
         if self.logInfo then self:keyMessage(self.stayNoticeKey) end
         self:rebuild(); return
@@ -601,7 +685,7 @@ function M.new(runtime, transport, mathModule, labels)
     if self.logTrace then self:log("trace", "visit %s reset", STEPS[step]) end
     local owned = ({ [1] = {"orientation", "unplugged", "blades"}, [10] = {"connected"}, [12] = {"motorDirection", "escBlades"},
       [13] = {"servoUp0", "servoUp1", "servoUp2", "servoCentre0", "servoCentre1", "servoCentre2", "servoCentre3"},
-      [14] = {"control1", "control2", "control4"}, [15] = {"motorUnplugged", "level", "bladeZero"}, [16] = {"pitch"},
+      [14] = {"control1", "control2", "control4"}, [15] = {"motorUnplugged", "level", "bladeZero"}, [16] = {"pitch", "bladesBoom"},
       [17] = {"tailCentre", "tailDirection"}, [18] = {"gyro1", "gyro2", "gyro3"}, [19] = {"finish"} })[step]
     for _, name in ipairs(owned or {}) do self.checks[name] = nil end
     if step == 12 or step == 17 then self.bladesOff, self.percent = false, 10 end
@@ -626,7 +710,7 @@ function M.new(runtime, transport, mathModule, labels)
     if step == 2 and self.rx then self.rx.travel, self.rx.travelSig, self.rx.advanced = nil, nil, nil end
   end
   function w:navigate(step, card)
-    if self.transition or not self.ready then return end
+    if self.transition or not self.ready or self.memoryStop then return end
     if self.logTrace then self:log("trace", "move from %s card %s to %s card %s", STEPS[self.step], self.card, STEPS[step], card or 1) end
     -- Back in front of Connect servos, a later restart asks again whether the servos are out.
     if self.step >= 10 and step <= 9 then self.checks.unplugged = nil end
@@ -667,6 +751,11 @@ function M.new(runtime, transport, mathModule, labels)
       if not self:ack("modelReady") then return end
       if self.systemStatus == nil or self.systemConfig == nil then self.message = self.L.sensorsRequired; return end
       self.modelPreparationDone,self.modelPreparationCard=true,nil
+      -- Remembered for this FC: later single steps pass the card while both sensors are live.
+      if self.history and self.history.markPrepared and not self.history:markPrepared() then
+        self:log("warn", "radio model preparation not remembered")
+        self.message = self.L.preparedNotSaved
+      end
       self.cards,self.buildRequested=nil,true;self:rebuild();return
     end
     if self.entryRebootGate then
@@ -690,6 +779,8 @@ function M.new(runtime, transport, mathModule, labels)
       local target = self.card + 1
       self:save(function() self:navigate(self.step, target) end); return
     end
+    -- A card may name a confirmation the cards after it depend on.
+    if card and card.requires and not self:ack(card.requires) then return end
     if self.card < #self.cards then self:navigate(self.step, self.card + 1); return end
     if self.validate and not self.validate() then
       if self.logDebug then self:log("debug", "next refused on %s", STEPS[self.step]) end
@@ -719,6 +810,12 @@ function M.new(runtime, transport, mathModule, labels)
       self:release();self.disconnectExit=true;self:rebuild();return
     end
     if self.escBusy then return end
+    -- On the memory stop Back starts nothing: without unsaved changes it closes, otherwise the
+    -- stop screen's own buttons decide.
+    if self.memoryStop then
+      if self.memoryStop == true and not self.transition and not next(self.dirty) then self:close() end
+      return
+    end
     if not self.ready then
       self.bus:cancel();self.transition=nil
       -- Nothing to take back, and a release sent to a silent board would only wait for its reply.
@@ -735,7 +832,16 @@ function M.new(runtime, transport, mathModule, labels)
       self.message = self.L.historyNotSaved
       self:rebuild(); return
     end
-    if self.confirmExit then self.confirmExit, self.exitToSteps, self.backTarget = nil, nil, nil; self:rebuild(); return end
+    if self.confirmExit then
+      self.confirmExit, self.exitToSteps, self.backTarget, self.jumpTarget = nil, nil, nil, nil
+      -- Back to the card the question came from: its entry runs again, so a hold it keeps (a zero
+      -- hold while trimming, a test) is set again rather than left released.
+      if self.cards and self.cards[self.card] and self.ready and not self.transition then self:navigate(self.step, self.card)
+      else self:rebuild() end
+      return
+    end
+    -- Back on the step menu returns to the card it was opened from.
+    if self.stepMenu then self:closeStepMenu(); return end
     if self.overview then
       if next(self.dirty) then self.confirmExit = true; self:rebuild() else self:close() end
       return
@@ -852,6 +958,9 @@ function M.new(runtime, transport, mathModule, labels)
     local mcuId=self:session().mcu_id
     self.recoveryRequired=mcuId~=nil and self:session().helicopterSetupRecovery==mcuId
     self.loadingText, self.loadTotal = self.L.loading, #READS + 66
+    -- The status line shows the load and its count until the load is ready, also over the card a
+    -- restart left on screen, so a reload never reads like the restart still to come.
+    self.loadActive, self.message = true, self.L.loading
     self.locked = false
     self:blockArming()
     self:read("status", function(d)
@@ -888,6 +997,8 @@ function M.new(runtime, transport, mathModule, labels)
     -- timeout. Probe each parser with OFF only: valid five bytes must succeed
     -- and invalid four bytes must be explicitly refused, never just time out.
     local servoCandidate,mixerCandidate=false,false
+    -- The two four-byte writes are refused on purpose; the queue logs each refusal as a warning.
+    if self.logDebug then self:log("debug", "override probe: two four-byte OFF writes, a refusal is the expected answer") end
     self:write("servo_override",{servo_id=0,action=2001,timeout=500},function(_,err) servoCandidate=err==nil end,true)
     self:action("servo_override",{0,209,7,0},function(_,err) self.timedServo=servoCandidate and err=="refused" end,true)
     self:write("mixer_override",{index=0,value=2501,timeout=500},function(_,err) mixerCandidate=err==nil end,true)
@@ -937,10 +1048,19 @@ function M.new(runtime, transport, mathModule, labels)
       if not inputs[4] or not self.data.status.pid_profile_count or self.data.status.pid_profile_count < 1 then
         self:fail("status", "configuration"); return
       end
+      -- A 4.7 development build can report API 12.10 before it carried a cell count per
+      -- battery profile; the wizard is not offered there either.
+      local battery = self.data.battery_config
+      if battery and not battery.hasProfileCells then
+        self.ready, self.transition, self.buildRequested, self.apiTooOld = true, nil, true, true
+        if self.logInfo then self:log("info", "load stopped, no per-profile battery cells") end
+        self.message = self.L.apiTooOld; self:rebuild(); return
+      end
       self.startTail = self.data.mixer_config.tail_rotor_mode
       self.savedRebootPending = self.rebootPending
       self.ready, self.transition, self.buildRequested = true, nil, true
       if self.logInfo then self:log("info", "load ready") end
+      self.loadActive = nil
       self.message = self.L.ready
       self:rebuild()
     end)
@@ -954,7 +1074,11 @@ function M.new(runtime, transport, mathModule, labels)
     -- Switch learning reads the channels three polls in four; STATUS keeps its turn.
     local switches=self.step==3 or self.step==4
     self.pollIndex = (self.pollIndex or 0) % ((attitudeCheck or switches) and 4 or 3) + 1
+    -- The receiver step shows only the channels: no servo poll there, so the bars follow the
+    -- sticks twice as often; STATUS keeps its turn.
+    local channelsOnly = self.step == 2 and not self.motorHold
     local api = switches and (self.pollIndex==1 and "status" or "rc") or
+      channelsOnly and (self.pollIndex==1 and "status" or "rx_channels") or
       attitudeCheck and (self.pollIndex%2==1 and "attitude" or self.pollIndex==2 and "status" or "servo") or
       self.pollIndex == 1 and "status" or self.pollIndex == 2 and "servo" or
       ({ [1] = "attitude", [2] = "rx_channels", [3] = "rc", [4] = "rc", [10] = "motor", [11] = "motor_telemetry",
@@ -1037,6 +1161,10 @@ function M.new(runtime, transport, mathModule, labels)
         self.active and self.ready and self.locked and not self.transition and not self.error and self:allowed())
     end
     if not self.active then return end
+    if self.memoryStop then self:memoryStopTick()
+    elseif self.memoryOwed and not self.transition and not self.escBusy and not (self.linkBusy and self.linkBusy()) then
+      self:stopForMemory(self.memoryOwed)
+    end
     if not self:allowed() then
       if not self.suspended then
         self:log("warn", "link lost or armed, tests stopped")
@@ -1096,6 +1224,9 @@ function M.new(runtime, transport, mathModule, labels)
       end
     end
     if not self.bus:idle() then self.bus:tick(); return end
+    -- After a memory stop only the queued save, discard and close run, on the transport above:
+    -- no card is built, no live write is sent, nothing is polled.
+    if self.memoryStop then return end
     if self.buildRequested and self.ready then
       -- Only a plain card move may reuse the step's cards; any other request builds them anew.
       local kept = self.buildRequested == "card" and self.keptCards
@@ -1149,7 +1280,22 @@ function M.new(runtime, transport, mathModule, labels)
         if self.logDebug then self:log("debug", "cards %s built, %s", key, #self.cards) end
       end
       self.card = math.min(self.card, #self.cards)
-      if self.cards[self.card].enter then self:afterRelease(self.cards[self.card].enter) end
+      if self.cards[self.card].enter and not self.stepMenu then
+        -- The entry runs after the release before it, a pass or more later. By then the step menu may be
+        -- open or a question asked (a jump with staged changes), both of which release the card's holds, or
+        -- another card entered: only the latest card entry runs, and only on its card.
+        local enter, cards, card = self.cards[self.card].enter, self.cards, self.card
+        self.entrySeq = (self.entrySeq or 0) + 1
+        local seq = self.entrySeq
+        self:afterRelease(function()
+          if seq ~= self.entrySeq or self.stepMenu or self.confirmExit or self.transition
+            or self.cards ~= cards or self.card ~= card then
+            if self.logTrace then self:log("trace", "card %s entry skipped: left before it ran", card) end
+            return
+          end
+          enter()
+        end)
+      end
       self:rebuild(); return
     end
     if not self.ready or self.error or self.transition then return end
