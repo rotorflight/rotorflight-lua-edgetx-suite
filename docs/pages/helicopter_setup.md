@@ -171,9 +171,9 @@ step at its first card; the mode stays (Complete setup carries on from there, a 
 stays a single step). In Complete setup the chosen step starts with its *Before this step*
 card where it has one, because the steps in between were skipped; for the same reason Back
 from its first card enters the step before it afresh, with that step's own *Before this step*
-card, and so on for each step Back reaches that way. Back on the open step menu returns to the card the
-menu was opened from. A step that needs
-the owed restart first is refused until it has happened. The preparation cards have no
+card where it has one, and so on for each step Back reaches that way. Back on the open step
+menu returns to the card the menu was opened from. A step that needs the owed restart first is
+refused until it has happened. The preparation cards have no
 step menu.
 
 **Exit** sits at the bottom centre, between Back and Continue. It leaves the step, or the
