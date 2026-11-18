@@ -525,22 +525,22 @@ do
   files[JOURNAL] = nil
 end
 
-print("The change journal past its read cap of 64 KiB: its newest part is read (#1170)")
+print("The change journal past its read cap of 16 KiB: its newest part is read (#1170)")
 do
-  -- Lines of 64 bytes, so the 65536-byte window starts exactly on a line start
+  -- Lines of 64 bytes, so the 16384-byte window starts exactly on a line start
   local function line64(i)
     local s = string.format('e(%d,"tune_advisor",1,"pid_0_P",%d,%d)', 1761900000 + i, 100 + i, 101 + i)
     return s .. string.rep(" ", 63 - #s) .. "\n"
   end
   reset()
   local text = {}
-  for i = 1, 1100 do text[i] = line64(i) end
+  for i = 1, 300 do text[i] = line64(i) end
   files[JOURNAL] = table.concat(text)
   local before = files[JOURNAL]
   local rows, reason = journal.read(MCU)
-  check("a journal over the cap is read from its newest 64 KiB, the first line whole on a line start",
-    #before == 1100 * 64 and type(rows) == "table" and #rows == 1024 and rows[1].time == 1761900000 + 77
-    and rows[1024].time == 1761900000 + 1100, tostring(rows and #rows or reason))
+  check("a journal over the cap is read from its newest 16 KiB, the first line whole on a line start",
+    #before == 300 * 64 and type(rows) == "table" and #rows == 256 and rows[1].time == 1761900000 + 45
+    and rows[256].time == 1761900000 + 300, tostring(rows and #rows or reason))
   check("reading it leaves the file as it was", files[JOURNAL] == before)
 
   -- Lines of 45 bytes: the window starts mid-line, and the torn first line is dropped, not read
@@ -551,10 +551,10 @@ do
   end
   files[JOURNAL] = table.concat(text)
   local size = #files[JOURNAL]
-  local whole = math.floor(65536 / #text[1])
+  local whole = math.floor(16384 / #text[1])
   rows, reason = journal.read(MCU)
   check("a window that starts mid-line drops the torn line and keeps every whole one after it",
-    65536 % #text[1] ~= 0 and size > 65536 and type(rows) == "table" and #rows == whole
+    16384 % #text[1] ~= 0 and size > 16384 and type(rows) == "table" and #rows == whole
     and rows[1].time == 1761000000 + 2000 - whole + 1 and rows[#rows].time == 1761000000 + 2000,
     tostring(rows and #rows or reason) .. " of " .. whole)
 
@@ -694,8 +694,355 @@ do
   steps = 0
   repeat got = journal.readStep(capped); steps = steps + 1 until got ~= false
   check("a journal over its read cap is read in steps from its newest part, as read() reads it",
-    type(got) == "table" and type(tail) == "table" and #got == #tail and #got == math.floor(65536 / 28)
+    type(got) == "table" and type(tail) == "table" and #got == #tail and #got == math.floor(16384 / 28)
     and steps > 16, tostring(got and #got) .. " entries in " .. steps .. " steps")
+  files[JOURNAL] = nil
+end
+
+print("The change journal starts afresh above its size and carries the pilot's own values over")
+do
+  local Compact = assert(loadfile("src/rfsuite/lib/journal_compact.lua"))()
+  local A = "tune_advisor"
+  local FIELDS = { "pid_0_P", "pid_0_F", "rcRates_1", "rates_1", "pid_2_P", "pid_2_F" }
+  local seed = 4242
+  local function rand(n)
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    return seed % n + 1
+  end
+  local function runCompact()
+    local job = Compact.job(journal, MCU)
+    local steps = 0
+    while true do
+      local result, why = Compact.step(job)
+      steps = steps + 1
+      if result ~= false then return result, why, steps end
+    end
+  end
+  -- The pilot's own value of every field and profile asked, the journal read as the page reads it
+  local function ownValues(current)
+    local wants = {}
+    for key, value in pairs(current) do
+      local profile, field = string.match(key, "^(%d+)/(.+)$")
+      wants[#wants + 1] = { key = key, profile = tonumber(profile), field = field, value = value }
+    end
+    -- One fold per want: pilotFold keys its wants by field, so each profile has its own fold
+    local folds = {}
+    for _, w in ipairs(wants) do
+      local a, f = tuneHistory.pilotFold({ w })
+      folds[#folds + 1] = { add = a, finish = f }
+    end
+    local function add(e) for _, f in ipairs(folds) do f.add(e) end end
+    local job = journal.readJob(MCU, nil, add)
+    local got
+    repeat got = journal.readStep(job) until got ~= false
+    if type(got) ~= "table" then return nil end
+    for _, f in ipairs(folds) do f.finish() end
+    local out = {}
+    for _, w in ipairs(wants) do out[w.key] = w.value end
+    return out
+  end
+  -- The same, over the whole text with no read cap: what the journal answers before any start afresh
+  local function ownValuesUncapped(text, current)
+    local out = {}
+    for key, value in pairs(current) do
+      local profile, field = string.match(key, "^(%d+)/(.+)$")
+      local w = { profile = tonumber(profile), field = field, value = value }
+      local a, f = tuneHistory.pilotFold({ w })
+      journal.parse(journal.parser(a), text)
+      f()
+      out[key] = w.value
+    end
+    return out
+  end
+  -- A random journal: the advisor's chains, other pages' entries, broken chains, three profiles,
+  -- other fields between them; some lines CRLF, a torn line, and maybe no final line break
+  local function randomJournal(count)
+    local current, out = {}, {}
+    for p = 1, 3 do for _, f in ipairs(FIELDS) do current[p .. "/" .. f] = 50 + rand(5) end end
+    local t = 1761000000
+    for _ = 1, count do
+      t = t + 1
+      local r = rand(10)
+      local line
+      if r <= 2 then
+        line = string.format('e(%d,"pids",%d,"pid_%d_D",%d,%d)', t, rand(3), rand(3) - 1, rand(90), rand(90))
+      else
+        local p, f = rand(3), FIELDS[rand(#FIELDS)]
+        local key = p .. "/" .. f
+        local source = rand(8) == 1 and "pids" or A
+        local old = rand(5) == 1 and 50 + rand(9) or current[key]
+        local new = 50 + rand(9)
+        line = string.format("e(%d,%q,%d,%q,%d,%d)", t, source, p, f, old, new)
+        if rand(4) > 1 then current[key] = new end
+      end
+      out[#out + 1] = line .. (rand(15) == 1 and "\r\n" or "\n")
+      if rand(200) == 1 then out[#out + 1] = 'e(1761000000,"tune_advisor",1,"pid_0_P",5\n' end
+    end
+    local text = table.concat(out)
+    if rand(3) == 1 then text = string.sub(text, 1, -2) end
+    -- Values that are not the current one as well: a chain that does not end there is not followed
+    local asked = {}
+    for key, value in pairs(current) do asked[key] = rand(4) == 1 and 50 + rand(9) or value end
+    return text, asked
+  end
+  local function same(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    for k, v in pairs(a) do if b[k] ~= v then return false end end
+    for k, v in pairs(b) do if a[k] ~= v then return false end end
+    return true
+  end
+
+  -- The invariant, on real bytes through the real read, over journals of 16 to about 30 KiB
+  local cases, agree, compacted, followed, continued = 0, true, 0, 0, true
+  local firstMismatch
+  for _ = 1, 60 do
+    reset()
+    local text, asked = randomJournal(380 + rand(300))
+    files[JOURNAL] = text
+    local before = ownValuesUncapped(text, asked)
+    local result = runCompact()
+    if result == true then compacted = compacted + 1 end
+    local after = ownValues(asked)
+    cases = cases + 1
+    if not same(before, after) then
+      agree = false
+      firstMismatch = firstMismatch or cases
+    end
+    for key, value in pairs(before) do if value ~= asked[key] then followed = followed + 1 end end
+    -- The same changes after it, in both: still the same answers
+    local suffix = randomJournal(20)
+    local beforeMore = ownValuesUncapped(text .. "\n" .. suffix, asked)
+    files[JOURNAL] = files[JOURNAL] .. "\n" .. suffix
+    if not same(beforeMore, ownValues(asked)) then continued = false end
+  end
+  check("over 60 random journals the pilot's own value of every field and profile is the same after the start afresh",
+    agree and cases == 60, "first mismatch in journal " .. tostring(firstMismatch))
+  check("and the same again with the same later changes added to the old and the new journal", continued)
+  check("(control) every journal started afresh, and the journals hold chains that are followed back",
+    compacted == 60 and followed > 300, compacted .. " started afresh, " .. followed .. " followed")
+
+  -- Control: a carry that does not let another page's entry end a chain answers differently
+  local realFold = Compact.carryFold
+  Compact.carryFold = function()
+    local add, carried = realFold()
+    return function(e) if e.source == A then add(e) end end, carried
+  end
+  local differ = 0
+  for _ = 1, 30 do
+    reset()
+    local text, asked = randomJournal(400)
+    files[JOURNAL] = text
+    local before = ownValuesUncapped(text, asked)
+    runCompact()
+    if not same(before, ownValues(asked)) then differ = differ + 1 end
+  end
+  Compact.carryFold = realFold
+  check("(control) a carry that keeps chains another page ended fails the same check (" .. differ .. " of 30)",
+    differ > 5, differ .. " of 30 differ")
+
+  -- The new journal: one line per open chain that moved its value, the old one kept as .bak
+  reset()
+  local old = 'e(10,"tune_advisor",1,"pid_0_P",50,60)\ne(11,"tune_advisor",1,"pid_0_P",60,70)\n'
+    .. 'e(12,"tune_advisor",2,"pid_0_P",40,45)\ne(13,"pids",2,"pid_0_P",45,47)\n'
+    .. 'e(14,"tune_advisor",1,"pid_0_F",100,80)\ne(15,"tune_advisor",1,"pid_0_F",80,100)\n'
+    .. string.rep('e(16,"pids",1,"pid_1_D",1,2)\n', 700)
+  files[JOURNAL] = old
+  local result, reason, steps = runCompact()
+  check("only the chains still open that moved a value are carried; the old journal is the .bak",
+    result == true and files[JOURNAL] == 'e(11,"tune_advisor",1,"pid_0_P",50,70)\n'
+    and files[JOURNAL .. ".bak"] == old, tostring(files[JOURNAL]))
+  check("the whole file is read a part at a time, a group of lines per step", steps > #old // 4096
+    and steps > 700 // 16, steps .. " steps")
+  result = runCompact()
+  check("(control) a journal under the size is left as it is", result == nil and #files[JOURNAL] < 100)
+
+  -- Append answers whether the journal is due
+  reset()
+  local ok, due = journal.append(MCU, { { source = A, profile = 1, field = "pid_0_P", old = 1, new = 2 } })
+  check("an append under the size is not due", ok == true and due == false)
+  files[JOURNAL] = string.rep('e(16,"pids",1,"pid_1_D",1,2)\n', 600)
+  ok, due = journal.append(MCU, { { source = A, profile = 1, field = "pid_0_P", old = 1, new = 2 } })
+  check("an append that leaves it above the size is due", ok == true and due == true)
+
+  -- A replace cut short at each of its steps leaves a whole journal; the next append and start afresh work
+  local function bigJournal()
+    return string.rep('e(16,"pids",1,"pid_1_D",1,2)\n', 600) .. 'e(20,"tune_advisor",1,"pid_0_P",50,60)\n'
+  end
+  local NEXT = { { source = A, profile = 1, field = "pid_0_P", old = 60, new = 70 } }
+  for _, cut in ipairs({ "park", "place" }) do
+    reset()
+    local big = bigJournal()
+    files[JOURNAL] = big
+    renameFails[cut == "park" and JOURNAL or JOURNAL .. ".new"] = true
+    result = runCompact()
+    renameFails[JOURNAL], renameFails[JOURNAL .. ".new"] = nil, nil
+    check("a start afresh whose " .. cut .. " rename fails leaves the journal whole", result == nil
+      and files[JOURNAL] == big)
+    ok = journal.append(MCU, NEXT)
+    result = runCompact()
+    check("after it the next append works and the next start afresh carries both raises (" .. cut .. ")",
+      ok == true and result == true and string.find(files[JOURNAL] or "", '"pid_0_P",50,70)', 1, true) ~= nil,
+      tostring(files[JOURNAL]))
+  end
+  -- Cut between the two renames: only the .bak stands. It is read, and the next append puts it back
+  reset()
+  local big = bigJournal()
+  files[JOURNAL .. ".bak"] = big
+  local rows = journal.read(MCU)
+  check("only the .bak standing: the read reads it", type(rows) == "table" and #rows > 300)
+  ok = journal.append(MCU, NEXT)
+  local appended = files[JOURNAL] and string.sub(files[JOURNAL], #big + 1) or ""
+  check("the next append puts the .bak back under the name and appends to it, no journal beside it",
+    ok == true and string.sub(files[JOURNAL] or "", 1, #big) == big
+    and string.match(appended, '^e%(%d+,"tune_advisor",1,"pid_0_P",60,70%)\n$') ~= nil
+    and files[JOURNAL .. ".bak"] == nil, appended)
+  result = runCompact()
+  check("and the next start afresh carries the chain across it", result == true
+    and string.match(files[JOURNAL] or "", '^e%(%d+,"tune_advisor",1,"pid_0_P",50,70%)\n$') ~= nil, tostring(files[JOURNAL]))
+  -- Only the .bak standing and it cannot be put back: the .bak stays the journal and takes the
+  -- append, so the chain in it runs on; no journal is started beside it, which the reads would
+  -- take in its place and the next replace would make the only record. F 120 -> 96 in the .bak,
+  -- then a Save of 96 -> 77: the pilot's own F is still 120.
+  local function pilotF(current)
+    local want = { profile = 1, field = "pid_0_F", value = current }
+    local add, finish = tuneHistory.pilotFold({ want })
+    local job = journal.readJob(MCU, { pid_0_F = true }, add)
+    local done
+    repeat done = journal.readStep(job) until done ~= false
+    if type(done) ~= "table" then return nil end
+    finish()
+    return want.value
+  end
+  local F_NEXT = { { source = A, profile = 1, field = "pid_0_F", old = 96, new = 77 } }
+  reset()
+  local parked = big .. 'e(30,"tune_advisor",1,"pid_0_F",120,96)\n'
+  files[JOURNAL .. ".bak"] = parked
+  check("the parked journal's own F reads as 120 at 96", pilotF(96) == 120, tostring(pilotF(96)))
+  renameFails[JOURNAL .. ".bak"] = true
+  local due
+  ok, due = journal.append(MCU, F_NEXT)
+  check("only the .bak standing and its rename fails: the append goes to the .bak, no journal beside it",
+    ok == true and due == false and files[JOURNAL] == nil
+    and string.sub(files[JOURNAL .. ".bak"] or "", 1, #parked) == parked
+    and string.match(string.sub(files[JOURNAL .. ".bak"] or "", #parked + 1),
+      '^e%(%d+,"tune_advisor",1,"pid_0_F",96,77%)\n$') ~= nil,
+    tostring(ok) .. " " .. tostring(due) .. " " .. tostring(files[JOURNAL] and #files[JOURNAL]))
+  check("and the pilot's own F at 77 is still 120", pilotF(77) == 120, tostring(pilotF(77)))
+  -- A name that opens although its size cannot be had is taken by the reads once it can: refused
+  files[JOURNAL] = ""
+  local realFstat = fstat
+  fstat = function(path) if path == JOURNAL then return nil end return realFstat(path) end
+  local bakBefore = files[JOURNAL .. ".bak"]
+  local refused
+  ok, refused = journal.append(MCU, F_NEXT)
+  fstat = realFstat
+  local nameAfter = files[JOURNAL]
+  files[JOURNAL] = nil
+  check("a name that opens but cannot be measured: the append is refused and the .bak left alone",
+    ok == false and refused == "parked" and nameAfter == "" and files[JOURNAL .. ".bak"] == bakBefore, tostring(refused))
+  renameFails[JOURNAL .. ".bak"] = nil
+  local withSave = files[JOURNAL .. ".bak"]
+  ok, due = journal.append(MCU, { { source = A, profile = 1, field = "pid_0_F", old = 77, new = 70 } })
+  check("the next append, its rename working, puts the .bak back under the name and appends to it",
+    ok == true and due == true and files[JOURNAL .. ".bak"] == nil and string.sub(files[JOURNAL] or "", 1, #withSave) == withSave
+    and pilotF(70) == 120, tostring(pilotF(70)))
+  -- Only the .bak standing and its size cannot be had although it opens: it still stands, so
+  -- no journal is started beside it (that one would be read in its place and give F 96 at 77)
+  local function bakUnmeasured() return function(path)
+    if path == JOURNAL .. ".bak" then return nil end
+    return realFstat(path)
+  end end
+  reset()
+  files[JOURNAL .. ".bak"] = parked
+  renameFails[JOURNAL .. ".bak"] = true
+  fstat = bakUnmeasured()
+  ok, refused = journal.append(MCU, F_NEXT)
+  fstat = realFstat
+  check("only the .bak standing, unmeasured and its rename failing: the append is refused, no journal beside it",
+    ok == false and refused == "unmeasurable" and files[JOURNAL] == nil and files[JOURNAL .. ".bak"] == parked,
+    tostring(refused) .. " " .. tostring(files[JOURNAL] and #files[JOURNAL]))
+  check("and the pilot's own F is still read from the .bak", pilotF(96) == 120, tostring(pilotF(96)))
+  renameFails[JOURNAL .. ".bak"] = nil
+  reset()
+  files[JOURNAL .. ".bak"] = parked
+  fstat = bakUnmeasured()
+  local restored = journal.restore(MCU)
+  fstat = realFstat
+  check("the page's put-back takes an unmeasured .bak too", restored == true and files[JOURNAL] == parked
+    and files[JOURNAL .. ".bak"] == nil)
+  reset()
+  files[JOURNAL .. ".bak"] = parked
+  fstat = bakUnmeasured()
+  ok, due = journal.append(MCU, F_NEXT)
+  fstat = realFstat
+  check("only the .bak standing, unmeasured and its rename working: put back and appended to",
+    ok == true and due == true and files[JOURNAL .. ".bak"] == nil
+    and string.sub(files[JOURNAL] or "", 1, #parked) == parked
+    and string.match(string.sub(files[JOURNAL] or "", #parked + 1), '^e%(%d+,"tune_advisor",1,"pid_0_F",96,77%)\n$') ~= nil
+    and pilotF(77) == 120, tostring(pilotF(77)))
+
+  -- An append between two steps of the read: the start afresh is given up, nothing is lost
+  reset()
+  files[JOURNAL] = bigJournal()
+  local job = Compact.job(journal, MCU)
+  for _ = 1, 5 do Compact.step(job) end
+  journal.append(MCU, NEXT)
+  local withAppend = files[JOURNAL]
+  repeat result, reason = Compact.step(job) until result ~= false
+  check("an append while it reads gives the start afresh up and leaves the journal with the append",
+    result == nil and reason == "changed" and files[JOURNAL] == withAppend, tostring(reason))
+  result = runCompact()
+  check("the next try carries the append", result == true and string.find(files[JOURNAL] or "", '50,70)', 1, true) ~= nil)
+
+  -- Nothing gained: the carried lines are no shorter than the journal (every line its own chain)
+  reset()
+  local own = {}
+  for i = 1, 500 do own[i] = string.format('e(%d,"tune_advisor",1,"f_%03d",1,2)\n', 100 + i, i) end
+  files[JOURNAL] = table.concat(own)
+  result, reason = runCompact()
+  check("a journal that would not shrink is left as it is", result == nil and reason == "no gain"
+    and files[JOURNAL] == table.concat(own) and files[JOURNAL .. ".bak"] == nil, tostring(reason))
+
+  -- A value edited by hand to one the reader still takes (50.5 floors to an integer) is carried
+  -- as it reads, and the pilot's own value is the same before and after
+  reset()
+  local edited = 'e(5,"tune_advisor",1,"pid_0_P",50.5,60)\ne(6,"tune_advisor",1,"pid_0_P",60,70)\n'
+    .. string.rep('e(16,"pids",1,"pid_1_D",1,2)\n', 700)
+  files[JOURNAL] = edited
+  local asked = { ["1/pid_0_P"] = 70 }
+  local ownP = ownValuesUncapped(edited, asked)["1/pid_0_P"]
+  result, reason = runCompact()
+  local afterP = (ownValues(asked) or {})["1/pid_0_P"]
+  check("a hand-edited 50.5 is carried as it reads, and the pilot's own value stays 50.5",
+    result == true and files[JOURNAL] == 'e(6,"tune_advisor",1,"pid_0_P",50.5,70)\n' and ownP == 50.5
+    and afterP == 50.5, tostring(reason) .. " " .. tostring(files[JOURNAL]))
+
+  -- A profile edited by hand to 1.0 is profile 1 to the walk back (1.0 == 1): the same chain
+  reset()
+  edited = 'e(5,"tune_advisor",1.0,"pid_0_P",50,60)\ne(6,"tune_advisor",1,"pid_0_P",60,70)\n'
+    .. string.rep('e(16,"pids",1,"pid_1_D",1,2)\n', 700)
+  files[JOURNAL] = edited
+  ownP = ownValuesUncapped(edited, asked)["1/pid_0_P"]
+  result, reason = runCompact()
+  afterP = (ownValues(asked) or {})["1/pid_0_P"]
+  check("a profile edited to 1.0 continues profile 1's chain: one line, the pilot's own value stays 50",
+    result == true and files[JOURNAL] == 'e(6,"tune_advisor",1,"pid_0_P",50,70)\n' and ownP == 50 and afterP == 50,
+    tostring(reason) .. " " .. tostring(ownP) .. " " .. tostring(files[JOURNAL]))
+
+  -- A line longer than a part is not the suite's: given up, the buffer not grown
+  reset()
+  files[JOURNAL] = string.rep("x", 9000) .. "\n" .. bigJournal()
+  result, reason = runCompact()
+  check("a line longer than a part gives the start afresh up", result == nil and reason == "line", tostring(reason))
+  -- Without fstat the size is unknown: no start afresh
+  reset()
+  files[JOURNAL] = bigJournal()
+  local savedFstat = fstat
+  fstat = nil -- luacheck: ignore 111
+  result, reason = runCompact()
+  fstat = savedFstat -- luacheck: ignore 111
+  check("without fstat there is no start afresh", result == nil and reason == "size"
+    and files[JOURNAL] == bigJournal(), tostring(reason))
   files[JOURNAL] = nil
 end
 

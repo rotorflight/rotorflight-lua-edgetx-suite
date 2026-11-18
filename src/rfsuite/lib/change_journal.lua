@@ -1,9 +1,13 @@
--- Append-only, per-flight-controller record of values committed to EEPROM.
+-- Per-flight-controller record of values committed to EEPROM, appended to with every save.
 local M = {}
 
 local USER_ROOT = _G.rfsuite.paths.user
 local DATA_DIR = USER_ROOT .. "/journal"
-local READ_CAP, READ_CHUNK = 65536, 4096
+-- Once an append leaves the journal above ROTATE_AT it starts afresh (lib/journal_compact.lua),
+-- and a read takes at most READ_CAP bytes: the newest part of a file that stands above that.
+local ROTATE_AT = 16384
+local READ_CAP, READ_CHUNK = ROTATE_AT, 4096
+M.ROTATE_AT = ROTATE_AT
 
 function M.path(mcuId)
   if mcuId == nil then return nil end
@@ -90,6 +94,48 @@ local function validName(value)
   return type(value) == "string" and string.match(value, "^[%w_%.]+$") ~= nil
 end
 
+--- The journal's size in bytes; nil when it is not there or its size cannot be had (no fstat).
+function M.size(mcuId)
+  local path = M.path(mcuId)
+  return path and fileSize(path) or nil
+end
+
+-- A journal that starts afresh is put in place by lib/atomic_file.lua: a replace cut short
+-- between its two renames leaves no journal, only the one before it as `.bak`. That is the
+-- journal, so it is put back under the name before anything is appended, rather than a new
+-- journal being started beside it, which the reads would take in its place and the next
+-- replace would leave as the only record. Answers false while the `.bak` still stands alone;
+-- an append then goes to the `.bak`, which the reads take while no journal stands under the name.
+local function restoreParked(path)
+  if fileSize(path) ~= nil then return true end
+  local bakPath = path .. ".bak"
+  if fileSize(bakPath) == nil then
+    -- A `.bak` that opens although its size cannot be had still stands: it is put back like any
+    -- other, and while it cannot be, the append refuses rather than starting a journal beside it
+    local probe = io.open(bakPath, "r")
+    if not probe then return true end
+    io.close(probe)
+    journalLog("debug", "journal %s: its .bak opens but its size cannot be had", path)
+  end
+  local ok, res = false, "no rename"
+  if type(rename) == "function" then ok, res = pcall(rename, bakPath, path) end
+  local restored = ok and res == 0
+  journalLog(restored and "info" or "debug", "journal %s: only its .bak stood; put back: %s (%s)",
+    path, tostring(restored), tostring(res))
+  return restored
+end
+
+--- Puts a journal that stands only as `.bak` back under its name (see restoreParked). The Tune
+--- Advisor page does so when it opens, so a large one starts afresh before it is read. Answers
+--- false while only the `.bak` stands; it is then what the reads take.
+function M.restore(mcuId)
+  local path = M.path(mcuId)
+  if not path then return false end
+  return restoreParked(path)
+end
+
+--- Appends the entries. Answers true and, second, whether the journal now stands above ROTATE_AT
+--- and so is due to start afresh (lib/journal_compact.lua); or false and a reason.
 function M.append(mcuId, entries)
   local path = M.path(mcuId)
   if not path then return false, "mcu id" end
@@ -109,31 +155,48 @@ function M.append(mcuId, entries)
   if #lines == 0 then return true end
   local text = table.concat(lines)
   ensureDir()
-  local before = fileSize(path)
+  -- A `.bak` that cannot be put back stays the journal and takes the entries, so its chains run
+  -- on; it starts afresh only once it is back under the name, and while its own size cannot be
+  -- had the append is refused below ("unmeasurable"). A name that opens although its
+  -- size cannot be had is refused: once its size can be had again, the reads take it and not
+  -- the `.bak`, so entries written to the `.bak` would no longer be read.
+  local target = path
+  if not restoreParked(path) then
+    local taken = io.open(path, "r")
+    if taken then
+      io.close(taken)
+      return false, "parked"
+    end
+    target = path .. ".bak"
+    journalLog("debug", "journal %s: appending to its .bak", path)
+  end
+  local before = fileSize(target)
   if before == nil then
-    local created = io.open(path, "a")
+    local created = io.open(target, "a")
     if not created then return false, "open" end
     io.close(created)
-    before = fileSize(path)
+    before = fileSize(target)
     if before == nil then return false, "unmeasurable" end
   end
-  if before > 0 and endsMidLine(path, before) then text = "\n" .. text end
-  local f = io.open(path, "a")
+  if before > 0 and endsMidLine(target, before) then text = "\n" .. text end
+  local f = io.open(target, "a")
   if not f then return false, "open" end
   io.write(f, text)
   io.close(f)
-  local after = fileSize(path)
+  local after = fileSize(target)
   if after == nil or after ~= before + #text then return false, "unverified" end
-  return true
+  if after > ROTATE_AT and target == path then
+    journalLog("debug", "journal %s: %d bytes after the append, above %d", path, after, ROTATE_AT)
+    return true, true
+  end
+  return true, false
 end
 
--- The journal grows with every save; its newest READ_CAP bytes are read. Parsed in one go, a
--- journal of a thousand entries cost over a hundred thousand Lua instructions, far more than a
--- page's wakeup may take, so it is read as a job: the file on one step, then LINES_PER_STEP lines
--- per step. Each group of lines is loaded in one go; when that fails anywhere -- a line torn by a
--- write that was cut short, or one broken by hand -- the group is run again line by line and only
--- the lines that do not read are skipped.
+-- At most its newest READ_CAP bytes are read. Parsed in one go, a journal of a thousand entries
+-- cost over a hundred thousand Lua instructions, far more than a page's wakeup may take, so it
+-- is read as a job: the file on one step, then LINES_PER_STEP lines per step (M.parse).
 local LINES_PER_STEP = 16
+M.LINES_PER_STEP = LINES_PER_STEP
 
 local function newCollector(job)
   local entries, fields = job.entries, job.fields
@@ -143,6 +206,41 @@ local function newCollector(job)
     if not integer(time) or not validName(source) or not integer(profile) or profile < 1
         or not validName(field) or not integer(old) or not integer(new) then error("invalid entry") end
     entries[#entries + 1] = { time = time, source = source, profile = profile, field = field, old = old, new = new }
+  end
+end
+
+--- A parser for groups of journal lines (M.parse), handing each entry to `onEntry` and keeping
+--- none; lib/journal_compact.lua reads the whole file through one.
+function M.parser(onEntry)
+  local p = { entries = {}, onEntry = onEntry }
+  p.env = { e = newCollector(p) }
+  return p
+end
+
+--- Reads one group of whole lines into `p` (from M.parser, or a read job in its parse phase).
+--- The group is loaded in one go; when that fails anywhere -- a line torn by a write that was
+--- cut short, or one broken by hand -- it is run again line by line and only the lines that do
+--- not read are skipped.
+function M.parse(p, group)
+  local entries, env = p.entries, p.env
+  local count = #entries
+  local chunk = load(group, "=change_journal", "t", env)
+  if not (chunk and pcall(chunk)) then
+    for i = #entries, count + 1, -1 do entries[i] = nil end
+    for line in string.gmatch(group, "[^\r\n]+") do
+      local before = #entries
+      local lineChunk = load(line, "=change_journal", "t", env)
+      if not lineChunk or not pcall(lineChunk) then
+        for i = #entries, before + 1, -1 do entries[i] = nil end
+      end
+    end
+  end
+  -- Handed on only once the group is settled, so a group read again line by line never
+  -- hands an entry on twice
+  local onEntry = p.onEntry
+  if onEntry then
+    for i = count + 1, #entries do onEntry(entries[i]) end
+    for i = #entries, count + 1, -1 do entries[i] = nil end
   end
 end
 
@@ -164,6 +262,14 @@ function M.readStep(job)
     local path = M.path(job.mcuId)
     if not path then return nil, "mcu id" end
     local size = fileSize(path)
+    if size == nil then
+      -- A start afresh cut short between its renames: the journal stands only as `.bak`
+      local parked = fileSize(path .. ".bak")
+      if parked ~= nil then
+        journalLog("info", "journal %s: reading its .bak, the only copy standing", path)
+        path, size = path .. ".bak", parked
+      end
+    end
     local f = io.open(path, "r")
     if not f then
       if size ~= nil then
@@ -172,8 +278,9 @@ function M.readStep(job)
       end
       return {}
     end
-    -- Past READ_CAP only the newest part is read: the readers follow it back from its end, and
-    -- the file itself is never rewritten. The window starts one byte early, so a window that
+    -- Past READ_CAP only the newest part is read: the readers follow it back from its end. A
+    -- journal only stands above READ_CAP until it has started afresh -- one from before that
+    -- existed, or one whose start afresh keeps failing. The window starts one byte early, so a window that
     -- begins on a line start is told from one that begins mid-line; everything up to the first
     -- line break is dropped. Without fstat the size and so the window are unknown, and a journal
     -- over READ_CAP stays refused.
@@ -228,29 +335,7 @@ function M.readStep(job)
       if not nextEnd then last = #text; break end
       last = nextEnd
     end
-    if last >= pos then
-      local entries, env = job.entries, job.env
-      local count = #entries
-      local group = string.sub(text, pos, last)
-      local chunk = load(group, "=change_journal", "t", env)
-      if not (chunk and pcall(chunk)) then
-        for i = #entries, count + 1, -1 do entries[i] = nil end
-        for line in string.gmatch(group, "[^\r\n]+") do
-          local before = #entries
-          local lineChunk = load(line, "=change_journal", "t", env)
-          if not lineChunk or not pcall(lineChunk) then
-            for i = #entries, before + 1, -1 do entries[i] = nil end
-          end
-        end
-      end
-      -- Handed on only once the group is settled, so a group read again line by line never
-      -- hands an entry on twice
-      local onEntry = job.onEntry
-      if onEntry then
-        for i = count + 1, #entries do onEntry(entries[i]) end
-        for i = #entries, count + 1, -1 do entries[i] = nil end
-      end
-    end
+    if last >= pos then M.parse(job, string.sub(text, pos, last)) end
     job.pos = last + 1
     if job.pos <= #text then return false end
     local entries = job.entries
