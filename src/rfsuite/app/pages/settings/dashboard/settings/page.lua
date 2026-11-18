@@ -16,11 +16,48 @@ local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.
 -- upvalues, and running the file again is the only way to get a module that has read nothing, so
 -- the standard values and a model's overrides are never shown by the same copy.
 --
+-- Written only when a theme's module fails to load or its load is stopped, so the log module is
+-- read only then.
+local function emitLog(message, level)
+  local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
+  local okLoad, chunk = pcall(loadScript, _G.rfsuite.paths.core .. "/lib/log.lua", mode)
+  if not okLoad or type(chunk) ~= "function" then return end
+  local okMod, Log = pcall(chunk)
+  if okMod and type(Log) == "table" and type(Log.emit) == "function" then
+    pcall(Log.emit, "rfsuite", message, level)
+  end
+end
+
+local function logLoadFailure(path, reason)
+  emitLog("theme settings not loaded: " .. tostring(path) .. ": " .. tostring(reason), "error")
+end
+
+local function isCpuLimitStop(err)
+  local fn = _G.rfsuite and _G.rfsuite.isCpuLimitError
+  if type(fn) == "function" then return fn(err) == true end
+  return type(err) == "string" and string.find(err, "CPU limit", 1, true) ~= nil
+end
+
+-- Opened from the dashboard, the page is built inside one widget call, and loading a theme's
+-- module is the larger part of that build (the module reads the theme's layout and the shared
+-- form helpers). EdgeTX raises the instruction limit once per call and then lets the call run on,
+-- so a stop that lands inside one of the pcalls below would come back as an ordinary failure, and
+-- the page would show "could not be loaded" for a module that is fine. It is raised on instead:
+-- the build is stopped, ui/home.lua builds it again on the next pass, and the load starts again
+-- with whatever it had finished kept (the module file once it has run).
+local function raiseLimitStop(err, path)
+  if isCpuLimitStop(err) then
+    emitLog("theme settings load of " .. tostring(path) .. " stopped at the instruction limit, loaded again on the next build", "debug")
+    error(err, 0)
+  end
+end
+
 -- A failure is answered with its reason and is not cached here. It is not tried again on every
 -- build: loadThemeModule keeps what a finished load gave -- the module, or an empty one with
 -- `ui.loadError` beside it -- in `ui.activeModule` and returns that while the theme, page and
 -- scope are unchanged, so a failing module is loaded and logged once per open of the page and
--- once per Reload, which both clear it.
+-- once per Reload, which both clear it. A stop at the instruction limit is no failure (see
+-- raiseLimitStop).
 local function loadThemeConfig(configurePath, scope)
   local cacheKey = configurePath .. "|" .. tostring(scope)
   local cached = loadedThemeConfigs[cacheKey]
@@ -29,6 +66,7 @@ local function loadThemeConfig(configurePath, scope)
   end
   local ok, chunk, loadErr = pcall(loadScript, configurePath, "t")
   if not ok then
+    raiseLimitStop(chunk, configurePath)
     return nil, chunk
   end
   if type(chunk) ~= "function" then
@@ -36,21 +74,11 @@ local function loadThemeConfig(configurePath, scope)
   end
   local loadedOk, loaded = pcall(chunk)
   if not loadedOk then
+    raiseLimitStop(loaded, configurePath)
     return nil, loaded
   end
   loadedThemeConfigs[cacheKey] = loaded
   return loaded
-end
-
--- Written only when a theme's module fails to load, so the log module is read only then.
-local function logLoadFailure(path, reason)
-  local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
-  local okLoad, chunk = pcall(loadScript, _G.rfsuite.paths.core .. "/lib/log.lua", mode)
-  if not okLoad or type(chunk) ~= "function" then return end
-  local okMod, Log = pcall(chunk)
-  if okMod and type(Log) == "table" and type(Log.emit) == "function" then
-    pcall(Log.emit, "rfsuite", "theme settings not loaded: " .. tostring(path) .. ": " .. tostring(reason), "error")
-  end
 end
 
 -- EdgeTX does not wrap a label, and a load error carries the file's path and line ahead of the
@@ -231,8 +259,11 @@ end
 local function ensureThemes()
   ensureDeps()
   if ui.themes ~= nil then return end
-  ui.themes = DashboardLib.listThemes()
-  ui.configurableThemes = DashboardLib.getConfigurableThemes(ui.themes)
+  -- Both lists or neither: a build stopped between the two would otherwise leave the themes
+  -- listed and the configurable ones missing, and every later build would find no theme to load.
+  local themes = DashboardLib.listThemes()
+  ui.configurableThemes = DashboardLib.getConfigurableThemes(themes)
+  ui.themes = themes
 end
 
 local function ensureLoaded(prefs)
@@ -298,6 +329,7 @@ local function loadThemeModule(ctx)
     if createdOk then
       loaded = created
     else
+      raiseLimitStop(created, theme.configurePath)
       loaded, loadErr = nil, created
     end
   end

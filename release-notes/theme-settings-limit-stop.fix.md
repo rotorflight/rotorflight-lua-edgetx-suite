@@ -1,0 +1,1 @@
+- **A theme's settings opened from the dashboard always load in full, never as "could not be loaded" (`app/pages/settings/dashboard/settings`)** (#1220)

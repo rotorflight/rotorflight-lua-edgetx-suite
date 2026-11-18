@@ -127,9 +127,11 @@ it for another page.
   closed.
 - A theme's page that cannot be loaded says so under its first line, with the reason, and the
   same line goes to the log. A reason too long for the row is cut short with `...`; the log keeps
-  it whole. *Reload* tries the load again. Opened from the dashboard, the tool runs under the dashboard's limit
-  on the work one call may do, so a page whose opening needs more is stopped there with
-  *CPU limit* while the same page opens from the radio's tool list.
+  it whole. *Reload* tries the load again.
+- Opened from the dashboard, the tool runs under the dashboard's limit on the work one call may
+  do. A theme's page whose opening needs more is built again on the next pass, so there it can
+  take a moment longer to appear than from the radio's tool list. A stop at that limit is not
+  shown as a theme whose settings could not be loaded.
 
 ## Related
 

@@ -64,15 +64,34 @@ end
 -- What a phase module's boxes evaluate to on the settings page. A theme that builds its boxes in
 -- a function reads its configuration from the state it is handed; the page hands it the theme's
 -- configuration as the widget would and nothing else, which is all a box's source depends on.
+--
+-- Opened from the dashboard the page is built inside one widget call, and EdgeTX raises the
+-- instruction limit once per call and then lets the call run on. A stop that lands inside one of
+-- the pcalls here says nothing about the module, so it is raised on rather than read as a phase
+-- with no boxes: the build is stopped and built again on the next pass, where a page with no rows
+-- would otherwise stand for the whole visit.
+local function raiseLimitStop(err)
+  local fn = _G.rfsuite and _G.rfsuite.isCpuLimitError
+  local stop
+  if type(fn) == "function" then
+    stop = fn(err) == true
+  else
+    stop = type(err) == "string" and string.find(err, "CPU limit", 1, true) ~= nil
+  end
+  if stop then error(err, 0) end
+end
+
 local function phaseBoxes(path, config)
   local chunk = loadScript(path, "t")
   if type(chunk) ~= "function" then return nil end
   local ok, module = pcall(chunk)
+  if not ok then raiseLimitStop(module) end
   if not ok or type(module) ~= "table" then return nil end
   local boxes = module.boxes
   if type(boxes) == "function" then
     local built
     ok, built = pcall(boxes, nil, { themeConfig = config or {} })
+    if not ok then raiseLimitStop(built) end
     boxes = ok and built or nil
   end
   return type(boxes) == "table" and boxes or nil
@@ -87,10 +106,12 @@ function M.new(folder, phases)
   --- configuration as last loaded, for a theme that builds its boxes from it.
   function form.rowsFor(phase, config)
     if form.phase == phase and form.rows ~= nil then return form.rows end
-    form.phase = phase
     local file = form.phases[phase]
     local boxes = file and phaseBoxes(form.folder .. file, config) or nil
+    -- Both together, once the rows are made: a read stopped part way leaves the previous phase's
+    -- rows standing under their own phase, not under this one.
     form.rows = Fields.rows(boxes, phase)
+    form.phase = phase
     return form.rows
   end
 

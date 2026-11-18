@@ -1,0 +1,9 @@
+{
+  "id": "theme-settings-limit-stop",
+  "name": "Theme settings page stopped at the instruction limit",
+  "commands": [
+    "lua5.3 bin/dashboard/verify_theme_settings_limit_stop.lua"
+  ],
+  "step": "Build the theme settings page with the stop at every position",
+  "rationale": "A stop that lands inside the page's module loads must be raised on, never shown as a theme whose settings could not be loaded or as a page with fewer rows."
+}
