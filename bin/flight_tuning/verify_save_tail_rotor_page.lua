@@ -31,7 +31,11 @@ local function newPage(spec)
   local modules = {
     ["app/pages/settings/common.lua"] = {
       pageT = function() return function(_, _, fallback) return fallback end end,
-      createProfileAwareRuntime = function() return {} end
+      createProfileAwareRuntime = function() return {} end,
+      -- The effects of the real Common.resetPageState that a close leaves behind.
+      resetPageState = function(ui)
+        ui.loaded, ui.dirty, ui.runtime = false, false, nil
+      end
     },
     ["ui/controls.lua"] = {},
     ["ui/loading_overlay.lua"] = {},
@@ -91,6 +95,14 @@ local function newPage(spec)
     wakeup = wakeup, spec = spec, reads = reads, steps = steps, profiles = profiles }
 end
 
+-- The page opens again after a close: its first wakeup reads the profile again.
+local function reopen(h, eq)
+  local before = #h.queue.entries
+  eq((pcall(h.page.wakeup, h.ctx)), true, "page wakes again after the close")
+  eq(type(h.ui.runtime) == "table" and h.ui.runtime.readPending, true, "the re-opened page reads again")
+  eq(#h.queue.entries, before + 1, "the re-opened page queues its first read")
+end
+
 local function answer(h, entry, bytes)
   assert(entry, "reply entry missing").processReply(entry, bytes)
   h.wakeup()
@@ -144,7 +156,9 @@ local function expectCheck(h, stepIndex, eq)
   local entry = assert(lastEntry(h), "status check missing")
   eq(entry.command, h.status.command, step.label .. " is preceded by a status read")
   eq(entry.isWrite, nil, step.label .. " check is a read")
-  eq(entry.simulatorResponse, h.status.simulatorResponse, step.label .. " check answers in the simulator")
+  local sim = entry.simulatorResponse
+  eq(type(sim) == "table" and #sim == #h.status.simulatorResponse, true, step.label .. " check answers in the simulator")
+  eq(type(sim) == "table" and sim[24], h.readProfile - 1, step.label .. " simulator reply names the profile read")
   eq(countCommand(h, step.api.writeCommand), 0, step.label .. " not sent before its check is answered")
   eq(h.pipeline.isActive(), true, "host sees active page save")
   return entry
@@ -164,7 +178,7 @@ local function expectWrite(h, stepIndex, eq)
   eq(progress.phase, "write", "pipeline is writing")
   eq(progress.label, step.label, "progress identifies current write")
   eq(progress.saved, false, "pending write is not saved")
-  eq(h.page.hasUnsavedChanges(), true, "pending write stays dirty")
+  eq(h.page.hasUnsavedChanges(), not h.closed, "pending write stays dirty until the page closes")
   return entry
 end
 
@@ -183,6 +197,7 @@ local function prepare(h, eq)
   end
   h.ui.dirty = true
   eq(h.page.hasUnsavedChanges(), true, "field edit marks dirty")
+  h.readProfile = h.ui.runtime.readProfile
   eq(h.page.onSave(h.ctx), true, "save accepted")
   h.wakeup()
   eq(#h.queue.entries, #h.reads + 1, "only the first check queued before its reply")
@@ -218,7 +233,7 @@ local function acceptWrites(h, eq, between)
     local entry = expectWrite(h, i, eq)
     answer(h, entry, {})
     eq(#h.queue.entries, #h.reads + 2 * i + 1, "profile reply queues only the next check or the commit")
-    eq(h.page.hasUnsavedChanges(), true, "profile reply alone does not clear dirty")
+    eq(h.page.hasUnsavedChanges(), not h.closed, "profile reply alone does not clear dirty")
     eq(h.pipeline.hasOutcome(), false, "profile reply alone has no outcome")
     expectReadCounts(h, 1, eq)
     if between and i < #h.steps then between(i) end
@@ -292,8 +307,8 @@ local function stopped(h, stepIndex, outcome, sentAny, eq)
   eq(countCommand(h, step.api.writeCommand), 0, step.label .. " not sent after the stop")
   eq(countCommand(h, h.eeprom.command), 0, "stop queues no EEPROM")
   eq(countCommand(h, h.governor.writeCommand), 0, "stop sends no governor write")
-  eq(h.page.hasUnsavedChanges(), true, "stop retains dirty edit")
-  eq(h.ui.runtime.readPending, false, "stop starts no read")
+  eq(h.page.hasUnsavedChanges(), not h.closed, "stop retains dirty edit")
+  eq(h.ui.runtime == nil or h.ui.runtime.readPending == false, true, "stop starts no read")
   eq(#h.reports, 0, "stop uses pipeline outcome without a second dialog")
 end
 
@@ -365,15 +380,31 @@ local scenarios = {
   end, sensorlessOnly = true },
   -- The save outlives the page: closing it between the writes changes nothing, and it opens again.
   { "CLOSE BETWEEN WRITES", function(h, eq)
-    local commit = acceptWrites(h, eq, function() h.page.onClose() end)
+    local commit = acceptWrites(h, eq, function() h.page.onClose(); h.closed = true end)
+    eq(h.ui.runtime, nil, "the close dropped the page's runtime")
     answer(h, commit, {})
     expectOutcome(h, "done", true, eq)
-    eq(h.page.hasUnsavedChanges(), false, "save finished after the close clears dirty")
-    eq((pcall(h.page.wakeup, h.ctx)), true, "page wakes again after the close")
+    reopen(h, eq)
   end, governorOnly = true },
   { "CLOSE THEN SWITCH", function(h, eq)
-    switchBeforeGovernor(h, eq, function() h.page.onClose(); h.profiles.board = 2 end, "refused")
-  end, governorOnly = true }
+    switchBeforeGovernor(h, eq, function() h.page.onClose(); h.closed = true; h.profiles.board = 2 end, "refused")
+    reopen(h, eq)
+  end, governorOnly = true },
+  -- In the simulator every check is answered with its own simulator reply, which must let a save without a switch
+  -- through, with or without a PID profile sensor.
+  { "SIMULATOR REPLIES", function(h, eq)
+    for i = 1, #h.steps do
+      local check = expectCheck(h, i, eq)
+      answer(h, check, check.simulatorResponse)
+      local write = assert(lastEntry(h), "write after a simulator reply missing")
+      eq(write.command, h.steps[i].api.writeCommand, h.steps[i].label .. " sent after a simulator reply")
+      answer(h, write, {})
+    end
+    local commit = assert(lastEntry(h), "EEPROM write missing")
+    eq(commit.command, h.eeprom.command, "EEPROM after simulator replies")
+    answer(h, commit, {})
+    expectOutcome(h, "done", true, eq)
+  end }
 }
 
 -- Governor writes require API >= 12.09, a successful read and a buildable payload.

@@ -259,9 +259,14 @@ local function buildProfileCheck(Status, P, readProfile)
   local expected = live and readProfile or nil
   logf("trace", "save checks the PID profile before each write, expected %s",
     tostring(expected or "the board's first answer"))
+  -- In the simulator the status read is answered as a board on the profile the page was read from;
+  -- the codec's own reply names another profile, which a simulated PID profile sensor would refuse.
+  local simulated = {}
+  for i, byte in ipairs(Status.simulatorResponse or {}) do simulated[i] = byte end
+  if #simulated >= 24 then simulated[24] = math.max(0, (tonumber(readProfile) or 1) - 1) end
   return {
     command = Status.command,
-    simulatorResponse = Status.simulatorResponse,
+    simulatorResponse = simulated,
     holds = function(buf)
       -- current_pid_profile_index is byte 24 of the status reply; a shorter one cannot tell
       local status = type(buf) == "table" and #buf >= 24 and Status.parse(buf) or nil
