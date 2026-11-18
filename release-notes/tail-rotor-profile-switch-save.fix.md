@@ -1,0 +1,1 @@
+- **Tail Rotor Save stops before its next write when the PID profile is switched during it (`flight_tuning/advanced/tail_rotor`)** (#1240)

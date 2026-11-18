@@ -74,7 +74,8 @@
 -- checked write is not retried after a lost reply, which would go out unchecked; the save ends as a
 -- failed write instead. (The queue still repeats a send that an instruction-limit stop interrupted
 -- before it was counted, a pass later.) A write acknowledged before such a stop has reached the
--- board (`sentAny`).
+-- board (`sentAny`). The check may carry `simulatorResponse` as any read does; without one the
+-- simulator cannot answer the read, and every checked step there ends as unanswered.
 --
 -- Progress is exposed through getProgress() and drawn by whoever is on screen, which is the
 -- same split the start screen uses for the connect chain. Nothing here opens a native modal,
@@ -755,6 +756,7 @@ local function queueCheck(run, index, step, payload, queue)
   queue:add({
     command = check.command,
     payload = {},
+    simulatorResponse = check.simulatorResponse,
     client = run.client,
     processReply = function(_, buf)
       if not isCurrent(run) then return end

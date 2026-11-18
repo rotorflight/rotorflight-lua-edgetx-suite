@@ -237,9 +237,63 @@ local function queueRcRead(isAutoReload)
   return true, nil
 end
 
+-- Reached through the global lib/log.lua publishes, so the save pays for no second copy of the
+-- logger. Absent logger, absent lines.
+local function logf(level, fmt, ...)
+  local Log = type(_G) == "table" and _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.tail_rotor", level, fmt, ...)
+  end
+end
+
+-- The board stores each write in whichever PID profile is active when that write arrives, and the
+-- writes of one Save reach it one after another. So the flight controller is asked for its active
+-- PID profile right before each write (the shared save's step check), and the save stops at the
+-- first write the answer does not fit. With a PID profile sensor the write must land on the
+-- profile the values were read from (Save is refused while the sensor names another). Without one
+-- the radio cannot tell which profile was read, so the board's answer before the first write is
+-- taken as that profile and every later write must find it unchanged. The save outlives the page,
+-- whose close drops the module upvalues, so the modules come in as arguments.
+local function buildProfileCheck(Status, P, readProfile)
+  local live = P and type(P.getLive) == "function" and P.getLive("pid") or nil
+  local expected = live and readProfile or nil
+  logf("trace", "save checks the PID profile before each write, expected %s",
+    tostring(expected or "the board's first answer"))
+  return {
+    command = Status.command,
+    simulatorResponse = Status.simulatorResponse,
+    holds = function(buf)
+      -- current_pid_profile_index is byte 24 of the status reply
+      if type(buf) ~= "table" or #buf < 24 then
+        logf("warn", "status reply before a write too short (%s bytes); save stopped",
+          tostring(type(buf) == "table" and #buf))
+        return nil
+      end
+      local status = Status.parse(buf)
+      local index = status and tonumber(status.current_pid_profile_index)
+      if not index then
+        logf("warn", "status reply before a write unreadable; save stopped")
+        return nil
+      end
+      local board = index + 1
+      if expected == nil then expected = board end
+      local radio = P and type(P.getLive) == "function" and P.getLive("pid") or nil
+      if board == expected and (radio == nil or radio == expected) then
+        logf("trace", "PID profile still %s before a write", tostring(board))
+        return true
+      end
+      logf("warn", "PID profile moved before a write: board %s, radio %s, expected %s; save stopped",
+        tostring(board), tostring(radio), tostring(expected))
+      return false
+    end
+  }
+end
+
 local function queueRcWrite()
   if not SavePipeline then SavePipeline = loadModule("tasks/msp/save_pipeline.lua") end
-  if not SavePipeline or not PidProfileApi then
+  -- Loaded for the save only, so an open page holds it no longer than its save runs.
+  local StatusApi = loadModule("tasks/msp/api/status.lua")
+  if not SavePipeline or not PidProfileApi or not StatusApi then
     return false, "msp_runtime_unavailable"
   end
 
@@ -287,6 +341,8 @@ local function queueRcWrite()
       }
     end
   end
+  local check = buildProfileCheck(StatusApi, Profile, ui.runtime.readProfile)
+  for _, step in ipairs(steps) do step.check = check end
 
   return SavePipeline.start({
     pageId = "flight_tuning_advanced_tail_rotor",

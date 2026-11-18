@@ -20,10 +20,14 @@ local function newPage(spec)
   local governor = assert(loadfile("src/rfsuite/tasks/msp/api/governor_profile.lua"))()
   local governorConfig = assert(loadfile("src/rfsuite/tasks/msp/api/governor_config.lua"))()
   local eeprom = assert(loadfile("src/rfsuite/tasks/msp/api/eeprom_write.lua"))()
+  local status = assert(loadfile("src/rfsuite/tasks/msp/api/status.lua"))()
   local apiVersion = assert(loadfile("src/rfsuite/lib/api_version.lua"))()
   local queue = { entries = {} }
   function queue:add(entry) self.entries[#self.entries + 1] = entry end
   local mspState = { queue = queue, lastArmed = false }
+  -- The profile the board is on (what its status reply says) and the one the radio's PID profile
+  -- sensor reports (nil: no sensor, the radio falls back to the profile the connection reported).
+  local profiles = { board = 1, live = spec.live }
   local modules = {
     ["app/pages/settings/common.lua"] = {
       pageT = function() return function(_, _, fallback) return fallback end end,
@@ -32,7 +36,10 @@ local function newPage(spec)
     ["ui/controls.lua"] = {},
     ["ui/loading_overlay.lua"] = {},
     ["lib/sensors.lua"] = {},
-    ["lib/profile.lua"] = { getActivePidProfile = function() return 1 end },
+    ["lib/profile.lua"] = {
+      getLive = function() return profiles.live end,
+      getActivePidProfile = function(default) return profiles.live or default end
+    },
     ["lib/api_version.lua"] = apiVersion,
     ["lib/log.lua"] = {},
     ["tasks/msp/runtime.lua"] = { getState = function() return mspState end },
@@ -41,6 +48,7 @@ local function newPage(spec)
     ["tasks/msp/api/governor_profile.lua"] = governor,
     ["tasks/msp/api/governor_config.lua"] = governorConfig,
     ["tasks/msp/api/eeprom_write.lua"] = eeprom,
+    ["tasks/msp/api/status.lua"] = status,
     ["tasks/msp/api/reboot.lua"] = {},
     ["tasks/msp/api/tx_info.lua"] = {}
   }
@@ -79,8 +87,8 @@ local function newPage(spec)
     steps[#steps + 1] = { api = governor, label = "MSP_SET_GOVERNOR_PROFILE", field = "governor_tta_gain" }
   end
   return { page = page, ui = ui, api = api, governor = governor, governorConfig = governorConfig,
-    eeprom = eeprom, queue = queue, pipeline = pipeline, ctx = ctx, reports = reports,
-    wakeup = wakeup, spec = spec, reads = reads, steps = steps }
+    eeprom = eeprom, status = status, queue = queue, pipeline = pipeline, ctx = ctx, reports = reports,
+    wakeup = wakeup, spec = spec, reads = reads, steps = steps, profiles = profiles }
 end
 
 local function answer(h, entry, bytes)
@@ -94,6 +102,18 @@ local function countCommand(h, command)
     if entry.command == command then count = count + 1 end
   end
   return count
+end
+
+local function lastEntry(h)
+  return h.queue.entries[#h.queue.entries]
+end
+
+-- The board's status reply, naming the PID profile it is on (0-based in byte 24).
+local function statusReply(h)
+  local buf = {}
+  for i, byte in ipairs(h.status.simulatorResponse) do buf[i] = byte end
+  buf[24] = h.profiles.board - 1
+  return buf
 end
 
 local function finishRead(h, first, eq)
@@ -118,11 +138,25 @@ local function finishRead(h, first, eq)
   eq(h.page.hasUnsavedChanges(), false, "read is clean")
 end
 
+-- Every write is preceded by a status read: the board is asked which PID profile it is on.
+local function expectCheck(h, stepIndex, eq)
+  local step = h.steps[stepIndex]
+  local entry = assert(lastEntry(h), "status check missing")
+  eq(entry.command, h.status.command, step.label .. " is preceded by a status read")
+  eq(entry.isWrite, nil, step.label .. " check is a read")
+  eq(entry.simulatorResponse, h.status.simulatorResponse, step.label .. " check answers in the simulator")
+  eq(countCommand(h, step.api.writeCommand), 0, step.label .. " not sent before its check is answered")
+  eq(h.pipeline.isActive(), true, "host sees active page save")
+  return entry
+end
+
 local function expectWrite(h, stepIndex, eq)
   local step = h.steps[stepIndex]
-  local entry = assert(h.queue.entries[#h.reads + stepIndex], "profile write missing")
+  answer(h, expectCheck(h, stepIndex, eq), statusReply(h))
+  local entry = assert(lastEntry(h), "profile write missing")
   eq(entry.command, step.api.writeCommand, "write order: " .. step.label)
   eq(entry.isWrite, true, step.label .. " classified as write")
+  eq(entry.maxRetries, 0, step.label .. " checked write is not retried unchecked")
   eq(assert(step.api.parse(entry.payload))[step.field], step.value, step.label .. " carries edited value")
   eq(h.pipeline.isActive(), true, "host sees active page save")
   eq(h.pipeline.hasOutcome(), false, "pending write has no outcome")
@@ -151,8 +185,8 @@ local function prepare(h, eq)
   eq(h.page.hasUnsavedChanges(), true, "field edit marks dirty")
   eq(h.page.onSave(h.ctx), true, "save accepted")
   h.wakeup()
-  eq(#h.queue.entries, #h.reads + 1, "only PID write queued before reply")
-  expectWrite(h, 1, eq)
+  eq(#h.queue.entries, #h.reads + 1, "only the first check queued before its reply")
+  expectCheck(h, 1, eq)
   eq(countCommand(h, h.governor.writeCommand), 0, "no governor write before PID reply")
   eq(countCommand(h, h.eeprom.command), 0, "no EEPROM before profile replies")
   eq(#h.reports, 0, "accepted save has no immediate reportSave dialog")
@@ -179,16 +213,17 @@ local function expectReadCounts(h, runs, eq)
   eq(countCommand(h, h.governorConfig.writeCommand), 0, "governor config is never written")
 end
 
-local function acceptWrites(h, eq)
+local function acceptWrites(h, eq, between)
   for i = 1, #h.steps do
     local entry = expectWrite(h, i, eq)
     answer(h, entry, {})
-    eq(#h.queue.entries, #h.reads + i + 1, "profile reply queues only the next step")
+    eq(#h.queue.entries, #h.reads + 2 * i + 1, "profile reply queues only the next check or the commit")
     eq(h.page.hasUnsavedChanges(), true, "profile reply alone does not clear dirty")
     eq(h.pipeline.hasOutcome(), false, "profile reply alone has no outcome")
     expectReadCounts(h, 1, eq)
+    if between and i < #h.steps then between(i) end
   end
-  local commit = assert(h.queue.entries[#h.reads + #h.steps + 1], "EEPROM write missing")
+  local commit = assert(lastEntry(h), "EEPROM write missing")
   eq(commit.command, h.eeprom.command, "EEPROM follows every profile write")
   eq(commit.isWrite, true, "EEPROM classified as write")
   local progress = h.pipeline.getProgress() or {}
@@ -196,12 +231,13 @@ local function acceptWrites(h, eq)
   eq(progress.saved, false, "pending EEPROM is not saved")
   eq(countCommand(h, h.api.writeCommand), 1, "exactly one PID write")
   eq(countCommand(h, h.governor.writeCommand), h.spec.writeGovernor and 1 or 0, "conditional governor write count")
+  eq(countCommand(h, h.status.command), #h.steps, "one status check per profile write")
   eq(countCommand(h, h.eeprom.command), 1, "exactly one EEPROM write")
   return commit
 end
 
-local function accept(h, eq)
-  local commit = acceptWrites(h, eq)
+local function accept(h, eq, between)
+  local commit = acceptWrites(h, eq, between)
   local before = #h.queue.entries
   answer(h, commit, {})
   expectOutcome(h, "done", true, eq)
@@ -217,12 +253,12 @@ local function refuse(h, stepIndex, eq)
   -- A second-step refusal first acknowledges PID, proving that Governor failure is terminal too.
   for i = 1, stepIndex - 1 do
     answer(h, expectWrite(h, i, eq), {})
-    eq(#h.queue.entries, #h.reads + i + 1, "accepted prefix queues only the next write")
+    eq(#h.queue.entries, #h.reads + 2 * i + 1, "accepted prefix queues only the next check")
   end
   local step = h.steps[stepIndex]
   expectWrite(h, stepIndex, eq)
   -- errorHandler is the queue's final refusal callback. Bound any newly queued retries.
-  local index, refused = #h.reads + stepIndex, 0
+  local index, refused = #h.queue.entries, 0
   while h.queue.entries[index] and refused < 16 do
     local entry = h.queue.entries[index]
     eq(entry.command, step.api.writeCommand, "refusal path queues only the refused write")
@@ -244,6 +280,35 @@ local function refuse(h, stepIndex, eq)
   eq(h.page.hasUnsavedChanges(), true, "refusal retains dirty edit")
   eq(h.ui.runtime.readPending, false, "refusal starts no read")
   eq(#h.reports, 0, "refusal uses pipeline outcome without a second dialog")
+end
+
+-- The check before a step stops the save: nothing more is written and nothing is committed.
+local function stopped(h, stepIndex, outcome, sentAny, eq)
+  local step = h.steps[stepIndex]
+  local result = expectOutcome(h, "failed", false, eq)
+  eq(result.step, step.label, "stop names the unwritten step")
+  eq(result.check, outcome, "stop names the check outcome")
+  eq(result.sentAny, sentAny, "stop says whether a write reached the board")
+  eq(countCommand(h, step.api.writeCommand), 0, step.label .. " not sent after the stop")
+  eq(countCommand(h, h.eeprom.command), 0, "stop queues no EEPROM")
+  eq(countCommand(h, h.governor.writeCommand), 0, "stop sends no governor write")
+  eq(h.page.hasUnsavedChanges(), true, "stop retains dirty edit")
+  eq(h.ui.runtime.readPending, false, "stop starts no read")
+  eq(#h.reports, 0, "stop uses pipeline outcome without a second dialog")
+end
+
+-- Answer the first write, switch, then answer the check before the governor write.
+local function switchBeforeGovernor(h, eq, switch, outcome)
+  answer(h, expectWrite(h, 1, eq), {})
+  switch()
+  local check = expectCheck(h, 2, eq)
+  if outcome == "unanswered" then
+    check.errorHandler(check, "timeout")
+    h.wakeup()
+  else
+    answer(h, check, statusReply(h))
+  end
+  stopped(h, 2, outcome, true, eq)
 end
 
 local scenarios = {
@@ -268,23 +333,64 @@ local scenarios = {
     eq(h.page.onSave(h.ctx), false, "second save refused while active")
     h.wakeup()
     eq(#h.queue.entries, before, "second save queues nothing")
-    eq(countCommand(h, h.api.writeCommand), 1, "second save queues no duplicate PID write")
+    eq(countCommand(h, h.status.command), 1, "second save queues no duplicate check")
     eq(h.pipeline.getRevision(), revision, "second save does not replace pipeline run")
     eq(#h.reports, 0, "busy save opens no reportSave dialog")
     accept(h, eq)
-  end }
+  end },
+  -- The case the check exists for: a switch after the PID write sends nothing to the other profile.
+  { "BOARD SWITCH BEFORE GOVERNOR", function(h, eq)
+    switchBeforeGovernor(h, eq, function() h.profiles.board = 2 end, "refused")
+  end, governorOnly = true },
+  { "RADIO SWITCH BEFORE GOVERNOR", function(h, eq)
+    switchBeforeGovernor(h, eq, function() h.profiles.live = 2 end, "refused")
+  end, governorOnly = true, liveOnly = true },
+  { "CHECK UNANSWERED BEFORE GOVERNOR", function(h, eq)
+    switchBeforeGovernor(h, eq, function() end, "unanswered")
+  end, governorOnly = true },
+  { "SHORT STATUS REPLY", function(h, eq)
+    answer(h, expectCheck(h, 1, eq), { 0, 0, 0 })
+    stopped(h, 1, "unanswered", false, eq)
+  end },
+  -- With a PID profile sensor the board must be on the profile the values were read from.
+  { "BOARD ON OTHER PROFILE AT FIRST WRITE", function(h, eq)
+    h.profiles.board = 2
+    answer(h, expectCheck(h, 1, eq), statusReply(h))
+    stopped(h, 1, "refused", false, eq)
+  end, liveOnly = true },
+  -- Without one the radio cannot tell which profile was read; the board's first answer is taken.
+  { "SENSORLESS BOARD ON PROFILE 2", function(h, eq)
+    h.profiles.board = 2
+    accept(h, eq)
+  end, sensorlessOnly = true },
+  -- The save outlives the page: closing it between the writes changes nothing, and it opens again.
+  { "CLOSE BETWEEN WRITES", function(h, eq)
+    local commit = acceptWrites(h, eq, function() h.page.onClose() end)
+    answer(h, commit, {})
+    expectOutcome(h, "done", true, eq)
+    eq(h.page.hasUnsavedChanges(), false, "save finished after the close clears dirty")
+    eq((pcall(h.page.wakeup, h.ctx)), true, "page wakes again after the close")
+  end, governorOnly = true },
+  { "CLOSE THEN SWITCH", function(h, eq)
+    switchBeforeGovernor(h, eq, function() h.page.onClose(); h.profiles.board = 2 end, "refused")
+  end, governorOnly = true }
 }
 
 -- Governor writes require API >= 12.09, a successful read and a buildable payload.
 -- The real simulator profile builds that payload; both version and read-failure gates are covered.
 for _, spec in ipairs({
   { name = "12.09 PID + Governor", version = "12.09", readGovernor = true, writeGovernor = true },
+  { name = "12.09 PID + Governor, PID profile sensor", version = "12.09", readGovernor = true,
+    writeGovernor = true, live = 1 },
   { name = "12.08 PID only", version = "12.08", readGovernor = false, writeGovernor = false },
+  { name = "12.08 PID only, PID profile sensor", version = "12.08", readGovernor = false,
+    writeGovernor = false, live = 1 },
   { name = "12.09 Governor read refused", version = "12.09", readGovernor = true,
     writeGovernor = false, refuseGovernorRead = true }
 }) do
   for _, scenario in ipairs(scenarios) do
-    if not scenario.governorOnly or spec.writeGovernor then
+    if (not scenario.governorOnly or spec.writeGovernor) and (not scenario.liveOnly or spec.live)
+        and (not scenario.sensorlessOnly or not spec.live) then
       local label = "tail_rotor " .. spec.name .. " " .. scenario[1]
       local function eq(actual, expected, detail)
         equal(actual, expected, label .. " " .. detail)
