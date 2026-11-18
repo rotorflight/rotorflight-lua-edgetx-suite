@@ -64,6 +64,14 @@ local function newCtx(menuId)
     requestRebuild = function() end, requestClose = function() end,
     openPage = function() end, openHelp = function() end,
     askUnsavedChanges = function() return true end,
+  }
+end
+
+-- The context ui/home.lua hands a page's onReload: not the build's.
+local function reloadCtx(menuId)
+  return {
+    i18n = nil, preferences = _G.rfsuite.preferences,
+    menu = { getCurrentMenuId = function() return menuId end },
     refresh = function() end,
   }
 end
@@ -207,17 +215,17 @@ for _, case in ipairs(CASES) do
   if edited == 0 or shape(editedCtx.children) == reference then
     fail(label .. ": no control could be changed before the Reload (" .. edited .. " changed)")
   end
-  local reloadTotal = countOf(Page.onReload, newCtx(menuId))
-  local reloadCtx = newCtx(menuId)
-  Page.build(reloadCtx)
+  local reloadTotal = countOf(Page.onReload, reloadCtx(menuId))
+  local afterReload = newCtx(menuId)
+  Page.build(afterReload)
   checks = checks + 1
-  if shape(reloadCtx.children) ~= reference then
+  if shape(afterReload.children) ~= reference then
     fail(label .. ": an unstopped Reload does not draw the stored values")
   end
   local reloadStopped = 0
   for at = RELOAD_STEP, reloadTotal, RELOAD_STEP do
     Page = builtAndEdited()
-    local okReload = underLimit(at, Page.onReload, newCtx(menuId))
+    local okReload = underLimit(at, Page.onReload, reloadCtx(menuId))
     if not okReload then reloadStopped = reloadStopped + 1 end
     local ctx = newCtx(menuId)
     local ok, err = underLimit(RETRY_BUDGET, Page.build, ctx)

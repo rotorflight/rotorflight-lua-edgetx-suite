@@ -918,6 +918,14 @@ between two pages of one theme re-loads `configure.lua` and calls the factory ag
 that has not been saved is gone. Save before leaving a page, or keep what must survive in the
 preferences.
 
+Opened from the dashboard, a page runs under the widget's per-call instruction limit. A stop at
+that limit inside the module's load or factory is not a load failure: the settings page raises it
+on and builds again on the next pass. A *Reload* stopped before the module's own `onReload` ran
+is completed by the next build, which calls `onReload` first, with the build's context rather
+than the one *Reload* passes (it has no `refresh`). An `onReload` should therefore only read
+`ctx.preferences` and `ctx.page` and may run more than once; the shipped themes reset their
+loaded flag and read the configuration again.
+
 For the shared phase and Keys pages below, saving passes only the open page's settings to
 `DashboardLib.setThemeConfig`, which merges them into the stored configuration and preserves
 the other pages' values.
