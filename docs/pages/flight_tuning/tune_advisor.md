@@ -262,9 +262,8 @@ If saving fails, the page says what may still be active until a restart:
   any part already sent." means a PID or rate profile switch was seen between two writes. The writes before it
   were checked against the profile of the advice and are active until a restart; the ones after it were not sent.
   Restart the flight controller to restore the stored settings, switch back to the profile you flew on, and save
-  again. A
-  switch seen before the first write stops with "The settings on the flight controller are not the ones these
-  flights were flown with" and nothing changed.
+  again. A switch seen before the first write stops with "The settings on the flight controller are not the ones
+  these flights were flown with" and nothing changed.
 
 After a save, the axis shows "Changes saved to the flight controller. Fly again to check the new tune." for as long
 as the page stays open. Opened again before the next flight is saved, the page shows the advice of the same
