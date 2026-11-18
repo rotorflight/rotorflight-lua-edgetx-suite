@@ -851,6 +851,7 @@ function M.new(runtime, transport, mathModule, labels)
     elseif self.step > 1 then
       if next(self.dirty) then
         self.backTarget,self.confirmExit=self.step-1,true;self:release();self:rebuild()
+      elseif self.backToStep then self:backToStep(self.step - 1, self.preparationStep == self.step)
       else self:navigate(self.step - 1, 1) end
     else self:release(); self.confirmExit = true; self:rebuild() end
   end

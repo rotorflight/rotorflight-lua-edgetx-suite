@@ -5,7 +5,7 @@
   "inputs": {
     "bin/wizard/source-map.json": "c4cc0185cbf9644c6750654e77d21a0f01759db0ad0a1ab9dad4c1ba490fedbe",
     "src/rfsuite/app/pages/helicopter_setup/attitude_view.lua": "1750296f3f160c4c328b331cf34673bb803e936266f19712698dac996c6ea56a",
-    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "6430913dd2ca807281c0ce713d8c7db37e81d016943d9eafabbb8e5bd30973ac",
+    "src/rfsuite/app/pages/helicopter_setup/controller.lua": "ed972d5229c90c29ff9e476881d9da6c20c83971e4bc653b077c5bbb6dfc53a6",
     "src/rfsuite/app/pages/helicopter_setup/diagrams.lua": "632a4b83778b59aff2d452005be884114472e6f16ff0f8bb832743e093203a1e",
     "src/rfsuite/app/pages/helicopter_setup/elrs_link.lua": "4accd43d44b95d3a8f5a853d85149fdb07bc26f8ae2d69f39b9f789f3fb7cd6d",
     "src/rfsuite/app/pages/helicopter_setup/esc_link.lua": "532fdca33b26f78b2120756d80870ada8d318bf718592948564fa6e4e6099d36",
@@ -16,7 +16,7 @@
     "src/rfsuite/app/pages/helicopter_setup/history_store.lua": "4fddb757f91ab30116513d2b71938690b9f2af5ba8383aff15cd60f88d1ffbfa",
     "src/rfsuite/app/pages/helicopter_setup/labels.lua": "13af815e906f864364f8e4561d35bc526c1cbd4c11e6345146ac62cee8715b6e",
     "src/rfsuite/app/pages/helicopter_setup/math.lua": "f125cbdc577a170e8060688d69552d248e5ed6b092852c03139cc2d11d05b1a0",
-    "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "7a9746ae17b27871dae18bf25a4ccd96bbd98172e5fe1358dba0de98cb5d548f",
+    "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "66463bc584e42b2cf11d7a2745d9178291cdaa37e4c84ba4aa9484b16b7e03f9",
     "src/rfsuite/app/pages/helicopter_setup/page.lua": "8fb3d1883eba913184b840b997ce19cadc938c85c18caa5b9e914b19b90aa5e2",
     "src/rfsuite/app/pages/helicopter_setup/power_cards.lua": "2ba4097e9b25d9f4b4a9c19ab692f9b11165a04d48f4a91b5e067546b615aa05",
     "src/rfsuite/app/pages/helicopter_setup/servo_grid.lua": "ee93a8f97bdf75d503b4be0f84e78b9531a3d3b875f9f76d5fcf7ce5444877f5",

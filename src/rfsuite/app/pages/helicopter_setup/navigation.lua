@@ -84,6 +84,15 @@ function M.attach(w, ctx)
     self:resetVisit(index)
     self:navigate(index, 1)
   end
+  -- Back to the step before. When this visit started at the current step (a jump, or a Back that
+  -- was one), the step before was not walked in it, so it is a new visit with its own
+  -- "Before this step" card; otherwise Back moves as it always did.
+  function w:backToStep(index, anew)
+    if anew then
+      if self.logDebug then self:log("debug", "back from step %s, where this visit started", self.step) end
+      self:enterNewVisit(index)
+    else self:navigate(index, 1) end
+  end
   function w:startStep(index, complete)
     if not self:usable() or not index or index < 1 or index > 19 or index % 1 ~= 0 then return end
     if index >= 11 and self.rebootPending then
@@ -231,8 +240,10 @@ function M.attach(w, ctx)
     if self.logDebug then self:log("debug", "leaving a changed step, save=%s", tostring(save)) end
     local steps,target,jump = self.exitToSteps,self.backTarget,self.jumpTarget
     self.confirmExit, self.exitToSteps,self.backTarget,self.jumpTarget = nil, nil,nil,nil
+    -- Decided now, on the step the question was asked on.
+    local anew = self.preparationStep == self.step
     local after = jump and function() self:enterNewVisit(jump) end or
-      target and function() self:navigate(target,1) end or
+      target and function() self:backToStep(target, anew) end or
       steps and function() self:showSteps() end or function() self:close() end
     if save then self:save(after) else self:discard((steps or target or jump) and after or nil) end
   end
