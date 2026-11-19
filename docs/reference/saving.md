@@ -273,8 +273,8 @@ profile than the one the values were read from. Without that sensor the radio ca
 profile was read, so the profile the flight controller reports before the first write is taken, and
 the second write must find it unchanged. The save notice then reports a failed save; when the first
 write had already been sent, it says that a restart brings back the stored settings. That holds
-only while nothing stores the settings first: until the restart the part already sent stays
-active, and a later save on any page that goes through stores it too. The other
+only while nothing stores the settings first: until the restart, what already reached the flight
+controller can stay active, and a later save on any page that goes through stores it too. The other
 pages above check the profile when Save is pressed, as described, and not again between their
 writes.
 
