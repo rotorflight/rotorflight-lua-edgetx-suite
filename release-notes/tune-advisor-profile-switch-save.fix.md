@@ -1,1 +1,1 @@
-- **Tune Advisor Save stops before its next write when the PID or rate profile is switched during it (`flight_tuning/tune_advisor`)** (#1234)
+- **Tune Advisor Save stops before a write when the check before it finds another PID or rate profile active (`flight_tuning/tune_advisor`)** (#1234)
