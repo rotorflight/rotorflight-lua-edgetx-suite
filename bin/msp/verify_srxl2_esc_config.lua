@@ -164,12 +164,14 @@ do
   local interval, motor2 = fields[1], fields[2]
   if interval and motor2 then
     check("Telemetry Interval is 0..255", interval.opts.min == 0 and interval.opts.max == 255)
-    check("Motor 2 Channel is 0..31", motor2.opts.min == 0 and motor2.opts.max == 31)
+    -- The firmware numbers SRXL2 channels from 1: motor 2 is off (0) or on 2..32, and the row
+    -- runs over 1..32 with its lowest step standing for Off.
+    check("Motor 2 Channel runs over 1..32", motor2.opts.min == 1 and motor2.opts.max == 32)
     check("0 reads as Off", motor2.opts.display(0) == "Off" and interval.opts.display(0) == "Off")
     check("a channel reads as its number", motor2.opts.display(5) == "5")
     check("both rows carry an inline help text",
       type(interval.opts.helpText) == "string" and type(motor2.opts.helpText) == "string")
-    check("the values shown are the board's", interval.opts.get() == 9 and motor2.opts.get() == 0)
+    check("the values shown are the board's", interval.opts.get() == 9 and motor2.opts.get() == 1)
     rebuilds = 0
     interval.opts.set(0)
     check("an edit does not rebuild while the editor is open", rebuilds == 0, rebuilds)
@@ -195,6 +197,77 @@ do
     check("Save reboots the flight controller", saveRequest.reboot == true)
     check("the read and the save are logged at debug",
       logged("debug", "read: throttle_rate_hz=333") and logged("debug", "save: throttle_rate_hz=333"))
+  end
+end
+
+print("page: Motor 2 Channel through the number field")
+do
+  -- The row's own get/set/display, driven through the real number field the way the radio's
+  -- editor drives it: by step index, from 0 at the row's minimum.
+  local RealControls = assert(loadfile(source("src/rfsuite/ui/controls.lua")))()
+  local function openWith(channel)
+    page.onClose()
+    local read = open()
+    read.processReply(read, { 1, 250, 0, 7, channel })
+    build()
+    local motor2 = fields[2]
+    if not motor2 then return nil end
+    local children = {}
+    RealControls.appendNumberField(children, 0, 0, 480, motor2.label, motor2.opts)
+    for i = 1, #children do
+      if children[i].type == "numberEdit" then return children[i] end
+    end
+    return nil
+  end
+  local function shown(edit) return edit.display(edit.get()) end
+  -- What a save would write as the motor 2 byte: the bytes are what the firmware acts on.
+  local function ui_motor2()
+    saveRequest = nil
+    trySave()
+    local step = saveRequest and saveRequest.steps and saveRequest.steps[1]
+    saveRequest = nil
+    return step and step.payload[4]
+  end
+
+  local edit = openWith(0)
+  check("the editor offers 32 steps: Off and 2..32", edit ~= nil and edit.min == 0 and edit.max == 31,
+    edit and (tostring(edit.min) .. ".." .. tostring(edit.max)))
+  if edit then
+    check("a board on 0 shows Off", edit.get() == 0 and shown(edit) == "Off", shown(edit))
+    check("the step above Off is channel 2", edit.display(1) == "2", edit.display(1))
+    check("the top step is channel 32", edit.display(31) == "32", edit.display(31))
+    edit.set(1)
+    check("stepping up from Off sets channel 2", ui_motor2() == 2 and shown(edit) == "2", ui_motor2())
+    check("channel 2 marks the page unsaved", page.hasUnsavedChanges() == true)
+    edit.set(0)
+    check("stepping down from 2 sets Off (0), never 1", ui_motor2() == 0 and shown(edit) == "Off", ui_motor2())
+    edit.set(31)
+    check("the top step sets channel 32", ui_motor2() == 32, ui_motor2())
+    local ok = trySave()
+    local step = saveRequest and saveRequest.steps and saveRequest.steps[1]
+    check("channel 32 is written as 32", ok == true and step ~= nil and step.payload[4] == 32,
+      step and table.concat(step.payload, ","))
+  end
+
+  edit = openWith(2)
+  check("a board on 2 shows 2", edit ~= nil and shown(edit) == "2", edit and shown(edit))
+  edit = openWith(32)
+  check("a board on 32 shows 32", edit ~= nil and shown(edit) == "32", edit and shown(edit))
+
+  logs = {}
+  edit = openWith(1)
+  check("a board on 1, which the firmware reads as off, shows Off", edit ~= nil and shown(edit) == "Off",
+    edit and shown(edit))
+  check("a channel the firmware reads as off is logged at warn", logged("warn", "motor2_channel=1 is outside 2..32"))
+  if edit then
+    edit.set(1)
+    check("stepping up from a board on 1 sets channel 2", ui_motor2() == 2, ui_motor2())
+  end
+  edit = openWith(33)
+  check("a board above 32 shows Off", edit ~= nil and shown(edit) == "Off", edit and shown(edit))
+  if edit then
+    edit.set(0)
+    check("Off on a board above 32 is not an edit", page.hasUnsavedChanges() == false)
   end
 end
 
