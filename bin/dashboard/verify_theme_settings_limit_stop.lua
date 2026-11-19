@@ -17,10 +17,11 @@ local Stubs = assert(loadfile("bin/accounting/stubs/edgetx.lua"))()
 local FC = assert(loadfile("bin/accounting/stubs/fc.lua"))()
 
 -- Theme, page: the module-heavy themes' first page, two box themes' phase pages, a page with many
--- rows.
+-- rows. `fine` puts a stop on every one of the Reload's first FINE_RELOAD instructions as well,
+-- where the page sets its Reload state up.
 local CASES = {
   { "system/grid", "look" },
-  { "system/deck", "look" },
+  { "system/deck", "look", fine = true },
   { "system/default", "preflight" },
   { "system/@kse4", "postflight" },
   { "system/urban", "telemetry" },
@@ -29,6 +30,7 @@ local CASES = {
 -- Reload, which is shorter and whose module factory takes only a few dozen instructions.
 local STEP = 400
 local RELOAD_STEP = 50
+local FINE_RELOAD = 120
 -- What a retry pass leaves the build: the limit less the background work the pass runs beside it.
 local RETRY_BUDGET = 16000
 local RETRIES = 3
@@ -158,6 +160,59 @@ local function compare(label, at, total, drawn, reference)
   end
 end
 
+-- The stop positions of a Reload: every RELOAD_STEP instructions, and with `fine` every one of
+-- the first FINE_RELOAD as well.
+local function reloadPositions(total, fine)
+  local out = {}
+  if fine then
+    for at = 1, math.min(FINE_RELOAD, total) do out[#out + 1] = at end
+  end
+  for at = RELOAD_STEP, total, RELOAD_STEP do
+    if not fine or at > FINE_RELOAD then out[#out + 1] = at end
+  end
+  return out
+end
+
+-- How many instructions a Reload has run, counted as underLimit counts them, once the page's
+-- onReload has finished its first statement: the count hook runs before the line hook of the same
+-- instruction, so at the line event of the second statement that instruction is counted and not
+-- yet run. A stop at `at` runs `at` instructions. From there on the page has noted the Reload.
+local function notedAfter(Page, ctx)
+  local n, lines, noted = 0, 0, nil
+  local fn, args = Page.onReload, table.pack(ctx)
+  local function lineHook(event)
+    if event == "count" then
+      n = n + 1
+    elseif noted == nil and debug.getinfo(2, "f").func == fn then
+      lines = lines + 1
+      if lines == 2 then noted = n - 1 end
+    end
+  end
+  -- The same statements as underLimit's, so the two count the same instructions.
+  local ok, err = pcall(function()
+    debug.sethook(lineHook, "l", 1)
+    fn(table.unpack(args, 1, args.n))
+    debug.sethook()
+  end)
+  debug.sethook()
+  if not ok then error(err, 0) end
+  return noted
+end
+
+-- Judges the page after one stopped Reload. A stop before the page has noted the Reload, like one
+-- in ui/home.lua before it calls the page, leaves the page as it was, as though Reload had not
+-- been pressed: accepted only as a leading run of positions, all of them before `noted`. After
+-- that every position must end as the stored values draw the page. Answers whether the leading
+-- run still goes on.
+local function judgeReload(label, at, total, drawn, reference, unchanged, leading, noted)
+  if leading and drawn == unchanged and at < noted then
+    checks = checks + 1
+    return true
+  end
+  compare(label, at, total, drawn, reference)
+  return false
+end
+
 for _, case in ipairs(CASES) do
   local theme, page = case[1], case[2]
   local menuId = "settings_dashboard_settings_" .. hex(theme) .. "_" .. page .. "_page"
@@ -191,10 +246,8 @@ for _, case in ipairs(CASES) do
 
   -- Reload after a whole build whose controls the pilot has changed and not saved: the page's
   -- onReload under the stop, then the build the host runs. A Reload discards the changes, so the
-  -- page has to end as the stored values draw it -- the cold build's reference. The positions
-  -- start once the page has noted the Reload (its first statement): a stop on the instructions
-  -- before that, like one in ui/home.lua before it calls the page, leaves the page as it was, as
-  -- though Reload had not been pressed.
+  -- page has to end as the stored values draw it -- the cold build's reference (see judgeReload
+  -- for a stop before the page has noted the Reload).
   local function builtAndEdited()
     world()
     local Page = loadPage()
@@ -210,12 +263,16 @@ for _, case in ipairs(CASES) do
     end
     return Page, edited
   end
+  local noted = notedAfter(builtAndEdited(), reloadCtx(menuId))
+  checks = checks + 1
+  if type(noted) ~= "number" then fail(label .. ": the Reload's first statement was not seen") end
   local Page, edited = builtAndEdited()
   local editedCtx = newCtx(menuId)
   Page.build(editedCtx)
+  local editedShape = shape(editedCtx.children)
   -- Control: the changes reach what a build draws, or a Reload that kept them would pass unseen.
   checks = checks + 1
-  if edited == 0 or shape(editedCtx.children) == reference then
+  if edited == 0 or editedShape == reference then
     fail(label .. ": no control could be changed before the Reload (" .. edited .. " changed)")
   end
   local reloadTotal = countOf(Page.onReload, reloadCtx(menuId))
@@ -225,16 +282,104 @@ for _, case in ipairs(CASES) do
   if shape(afterReload.children) ~= reference then
     fail(label .. ": an unstopped Reload does not draw the stored values")
   end
-  local reloadStopped = 0
-  for at = RELOAD_STEP, reloadTotal, RELOAD_STEP do
+  local reloadStopped, leading = 0, true
+  for _, at in ipairs(reloadPositions(reloadTotal, case.fine)) do
     Page = builtAndEdited()
     local okReload = underLimit(at, Page.onReload, reloadCtx(menuId))
     if not okReload then reloadStopped = reloadStopped + 1 end
     local ctx = newCtx(menuId)
     local ok, err = underLimit(RETRY_BUDGET, Page.build, ctx)
     local drawn = settle(Page, menuId, ok, err, shape(ctx.children))
-    compare(label .. " (Reload)", at, reloadTotal, drawn, reference)
+    leading = judgeReload(label .. " (Reload)", at, reloadTotal, drawn, reference, editedShape, leading, noted or 0)
   end
+  checks = checks + 1
+  if reloadStopped == 0 then fail(label .. ": no position stopped the Reload") end
+end
+
+-- A theme whose module is made by a factory that reads its value when it runs, and that has no
+-- reload of its own: the page's Reload discards an unsaved change only by running the factory
+-- again. Such a module stands in for the Deck theme's configure.lua here, so the page lists and
+-- finds it as that theme. A stop on any instruction of the Reload must still end with the stored
+-- value drawn: a module the Reload has not yet thrown away is thrown away by the build after it.
+do
+  local label = "factory module without a reload of its own"
+  local menuId = "settings_dashboard_settings_" .. hex("system/deck") .. "_look_page"
+  local STORED = 1
+
+  local function fixtureWorld()
+    world()
+    local stubLoadScript = _G.loadScript
+    _G.loadScript = function(path, mode)
+      if type(path) == "string" and string.find(path, "themes/deck/configure.lua", 1, true) then
+        return function()
+          return function()
+            local value = STORED
+            return {
+              build = function(ctx)
+                ctx.children[#ctx.children + 1] = {
+                  type = "choice", label = "Fixture value", values = { "one", "two" },
+                  get = function() return value end,
+                  set = function(v) value = v end,
+                }
+              end,
+            }
+          end
+        end
+      end
+      return stubLoadScript(path, mode)
+    end
+  end
+
+  local function drawnBy(Page)
+    local ctx = newCtx(menuId)
+    Page.build(ctx)
+    return shape(ctx.children), ctx.children
+  end
+
+  -- Built, and its value changed and not saved.
+  local function builtAndEdited()
+    fixtureWorld()
+    local Page = loadPage()
+    local _, children = drawnBy(Page)
+    for i = 1, #children do
+      if children[i].label == "Fixture value" then children[i].set(2) end
+    end
+    return Page
+  end
+
+  local noted = notedAfter(builtAndEdited(), reloadCtx(menuId))
+  checks = checks + 1
+  if type(noted) ~= "number" then fail(label .. ": the Reload's first statement was not seen") end
+  fixtureWorld()
+  local reference = drawnBy(loadPage())
+  local Page = builtAndEdited()
+  local editedShape = drawnBy(Page)
+  -- Controls: the module is the one drawn, and the change reaches what a build draws.
+  checks = checks + 1
+  if not string.find(reference, "Fixture value=1", 1, true) or not string.find(editedShape, "Fixture value=2", 1, true) then
+    fail(label .. ": the fixture module is not the one drawn (" .. reference .. " / " .. editedShape .. ")")
+  end
+  local reloadTotal = countOf(Page.onReload, reloadCtx(menuId))
+  -- Control: an unstopped Reload runs the factory again and draws the stored value.
+  checks = checks + 1
+  if drawnBy(Page) ~= reference then
+    fail(label .. ": an unstopped Reload does not draw the stored value")
+  end
+
+  local reloadStopped, leading, unchangedSeen = 0, true, 0
+  for at = 1, reloadTotal do
+    Page = builtAndEdited()
+    local okReload = underLimit(at, Page.onReload, reloadCtx(menuId))
+    if not okReload then reloadStopped = reloadStopped + 1 end
+    local ctx = newCtx(menuId)
+    local ok, err = underLimit(RETRY_BUDGET, Page.build, ctx)
+    local drawn = settle(Page, menuId, ok, err, shape(ctx.children))
+    leading = judgeReload(label .. " (Reload)", at, reloadTotal, drawn, reference, editedShape, leading, noted or 0)
+    if leading then unchangedSeen = unchangedSeen + 1 end
+  end
+  -- Controls: the positions start before the page notes the Reload, and the stop lands inside it.
+  checks = checks + 1
+  if unchangedSeen == 0 then fail(label .. ": no position fell before the page noted the Reload") end
   checks = checks + 1
   if reloadStopped == 0 then fail(label .. ": no position stopped the Reload") end
 end

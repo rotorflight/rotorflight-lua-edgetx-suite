@@ -921,8 +921,9 @@ preferences.
 Opened from the dashboard, a page runs under the widget's per-call instruction limit. A stop at
 that limit inside the module's load or factory is not a load failure: the settings page raises it
 on and builds again on the next pass. A *Reload* that the settings page has begun but that was
-stopped before the module's own `onReload` ran is completed by the next build, which calls
-`onReload` first. It then gets the build's context, which has no `refresh` (the context *Reload*
+stopped before it finished is completed by the next build: if the stop came before the page had
+discarded the module, the build discards it, so the factory runs again; and if the module's own
+`onReload` had not run, the build calls it first. It then gets the build's context, which has no `refresh` (the context *Reload*
 passes has one). An `onReload` should therefore only read `ctx.preferences` and `ctx.page` and
 may run more than once; the shipped themes reset their loaded flag and read the configuration
 again. A stop that lands before the settings page has begun the Reload leaves the page as it was,

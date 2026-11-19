@@ -16,8 +16,8 @@ local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.
 -- upvalues, and running the file again is the only way to get a module that has read nothing, so
 -- the standard values and a model's overrides are never shown by the same copy.
 --
--- Written only when a theme's module fails to load or its load is stopped, so the log module is
--- read only then.
+-- Written only when a theme's module fails to load, its load is stopped or a Reload is stopped, so
+-- the log module is read only then.
 local function emitLog(message, level)
   local mode = (_G.rfsuite and _G.rfsuite.loadMode) or "bt"
   local okLoad, chunk = pcall(loadScript, _G.rfsuite.paths.core .. "/lib/log.lua", mode)
@@ -353,10 +353,9 @@ function M.getHeaderActions()
 end
 
 
-function M.onReload(ctx)
-  -- Owed until the theme's own reload has run (see M.build).
-  ui.reloadOwed = true
-  ensureDeps()
+-- What a Reload throws away: the theme lists and the theme's module, so both are read afresh and
+-- the module's factory runs again. Only then is the Reload owed nothing but the theme's own reload.
+local function discardForReload()
   ui.loaded = false
   ui.themes = nil
   ui.configurableThemes = nil
@@ -367,6 +366,15 @@ function M.onReload(ctx)
   ui.activeTheme = nil
   ui.activeModule = nil
   ui.loadError = nil
+  ui.reloadOwed = "callback"
+end
+
+function M.onReload(ctx)
+  -- Owed in two stages until the Reload has finished (see M.build): "discard" until the module is
+  -- thrown away, then "callback" until the theme's own reload has run.
+  ui.reloadOwed = "discard"
+  discardForReload()
+  ensureDeps()
 
   ensureLoaded(ctx.preferences)
   local module = loadThemeModule(ctx)
@@ -417,6 +425,13 @@ end
 
 function M.build(ctx)
   ensureDeps()
+  -- A Reload stopped at the instruction limit before it had thrown the theme's module away: the
+  -- module still holds what its factory read before, so it is thrown away here, before anything
+  -- loads it again.
+  if ui.reloadOwed == "discard" then
+    emitLog("theme settings reload stopped before its module was discarded, discarded by the build", "debug")
+    discardForReload()
+  end
   ensureLoaded(ctx.preferences)
   ui.runtime.setRequestRebuild(ctx.requestRebuild)
 
@@ -426,7 +441,8 @@ function M.build(ctx)
   -- theme's module as it was: the module is kept between loads, and it still holds the values it
   -- read before, beside whatever its factory has set up afresh since. The build after it runs the
   -- theme's reload first, so the page shows what is stored now.
-  if ui.reloadOwed and type(module) == "table" and type(module.onReload) == "function" then
+  if ui.reloadOwed == "callback" and type(module) == "table" and type(module.onReload) == "function" then
+    emitLog("theme settings reload stopped before the theme's own reload, run by the build", "debug")
     module.onReload(ctx)
   end
   ui.reloadOwed = nil
