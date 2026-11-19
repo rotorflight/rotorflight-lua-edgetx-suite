@@ -23,7 +23,7 @@ protocol, which it sets by itself once a serial port carries the *SRXL2 ESC* fun
 | Setting | What it does |
 | --- | --- |
 | Telemetry Interval | How many throttle frames pass between two telemetry requests to the ESC. 0 to 255, default 7; *Off* (0) stops the telemetry polling. |
-| Motor 2 Channel | For dual-motor Smart ESCs (for example the Spektrum SPMXAE1020 of the Blade 230 S Smart): the SRXL2 channel that carries motor 2. *Off* (the default) for an ESC with one motor, otherwise 1 to 31; motor 1 is always channel 0. With a channel set, the flight controller drives motor 2 from the mixer's second motor output. |
+| Motor 2 Channel | For dual-motor Smart ESCs (for example the Spektrum SPMXAE1020 of the Blade 230 S Smart): the SRXL2 channel that carries motor 2. *Off* (the default) for an ESC with one motor, otherwise 2 to 32; motor 1 is always channel 1, as the flight controller numbers SRXL2 channels from 1. With a channel set, the flight controller drives motor 2 from the mixer's second motor output. |
 
 ## Notes
 
@@ -40,6 +40,8 @@ protocol, which it sets by itself once a serial port carries the *SRXL2 ESC* fun
 - The flight controller reads these settings only at boot, and fixes the motor 2 channel
   there, so saving sends them and then reboots it; the link drops and comes back. See
   [Saving configuration](../../../reference/saving.md).
+- A motor 2 channel outside 2 to 32 on the flight controller, such as 1, drives no second motor:
+  the flight controller treats it as off, and the row shows it as *Off*.
 
 ## Related
 
