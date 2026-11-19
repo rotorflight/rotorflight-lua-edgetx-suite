@@ -5217,6 +5217,15 @@ function Runtime.new(zone, options)
     local readDue = (now - (self._lastTelemetryReadAt or 0)) >= TELEMETRY_READ_SECONDS
     countSharedPass(now, readDue)
     tickMspRuntime(self, carry)
+    -- An arm or disarm task that does heavy work in its first call (the ondisarm flight log loads
+    -- its modules and writes the card) has just made that call inside the event runtime: the read
+    -- steps aside to the next call, which then finds it due, so the two never share a widget call.
+    if readDue and EventsRuntime and type(EventsRuntime.passTaken) == "function" and EventsRuntime.passTaken() then
+      readDue = false
+      if self._traceOn then
+        Log.emitf("rfsuite.widget", "trace", "telemetry read steps aside: an event task took this call")
+      end
+    end
     
     local reloaded = (reloadPreferencesIfNeeded(self, false, isBackground) == true)
     self.state.zoneW = self.zone and self.zone.w or 0

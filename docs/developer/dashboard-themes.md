@@ -147,6 +147,9 @@ together with the read and the first postflight reads, run into the instruction 
 carry a reload gets off a telemetry-read pass, so a reload released on a read pass can still move
 one logic tick further. In practice the hold ends after one to two seconds; at the three-second
 limit, with that carry and the logic tick on top, it can last a little longer.
+The flight log write itself does not share a widget call with the telemetry read either: when the
+`ondisarm` flight log task makes its first call (`Events.passTaken()`), the read steps aside to the
+next call (see `docs/developer/background-tasks.md`).
 
 Two consequences worth knowing before writing a theme:
 

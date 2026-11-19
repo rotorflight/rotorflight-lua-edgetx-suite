@@ -100,6 +100,11 @@ telemetry read, when logic ticks come closer together than the read interval, so
 free. Work that does not need that pass waits one logic tick: the SmartFuel wake and the Tune
 Advisor capture. Every other host passes nothing.
 
+`Events.passTaken()` answers the other way round: it is true after a wakeup that made the first
+call of an `onarm` or `ondisarm` task marked `ownPass` (see below). The dashboard then leaves its
+telemetry read for the next logic tick, which finds it due, so that call and the read never share a
+widget call, however far apart the ticks are.
+
 ## The ordered runners: `onconnect`, `onarm`, `ondisarm`
 
 Each of these categories is a folder with a `manifest.lua`, a `tasks.lua` that returns
@@ -108,8 +113,11 @@ Each of these categories is a folder with a `manifest.lua`, a `tasks.lua` that r
 **How a runner works:**
 
 - The manifest is an ordered list. An entry is either a name or
-  `{ name = ..., context = "both" | "tool" | "widget" }`. A plain name means `both`. A task runs
-  only in a context its entry allows.
+  `{ name = ..., context = "both" | "tool" | "widget", ownPass = true }`. A plain name means
+  `both`. A task runs only in a context its entry allows.
+- An entry marked `ownPass` does heavy work in its first call. The runner reports that call
+  (`runner.passTaken()`, read by the event runtime as `Events.passTaken()`), so the host can keep its
+  own heavy work out of the same widget call. The task itself runs exactly as an unmarked one.
 - Each wakeup, the runner takes the **first** eligible task that is neither complete nor failed,
   calls its `wakeup(args)`, and then asks `isComplete()`. That makes at most one task per wakeup,
   so the tasks run strictly one after another.
@@ -195,7 +203,7 @@ Widget only.
 | Task | What it does |
 | --- | --- |
 | `flight_record` | Closes the record and moves it to `last`, so every task behind it reads a finished flight. |
-| `flight_log` | When the flight log is on and the flight lasted at least the minimum duration (30 s by default), writes its line to the card and counts a use of the selected battery, once per battery per connection. It is near the front because a pack unplugged soon after the disarm drops `session.flightlog`. |
+| `flight_log` | When the flight log is on and the flight lasted at least the minimum duration (30 s by default), writes its line to the card and counts a use of the selected battery, once per battery per connection. It is near the front because a pack unplugged soon after the disarm drops `session.flightlog`. It is marked `ownPass`: the dashboard's telemetry read steps aside for the call in which it loads its modules and writes the card; the two together, with the reactive sweep after them, came to the instruction limit a widget call is stopped at. |
 | `flight_stats` | Reads the board's flight count and total flight time again. |
 | `dataflash_summary` | Reads the blackbox flash state again. |
 | `tune_history` | Marks the flight's Tune Advisor numbers as owed. It completes in the same call, so it never holds up the chain. |
