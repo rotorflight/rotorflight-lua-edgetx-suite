@@ -268,6 +268,10 @@ If saving fails, the page says what may still be active until a restart:
   again. A switch seen before the first write stops with "The settings on the flight controller are not the ones
   these flights were flown with" and nothing changed.
 
+Until that restart the part already sent stays active, and anything that makes the flight controller store its
+settings, such as a later save on any page that goes through, stores it too. So restart the flight controller
+before saving again or flying.
+
 After a save, the axis shows "Changes saved to the flight controller. Fly again to check the new tune." for as long
 as the page stays open. Opened again before the next flight is saved, the page shows the advice of the same
 flights again, and *Save* stops with "The settings on the flight controller are not the ones these flights were
