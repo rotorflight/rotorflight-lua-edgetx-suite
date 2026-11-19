@@ -239,10 +239,13 @@ it once, fly, and check both again.
    unchecked, and the save stops as a failed write. Closing the page does not stop a save that is running.
 4. **Saves to the flight controller** without a reboot, so the changes survive a restart.
 5. **Checks the saved settings**: reads them back and reports how many changes were written and read back, or
-   names the first one that differs. If the settings cannot be read back, it says the save is unverified; if a
-   profile changed during the save after the last check, it asks you to check both profiles. A switch in the
-   moment between the flight controller's answer and the write reaching it is not caught before that write; this
-   check finds it only if the profile is still switched when the settings are read back.
+   names the first one that differs. If the settings cannot be read back, it says the save is unverified; if it
+   finds other profiles active than the advice's, it asks you to check both profiles. A switch in the moment
+   between the flight controller's answer and the write reaching it is not caught before that write. This check
+   finds it if the profile is still switched when the flight controller answers its first read, which asks for
+   the active profiles before the settings are read back; a reporting *PID#* or *RTE#* sensor also finds a switch
+   of its profile that is still in place once the settings are read. Without the sensors, a switch after that
+   first answer is not found.
 
 With Betaflight, Raceflight or KISS rates the page can only give the rate change as a percentage, so *Save* does not
 write it, and does not write the FF change that goes with it either: FF on its own would change the stick feel.
