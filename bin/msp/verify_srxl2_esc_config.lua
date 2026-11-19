@@ -269,6 +269,11 @@ do
     edit.set(0)
     check("Off on a board above 32 is not an edit", page.hasUnsavedChanges() == false)
   end
+  -- An untouched value is written back exactly as read; the flight controller repairs it.
+  for _, raw in ipairs({ 1, 33, 255 }) do
+    openWith(raw)
+    check("an untouched board value " .. raw .. " is written back as read", ui_motor2() == raw, ui_motor2())
+  end
 end
 
 print("page: a firmware without the message")
