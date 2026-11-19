@@ -601,7 +601,7 @@ do
 
     local now = 0
     _G.getTime = function() return now end
-    local heavyCalls, heavyDone = 0, false
+    local heavyCalls, heavyDone, lightCalls = 0, false, 0
     local realLoadScript = _G.loadScript
     _G.loadScript = function(path, mode)
       if type(path) == "string" and string.find(path, TASKS_DIR, 1, true) then
@@ -612,7 +612,9 @@ do
             return { wakeup = function() heavyCalls = heavyCalls + 1 end, isComplete = function() return heavyDone end }
           end
         elseif string.find(path, "/light.lua", 1, true) then
-          return function() return { wakeup = function() end, isComplete = function() return false end } end
+          return function()
+            return { wakeup = function() lightCalls = lightCalls + 1 end, isComplete = function() return false end }
+          end
         end
         return nil
       end
@@ -637,7 +639,8 @@ do
     runner.wakeup({})
     now = 30
     runner.wakeup({})
-    check(taken() == false, "own pass " .. level .. ": a call of an unmarked task is not reported")
+    check(lightCalls >= 1 and taken() == false, "own pass " .. level .. ": a call of an unmarked task is not reported",
+      lightCalls)
     local took = find("rfsuite.tasks.ownrun", "task heavy took this call")
     if level == "off" then
       check(#took == 0, "own pass off: no line", #took)

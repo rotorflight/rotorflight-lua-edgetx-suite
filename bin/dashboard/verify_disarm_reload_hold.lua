@@ -154,7 +154,7 @@ local function runPhase(pad, slow)
   Stubs.sensors["Thr%"] = 0
   local disarmAt = getTime()
   local r = { loggedPass = nil, loadedPass = nil, loadedAfter = nil, held = false, chainAtLoad = nil,
-    readInLoggedPass = nil }
+    readInLoggedPass = nil, readAfterLogged = nil }
   local function chain()
     return type(Events.edgeChainActive) == "function" and Events.edgeChainActive() or nil
   end
@@ -173,6 +173,7 @@ local function runPhase(pad, slow)
         r.loggedPass, r.readInLoggedPass = i, readHere
       end
     end
+    if r.loggedPass ~= nil and i == r.loggedPass + 1 then r.readAfterLogged = readHere end
     if r.loadedPass == nil and key0 ~= postKey and widget.themeStateKey == postKey then
       r.loadedPass, r.loadedAfter, r.chainAtLoad = i, (getTime() - disarmAt) / 100, chain()
     end
@@ -217,6 +218,8 @@ for pad = 0, 2 do
   check(r.loggedPass ~= nil and r.readInLoggedPass == false,
     tag .. ": alone -- the pass that wrote the flight log did not also run the telemetry read",
     r.loggedPass and ("pass " .. r.loggedPass .. (r.readInLoggedPass and " read" or " no read")) or "not written")
+  check(r.readAfterLogged == true, tag .. ": recovered -- the read runs in the pass right after the flight log's",
+    tostring(r.readAfterLogged))
 end
 
 -- The foreground guard during a hold that began after the reload had already been carried off a
