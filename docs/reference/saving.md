@@ -263,9 +263,20 @@ its writes, and stops at the first write for which the flight controller, or the
 sensors, report other profiles than the advice's: that write and every later one are not sent and
 no EEPROM commit is queued. A switch in the moment between that answer and the write is not seen
 before the write. A checked write whose answer is lost is not sent again unchecked; the save then
-stops as a failed write. The shared save offers this check before a write to any page. The other
+stops as a failed write. The shared save offers this check before a write to any page.
+
+Tail Rotor saves its PID profile and then its governor profile in two writes, and the governor
+profile write carries the whole governor profile, not only Tail Torque Assist. Its Save asks the
+flight controller for the active PID profile the same way right before each write, and stops at the
+first write for which the flight controller, or the radio's PID profile sensor, reports another PID
+profile than the one the values were read from. Without that sensor the radio cannot tell which
+profile was read, so the profile the flight controller reports before the first write is taken, and
+the second write must find it unchanged. The save notice then reports a failed save; when the first
+write had already been sent, it says that a restart brings back the stored settings. That holds
+only while nothing stores the settings first: until the restart, what already reached the flight
+controller can stay active, and a later save on any page that goes through stores it too. The other
 pages above check the profile when Save is pressed, as described, and not again between their
-writes; Tail Rotor saves its PID profile and then its governor profile in two writes.
+writes.
 
 Power > Sources writes the battery configuration, whose cell values belong to the battery profiles
 on MSP API 12.10. Its Save sends every profile's cell values back as they were read, so a battery
@@ -462,9 +473,12 @@ one that receives no reply is shown as a failed save. A Save pressed while the s
 running is ignored. After a successful save, each page reads the values back if it is still open.
 
 Tail Rotor under Flight Tuning > Advanced sends its save through the tool's shared save: the PID
-profile write and, when available, the governor profile write, then one EEPROM commit. The page is
-marked clean only once the flight controller has stored the values; a refused or unanswered write
-or commit is shown as a failed save. A Save pressed while its save is still running is ignored.
+profile write and, when available, the governor profile write, then one EEPROM commit. Each write
+follows a check of the active PID profile and stops the save when the profile has moved (see
+*When the profile changes under an open page* above); a write whose reply is lost is not sent
+again. The page is marked clean only once the flight controller has stored the values; a refused
+or unanswered write or commit is shown as a failed save. A Save pressed while its save is still
+running is ignored.
 After a successful save, the page reads the values back from the flight controller if it is still
 open.
 
