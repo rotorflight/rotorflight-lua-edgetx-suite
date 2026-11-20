@@ -1,1 +1,0 @@
-- **Helicopter Setup adds power source checks, battery cell count and capacity, and SmartFuel mode (`helicopter_setup`)**

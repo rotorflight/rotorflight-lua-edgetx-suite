@@ -1,1 +1,0 @@
-- **Motor 2 Channel on the SRXL2 ESC page counts from 1 like the flight controller: Off or 2 to 32, with motor 1 on channel 1 (`setup/esc_motors/srxl2`)**

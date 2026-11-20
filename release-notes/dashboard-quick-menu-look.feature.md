@@ -1,1 +1,0 @@
-- **One quick menu and battery picker for every dashboard theme, in a light or dark scheme, with a rotary style (`widgets/dashboard/fullscreen_menu`)**

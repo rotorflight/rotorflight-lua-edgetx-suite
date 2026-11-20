@@ -1,1 +1,0 @@
-- **In-flight tuning is switched on per radio model, and only after the radio is set up (`settings/dashboard/inflight`)**

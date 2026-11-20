@@ -1,1 +1,0 @@
-- **Tune Advisor keeps raising P after the change journal grows past 64 KiB (`flight_tuning/tune_advisor`)** (#1170)

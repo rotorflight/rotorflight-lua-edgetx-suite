@@ -1,1 +1,0 @@
-- **Bluejay keeps cached settings with their ESC target and refuses Save until that target is read (`setup/esc_motors/esc_tools/escmfg/bluejay`)** (#600)

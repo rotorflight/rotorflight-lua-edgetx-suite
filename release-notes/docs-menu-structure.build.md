@@ -1,1 +1,0 @@
-- **The documentation gains a generated map of the configuration tool's menus, kept current by CI (`bin/docs/menu_structure`)**

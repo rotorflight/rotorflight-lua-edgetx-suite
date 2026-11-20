@@ -1,1 +1,0 @@
-- **The suite's folders on the card are named in one place; nothing on the card moves (`lib/paths`)**

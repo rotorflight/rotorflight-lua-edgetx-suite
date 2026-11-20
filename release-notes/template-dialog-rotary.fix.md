@@ -1,1 +1,0 @@
-- **The model template's switch dialog works with the rotary and the keys, not only by touch (`templates/5.Rotorflight`)**

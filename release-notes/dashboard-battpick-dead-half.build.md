@@ -1,1 +1,0 @@
-- **The Urban, Grid and Deck battery pickers load less code; the picture and every press are unchanged (`widgets/dashboard/themes`)**

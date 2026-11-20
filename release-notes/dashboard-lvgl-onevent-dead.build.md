@@ -1,1 +1,0 @@
-- **The dashboard no longer probes for an LVGL call EdgeTX does not have; nothing changes on the radio (`widgets/dashboard/runtime`)** (#1038)

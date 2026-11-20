@@ -1,1 +1,0 @@
-- **Tune Advisor no longer counts a flight twice when the flight controller was not cleared after it (`flight_tuning/tune_advisor`)** (#1167)

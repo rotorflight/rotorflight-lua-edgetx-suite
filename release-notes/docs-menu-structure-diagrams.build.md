@@ -1,1 +1,0 @@
-- **The documentation's menu structure page draws the menus as charts (`bin/docs/menu_structure`)**

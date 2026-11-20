@@ -1,1 +1,0 @@
-- **In-flight tuning's radio set-up and restore refuse while connected and ask whether the helicopter is powered off (`settings/dashboard/inflight`)**

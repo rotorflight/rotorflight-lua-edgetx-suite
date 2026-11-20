@@ -1,1 +1,0 @@
-- **The @AERC and @AERC Nitro themes take the full screen, with tile choices and keys (`widgets/dashboard/themes`)**

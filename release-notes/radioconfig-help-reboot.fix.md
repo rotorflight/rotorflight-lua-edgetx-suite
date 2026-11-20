@@ -1,1 +1,0 @@
-- **Radio Config help explains that Save restarts the flight controller (`setup/radio_config`)** (#615)

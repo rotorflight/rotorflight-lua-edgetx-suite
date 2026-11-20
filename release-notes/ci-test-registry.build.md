@@ -1,1 +1,0 @@
-- **Most test scripts now run as their own CI job, and six checks that no job ran now run (`bin/ci/test_jobs`)**

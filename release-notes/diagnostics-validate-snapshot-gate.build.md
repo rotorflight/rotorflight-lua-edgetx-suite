@@ -1,1 +1,0 @@
-- **Validate Sensors does less work between row refreshes; a changed sensor setup still shows at once (`tools/diagnostics/validate_sensors`)** (#604)

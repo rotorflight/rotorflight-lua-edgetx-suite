@@ -1,1 +1,0 @@
-- **On its first start the dashboard shows a tile on what to look out for and which keys do what in full screen (`widgets/dashboard/first_start`)**

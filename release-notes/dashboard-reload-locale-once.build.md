@@ -1,1 +1,0 @@
-- **A settings change makes the dashboard read the radio's settings file once instead of twice (`widgets/dashboard/runtime`)**

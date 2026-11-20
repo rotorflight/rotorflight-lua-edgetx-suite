@@ -1,1 +1,0 @@
-- **The Tune Advisor keeps a suggested rate within what the flight controller keeps for its rate type (`flight_tuning/tune_advisor`)** (#1142)

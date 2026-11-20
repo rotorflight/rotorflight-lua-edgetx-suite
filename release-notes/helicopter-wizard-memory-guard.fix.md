@@ -1,1 +1,0 @@
-- Helicopter Setup releases every servo, mixer and motor test and stops on a screen that offers to save and leave when the radio runs low on memory, instead of freezing with a test held; a status line warns first (`helicopter_setup`).

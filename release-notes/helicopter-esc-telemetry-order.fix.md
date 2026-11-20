@@ -1,1 +1,0 @@
-- **Helicopter Setup connects the servos right after the Motor step and sets up ESC telemetry before the spin test (`helicopter_setup`)**

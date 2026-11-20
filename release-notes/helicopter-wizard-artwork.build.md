@@ -1,1 +1,0 @@
-- **Helicopter Setup shows illustrations from the Configurator's wizard and side views of the helicopter (`helicopter_setup`)**

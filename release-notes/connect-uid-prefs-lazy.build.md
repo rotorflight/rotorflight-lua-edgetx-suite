@@ -1,1 +1,0 @@
-- **The connect no longer loads the model preferences again when they are already in hand (`tasks/events/onconnect/tasks/uid`)** (#1065)

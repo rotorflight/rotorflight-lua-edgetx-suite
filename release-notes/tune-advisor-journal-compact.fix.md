@@ -1,1 +1,0 @@
-- **Tune Advisor change journal starts afresh at 16 KiB and keeps your own values, so the P, FF and rate limits always count from them (`flight_tuning/tune_advisor`)**

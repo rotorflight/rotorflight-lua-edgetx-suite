@@ -1,1 +1,0 @@
-- **The dashboard's connection screen no longer rebuilds for each status line, and shows a progress bar while the suite prepares (`widgets/dashboard`)**

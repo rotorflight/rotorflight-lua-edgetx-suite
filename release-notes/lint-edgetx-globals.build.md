@@ -1,1 +1,0 @@
-- **CI fails a pull request that reads an undeclared global (`.github/workflows`)** (#310)

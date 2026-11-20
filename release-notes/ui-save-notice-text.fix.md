@@ -1,1 +1,0 @@
-- **The save notice reads Applying settings instead of an MSP command name (`ui/home`)** (#1000)

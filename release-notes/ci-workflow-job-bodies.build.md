@@ -1,1 +1,0 @@
-- **Every CI check runs again on master and on pull requests (`.github/workflows`)**

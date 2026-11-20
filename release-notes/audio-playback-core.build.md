@@ -1,1 +1,0 @@
-- **The background script loads less code for adjustment announcements; what is spoken does not change (`lib/audio_playback`)** (#960)

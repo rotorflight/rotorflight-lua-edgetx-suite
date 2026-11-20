@@ -1,1 +1,0 @@
-- **The rate pages report Saved only once the flight controller stored the values, and report a failed save (`flight_tuning/rates`)** (#594)

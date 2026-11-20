@@ -1,1 +1,0 @@
-- **The documentation site and the README gain a feature overview linking each feature to its page (`docs`)**

@@ -1,1 +1,0 @@
-- **The documentation website lists its pages in the order of the tool's menus (`bin/docs/mkdocs_hooks`)**

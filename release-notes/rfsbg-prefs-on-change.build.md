@@ -1,1 +1,0 @@
-- **The background decoder re-reads the settings only when they changed (`functions/rfsbg`)** (#960)

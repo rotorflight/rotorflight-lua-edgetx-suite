@@ -1,1 +1,0 @@
-- **Adjustment announcements load only when switched on and no longer need the AdjF and AdjV sensors on the telemetry page (`tasks/events/telemetry_bg/adjustments`)** (#960)

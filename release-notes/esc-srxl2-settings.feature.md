@@ -1,1 +1,0 @@
-- **A new SRXL2 ESC page sets a Spektrum Smart ESC's telemetry interval and the channel of motor 2 (`setup/esc_motors/srxl2`)**

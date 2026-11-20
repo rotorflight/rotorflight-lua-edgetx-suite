@@ -1,1 +1,0 @@
-- **A module that fails to load is tried again a second later, so telemetry decoding and the connect recover (`tasks/events/telemetry_bg/drain`)** (#477, #471)

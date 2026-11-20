@@ -1,4 +1,225 @@
-# 0.2.2
+# 0.3.0
+
+### Please test
+
+This snapshot is for testing. Please try these four in particular and report what you see:
+
+- **The rotary main menu**: set *System* → *Settings* → *General* → *Appearance* → *Menu style* to *Rotary*, open the dashboard's quick menu, and roll on through *MAIN MENU* to any page with the wheel.
+- **The helicopter setup wizard**: switch on *System* → *Settings* → *General* → *Preview* → *Setup Assistant*, then open *Configuration* → *Wizards* → *Helicopter Setup* (Rotorflight 4.7, main and tail blades off).
+- **Flying without the background decoder**: untick the `rfsbg` entry under *Model* → *Special Functions* (untick it, do not delete it: a deleted entry is added again on the next connect). The dashboard then decodes the telemetry itself.
+- **EdgeTX memory**: EdgeTX 2.12.5 and earlier lose a little memory each time a Lua screen is rebuilt; the fix is EdgeTX PR [#7997](https://github.com/EdgeTX/edgetx/pull/7997), merged for the next 2.12 release but in no release yet. Long sessions (many connects, the wizard walked through) can slow the radio or end in "not enough memory": restart the radio before a long test and name your EdgeTX build when you report.
+
+### Features & Enhancements
+
+- **The suite installs under one main folder on the card and copies the pilot's data there on the first start (`lib/user_move`) (#1102)**
+- **Choose what dashboard value tiles show, live readings or last-flight figures, and bind the theme's full-screen keys (`settings/dashboard`) (#928)**
+- **On its first start the dashboard shows a tile on what to look out for and which keys do what in full screen (`widgets/dashboard/first_start`) (#1135)**
+- **Full-screen box dashboards get an info bar with clock, radio battery, link quality and the controls (`widgets/dashboard`) (#986)**
+- **In-flight tuning follows the color scheme from Settings > General > Appearance, and its ground screen is lighter (`widgets/dashboard/inflight`) (#1216)**
+- **The log says what the dashboard is doing, what it costs and where a problem began (`widgets/dashboard`) (#1141)**
+- **The rotary quick menu leads on into the suite's whole menu, and a page opens inside the widget (`widgets/dashboard`) (#1164)**
+- **After an install the dashboard compiles the suite first and asks for a radio restart before it connects (`lib/precompile`) (#923)**
+- **One quick menu and battery picker for every dashboard theme, in a light or dark scheme, with a rotary style (`widgets/dashboard/fullscreen_menu`) (#1112)**
+- **The @AERC and @AERC Nitro themes take the full screen, with tile choices and keys (`widgets/dashboard/themes`) (#930)**
+- **@KSE4, @KSE5 and @Kevd themes, ported from the Ethos suite (`widgets/dashboard/themes/@kse4`, `@kse5`, `@kevd`, `docs/dashboard/themes.md`) (#1024)**:
+  - @KSE4: a grid of framed tiles over a fuel bar; @KSE5: the same tiles with rings for fuel, head speed, current and ESC temperature; @Kevd: gauges on the page with their highest value of the flight, framed tiles and a column of flight time, battery and governor.
+  - All three take the full screen and open Look, Before flight, In flight, Statistics, Info bar and Keys; the values size themselves to the zone they are drawn in.
+  - Theme boxes can draw a frame (`bordercolor`, `borderwidth`), round their corners (`rounded`) and leave their fill out (`bgcolor = false`); a gauge can show the flight's minimum or maximum (`stattype`), and a horizontal bar honours its gauge paddings (`docs/dashboard/user-themes.md`).
+  - @KSE5's current ring and @Kevd's highest-current bar run up to the speed controller's current limit where the model has one on file (`docs/dashboard/themes.md`).
+  - Voltage per cell is a choice for any statistics tile on a theme's Before flight, In flight and Statistics pages (`widgets/dashboard/fields.lua`).
+- **The RF Status theme takes the full screen, with tile choices and keys (`widgets/dashboard/themes/rfstatus`) (#929)**
+- **The @RT-RC and @RT-RC Nitro themes take the full screen, with tile choices and keys (`widgets/dashboard/themes`) (#931)**
+- **The @SRB-RC theme takes the full screen, with tile choices and keys (`widgets/dashboard/themes`) (#932)**
+- **Goosky ESCs can be chosen for ESC telemetry and get their own ESC Tools tile (`setup/esc_motors/telemetry`) (#1108)**
+- **A new SRXL2 ESC page sets a Spektrum Smart ESC's telemetry interval and the channel of motor 2 (`setup/esc_motors/srxl2`) (#1098)**
+- **Helicopter Setup sets headspeed targets per PID profile and warns when RPM filtering has no RPM signal (`helicopter_setup`) (#839)**
+- **A new Helicopter Setup wizard follows the Configurator's 19 steps and takes over the Wizards entry from the Setup Assistant (`helicopter_setup`) (#839)**
+- **Helicopter setup wizard: receiver, governor, power and ELRS link cards do more on one card (`src/rfsuite/app/pages/helicopter_setup/`) (#1224)**:
+  - Check sticks marks each end of each bar once that direction reached 95 %, and the receiver step polls only STATUS and the channels, so the bars follow the sticks about twice as often.
+  - Throttle range has *Automatic throttle range* as in the Configurator; the Defaults button is gone.
+  - ELRS link: a table of the FC's and the module's values with one result, the two sync directions named by what they do, and *Set on both*, which writes the module first and then lets the FC take its values.
+  - Governor: every PID profile's headspeed on one card.
+  - ESC telemetry / power: voltage and current source on one card; batteries as one table of cell count and capacity per battery profile, after asking how many packs are flown; the cell count is picked from a list (Auto, 1S-24S).
+  - The wizard is offered only from MSP API 12.10 (Rotorflight 4.7); the menu entries were enabled from 12.09 before, where the page could only say the firmware is too old. A 4.7 build without a cell count per battery profile is refused the same way.
+- **Helicopter setup wizard: clearer single cards (`src/rfsuite/app/pages/helicopter_setup/`) (#1223)**:
+  - *Prepare the radio model* states the prerequisites once (FC on USB without the flight battery, receiver bound), asks for *Radio model set up*, names the two state sensors with *OK* or *missing*, and offers *Add missing sensors to FC* only when one is missing. It is remembered per flight controller: a step opened on its own passes it by itself while both sensors are live.
+  - Board orientation: *Detect* sits below the roll, pitch and yaw it fills, and the orientation check says in one sentence what to do.
+  - Receiver: the *Wiring: use USB* button is gone; the channel-order card says a standard order is enough and detection is the alternative.
+  - Rates: *Suggest styles* pre-selects Trainer, Sport and 3D on the profiles' cards and names the profiles it set.
+  - Blade pitch: a new first card shows from above how to turn the blades along the tail boom, confirmed before collective and cyclic are measured.
+- **Helicopter Setup covers more gear trains, servo types, power and rescue settings, and jumps from Finish to Governor and PIDs (`helicopter_setup`) (#839)**
+- **Helicopter setup wizard: one layout for every card, a step menu and switches (`src/rfsuite/app/pages/helicopter_setup/`) (#1222)**:
+  - The header names the step, the card and its place, with *Step n/19* on the right; tapping it opens a step menu with all 19 steps and their done marks. Choosing a step asks to save or discard first when something changed.
+  - *Exit* is a button of its own at the bottom centre, between Back and Continue.
+  - Each card leads with its explanation across the full width; the rows follow below, controls right after their labels, and beside a picture the rows are centred on it. Action buttons are as wide as their label, and every card has a name of its own.
+  - Yes/no and off/on answers are switches, *Use half-duplex* included, which now also switches half-duplex off again.
+  - A step's last card reads *Next step* and opens the next step, also when the step was opened on its own; step 19 reads *Finish*.
+- **Helicopter Setup uses the Configurator's pictures for control directions, gyro, tail, pitch, swash and servo checks (`helicopter_setup`) (#839)**
+- **Helicopter Setup adds power source checks, battery cell count and capacity, and SmartFuel mode (`helicopter_setup`) (#839)**
+- **Helicopter Setup adds RPM source selection with the flight controller's fast-RPM verdict and confirms each ELRS link change (`helicopter_setup`) (#839)**
+- **In-flight tuning is switched on per radio model, and only after the radio is set up (`settings/dashboard/inflight`) (#1123)**
+- **In-flight tuning is grouped by axis and subsystem, tunes every reachable profile and offers only what the flight controller carries (`widgets/dashboard/inflight`) (#898)**
+- **Every In-Flight Tuning setting has its own help line (`settings/dashboard/inflight`) (#1120)**
+- **The dashboard's loading and standby screens and the tool's start screen follow the light or dark color scheme (`widgets/dashboard/standby`) (#1121)**
+- **Card logs are grouped by power-up and carry memory figures, and Debug Level is now Log Level (`developer/developer_settings`) (#952)** (#815, #608)
+- **Each log in the Logs list has a Graph button that opens its plot sooner, without the summary (`logs`) (#975)** (#969)
+- **The Tail page sets Yaw Center Trim live while the tail is watched (`setup/mixer/tail`) (#1054)**
+- **MSP over telemetry uses the shorter framing on Rotorflight 4.7 (`tasks/msp/common`) (#1026)**
+- **The System Status page decodes through one shared decoder; its rows are unchanged (`lib/system_state`) (#925)**
+- **The dashboard shows the standby screen while it waits for a flight controller, except after a link lost armed or after a flight (`widgets/dashboard/runtime`) (#1134)**
+- **Dashboard and tool take values straight from their own telemetry decoder; ratios or offsets set on the radio's sensors do not apply to them (`lib/sensors`) (#1182)**
+- **The telemetry decoder and the adjustment announcement can be followed in the log at DEBUG and TRACE (`tasks/events/telemetry_bg`) (#1181)**
+- **The Rotorflight model template carries the System Status and System Config sensors (`templates`) (#925)**
+- **The Rotorflight model template asks for blackbox and backup switches and the module slot, and refuses one switch on two functions (`templates`) (#974)**
+- **The whole tool follows the color scheme from Settings > General > Appearance; it opens light until set to dark (`ui`) (#1183)**
+- **The configuration tool opens its menu without waiting for the flight controller (`ui/home`) (#1144)**
+- **The helicopter setup wizard follows the suite's color scheme (`helicopter_setup`) (#1124)**
+- **Helicopter Setup syncs the OpenYGE throttle range and checks the YGE and Hobbywing V5 operating modes (`helicopter_setup`) (#839)**
+
+### Bug Fixes & Improvements
+
+- **Accelerometer trims no longer show a misleading degree suffix (`setup/accelerometer`) (#1015)** (#615)
+- **PID-loop choices are labeled from the board's gyro rate as in the Configurator, and craft names are limited to 16 characters (`setup/configuration`) (#1013)** (#615)
+- **The tool opened from the dashboard releases its memory after a confirmation dialog (`ui/confirm_dialog`) (#918)** (#842)
+- **A connect on a part-charged pack builds the dashboard once, waiting briefly for the cell count sensor (`widgets/dashboard`) (#1203)**
+- **A connect builds the dashboard once when the cell count comes late (`widgets/dashboard/runtime.lua`, `docs/dashboard/themes.md`) (#1185)**:
+  - When the battery is reported before its pack voltage or cell count, the dashboard waits up to five seconds for the count, so its gauges first appear on the pack's voltage range and the whole dashboard is not built a second time a moment later; with no count it is built on the default range after that wait.
+- **After a landing the dashboard waits for the flight log before it shows the postflight screen, so the widget is not stopped at the disarm (`widgets/dashboard`) (#1229)**
+- **The first connect after switching the radio on no longer reloads the preferences it has just loaded (`widgets/dashboard`) (#1211)** (#1193)
+- **The rotary menu settling right after the radio stalled waits a pass instead of sharing the catch-up pass (`widgets/dashboard`) (#1204)**
+- **The standby screen is no longer built again during a connect when nothing on it changed (`widgets/dashboard`) (#1197)**
+- **The dashboard's connection screen no longer rebuilds for each status line, and shows a progress bar while the suite prepares (`widgets/dashboard`) (#1104)**
+- **A reconnect or a link loss no longer reloads the model's dashboard theme from the SD card (`widgets/dashboard/runtime`) (#1053)** (#1008, #1009, #1043)
+- **Settings > Dashboard > Theme no longer saves defaults over a model's own settings (`settings/dashboard/theme`) (#1144)**
+- **ELRS Link cancels its probes on arming instead of leaving the buttons greyed out (`tools/diagnostics/elrs_link`) (#1020)** (#614)
+- **ELRS sync keeps the telemetry sensor slots saved in Setup > Telemetry (`tools/diagnostics/elrs_link`) (#1017)** (#614)
+- **Bluejay keeps cached settings with their ESC target and refuses Save until that target is read (`setup/esc_motors/esc_tools/escmfg/bluejay`) (#1021)** (#600)
+- **An ESC reporting no current limit clears the limit its own family stored, so ESC load shows -- and stays silent; a limit typed in by hand stays (`setup/esc_motors/esc_tools/esc_current_limit`) (#1136)**
+- **ESC configurator options and titles are translated on all ten ESC pages (`setup/esc_motors/esc_tools`) (#1023)** (#600)
+- **Motor 2 Channel on the SRXL2 ESC page counts from 1 like the flight controller: Off or 2 to 32, with motor 1 on channel 1 (`setup/esc_motors/srxl2`) (#1252)**
+- **YGE keeps the flags byte's bit 3 as read when the BEC voltage changes (`setup/esc_motors/esc_tools/escmfg/yge`) (#941)** (#601)
+- **A pack's *Battery profile* help says it is sent only while *Set the pack's battery profile* is on (`tools/flight_log`) (#1191)**
+- **The Flight Log fills its per-cell voltage columns where the flight controller detects the cell count (`tasks/events/ondisarm/tasks/flight_log`) (#1085)** (#1077)
+- **The German Flight Log page uses real umlauts (`i18n/de`) (#1047)**
+- **The id suggested for a new battery no longer inherits a deleted pack's logged flights (`tools/flight_log`) (#1011)** (#861)
+- **The battery registry survives a save cut short by a power loss (`tools/flight_log`) (#1039)** (#992, #1004)
+- **Autolevel, Main Rotor, PID Bandwidth and PID Controller report Saved only once the flight controller stored the values (`flight_tuning/advanced`) (#922)** (#594)
+- **PIDs and Governor report Saved only once the board stored the values, and report a failed save (`flight_tuning/pids`) (#936)** (#594)
+- **The rate pages report Saved only once the flight controller stored the values, and report a failed save (`flight_tuning/rates`) (#940)** (#594)
+- **Rescue and Filters report Saved only once the flight controller stored the values, and report a failed save (`flight_tuning/advanced/rescue`) (#937)** (#594)
+- **Tail Rotor reports a failed save instead of ending without a word (`flight_tuning/advanced/tail_rotor`) (#943)** (#594)
+- **A Setup > Governor save that changes a value restarts the flight controller, which applies it only at start-up (`setup/governor`) (#1160)**
+- **With the GOVERNOR feature read as off, the governor reads as OFF and its gains and Tail Torque Assist are hidden (`flight_tuning/governor`) (#1014)** (#908)
+- **Helicopter Setup connects the servos right after the Motor step and sets up ESC telemetry before the spin test (`helicopter_setup`) (#839)**
+- **In Helicopter Setup an empty list shows Not set instead of -1, card rows fit 480-wide screens and the RPM source shows in full (`helicopter_setup`) (#839)**
+- **Helicopter Setup lists PWM and DShot first and calibrates the tail at 22.5 degrees, so folded paper can stand in for a pitch gauge (`helicopter_setup`) (#839)**
+- **Helicopter Setup copes with a flight controller that answers late, and wiring detection finds a programmable ESC's wiring (`helicopter_setup`) (#839)**
+- Helicopter Setup releases every servo, mixer and motor test and stops on a screen that offers to save and leave when the radio runs low on memory, instead of freezing with a test held; a status line warns first (`helicopter_setup`). (#1226)
+- **Helicopter Setup splits rates, governor, throttle, gearing, servos, battery and ESC telemetry into their own parts (`helicopter_setup`) (#839)**
+- **The next Save after an error also writes a servo, mixer, mode or adjustment row the error cut off (`helicopter_setup`) (#1232)**
+- **In-flight tuning checks the setup again after a landing behind a link loss before it drives the channels (`widgets/dashboard/inflight`) (#1044)** (#823)
+- **In-flight tuning refuses a board whose adjustment slots use the tuning channels only in part, and names the slot (`widgets/dashboard/inflight`) (#1052)** (#811)
+- **In-flight tuning: the ground screen is no longer rebuilt twice for every profile while the profiles are read (`widgets/dashboard/inflight`) (#1212)** (#1209)
+- **In-flight tuning's Set up radio works in the tool opened from the dashboard and can be undone (`settings/dashboard/inflight`) (#1122)**
+- **In-flight tuning keeps its session in the air when a link gap on the ground was still pending (`widgets/dashboard/inflight`) (#1032)** (#993)
+- **In-flight tuning's radio set-up and restore refuse while connected and ask whether the helicopter is powered off (`settings/dashboard/inflight`) (#1130)**
+- **In-flight tuning: a tap on + or - no longer rebuilds the value surface (`widgets/dashboard/inflight`) (#1196)**: every touch step in value mode rebuilt the whole surface on release to bring the encoder focus back, which stood the screen still for most of a second in flight and, on EdgeTX without its LVGL clear fix, kept that build's memory. The focus now goes back without a rebuild: the reverse encoder ladder hides for two screen refreshes, the step buttons and the group row for one (they blink once); the first tap after the encoder was turned, or a sweep that does not finish within four refreshes, still rebuilds. Other touch actions are unchanged.
+- **Info shows RF Mode correctly for the module's ExpressLRS 3.x or 4.x generation (`tools/diagnostics/info`) (#1019)** (#614)
+- **The seconds after a lost link no longer pile their work into one dashboard pass (`lib/sensors.lua`, `tasks/events`, `widgets/dashboard`) (#1202)**:
+  - A lost link keeps the list of the model's sensor slots, so it is no longer made again two seconds after the edge, in the same pass as the disconnect's runner resets; the model's own name is put back on the call after those resets instead of in it.
+- **Swash Geometry, PWM Output and BUS Output share the live override with Tail and Trims (`app/pages/setup`) (#1178)**
+- **A raised Log Level costs the dashboard less of its instruction budget (`lib/log`) (#1154)** (#785)
+- **The Logs list appears in the tool opened from the dashboard on a card with many logs (`logs`) (#1159)**
+- **The Logs list and graph load faster and no longer fail at the instruction limit in the tool opened from the dashboard (`logs`) (#975)** (#607, #966, #962, #961, #967, #963, #794, #970, #973, #971)
+- **Nothing is sent to a model that is already armed when the link comes up; a board that reports no armed state is sent to after 5 s (`tasks/msp/runtime`) (#1150)**
+- **Three more ways an armed model could be sent to at link-up are closed (`tasks/events/telemetry_bg/drain`) (#1152)** (#1070)
+- **Saves and the MSP queue keep a model last read armed as armed for up to 5 s while its ARM reading is missing (`lib/armed`) (#935)** (#598)
+- **Info names a refused MSP API version and what to check, in the pilot's language (`tools/diagnostics/info`) (#934)** (#598)
+- **A late MSP answer within the reply window (at most 2 s) of a resent or dropped request no longer stores one servo's or profile's values under the next; a later one still can (`tasks/msp/queue`) (#1119)**
+- **A reply that broke off on the link is asked for again at once from MSP API 12.10 (`tasks/msp/queue`) (#1025)**
+- **The flight controller is asked for its identity again when it answers without one, so its model preferences load (`tasks/msp/runtime`) (#1042)**
+- **Battery, Sources and SmartFuel report Saved only once the flight controller stored the values, and SmartFuel follows a new cell voltage at once (`setup/power`) (#1018)** (#594, #996)
+- **Radio Config help explains that Save restarts the flight controller (`setup/radio_config`) (#1022)** (#615)
+- **Rates above 1000 deg/s are shown and edited as the flight controller holds them (`flight_tuning/rates`) (#1143)** (#991)
+- **The module loader treats a module that returns nothing as missing; nothing a pilot sees changes (`lib/require`) (#1036)** (#420)
+- **A failed save that may have reached the flight controller offers Restart FC (`tasks/msp/save_pipeline`) (#1151)**
+- **The sensor search caps hold for a whole dashboard pass (`lib/sensors.lua`, `widgets/dashboard`) (#1201)**:
+  - The caps on how many values may start or repeat a sensor search in one pass now count per pass of the dashboard instead of per 10 ms clock tick, so a pass that runs longer than a tick no longer gets them again with every tick it spans. Right after the link is lost every value searches at once, and those searches can no longer all land in one pass.
+- **SmartFuel mode names are translated, the Ports page knows boards by name, and Ramp Time and Throttle explain each row (`setup`) (#926)**
+- **Without a flight controller, the simulator's Status and other replies read correctly again (`tasks/msp/api`) (#1034)** (#294)
+- **SmartFuel COMBINED uses the lower of the voltage and current estimates (`tasks/events/telemetry_bg/smart`) (#942)** (#705)
+- **The help of the SmartFuel warning and of the consumption reserve point at each other (`settings/audio/events`) (#1149)**
+- **The standby screen no longer redraws much of the screen all the time, and finds a late ELRS module (`widgets/dashboard/standby`) (#1127)**
+- **Tail Rotor Save stops before a write when the check before it finds another PID profile active (`flight_tuning/advanced/tail_rotor`) (#1245)** (#1240)
+- **In-flight tuning: the answer to a step is looked for in the telemetry the dashboard skips after a long pass (`tasks/events/telemetry_bg`) (#1213)** (#1210)
+- **Setup > Telemetry reports Saved only after the EEPROM stores it, then restarts the flight controller (`setup/telemetry`) (#1016)** (#594)
+- **The model template's switch dialog works with the rotary and the keys, not only by touch (`templates/5.Rotorflight`) (#1221)**
+- **Theme settings opened from the dashboard no longer show "could not be loaded", missing rows or old values after an instruction-limit stop (`app/pages/settings/dashboard/settings`) (#1248)** (#1220)
+- **A page the tool is opened on from the dashboard opens again (`ui/home`) (#1162)**
+- **The Tune Advisor says acro mode instead of rate mode (`flight_tuning/tune_advisor`) (#984)**
+- **Tune Advisor no longer loses a flight to a late clear, and says when a flight could not be saved to the card (`flight_tuning/tune_advisor`) (#1175)**
+- **Tune Advisor works from the last flights saved at each disarm, with the Ethos suite's rules (`app/pages/flight_tuning/tune_advisor`, `lib/tune_history.lua`, `tasks/events/tune_capture.lua`, `tasks/events/ondisarm/`, `tasks/events/runtime.lua`, `tasks/msp/api/tune_advisor.lua`, `lib/change_journal.lua`, `lib/atomic_file.lua`, `tasks/msp/queue.lua`, `i18n/`, `docs/pages/flight_tuning/tune_advisor.md`) (#990)**:
+  - Each flight is saved at disarm: the dashboard or the service widget reads the three axes five seconds after the disarm, keeps the last 5 flights per flight controller in `/SCRIPTS/RFSUITE/user/tune/<mcu id>.lua`, then clears the flight controller. A disarm during a link loss is read after the reconnect, and a save cut short is recovered from the `.bak` it leaves (#979). An owed clear and the settings read after it stay with the flight controller that flew the flight (#988); a flight as long as the one before is saved too (#989).
+  - The page combines the flights flown on the current tune ("2m 12s, 3/5 flights"), names the profiles they were flown on, and keeps *Save* off until those profiles are active again. *\** erases the saved flights and the flight controller's measurements. The page no longer polls.
+  - Reads the packed 51-byte reply of firmware payload version 3 only; an older layout shows "Needs newer firmware". The capture asks only from MSP API 12.10 and stops after an error reply until the next connection (#982).
+  - The rules follow the Ethos suite: a shaking axis gets one P step down and nothing else, and the shake is named even when P cannot be lowered (#955, #985); a change past a setting's limit is not given, nor the change tied to it; P is raised to at most 50% above the pilot's own P, followed back through the change journal, and not raised at all when the journal cannot be read (#977, #980); no FF change without its rates.
+  - Polar cyclic: rate advice and its limits use the Pitch rates and name the Rates page's *Cyclic* row (#981). Full stick is measured against the rate the cyclic ring lets through (#878). No cut-off advice on an axis I-term relax does not act on (#983).
+  - The change journal skips a broken line instead of failing the whole file, and the page reads it a few lines per pass.
+  - The simulator's RC tuning, PID tuning and Tune Advisor replies describe one rate profile (#877).
+- **Tune Advisor keeps FF and the rates within reach of your own values instead of moving them on every Save (`flight_tuning/tune_advisor`) (#1187)** (#1174)
+- **Tune Advisor no longer counts a flight twice when the flight controller was not cleared after it (`flight_tuning/tune_advisor`) (#1189)** (#1167)
+- **Tune Advisor change journal starts afresh at 16 KiB and keeps your own values, so the P, FF and rate limits always count from them (`flight_tuning/tune_advisor`) (#1208)**
+- **Tune Advisor keeps raising P after the change journal grows past 64 KiB (`flight_tuning/tune_advisor`) (#1186)** (#1170)
+- **Tune Advisor tells a flight controller newer than the suite from an older one (`flight_tuning/tune_advisor`) (#1184)**:
+  - A flight controller whose tune advisor reply has a newer layout than the suite reads (payload version 4 or later) shows "Needs newer RFSuite" instead of "Needs newer firmware", since it is the suite that needs updating. A firmware without the command, its error reply, or an older layout still shows "Needs newer firmware" (#1171).
+- **The Tune Advisor says when no flight is saved and what saves one (`flight_tuning/tune_advisor`) (#1140)**
+- **Tune Advisor Save stops before a write when the check before it finds another PID or rate profile active (`flight_tuning/tune_advisor`) (#1242)** (#1234)
+- **Tune Advisor keeps flights per PID and rate profile and combines only those of the active profiles (`flight_tuning/tune_advisor`) (#1188)** (#1166)
+- **The Tune Advisor keeps a suggested rate within what the flight controller keeps for its rate type (`flight_tuning/tune_advisor`) (#1172)** (#1142)
+- **Opening a page in the tool from the dashboard no longer disables the widget (`ui/home`) (#1198)**:
+  - Opened from the dashboard, a page the tool has just opened shows *Loading...* for one frame and is drawn on the next, with a fresh instruction limit for making its controls. Before, a page that took most of a frame to build, such as Settings > Audio > Events > Link, could leave its controls too little of that frame, and EdgeTX disabled the widget (`CPU limit` or `foreground calRefs error`) (#1192).
+- **The save notice reads Applying settings instead of an MSP command name (`ui/home`) (#1058)** (#1000)
+- **A dashboard pass stopped at the instruction limit no longer rebuilds a standby screen that is already drawn (`widgets/rfsuite`) (#1206)**
+- **Dashboard and service widget on one model no longer run the background work twice (`widgets/service`) (#1078)** (#455, #958)
+- **Helicopter Setup asks Before this step again when Back leaves a step opened from the step menu (`helicopter_setup`) (#1244)** (#1238)
+- **Helicopter Setup restores live switch ranges on Discard and stops PWM calibration when full throttle is interrupted (`helicopter_setup`) (#839)**
+
+### Performance & Build System
+
+- **Adjustment announcements load only when switched on and no longer need the AdjF and AdjV sensors on the telemetry page (`tasks/events/telemetry_bg/adjustments`) (#1090)** (#960)
+- **The background script loads less code for adjustment announcements; what is spoken does not change (`lib/audio_playback`) (#1091)** (#960)
+- **Most test scripts now run as their own CI job, and six checks that no job ran now run (`bin/ci/test_jobs`) (#1100)**
+- **Every CI check runs again on master and on pull requests (`.github/workflows`) (#965)**
+- **A light and a dark color scheme taken from the Rotorflight Configurator, read by the dashboard widget's menu pages (`lib/color_schemes`) (#1105)**
+- **The connect no longer loads the model preferences again when they are already in hand (`tasks/events/onconnect/tasks/uid`) (#1114)** (#1065)
+- **The suite's folders on the card are named in one place; nothing on the card moves (`lib/paths`) (#1062)**
+- **The dashboard's battery prompt is no longer stopped at the instruction limit with a few dozen packs in the registry (`lib/battery_pick`) (#1083)** (#1067, #1081)
+- **The Urban, Grid and Deck battery pickers load less code; the picture and every press are unchanged (`widgets/dashboard/themes`) (#1061)**
+- **Picking a battery on the dashboard no longer makes that dashboard reload its preferences (`widgets/dashboard/runtime`) (#1086)**
+- **The dashboard no longer probes for an LVGL call EdgeTX does not have; nothing changes on the radio (`widgets/dashboard/runtime`) (#1115)** (#1038)
+- **A settings change makes the dashboard read the radio's settings file once instead of twice (`widgets/dashboard/runtime`) (#1089)**
+- **The dashboard's runtime has room under Lua's limit of 200 locals again (widgets/dashboard/runtime) (#1194)**: its main chunk held exactly 200 active locals, so any pull request adding one more top-level local produced a file that does not compile. Helpers used only inside one group of functions (the MSP tick, the preference reload, the theme mode with the zone views, the telemetry read) now sit in `do ... end` blocks, which frees 26 slots at the tightest point; every function the widget calls compiles to the same instructions as before, and the file's own top level gains 16 instructions, run once at load. A new check, `bin/dashboard/verify_runtime_locals.lua`, fails once fewer than 10 slots are left (#1107).
+- **Switching to a model's own dashboard theme at connect is spread out, so it stays further from the instruction limit that stalls the dashboard (`widgets/dashboard/runtime`) (#1088)** (#950)
+- **Leaving in-flight tuning builds the dashboard once instead of twice (`widgets/dashboard/runtime`) (#1079)** (#465)
+- **Validate Sensors does less work between row refreshes; a changed sensor setup still shows at once (`tools/diagnostics/validate_sensors`) (#1075)** (#604)
+- **The documentation site and the README gain a feature overview linking each feature to its page (`docs`) (#951)**
+- **The documentation's menu structure page draws the menus as charts (`bin/docs/menu_structure`) (#949)**
+- **The documentation gains a generated map of the configuration tool's menus, kept current by CI (`bin/docs/menu_structure`) (#924)**
+- **The README gains a quick start, and the documentation a page on the background service widget (`docs`) (#954)**
+- **The documentation website lists its pages in the order of the tool's menus (`bin/docs/mkdocs_hooks`) (#933)**
+- **A module that fails to load is tried again a second later, so telemetry decoding and the connect recover (`tasks/events/telemetry_bg/drain`) (#1074)** (#477, #471)
+- **Helicopter Setup shows illustrations from the Configurator's wizard and side views of the helicopter (`helicopter_setup`) (#839)**
+- **The Helicopter Setup flow diagram is generated from the sources, and CI rejects a stale one (`helicopter_setup`) (#839)**
+- A move to another card in Helicopter Setup builds its loading view once instead of twice, one LVGL build less per card move (`helicopter_setup`). (#1225)
+- **CI fails a pull request that reads an undeclared global (`.github/workflows`) (#1035)** (#310)
+- **Stepping the Logs graph cursor no longer rebuilds the page (`logs`) (#1076)** (#968)
+- The helicopter setup's code no longer stays in the tool's memory after you leave the Helicopter Setup menu, and each step's file leaves with its step; a page can ask for its folder's compiled files to be let go once the pilot leaves its area (app/pages/init.lua, src/main.lua, widgets/dashboard/tool_host.lua). (#1219)
+- **The background decoder re-reads the settings only when they changed (`functions/rfsbg`) (#1087)** (#960)
+- **The old Setup Assistant, unreachable since Helicopter Setup replaced it, is removed (`setup_wizard`) (#1118)**
+- **The custom telemetry decoder walks each frame with fewer steps (`tasks/events/telemetry_bg/drain`) (#1218)**
+- **The custom telemetry decoder loads with less work and less garbage, and decodes values with fewer steps (`lib/rf2tlm_sensors`) (#1217)**
+- **Grid, Urban and Deck stop repainting their bars on every pass in full screen (`widgets/dashboard/themes`) (#1129)**
+- **The configuration tool no longer checks every installed file on each start; it compiles after an install or an update (`ui/home`) (#1138)**
 
 # 0.2.1
 

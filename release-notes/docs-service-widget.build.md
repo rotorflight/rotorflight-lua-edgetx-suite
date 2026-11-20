@@ -1,1 +1,0 @@
-- **The README gains a quick start, and the documentation a page on the background service widget (`docs`)**

@@ -1,1 +1,0 @@
-- **The German Flight Log page uses real umlauts (`i18n/de`)**

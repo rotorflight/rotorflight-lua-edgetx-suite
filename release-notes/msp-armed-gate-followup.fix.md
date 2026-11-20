@@ -1,1 +1,0 @@
-- **Three more ways an armed model could be sent to at link-up are closed (`tasks/events/telemetry_bg/drain`)** (#1070)

@@ -1,1 +1,0 @@
-- **A raised Log Level costs the dashboard less of its instruction budget (`lib/log`)** (#785)

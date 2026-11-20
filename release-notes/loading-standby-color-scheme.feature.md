@@ -1,1 +1,0 @@
-- **The dashboard's loading and standby screens and the tool's start screen follow the light or dark color scheme (`widgets/dashboard/standby`)**

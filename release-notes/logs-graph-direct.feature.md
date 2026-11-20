@@ -1,1 +1,0 @@
-- **Each log in the Logs list has a Graph button that opens its plot sooner, without the summary (`logs`)** (#969)

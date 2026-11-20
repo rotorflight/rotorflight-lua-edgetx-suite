@@ -1,1 +1,0 @@
-- **The next Save after an error also writes a servo, mixer, mode or adjustment row the error cut off (`helicopter_setup`)**

@@ -1,8 +1,8 @@
 local M = {}
 
 M.MAJOR = 0
-M.MINOR = 2
-M.PATCH = 2
+M.MINOR = 3
+M.PATCH = 0
 
 M.VERSION = M.MAJOR .. "." .. M.MINOR .. "." .. M.PATCH
 

@@ -1,1 +1,0 @@
-- **The Helicopter Setup flow diagram is generated from the sources, and CI rejects a stale one (`helicopter_setup`)**

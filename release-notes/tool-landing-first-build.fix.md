@@ -1,1 +1,0 @@
-- **A page the tool is opened on from the dashboard opens again (`ui/home`)**

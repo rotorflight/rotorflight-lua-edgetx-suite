@@ -1,1 +1,0 @@
-- **Helicopter Setup covers more gear trains, servo types, power and rescue settings, and jumps from Finish to Governor and PIDs (`helicopter_setup`)**

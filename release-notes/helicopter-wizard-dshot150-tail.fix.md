@@ -1,1 +1,0 @@
-- **Helicopter Setup lists PWM and DShot first and calibrates the tail at 22.5 degrees, so folded paper can stand in for a pitch gauge (`helicopter_setup`)**

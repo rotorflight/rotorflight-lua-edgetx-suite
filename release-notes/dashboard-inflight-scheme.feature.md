@@ -1,1 +1,0 @@
-- **In-flight tuning follows the color scheme from Settings > General > Appearance, and its ground screen is lighter (`widgets/dashboard/inflight`)**

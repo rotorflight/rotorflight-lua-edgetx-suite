@@ -1,1 +1,0 @@
-- **The Rotorflight model template carries the System Status and System Config sensors (`templates`)**

@@ -1,1 +1,0 @@
-- **Info names a refused MSP API version and what to check, in the pilot's language (`tools/diagnostics/info`)** (#598)

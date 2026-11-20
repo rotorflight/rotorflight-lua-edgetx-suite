@@ -1,1 +1,0 @@
-- **Helicopter Setup adds RPM source selection with the flight controller's fast-RPM verdict and confirms each ELRS link change (`helicopter_setup`)**

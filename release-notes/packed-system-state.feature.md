@@ -1,1 +1,0 @@
-- **The System Status page decodes through one shared decoder; its rows are unchanged (`lib/system_state`)**

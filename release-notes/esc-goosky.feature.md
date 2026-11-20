@@ -1,1 +1,0 @@
-- **Goosky ESCs can be chosen for ESC telemetry and get their own ESC Tools tile (`setup/esc_motors/telemetry`)**

@@ -1,1 +1,0 @@
-- **The first connect after switching the radio on no longer reloads the preferences it has just loaded (`widgets/dashboard`)** (#1193)

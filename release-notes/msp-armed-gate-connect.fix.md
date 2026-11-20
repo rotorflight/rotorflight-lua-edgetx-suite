@@ -1,1 +1,0 @@
-- **Nothing is sent to a model that is already armed when the link comes up; a board that reports no armed state is sent to after 5 s (`tasks/msp/runtime`)**
