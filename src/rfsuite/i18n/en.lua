@@ -1466,6 +1466,7 @@ return {
         save_not_stored = "Saving failed. The changes are active until the flight controller restarts, then undone.",
         save_write_failed = "Writing failed. Nothing was saved: restart the flight controller to undo any part already sent.",
         save_profile_moved = "The profile changed during the save. Check both profiles.",
+        save_profile_stopped = "The profile changed during the save, so it stopped. Nothing was saved: restart the flight controller to undo any part already sent.",
         save_unverified = "Saved, but reading back did not confirm it. Check the settings on PIDs, Rates and PID Controller.",
         journal_failed = "The change journal could not be written.",
         applied = "Changes saved to the flight controller. Fly again to check the new tune.",

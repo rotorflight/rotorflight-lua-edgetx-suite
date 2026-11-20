@@ -117,6 +117,7 @@ _G.rfsuite = { palette = { text = 0, border = 0 }, session = { mcu_id = MCU } }
 _G.rfsuite.paths = dofile(ROOT .. "lib/paths.lua")
 
 local profiles = { pid = 1, rate = 1 }
+local boardPid = nil              -- the board's PID profile when it differs from the radio's sensor
 local statusBytes = nil
 local dialogs = {}
 local axisSetter = nil
@@ -213,7 +214,7 @@ end
 local function statusReply()
   local buf = {}
   for i, b in ipairs(codecs.status.simulatorResponse) do buf[i] = b end
-  buf[24], buf[26] = profiles.pid - 1, profiles.rate - 1
+  buf[24], buf[26] = (boardPid or profiles.pid) - 1, profiles.rate - 1
   -- statusBytes: a reply cut short after that many bytes
   if statusBytes then for i = #buf, statusBytes + 1, -1 do buf[i] = nil end end
   return buf
@@ -494,6 +495,109 @@ do
   profiles.pid = 1
   check("nothing is written", changedFields(before) == "" and not has(sent, EEPROM), table.concat(sent, ","))
   check("reported as changed settings", lastReport().message == T().changed, lastReport().message)
+end
+
+print("A profile switch between two writes stops the save before the next write")
+do
+  resetFc()
+  openPage()
+  local before = snapshot()
+  local logged = #(Journal.read(MCU) or {})
+  local sent = applyNow(function(m)
+    if m.command == codecs.tuning.writeCommand then profiles.pid = 2 end
+  end)
+  profiles.pid = 1
+  check("the write before the switch went out, the one after it did not", has(sent, codecs.tuning.writeCommand)
+    and not has(sent, codecs.rates.writeCommand), table.concat(sent, ","))
+  check("nothing is committed after the switch", not has(sent, EEPROM), table.concat(sent, ","))
+  check("only the first write's field reached the board", changedFields(before) == "pid_0_F", changedFields(before))
+  check("the pilot is told the save stopped and how to undo the part sent", lastReport().ok == false
+    and lastReport().message == T().profileStopped, lastReport().message)
+  check("nothing is journalled", #(Journal.read(MCU) or {}) == logged)
+  check("the save ends: Save is offered again for the same flights", not ui.applying and not Pipeline.isActive())
+end
+
+print("A switch the radio's sensors have not reported yet still stops the next write")
+do
+  resetFc()
+  openPage()
+  local before = snapshot()
+  -- The board moves after the status read and before the first write; the sensor still reads PID 1
+  local sent = applyNow(function(m)
+    if m.command == codecs.rates.command then boardPid = 2 end
+  end)
+  boardPid = nil
+  check("no write is sent", not has(sent, codecs.tuning.writeCommand) and not has(sent, codecs.rates.writeCommand)
+    and not has(sent, EEPROM), table.concat(sent, ","))
+  check("nothing changed on the board", changedFields(before) == "", changedFields(before))
+  check("reported as nothing changed", lastReport().ok == false and lastReport().message == T().changed,
+    lastReport().message)
+end
+
+print("A check before a write that gets no answer stops the save")
+do
+  resetFc()
+  openPage()
+  local statusReads = 0
+  local sent = applyNow(function(m)
+    if m.command == codecs.status.command then
+      statusReads = statusReads + 1
+      -- the first status read belongs to the settings read; the third is the check before the second write
+      if statusReads == 3 then return "error" end
+    end
+  end)
+  check("the second write is not sent and nothing is committed", has(sent, codecs.tuning.writeCommand)
+    and not has(sent, codecs.rates.writeCommand) and not has(sent, EEPROM), table.concat(sent, ","))
+  check("reported as a failed write", lastReport().message == T().writeFailed, lastReport().message)
+end
+
+print("A checked write is sent once: the queue does not send it again after a lost reply")
+do
+  resetFc()
+  openPage()
+  local retries = {}
+  local sent = applyNow(function(m)
+    if m.command == codecs.tuning.writeCommand or m.command == codecs.rates.writeCommand then
+      retries[#retries + 1] = tostring(m.maxRetries)
+    elseif m.command == EEPROM then
+      retries[#retries + 1] = "eeprom " .. tostring(m.maxRetries)
+    end
+  end)
+  check("both writes carry maxRetries 0, the EEPROM write the queue's default",
+    table.concat(retries, ",") == "0,0,eeprom nil" and lastReport().ok == true, table.concat(retries, ",")
+    .. " / " .. table.concat(sent, ","))
+end
+
+print("A check reply too short to tell the profiles is a failed write, not a profile change")
+do
+  resetFc()
+  openPage()
+  local statusReads = 0
+  local sent = applyNow(function(m)
+    if m.command == codecs.status.command then
+      statusReads = statusReads + 1
+      if statusReads == 2 then return { 1, 2, 3 } end
+    end
+  end)
+  check("no write is sent", not has(sent, codecs.tuning.writeCommand) and not has(sent, EEPROM),
+    table.concat(sent, ","))
+  check("reported as a failed write", lastReport().message == T().writeFailed, lastReport().message)
+end
+
+print("A save goes on to its end when the page is closed after its first write")
+do
+  resetFc()
+  openPage()
+  local logged = #(Journal.read(MCU) or {})
+  local sent = applyNow(function(m)
+    if m.command == codecs.tuning.writeCommand and opened then Page.onClose(); opened = false end
+  end)
+  check("the remaining write and the EEPROM write go out after the close", has(sent, codecs.rates.writeCommand)
+    and has(sent, EEPROM), table.concat(sent, ","))
+  check("both writes reached the board", fc.tuning.pid_0_F == 96 and fc.rates.rcRates_1 == 23,
+    "F " .. tostring(fc.tuning.pid_0_F) .. " rates " .. tostring(fc.rates.rcRates_1))
+  check("the stored save is journalled after the close", #(Journal.read(MCU) or {}) == logged + 3,
+    tostring(#(Journal.read(MCU) or {}) - logged) .. " entries")
 end
 
 print("Ethos suite: A failed or short read writes nothing")

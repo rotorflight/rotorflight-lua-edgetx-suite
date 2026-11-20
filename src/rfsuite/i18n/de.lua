@@ -1466,6 +1466,7 @@ return {
         save_not_stored = "Speichern fehlgeschlagen. Die Änderungen gelten bis zum Neustart des Flugcontrollers, dann nicht mehr.",
         save_write_failed = "Schreiben fehlgeschlagen. Nichts gespeichert: Flugcontroller neu starten, um Gesendetes zurückzunehmen.",
         save_profile_moved = "Das Profil wechselte während des Speicherns. Beide Profile prüfen.",
+        save_profile_stopped = "Das Profil wechselte während des Speicherns, daher wurde abgebrochen. Nichts gespeichert: Flugcontroller neu starten, um Gesendetes zurückzunehmen.",
         save_unverified = "Gespeichert, aber das Zurücklesen hat es nicht bestätigt. Die Einstellungen unter PIDs, Raten und PID-Regler prüfen.",
         journal_failed = "Das Änderungsjournal konnte nicht geschrieben werden.",
         applied = "Änderungen im Flugcontroller gespeichert. Erneut fliegen, um die neue Abstimmung zu prüfen.",
