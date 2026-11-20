@@ -489,6 +489,8 @@ local function addSaveTexts(T, i18n)
   T.writeFailed = pageText(i18n, "save_write_failed",
     "Writing failed. Nothing was saved: restart the flight controller to undo any part already sent.")
   T.profileMoved = pageText(i18n, "save_profile_moved", "The profile changed during the save. Check both profiles.")
+  T.profileStopped = pageText(i18n, "save_profile_stopped",
+    "The profile changed during the save, so it stopped. Nothing was saved: restart the flight controller to undo any part already sent.") -- luacheck: ignore 631
   T.unverified = pageText(i18n, "save_unverified",
     "Saved, but reading back did not confirm it. Check the settings on PIDs, Rates and PID Controller.")
   T.journalFailed = pageText(i18n, "journal_failed", "The change journal could not be written.")
@@ -1487,6 +1489,35 @@ local function validateTune(snapshot, records)
   end
 end
 
+-- Every write lands on the profile active when it arrives, so before each one the flight controller
+-- is asked again (the pipeline's step check): its status reply and the radio's profile sensors must
+-- still name the profiles the advice was worked out for. nil when the reply cannot tell. The save
+-- outlives the page, whose close drops the module upvalues, so the modules come in as arguments.
+local function profilesHold(tune, buf, Status, P)
+  if type(buf) ~= "table" or #buf < 27 then
+    pageLog("warn", "status reply before a write too short (%s bytes); save stopped",
+      tostring(type(buf) == "table" and #buf))
+    return nil
+  end
+  local status = Status.parse(buf)
+  if not status then
+    pageLog("warn", "status reply before a write unreadable; save stopped")
+    return nil
+  end
+  local boardPid = status.current_pid_profile_index + 1
+  local boardRate = status.current_control_rate_profile_index + 1
+  local pid, rate = 1, 1
+  if P then pid, rate = P.getActivePidProfile(1), P.getActiveRateProfile(1) end
+  if boardPid == tune.pidProfile and boardRate == tune.rateProfile and pid == tune.pidProfile
+      and rate == tune.rateProfile then
+    pageLog("trace", "profiles still PID %s, rates %s before a write", tostring(pid), tostring(rate))
+    return true
+  end
+  pageLog("warn", "profiles moved before a write: board PID %s rates %s, radio PID %s rates %s; save stopped",
+    tostring(boardPid), tostring(boardRate), tostring(pid), tostring(rate))
+  return false
+end
+
 local function buildSteps(snapshot, records, buffers)
   local steps = {}
   local specs = {
@@ -1517,6 +1548,12 @@ local function buildSteps(snapshot, records, buffers)
     end
     if payload then steps[#steps + 1] = { label = spec.label, command = spec.api.writeCommand, payload = payload } end
   end
+  local tune, Status, P = snapshot.tune, StatusApi, Profile
+  local check = {
+    command = Status.command,
+    holds = function(buf) return profilesHold(tune, buf, Status, P) end
+  }
+  for _, step in ipairs(steps) do step.check = check end
   return steps
 end
 
@@ -1617,8 +1654,14 @@ function M.onSave(ctx)
         if result.status ~= "done" then
           if type(SavePipeline.hasOutcome) == "function" and SavePipeline.hasOutcome() then SavePipeline.dismiss() end
           local commit = result.step == "commit" or result.phase == "commit"
+          local message = commit and ui.text.notStored or ui.text.writeFailed
+          if result.check == "refused" then
+            -- The profiles moved before a write: that write and every later one were not sent
+            message = result.sentAny and ui.text.profileStopped or ui.text.changed
+            pageLog("info", "save stopped before %s, a write already sent: %s", tostring(result.step), tostring(result.sentAny))
+          end
           render()
-          finishApply(false, commit and ui.text.notStored or ui.text.writeFailed)
+          finishApply(false, message)
           return
         end
         -- The page reports the verified result. Retire the pipeline's success notice so it
@@ -1705,7 +1748,7 @@ function M.wakeup(ctx)
       -- The first look after a read also counts: the profiles may have changed while it ran
       if seen ~= nil or pid ~= ui.activePid or rate ~= ui.activeRate then
         -- Other profiles than the ones the flights were read for: read theirs, as Reload would
-        -- (a save already running finds the switch itself and stops)
+        -- (a save already running asks the flight controller before each write and stops there)
         if not ui.applying and (pid ~= ui.activePid or rate ~= ui.activeRate) then
           pageLog("debug", "active profiles now PID %s, rates %s: their flights are read", tostring(pid), tostring(rate))
           ui.snapshot = nil

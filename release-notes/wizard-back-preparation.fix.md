@@ -1,0 +1,1 @@
+- **Helicopter Setup asks Before this step again when Back leaves a step opened from the step menu (`helicopter_setup`)** (#1238)

@@ -155,8 +155,8 @@ not saved to the card. Check the card before the next flight; the next disarm tr
 **The profiles the flights were flown on.** The advice uses the cyclic polarity, cyclic ring and I-term relax type
 saved with the newest flight on the active profiles. If the active profiles change while the page is open (a switch
 on the transmitter, seen through the *PID#* and *RTE#* sensors), the page reads the flights of the new profiles
-again by itself, as *Reload* does, and *Save* stays off until they are read; a save already running stops
-instead.
+again by itself, as *Reload* does, and *Save* stays off until they are read. A save already running asks the
+flight controller for the active profiles before each of its writes and stops there (see *Applying the changes*).
 
 ## The rules
 
@@ -232,11 +232,20 @@ it once, fly, and check both again.
    nothing changed: fly again on the current settings. It also stops if a new value is out of range or the heli is
    armed.
 3. **Writes the changes**: only the settings that change; every other setting is written back exactly as it was
-   read.
+   read. The flight controller writes a setting into whichever profile is active when it arrives, so right before
+   each write the page asks the flight controller again which PID and rate profile are active, and reads the
+   *PID#* and *RTE#* sensors. If either no longer names the profiles of the advice, the save stops there: that
+   write and every later one are not sent, and nothing is saved. A write whose answer is lost is not sent again,
+   unchecked, and the save stops as a failed write. Closing the page does not stop a save that is running.
 4. **Saves to the flight controller** without a reboot, so the changes survive a restart.
 5. **Checks the saved settings**: reads them back and reports how many changes were written and read back, or
-   names the first one that differs. If the settings cannot be read back, it says the save is unverified; if a
-   profile changed during the save, it asks you to check both profiles.
+   names the first one that differs. If the settings cannot be read back, it says the save is unverified; if it
+   finds other profiles active than the advice's, it asks you to check both profiles. A switch in the moment
+   between the flight controller's answer and the write reaching it is not caught before that write. This check
+   finds it if the profile is still switched when the flight controller answers its first read, which asks for
+   the active profiles before the settings are read back; a reporting *PID#* or *RTE#* sensor also finds a switch
+   of its profile that is still in place once the settings are read. Without the sensors, a switch after that
+   first answer is not found.
 
 With Betaflight, Raceflight or KISS rates the page can only give the rate change as a percentage, so *Save* does not
 write it, and does not write the FF change that goes with it either: FF on its own would change the stick feel.
@@ -250,7 +259,18 @@ If saving fails, the page says what may still be active until a restart:
   flight controller to undo them.
 - "Writing failed. Nothing was saved: restart the flight controller to undo any part already sent." means a write
   failed or timed out before the save. Some values may already be active; restart the flight controller to
-  restore the stored settings.
+  restore the stored settings. It is also shown when the flight controller's answer to the profile check before a
+  write was missing or too short to read.
+- "The profile changed during the save, so it stopped. Nothing was saved: restart the flight controller to undo
+  any part already sent." means a PID or rate profile switch was seen between two writes. The writes before it
+  were checked against the profile of the advice and are active until a restart; the ones after it were not sent.
+  Restart the flight controller to restore the stored settings, switch back to the profile you flew on, and save
+  again. A switch seen before the first write stops with "The settings on the flight controller are not the ones
+  these flights were flown with" and nothing changed.
+
+Until that restart, what already reached the flight controller can stay active, and anything that makes the flight
+controller store its settings, such as a later save on any page that goes through, stores it too. So restart the
+flight controller before saving again or flying.
 
 After a save, the axis shows "Changes saved to the flight controller. Fly again to check the new tune." for as long
 as the page stays open. Opened again before the next flight is saved, the page shows the advice of the same

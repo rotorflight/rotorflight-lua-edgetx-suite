@@ -5844,6 +5844,71 @@ return function(h)
     check(v.confirmExit==true and not v.closing,"R26 Back on the step menu with unsaved changes asks first")
     v.dirty={};v.confirmExit=nil
   end)
+  case("CORE.step-menu-back-asks-preparation",function()
+    -- In Complete setup a step reached through the step menu is a new visit; the steps before it
+    -- were not walked in this visit, so Back from it enters the step before as a new visit too,
+    -- with that step's own "Before this step" card.
+    local function jumped(target)
+      local w=world();settle(w)
+      w:navigate(target-1,1);drain(w)
+      w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(target);drain(w)
+      check(w.step==target and w.preparationCard==true,"BACKPREP the jump asks the preparation of step "..target)
+      return w
+    end
+    local function asksPreparation(w,stepIndex,what)
+      check(w.step==stepIndex and not w.singleStep,"BACKPREP "..what.." enters step "..stepIndex.." in Complete setup")
+      check(w.preparationCard==true and w.cards and w.cards[1].title==L.prepareStep,
+        "BACKPREP "..what.." asks the preparation of step "..stepIndex)
+      check(next(w.holds)==nil,"BACKPREP "..what.." holds nothing behind the preparation card")
+    end
+    -- Back on the jumped step's own preparation card.
+    local w=jumped(15)
+    w:back();drain(w)
+    asksPreparation(w,14,"Back on the preparation card")
+    -- Back again: the step before that was not walked either.
+    w:back();drain(w)
+    asksPreparation(w,13,"a second Back")
+    -- Back from the jumped step's first card, after its preparation was confirmed.
+    w=jumped(15)
+    w.checks.motorUnplugged,w.checks.servoSettings=true,true;w:next();drain(w)
+    check(w.step==15 and not w.preparationCard,"BACKPREP the confirmed preparation opens the step")
+    w:back();drain(w)
+    asksPreparation(w,14,"Back from the first card")
+    check(w.checks.motorUnplugged==nil and w.checks.servoSettings==nil,"BACKPREP the step before carries no answer of the jumped step")
+    -- A jumped step without a preparation card of its own: the step before still asks its own.
+    w=world();settle(w);w:navigate(9,1);drain(w)
+    w:openStepMenu();drain(w);w.statusAt=getTime();w:jumpToStep(10);drain(w)
+    check(w.step==10 and not w.preparationCard,"BACKPREP step 10 has no preparation card")
+    w:back();drain(w)
+    asksPreparation(w,9,"Back from step 10")
+    -- Back into step 1: no preparation card there, and its own answers are asked anew.
+    w=jumped(2)
+    w.checks.blades,w.checks.unplugged=true,true;w:next();drain(w)
+    check(w.step==2 and not w.preparationCard,"BACKPREP step 2 opens after its preparation")
+    w:back();drain(w)
+    check(w.step==1 and not w.preparationCard,"BACKPREP Back into step 1 shows its own first card")
+    check(w.checks.blades==nil and w.checks.unplugged==nil,"BACKPREP Back into step 1 asks its answers anew")
+    -- With staged changes Back asks first; leaving through the question is the same new visit.
+    w=jumped(15)
+    w.checks.motorUnplugged,w.checks.servoSettings=true,true;w:next();drain(w)
+    w:touch("mixer_config");w:back()
+    check(w.confirmExit and w.backTarget==14 and w.step==15,"BACKPREP Back with changes asks to save or discard")
+    w:resolveExit(false);drain(w);drain(w)
+    asksPreparation(w,14,"discarding on Back")
+    w=jumped(15)
+    w.checks.motorUnplugged,w.checks.servoSettings=true,true;w:next();drain(w)
+    w:touch("mixer_config");w:back()
+    check(w.confirmExit and w.backTarget==14,"BACKPREP Back with changes asks before saving")
+    w:resolveExit(true);drain(w);drain(w)
+    check(next(w.dirty)==nil,"BACKPREP saving on Back leaves nothing staged")
+    asksPreparation(w,14,"saving on Back")
+    -- Control: without a jump, Back in Complete setup moves to the step before as it always did.
+    local v=world();settle(v)
+    v:navigate(15,1);drain(v)
+    check(v.step==15 and not v.preparationCard,"BACKPREP a walked step has no preparation card")
+    v:back();drain(v)
+    check(v.step==14 and not v.preparationCard,"BACKPREP Back without a jump asks no preparation")
+  end)
   case("REVIEW26.geometry-mixed-group-placeholder",function()
     local w=world();settle(w);w.step=7
     local servos=w.data.servo_configurations.servos
