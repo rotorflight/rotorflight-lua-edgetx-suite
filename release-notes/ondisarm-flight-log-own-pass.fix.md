@@ -1,1 +1,1 @@
-- **After a landing the telemetry read waits one widget call while the flight log entry is written, so the dashboard is not stopped at the disarm (`tasks/events`)** (#785)
+- **After a landing the telemetry read waits one widget call while the flight log entry is written, so the two no longer share the call that could stop the dashboard (`tasks/events`)** (#785)
