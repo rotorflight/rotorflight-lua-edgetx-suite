@@ -72,6 +72,19 @@ local function requestRebuild()
   if ui.runtime and type(ui.runtime.requestRebuild) == "function" then ui.runtime.requestRebuild() end
 end
 
+-- The firmware numbers SRXL2 channels from 1: motor 1 is always channel 1, and motor 2 takes
+-- 0 (off) or 2..32; it repairs any other value to 0. The row therefore runs over 1..32 with its
+-- lowest step standing for Off, so stepping from Off lands on 2 and back without a value the
+-- firmware would read as off showing a number.
+local MOTOR2_FIRST, MOTOR2_LAST = 2, 32
+local MOTOR2_OFF_STEP = MOTOR2_FIRST - 1
+
+local function motor2Step(channel)
+  local n = tonumber(channel) or 0
+  if n >= MOTOR2_FIRST and n <= MOTOR2_LAST then return n end
+  return MOTOR2_OFF_STEP
+end
+
 -- `unsupported` only for an error reply: that is how a firmware without the message, or built
 -- without the SRXL2 ESC driver, answers it. A timeout, a cleared request or a reply this page
 -- cannot decode says nothing about the firmware and is shown as a failed read.
@@ -79,6 +92,9 @@ local function finishRead(config, unsupported)
   if config then
     logf("debug", "read: throttle_rate_hz=%s telem_interval_frames=%s motor2_channel=%s",
       tostring(config.throttle_rate_hz), tostring(config.telem_interval_frames), tostring(config.motor2_channel))
+    if config.motor2_channel ~= 0 and motor2Step(config.motor2_channel) == MOTOR2_OFF_STEP then
+      logf("warn", "read: motor2_channel=%s is outside 2..32, so off; shown as Off", tostring(config.motor2_channel))
+    end
   elseif unsupported then
     logf("info", "read: the firmware does not offer MSP2_GET_SRXL2_ESC_CONFIG (error reply)")
   end
@@ -206,10 +222,12 @@ function M.getHeaderActions()
   }
 end
 
-local function offOrNumber(offText)
+-- Off below `first` (default 1), the number from there on.
+local function offOrNumber(offText, first)
+  first = first or 1
   return function(value)
     local n = tonumber(value) or 0
-    if n == 0 then return offText end
+    if n < first then return offText end
     return tostring(math.floor(n))
   end
 end
@@ -295,16 +313,19 @@ function M.build(ctx)
   label = pageText(i18n, "srxl2_motor2_channel", "Motor 2 Channel")
   cursorY = cursorY + Controls.appendNumberField(children, x, cursorY, w, label, {
     helpText = pageText(i18n, "help_srxl2_motor2_channel",
-      "For dual-motor Smart ESCs: the SRXL2 channel that carries motor 2 (motor 1 is always channel 0); the mixer's second motor output drives it. Off for one motor."),
+      "For dual-motor Smart ESCs: the SRXL2 channel that carries motor 2, 2 to 32 (motor 1 is always channel 1); the mixer's second motor output drives it. Off for one motor."),
     helpTitle = label,
     onHelp = onRowHelp,
-    min = 0,
-    max = 31,
-    display = offOrNumber(offText),
+    min = MOTOR2_OFF_STEP,
+    max = MOTOR2_LAST,
+    display = offOrNumber(offText, MOTOR2_FIRST),
     edited = afterEdit,
-    get = function() return ui.config.motor2_channel end,
+    get = function() return motor2Step(ui.config.motor2_channel) end,
     set = function(v)
-      ui.config.motor2_channel = tonumber(v) or 0
+      local step = motor2Step(v)
+      local channel = (step == MOTOR2_OFF_STEP) and 0 or step
+      logf("trace", "edit: motor2_channel %s -> %s", tostring(ui.config.motor2_channel), tostring(channel))
+      ui.config.motor2_channel = channel
       ui.dirty = true
     end
   })
