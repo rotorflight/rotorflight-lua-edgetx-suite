@@ -1,1 +1,0 @@
-- **PID-loop choices are labeled from the board's gyro rate as in the Configurator, and craft names are limited to 16 characters (`setup/configuration`)** (#615)

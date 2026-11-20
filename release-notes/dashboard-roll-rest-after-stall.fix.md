@@ -1,1 +1,0 @@
-- **The rotary menu settling right after the radio stalled waits a pass instead of sharing the catch-up pass (`widgets/dashboard`)**

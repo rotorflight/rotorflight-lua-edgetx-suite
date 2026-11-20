@@ -1,1 +1,0 @@
-- **Setup > Telemetry reports Saved only after the EEPROM stores it, then restarts the flight controller (`setup/telemetry`)** (#594)

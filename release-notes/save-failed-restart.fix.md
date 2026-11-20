@@ -1,1 +1,0 @@
-- **A failed save that may have reached the flight controller offers Restart FC (`tasks/msp/save_pipeline`)**

@@ -1,1 +1,0 @@
-- **In Helicopter Setup an empty list shows Not set instead of -1, card rows fit 480-wide screens and the RPM source shows in full (`helicopter_setup`)**

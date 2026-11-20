@@ -1,1 +1,0 @@
-- **Settings > Dashboard > Theme no longer saves defaults over a model's own settings (`settings/dashboard/theme`)**

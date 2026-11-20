@@ -1,1 +1,0 @@
-- **Helicopter Setup uses the Configurator's pictures for control directions, gyro, tail, pitch, swash and servo checks (`helicopter_setup`)**

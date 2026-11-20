@@ -1,1 +1,0 @@
-- **Saves and the MSP queue keep a model last read armed as armed for up to 5 s while its ARM reading is missing (`lib/armed`)** (#598)

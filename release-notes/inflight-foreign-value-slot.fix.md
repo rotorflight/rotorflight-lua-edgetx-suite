@@ -1,1 +1,0 @@
-- **In-flight tuning refuses a board whose adjustment slots use the tuning channels only in part, and names the slot (`widgets/dashboard/inflight`)** (#811)

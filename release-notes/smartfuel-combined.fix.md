@@ -1,1 +1,0 @@
-- **SmartFuel COMBINED uses the lower of the voltage and current estimates (`tasks/events/telemetry_bg/smart`)** (#705)

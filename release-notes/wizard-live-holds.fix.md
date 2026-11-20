@@ -1,1 +1,0 @@
-- **Helicopter Setup restores live switch ranges on Discard and stops PWM calibration when full throttle is interrupted (`helicopter_setup`)**

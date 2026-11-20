@@ -1,1 +1,0 @@
-- **Helicopter Setup splits rates, governor, throttle, gearing, servos, battery and ESC telemetry into their own parts (`helicopter_setup`)**

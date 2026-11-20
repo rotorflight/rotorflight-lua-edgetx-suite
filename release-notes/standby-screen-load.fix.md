@@ -1,1 +1,0 @@
-- **The standby screen no longer redraws much of the screen all the time, and finds a late ELRS module (`widgets/dashboard/standby`)**

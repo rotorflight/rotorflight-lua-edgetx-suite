@@ -1,1 +1,0 @@
-- **The custom telemetry decoder walks each frame with fewer steps (`tasks/events/telemetry_bg/drain`)**

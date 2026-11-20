@@ -1,1 +1,0 @@
-- **The helicopter setup wizard follows the suite's color scheme (`helicopter_setup`)**

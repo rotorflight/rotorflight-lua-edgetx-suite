@@ -1,1 +1,0 @@
-- **A Setup > Governor save that changes a value restarts the flight controller, which applies it only at start-up (`setup/governor`)**

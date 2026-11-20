@@ -1,1 +1,0 @@
-- **Helicopter Setup sets headspeed targets per PID profile and warns when RPM filtering has no RPM signal (`helicopter_setup`)**

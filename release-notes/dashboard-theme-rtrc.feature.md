@@ -1,1 +1,0 @@
-- **The @RT-RC and @RT-RC Nitro themes take the full screen, with tile choices and keys (`widgets/dashboard/themes`)**

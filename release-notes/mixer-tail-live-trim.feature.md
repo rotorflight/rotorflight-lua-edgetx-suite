@@ -1,1 +1,0 @@
-- **The Tail page sets Yaw Center Trim live while the tail is watched (`setup/mixer/tail`)**

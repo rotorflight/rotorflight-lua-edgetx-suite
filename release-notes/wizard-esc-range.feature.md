@@ -1,1 +1,0 @@
-- **Helicopter Setup syncs the OpenYGE throttle range and checks the YGE and Hobbywing V5 operating modes (`helicopter_setup`)**

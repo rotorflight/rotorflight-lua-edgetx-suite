@@ -1,1 +1,0 @@
-- **The tool opened from the dashboard releases its memory after a confirmation dialog (`ui/confirm_dialog`)** (#842)

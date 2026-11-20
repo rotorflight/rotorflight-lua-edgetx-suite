@@ -1,1 +1,0 @@
-- **Helicopter Setup copes with a flight controller that answers late, and wiring detection finds a programmable ESC's wiring (`helicopter_setup`)**

@@ -1,1 +1,0 @@
-- **Tail Rotor reports a failed save instead of ending without a word (`flight_tuning/advanced/tail_rotor`)** (#594)

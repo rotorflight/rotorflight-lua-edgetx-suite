@@ -1,1 +1,0 @@
-- **The dashboard shows the standby screen while it waits for a flight controller, except after a link lost armed or after a flight (`widgets/dashboard/runtime`)**

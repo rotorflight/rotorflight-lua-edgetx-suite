@@ -1,1 +1,0 @@
-- **Full-screen box dashboards get an info bar with clock, radio battery, link quality and the controls (`widgets/dashboard`)**

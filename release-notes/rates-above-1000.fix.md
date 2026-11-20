@@ -1,1 +1,0 @@
-- **Rates above 1000 deg/s are shown and edited as the flight controller holds them (`flight_tuning/rates`)** (#991)

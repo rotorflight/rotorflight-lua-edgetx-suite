@@ -1,1 +1,0 @@
-- **The Logs list appears in the tool opened from the dashboard on a card with many logs (`logs`)**

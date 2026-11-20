@@ -1,1 +1,0 @@
-- **Info shows RF Mode correctly for the module's ExpressLRS 3.x or 4.x generation (`tools/diagnostics/info`)** (#614)

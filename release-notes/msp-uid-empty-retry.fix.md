@@ -1,1 +1,0 @@
-- **The flight controller is asked for its identity again when it answers without one, so its model preferences load (`tasks/msp/runtime`)**

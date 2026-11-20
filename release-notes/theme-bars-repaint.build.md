@@ -1,1 +1,0 @@
-- **Grid, Urban and Deck stop repainting their bars on every pass in full screen (`widgets/dashboard/themes`)**

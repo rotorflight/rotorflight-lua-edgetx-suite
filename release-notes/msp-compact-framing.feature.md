@@ -1,1 +1,0 @@
-- **MSP over telemetry uses the shorter framing on Rotorflight 4.7 (`tasks/msp/common`)**

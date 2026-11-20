@@ -1,1 +1,0 @@
-- **The battery registry survives a save cut short by a power loss (`tools/flight_log`)** (#992, #1004)

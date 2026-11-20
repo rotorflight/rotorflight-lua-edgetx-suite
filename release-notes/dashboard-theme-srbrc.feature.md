@@ -1,1 +1,0 @@
-- **The @SRB-RC theme takes the full screen, with tile choices and keys (`widgets/dashboard/themes`)**

@@ -1,1 +1,0 @@
-- **The configuration tool opens its menu without waiting for the flight controller (`ui/home`)**

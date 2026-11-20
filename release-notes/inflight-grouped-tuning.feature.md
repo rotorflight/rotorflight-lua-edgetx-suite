@@ -1,1 +1,0 @@
-- **In-flight tuning is grouped by axis and subsystem, tunes every reachable profile and offers only what the flight controller carries (`widgets/dashboard/inflight`)**

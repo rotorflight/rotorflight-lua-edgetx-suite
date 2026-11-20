@@ -1,1 +1,0 @@
-- **The Rotorflight model template asks for blackbox and backup switches and the module slot, and refuses one switch on two functions (`templates`)**

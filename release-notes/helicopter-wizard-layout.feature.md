@@ -1,6 +1,0 @@
-- **Helicopter setup wizard: one layout for every card, a step menu and switches (`src/rfsuite/app/pages/helicopter_setup/`)**:
-  - The header names the step, the card and its place, with *Step n/19* on the right; tapping it opens a step menu with all 19 steps and their done marks. Choosing a step asks to save or discard first when something changed.
-  - *Exit* is a button of its own at the bottom centre, between Back and Continue.
-  - Each card leads with its explanation across the full width; the rows follow below, controls right after their labels, and beside a picture the rows are centred on it. Action buttons are as wide as their label, and every card has a name of its own.
-  - Yes/no and off/on answers are switches, *Use half-duplex* included, which now also switches half-duplex off again.
-  - A step's last card reads *Next step* and opens the next step, also when the step was opened on its own; step 19 reads *Finish*.

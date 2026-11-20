@@ -1,1 +1,0 @@
-- **The Tune Advisor says acro mode instead of rate mode (`flight_tuning/tune_advisor`)**

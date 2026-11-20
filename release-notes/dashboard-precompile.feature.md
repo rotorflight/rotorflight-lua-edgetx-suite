@@ -1,1 +1,0 @@
-- **After an install the dashboard compiles the suite first and asks for a radio restart before it connects (`lib/precompile`)**

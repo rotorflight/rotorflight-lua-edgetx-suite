@@ -1,1 +1,0 @@
-- **Accelerometer trims no longer show a misleading degree suffix (`setup/accelerometer`)** (#615)

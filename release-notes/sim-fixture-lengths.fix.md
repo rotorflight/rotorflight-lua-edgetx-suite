@@ -1,1 +1,0 @@
-- **Without a flight controller, the simulator's Status and other replies read correctly again (`tasks/msp/api`)** (#294)

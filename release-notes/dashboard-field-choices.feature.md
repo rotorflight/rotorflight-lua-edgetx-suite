@@ -1,1 +1,0 @@
-- **Choose what dashboard value tiles show, live readings or last-flight figures, and bind the theme's full-screen keys (`settings/dashboard`)**

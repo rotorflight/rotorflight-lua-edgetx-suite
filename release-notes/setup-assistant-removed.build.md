@@ -1,1 +1,0 @@
-- **The old Setup Assistant, unreachable since Helicopter Setup replaced it, is removed (`setup_wizard`)**

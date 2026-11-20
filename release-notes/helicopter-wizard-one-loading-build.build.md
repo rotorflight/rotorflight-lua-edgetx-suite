@@ -1,1 +1,0 @@
-- A move to another card in Helicopter Setup builds its loading view once instead of twice, one LVGL build less per card move (`helicopter_setup`).

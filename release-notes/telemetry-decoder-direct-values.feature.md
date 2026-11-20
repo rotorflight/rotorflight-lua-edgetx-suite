@@ -1,1 +1,0 @@
-- **Dashboard and tool take values straight from their own telemetry decoder; ratios or offsets set on the radio's sensors do not apply to them (`lib/sensors`)**

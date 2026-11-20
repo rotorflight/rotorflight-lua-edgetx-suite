@@ -1,1 +1,0 @@
-- **The Flight Log fills its per-cell voltage columns where the flight controller detects the cell count (`tasks/events/ondisarm/tasks/flight_log`)** (#1077)

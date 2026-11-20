@@ -1,1 +1,0 @@
-- **ESC configurator options and titles are translated on all ten ESC pages (`setup/esc_motors/esc_tools`)** (#600)

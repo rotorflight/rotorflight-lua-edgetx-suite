@@ -1,1 +1,0 @@
-- **The log says what the dashboard is doing, what it costs and where a problem began (`widgets/dashboard`)**

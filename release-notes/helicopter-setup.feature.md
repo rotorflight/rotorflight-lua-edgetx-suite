@@ -1,1 +1,0 @@
-- **A new Helicopter Setup wizard follows the Configurator's 19 steps and takes over the Wizards entry from the Setup Assistant (`helicopter_setup`)**

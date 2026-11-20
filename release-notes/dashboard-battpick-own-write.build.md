@@ -1,1 +1,0 @@
-- **Picking a battery on the dashboard no longer makes that dashboard reload its preferences (`widgets/dashboard/runtime`)**

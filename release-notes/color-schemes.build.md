@@ -1,1 +1,0 @@
-- **A light and a dark color scheme taken from the Rotorflight Configurator, read by the dashboard widget's menu pages (`lib/color_schemes`)**

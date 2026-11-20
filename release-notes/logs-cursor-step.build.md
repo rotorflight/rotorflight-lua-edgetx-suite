@@ -1,1 +1,0 @@
-- **Stepping the Logs graph cursor no longer rebuilds the page (`logs`)** (#968)

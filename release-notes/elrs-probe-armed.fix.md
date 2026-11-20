@@ -1,1 +1,0 @@
-- **ELRS Link cancels its probes on arming instead of leaving the buttons greyed out (`tools/diagnostics/elrs_link`)** (#614)

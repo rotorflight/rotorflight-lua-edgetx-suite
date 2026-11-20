@@ -1,1 +1,0 @@
-- **In-flight tuning keeps its session in the air when a link gap on the ground was still pending (`widgets/dashboard/inflight`)** (#993)
