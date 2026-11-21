@@ -24,6 +24,10 @@
 --             still driven (Events.edgeChainActive);
 --   loaded    the post-flight theme module is loaded within six seconds of the disarm by the
 --             stub clock, and a theme is still standing on that state at the end;
+--   alone     the pass that writes the flight log does not also run the dashboard's telemetry read
+--             (the read clock does not move in that pass): the flight log task is marked `ownPass`
+--             in its manifest, and the dashboard's read steps aside for the call that starts it --
+--             also with long calls (0.5 s apart), where every call finds the read due;
 --   apart     the post-flight module is loaded on a later pass than the one that wrote the log;
 --   waited    the ondisarm runner has nothing left at the end of the pass that loads it (the
 --             runner may finish in that same pass, before the reload), or the load is not before
@@ -115,7 +119,7 @@ local function pass(widget)
   widget.refresh(widget, nil, nil)
 end
 
-local function runPhase(pad)
+local function runPhase(pad, slow)
   freshWorld()
   local Runtime = assert(loadfile(ROOT .. "/src/rfsuite/widgets/dashboard/runtime.lua"))()
   local widget = Runtime.new({ x = 0, y = 0, w = 800, h = 458 }, {})
@@ -149,19 +153,27 @@ local function runPhase(pad)
   Stubs.sensors["Gov"] = 0
   Stubs.sensors["Thr%"] = 0
   local disarmAt = getTime()
-  local r = { loggedPass = nil, loadedPass = nil, loadedAfter = nil, held = false, chainAtLoad = nil }
+  local r = { loggedPass = nil, loadedPass = nil, loadedAfter = nil, held = false, chainAtLoad = nil,
+    readInLoggedPass = nil, readAfterLogged = nil }
   local function chain()
     return type(Events.edgeChainActive) == "function" and Events.edgeChainActive() or nil
   end
   for i = 1, 70 do
     local seq0 = _G.rfsuite.log_history_seq or 0
     local key0 = widget.themeStateKey
+    local read0 = widget._lastTelemetryReadAt
+    -- Long calls: four more host cycles per call (0.5 s apart), so every call finds the read due.
+    if slow then for _ = 1, 4 do Stubs.tick() end end
     pass(widget)
+    local readHere = widget._lastTelemetryReadAt ~= read0
     local history = _G.rfsuite.log_history or {}
     local added = (_G.rfsuite.log_history_seq or 0) - seq0
     for k = math.max(1, #history - added + 1), #history do
-      if string.find(history[k].msg, "flight logged", 1, true) == 1 then r.loggedPass = r.loggedPass or i end
+      if string.find(history[k].msg, "flight logged", 1, true) == 1 and r.loggedPass == nil then
+        r.loggedPass, r.readInLoggedPass = i, readHere
+      end
     end
+    if r.loggedPass ~= nil and i == r.loggedPass + 1 then r.readAfterLogged = readHere end
     if r.loadedPass == nil and key0 ~= postKey and widget.themeStateKey == postKey then
       r.loadedPass, r.loadedAfter, r.chainAtLoad = i, (getTime() - disarmAt) / 100, chain()
     end
@@ -180,6 +192,9 @@ for pad = 0, 9 do
   check(r.loggedPass ~= nil, tag .. ": logged -- the flight log reports the flight written",
     r.loggedPass and ("pass " .. r.loggedPass) or (writes .. " open(s) for writing, no report"))
   check(r.held, tag .. ": held -- the event runtime names the ondisarm runner while the reload waits")
+  check(r.loggedPass ~= nil and r.readInLoggedPass == false,
+    tag .. ": alone -- the pass that wrote the flight log did not also run the telemetry read",
+    r.loggedPass and ("pass " .. r.loggedPass .. (r.readInLoggedPass and " read" or " no read")) or "not written")
   check(r.loadedAfter ~= nil and r.loadedAfter <= 6.0 and r.standing,
     tag .. ": loaded -- the post-flight module within six seconds of the disarm, and still standing",
     r.loadedAfter and string.format("%.1f s", r.loadedAfter) or "never")
@@ -189,6 +204,22 @@ for pad = 0, 9 do
   check(r.chainAtLoad ~= "ondisarm" or (r.loadedAfter or 0) >= 3.0,
     tag .. ": waited -- loaded with the disarm's tasks done, or not before three seconds after the disarm",
     string.format("runner %s after the loading pass, %.1f s", tostring(r.chainAtLoad), r.loadedAfter or -1))
+end
+
+-- Long calls after the disarm (0.5 s apart, as on a slow first disarm that compiles its modules):
+-- every call then finds the read due, so a task that waited for a call without the read would wait
+-- in vain. The flight log must still be written in a call of its own.
+for pad = 0, 2 do
+  writes = 0
+  local _, r = runPhase(pad, true)
+  local tag = "long calls, phase " .. pad
+  check(r.loggedPass ~= nil, tag .. ": logged -- the flight log reports the flight written",
+    r.loggedPass and ("pass " .. r.loggedPass) or (writes .. " open(s) for writing, no report"))
+  check(r.loggedPass ~= nil and r.readInLoggedPass == false,
+    tag .. ": alone -- the pass that wrote the flight log did not also run the telemetry read",
+    r.loggedPass and ("pass " .. r.loggedPass .. (r.readInLoggedPass and " read" or " no read")) or "not written")
+  check(r.readAfterLogged == true, tag .. ": recovered -- the read runs in the pass right after the flight log's",
+    tostring(r.readAfterLogged))
 end
 
 -- The foreground guard during a hold that began after the reload had already been carried off a

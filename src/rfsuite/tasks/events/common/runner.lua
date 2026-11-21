@@ -63,6 +63,9 @@ function M.new(category)
   local Log = nil
   local Env = nil
   local lastStartedTask = nil
+  -- True after a wakeup that made the first call of a task marked `ownPass` in the manifest; see
+  -- runner.passTaken.
+  local passTaken = false
 
   local function ensureEnv()
     if not Env then Env = loadModule("lib/env.lua") end
@@ -87,10 +90,12 @@ function M.new(category)
     for _, entry in ipairs(manifest) do
       local name = nil
       local context = "both"
+      local ownPass = false
 
       if type(entry) == "table" then
         name = entry.name
         context = entry.context or "both"
+        ownPass = entry.ownPass == true
       else
         name = entry
       end
@@ -99,6 +104,7 @@ function M.new(category)
         tasksQueue[#tasksQueue + 1] = {
           name = name,
           context = context,
+          ownPass = ownPass,
           path = BASE_PATH .. name .. ".lua",
           module = nil,
           initialized = false,
@@ -224,7 +230,15 @@ function M.new(category)
     resetQueuesAndState()
   end
 
+  --- Whether the latest wakeup made the first call of a task marked `ownPass`: that call does the
+  --- task's heavy work (the ondisarm flight log loads its modules and writes the card), and the host
+  --- keeps its own heavy work out of the same widget call. False after any other wakeup.
+  function runner.passTaken()
+    return passTaken
+  end
+
   function runner.wakeup(args)
+    passTaken = false
     if Log == nil then Log = loadModule("lib/log.lua") or false end
     if not tasksLoaded then runner.findTasks() end
     if #tasksQueue == 0 then return end
@@ -245,6 +259,7 @@ function M.new(category)
 
     if task.nextEligibleAt and task.nextEligibleAt > now then return end
 
+    local starting = not task.initialized
     if not task.initialized then task.initialized = true; task.startTime = now end
 
     local module, err = ensureTaskModule(task)
@@ -279,6 +294,13 @@ function M.new(category)
         pcall(step, "task " .. category .. ":" .. tostring(task.name))
       end
       local woke, wakeErr = pcall(module.wakeup, args)
+      if starting and task.ownPass then
+        passTaken = true
+        if Log and type(Log.emitf) == "function" then
+          pcall(Log.emitf, "rfsuite.tasks." .. category, "debug",
+            "task %s took this call: the host leaves its telemetry read for the next", tostring(task.name))
+        end
+      end
       -- A task that raises otherwise shows only as a timeout much later. Once per attempt.
       if not woke and task.raisedLogged ~= (task.attempts or 0) and Log and type(Log.emit) == "function" then
         task.raisedLogged = task.attempts or 0

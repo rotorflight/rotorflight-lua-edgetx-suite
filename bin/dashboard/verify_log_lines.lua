@@ -586,6 +586,83 @@ do
 end
 
 -- ---------------------------------------------------------------------------
+-- 5a. tasks/events/common/runner.lua: a manifest entry marked `ownPass`
+-- ---------------------------------------------------------------------------
+-- The wakeup that makes the first call of such a task reports it (runner.passTaken), with a debug
+-- line; a later call of the same task, and any call of an unmarked task, do not. The ondisarm
+-- manifest marks its flight log entry so.
+
+do
+  local TASKS_DIR = "/tasks/events/ownrun/"
+  local function ownPassCase(level)
+    world()
+    begin(level, true)
+    control("own pass " .. level, level == "off" and "error" or level)
+
+    local now = 0
+    _G.getTime = function() return now end
+    local heavyCalls, heavyDone, lightCalls = 0, false, 0
+    local realLoadScript = _G.loadScript
+    _G.loadScript = function(path, mode)
+      if type(path) == "string" and string.find(path, TASKS_DIR, 1, true) then
+        if string.find(path, "manifest.lua", 1, true) then
+          return function() return { { name = "heavy", ownPass = true }, "light" } end
+        elseif string.find(path, "/heavy.lua", 1, true) then
+          return function()
+            return { wakeup = function() heavyCalls = heavyCalls + 1 end, isComplete = function() return heavyDone end }
+          end
+        elseif string.find(path, "/light.lua", 1, true) then
+          return function()
+            return { wakeup = function() lightCalls = lightCalls + 1 end, isComplete = function() return false end }
+          end
+        end
+        return nil
+      end
+      return realLoadScript(path, mode)
+    end
+    local Runner = assert(loadfile(root .. "/src/rfsuite/tasks/events/common/runner.lua"))()
+    local runner = Runner.new("ownrun")
+    runner.findTasks()
+    local function taken() return type(runner.passTaken) == "function" and runner.passTaken() end
+
+    check(type(runner.passTaken) == "function", "own pass " .. level .. ": the runner answers passTaken")
+    check(taken() == false, "own pass " .. level .. ": nothing reported before a wakeup")
+    runner.wakeup({})
+    check(heavyCalls == 1 and taken() == true,
+      "own pass " .. level .. ": the first call of a marked task is reported", heavyCalls)
+    now = 10
+    runner.wakeup({})
+    check(heavyCalls == 2 and taken() == false,
+      "own pass " .. level .. ": its second call is not", heavyCalls)
+    heavyDone = true
+    now = 20
+    runner.wakeup({})
+    now = 30
+    runner.wakeup({})
+    check(lightCalls >= 1 and taken() == false, "own pass " .. level .. ": a call of an unmarked task is not reported",
+      lightCalls)
+    local took = find("rfsuite.tasks.ownrun", "task heavy took this call")
+    if level == "off" then
+      check(#took == 0, "own pass off: no line", #took)
+    else
+      check(#took == 1 and took[1].level == "debug", "own pass " .. level .. ": one debug line for the first call",
+        #took)
+    end
+    _G.loadScript = realLoadScript
+  end
+  ownPassCase("off")
+  ownPassCase("debug")
+
+  local manifest = assert(loadfile(root .. "/src/rfsuite/tasks/events/ondisarm/manifest.lua"))()
+  local marked = {}
+  for _, entry in ipairs(manifest) do
+    if type(entry) == "table" and entry.ownPass == true then marked[#marked + 1] = entry.name end
+  end
+  check(#marked == 1 and marked[1] == "flight_log", "ondisarm manifest: only flight_log is marked ownPass",
+    table.concat(marked, ","))
+end
+
+-- ---------------------------------------------------------------------------
 -- 5b. lib/require.lua and the connect's UID task
 -- ---------------------------------------------------------------------------
 
