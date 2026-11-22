@@ -33,7 +33,8 @@ A theme's own settings, such as the voltage range its gauges span, are under
   the model is armed and flying — the governor active or the throttle above its threshold — then
   the inflight screen, and after disarming the postflight screen with the numbers of the flight that
   just ended. The postflight screen waits for the work that starts at the landing, the flight log
-  entry among it, usually a second or two. A model armed on the bench that never spools up goes back to the preflight screen
+  entry among it, usually a second or two; the telemetry reading waits one moment while that entry is
+  written, so the two do not load the same widget call. A model armed on the bench that never spools up goes back to the preflight screen
   and shows no postflight screen, because there was no flight. The exact rules are in
   [developer/dashboard-themes.md](../developer/dashboard-themes.md#what-puts-the-widget-into-each-phase).
 - **Before the first screen, a connecting screen.** Until the flight controller answers, battery

@@ -244,7 +244,9 @@ disarm edge, so anything behind it in that chain reads a finished flight. The da
 load of its post-flight theme module while the event runtimes still drive the disarm's tasks
 (`Events.edgeChainActive()` returns `"ondisarm"`), for at most three seconds from the start of the
 hold, so the module load does not share a widget call with the flight log write. A chain still
-running at that limit no longer holds it.
+running at that limit no longer holds it. The telemetry read does not share that call either: the
+`ondisarm` manifest marks the flight log task `ownPass`, and the dashboard leaves its read for the next
+call when `Events.passTaken()` reports the task's first call (`docs/developer/background-tasks.md`).
 
 A link that goes down does **not** end the record. After a flight the pilot disarms and unplugs the
 pack, and the post-flight page has to outlive that: its tiles read this record, so the statistics,

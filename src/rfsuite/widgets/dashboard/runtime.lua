@@ -5213,10 +5213,21 @@ function Runtime.new(zone, options)
     -- Ahead of the runtimes, because the record samples inside them: the count is what tells
     -- this pass's readings from the pass before it, and whether the read below is due is what
     -- lets the record sample on this pass rather than on one that does not read. Nothing between
-    -- here and the read moves the read clock, so this is the test the read itself uses.
+    -- here and the read moves the read clock, so this is the test the read itself uses -- except
+    -- on the one pass an event task takes (Events.passTaken below), where the read steps aside;
+    -- the flight record is closed by then (the disarm's first task closes it).
     local readDue = (now - (self._lastTelemetryReadAt or 0)) >= TELEMETRY_READ_SECONDS
     countSharedPass(now, readDue)
     tickMspRuntime(self, carry)
+    -- An arm or disarm task that does heavy work in its first call (the ondisarm flight log loads
+    -- its modules and writes the card) has just made that call inside the event runtime: the read
+    -- steps aside to the next call, which then finds it due, so the two never share a widget call.
+    if readDue and EventsRuntime and type(EventsRuntime.passTaken) == "function" and EventsRuntime.passTaken() then
+      readDue = false
+      if self._traceOn then
+        Log.emitf("rfsuite.widget", "trace", "telemetry read steps aside: an event task took this call")
+      end
+    end
     
     local reloaded = (reloadPreferencesIfNeeded(self, false, isBackground) == true)
     self.state.zoneW = self.zone and self.zone.w or 0

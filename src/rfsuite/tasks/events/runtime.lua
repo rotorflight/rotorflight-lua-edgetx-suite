@@ -67,6 +67,8 @@ local state = {
   lastArmed = nil,
   -- Which arm/disarm category still has work, if either does. See driveEdgeRunner below.
   edgeRunner = nil,
+  -- This wakeup made the first call of a task marked `ownPass` (Events.passTaken).
+  passTaken = false,
   -- The link went down while the craft was armed, and the flight was kept rather than dropped.
   flightKept = false,
   -- The link is back after such a loss, and whether the craft is still flying is not known yet:
@@ -105,6 +107,9 @@ local function driveEdgeRunner(category, context)
   if type(runner.wakeup) == "function" then
     wakeupArgs.context = context
     local ok, err = pcall(runner.wakeup, wakeupArgs)
+    if ok and type(runner.passTaken) == "function" and runner.passTaken() == true then
+      state.passTaken = true
+    end
     if not ok and err ~= runner.lastWakeupError and Log and type(Log.emit) == "function" then
       runner.lastWakeupError = err
       pcall(Log.emit, "rfsuite.events", category .. ".wakeup error: " .. tostring(err), "error")
@@ -544,7 +549,15 @@ end
 -- `carry` is the dashboard widget's: true on a pass that also runs its telemetry read, so that the
 -- work in here that need not share that pass waits one logic tick -- today SmartFuel's wake, in
 -- telemetry_bg/tasks.lua. Every other caller passes nothing.
+--- Whether the latest Events.wakeup made the first call of an arm or disarm task marked `ownPass`
+--- (ondisarm/manifest.lua: the flight log). The dashboard then leaves its telemetry read for the next
+--- call, so that call does not also carry the read. False after any other wakeup.
+function Events.passTaken()
+  return state.passTaken == true
+end
+
 function Events.wakeup(carry)
+  state.passTaken = false
   ensureDeps()
   if not MspRuntime or type(MspRuntime.getState) ~= "function" then return end
   local mspState = MspRuntime.getState()
