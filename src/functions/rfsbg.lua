@@ -99,10 +99,11 @@ end
 --
 -- An error that reaches the radio ends this script: the radio shows the Lua error and does not
 -- run it again until the scripts are reloaded. The frames are checked before a script sees them,
--- so what is left to raise is mostly the Lua heap this state shares with every widget running
--- short for a moment, which any allocation can meet. So the start, the decode, the teller and the rest
--- of the pass each run protected (pass() and run() below), apart, so that one of them failing leaves
--- the others running.
+-- so what is left to raise is mostly an error that does not come from a frame, such as an
+-- allocation that fails, which any line can meet. (Past the firmware's Lua memory ceiling the radio
+-- closes every script instead, and no pcall catches that.) So the start, the decode, the teller and
+-- the rest of the pass each run protected (pass() and run() below), apart, so that one of them
+-- failing leaves the others running.
 --
 -- The streaks are a fixed set of names, so these tables never grow. The error goes to the
 -- formatter as an argument rather than joined into the message here, so building the line cannot
@@ -131,13 +132,13 @@ end
 -- The decoder, loaded by init() below and asked for again after LOAD_RETRY_SECONDS when that
 -- load fails, as the teller is (ensureTeller) and as the widget's own tasks ask for the same module
 -- (tasks/events/telemetry_bg/tasks.lua). A load can fail without the file being broken: the
--- loader's pcall also catches an error raised while the module's chunk runs, such as the Lua heap
--- running short for a moment. Kept as missing, this script would run on every cycle for the rest
--- of the session and decode nothing.
+-- loader's pcall also catches an error raised while the module's chunk runs, such as an allocation
+-- that fails. Kept as missing, this script would run on every cycle for the rest of the session and
+-- decode nothing.
 --
 -- The next attempt is set before this one, and the load is protected here as well: the radio's
--- loadScript answers nil for a file it cannot load, but an allocation outside its parser can still
--- raise when the heap is short, and that must not skip the wait.
+-- loadScript answers nil for a file it cannot load, but an allocation that fails outside its parser
+-- can still raise, and that must not skip the wait.
 local LOAD_RETRY_SECONDS = 1
 local drainRetryAt = 0
 
