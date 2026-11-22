@@ -254,9 +254,12 @@ writable.
 
 If saving fails, the page says what may still be active until a restart:
 
-- "Saving failed. The changes are active until the flight controller restarts, then undone." means the save to
-  the flight controller's memory failed or timed out: the new values are active but were not stored. Restart the
-  flight controller to undo them.
+- "Saving was not confirmed. The changes are active and may already be stored: restart the flight controller, then
+  check PIDs, Rates and PID Controller." means every write went through but the save to the flight
+  controller's memory failed or timed out. The new values are active, and whether they were stored cannot be told:
+  the flight controller may have stored them and only its answer was lost, and one that refused the save because it
+  was armed stores them when it is disarmed. After the restart the pages show what the flight controller has
+  stored, the new values or the old ones. Nothing is added to the change journal in this case.
 - "Writing failed. Nothing was saved: restart the flight controller to undo any part already sent." means a write
   failed or timed out before the save. Some values may already be active; restart the flight controller to
   restore the stored settings. It is also shown when the flight controller's answer to the profile check before a

@@ -1,0 +1,1 @@
+- **Tune Advisor no longer says an unconfirmed save will be undone at the next restart; it may already be stored (`flight_tuning/tune_advisor`)** (#1250)

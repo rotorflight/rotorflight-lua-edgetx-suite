@@ -1463,7 +1463,7 @@ return {
         save_start_failed = "Could not start the save: %s",
         save_done = "Saved: %d change(s) written and read back.",
         save_differs = "Saved, but the read-back differs: %s",
-        save_not_stored = "Saving failed. The changes are active until the flight controller restarts, then undone.",
+        save_commit_unconfirmed = "Saving was not confirmed. The changes are active and may already be stored: restart the flight controller, then check PIDs, Rates and PID Controller.",
         save_write_failed = "Writing failed. Nothing was saved: restart the flight controller to undo any part already sent.",
         save_profile_moved = "The profile changed during the save. Check both profiles.",
         save_profile_stopped = "The profile changed during the save, so it stopped. Nothing was saved: restart the flight controller to undo any part already sent.",
