@@ -1,0 +1,1 @@
+- **An error no longer stops the background decoder, and a decoder that did not load is tried again (`functions/rfsbg`)** (#1215)

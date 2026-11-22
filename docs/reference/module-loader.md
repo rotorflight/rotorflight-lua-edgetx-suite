@@ -79,7 +79,8 @@ time -- from the card, unless the tool already holds its compiled chunk (see bel
   widgets on the pass after the one that loads and builds it (see
   [Dashboard views](../developer/dashboard-views.md)).
 - The background function script (`functions/rfsbg.lua`) waits the same second before it asks
-  again for the adjustment teller, which it loads only while *Adjustment events* is on.
+  again for the drain, which it loads when it starts, and for the adjustment teller, which it
+  loads only while *Adjustment events* is on.
 
 ## Reloading and releasing
 
