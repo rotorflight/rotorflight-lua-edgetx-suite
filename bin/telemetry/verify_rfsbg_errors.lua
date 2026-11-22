@@ -12,13 +12,13 @@
 --   2. the teller raising: run() returns, the decoder still decodes in the same cycle, one warn line;
 --   3. the rest of the pass raising (here the state line's logger): run() returns, the decoder still
 --      decodes on every cycle, one warn line, one info line on recovery;
---   4. the decoder not loading on the first pass, as a file that is not there and as a chunk that
---      raises while it runs: it is asked for again at most once a second, decodes once it loads, and
---      the failure and the recovery are logged once each;
+--   4. the decoder not loading on the first pass, as a file that is not there, as a chunk that
+--      raises while it runs and as the radio's loadScript raising: it is asked for again at most once
+--      a second, decodes once it loads, and the failure and the recovery are logged once each;
 --   5. no logger at all and every step raising: run() still returns;
 --   6. nothing failing: no warn line, frames published as decoded on every cycle;
---   7. the start raising (the radio's loadScript raising for the decoder): run() returns, the start
---      runs again on the next cycle and goes through, one warn and one info line.
+--   7. the start raising (the radio's loadScript raising for the module loader, before the logger is
+--      there): run() returns, the start runs again on the next cycle and goes through, and decodes.
 local checks, failures = 0, 0
 local function check(ok, label, detail)
   checks = checks + 1
@@ -36,8 +36,9 @@ local CYCLE = 10 -- getTime() ticks (10 ms each) between two run() calls: 0.1 s
 -- One script, fresh, over its own stand-ins. `o` says what fails:
 --   drainLoadFails = n   the first n loads of the decoder fail
 --   drainLoadRaises      ...as a chunk that raises rather than a file that is missing
---   loadScriptRaises = n the first n loadScript calls for the decoder raise (the loader does not
---                        guard that call, so the error leaves init())
+--   loadScriptRaises = n the first n loadScript calls for the decoder raise
+--   requireRaises = n    the first n loadScript calls for the module loader raise (init() makes that
+--                        call itself, unguarded, so the error leaves init())
 --   noLog                the logger does not load
 --   teller               adjustment announcements are on, so the teller is loaded
 local function newScript(o)
@@ -83,7 +84,10 @@ local function newScript(o)
     local rel = string.match(path, "^" .. CORE .. "(.+)$")
     assert(rel, "unexpected script path: " .. tostring(path))
     h.loads[rel] = (h.loads[rel] or 0) + 1
-    if rel == "lib/require.lua" then return function() end end
+    if rel == "lib/require.lua" then
+      if o.requireRaises and h.loads[rel] <= o.requireRaises then error("simulated: not enough memory") end
+      return function() end
+    end
     if rel == "lib/log.lua" then
       if o.noLog then return nil end
       return function() return Log end
@@ -181,9 +185,10 @@ do
 end
 
 -- 4. the decoder not loading on the first pass: missing, and a chunk that raises
-for _, raises in ipairs({ false, true }) do
-  local label = raises and "decoder load raises" or "decoder load missing"
-  local h = newScript({ drainLoadFails = 4, drainLoadRaises = raises })
+for _, how in ipairs({ "missing", "chunk raises", "loadScript raises" }) do
+  local label = "decoder load " .. how
+  local h = newScript(how == "loadScript raises" and { loadScriptRaises = 4 }
+    or { drainLoadFails = 4, drainLoadRaises = how == "chunk raises" })
   runAll(h, 21, label)                       -- 2 s: init plus one ask a second
   check(h.loads[DRAIN] == 3, label .. ": asked for at most once a second", h.loads[DRAIN])
   check(h.wakeups == 0, label .. ": nothing decoded while it does not load", h.wakeups)
@@ -220,14 +225,14 @@ end
 
 -- 7. the start raising
 do
-  local h = newScript({ loadScriptRaises = 1 })
+  local h = newScript({ requireRaises = 1 })
   runAll(h, 1, "start raises")
-  check(h.wakeups == 0, "start raises: nothing decoded on the failed start", h.wakeups)
-  check(h.count("warn", "background start failed") == 1, "start raises: one warn line")
-  check(h.count("warn", "not enough memory") == 1, "start raises: the warn line carries the error")
+  check(h.wakeups == 0 and (h.loads[DRAIN] or 0) == 0, "start raises: the failed start went no further",
+    tostring(h.loads[DRAIN]))
   runAll(h, 1, "start raises")              -- the start again, and through
-  check(h.loads[DRAIN] == 2, "start raises: the start ran again", h.loads[DRAIN])
-  check(h.count("info", "background start recovered after 1 failure(s)") == 1, "start raises: one recovery line")
+  check(h.loads["lib/require.lua"] == 2 and h.loads[DRAIN] == 1, "start raises: the start ran again",
+    tostring(h.loads["lib/require.lua"]) .. "/" .. tostring(h.loads[DRAIN]))
+  check(h.count("warn", "") == 0, "start raises: no line, there was no logger when it failed")
   runAll(h, 3, "start raises")
   check(h.wakeups == 3 and h.liveness == 3, "start raises: decodes after the start went through",
     h.wakeups .. "/" .. h.liveness)

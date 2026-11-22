@@ -87,8 +87,10 @@ local function loadModule(path)
     local ok, mod = pcall(req, path)
     if ok and type(mod) == "table" then return mod end
   end
-  local chunk = loadScript(BASE_PATH .. path, (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
-  if type(chunk) ~= "function" then return nil end
+  -- The radio's loadScript can raise as well as answer nil (the heap running short while it
+  -- compiles), and a raise here would skip the caller's own wait before it asks again.
+  local okLoad, chunk = pcall(loadScript, BASE_PATH .. path, (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
+  if not okLoad or type(chunk) ~= "function" then return nil end
   local ok, mod = pcall(chunk)
   if not ok then return nil end
   return mod
@@ -138,8 +140,8 @@ local DRAIN_RETRY_SECONDS = 1
 local drainRetryAt = 0
 
 local function loadDrain(now)
+  drainRetryAt = now + DRAIN_RETRY_SECONDS
   Drain = loadModule("tasks/events/telemetry_bg/drain.lua")
-  if not Drain then drainRetryAt = now + DRAIN_RETRY_SECONDS end
   stepDone("decoder load", Drain ~= nil, "not loaded, asked for again every second")
 end
 
