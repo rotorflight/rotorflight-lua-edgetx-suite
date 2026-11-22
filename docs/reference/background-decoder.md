@@ -70,8 +70,8 @@ just added.
 - **An error inside it does not stop it.** The radio ends a script whose error reaches it, shows
   the Lua error and does not run it again until the scripts are reloaded. So the decoding, the
   adjustment announcements and the rest of its work each catch their own error and are tried again
-  on the next cycle, and a start that failed, or a decoder that did not load, is tried again a
-  second later. While the decoding fails, the dashboard takes it over within a second, as it does
+  on the next cycle, and a start that failed, or a decoder that did not load, is tried again at
+  most once a second. While the decoding fails, the dashboard takes it over within a second, as it does
   when the script is not there. With the log level at *WARN* or above the log carries one line when
   a part starts failing, and from *INFO* up one more when it works again -- except for a start that
   failed before the log was open, which leaves no line.
