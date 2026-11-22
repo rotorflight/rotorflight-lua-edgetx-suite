@@ -494,21 +494,24 @@ local function watchWidget(now, sink)
   end
 end
 
--- After the work, and only for a pass that took frames. What the other decoders need to know is
--- not that this script is running -- it is whether the frames are being consumed here, and those
--- two come apart. Every permanent script on the radio shares one telemetry queue, so another one
--- popping first leaves this pass with nothing to do while it still runs on every cycle; a counter
--- bumped on being called would then hold the widget's own drain down for as long as the radio is
--- on, and nothing would decode at all. For the same reason a pass that raised publishes nothing:
--- the dashboard then takes the decoding back within a second, as it does when this script stops.
---
--- The cost of the other order is one stale window on a long pass, and it is not a loss: each Lua
--- state is served its own copy of every frame, so a host that resumes early decodes what it
--- already had rather than taking anything from this one.
+-- One pass after the start, with the decode and the teller each protected on their own
+-- (stepDone above).
 local function pass(now)
   refreshPreferences(now)
 
   if Drain then
+    -- After the work, and only for a pass that took frames. What the other decoders need to
+    -- know is not that this script is running -- it is whether the frames are being consumed
+    -- here, and those two come apart. Every permanent script on the radio shares one telemetry
+    -- queue, so another one popping first leaves this pass with nothing to do while it still
+    -- runs on every cycle; a counter bumped on being called would then hold the widget's own
+    -- drain down for as long as the radio is on, and nothing would decode at all. For the same
+    -- reason a pass whose decode raised publishes nothing: the dashboard then takes the decoding
+    -- back within a second, as it does when this script stops.
+    --
+    -- The cost of the other order is one stale window on a long pass, and it is not a loss:
+    -- each Lua state is served its own copy of every frame, so a host that resumes early
+    -- decodes what it already had rather than taking anything from this one.
     local ok, popped = pcall(Drain.wakeup, now, true)
     stepDone("decoder", ok, popped)
     if ok and (popped or 0) > 0 then
