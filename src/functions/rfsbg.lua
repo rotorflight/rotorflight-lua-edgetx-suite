@@ -100,16 +100,16 @@ end
 -- An error that reaches the radio ends this script: the radio shows the Lua error and does not
 -- run it again until the scripts are reloaded. The frames are checked before a script sees them,
 -- so what is left to raise is mostly the Lua heap this state shares with every widget running
--- short for a moment, which any allocation can meet. So the decode, the teller and the rest of the
--- pass each run protected (pass() and run() below), apart, so that one of them failing leaves the
--- others running.
+-- short for a moment, which any allocation can meet. So the start, the decode, the teller and the rest
+-- of the pass each run protected (pass() and run() below), apart, so that one of them failing leaves
+-- the others running.
 --
 -- The streaks are a fixed set of names, so these tables never grow. The error goes to the
 -- formatter as an argument rather than joined into the message here, so building the line cannot
 -- raise outside the pcall, and a line is marked as said only once it went out: with no logger yet,
 -- the next failure tries again.
-local stepFailing = { decoder = false, teller = false, pass = false, ["decoder load"] = false }
-local stepFailures = { decoder = 0, teller = 0, pass = 0, ["decoder load"] = 0 }
+local stepFailing = { start = false, decoder = false, teller = false, pass = false, ["decoder load"] = false }
+local stepFailures = { start = 0, decoder = 0, teller = 0, pass = 0, ["decoder load"] = 0 }
 
 local function stepDone(name, ok, err)
   local failures = stepFailures[name]
@@ -534,8 +534,10 @@ local function pass(now)
 end
 
 local function run()
+  -- The start is protected too, and a start that raised is run again on the next cycle: it sets
+  -- `initialized` only once it has gone through.
   if not initialized then
-    init()
+    stepDone("start", pcall(init))
     return
   end
 

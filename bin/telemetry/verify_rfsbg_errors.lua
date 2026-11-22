@@ -16,7 +16,9 @@
 --      raises while it runs: it is asked for again at most once a second, decodes once it loads, and
 --      the failure and the recovery are logged once each;
 --   5. no logger at all and every step raising: run() still returns;
---   6. nothing failing: no warn line, frames published as decoded on every cycle.
+--   6. nothing failing: no warn line, frames published as decoded on every cycle;
+--   7. the start raising (the radio's loadScript raising for the decoder): run() returns, the start
+--      runs again on the next cycle and goes through, one warn and one info line.
 local checks, failures = 0, 0
 local function check(ok, label, detail)
   checks = checks + 1
@@ -34,6 +36,8 @@ local CYCLE = 10 -- getTime() ticks (10 ms each) between two run() calls: 0.1 s
 -- One script, fresh, over its own stand-ins. `o` says what fails:
 --   drainLoadFails = n   the first n loads of the decoder fail
 --   drainLoadRaises      ...as a chunk that raises rather than a file that is missing
+--   loadScriptRaises = n the first n loadScript calls for the decoder raise (the loader does not
+--                        guard that call, so the error leaves init())
 --   noLog                the logger does not load
 --   teller               adjustment announcements are on, so the teller is loaded
 local function newScript(o)
@@ -88,6 +92,7 @@ local function newScript(o)
       return function() return { load = function() return prefs, true end } end
     end
     if rel == DRAIN then
+      if o.loadScriptRaises and h.loads[rel] <= o.loadScriptRaises then error("simulated: not enough memory") end
       if o.drainLoadFails and h.loads[rel] <= o.drainLoadFails then
         if o.drainLoadRaises then return function() error("simulated: chunk raised") end end
         return nil
@@ -193,9 +198,13 @@ end
 -- 5. no logger, everything raising
 do
   local h = newScript({ noLog = true, teller = true })
-  runAll(h, 2, "no logger")
+  runAll(h, 3, "no logger")             -- init; the next cycle loads the teller
+  check(h.tells >= 1, "no logger: the teller runs before the failures", h.tells)
+  local w0, t0 = h.wakeups, h.tells
   h.drainRaise, h.tellerRaise = true, true
   runAll(h, 5, "no logger")
+  check(h.wakeups == w0 + 5, "no logger: the decoder is called on every cycle", h.wakeups - w0)
+  check(h.tells == t0 + 5, "no logger: the teller is called on every cycle", h.tells - t0)
   check(#h.lines == 0, "no logger: nothing written anywhere", #h.lines)
 end
 
@@ -207,6 +216,21 @@ do
     h.wakeups .. "/" .. h.liveness)
   check(h.count("warn", "") == 0, "clean: no warn line")
   check(h.loads[DRAIN] == 1, "clean: the decoder is loaded once", h.loads[DRAIN])
+end
+
+-- 7. the start raising
+do
+  local h = newScript({ loadScriptRaises = 1 })
+  runAll(h, 1, "start raises")
+  check(h.wakeups == 0, "start raises: nothing decoded on the failed start", h.wakeups)
+  check(h.count("warn", "background start failed") == 1, "start raises: one warn line")
+  check(h.count("warn", "not enough memory") == 1, "start raises: the warn line carries the error")
+  runAll(h, 1, "start raises")              -- the start again, and through
+  check(h.loads[DRAIN] == 2, "start raises: the start ran again", h.loads[DRAIN])
+  check(h.count("info", "background start recovered after 1 failure(s)") == 1, "start raises: one recovery line")
+  runAll(h, 3, "start raises")
+  check(h.wakeups == 3 and h.liveness == 3, "start raises: decodes after the start went through",
+    h.wakeups .. "/" .. h.liveness)
 end
 
 print(string.format("%d checks, %d failures", checks, failures))
