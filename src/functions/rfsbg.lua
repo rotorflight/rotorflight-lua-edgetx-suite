@@ -87,10 +87,8 @@ local function loadModule(path)
     local ok, mod = pcall(req, path)
     if ok and type(mod) == "table" then return mod end
   end
-  -- The radio's loadScript can raise as well as answer nil (the heap running short while it
-  -- compiles), and a raise here would skip the caller's own wait before it asks again.
-  local okLoad, chunk = pcall(loadScript, BASE_PATH .. path, (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
-  if not okLoad or type(chunk) ~= "function" then return nil end
+  local chunk = loadScript(BASE_PATH .. path, (_G.rfsuite and _G.rfsuite.loadMode) or "bt")
+  if type(chunk) ~= "function" then return nil end
   local ok, mod = pcall(chunk)
   if not ok then return nil end
   return mod
@@ -130,19 +128,24 @@ local function stepDone(name, ok, err)
   end
 end
 
--- The decoder, loaded by init() below and asked for again after DRAIN_RETRY_SECONDS when that
+-- The decoder, loaded by init() below and asked for again after LOAD_RETRY_SECONDS when that
 -- load fails, as the teller is (ensureTeller) and as the widget's own tasks ask for the same module
 -- (tasks/events/telemetry_bg/tasks.lua). A load can fail without the file being broken: the
 -- loader's pcall also catches an error raised while the module's chunk runs, such as the Lua heap
 -- running short for a moment. Kept as missing, this script would run on every cycle for the rest
 -- of the session and decode nothing.
-local DRAIN_RETRY_SECONDS = 1
+--
+-- The next attempt is set before this one, and the load is protected here as well: the radio's
+-- loadScript answers nil for a file it cannot load, but an allocation outside its parser can still
+-- raise when the heap is short, and that must not skip the wait.
+local LOAD_RETRY_SECONDS = 1
 local drainRetryAt = 0
 
 local function loadDrain(now)
-  drainRetryAt = now + DRAIN_RETRY_SECONDS
-  Drain = loadModule("tasks/events/telemetry_bg/drain.lua")
-  stepDone("decoder load", Drain ~= nil, "not loaded, asked for again every second")
+  drainRetryAt = now + LOAD_RETRY_SECONDS
+  local ok, mod = pcall(loadModule, "tasks/events/telemetry_bg/drain.lua")
+  Drain = ok and mod or nil
+  stepDone("decoder load", Drain ~= nil, ok and "not loaded, asked for again every second" or mod)
 end
 
 -- One pass of its own, and no work in it. Every module below pulls in a subtree -- the decoder
@@ -197,12 +200,9 @@ local function ensureTeller(now)
   if now < tellerRetryAt then
     return nil
   end
-  local teller = loadModule("tasks/events/telemetry_bg/adjustments.lua")
-  if teller then
-    Adjustments = teller
-  else
-    tellerRetryAt = now + TELLER_RETRY_SECONDS
-  end
+  -- Set before the load, so a load that raises rather than answering nil waits as well.
+  tellerRetryAt = now + TELLER_RETRY_SECONDS
+  Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua")
   return nil
 end
 
@@ -535,10 +535,15 @@ local function pass(now)
   end
 end
 
+local startRetryAt = 0
+
 local function run()
-  -- The start is protected too, and a start that raised is run again on the next cycle: it sets
-  -- `initialized` only once it has gone through.
+  -- The start is protected too, and a start that raised is run again after LOAD_RETRY_SECONDS: it
+  -- sets `initialized` only once it has gone through, and every load in it is a card read.
   if not initialized then
+    local now = nowSeconds()
+    if now < startRetryAt then return end
+    startRetryAt = now + LOAD_RETRY_SECONDS
     stepDone("start", pcall(init))
     return
   end

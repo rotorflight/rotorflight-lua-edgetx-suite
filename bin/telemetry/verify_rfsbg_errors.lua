@@ -18,7 +18,11 @@
 --   5. no logger at all and every step raising: run() still returns;
 --   6. nothing failing: no warn line, frames published as decoded on every cycle;
 --   7. the start raising (the radio's loadScript raising for the module loader, before the logger is
---      there): run() returns, the start runs again on the next cycle and goes through, and decodes.
+--      there): run() returns, the start runs again one second later, not before, goes through, and
+--      decodes;
+--   8. the suite's real module loader (lib/require.lua) in front of the decoder, as on the radio: a
+--      decoder that does not load on the first attempt is asked for again one second later, then
+--      decodes; with nothing failing it is loaded once.
 local checks, failures = 0, 0
 local function check(ok, label, detail)
   checks = checks + 1
@@ -39,6 +43,7 @@ local CYCLE = 10 -- getTime() ticks (10 ms each) between two run() calls: 0.1 s
 --   loadScriptRaises = n the first n loadScript calls for the decoder raise
 --   requireRaises = n    the first n loadScript calls for the module loader raise (init() makes that
 --                        call itself, unguarded, so the error leaves init())
+--   realRequire          the module loader is the suite's own lib/require.lua (and lib/paths.lua)
 --   noLog                the logger does not load
 --   teller               adjustment announcements are on, so the teller is loaded
 local function newScript(o)
@@ -86,7 +91,11 @@ local function newScript(o)
     h.loads[rel] = (h.loads[rel] or 0) + 1
     if rel == "lib/require.lua" then
       if o.requireRaises and h.loads[rel] <= o.requireRaises then error("simulated: not enough memory") end
+      if o.realRequire then return assert(loadfile("src/rfsuite/lib/require.lua", "t", env)) end
       return function() end
+    end
+    if rel == "lib/paths.lua" and o.realRequire then
+      return assert(loadfile("src/rfsuite/lib/paths.lua", "t", env))
     end
     if rel == "lib/log.lua" then
       if o.noLog then return nil end
@@ -107,6 +116,7 @@ local function newScript(o)
     return nil -- every other module: not there, which the script already allows for
   end
 
+  h.env = env
   local chunk = assert(loadfile("src/functions/rfsbg.lua", "t", env))
   local script = chunk()
   h.run = function()
@@ -229,13 +239,37 @@ do
   runAll(h, 1, "start raises")
   check(h.wakeups == 0 and (h.loads[DRAIN] or 0) == 0, "start raises: the failed start went no further",
     tostring(h.loads[DRAIN]))
-  runAll(h, 1, "start raises")              -- the start again, and through
+  runAll(h, 9, "start raises")              -- the rest of the second: no new start
+  check(h.loads["lib/require.lua"] == 1, "start raises: not started again within the second",
+    tostring(h.loads["lib/require.lua"]))
+  runAll(h, 1, "start raises")              -- one second on: the start again, and through
   check(h.loads["lib/require.lua"] == 2 and h.loads[DRAIN] == 1, "start raises: the start ran again",
     tostring(h.loads["lib/require.lua"]) .. "/" .. tostring(h.loads[DRAIN]))
   check(h.count("warn", "") == 0, "start raises: no line, there was no logger when it failed")
   runAll(h, 3, "start raises")
   check(h.wakeups == 3 and h.liveness == 3, "start raises: decodes after the start went through",
     h.wakeups .. "/" .. h.liveness)
+end
+
+-- 8. the suite's real module loader
+do
+  local h = newScript({ realRequire = true })
+  runAll(h, 4, "real loader")
+  check(type(h.env.rfsuite.require) == "function", "real loader: the suite's loader is in place")
+  check(h.loads[DRAIN] == 1 and h.wakeups == 3, "real loader: loaded once, decodes",
+    tostring(h.loads[DRAIN]) .. "/" .. h.wakeups)
+
+  -- The loader asks the card once and the script's own fallback once more: one attempt is two reads.
+  h = newScript({ realRequire = true, drainLoadFails = 2 })
+  runAll(h, 10, "real loader, failed load")
+  check(h.loads[DRAIN] == 2 and h.wakeups == 0, "real loader, failed load: one attempt in the first second",
+    tostring(h.loads[DRAIN]) .. "/" .. h.wakeups)
+  check(h.count("warn", "background decoder load failed") == 1, "real loader, failed load: one warn line")
+  runAll(h, 4, "real loader, failed load")  -- one second on: asked again, loads, decodes
+  check(h.loads[DRAIN] == 3 and h.wakeups == 3, "real loader, failed load: asked again after a second, decodes",
+    tostring(h.loads[DRAIN]) .. "/" .. h.wakeups)
+  check(h.count("info", "background decoder load recovered after 1 failure(s)") == 1,
+    "real loader, failed load: one recovery line")
 end
 
 print(string.format("%d checks, %d failures", checks, failures))
