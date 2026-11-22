@@ -94,71 +94,53 @@ local function loadModule(path)
   return mod
 end
 
--- The decoder, loaded by init() below and asked for again after DRAIN_RETRY_SECONDS when that
--- load fails, as the teller is (ensureTeller) and as the widget's own tasks ask for the same module
--- (tasks/events/telemetry_bg/tasks.lua). A load can fail without the file being broken: the
--- loader's pcall also catches an error raised while the module's chunk runs, such as the Lua heap
--- this state shares with every widget running short for a moment. Kept as missing, this script
--- would run on every cycle for the rest of the session and decode nothing.
---
--- The failure is logged once per streak and the recovery once; a line is marked as said only once
--- it went out, so with no logger yet the next failure tries again.
-local DRAIN_RETRY_SECONDS = 1
-local drainRetryAt = 0
-local drainLoadFailing = false
-
-local function loadDrain(now)
-  Drain = loadModule("tasks/events/telemetry_bg/drain.lua")
-  local canLog = Log and type(Log.emitf) == "function"
-  if Drain then
-    if drainLoadFailing then
-      drainLoadFailing = false
-      if canLog then
-        pcall(Log.emitf, "rfsuite.functions", "info", "the telemetry decoder loaded after a failed attempt")
-      end
-    end
-    return
-  end
-  drainRetryAt = now + DRAIN_RETRY_SECONDS
-  if not canLog then return end
-  if not drainLoadFailing then
-    drainLoadFailing = pcall(Log.emitf, "rfsuite.functions", "warn",
-      "the telemetry decoder failed to load, asked again every %d s", DRAIN_RETRY_SECONDS)
-  else
-    pcall(Log.emitf, "rfsuite.functions", "trace", "the telemetry decoder failed to load again")
-  end
-end
-
--- A step of run() that raised is called again on the next cycle, and logged once when it starts
--- failing and once when it runs again.
+-- A step of this script that failed is tried again, and logged once when it starts failing and
+-- once when it works again.
 --
 -- An error that reaches the radio ends this script: the radio shows the Lua error and does not
 -- run it again until the scripts are reloaded. The frames are checked before a script sees them,
 -- so what is left to raise is mostly the Lua heap this state shares with every widget running
 -- short for a moment, which any allocation can meet. So the decode, the teller and the rest of the
--- pass each run protected (run() below), apart, so that one of them failing leaves the others
--- running.
+-- pass each run protected (pass() and run() below), apart, so that one of them failing leaves the
+-- others running.
 --
 -- The streaks are a fixed set of names, so these tables never grow. The error goes to the
 -- formatter as an argument rather than joined into the message here, so building the line cannot
--- raise outside the pcall. A line is marked as said only once it went out.
-local stepFailing = { decoder = false, teller = false, pass = false }
-local stepFailures = { decoder = 0, teller = 0, pass = 0 }
+-- raise outside the pcall, and a line is marked as said only once it went out: with no logger yet,
+-- the next failure tries again.
+local stepFailing = { decoder = false, teller = false, pass = false, ["decoder load"] = false }
+local stepFailures = { decoder = 0, teller = 0, pass = 0, ["decoder load"] = 0 }
 
-local function stepFailed(name, err)
-  stepFailures[name] = stepFailures[name] + 1
-  if stepFailing[name] or not (Log and type(Log.emitf) == "function") then return end
-  stepFailing[name] = pcall(Log.emitf, "rfsuite.functions", "warn",
-    "background %s raised, called again on the next cycle: %s", name, err)
+local function stepDone(name, ok, err)
+  local failures = stepFailures[name]
+  if ok then
+    if failures == 0 then return end
+    if stepFailing[name] and Log then
+      pcall(Log.emitf, "rfsuite.functions", "info", "background %s recovered after %d failure(s)", name, failures)
+    end
+    stepFailing[name], stepFailures[name] = false, 0
+    return
+  end
+  stepFailures[name] = failures + 1
+  if not stepFailing[name] and Log then
+    stepFailing[name] = pcall(Log.emitf, "rfsuite.functions", "warn", "background %s failed, tried again: %s",
+      name, err)
+  end
 end
 
-local function stepRan(name)
-  if stepFailures[name] == 0 then return end
-  if stepFailing[name] and Log and type(Log.emitf) == "function" then
-    pcall(Log.emitf, "rfsuite.functions", "info", "background %s runs again after %d failed cycle(s)",
-      name, stepFailures[name])
-  end
-  stepFailing[name], stepFailures[name] = false, 0
+-- The decoder, loaded by init() below and asked for again after DRAIN_RETRY_SECONDS when that
+-- load fails, as the teller is (ensureTeller) and as the widget's own tasks ask for the same module
+-- (tasks/events/telemetry_bg/tasks.lua). A load can fail without the file being broken: the
+-- loader's pcall also catches an error raised while the module's chunk runs, such as the Lua heap
+-- running short for a moment. Kept as missing, this script would run on every cycle for the rest
+-- of the session and decode nothing.
+local DRAIN_RETRY_SECONDS = 1
+local drainRetryAt = 0
+
+local function loadDrain(now)
+  Drain = loadModule("tasks/events/telemetry_bg/drain.lua")
+  if not Drain then drainRetryAt = now + DRAIN_RETRY_SECONDS end
+  stepDone("decoder load", Drain ~= nil, "not loaded, asked for again every second")
 end
 
 -- One pass of its own, and no work in it. Every module below pulls in a subtree -- the decoder
@@ -520,26 +502,15 @@ end
 -- The cost of the other order is one stale window on a long pass, and it is not a loss: each Lua
 -- state is served its own copy of every frame, so a host that resumes early decodes what it
 -- already had rather than taking anything from this one.
-local function decode(now)
-  local popped = Drain.wakeup(now, true)
-  if (popped or 0) > 0 then
-    Drain.publishLiveness()
-  end
-end
-
-local function tell(now)
-  local teller = ensureTeller(now)
-  if teller and type(teller.wakeup) == "function" then
-    teller.wakeup()
-  end
-end
-
 local function pass(now)
   refreshPreferences(now)
 
   if Drain then
-    local ok, err = pcall(decode, now)
-    if ok then stepRan("decoder") else stepFailed("decoder", err) end
+    local ok, popped = pcall(Drain.wakeup, now, true)
+    stepDone("decoder", ok, popped)
+    if ok and (popped or 0) > 0 then
+      Drain.publishLiveness()
+    end
   elseif now >= drainRetryAt then
     -- The pass that loads it does nothing else with it, as for the teller.
     loadDrain(now)
@@ -547,8 +518,10 @@ local function pass(now)
 
   -- After the decode, never before it: what the teller reads is what the drain has just
   -- decoded, so the other order would announce one pass behind.
-  local ok, err = pcall(tell, now)
-  if ok then stepRan("teller") else stepFailed("teller", err) end
+  local teller = ensureTeller(now)
+  if teller and type(teller.wakeup) == "function" then
+    stepDone("teller", pcall(teller.wakeup))
+  end
 
   local sink = ensureLogSink()
   watchWidget(now, sink)
@@ -567,10 +540,9 @@ local function run()
   end
 
   -- The rest of the pass -- the settings read, the card sink, the widget watch, the state line --
-  -- protected as one, for the same reason as the decode (stepFailed above).
+  -- protected as one, for the same reason as the decode (stepDone above).
   local now = nowSeconds()
-  local ok, err = pcall(pass, now)
-  if ok then stepRan("pass") else stepFailed("pass", err) end
+  stepDone("pass", pcall(pass, now))
 end
 
 return { run = run }

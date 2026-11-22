@@ -132,18 +132,18 @@ do
   runAll(h, 3, "decoder raises")
   check(h.wakeups == w0 + 3, "decoder raises: called again on every cycle", h.wakeups - w0)
   check(h.liveness == l0, "decoder raises: nothing published as decoding while it raises", h.liveness - l0)
-  check(h.count("warn", "background decoder raised") == 1, "decoder raises: one warn line")
+  check(h.count("warn", "background decoder failed") == 1, "decoder raises: one warn line")
   check(h.count("warn", "not enough memory") == 1, "decoder raises: the warn line carries the error")
   h.drainRaise = false
   runAll(h, 3, "decoder raises")
   check(h.liveness == l0 + 3, "decoder raises: published again once it decodes", h.liveness - l0)
-  check(h.count("info", "background decoder runs again after 3 failed cycle(s)") == 1,
+  check(h.count("info", "background decoder recovered after 3 failure(s)") == 1,
     "decoder raises: one recovery line with the count")
-  check(h.count("warn", "background decoder raised") == 1, "decoder raises: still one warn line")
+  check(h.count("warn", "background decoder failed") == 1, "decoder raises: still one warn line")
   -- a second streak is logged again
   h.drainRaise = true
   runAll(h, 1, "decoder raises again")
-  check(h.count("warn", "background decoder raised") == 2, "decoder raises: a new streak is logged again")
+  check(h.count("warn", "background decoder failed") == 2, "decoder raises: a new streak is logged again")
 end
 
 -- 2. the teller raising
@@ -155,10 +155,10 @@ do
   runAll(h, 4, "teller raises")
   check(h.tells >= 4, "teller raises: called again on every cycle", h.tells)
   check(h.wakeups == w0 + 4, "teller raises: the decoder still decodes", h.wakeups - w0)
-  check(h.count("warn", "background teller raised") == 1, "teller raises: one warn line")
+  check(h.count("warn", "background teller failed") == 1, "teller raises: one warn line")
   h.tellerRaise = false
   runAll(h, 1, "teller raises")
-  check(h.count("info", "background teller runs again") == 1, "teller raises: one recovery line")
+  check(h.count("info", "background teller recovered") == 1, "teller raises: one recovery line")
 end
 
 -- 3. the rest of the pass raising
@@ -169,10 +169,10 @@ do
   local w0 = h.wakeups
   runAll(h, 5, "pass raises")
   check(h.wakeups == w0 + 5, "pass raises: the decoder still decodes on every cycle", h.wakeups - w0)
-  check(h.count("warn", "background pass raised") == 1, "pass raises: one warn line")
+  check(h.count("warn", "background pass failed") == 1, "pass raises: one warn line")
   h.recordingRaise = false
   runAll(h, 1, "pass raises")
-  check(h.count("info", "background pass runs again after 5 failed cycle(s)") == 1, "pass raises: one recovery line")
+  check(h.count("info", "background pass recovered after 5 failure(s)") == 1, "pass raises: one recovery line")
 end
 
 -- 4. the decoder not loading on the first pass: missing, and a chunk that raises
@@ -182,12 +182,12 @@ for _, raises in ipairs({ false, true }) do
   runAll(h, 21, label)                       -- 2 s: init plus one ask a second
   check(h.loads[DRAIN] == 3, label .. ": asked for at most once a second", h.loads[DRAIN])
   check(h.wakeups == 0, label .. ": nothing decoded while it does not load", h.wakeups)
-  check(h.count("warn", "the telemetry decoder failed to load") == 1, label .. ": one warn line")
+  check(h.count("warn", "background decoder load failed") == 1, label .. ": one warn line")
   runAll(h, 25, label)                       -- the fifth load succeeds
   check(h.loads[DRAIN] == 5, label .. ": loaded once it can be, then not asked for again", h.loads[DRAIN])
   check(h.wakeups > 0 and h.liveness == h.wakeups, label .. ": decodes once loaded", h.wakeups)
-  check(h.count("info", "the telemetry decoder loaded after a failed attempt") == 1, label .. ": one recovery line")
-  check(h.count("warn", "the telemetry decoder failed to load") == 1, label .. ": still one warn line")
+  check(h.count("info", "background decoder load recovered after 4 failure(s)") == 1, label .. ": one recovery line")
+  check(h.count("warn", "background decoder load failed") == 1, label .. ": still one warn line")
 end
 
 -- 5. no logger, everything raising
