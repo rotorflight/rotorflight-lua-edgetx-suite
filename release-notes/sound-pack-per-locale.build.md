@@ -1,0 +1,1 @@
+- **Each language's archive carries only its own voice announcements, and a missing one plays in the archive's language (`lib/audio_playback`)** (#1258)

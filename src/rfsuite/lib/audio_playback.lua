@@ -153,6 +153,28 @@ end
 
 local resolvedEventPaths = {}
 
+-- One line to the suite's log from the resolver, which has no caller's opts to log through.
+local function resolveLog(level, fmt, ...)
+  local Log = _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.audio", level, fmt, ...)
+  end
+end
+
+-- The package's language cannot change while a Lua state runs, so it is asked once. Not kept
+-- while the language module is missing, so a later call can still find it.
+local packageLang = nil
+-- The first fallback is logged, not each one: a line costs a format and a ring entry even at the
+-- shipped level, and when the chosen pack is missing every announcement takes this path.
+local fallbackLogged = false
+local function packageLanguage()
+  if packageLang then return packageLang end
+  local mod = getLocaleModule()
+  if not mod then return AUDIO_DEFAULT_FALLBACK end
+  packageLang = type(mod.packageLanguage) == "function" and mod.packageLanguage() or AUDIO_DEFAULT_FALLBACK
+  return packageLang
+end
+
 local function resolveEventPath(relativePath)
   if resolvedEventPaths[relativePath] ~= nil then
     return resolvedEventPaths[relativePath] or nil
@@ -178,7 +200,27 @@ local function resolveEventPath(relativePath)
     return localePath
   end
 
-  -- 3. If file not found in any locale, return nil to indicate failure
+  -- 3. The sound pack of the package's own language. A packaged card carries that pack only, so a
+  -- language pinned under Settings > Localization whose pack is not on the card speaks in the
+  -- package's language rather than not at all. From source or in the simulator there is no
+  -- package language, and English is the pack every checkout carries.
+  local fallbackLang = packageLanguage()
+  if fallbackLang ~= locale then
+    local packagePath = AUDIO_PACK_BASE .. "rf/" .. fallbackLang .. "/" .. relativePath
+    f = io.open(packagePath, "r")
+    if f then
+      io.close(f)
+      resolvedEventPaths[relativePath] = packagePath
+      if not fallbackLogged then
+        fallbackLogged = true
+        resolveLog("info", "no %s file for %s; announcements the %s pack lacks play from the %s pack",
+          locale, relativePath, locale, fallbackLang)
+      end
+      return packagePath
+    end
+  end
+
+  -- 4. If file not found in any locale, return nil to indicate failure
   resolvedEventPaths[relativePath] = false
   return nil
 end

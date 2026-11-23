@@ -115,7 +115,9 @@ local function newWorld(host, opts)
       return { load = function() return copy(W.prefs) end }
     end,
     ["lib/system_locale.lua"] = function()
-      return { resolveSystemLanguage = function() return opts.lang end }
+      -- opts.packageLang: the language a packaged build was made for; absent from source.
+      local packageLanguage = opts.packageLang and function() return opts.packageLang end or nil
+      return { resolveSystemLanguage = function() return opts.lang end, packageLanguage = packageLanguage }
     end,
     ["tasks/events/telemetry_bg/smart.lua"] = function()
       return { wakeup = function() end, reset = function() end }
@@ -266,6 +268,34 @@ for _, host in ipairs({ "rfsbg", "widget" }) do
     check(#W.probes == afterOther, tag .. ": a file found missing is looked for again")
   end
 end
+
+-- A packaged card carries the sound pack of its own language only. A language pinned under
+-- Settings > Localization whose pack is not on the card speaks from the package's pack.
+for _, case in ipairs({ { lang = "en", pkg = "de" }, { lang = "de", pkg = "en" } }) do
+  local tag = "rfsbg/" .. case.lang .. " on a " .. case.pkg .. " package"
+  newWorld("rfsbg", { lang = case.lang, packageLang = case.pkg, files = pack(case.pkg, NAMES), audio = LEVEL3 })
+  expect(tag .. ": the name from the package's pack", announce(14, 100),
+    { "file " .. RF(case.pkg, "inflight/fn/14.wav") .. " level=3", "number 100 unit=0 attr=0 level=3" })
+  local probes = table.concat(W.probes, " ")
+  check(string.find(probes, RF(case.lang, "inflight/fn/14.wav"), 1, true) ~= nil,
+    tag .. ": the chosen language's pack is looked in first")
+
+  -- The control: with the chosen language's pack on the card, that pack is what plays.
+  local files = pack(case.pkg, NAMES)
+  for path in pairs(pack(case.lang, NAMES)) do files[path] = true end
+  newWorld("rfsbg", { lang = case.lang, packageLang = case.pkg, files = files, audio = LEVEL3 })
+  expect(tag .. ", both packs on the card: the chosen one", announce(14, 100),
+    { "file " .. RF(case.lang, "inflight/fn/14.wav") .. " level=3", "number 100 unit=0 attr=0 level=3" })
+end
+
+-- From source there is no package language, and English is the pack every checkout carries.
+newWorld("rfsbg", { lang = "de", files = pack("en", NAMES), audio = LEVEL3 })
+expect("rfsbg/de from source, English pack only: the English name", announce(14, 100),
+  { "file " .. RF("en", "inflight/fn/14.wav") .. " level=3", "number 100 unit=0 attr=0 level=3" })
+-- An English package with neither pack's file stays silent but for the value.
+newWorld("rfsbg", { lang = "de", packageLang = "en", files = {}, audio = LEVEL3 })
+expect("rfsbg/de on an en package, no file anywhere: the value alone", announce(14, 100),
+  { "number 100 unit=0 attr=0 level=3" })
 
 -- What the in-flight overlay asks the teller for, in the widget state that has the dashboard.
 for _, lang in ipairs({ "en", "de" }) do

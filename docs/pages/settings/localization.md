@@ -36,6 +36,13 @@ Always available.
   setting chooses the language of the **announcements**, from the `SOUNDS/rf/<language>` folder.
   Run from source or in the simulator it also sets the tool's own language, from the next start
   of the tool.
+- **Each archive carries the announcements of its own language only.** Announcements in the other
+  language need that language's `SOUNDS/rf/<language>` folder, copied from its archive onto the
+  card, and copied again after every update, since nothing refreshes it. Without it every
+  announcement whose file neither that folder nor the radio's own `SOUNDS/<language>` folder has
+  plays from the package's own language instead -- the English folder when the suite runs from
+  source -- so a missing folder changes the voice rather than silencing an announcement the
+  package's own pack can play. The order is in [Sound Pack Files](../../audio/events.md#sound-pack-files).
 - **Not even the voice changes while the tool runs.** An announcement resolves its folder once and
   keeps it for the life of the Lua state, so one that has already played stays in the old language
   until that state is created again. Announcements that have not played yet use the new one.

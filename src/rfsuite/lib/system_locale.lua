@@ -265,6 +265,15 @@ function M.resolveAudioFolder(defaultFolder)
   return lang
 end
 
+--- The language this package was built for, or nil when the suite runs from source or in the
+--- simulator. A packaged card carries the sound pack of that language only, so it is the folder
+--- an announcement falls back to when the language chosen under Settings > Localization has no
+--- file for it. A package built for a language that is not recognised carries the English pack.
+function M.packageLanguage()
+  if not isBaked then return nil end
+  return normalizeLanguage(BAKED) or "en"
+end
+
 if type(_G) == "table" then
   _G.__rfsuite_system_locale_module = M
 end

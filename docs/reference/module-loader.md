@@ -41,6 +41,15 @@ A desktop test that loads a suite module without `lib/require.lua` provides the 
 from the same file, for example `_G.rfsuite.paths = dofile("src/rfsuite/lib/paths.lua")` when it
 runs from the repository root.
 
+The sound packs are outside both roots, at `/SOUNDS/rf/<language>/`, with the tones directly in
+`/SOUNDS/rf/`. A release archive carries the pack of its own language only, or the English pack
+for a translation the suite does not recognise as an announcement language
+(`bin/package/build_package.py`, `stage_sounds`). `lib/audio_playback.lua` (`resolveEventPath`)
+looks for an announcement's file in `/SOUNDS/rf/<language>/`, then in the radio's own
+`/SOUNDS/<language>/`, then in `/SOUNDS/rf/<package language>/` -- the language the archive was
+built for, `lib/system_locale.lua` `packageLanguage()`, or `en` from source -- and remembers the
+answer, a miss included, for the life of the Lua state.
+
 ## What a load returns
 
 | The module's file | `rfsuite.require` returns | Kept in the cache |
