@@ -476,7 +476,7 @@ Three have a file of their own in both packs, and fall back to another file in a
 | `stat/alerts/mainpowerok.wav` | `evt/battery.wav` | Main power back |
 | `stat/alerts/notfull.wav` | `stat/alerts/voltage.wav` | Pack not full |
 
-`stat/alerts/batteryempty.wav` is in the English pack only, so on a German archive a German pack that lacks `stat/alerts/mainpower.wav` falls back straight to `stat/alerts/lowvoltage.wav`. With German chosen on an English archive, the English `stat/alerts/batteryempty.wav` plays first.
+`stat/alerts/batteryempty.wav` is in the English pack only, so on a German archive a German pack that lacks `stat/alerts/mainpower.wav` falls back straight to `stat/alerts/lowvoltage.wav`. With German chosen on an English archive, the archive's English pack carries every preferred file above, so each of these announcements plays its preferred file in English when the German folder lacks it, and no substitute is reached.
 
 ---
 

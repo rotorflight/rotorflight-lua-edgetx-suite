@@ -42,7 +42,8 @@ from the same file, for example `_G.rfsuite.paths = dofile("src/rfsuite/lib/path
 runs from the repository root.
 
 The sound packs are outside both roots, at `/SOUNDS/rf/<language>/`, with the tones directly in
-`/SOUNDS/rf/`. A release archive carries the pack of its own language only
+`/SOUNDS/rf/`. A release archive carries the pack of its own language only, or the English pack
+for a translation the suite does not recognise as an announcement language
 (`bin/package/build_package.py`, `stage_sounds`). `lib/audio_playback.lua` (`resolveEventPath`)
 looks for an announcement's file in `/SOUNDS/rf/<language>/`, then in the radio's own
 `/SOUNDS/<language>/`, then in `/SOUNDS/rf/<package language>/` -- the language the archive was

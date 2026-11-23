@@ -278,6 +278,15 @@ def audio_pack_language(lang, src_audio):
     return "en"
 
 
+def runtime_languages():
+    """The languages lib/system_locale.lua recognises (`normalizeLanguage`), read from its source."""
+    path = os.path.join(WORKSPACE_ROOT, "src", "rfsuite", "lib", "system_locale.lua")
+    with open(path, "r", encoding="utf-8") as f:
+        source = f.read()
+    m = re.search(r"local function normalizeLanguage\(value\)(.*?)\nend", source, re.S)
+    return set(re.findall(r'if text == "([a-z]+)" then return "\1" end', m.group(1))) if m else set()
+
+
 def stage_sounds(lang, src_audio, staging_sounds):
     """Stage SOUNDS/rf for a locale's archive: its one pack and the tones beside the packs."""
     pack_lang = audio_pack_language(lang, src_audio)
@@ -516,12 +525,19 @@ def self_test():
         check("a locale with no recorded pack carries the English one", audio_pack_language("fr", audio), "en")
         shutil.rmtree(os.path.join(audio, "de"))
         check("the pack is looked for, not assumed", audio_pack_language("de", audio), "en")
-    # The staging the build runs, on this checkout's own packs, for every locale it can build.
+    # The staging the build runs, on this checkout's own packs, for every locale it can build. The
+    # pack an archive must carry is the language the suite announces in on that archive: a locale
+    # lib/system_locale.lua recognises announces in its own language, so it needs its own pack
+    # (with only the English one, the package language would equal the chosen one and the
+    # announcements its pack lacks would go silent); any other locale announces in English.
+    announced = runtime_languages()
+    check("the suite recognises English and German, and this read finds them", sorted(announced), ["de", "en"])
     src_audio = os.path.join(WORKSPACE_ROOT, "src", "rfsuite", "audio")
     for lang in sorted(get_available_languages()):
         with tempfile.TemporaryDirectory() as staged:
             pack_lang = stage_sounds(lang, src_audio, staged)
-            check(f"the {lang} archive carries its own recorded pack", pack_lang, lang)
+            want = lang if lang in announced else "en"
+            check(f"the {lang} archive carries the pack of the language it announces in", pack_lang, want)
             check(f"the {lang} archive carries that pack and no other", sound_pack_problems(staged, pack_lang), [])
             check(f"the {lang} archive carries the tones", os.path.isfile(os.path.join(staged, "beep.wav")), True)
 
@@ -546,6 +562,16 @@ def self_test():
     print(f"[self-test] control: an archive with both packs is refused -- {'red as wanted' if control_ok else 'NOT RED'}")
     if not control_ok:
         failures.append("control: both packs")
+    # A locale the suite recognises but whose pack is missing has to fail the expectation above.
+    with tempfile.TemporaryDirectory() as audio, tempfile.TemporaryDirectory() as staged:
+        os.makedirs(os.path.join(audio, "en", "stat"))
+        with open(os.path.join(audio, "en", "stat", "x.wav"), "wb") as f:
+            f.write(b"x")
+        pack_lang = stage_sounds("de", audio, staged)
+        control_ok = "de" in announced and pack_lang != ("de" if "de" in announced else "en")
+    print(f"[self-test] control: a recognised locale without its own pack is refused -- {'red as wanted' if control_ok else 'NOT RED'}")
+    if not control_ok:
+        failures.append("control: recognised locale without pack")
     with tempfile.TemporaryDirectory() as staged:
         control_ok = sound_pack_problems(staged, "en") == ["carries no en pack"]
     print(f"[self-test] control: an archive with no pack is refused -- {'red as wanted' if control_ok else 'NOT RED'}")
