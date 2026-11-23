@@ -153,6 +153,16 @@ end
 
 local resolvedEventPaths = {}
 
+-- One line to the suite's log from the resolver, which has no caller's opts to log through. It
+-- runs once per file and Lua state, since every answer is remembered; emitf formats nothing when
+-- the level is off.
+local function resolveLog(level, fmt, ...)
+  local Log = _G.rfsuite and _G.rfsuite.Log
+  if type(Log) == "table" and type(Log.emitf) == "function" then
+    pcall(Log.emitf, "rfsuite.audio", level, fmt, ...)
+  end
+end
+
 local function resolveEventPath(relativePath)
   if resolvedEventPaths[relativePath] ~= nil then
     return resolvedEventPaths[relativePath] or nil
@@ -190,15 +200,13 @@ local function resolveEventPath(relativePath)
     if f then
       io.close(f)
       resolvedEventPaths[relativePath] = packagePath
-      local Log = _G.rfsuite and _G.rfsuite.Log
-      if type(Log) == "table" and type(Log.emitf) == "function" then
-        pcall(Log.emitf, "rfsuite.audio", "info", "no %s file for %s; played from the %s pack", locale, relativePath, packageLang)
-      end
+      resolveLog("info", "no %s file for %s; played from the %s pack", locale, relativePath, packageLang)
       return packagePath
     end
   end
 
   -- 4. If file not found in any locale, return nil to indicate failure
+  resolveLog("trace", "%s: not in the %s folders nor the %s pack", relativePath, locale, packageLang)
   resolvedEventPaths[relativePath] = false
   return nil
 end
