@@ -163,6 +163,17 @@ local function resolveLog(level, fmt, ...)
   end
 end
 
+-- The package's language cannot change while a Lua state runs, so it is asked once. Not kept
+-- while the language module is missing, so a later call can still find it.
+local packageLang = nil
+local function packageLanguage()
+  if packageLang then return packageLang end
+  local mod = getLocaleModule()
+  if not mod then return AUDIO_DEFAULT_FALLBACK end
+  packageLang = type(mod.packageLanguage) == "function" and mod.packageLanguage() or AUDIO_DEFAULT_FALLBACK
+  return packageLang
+end
+
 local function resolveEventPath(relativePath)
   if resolvedEventPaths[relativePath] ~= nil then
     return resolvedEventPaths[relativePath] or nil
@@ -192,21 +203,19 @@ local function resolveEventPath(relativePath)
   -- language pinned under Settings > Localization whose pack is not on the card speaks in the
   -- package's language rather than not at all. From source or in the simulator there is no
   -- package language, and English is the pack every checkout carries.
-  local mod = getLocaleModule()
-  local packageLang = mod and type(mod.packageLanguage) == "function" and mod.packageLanguage() or AUDIO_DEFAULT_FALLBACK
-  if packageLang ~= locale then
-    local packagePath = AUDIO_PACK_BASE .. "rf/" .. packageLang .. "/" .. relativePath
+  local fallbackLang = packageLanguage()
+  if fallbackLang ~= locale then
+    local packagePath = AUDIO_PACK_BASE .. "rf/" .. fallbackLang .. "/" .. relativePath
     f = io.open(packagePath, "r")
     if f then
       io.close(f)
       resolvedEventPaths[relativePath] = packagePath
-      resolveLog("info", "no %s file for %s; played from the %s pack", locale, relativePath, packageLang)
+      resolveLog("info", "no %s file for %s; played from the %s pack", locale, relativePath, fallbackLang)
       return packagePath
     end
   end
 
   -- 4. If file not found in any locale, return nil to indicate failure
-  resolveLog("trace", "%s: not in the %s folders nor the %s pack", relativePath, locale, packageLang)
   resolvedEventPaths[relativePath] = false
   return nil
 end
