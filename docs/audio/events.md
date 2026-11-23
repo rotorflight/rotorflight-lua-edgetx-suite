@@ -364,7 +364,8 @@ the page that switches an alert on is the page that says how it behaves.
 - **The pack check is not in the table**, because it has no condition to hold: it speaks once
   when the model connects and is latched for the rest of that connection. **Neither is
   Rescue**, whose two announcements are spoken once per change of state.
-- **A file the sound pack lacks** leaves its announcement silent and without vibration.
+- **A file the sound pack lacks** -- the chosen language's pack and the archive's own (see
+  [Sound Pack Files](#sound-pack-files)) -- leaves its announcement silent and without vibration.
   *Main Power Lost*, *Telemetry Lost* and *Telemetry Dropouts* look for their file first and stay
   silent without one; the latter two log it once per connection. The other alerts in the table
   above count it as made: such an alert is tried again after the usual ten seconds and spends its
@@ -449,6 +450,8 @@ such announcement. Another one within those 8 seconds extends the time and write
 ## Sound Pack Files
 
 Announcements are played from the sound pack under `/SOUNDS/rf/<language>/`. Numbers and their units are spoken by the radio itself, so they follow the language set on the radio rather than the language of the pack.
+
+Each release archive carries the pack of its own language only. The language is the one [Localization](../pages/settings/localization.md) resolves; when that pack has no file for an announcement -- because a language was chosen whose pack is not on the card -- the file is played from the pack of the archive's own language (from source or in the simulator, the English pack). Only a file neither pack carries leaves an announcement silent, as described below.
 
 Every announcement has a file of its own in both packs. Ten have no substitute and stay silent in an older pack that lacks theirs:
 

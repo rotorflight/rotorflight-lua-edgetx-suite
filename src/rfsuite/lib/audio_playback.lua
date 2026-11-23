@@ -178,7 +178,27 @@ local function resolveEventPath(relativePath)
     return localePath
   end
 
-  -- 3. If file not found in any locale, return nil to indicate failure
+  -- 3. The sound pack of the package's own language. A packaged card carries that pack only, so a
+  -- language pinned under Settings > Localization whose pack is not on the card speaks in the
+  -- package's language rather than not at all. From source or in the simulator there is no
+  -- package language, and English is the pack every checkout carries.
+  local mod = getLocaleModule()
+  local packageLang = mod and type(mod.packageLanguage) == "function" and mod.packageLanguage() or AUDIO_DEFAULT_FALLBACK
+  if packageLang ~= locale then
+    local packagePath = AUDIO_PACK_BASE .. "rf/" .. packageLang .. "/" .. relativePath
+    f = io.open(packagePath, "r")
+    if f then
+      io.close(f)
+      resolvedEventPaths[relativePath] = packagePath
+      local Log = _G.rfsuite and _G.rfsuite.Log
+      if type(Log) == "table" and type(Log.emitf) == "function" then
+        pcall(Log.emitf, "rfsuite.audio", "info", "no %s file for %s; played from the %s pack", locale, relativePath, packageLang)
+      end
+      return packagePath
+    end
+  end
+
+  -- 4. If file not found in any locale, return nil to indicate failure
   resolvedEventPaths[relativePath] = false
   return nil
 end

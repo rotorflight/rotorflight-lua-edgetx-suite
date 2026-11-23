@@ -135,6 +135,22 @@ jobs:
       - name: Precompile one page and compare
         run: python .vscode/scripts/test_precompile_i18n.py
 
+  package-self-test:
+    name: Packager self-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Each locale archive carries its own sound pack only, and the theme index parser
+        run: python bin/package/build_package.py --self-test
+
   i18n-resolver:
     # Added because a resolver self-test that only ran in checks.yml reached
     # master broken: the restore of the read-only case chmod-ed back to

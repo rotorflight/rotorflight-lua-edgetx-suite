@@ -25,7 +25,9 @@
 --   default      Automatic, from source, with a radio language the suite has no texts for: a
 --                caller asking with another default after the reload gets its own default, not the
 --                answer handed over for the reload's
--- Each expects one read of the settings file in the reload and the language a fresh resolution
+-- Then the package's own language (packageLanguage), packaged as de, en, an unknown locale and
+-- from source: the sound pack an announcement falls back to.
+-- Each case expects one read of the settings file in the reload and the language a fresh resolution
 -- gives. Exit status: 0 green, 1 failed expectations, 2 invalid arguments.
 
 -- luacheck: globals io
@@ -238,6 +240,18 @@ runCase("default", { radio = "FR" }, nil, "en", function(w)
   expect(again == true, "default: the second reload ran", tostring(again))
   expect(other == "de", "default: a caller with another default gets its own", tostring(other))
 end)
+
+-- The package's own language: the sound pack a packaged card carries, which an announcement falls
+-- back to (lib/audio_playback.lua). From source there is none.
+for _, case in ipairs({ { packaged = "de", want = "de" }, { packaged = "en", want = "en" },
+    { packaged = "fr", want = "en" }, { packaged = nil, want = nil } }) do
+  _G.__rfsuite_system_locale_module = nil
+  local mod = loadLocaleModule(case.packaged)
+  local got = type(mod.packageLanguage) == "function" and mod.packageLanguage() or nil
+  if verbose then print("  package language packaged=" .. tostring(case.packaged) .. " -> " .. tostring(got)) end
+  expect(got == case.want, "package language when packaged as " .. tostring(case.packaged), tostring(got))
+end
+_G.__rfsuite_system_locale_module = nil
 
 Stubs.releaseCard()
 print(string.format("verify_reload_locale_once: %d checks, %d failures", checks, failures))
