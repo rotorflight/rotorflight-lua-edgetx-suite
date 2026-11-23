@@ -153,9 +153,7 @@ end
 
 local resolvedEventPaths = {}
 
--- One line to the suite's log from the resolver, which has no caller's opts to log through. It
--- runs once per file and Lua state, since every answer is remembered; emitf formats nothing when
--- the level is off.
+-- One line to the suite's log from the resolver, which has no caller's opts to log through.
 local function resolveLog(level, fmt, ...)
   local Log = _G.rfsuite and _G.rfsuite.Log
   if type(Log) == "table" and type(Log.emitf) == "function" then
@@ -166,6 +164,9 @@ end
 -- The package's language cannot change while a Lua state runs, so it is asked once. Not kept
 -- while the language module is missing, so a later call can still find it.
 local packageLang = nil
+-- The first fallback is logged, not each one: a line costs a format and a ring entry even at the
+-- shipped level, and when the chosen pack is missing every announcement takes this path.
+local fallbackLogged = false
 local function packageLanguage()
   if packageLang then return packageLang end
   local mod = getLocaleModule()
@@ -210,7 +211,11 @@ local function resolveEventPath(relativePath)
     if f then
       io.close(f)
       resolvedEventPaths[relativePath] = packagePath
-      resolveLog("info", "no %s file for %s; played from the %s pack", locale, relativePath, fallbackLang)
+      if not fallbackLogged then
+        fallbackLogged = true
+        resolveLog("info", "no %s file for %s; announcements the %s pack lacks play from the %s pack",
+          locale, relativePath, locale, fallbackLang)
+      end
       return packagePath
     end
   end

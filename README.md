@@ -61,7 +61,7 @@ The easiest and recommended way to install or update RFSuite is using the standa
 
 Alternatively, you can manually download and unpack the release archive:
 
-1. Download the latest release from [GitHub Releases](https://github.com/rotorflight/rotorflight-lua-edgetx-suite/releases/). Releases are published per language — pick `rfsuite-radio-install-v<version>_en.zip` or the `_de` archive. The language is baked into the package, so switching languages later means installing the other archive. Each archive carries the voice announcements of its own language only; for announcements in the other language, copy that archive's `SOUNDS/rf/<language>` folder onto the card as well.
+1. Download the latest release from [GitHub Releases](https://github.com/rotorflight/rotorflight-lua-edgetx-suite/releases/). Releases are published per language — pick `rfsuite-radio-install-v<version>_en.zip` or the `_de` archive. The language is baked into the package, so switching languages later means installing the other archive. Each archive carries the voice announcements of its own language only; for announcements in the other language, copy that archive's `SOUNDS/rf/<language>` folder onto the card as well, again after each update.
 2. The archive holds `SCRIPTS`, `WIDGETS` and `SOUNDS` folders that are unpacked over the root of the transmitter's SD card.
 
 #### USB Method

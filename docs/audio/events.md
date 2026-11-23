@@ -451,7 +451,7 @@ such announcement. Another one within those 8 seconds extends the time and write
 
 Announcements are played from the sound pack under `/SOUNDS/rf/<language>/`. Numbers and their units are spoken by the radio itself, so they follow the language set on the radio rather than the language of the pack.
 
-Each release archive carries the pack of its own language only. The language is the one [Localization](../pages/settings/localization.md) resolves; when that pack has no file for an announcement -- because a language was chosen whose pack is not on the card -- the file is played from the pack of the archive's own language (from source or in the simulator, the English pack). Only a file neither pack carries leaves an announcement silent, as described below.
+Each release archive carries the pack of its own language only. The language is the one [Localization](../pages/settings/localization.md) resolves; when that pack has no file for an announcement -- because a language was chosen whose pack is not on the card -- the file is played from the pack of the archive's own language (from source or in the simulator, the English pack). The same holds for an older copy of the chosen pack: a file it lacks is played from the archive's own pack when that pack has it, ahead of any substitute below. A pack copied onto the card by hand is not refreshed by an update, so it is copied again from the new archive. The two lists below therefore describe a file that neither pack carries.
 
 Every announcement has a file of its own in both packs. Ten have no substitute and stay silent in an older pack that lacks theirs:
 
