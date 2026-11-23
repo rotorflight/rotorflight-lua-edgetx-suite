@@ -1,0 +1,7 @@
+{
+  "id": "telemetry-rfsbg-errors",
+  "name": "Background decoder script and a step that raises",
+  "commands": [
+    "lua5.3 bin/telemetry/verify_rfsbg_errors.lua"
+  ]
+}

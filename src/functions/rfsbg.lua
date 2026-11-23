@@ -94,6 +94,61 @@ local function loadModule(path)
   return mod
 end
 
+-- A step of this script that failed is tried again, and logged once when it starts failing and
+-- once when it works again.
+--
+-- An error that reaches the radio ends this script: the radio shows the Lua error and does not
+-- run it again until the scripts are reloaded. The frames are checked before a script sees them,
+-- so what is left to raise is mostly an error that does not come from a frame, such as an
+-- allocation that fails, which any line can meet. (Past the firmware's Lua memory ceiling the radio
+-- closes every script instead, and no pcall catches that.) So the start, the decode, the teller and
+-- the rest of the pass each run protected (pass() and run() below), apart, so that one of them
+-- failing leaves the others running.
+--
+-- The streaks are a fixed set of names, so these tables never grow. The error goes to the
+-- formatter as an argument rather than joined into the message here, so building the line cannot
+-- raise outside the pcall, and a line is marked as said only once it went out: with no logger yet,
+-- the next failure tries again.
+local stepFailing = { start = false, decoder = false, teller = false, pass = false, ["decoder load"] = false }
+local stepFailures = { start = 0, decoder = 0, teller = 0, pass = 0, ["decoder load"] = 0 }
+
+local function stepDone(name, ok, err)
+  local failures = stepFailures[name]
+  if ok then
+    if failures == 0 then return end
+    if stepFailing[name] and Log then
+      pcall(Log.emitf, "rfsuite.functions", "info", "background %s recovered after %d failure(s)", name, failures)
+    end
+    stepFailing[name], stepFailures[name] = false, 0
+    return
+  end
+  stepFailures[name] = failures + 1
+  if not stepFailing[name] and Log then
+    stepFailing[name] = pcall(Log.emitf, "rfsuite.functions", "warn", "background %s failed, tried again: %s",
+      name, err)
+  end
+end
+
+-- The decoder, loaded by init() below and asked for again after LOAD_RETRY_SECONDS when that
+-- load fails, as the teller is (ensureTeller) and as the widget's own tasks ask for the same module
+-- (tasks/events/telemetry_bg/tasks.lua). A load can fail without the file being broken: the
+-- loader's pcall also catches an error raised while the module's chunk runs, such as an allocation
+-- that fails. Kept as missing, this script would run on every cycle for the rest of the session and
+-- decode nothing.
+--
+-- The next attempt is set before this one, and the load is protected here as well: the radio's
+-- loadScript answers nil for a file it cannot load, but an allocation that fails outside its parser
+-- can still raise, and that must not skip the wait.
+local LOAD_RETRY_SECONDS = 1
+local drainRetryAt = 0
+
+local function loadDrain(now)
+  drainRetryAt = now + LOAD_RETRY_SECONDS
+  local ok, mod = pcall(loadModule, "tasks/events/telemetry_bg/drain.lua")
+  Drain = ok and mod or nil
+  stepDone("decoder load", Drain ~= nil, ok and "not loaded, asked for again every second" or mod)
+end
+
 -- One pass of its own, and no work in it. Every module below pulls in a subtree -- the decoder
 -- table, the CRSF multiplexer, the logger, the audio pack resolver -- and the first turn of a
 -- freshly loaded script is not the turn to drain a backlog on as well.
@@ -113,7 +168,7 @@ local function init()
   -- release across. Said before the first read below, and guarded because an older core has no
   -- such module and this script must still run against it.
   pcall(function() return loadModule("lib/config_store.lua").allowMigration() end)
-  Drain = loadModule("tasks/events/telemetry_bg/drain.lua")
+  loadDrain(nowSeconds())
   initialized = true
 end
 
@@ -146,12 +201,9 @@ local function ensureTeller(now)
   if now < tellerRetryAt then
     return nil
   end
-  local teller = loadModule("tasks/events/telemetry_bg/adjustments.lua")
-  if teller then
-    Adjustments = teller
-  else
-    tellerRetryAt = now + TELLER_RETRY_SECONDS
-  end
+  -- Set before the load, so a load that raises rather than answering nil waits as well.
+  tellerRetryAt = now + TELLER_RETRY_SECONDS
+  Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua")
   return nil
 end
 
@@ -442,13 +494,9 @@ local function watchWidget(now, sink)
   end
 end
 
-local function run()
-  if not initialized then
-    init()
-    return
-  end
-
-  local now = nowSeconds()
+-- One pass after the start, with the decode and the teller each protected on their own
+-- (stepDone above).
+local function pass(now)
   refreshPreferences(now)
 
   if Drain then
@@ -457,22 +505,28 @@ local function run()
     -- here, and those two come apart. Every permanent script on the radio shares one telemetry
     -- queue, so another one popping first leaves this pass with nothing to do while it still
     -- runs on every cycle; a counter bumped on being called would then hold the widget's own
-    -- drain down for as long as the radio is on, and nothing would decode at all.
+    -- drain down for as long as the radio is on, and nothing would decode at all. For the same
+    -- reason a pass whose decode raised publishes nothing: the dashboard then takes the decoding
+    -- back within a second, as it does when this script stops.
     --
     -- The cost of the other order is one stale window on a long pass, and it is not a loss:
     -- each Lua state is served its own copy of every frame, so a host that resumes early
     -- decodes what it already had rather than taking anything from this one.
-    local popped = Drain.wakeup(now, true)
-    if (popped or 0) > 0 then
+    local ok, popped = pcall(Drain.wakeup, now, true)
+    stepDone("decoder", ok, popped)
+    if ok and (popped or 0) > 0 then
       Drain.publishLiveness()
     end
+  elseif now >= drainRetryAt then
+    -- The pass that loads it does nothing else with it, as for the teller.
+    loadDrain(now)
   end
 
   -- After the decode, never before it: what the teller reads is what the drain has just
   -- decoded, so the other order would announce one pass behind.
   local teller = ensureTeller(now)
   if teller and type(teller.wakeup) == "function" then
-    teller.wakeup()
+    stepDone("teller", pcall(teller.wakeup))
   end
 
   local sink = ensureLogSink()
@@ -483,6 +537,25 @@ local function run()
   if sink and type(sink.tick) == "function" then
     pcall(sink.tick, USE_LONG_FLUSH_CADENCE)
   end
+end
+
+local startRetryAt = 0
+
+local function run()
+  -- The start is protected too, and a start that raised is run again after LOAD_RETRY_SECONDS: it
+  -- sets `initialized` only once it has gone through, and every load in it is a card read.
+  if not initialized then
+    local now = nowSeconds()
+    if now < startRetryAt then return end
+    startRetryAt = now + LOAD_RETRY_SECONDS
+    stepDone("start", pcall(init))
+    return
+  end
+
+  -- The rest of the pass -- the settings read, the card sink, the widget watch, the state line --
+  -- protected as one, for the same reason as the decode (stepDone above).
+  local now = nowSeconds()
+  stepDone("pass", pcall(pass, now))
 end
 
 return { run = run }

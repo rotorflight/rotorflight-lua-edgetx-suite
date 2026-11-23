@@ -67,6 +67,14 @@ just added.
   Every 30 seconds it looks at the settings file and at the `reload.req` beside it, and reads
   the settings again only when one of them has moved since its last read, so a radio whose
   settings stay as they are does not pay for the read.
+- **An error inside it does not stop it.** The radio ends a script whose error reaches it, shows
+  the Lua error and does not run it again until the scripts are reloaded. So the decoding, the
+  adjustment announcements and the rest of its work each catch their own error and are tried again
+  on the next cycle, and a start that failed, or a decoder that did not load, is tried again at
+  most once a second. While the decoding fails, the dashboard takes it over within a second, as it does
+  when the script is not there. With the log level at *WARN* or above the log carries one line when
+  a part starts failing, and from *INFO* up one more when it works again -- except for a start that
+  failed before the log was open, which leaves no line.
 - **It cannot be seen from the suite if it is configured as a global function** rather than on
   the model. The radio offers no way for a script to read the global special functions, so a
   background decoder installed there is invisible to the check above.
