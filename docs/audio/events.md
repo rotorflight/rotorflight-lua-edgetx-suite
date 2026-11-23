@@ -451,7 +451,7 @@ such announcement. Another one within those 8 seconds extends the time and write
 
 Announcements are played from the sound pack under `/SOUNDS/rf/<language>/`. Numbers and their units are spoken by the radio itself, so they follow the language set on the radio rather than the language of the pack.
 
-Each release archive carries the pack of its own language only. The language is the one [Localization](../pages/settings/localization.md) resolves; when that pack has no file for an announcement -- because a language was chosen whose pack is not on the card -- the file is played from the pack of the archive's own language (from source or in the simulator, the English pack). The same holds for an older copy of the chosen pack: a file it lacks is played from the archive's own pack when that pack has it, ahead of any substitute below. A pack copied onto the card by hand is not refreshed by an update, so it is copied again from the new archive. The two lists below therefore describe a file that neither pack carries.
+Each release archive carries the pack of its own language only. A file is looked for in this order, and the first one found plays: `/SOUNDS/rf/<language>/` for the language [Localization](../pages/settings/localization.md) resolves, then the radio's own `/SOUNDS/<language>/` folder, then the pack of the archive's own language (from source or in the simulator, the English pack). So when a language was chosen whose pack is not on the card, its announcements play from the archive's own pack. The same holds for an older copy of the chosen pack: a file it lacks is played from the archive's own pack when that pack has it. Every file a substitute below names is looked for in the same order, so a substitute can play in the archive's language before a later substitute in the chosen one. A pack copied onto the card by hand is not refreshed by an update, so it is copied again from the new archive. The two lists below describe a file that none of these folders carries.
 
 Every announcement has a file of its own in both packs. Ten have no substitute and stay silent in an older pack that lacks theirs:
 
@@ -476,7 +476,7 @@ Three have a file of their own in both packs, and fall back to another file in a
 | `stat/alerts/mainpowerok.wav` | `evt/battery.wav` | Main power back |
 | `stat/alerts/notfull.wav` | `stat/alerts/voltage.wav` | Pack not full |
 
-`stat/alerts/batteryempty.wav` is in the English pack only, so a German pack that lacks `stat/alerts/mainpower.wav` falls back straight to `stat/alerts/lowvoltage.wav`.
+`stat/alerts/batteryempty.wav` is in the English pack only, so on a German archive a German pack that lacks `stat/alerts/mainpower.wav` falls back straight to `stat/alerts/lowvoltage.wav`. With German chosen on an English archive, the English `stat/alerts/batteryempty.wav` plays first.
 
 ---
 
