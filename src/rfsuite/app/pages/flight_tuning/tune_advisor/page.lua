@@ -484,8 +484,8 @@ local function addSaveTexts(T, i18n)
   T.startFailed = pageText(i18n, "save_start_failed", "Could not start the save: %s")
   T.saved = pageText(i18n, "save_done", "Saved: %d change(s) written and read back.")
   T.differs = pageText(i18n, "save_differs", "Saved, but the read-back differs: %s")
-  T.notStored = pageText(i18n, "save_not_stored",
-    "Saving failed. The changes are active until the flight controller restarts, then undone.")
+  T.commitUnconfirmed = pageText(i18n, "save_commit_unconfirmed",
+    "Saving was not confirmed. The changes are active and may already be stored: restart the flight controller, then check PIDs, Rates and PID Controller.") -- luacheck: ignore 631
   T.writeFailed = pageText(i18n, "save_write_failed",
     "Writing failed. Nothing was saved: restart the flight controller to undo any part already sent.")
   T.profileMoved = pageText(i18n, "save_profile_moved", "The profile changed during the save. Check both profiles.")
@@ -1653,8 +1653,13 @@ function M.onSave(ctx)
         if applyGeneration ~= ui.applyGeneration or not ui.applying then return end
         if result.status ~= "done" then
           if type(SavePipeline.hasOutcome) == "function" and SavePipeline.hasOutcome() then SavePipeline.dismiss() end
+          -- Past the writes, an EEPROM write that failed can still have been stored: its answer may
+          -- be what was lost, and the firmware refuses it only while armed, storing on the disarm.
           local commit = result.step == "commit" or result.phase == "commit"
-          local message = commit and ui.text.notStored or ui.text.writeFailed
+          local message = commit and ui.text.commitUnconfirmed or ui.text.writeFailed
+          if commit then
+            pageLog("warn", "save not confirmed at the EEPROM write: %s", tostring(result.status))
+          end
           if result.check == "refused" then
             -- The profiles moved before a write: that write and every later one were not sent
             message = result.sentAny and ui.text.profileStopped or ui.text.changed

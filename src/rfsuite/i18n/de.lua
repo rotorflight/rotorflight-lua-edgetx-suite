@@ -1463,7 +1463,7 @@ return {
         save_start_failed = "Speichern konnte nicht gestartet werden: %s",
         save_done = "Gespeichert: %d Änderung(en) geschrieben und zurückgelesen.",
         save_differs = "Gespeichert, aber Rücklesen weicht ab: %s",
-        save_not_stored = "Speichern fehlgeschlagen. Die Änderungen gelten bis zum Neustart des Flugcontrollers, dann nicht mehr.",
+        save_commit_unconfirmed = "Speichern nicht bestätigt. Die Änderungen sind aktiv und vielleicht schon gespeichert: Flugcontroller neu starten, dann PIDs, Raten und PID-Regler prüfen.",
         save_write_failed = "Schreiben fehlgeschlagen. Nichts gespeichert: Flugcontroller neu starten, um Gesendetes zurückzunehmen.",
         save_profile_moved = "Das Profil wechselte während des Speicherns. Beide Profile prüfen.",
         save_profile_stopped = "Das Profil wechselte während des Speicherns, daher wurde abgebrochen. Nichts gespeichert: Flugcontroller neu starten, um Gesendetes zurückzunehmen.",

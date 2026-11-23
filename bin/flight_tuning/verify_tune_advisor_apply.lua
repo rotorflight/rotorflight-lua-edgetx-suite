@@ -629,6 +629,41 @@ do
   journal({})
 end
 
+-- After every write went through, an EEPROM write that ends without its answer, refused or
+-- stalled may still have been stored: the answer can be what was lost, and the firmware refuses it
+-- only while armed and then stores on the disarm. The page must not promise that a restart undoes it.
+print("An EEPROM write that is not confirmed is reported as maybe stored, not as undone at a restart")
+do
+  local cases = {
+    { "unanswered", function(m) if m.command == EEPROM then return "error" end end },
+    { "refused", function(m)
+      if m.command == EEPROM then m.errorHandler(m, "refused"); return "handled" end
+    end },
+    { "stalled", function(m)
+      -- No answer and no errorHandler: only the save's own 30 s backstop ends it
+      if m.command == EEPROM then ticks = ticks + 3200; return "handled" end
+    end },
+  }
+  for _, case in ipairs(cases) do
+    resetFc()
+    journal({})
+    openPage()
+    local sent = applyNow(case[2])
+    check(case[1] .. ": the writes and the EEPROM write went out", has(sent, codecs.tuning.writeCommand)
+      and has(sent, codecs.rates.writeCommand) and has(sent, EEPROM), table.concat(sent, ","))
+    check(case[1] .. ": reported as not confirmed", lastReport().ok == false
+      and lastReport().message == T().commitUnconfirmed, tostring(lastReport().message))
+    check(case[1] .. ": the report says the changes may be stored", type(T().commitUnconfirmed) == "string"
+      and string.find(T().commitUnconfirmed, "may already be stored", 1, true) ~= nil
+      and string.find(T().commitUnconfirmed, "undone", 1, true) == nil, tostring(T().commitUnconfirmed))
+    check(case[1] .. ": nothing is journalled", #(Journal.read(MCU) or {}) == 0)
+    check(case[1] .. ": the advice is not marked as saved", ui.view.actions[1] ~= T().applied
+      and #ui.view.changes == 3, ui.view.actions[1])
+    check(case[1] .. ": the save has ended", not ui.applying and not Pipeline.isActive())
+  end
+  journal({})
+end
+
 print("Ethos suite: A read-back that differs is reported")
 do
   resetFc()
