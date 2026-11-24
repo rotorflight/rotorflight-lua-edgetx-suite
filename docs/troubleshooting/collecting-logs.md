@@ -143,7 +143,8 @@ Every line starts with the part of the suite that wrote it, its tag, then its le
 | `rfsuite.events`, `rfsuite.tasks.…` | The connect sequence and the arm and disarm tasks, each with its time and memory. |
 | `rfsuite.sensors` | Which telemetry source was taken, or, while connected, that none was found; once per connection. At *DEBUG*, once per value, that it is read from the decoder of the part of the suite that decodes (`voltage read from the decoder (Vbat)`). |
 | `rfsuite.decoder` | The telemetry decoder. Each line starts with the part of the suite that decodes: `dash`, `bg` (the background decoder) or `tool`, because all three can decode and write to the same serial port. |
-| `rfsuite.adjust` | The adjustment announcement: what the flight controller reported, and whether it was spoken. Named like the decoder's lines. |
+| `rfsuite.adjust` | The adjustment announcement: what the flight controller reported, and whether it was spoken. Named like the decoder's lines. Also that its module did not load and is asked for again, or loaded after a failed attempt. |
+| `rfsuite.smart` | SmartFuel: the start of an estimate and its reset, and a fuel value the flight controller stopped or resumed sending. Also that SmartFuel did not load and is asked for again, or loaded after a failed attempt. |
 | `rfsuite.audio`, `rfsuite.inflight` | Announcements, and the in-flight tuning surface. |
 | `rfsuite.require` | A module that did not load and, at *DEBUG*, a few seconds after the dashboard starts, each module loaded with the Lua memory before and after it, and each released one by one; closing the tool says how many it dropped. A module that loads others carries their memory in its figure. |
 

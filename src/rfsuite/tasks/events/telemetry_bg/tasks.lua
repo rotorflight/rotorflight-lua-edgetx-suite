@@ -25,42 +25,65 @@ local function nowSeconds()
     return 0
 end
 
--- The drain is the one module here that is asked for again after a failed load, once per
--- DRAIN_RETRY_SECONDS, as drain.lua does for its own two. The loader's pcall also catches the
--- radio's instruction limit, so a failure can be a pass that ran out rather than a file that is
--- not there, and the drain is what publishes the armed state tasks/msp/runtime.lua stops on:
--- `false` for good would leave the MSP gate blind for as long as this Lua state lives.
-local DRAIN_RETRY_SECONDS = 1.0
-local drainRetryAt = 0
--- A failed load of the drain is logged once per streak, and its recovery once. The drain's own
--- logger cannot say it, since it is the module that did not load.
-local drainLoadFailing = false
+-- A module here that failed to load is asked for again after LOAD_RETRY_SECONDS, as drain.lua
+-- does for its own two. The loader's pcall also catches the radio's instruction limit, so a
+-- failure can be a pass that ran out rather than a file that is not there, and kept as `false`
+-- for good that one pass would cost the rest of the session: no armed state for the MSP gate
+-- tasks/msp/runtime.lua stops on (the drain), no SmartFuel, no adjustment announcements. A module
+-- that is genuinely absent costs one failing card read a second, not one a pass.
+local LOAD_RETRY_SECONDS = 1.0
+-- A fixed set of names, so these tables never grow.
+local retryAt = { drain = 0, smart = 0, teller = 0 }
+local loadFailing = { drain = false, smart = false, teller = false }
+local LOAD_NAMES = { drain = "the telemetry decoder", smart = "SmartFuel", teller = "the adjustment teller" }
+-- Each module's lines go under its own tag, as its own lines do once it is loaded.
+local LOAD_TAGS = { drain = "rfsuite.decoder", smart = "rfsuite.smart", teller = "rfsuite.adjust" }
+-- Whether the last pass was spent on a retry of SmartFuel or the teller. The next one then does
+-- the work instead: on a host whose passes come a second or more apart, a module that stays
+-- missing would otherwise take every pass, and the drain would never decode.
+local retriedLastPass = false
+-- Which of the two was retried last, so that while SmartFuel stays missing its retry gives one due
+-- slot to a teller that failed too, instead of taking every one of them.
+local lastRetried = nil
 
--- Returns whether the line went out, so a failure is marked as said only once it was.
-local function logDrainLoad(level, msg)
+-- Returns whether the line went out, so a failure is marked as said only once it was. The
+-- module's own logger cannot say it, since it is the module that did not load.
+local function logLoad(key, level, msg)
     local root = _G.rfsuite
     local L = root and root.Log
     if type(L) ~= "table" or type(L.emit) ~= "function" then return false end
     local session = root.session
     local host = type(session) == "table" and session.event_context == "widget" and "dash" or "tool"
-    pcall(L.emit, "rfsuite.decoder", host .. ": " .. msg, level)
+    pcall(L.emit, LOAD_TAGS[key], host .. ": " .. msg, level)
     return true
+end
+
+-- Loads one module, or answers false and sets when it is asked for again. A failure is logged once
+-- per streak and its recovery once. The wait is set before the load, and the load is protected
+-- here as well: loadScript answers nil for a file it cannot load, but an allocation that fails
+-- outside its parser can still raise, and that must not skip the wait.
+local function loadStage(key, path, now)
+    retryAt[key] = now + LOAD_RETRY_SECONDS
+    local ok, mod = pcall(loadModule, path)
+    mod = ok and mod or false
+    if not mod then
+        if not loadFailing[key] then
+            loadFailing[key] = logLoad(key, "warn", LOAD_NAMES[key] .. " failed to load, asked again every 1 s")
+        else
+            logLoad(key, "debug", LOAD_NAMES[key] .. " still not loaded")
+        end
+    elseif loadFailing[key] then
+        loadFailing[key] = false
+        logLoad(key, "info", LOAD_NAMES[key] .. " loaded after a failed attempt")
+    end
+    return mod
 end
 
 -- Whether this call is spent on the drain's load: the first call, and the first after the wait
 -- that follows a failed one. Shared by both passes, so they share the wait too.
 local function drainLoadStep(now)
-    if Drain == false and now < drainRetryAt then return false end
-    Drain = loadModule("tasks/events/telemetry_bg/drain.lua") or false
-    if not Drain then
-        drainRetryAt = now + DRAIN_RETRY_SECONDS
-        if not drainLoadFailing then
-            drainLoadFailing = logDrainLoad("warn", "the telemetry decoder failed to load, asked again every 1 s")
-        end
-    elseif drainLoadFailing then
-        drainLoadFailing = false
-        logDrainLoad("info", "the telemetry decoder loaded after a failed attempt")
-    end
+    if Drain == false and now < retryAt.drain then return false end
+    Drain = loadStage("drain", "tasks/events/telemetry_bg/drain.lua", now)
     return true
 end
 
@@ -71,21 +94,30 @@ function M.wakeup(carry)
     -- of those top-level chunks into a single widget pass, which is the pass class that runs
     -- closest to the firmware's per-call instruction limit.
     --
-    -- `false` rather than a retry: with `not Smart` as the test a module that cannot be
-    -- loaded is asked for again on every wakeup, which is a failing card read ten times a
-    -- second for as long as the radio is on. Every use below is already guarded, so a
-    -- module that is genuinely absent stays absent cheaply. The drain is the exception, asked
-    -- for again once a second (drainLoadStep); the stages below go on while it waits.
-    if not Drain and drainLoadStep(nowSeconds()) then return end
+    -- A module that failed is asked for again once a second (loadStage), on a pass of its own
+    -- as the first load was; the stages and the work below go on while it waits.
+    local now = nowSeconds()
+    if not Drain and drainLoadStep(now) then return end
     if Smart == nil then
-        Smart = loadModule("tasks/events/telemetry_bg/smart.lua") or false
+        Smart = loadStage("smart", "tasks/events/telemetry_bg/smart.lua", now)
         return
+    end
+    if Smart == false and now >= retryAt.smart and not retriedLastPass then
+        if lastRetried == "smart" and Adjustments == false and now >= retryAt.teller then
+            -- This slot goes to the teller, once: whether it is retried or not, the next due
+            -- one is SmartFuel's again.
+            lastRetried = nil
+        else
+            retriedLastPass, lastRetried = true, "smart"
+            Smart = loadStage("smart", "tasks/events/telemetry_bg/smart.lua", now)
+            return
+        end
     end
     -- The teller only while adjustment announcements are on, which they are not by default; the
     -- switch is read again on every pass until then, so turning it on loads it on a pass of its
     -- own. The in-flight tuning overlay may have loaded it already for its own speech, and that
     -- one instance is taken over rather than loaded again, so the step-aside reset below still
-    -- reaches it.
+    -- reaches it -- also after a load of its own that failed.
     --
     -- With the setting off, or with the overlay's teller taken over, the pass the teller would
     -- have loaded on is still spent, once, doing nothing: every later start-up step then lands on
@@ -93,16 +125,22 @@ function M.wakeup(carry)
     -- earlier, the decoder table's load meets another start-up step -- in bin/accounting
     -- `pass.startup.worst` went up by about 1 100 instructions and `unit.events.wakeup.armed`
     -- by about 900 -- for a saving of one 50 ms pass.
-    if Adjustments == nil then
+    if not Adjustments then
         local root = _G.rfsuite
         local shared = root and root.adjustmentAnnouncer
         if type(shared) == "table" then
             Adjustments = shared
+            loadFailing.teller = false
         else
             local prefs = root and root.preferences
             local events = prefs and prefs.audio_events
-            if events and events.adjustment_events == true then
-                Adjustments = loadModule("tasks/events/telemetry_bg/adjustments.lua") or false
+            if events and events.adjustment_events == true
+                and (Adjustments == nil or (now >= retryAt.teller and not retriedLastPass)) then
+                -- The pass of the load is the teller's stage, so a load that failed spends no
+                -- second one.
+                tellerStageSpent = true
+                if Adjustments == false then retriedLastPass, lastRetried = true, "teller" end
+                Adjustments = loadStage("teller", "tasks/events/telemetry_bg/adjustments.lua", now)
                 return
             end
         end
@@ -111,8 +149,7 @@ function M.wakeup(carry)
             return
         end
     end
-
-    local now = nowSeconds()
+    retriedLastPass = false
 
     -- The background function script drains and tells for the whole radio while it is running,
     -- so this pass does neither: the sensors it would publish are already on the radio, and the
