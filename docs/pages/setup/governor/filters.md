@@ -26,7 +26,7 @@ later.
 | Headspeed Filter Cutoff | Cutoff of the lowpass filter on the headspeed signal the governor regulates on. 0 to 250 Hz; initial value 20 Hz. |
 | Voltage Filter Cutoff | Cutoff of the lowpass filter on the battery voltage the governor compensates for. 0 to 250 Hz; initial value 20 Hz. |
 | TTA Bandwidth | Cutoff of the lowpass filter on the Tail Torque Assist input. 0 to 250 Hz; initial value 0 Hz. |
-| Precomp Bandwidth | Cutoff of the lowpass filter on the cyclic and collective precompensation. 0 to 25 Hz; initial value 10 Hz. |
+| Precomp Bandwidth | Cutoff of the lowpass filter on the cyclic and collective precompensation. 0 to 250 Hz; initial value 10 Hz. |
 | D-Term Cutoff | Cutoff of the lowpass filter on the governor's D-term. 0.0 to 25.0 Hz in 0.1 Hz steps; initial value 5.0 Hz. |
 
 ## Notes

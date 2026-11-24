@@ -1,0 +1,7 @@
+{
+  "id": "governor-filter-ranges",
+  "name": "Governor filter ranges",
+  "commands": [
+    "lua5.3 bin/governor/verify_filter_ranges.lua"
+  ]
+}
