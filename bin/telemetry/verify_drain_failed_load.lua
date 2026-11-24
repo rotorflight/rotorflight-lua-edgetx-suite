@@ -279,7 +279,7 @@ end
 -- decoding meanwhile.
 local SMART = "tasks/events/telemetry_bg/smart.lua"
 local TELLER = "tasks/events/telemetry_bg/adjustments.lua"
-local function newStages(target, times, raises, settingOff)
+local function newStages(target, times, raises, settingOff, alsoFailing)
   local h = { loads = {}, t = 0, calls = {}, lines = {} }
   local env = setmetatable({}, { __index = _G })
   env._G = env
@@ -309,6 +309,8 @@ local function newStages(target, times, raises, settingOff)
   env.loadScript = function(path)
     local relative = assert(string.match(path, "^/CORE/(.+)$"), "unexpected script path: " .. tostring(path))
     h.loads[relative] = (h.loads[relative] or 0) + 1
+    local also = alsoFailing and alsoFailing[relative]
+    if also and h.loads[relative] <= also then return nil, "cannot open " .. path end
     if relative == target and (times == nil or h.loads[relative] <= times) then
       if raises then return function() error("CPU limit") end end
       return nil, "cannot open " .. path
@@ -380,6 +382,36 @@ for _, target in ipairs({ SMART, TELLER }) do
       "loads=" .. tostring(h.loads[target]))
   end)
 end
+
+-- SmartFuel missing for good and the teller failing once, on passes 1.2 s apart: SmartFuel's retry
+-- gives the teller a slot, so the teller loads again and runs; SmartFuel is still asked for, and the
+-- drain still decodes between the retries.
+scenario("tasks_smart_missing_teller_fails_once_slow_passes", function()
+  local h = newStages(SMART, nil, false, false, { [TELLER] = 1 })
+  for _ = 1, 40 do
+    h.t = h.t + 1.2
+    h.tasks.wakeup()
+  end
+  check((h.loads[TELLER] or 0) >= 2, "tasks_smart_missing_teller_fails_once_slow_passes: the teller is asked for again",
+    "teller loads=" .. tostring(h.loads[TELLER]) .. " smart loads=" .. tostring(h.loads[SMART]))
+  check((h.calls[TELLER] or 0) > 0, "tasks_smart_missing_teller_fails_once_slow_passes: the teller runs")
+  check((h.loads[SMART] or 0) >= 10, "tasks_smart_missing_teller_fails_once_slow_passes: SmartFuel still asked for",
+    "smart loads=" .. tostring(h.loads[SMART]))
+  check((h.calls[DRAIN] or 0) >= 15, "tasks_smart_missing_teller_fails_once_slow_passes: the drain decodes",
+    "drain calls=" .. tostring(h.calls[DRAIN]))
+end)
+
+-- The same with the announcements switched off after the teller failed: SmartFuel's retry is not
+-- held back for a teller that is no longer asked for.
+scenario("tasks_smart_missing_teller_failed_then_off", function()
+  local h = newStages(SMART, nil, false, false, { [TELLER] = 1 })
+  for _ = 1, 4 do h.t = h.t + 1.2; h.tasks.wakeup() end
+  h.root.preferences.audio_events.adjustment_events = false
+  local before = h.loads[SMART] or 0
+  for _ = 1, 30 do h.t = h.t + 1.2; h.tasks.wakeup() end
+  check((h.loads[SMART] or 0) - before >= 10, "tasks_smart_missing_teller_failed_then_off: SmartFuel still asked for",
+    "smart loads " .. tostring(before) .. " -> " .. tostring(h.loads[SMART]))
+end)
 
 -- With adjustment announcements off the teller is never loaded, and its stage spends one pass,
 -- once: the drain runs from the fourth wakeup on.

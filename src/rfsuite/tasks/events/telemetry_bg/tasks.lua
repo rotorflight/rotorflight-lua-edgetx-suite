@@ -42,6 +42,9 @@ local LOAD_TAGS = { drain = "rfsuite.decoder", smart = "rfsuite.smart", teller =
 -- the work instead: on a host whose passes come a second or more apart, a module that stays
 -- missing would otherwise take every pass, and the drain would never decode.
 local retriedLastPass = false
+-- Which of the two was retried last, so that while SmartFuel stays missing its retry gives one due
+-- slot to a teller that failed too, instead of taking every one of them.
+local lastRetried = nil
 
 -- Returns whether the line went out, so a failure is marked as said only once it was. The
 -- module's own logger cannot say it, since it is the module that did not load.
@@ -95,10 +98,20 @@ function M.wakeup(carry)
     -- as the first load was; the stages and the work below go on while it waits.
     local now = nowSeconds()
     if not Drain and drainLoadStep(now) then return end
-    if not Smart and (Smart == nil or (now >= retryAt.smart and not retriedLastPass)) then
-        retriedLastPass = Smart == false
+    if Smart == nil then
         Smart = loadStage("smart", "tasks/events/telemetry_bg/smart.lua", now)
         return
+    end
+    if Smart == false and now >= retryAt.smart and not retriedLastPass then
+        if lastRetried == "smart" and Adjustments == false and now >= retryAt.teller then
+            -- This slot goes to the teller, once: whether it is retried or not, the next due
+            -- one is SmartFuel's again.
+            lastRetried = nil
+        else
+            retriedLastPass, lastRetried = true, "smart"
+            Smart = loadStage("smart", "tasks/events/telemetry_bg/smart.lua", now)
+            return
+        end
     end
     -- The teller only while adjustment announcements are on, which they are not by default; the
     -- switch is read again on every pass until then, so turning it on loads it on a pass of its
@@ -126,7 +139,7 @@ function M.wakeup(carry)
                 -- The pass of the load is the teller's stage, so a load that failed spends no
                 -- second one.
                 tellerStageSpent = true
-                retriedLastPass = Adjustments == false
+                if Adjustments == false then retriedLastPass, lastRetried = true, "teller" end
                 Adjustments = loadStage("teller", "tasks/events/telemetry_bg/adjustments.lua", now)
                 return
             end
