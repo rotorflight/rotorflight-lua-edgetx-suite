@@ -224,6 +224,9 @@ return {
     -- hundred. Not the 25 % --emit gives a new row, which would put the target above the 20 000
     -- the theme rows keep their distance to.
     ["theme.deck"] = { target = 18600, measured = 16721 },
+    -- @NovaFly is a free-form theme as well. --emit measured its worst pass at 11 060 and the sweep
+    -- of its tree at 358 over 94 references; it is held to the ceiling the shipped themes share.
+    ["theme.@novafly"] = { target = 16200, measured = 11418 },
 
     ----------------------------------------------------------------------------
     -- Per box type: one render into the node table, and one sweep of the reactive

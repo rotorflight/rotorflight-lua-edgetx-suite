@@ -4080,7 +4080,19 @@ return {
         grid_extra_model = "Modellbild",
         grid_extra_profiles = "Profile P/R/B",
         -- The Telemetry page: what each tile of the telemetry view shows.
-        urban_tile = "Kachel"
+        urban_tile = "Kachel",
+        -- The @NovaFly theme's settings page: the colour of its cockpit.
+        novafly_colour = "Farbe",
+        novafly_colour_blue = "Blau",
+        novafly_colour_turquoise = "Türkis",
+        novafly_colour_green = "Grün",
+        novafly_colour_yellow = "Gelb",
+        novafly_colour_gold = "Gold",
+        novafly_colour_orange = "Orange",
+        novafly_colour_red = "Rot",
+        novafly_colour_magenta = "Magenta",
+        novafly_colour_violet = "Violett",
+        novafly_colour_silver = "Silber"
       },
       settings_dashboard_overrides = {
         model_name = "Modell",
