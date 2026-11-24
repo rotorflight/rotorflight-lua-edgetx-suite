@@ -24,7 +24,7 @@ if T == nil then
     if chunk then ok, t = pcall(chunk) end
     T = (ok and type(t) == "table") and t or nil
 end
-if T == nil then return {build = function(children) children[#children + 1] = {type = "label", x = 10, y = 10, w = (tonumber(LCD_W) or 800) - 20, text = "teile.lua fehlt", color = lcd.RGB(255, 80, 80)} end} end
+if T == nil then return {build = function(children) children[#children + 1] = {type = "label", x = 10, y = 10, w = (tonumber(LCD_W) or 800) - 20, text = "teile.lua", color = lcd.RGB(255, 80, 80)} end} end
 local G, R, FARBE, F = T.G, T.R, T.FARBE, T.F
 local anz = G.anz
 local sx, sy = R.sx, R.sy

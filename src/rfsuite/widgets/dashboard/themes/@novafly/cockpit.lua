@@ -25,7 +25,7 @@ if T == nil then
     T = (ok and type(t) == "table") and t or nil
 end
 if T == nil then
-    return {build = function() return {{type = "label", x = 10, y = 10, w = (tonumber(LCD_W) or 800) - 20, text = "teile.lua fehlt", color = lcd.RGB(255, 80, 80)}} end,
+    return {build = function() return {{type = "label", x = 10, y = 10, w = (tonumber(LCD_W) or 800) - 20, text = "teile.lua", color = lcd.RGB(255, 80, 80)}} end,
             renderKey = function() return "novafly|fehlt" end}
 end
 local G, R, FARBE, F = T.G, T.R, T.FARBE, T.F

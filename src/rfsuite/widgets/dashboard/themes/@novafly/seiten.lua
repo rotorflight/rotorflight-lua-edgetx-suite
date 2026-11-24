@@ -38,11 +38,11 @@ return function(T)
             z.takt = G.takt
             local neu = not z.fertig
             for i = 1, k do
-                local t = segs[i][1]
-                if type(t) == "function" then t = t() end
-                t = t ~= nil and tostring(t) or ""
-                if z.texte[i] ~= t or not z.fertig then   -- gemessen wird nur ein Stueck, dessen Text sich aendert
-                    z.texte[i], z.b[i], neu = t, t ~= "" and T.breite(t, segs[i][3]) or 0, true
+                local tx = segs[i][1]
+                if type(tx) == "function" then tx = tx() end
+                tx = tx ~= nil and tostring(tx) or ""
+                if z.texte[i] ~= tx or not z.fertig then   -- gemessen wird nur ein Stueck, dessen Text sich aendert
+                    z.texte[i], z.b[i], neu = tx, tx ~= "" and T.breite(tx, segs[i][3]) or 0, true
                 end
             end
             if not neu then return end
