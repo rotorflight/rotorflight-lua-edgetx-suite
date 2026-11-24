@@ -271,6 +271,127 @@ for _, pass in ipairs({ "wakeup", "wakeupConnecting" }) do
   end)
 end
 
+-- The other two modules telemetry_bg/tasks.lua loads in its full pass: SmartFuel, and the
+-- adjustment teller while adjustment announcements are on. The drain loads; `target` is the module
+-- that fails `times` times (nil: always), by a file that cannot be read or, with `raises`, by a
+-- chunk that raises. A module that failed once is asked for again within about a second and then
+-- runs; one that is not on the card is asked for at most once a second, and the drain keeps
+-- decoding meanwhile.
+local SMART = "tasks/events/telemetry_bg/smart.lua"
+local TELLER = "tasks/events/telemetry_bg/adjustments.lua"
+local function newStages(target, times, raises, settingOff)
+  local h = { loads = {}, t = 0, calls = {}, lines = {} }
+  local env = setmetatable({}, { __index = _G })
+  env._G = env
+  env.rfsuite = {
+    loadMode = "t", paths = { core = "/CORE" },
+    preferences = { audio_events = { adjustment_events = not settingOff } },
+    Log = { emit = function(_, msg, level) h.lines[#h.lines + 1] = level .. " " .. msg end },
+  }
+  h.root = env.rfsuite
+  function h:count(level, text)
+    local n = 0
+    for _, line in ipairs(self.lines) do
+      if string.sub(line, 1, #level + 1) == level .. " " and string.find(line, text, 1, true) then n = n + 1 end
+    end
+    return n
+  end
+  env.getTime = function() return math.floor(h.t * 100 + 0.5) end
+  local function count(name) h.calls[name] = (h.calls[name] or 0) + 1 end
+  local modules = {
+    [DRAIN] = {
+      remoteAlive = function() return false end,
+      wakeup = function() count(DRAIN); return 0 end,
+    },
+    [SMART] = { wakeup = function() count(SMART) end },
+    [TELLER] = { wakeup = function() count(TELLER) end },
+  }
+  env.loadScript = function(path)
+    local relative = assert(string.match(path, "^/CORE/(.+)$"), "unexpected script path: " .. tostring(path))
+    h.loads[relative] = (h.loads[relative] or 0) + 1
+    if relative == target and (times == nil or h.loads[relative] <= times) then
+      if raises then return function() error("CPU limit") end end
+      return nil, "cannot open " .. path
+    end
+    local mod = modules[relative]
+    if mod == nil then return nil, "cannot open " .. path end
+    return function() return mod end
+  end
+  local tasks = assert(loadfile("src/rfsuite/tasks/events/telemetry_bg/tasks.lua", "t", env))()
+  h.tasks = tasks
+  function h:run(n)
+    for _ = 1, n do
+      self.t = self.t + STEP
+      tasks.wakeup()
+      if (self.calls[target] or 0) > 0 and not self.firstCallAt then self.firstCallAt = self.t end
+    end
+  end
+  return h
+end
+
+local LOGNAME = { [SMART] = "SmartFuel", [TELLER] = "the adjustment teller" }
+for _, target in ipairs({ SMART, TELLER }) do
+  local name = target == SMART and "smart" or "teller"
+  for _, raises in ipairs({ false, true }) do
+    local label = "tasks_" .. name .. (raises and "_raises_once" or "_fails_once")
+    scenario(label, function()
+      local h = newStages(target, 1, raises)
+      h:run(WAKEUPS)
+      check(h.loads[target] == 2, label .. ": asked for again after the failure",
+        "loads=" .. tostring(h.loads[target]))
+      check(h.firstCallAt ~= nil and h.firstCallAt <= 1.5, label .. ": runs within about a second",
+        "first call at " .. tostring(h.firstCallAt))
+      check(h:count("warn", LOGNAME[target] .. " failed to load") == 1, label .. ": the failure logged once",
+        table.concat(h.lines, " | "))
+      check(h:count("info", LOGNAME[target] .. " loaded after a failed attempt") == 1,
+        label .. ": the recovery logged once", table.concat(h.lines, " | "))
+    end)
+  end
+  local label = "tasks_" .. name .. "_missing"
+  scenario(label, function()
+    local h = newStages(target, nil, false)
+    h:run(WAKEUPS)
+    local loads = h.loads[target] or 0
+    check(loads >= 2 and loads <= MAX_LOADS, label .. ": asked for again, at most once a second",
+      "loads=" .. tostring(loads))
+    check((h.calls[DRAIN] or 0) >= WAKEUPS - 2 * MAX_LOADS, label .. ": the drain keeps decoding meanwhile",
+      "drain calls=" .. tostring(h.calls[DRAIN]))
+    check(h:count("warn", LOGNAME[target] .. " failed to load") == 1, label .. ": the failure logged once in 10 s",
+      table.concat(h.lines, " | "))
+  end)
+end
+
+-- With adjustment announcements off the teller is never loaded, and its stage spends one pass,
+-- once: the drain runs from the fourth wakeup on.
+scenario("tasks_teller_setting_off", function()
+  local h = newStages(nil, nil, false, true)
+  local firstDrain
+  for i = 1, WAKEUPS do
+    h:run(1)
+    if (h.calls[DRAIN] or 0) > 0 and not firstDrain then firstDrain = i end
+  end
+  check((h.loads[TELLER] or 0) == 0, "tasks_teller_setting_off: the teller is not loaded",
+    "loads=" .. tostring(h.loads[TELLER]))
+  check(firstDrain == 4, "tasks_teller_setting_off: the drain runs from the fourth wakeup",
+    "first drain at wakeup " .. tostring(firstDrain))
+end)
+
+-- A teller whose load failed is replaced by the in-flight tuning overlay's own instance as soon as
+-- there is one, without a load of its own and without a recovery line.
+scenario("tasks_teller_failed_then_shared", function()
+  local h = newStages(TELLER, nil, false)
+  h:run(5)
+  local shared = { wakeup = function() h.calls.shared = (h.calls.shared or 0) + 1 end }
+  h.root.adjustmentAnnouncer = shared
+  local loads = h.loads[TELLER]
+  h:run(WAKEUPS)
+  check(h.loads[TELLER] == loads, "tasks_teller_failed_then_shared: no further load once shared",
+    "loads " .. tostring(loads) .. " -> " .. tostring(h.loads[TELLER]))
+  check((h.calls.shared or 0) > 0, "tasks_teller_failed_then_shared: the shared teller runs")
+  check(h:count("info", "the adjustment teller loaded") == 0, "tasks_teller_failed_then_shared: no recovery line",
+    table.concat(h.lines, " | "))
+end)
+
 if failures > 0 then
   print(string.format("%d of %d checks failed", failures, checks))
   os.exit(1)

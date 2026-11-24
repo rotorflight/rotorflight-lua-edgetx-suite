@@ -248,9 +248,12 @@ the same pass carried an armed System Status word: the MSP runtime takes the arm
 word, so that value would read a craft that has just armed as disarmed. If a decoder raises during
 the walk, the adjustment pair is still put back before the error goes on.
 
-`tasks.lua` asks for `drain.lua` again once a second when it does not load (the loader's `pcall`
-also catches the instruction limit, so a failure can be one pass that ran out); `smart.lua` and
-`adjustments.lua` stay off after a failed load.
+`tasks.lua` asks for `drain.lua`, `smart.lua` and `adjustments.lua` again once a second when one
+does not load (the loader's `pcall` also catches the instruction limit, so a failure can be one pass
+that ran out rather than a missing file). Each retry takes a pass of its own, as the first load did;
+the other modules keep running meanwhile. `adjustments.lua` is asked for again only while the
+adjustment announcements are on. A failed load is logged once as a warning, its recovery once as
+info.
 
 When the background function script (`rfsbg.lua`) is decoding for the whole radio, `drain.lua`
 and `adjustments.lua` step aside together, so sensors are not published twice and adjustments are

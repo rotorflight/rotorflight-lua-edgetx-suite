@@ -1,0 +1,1 @@
+- **SmartFuel and adjustment announcements recover when their module failed to load once, instead of staying off until restart (`tasks/events/telemetry_bg`)** (#1099)
