@@ -78,8 +78,8 @@ The page before the cockpit:
   cockpit.
 - **Last flight** — four fields along the foot: the highest altitude, the strongest climb, the
   strongest sink and the flight time of the last flight, counted while the model was armed with
-  the rotor turning. Before the first flight since the radio was switched on, the first three show
-  the highest values since then. Climb and sink are worked out from the altitude over half a
+  the rotor turning. Before the first flight since the theme was loaded, the first three show the
+  highest values since then. Climb and sink are worked out from the altitude over half a
   second at least.
 
 ### BÄNKE
@@ -123,7 +123,8 @@ With *@NovaFly* selected, full screen shows the theme itself. The theme draws no
 On VORFLUG and BÄNKE a tap anywhere, RTN or either page key goes back to the cockpit. BÄNKE also
 opens by itself after a flight; opened that way, it closes again when the model is armed.
 
-Outside full screen the cockpit is drawn the same way, without anything that takes a press.
+Outside full screen the cockpit is drawn without anything that takes a press, and the direction
+ring without its needle.
 
 ## Settings
 
