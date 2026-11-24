@@ -36,6 +36,8 @@ local LOAD_RETRY_SECONDS = 1.0
 local retryAt = { drain = 0, smart = 0, teller = 0 }
 local loadFailing = { drain = false, smart = false, teller = false }
 local LOAD_NAMES = { drain = "the telemetry decoder", smart = "SmartFuel", teller = "the adjustment teller" }
+-- Each module's lines go under its own tag, as its own lines do once it is loaded.
+local LOAD_TAGS = { drain = "rfsuite.decoder", smart = "rfsuite.smart", teller = "rfsuite.adjust" }
 -- Whether the last pass was spent on a retry of SmartFuel or the teller. The next one then does
 -- the work instead: on a host whose passes come a second or more apart, a module that stays
 -- missing would otherwise take every pass, and the drain would never decode.
@@ -43,13 +45,13 @@ local retriedLastPass = false
 
 -- Returns whether the line went out, so a failure is marked as said only once it was. The
 -- module's own logger cannot say it, since it is the module that did not load.
-local function logLoad(level, msg)
+local function logLoad(key, level, msg)
     local root = _G.rfsuite
     local L = root and root.Log
     if type(L) ~= "table" or type(L.emit) ~= "function" then return false end
     local session = root.session
     local host = type(session) == "table" and session.event_context == "widget" and "dash" or "tool"
-    pcall(L.emit, "rfsuite.decoder", host .. ": " .. msg, level)
+    pcall(L.emit, LOAD_TAGS[key], host .. ": " .. msg, level)
     return true
 end
 
@@ -63,13 +65,13 @@ local function loadStage(key, path, now)
     mod = ok and mod or false
     if not mod then
         if not loadFailing[key] then
-            loadFailing[key] = logLoad("warn", LOAD_NAMES[key] .. " failed to load, asked again every 1 s")
+            loadFailing[key] = logLoad(key, "warn", LOAD_NAMES[key] .. " failed to load, asked again every 1 s")
         else
-            logLoad("debug", LOAD_NAMES[key] .. " still not loaded")
+            logLoad(key, "debug", LOAD_NAMES[key] .. " still not loaded")
         end
     elseif loadFailing[key] then
         loadFailing[key] = false
-        logLoad("info", LOAD_NAMES[key] .. " loaded after a failed attempt")
+        logLoad(key, "info", LOAD_NAMES[key] .. " loaded after a failed attempt")
     end
     return mod
 end

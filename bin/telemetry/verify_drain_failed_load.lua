@@ -286,7 +286,7 @@ local function newStages(target, times, raises, settingOff)
   env.rfsuite = {
     loadMode = "t", paths = { core = "/CORE" },
     preferences = { audio_events = { adjustment_events = not settingOff } },
-    Log = { emit = function(_, msg, level) h.lines[#h.lines + 1] = level .. " " .. msg end },
+    Log = { emit = function(tag, msg, level) h.lines[#h.lines + 1] = level .. " " .. tag .. " " .. msg end },
   }
   h.root = env.rfsuite
   function h:count(level, text)
@@ -330,6 +330,7 @@ local function newStages(target, times, raises, settingOff)
 end
 
 local LOGNAME = { [SMART] = "SmartFuel", [TELLER] = "the adjustment teller" }
+local LOGTAG = { [SMART] = "rfsuite.smart", [TELLER] = "rfsuite.adjust" }
 for _, target in ipairs({ SMART, TELLER }) do
   local name = target == SMART and "smart" or "teller"
   for _, raises in ipairs({ false, true }) do
@@ -341,7 +342,9 @@ for _, target in ipairs({ SMART, TELLER }) do
         "loads=" .. tostring(h.loads[target]))
       check(h.firstCallAt ~= nil and h.firstCallAt <= 1.5, label .. ": runs within about a second",
         "first call at " .. tostring(h.firstCallAt))
-      check(h:count("warn", LOGNAME[target] .. " failed to load") == 1, label .. ": the failure logged once",
+      check(h:count("warn", LOGTAG[target] .. " dash: " .. LOGNAME[target] .. " failed to load") == 1
+          or h:count("warn", LOGTAG[target] .. " tool: " .. LOGNAME[target] .. " failed to load") == 1,
+        label .. ": the failure logged once, under the module's own tag",
         table.concat(h.lines, " | "))
       check(h:count("info", LOGNAME[target] .. " loaded after a failed attempt") == 1,
         label .. ": the recovery logged once", table.concat(h.lines, " | "))
