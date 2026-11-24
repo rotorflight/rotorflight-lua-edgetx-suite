@@ -1,0 +1,1 @@
+- **Precomp Bandwidth on the governor filters page now goes up to 250 Hz, the range the flight controller accepts, instead of stopping at 25 Hz (`setup/governor/filters`)** (#1157)

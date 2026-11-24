@@ -416,7 +416,7 @@ function M.build(ctx)
       helpTitle = ffLabel,
       onHelp = onRowHelp,
       min = 0,
-      max = 25,
+      max = 250,
       step = 1,
       suffix = "Hz",
       get = function() return ui.config.gov_ff_filter end,
