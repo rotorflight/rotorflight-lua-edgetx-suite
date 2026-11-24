@@ -361,6 +361,23 @@ for _, target in ipairs({ SMART, TELLER }) do
   end)
 end
 
+-- On a host whose passes come more than a second apart, a module that stays missing is asked for
+-- on at most every other pass: the drain still decodes on the passes between.
+for _, target in ipairs({ SMART, TELLER }) do
+  local label = "tasks_" .. (target == SMART and "smart" or "teller") .. "_missing_slow_passes"
+  scenario(label, function()
+    local h = newStages(target, nil, false)
+    for _ = 1, 40 do
+      h.t = h.t + 1.2
+      h.tasks.wakeup()
+    end
+    check((h.calls[DRAIN] or 0) >= 15, label .. ": the drain decodes between the retries",
+      "drain calls=" .. tostring(h.calls[DRAIN]) .. " loads=" .. tostring(h.loads[target]))
+    check((h.loads[target] or 0) >= 15, label .. ": the module is still asked for again",
+      "loads=" .. tostring(h.loads[target]))
+  end)
+end
+
 -- With adjustment announcements off the teller is never loaded, and its stage spends one pass,
 -- once: the drain runs from the fourth wakeup on.
 scenario("tasks_teller_setting_off", function()

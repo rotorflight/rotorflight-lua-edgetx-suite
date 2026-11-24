@@ -36,6 +36,10 @@ local LOAD_RETRY_SECONDS = 1.0
 local retryAt = { drain = 0, smart = 0, teller = 0 }
 local loadFailing = { drain = false, smart = false, teller = false }
 local LOAD_NAMES = { drain = "the telemetry decoder", smart = "SmartFuel", teller = "the adjustment teller" }
+-- Whether the last pass was spent on a retry of SmartFuel or the teller. The next one then does
+-- the work instead: on a host whose passes come a second or more apart, a module that stays
+-- missing would otherwise take every pass, and the drain would never decode.
+local retriedLastPass = false
 
 -- Returns whether the line went out, so a failure is marked as said only once it was. The
 -- module's own logger cannot say it, since it is the module that did not load.
@@ -89,7 +93,8 @@ function M.wakeup(carry)
     -- as the first load was; the stages and the work below go on while it waits.
     local now = nowSeconds()
     if not Drain and drainLoadStep(now) then return end
-    if not Smart and (Smart == nil or now >= retryAt.smart) then
+    if not Smart and (Smart == nil or (now >= retryAt.smart and not retriedLastPass)) then
+        retriedLastPass = Smart == false
         Smart = loadStage("smart", "tasks/events/telemetry_bg/smart.lua", now)
         return
     end
@@ -115,10 +120,11 @@ function M.wakeup(carry)
             local prefs = root and root.preferences
             local events = prefs and prefs.audio_events
             if events and events.adjustment_events == true
-                and (Adjustments == nil or now >= retryAt.teller) then
+                and (Adjustments == nil or (now >= retryAt.teller and not retriedLastPass)) then
                 -- The pass of the load is the teller's stage, so a load that failed spends no
                 -- second one.
                 tellerStageSpent = true
+                retriedLastPass = Adjustments == false
                 Adjustments = loadStage("teller", "tasks/events/telemetry_bg/adjustments.lua", now)
                 return
             end
@@ -128,6 +134,7 @@ function M.wakeup(carry)
             return
         end
     end
+    retriedLastPass = false
 
     -- The background function script drains and tells for the whole radio while it is running,
     -- so this pass does neither: the sensors it would publish are already on the radio, and the
