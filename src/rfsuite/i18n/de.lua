@@ -4092,7 +4092,8 @@ return {
         nf_colour_red = "Rot",
         nf_colour_magenta = "Magenta",
         nf_colour_violet = "Violett",
-        nf_colour_silver = "Silber"
+        nf_colour_silver = "Silber",
+        nf_colour_help = "Die Farbe des Cockpits."
       },
       settings_dashboard_overrides = {
         model_name = "Modell",

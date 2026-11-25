@@ -61,7 +61,7 @@ end
 local M = {}
 
 function M.getHeaderActions()
-  return {save = true, help = false}
+  return {save = true, help = true}
 end
 
 function M.onReload(ctx)
@@ -111,8 +111,10 @@ function M.build(ctx)
     {value = "violet", label = t(i18n, "nf_colour_violet", "Violet")},
     {value = "silver", label = t(i18n, "nf_colour_silver", "Silver")},
   }
-  Controls.appendComboSelect(children, x, y, w, t(i18n, "nf_colour", "Colour"), choices, ui.choice,
-    function(v) if COLOUR_OK[v] then ui.choice = v end end)
+  local label = t(i18n, "nf_colour", "Colour")
+  Controls.appendComboSelect(children, x, y, w, label, choices, ui.choice,
+    function(v) if COLOUR_OK[v] then ui.choice = v end end,
+    {helpText = t(i18n, "nf_colour_help", "The colour of the cockpit."), helpTitle = label})
 end
 
 return function(ctx)
