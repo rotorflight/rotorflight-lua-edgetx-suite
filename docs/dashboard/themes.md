@@ -323,7 +323,7 @@ statistics screen under Deck's header. It has a page of its own: [Deck theme](de
 
 ### @NF
 
-Drawn from code for 800 x 480 screens, taking the whole screen in fullscreen mode: one cockpit in
+Drawn from code for 800 x 480, 480 x 320 and 480 x 272 screens, taking the whole screen in fullscreen mode: one cockpit in
 every flight phase -- the arm state, the flight timer, the rate and PID profiles, the head speed on
 a dial, the BEC, radio and pack voltages, the current, the ESC temperature and the altitude -- and
 two pages of its own: VORFLUG before it, with the model, its battery and the last flight, and BÄNKE

@@ -8,7 +8,7 @@ sidebar_label: "@NF theme"
 *@NF* is a dashboard theme that draws its own screen from code and takes full screen for
 itself. It shows one cockpit in every flight phase, and two pages of its own beside it:
 **VORFLUG**, the model and its battery before the flight, and **BÄNKE**, the governor, rates and
-gains of the active bank. It is drawn for radios with an 800 x 480 screen, such as the TX16S MK3.
+gains of the active bank. It is drawn for radios with an 800 x 480, 480 x 320 or 480 x 272 screen, such as the TX16S MK3.
 
 ## Where to find it
 
@@ -86,8 +86,7 @@ The page before the cockpit:
 
 The page after the cockpit:
 
-- **Head band** — the governor mode (*OFF*, *LIMIT*, *DIRECT*, *ELECTRIC* or *NITRO*; on a flight
-  controller older than MSP API 12.09 *OFF*, *PASSTHROUGH*, *STANDARD*, *MODE1* or *MODE2*), the
+- **Head band** — the governor mode (*OFF*, *LIMIT*, *DIRECT*, *ELECTRIC* or *NITRO*), the
   active bank's governor head speed (*HEADSPEED*), the spool-up time (*SPOOL UP*), the governor
   gain (*GAIN*) and the measured head speed (*ACTUAL*).
 - **Rates** — four fields with the rates of the active rate profile for roll, pitch, tail and
@@ -147,7 +146,7 @@ flight controller where the suite holds no battery. BÄNKE reads `PID_TUNING`, `
 - **BÄNKE does not change the flight controller**: it shows the bank, it does not set it.
 - **No pages beyond the colour**: the theme declares no boxes, so the shared *Before flight*,
   *In flight*, *Statistics*, *Info bar* and *Keys* pages are not offered for it.
-- **Its pictures are drawn for 800 x 480.**
+- **Its pictures are drawn for 800 x 480, 480 x 320 and 480 x 272.**
 
 ## Related
 
