@@ -264,7 +264,7 @@ local function listApiDir(path, names, seen)
       Log.emit("api_tester", "listApiDir: folder not found or empty for " .. tostring(path), "warn")
     end
 
-    local namesStr = (names and #names > 0) and table.concat(names, ", ") or "<leer>"
+    local namesStr = (names and #names > 0) and table.concat(names, ", ") or "<empty>"
     Log.emit("api_tester", "listApiDir: final names for path '" .. tostring(path) .. "': [" .. namesStr .. "]", "debug")
   else
     Log.emit("api_tester", "listApiDir: no dir() available for " .. tostring(path), "error")
