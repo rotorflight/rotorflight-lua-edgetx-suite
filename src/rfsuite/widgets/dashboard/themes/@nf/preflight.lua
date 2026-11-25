@@ -77,7 +77,7 @@ local function heliNow()
     return se.mcu_id
 end
 
-local function capacity()                            -- the capacity of the selected battery as the suite holds it; otherwise BATTERY_CONFIG once per heli
+local function capacity(armed)                       -- the capacity of the selected battery as the suite holds it; otherwise BATTERY_CONFIG once per heli, never while armed
     local se = rfsuite and rfsuite.session
     local bc = type(se) == "table" and (se.batteryConfig or se.battery_config) or nil
     local cap = type(bc) == "table" and tonumber(bc.batteryCapacity) or nil
@@ -85,7 +85,7 @@ local function capacity()                            -- the capacity of the sele
     local heli = heliNow()
     local a = G.pfBattery
     if a ~= nil and a.heli == heli and a.values ~= nil then return tonumber(a.values.batteryCapacity), tonumber(a.values.batteryCellCount) end
-    if heli ~= nil and P ~= nil and (a == nil or a.heli ~= heli or (a.values == nil and not a.running and now() >= (a.after or 0))) then
+    if not armed and heli ~= nil and P ~= nil and (a == nil or a.heli ~= heli or (a.values == nil and not a.running and now() >= (a.after or 0))) then
         local query = {heli = heli, running = true}
         G.pfBattery = query
         if not P.read("battery_config", function(w)
@@ -111,7 +111,7 @@ local function refresh(state)
     if s.fuel ~= nil then disp.pfFuelF = batteryF end
     disp.pfPack, disp.pfPackF = num(s.pack, "%.1f")
     if s.pack ~= nil then disp.pfPackF = batteryF end
-    local cap, cellCap = capacity()
+    local cap, cellCap = capacity(s.isArmed == true)   -- armed: the suite keeps configuration traffic off the link, so the page asks nothing
     local cells = s.cells or cellCap
     if cells ~= nil and cells <= 0 then cells = nil end
     disp.pfCells, disp.pfCellsF = (cells ~= nil and tostring(floor(cells)) or "--") .. "S  ", cells ~= nil and COLOUR.w or P.MUTED
