@@ -116,14 +116,17 @@ local function tick(s)                                 -- every call: a change o
     if L.fresh then L.fresh = false kick(s) return end
     if L.readFor == nil then return end
     local t = now()
-    if L.running then
-        if t - (L.asked or t) < DEADLINE then return end
-        L.gen, L.running = L.gen + 1, false
-        L.values.fault, L.retryAt = CHAIN[L.item or 1][3], t + PAUSE
-        L.rev = L.rev + 1
-    end
     local bank, rate = s.bank and floor(s.bank) or nil, s.rate and floor(s.rate) or nil
-    if bank ~= L.readFor.bank or rate ~= L.readFor.rate then kick(s)
+    local changed = bank ~= L.readFor.bank or rate ~= L.readFor.rate
+    if L.running then
+        if not changed and t - (L.asked or t) < DEADLINE then return end
+        L.gen, L.running = L.gen + 1, false            -- a lost request, or a chain for the bank or rate before: its replies no longer count
+        if not changed then
+            L.values.fault, L.retryAt = CHAIN[L.item or 1][3], t + PAUSE
+            L.rev = L.rev + 1
+        end
+    end
+    if changed then kick(s)
     elseif L.retryAt ~= nil and t >= L.retryAt then kick(s, true) end
 end
 
