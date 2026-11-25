@@ -65,9 +65,11 @@ checked, or asked for, by a job that `.github/workflows/pr.yml` runs.
 ## Code is written in English
 
 This is an international project, so the sources are written in English: file and module
-names, identifiers, table keys, comments and log messages. Commit messages and pull request
-text are English too. Text a pilot reads is the one exception, and it reaches other languages
-only through i18n (next section), never through words written into the code.
+names, identifiers, string keys defined in code, comments and log messages. Commit messages
+and pull request text are English too. Text a pilot reads or hears is the one exception, and
+it reaches other languages only through the translation files -- `src/rfsuite/i18n/` for the
+screens (next section) and `bin/sound-generator/json/` for the announcements -- never through
+words written into the code.
 
 
 ## Strings and i18n
