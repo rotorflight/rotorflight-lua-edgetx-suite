@@ -18,9 +18,9 @@ three. Its one setting, the colour of the cockpit, is under *System* → *Settin
 [*Per-Model Settings*](../pages/settings/dashboard/overrides.md) where per-model settings are
 switched on.
 
-Its fixed words come from a table of the theme's own in English, German, French, Spanish, Italian
-and Dutch, and follow the radio's language; any other language shows English. Abbreviations such
-as BEC, ESC, MCU, RSSI and the arm state read the same in every language.
+Its fixed words come from the suite's translations, English and German, and follow the language
+of the installed suite package. Abbreviations such as BEC, ESC, MCU, RSSI and the arm state read
+the same in every language.
 
 ## What it shows
 
@@ -147,8 +147,6 @@ flight controller where the suite holds no battery. BÄNKE reads `PID_TUNING`, `
 - **BÄNKE does not change the flight controller**: it shows the bank, it does not set it.
 - **No pages beyond the colour**: the theme declares no boxes, so the shared *Before flight*,
   *In flight*, *Statistics*, *Info bar* and *Keys* pages are not offered for it.
-- **Its words do not come from the suite's translations**, so a language outside its own six shows
-  English.
 - **Its pictures are drawn for 800 x 480.**
 
 ## Related
