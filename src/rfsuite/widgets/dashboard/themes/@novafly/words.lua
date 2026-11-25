@@ -1,6 +1,6 @@
--- Die festen Woerter der drei Displays in der Sprache des Senders (getGeneralSettings().language), dieselben Woerter wie in
--- der Ethos-Fassung des Themes. Ein Wort, das hier nicht steht (BANK, RATE, GAIN, PID, MSP, ACRO, BEC, TX, ESC, rpm, MCU, ALT,
--- LINK, RSSI, VFR, ARMED, DISARMED, NO LINK, ARM ?), ist in jeder Sprache gleich. Eine Sprache, die hier fehlt, zeigt Englisch.
+-- The fixed words of the three screens in the radio's language (getGeneralSettings().language), the same words as in
+-- the Ethos theme. A word not listed here (BANK, RATE, GAIN, PID, MSP, ACRO, BEC, TX, ESC, rpm, MCU, ALT,
+-- LINK, RSSI, VFR, ARMED, DISARMED, NO LINK, ARM ?) is the same in every language. A missing language shows English.
 return {
     de = {["FLUGTIMER"] = "FLUGTIMER", ["AKKU"] = "AKKU", ["ZELLE"] = "ZELLE", ["VERBRAUCH"] = "VERBRAUCH", ["FLUGMODUS"] = "FLUGMODUS", ["WINKEL"] = "WINKEL", ["HORIZONT"] = "HORIZONT", ["RETTUNG"] = "RETTUNG", ["HOEHE MAX"] = "HOEHE MAX", ["STEIGEN MAX"] = "STEIGEN MAX", ["SINKEN MAX"] = "SINKEN MAX", ["FLUGZEIT"] = "FLUGZEIT", ["GOVERNOR"] = "GOVERNOR", ["DREHZAHL"] = "DREHZAHL", ["HOCHLAUF"] = "HOCHLAUF", ["IST"] = "IST", ["ROLL"] = "ROLL", ["NICK"] = "NICK", ["HECK"] = "HECK", ["KOLL."] = "KOLL.", ["RATEN"] = "RATEN"},
     en = {["FLUGTIMER"] = "FLIGHT TIMER", ["AKKU"] = "BATTERY", ["ZELLE"] = "CELL", ["VERBRAUCH"] = "CONSUMPTION", ["FLUGMODUS"] = "FLIGHT MODE", ["WINKEL"] = "ANGLE", ["HORIZONT"] = "HORIZON", ["RETTUNG"] = "RESCUE", ["HOEHE MAX"] = "ALT MAX", ["STEIGEN MAX"] = "CLIMB MAX", ["SINKEN MAX"] = "SINK MAX", ["FLUGZEIT"] = "FLIGHT TIME", ["GOVERNOR"] = "GOVERNOR", ["DREHZAHL"] = "HEADSPEED", ["HOCHLAUF"] = "SPOOL UP", ["IST"] = "ACTUAL", ["ROLL"] = "ROLL", ["NICK"] = "PITCH", ["HECK"] = "TAIL", ["KOLL."] = "COLL.", ["RATEN"] = "RATES"},

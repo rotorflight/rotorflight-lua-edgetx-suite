@@ -1,6 +1,6 @@
--- Einstellungsseite des NovaFly-Themes in der Rotorflight-Suite fuer EdgeTX: die Farbe des Cockpits. Sie steht in den
--- Theme-Einstellungen der Suite - als Standardwert des Senders, oder als eigener Wert des Modells, wenn die Seite in diesem
--- Bereich geoeffnet ist. Der lange Druck auf den Kopf des Cockpits schreibt denselben Wert.
+-- Settings page of the NovaFly theme in the Rotorflight suite for EdgeTX: the colour of the cockpit. It lives in the
+-- suite's theme settings - as the radio's default, or as the model's own value when the page is opened in that
+-- scope. The long press on the cockpit's head writes the same value.
 local function loadModule(path)
   local chunk = assert(loadScript(_G.rfsuite.paths.core .. "/" .. path, "t"))
   return chunk()
@@ -11,21 +11,21 @@ local DashboardLib = loadModule("app/pages/settings/dashboard/lib.lua")
 local Common = loadModule("app/pages/settings/common.lua")
 local t = Common.pageT("settings_dashboard_settings")
 
-local THEME_PATH = "system/@novafly"   -- die Seite reicht das Theme, fuer das sie geoeffnet ist; eine Kopie unter user/dashboard fuehrt ihre Werte unter ihrem eigenen Schluessel; das Literal gilt ohne gereichtes Theme
+local THEME_PATH = "system/@novafly"   -- the page passes the theme it is opened for; a copy under user/dashboard keeps its values under its own key; the literal applies without a passed theme
 local THEME_NAME = "@NovaFly"
-local FARBEN = {"blue", "turquoise", "green", "yellow", "gold", "orange", "red", "magenta", "violet", "silver"}   -- die gespeicherten Werte sind englisch, wie jeder Wert in den Einstellungen der Suite (cockpit.lua FARBWORT, dieselbe Reihe)
-local FARBE_OK = {}
-for i = 1, #FARBEN do FARBE_OK[FARBEN[i]] = true end
+local COLOURS = {"blue", "turquoise", "green", "yellow", "gold", "orange", "red", "magenta", "violet", "silver"}   -- the stored values are English, like every value in the suite's settings (parts.lua COLOUR_WORDS, the same order)
+local COLOUR_OK = {}
+for i = 1, #COLOURS do COLOUR_OK[COLOURS[i]] = true end
 local THEME_DEFAULTS = {colour = "blue"}
 
-local ui = {loaded = false, wahl = "blue"}
+local ui = {loaded = false, choice = "blue"}
 
 local function session()
   local s = type(_G) == "table" and _G.rfsuite and _G.rfsuite.session or nil
   return type(s) == "table" and s or nil
 end
 
-local function modelStore()   -- der Speicher des Modells ist erst erreichbar, wenn die Kennung des FC bekannt ist; gelesen wird unter derselben Bedingung wie geschrieben
+local function modelStore()   -- the model's store is reachable only once the FC's id is known; reading uses the same condition as writing
   local s = session()
   return (s and s.mcu_id and type(s.modelPreferences) == "table") and s.modelPreferences or nil
 end
@@ -33,16 +33,16 @@ end
 local function loadConfig(prefs)
   if ui.loaded then return end
   local cfg = DashboardLib.getThemeConfig(prefs, THEME_PATH, THEME_DEFAULTS, modelStore())
-  ui.wahl = FARBE_OK[cfg.colour] and cfg.colour or "blue"
+  ui.choice = COLOUR_OK[cfg.colour] and cfg.colour or "blue"
   ui.loaded = true
 end
 
-local function saveConfig(prefs)   -- wohin der Wert geht, entscheidet der Bereich der Seite: die Standardwerte des Senders oder die eigenen Werte des Modells (die brauchen die Kennung des FC)
+local function saveConfig(prefs)   -- where the value goes is decided by the page's scope: the radio's defaults or the model's own values (those need the FC's id)
   local s = session()
   local modelPrefs = modelStore()
-  DashboardLib.setThemeConfig(prefs, THEME_PATH, {colour = ui.wahl}, modelPrefs)
+  DashboardLib.setThemeConfig(prefs, THEME_PATH, {colour = ui.choice}, modelPrefs)
 
-  local modelScope = type(DashboardLib.getEditScope) == "function" and DashboardLib.getEditScope() == "model"   -- die Datei des Modells wird geschrieben, sobald ein FC verbunden ist; im Standard-Bereich tragen die Werte in den Einstellungen des Senders, ein Fehler der Modelldatei ist dann keiner dieses Speicherns
+  local modelScope = type(DashboardLib.getEditScope) == "function" and DashboardLib.getEditScope() == "model"   -- the model's file is written as soon as an FC is connected; in the default scope the values live in the radio's settings, an error of the model file is then not an error of this save
   if s and s.mcu_id and modelPrefs then
     local loadMod = loadScript(_G.rfsuite.paths.core .. "/lib/model_preferences.lua", "t")
     if type(loadMod) == "function" then
@@ -73,7 +73,7 @@ end
 function M.onSave(ctx)
   local modelOk, modelErr = saveConfig(ctx.preferences)
   local ok, err = ctx.savePreferences()
-  if not ok then   -- gespeichert heisst: jeder Speicher, der die Werte traegt, ist geschrieben; die Bibliothek macht die Rueckgabe zum Satz fuer den Piloten
+  if not ok then   -- saved means: every store that holds the values is written; the library turns the result into the sentence for the pilot
     err = DashboardLib.saveFailureReason(ctx.i18n, err)
   elseif not modelOk then
     ok, err = false, DashboardLib.saveFailureReason(ctx.i18n, modelErr, true)
@@ -99,7 +99,7 @@ function M.build(ctx)
   local i18n = ctx.i18n
   Controls.appendSectionHeader(children, x, y, w, THEME_NAME, true, function() end)
   y = y + Controls.SECTION_H
-  local wahlen = {
+  local choices = {
     {value = "blue", label = t(i18n, "novafly_colour_blue", "Blue")},
     {value = "turquoise", label = t(i18n, "novafly_colour_turquoise", "Turquoise")},
     {value = "green", label = t(i18n, "novafly_colour_green", "Green")},
@@ -111,8 +111,8 @@ function M.build(ctx)
     {value = "violet", label = t(i18n, "novafly_colour_violet", "Violet")},
     {value = "silver", label = t(i18n, "novafly_colour_silver", "Silver")},
   }
-  Controls.appendComboSelect(children, x, y, w, t(i18n, "novafly_colour", "Colour"), wahlen, ui.wahl,
-    function(v) if FARBE_OK[v] then ui.wahl = v end end)
+  Controls.appendComboSelect(children, x, y, w, t(i18n, "novafly_colour", "Colour"), choices, ui.choice,
+    function(v) if COLOUR_OK[v] then ui.choice = v end end)
 end
 
 return function(ctx)

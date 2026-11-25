@@ -11,8 +11,8 @@ local init = {
   fullscreen = "theme",
   fullscreenExit = "longRtn",
   views = {
-    { id = "novafly_vorflug", module = "vorflug.lua" },
-    { id = "novafly_baenke", module = "baenke.lua",
+    { id = "novafly_preflight", module = "preflight.lua" },
+    { id = "novafly_banks", module = "banks.lua",
       openWhen = function(state) return state ~= nil and (state.flightMode == "postflight" or state.flightMode == "offline") end },
   },
   screen = { w = 800, h = 480 },
