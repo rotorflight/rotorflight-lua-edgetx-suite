@@ -22,7 +22,7 @@ local kx, ky, px, py = R.kx, R.ky, R.px, R.py
 R.CORE, R.MID, R.GLOW = LARGE800 and 2 or 1, LARGE800 and 4 or 3, LARGE800 and 6 or 5   -- 480 screens as in the Ethos theme at 480 x 320: core 1, mid tone 3, glow 5
 R.ROUND = LARGE800 and 7 or 5                  -- outer core radius at a corner of the reference layout with r 4 (6 pixels, the core 1.5 outside of it; at 480: r 4 and half the core)
 R.GREEN, R.YELLOW, R.RED = {12, 228, 16}, {245, 224, 26}, {240, 35, 12}
-R.NEEDLE, R.GREY = {255, 80, 80}, {134, 138, 145}
+R.NEEDLE = {255, 80, 80}
 R.LARGE = {r = py(152), start = -104.4, stop = 104.4, foot = py(90), tip = py(132), ticks = "ticks_large.png", tickEdge = 2 * (py(152) + py(4)) + 2}   -- the gauge: arc and arrow; angles as in Ethos (0 = top), green up to 78 %, yellow up to 90 %, then red
 R.FADE_LEFT = {{5, 394}, {55, 200}, {250, 225}, {255, 215}}   -- per line of a page: row of the reference layout and how far it reaches into the picture from the cockpit (as in the Ethos theme); the lowest one (314) is missing on the preflight page: it sat just below the last foot chip and doubled its edge
 R.FADE_RIGHT = {{5, 394}, {55, 330}, {250, 225}, {255, 215}, {314, 120}}

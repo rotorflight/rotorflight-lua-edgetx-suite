@@ -19,7 +19,6 @@ local F_S = SMLSIZE or 0   -- the five steps of the radio font (as the Ethos siz
 T.F = {s = F_S, xs = rawget(_G, "TINSIZE") or F_S, std = 0, l = MIDSIZE or 0, xl = DBLSIZE or MIDSIZE or 0, xxl = XXLSIZE or DBLSIZE or 0}
 T.GAP = 4                                  -- the unit close to its number
 T.REF_WITHOUT_FLIGHT = 2000
-T.VFR_YELLOW, T.VFR_RED = 90, 80
 
 local function suiteModule(modPath)
     if rfsuite and type(rfsuite.require) == "function" then
@@ -156,14 +155,11 @@ function T.textWidth(text, font)
     return w
 end
 
-function T.label(n, x, y, text, colour, font, w, align)   -- nodes: a label left at x (w 0 = as wide as the text), centred on cx, right-aligned ending at xe; y is the middle of the row
+function T.label(n, x, y, text, colour, font, w, align)   -- nodes: a label left at x (w 0 = as wide as the text) or centred on cx; y is the middle of the row
     n[#n + 1] = {type = "label", x = x, y = y - floor(T.height(font) / 2), w = w or 0, text = text, color = colour, font = font, align = align or LEFT}
 end
 function T.labelCentred(n, cx, cy, text, colour, font)
     T.label(n, cx - floor(T.textWidth(text, font) / 2), cy, text, colour, font)
-end
-function T.labelRight(n, xe, cy, text, colour, font)
-    T.label(n, xe - T.textWidth(text, font), cy, text, colour, font)
 end
 
 local FORMAT = {[0] = "%.0f", "%.1f", "%.2f"}
