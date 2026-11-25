@@ -70,7 +70,7 @@ if G.bkRead == nil then G.bkRead = {gen = 0, running = false, values = {}} end  
 local L = G.bkRead
 L.rev = L.rev or 0                                 -- counts every change to L.values: only then refresh() computes the values from the FC again
 
-local function chain(g, i)                             -- reads the four records one after another; an error stands in the foot, the chain goes on
+local function chain(g, i)                             -- reads the four records one after another; an error stands in the foot and the chain goes on, cleared ends it
     local item = CHAIN[i]
     if item == nil then
         L.running = false
@@ -81,10 +81,15 @@ local function chain(g, i)                             -- reads the four records
     L.asked, L.item = now(), i
     if not P.read(item[1], function(w, reason)
         if g ~= L.gen then return end
+        if reason == "cleared" then   -- the suite emptied its queue (armed, connection lost): the chain ends, the next tick on the ground reads again
+            L.running, L.retryAt = false, now()
+            L.rev = L.rev + 1
+            return
+        end
         if w ~= nil then L.values[item[2]] = w
         else
             L.chainFault = true
-            if reason ~= "cleared" then L.values.fault = item[3] end   -- cleared: the suite emptied its queue (armed, connection lost), no error of the FC
+            L.values.fault = item[3]
         end
         L.rev = L.rev + 1
         chain(g, i + 1)
@@ -107,6 +112,7 @@ end
 
 local function tick(s)                                 -- every call: a change of bank or rate reads again; a lost request and an error are read again
     if P == nil then return end
+    if s.isArmed == true then return end               -- armed: the suite keeps configuration traffic off the link, so the page asks nothing
     if L.fresh then L.fresh = false kick(s) return end
     if L.readFor == nil then return end
     local t = now()
