@@ -285,7 +285,24 @@ function T.setRef()
     return false
 end
 
+local function fcIdentity()   -- what was recorded for one FC goes when another one connects (session.mcu_id); a reconnect of the same FC keeps it
+    local session = rfsuite and rfsuite.session
+    local id = type(session) == "table" and session.mcu_id or nil
+    if id == nil or id == G.mcuId then return end
+    if G.mcuId ~= nil then
+        G.lastFlight, G.sinceStart, G.rpmHigh, G.cellF, G.bkValues = {}, {}, 0, nil, nil
+        for k in pairs(G.seen) do G.seen[k] = nil end
+        for k in pairs(G.peak) do G.peak[k] = nil end
+        G.flight = {running = false, stop = false, mahStart = nil, currentMax = nil, bank = {0, 0, 0}, clock = nil}
+        G.direction = {ref = nil, captured = false}
+        local L = G.bkRead   -- the banks page keeps this table: emptied in place, it reads the new FC at once
+        if type(L) == "table" then L.values, L.fresh, L.gen, L.running, L.rev = {}, true, (L.gen or 0) + 1, false, (L.rev or 0) + 1 end
+    end
+    G.mcuId = id
+end
+
 function T.read(state)   -- reads the suite's state: s is the moment (G.s), and peak monitor, flight and clocks run along
+    fcIdentity()
     local d = state.derived or {}
     local function g(k) return tonumber(d[k]) end
     local s = {link = state.rfConnected == true}
