@@ -343,7 +343,7 @@ local function readSimSensorFile(name, source)
   if type(name) ~= "string" or name == "" then return nil end
 
   local now = nowSeconds()
-  -- Negativ-Cache wieder aktivieren um CPU Last bei fehlenden Dateien zu senken
+  -- Negative cache enabled again, to cut CPU load on missing files
   if (Sensors.sim_search_misses[name] or 0) > 0 and (now - Sensors.sim_search_misses[name]) < 2.0 then
     return nil
   end
@@ -353,7 +353,7 @@ local function readSimSensorFile(name, source)
     if cached then
       if cached.exists then
         local v = cached.v
-        -- Führe das gecachte Skript aus, um dynamische Werte (math.random) zu erhalten
+        -- Run the cached script to get dynamic values (math.random)
         if cached.chunk then
           local ok, result = pcall(cached.chunk)
           if ok and type(result) == "number" then
@@ -361,16 +361,16 @@ local function readSimSensorFile(name, source)
           end
         end
         
-        -- Source-Reload deutlich drosseln, um Telemetrie-Flapping im Simulator zu vermeiden.
+        -- Throttle the source reload hard, to avoid telemetry flapping in the simulator.
         if (now - cached.t) > SIM_SOURCE_RELOAD_SECONDS then
-          -- Drosselung: Maximal ein Skript-Reload pro Tick, um CPU-Spitzen zu vermeiden
+          -- Throttling: at most one script reload per tick, to avoid CPU spikes
           if Sensors.sim_last_reload ~= now then
             Sensors.sim_last_reload = now
             local chunk = loadScript(filePath, "t")
             if chunk then
               cached.chunk = chunk
             else
-              -- Datei wurde evtl. gelöscht
+              -- The file may have been deleted
               local f = io.open(filePath, "r")
               if not f then cached.exists = false end
               if f then io.close(f) end
@@ -380,14 +380,14 @@ local function readSimSensorFile(name, source)
         end
         return v, true
       else
-        -- Datei existierte beim letzten Check nicht, 2 Sekunden lang ignorieren
+        -- The file did not exist at the last check: ignore it for 2 seconds
         if (now - cached.t) <= 2.0 then
           return nil, false
         end
       end
     end
 
-    -- Erst mit io.open prüfen ob die Datei existiert um -E- Log-Spam von loadScript zu vermeiden
+    -- Check with io.open first whether the file exists, to avoid -E- log spam from loadScript
     local f = io.open(filePath, "r")
     if not f then 
       simValueCache[filePath] = { t = now, exists = false, v = nil }
@@ -395,7 +395,7 @@ local function readSimSensorFile(name, source)
     end
     io.close(f)
 
-    -- Datei existiert, nun als Lua-Skript ausführen und cachen
+    -- The file exists: now run it as a Lua script and cache it
     local chunk = loadScript(filePath, "t")
     local v = nil
     if chunk then
@@ -408,7 +408,7 @@ local function readSimSensorFile(name, source)
     return v, true
   end
 
-  -- 1. Bereits erfolgreichen Pfad probieren (O(1))
+  -- 1. Try the path that already succeeded (O(1))
   -- ... (rest of the logic)
 
 
@@ -418,8 +418,8 @@ local function readSimSensorFile(name, source)
     if hit then return v end
   end
 
-  -- 2. Kandidatenliste aufbauen
-  -- Drosselung: Nur ein intensiver Suchlauf nach fehlenden Dateien pro Tick, um CPU-Limit zu vermeiden
+  -- 2. Build the candidate list
+  -- Throttling: only one full search for missing files per tick, to avoid the CPU limit
   if Sensors.sim_last_search == now then
     return nil
   end
@@ -442,7 +442,7 @@ local function readSimSensorFile(name, source)
   end
   addCandidate(SIM_FILE_ALIASES[name])
 
-  -- 3. In Pfaden suchen
+  -- 3. Search the paths
   for p = 1, #SIM_SENSOR_PATHS do
     local base = SIM_SENSOR_PATHS[p]
     for i = 1, #candidates do
@@ -457,7 +457,7 @@ local function readSimSensorFile(name, source)
     end
   end
 
-  -- Füge Jitter hinzu, damit nicht alle Sensoren im exakt gleichen Tick ablaufen
+  -- Add jitter so that missing sensors are not all searched for again in the same tick
   Sensors.sim_search_misses[name] = now + (math.random() * 2.0)
   return nil
 end
@@ -465,10 +465,10 @@ end
 local function normalizeSimValue(name, value)
   if type(value) ~= "number" then return value end
   
-  -- Wenn der Wert bereits Nachkommastellen hat, ist er bereits skaliert (z.B. return 25.2)
+  -- If the value already has decimals, it is already scaled (e.g. return 25.2)
   if value % 1 ~= 0 then return value end
   
-  -- Wenn es ein Integer ist (z.B. return 2520), skalieren wir ihn anhand der Metadaten
+  -- If it is an integer (e.g. return 2520), scale it by the metadata
   local meta = Sensors.getMetadata(name)
   local prec = meta and tonumber(meta.prec) or 0
   if prec > 0 then
@@ -636,7 +636,7 @@ function Sensors.isSimulator()
     end
   end
 
-  -- Fallback für ältere Versionen
+  -- Fallback for older versions
   if getVersion then
     local ok, _, fw = pcall(getVersion)
     if ok and type(fw) == "string" then
@@ -924,7 +924,7 @@ readValue = function(source)
       end
     end
     
-    -- WICHTIG: Im Simulator kein Hardware-Fallback!
+    -- IMPORTANT: no hardware fallback in the simulator!
     return nil
   end
 

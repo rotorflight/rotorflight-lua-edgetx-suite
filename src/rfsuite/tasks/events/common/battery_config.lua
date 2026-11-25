@@ -1,4 +1,4 @@
--- Shared task: battery_config auslesen
+-- Shared task: read battery_config
 local M = {}
 
 local done = false
@@ -48,7 +48,7 @@ function M.wakeup(args)
   -- Battery and Sources keep the same table under this second name, and readers take it first.
   session.batteryConfig = nil
 
-  -- MSP battery_config API laden
+  -- Load the MSP battery_config API
   if not batteryConfigApi then
     batteryConfigApi = loadModule("tasks/msp/api/battery_config.lua")
   end

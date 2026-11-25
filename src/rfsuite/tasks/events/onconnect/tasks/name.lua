@@ -1,4 +1,4 @@
--- OnConnect task: Modellname via MSP auslesen
+-- OnConnect task: read the model name over MSP
 local M = {}
 
 local done = false
@@ -49,7 +49,7 @@ function M.wakeup(args)
   -- the same craft has to stay for that flight.
   session.modelName = nil
 
-  -- MSP name API laden
+  -- Load the MSP name API
   if not NameApi then
     NameApi = loadModule("tasks/msp/api/name.lua")
   end

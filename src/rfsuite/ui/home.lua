@@ -702,7 +702,7 @@ state = {
     seedInitialFuel = true,
     seedBatteryCapacity = true,
     seedPackCheck = true,
-    -- lastAlertAt wird nicht mehr hier initialisiert, sondern nur noch lazy in Audio
+    -- lastAlertAt is no longer initialised here, only lazily in Audio
     lastValues = { arming_flags = nil, governor_state = nil, pid_profile = nil, rate_profile = nil, battery_profile = nil },
     pendingValues = { pid_profile = nil, rate_profile = nil, battery_profile = nil },
     lastEnabled = { governor_state = nil }
@@ -4552,7 +4552,7 @@ function M.run(event, touchState)
     -- After the conditions, which is where `state.fblConnected` is brought up to date.
     updateConnectionStatus()
 
-    -- Audio Feedback Polling (gedrosselt auf ca. 5Hz)
+    -- Audio feedback polling (throttled to about 5 Hz)
     -- Hosted, the host announces: a second audio state here would call out what the host's
     -- has already called out.
     if not state.hosted and (not deferBackground) and Audio and type(Audio.process) == "function"

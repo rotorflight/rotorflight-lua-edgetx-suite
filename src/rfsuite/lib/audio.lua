@@ -1,6 +1,6 @@
 local Audio = {}
 
--- Globaler Throttle für Low-Voltage-Alarm (reload-sicher)
+-- Global throttle for the low-voltage alarm (survives a reload)
 local function getGlobalLowVoltageAt()
   if type(_G) == "table" then
     _G.__rfsuiteLastLowVoltageAt = _G.__rfsuiteLastLowVoltageAt or 0
@@ -1116,7 +1116,7 @@ local function announceModelName(audioState, modelName, opts)
     "SOUNDS/" .. string.gsub(name, " ", "_") .. ".wav"
   }
 
-  -- Als angekuendigt markieren, um endlose Fehler loops zu vermeiden
+  -- Mark as announced, to avoid endless error loops
   audioState.modelAnnounced = true
 
   for i = 1, #candidates do

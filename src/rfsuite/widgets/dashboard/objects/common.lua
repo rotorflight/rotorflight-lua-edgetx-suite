@@ -1060,7 +1060,7 @@ function Utils.drawContainer(nodes, rect, box, state)
     }
   end
 
-  -- Titel-Cache pro Box
+  -- Title cache per box
   box._lastTitleRaw = box._lastTitleRaw or nil
   box._lastTitle = box._lastTitle or nil
   local rawTitle = Utils.resolveValue(box.title, box, state)

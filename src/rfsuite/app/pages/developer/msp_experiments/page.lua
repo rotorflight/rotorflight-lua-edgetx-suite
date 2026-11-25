@@ -201,12 +201,12 @@ end
 function M.onSave()
     ensureDeps()
     
-    -- Wenn nichts geändert wurde, brechen wir geräuschlos ab.
+    -- If nothing was changed, stop here silently.
     if not state.hasUnsavedChanges then
         return false 
     end
     
-    -- HIER kommt später dein queue:add() Aufruf rein, um die Werte an den FC zu senden.
+    -- HERE is where your queue:add() call goes later, to send the values to the FC.
     
     state.hasUnsavedChanges = false
     return true 

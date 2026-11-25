@@ -1,4 +1,4 @@
--- Shared task: flight_stats auslesen
+-- Shared task: read flight_stats
 local M = {}
 
 local done = false
@@ -40,7 +40,7 @@ function M.wakeup(args)
 
   if requestSent then return end
 
-  -- MSP flight_stats API laden
+  -- Load the MSP flight_stats API
   if not flightStats then
     flightStats = loadModule("tasks/msp/api/flight_stats.lua")
   end

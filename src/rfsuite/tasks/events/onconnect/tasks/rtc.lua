@@ -1,4 +1,4 @@
--- OnConnect task: RTC der Flight Controller mit Senderzeit synchronisieren
+-- OnConnect task: set the flight controller's RTC to the radio's time
 local M = {}
 
 local done = false
@@ -36,7 +36,7 @@ function M.wakeup(args)
   if requestSent then return end
   requestSent = true
 
-  -- RTC API laden
+  -- Load the RTC API
   if not RtcApi then
     RtcApi = loadModule("tasks/msp/api/rtc.lua")
   end
