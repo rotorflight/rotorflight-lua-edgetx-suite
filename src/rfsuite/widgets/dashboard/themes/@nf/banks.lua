@@ -163,9 +163,15 @@ for a = 0, 2 do
     end
 end
 
-local function valuesFromFc(w, rpmUnit)                -- what comes from the records read; only anew when L.values has changed
-    local g, p, r = w.gov or {}, w.govProfile or {}, w.rc or {}
+local function govMode(g)                              -- gov_mode as the Governor page shows it (lib/governor.lua getEffectiveMode): OFF while the governor feature is off
     local m = g.gov_mode and floor(g.gov_mode)
+    local session = rfsuite and rfsuite.session
+    if m ~= nil and type(session) == "table" and session.governorFeature == false then return 0 end
+    return m
+end
+
+local function valuesFromFc(w, m, rpmUnit)             -- what comes from the records read; only anew when L.values or the mode has changed
+    local g, p, r = w.gov or {}, w.govProfile or {}, w.rc or {}
     local mode = m and GOV_MODES[m] or nil
     disp.bkGov, disp.bkGovF = mode or "--", mode and COLOUR.g or P.MUTED
     disp.bkRpm, disp.bkRpmF = num(p.governor_headspeed)
@@ -187,12 +193,12 @@ local function refresh(state)
     tick(s)
     local w = L.values
     local g, p, r = w.gov or {}, w.govProfile or {}, w.rc or {}
-    local m = g.gov_mode and floor(g.gov_mode)
+    local m = govMode(g)
     local rpmUnit = "@i18n(widgets.dashboard.nf_rpm_unit)@"   -- the headspeed unit: U/min in the German package, rpm as in the cockpit in the English one
     local fc = G.bkValues
-    if fc == nil or fc.rev ~= L.rev or fc.values ~= w or fc.rpmUnit ~= rpmUnit then
-        valuesFromFc(w, rpmUnit)
-        G.bkValues = {rev = L.rev, values = w, rpmUnit = rpmUnit}
+    if fc == nil or fc.rev ~= L.rev or fc.values ~= w or fc.mode ~= m or fc.rpmUnit ~= rpmUnit then
+        valuesFromFc(w, m, rpmUnit)
+        G.bkValues = {rev = L.rev, values = w, mode = m, rpmUnit = rpmUnit}
     end
     disp.bkActual, disp.bkActualF = num(s.rpm)
     disp.bkActualE = s.rpm ~= nil and rpmUnit or ""
