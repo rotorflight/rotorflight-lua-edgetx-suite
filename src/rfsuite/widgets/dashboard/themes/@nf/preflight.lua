@@ -98,6 +98,7 @@ end
 
 local function refresh(state)
     local s = T.read(state)
+    T.mspRelease()                                     -- the place at the MSP service goes back between reads
     local d = state.derived or {}
     local batteryF = COLOUR[T.batteryColour(T.batteryFraction(state, s.pack, s.cellF or s.cell))] or COLOUR.g
     local link = COLOUR[T.linkColour(state, s.vfr)] or COLOUR.w

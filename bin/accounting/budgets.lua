@@ -224,9 +224,9 @@ return {
     -- hundred. Not the 25 % --emit gives a new row, which would put the target above the 20 000
     -- the theme rows keep their distance to.
     ["theme.deck"] = { target = 18600, measured = 16721 },
-    -- @NF is a free-form theme as well. --emit measured its worst pass at 10 946 and the sweep
+    -- @NF is a free-form theme as well. --emit measured its worst pass at 10 955 and the sweep
     -- of its tree at 358 over 94 references; it is held to the ceiling the shipped themes share.
-    ["theme.@nf"] = { target = 16200, measured = 11304 },
+    ["theme.@nf"] = { target = 16200, measured = 11313 },
 
     ----------------------------------------------------------------------------
     -- Per box type: one render into the node table, and one sweep of the reactive

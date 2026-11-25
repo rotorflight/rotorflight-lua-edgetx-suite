@@ -51,6 +51,24 @@ function T.module(fileName)   -- a module of the theme: through the suite's load
     return suiteModule(DIR .. fileName) or loadFile(fileName)
 end
 
+function T.mspSlot()   -- the theme's place at the suite's MSP service and its count of awaited replies, in a global: a fresh load finds it again
+    local m = _G.NF_MSP
+    if type(m) ~= "table" then
+        m = {pending = 0}
+        _G.NF_MSP = m
+    end
+    return m
+end
+
+function T.mspRelease()   -- called from the theme's own passes, never from a reply: the place goes back once no reply is awaited
+    local m = _G.NF_MSP
+    if type(m) == "table" and m.client ~= nil and (m.pending or 0) <= 0 then
+        local k = m.client
+        m.client = nil
+        if type(k.release) == "function" then pcall(k.release, k) end
+    end
+end
+
 local G = suiteModule(DIR .. "state.lua")   -- the suite reloads the theme's files on every change of flight phase; what must stay lives in state.lua, which the suite's loader keeps (runtime.lua releaseUnusedThemes)
 if G == nil then
     G = _G.NF_THEME

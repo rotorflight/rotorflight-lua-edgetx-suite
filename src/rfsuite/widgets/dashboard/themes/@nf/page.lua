@@ -103,35 +103,41 @@ return function(T)
         return api[name] or nil
     end
 
-    function P.client()                               -- one place at the suite's MSP service (rfsuite.msp), once for the theme, kept across every reload
-        local G = T.G
-        if G.mspClient == nil and rfsuite and type(rfsuite.msp) == "table" and type(rfsuite.msp.register) == "function" then
+    function P.client()                               -- a place at the suite's MSP service (rfsuite.msp) while replies are awaited; T.mspRelease gives it back
+        local m = T.mspSlot()
+        if (m.client == nil or m.client.released) and rfsuite and type(rfsuite.msp) == "table" and type(rfsuite.msp.register) == "function" then
             local ok, k = pcall(rfsuite.msp.register, "nf-theme")
-            if ok and type(k) == "table" then G.mspClient = k end
+            if ok and type(k) == "table" then m.client, m.pending = k, 0 end
         end
-        return G.mspClient
+        return m.client
     end
 
     function P.read(name, done)                   -- reads a record; done(values) or done(nil, reason) exactly once; false when nothing was sent
         local a, k = apiLoad(name), P.client()
         if a == nil or k == nil or type(k.request) ~= "function" then return false end
+        local m = T.mspSlot()
         local once = false
+        local function finish(w, reason)
+            if once then return end
+            once = true
+            m.pending = math.max(0, (m.pending or 1) - 1)
+            done(w, reason)
+        end
+        m.pending = (m.pending or 0) + 1                -- counted before the request: a reply can come back inside it
         local ok, id = pcall(k.request, k, {
             command = a.command,
             simulatorResponse = a.simulatorResponse,
             onReply = function(buf)
                 if once then return end
-                once = true
                 local ok2, w = pcall(a.parse, buf)
-                if ok2 and type(w) == "table" then done(w) else done(nil, "incomplete") end
+                if ok2 and type(w) == "table" then finish(w) else finish(nil, "incomplete") end
             end,
-            onError = function(g)
-                if once then return end
-                once = true
-                done(nil, g)
-            end,
+            onError = function(g) finish(nil, g) end,
         })
-        if not ok or id == nil then once = true return false end
+        if not ok or id == nil then
+            if not once then once, m.pending = true, math.max(0, m.pending - 1) end
+            return false
+        end
         return true
     end
 

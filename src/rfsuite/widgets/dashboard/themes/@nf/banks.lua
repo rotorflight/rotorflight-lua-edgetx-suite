@@ -190,6 +190,7 @@ end
 local function refresh(state)
     local s = T.read(state)
     if P == nil then return end
+    T.mspRelease()                                     -- the place at the MSP service goes back between reads
     tick(s)
     local w = L.values
     local g, p, r = w.gov or {}, w.govProfile or {}, w.rc or {}

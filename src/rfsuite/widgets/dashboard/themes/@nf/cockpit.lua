@@ -236,6 +236,7 @@ local PAUSE = 300                                      -- in hundredths of a sec
 local keyed, buildCount, missing = false, 0, nil     -- the first build after power-on spreads over three calls (frame, middle, values; buildPiece)
 function M.renderKey(zone, state)                      -- if more than one piece is missing the key carries a counter; the build of the finished screen builds the last one, a change of colour stays one build
     keyed = true
+    T.mspRelease()                                     -- a page that closed mid-read leaves its place at the MSP service: it goes back here
     local ok, reason = pcall(refresh, state or {})
     if not ok then note("refresh: " .. tostring(reason)) end
     lastState = state
