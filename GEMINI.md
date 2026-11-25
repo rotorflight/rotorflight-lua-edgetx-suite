@@ -54,6 +54,9 @@ the skill's `SKILL.md` before starting the task.
 
 ## Development Conventions
 
+### Language
+The sources are written in English: file and module names, identifiers, string keys defined in code, comments and log messages; commit messages and pull request text are English too. Text a pilot reads or hears reaches other languages only through the translation files (`src/rfsuite/i18n/`, see *Localization (i18n)*, and `bin/sound-generator/json/` for the announcements); see [CONTRIBUTING.md](CONTRIBUTING.md) under *Code is written in English*.
+
 ### Module Loading
 Modules are typically loaded using `loadScript` with absolute paths to ensure compatibility with the EdgeTX environment. The card roots are not spelled in a module: build the path from `rfsuite.paths` (`src/rfsuite/lib/paths.lua`, published by `lib/require.lua`; see `docs/reference/module-loader.md`).
 ```lua
