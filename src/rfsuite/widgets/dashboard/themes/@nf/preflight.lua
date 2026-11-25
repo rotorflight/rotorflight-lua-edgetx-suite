@@ -258,7 +258,7 @@ function M.build(children, zone, state, ctx)
     if not ok then
         broken = tostring(reason)
         T.note("preflight build: " .. broken)
-        children[#children + 1] = {type = "label", x = 10, y = 10, w = R.W - 20, text = broken, color = COLOUR.r}
+        children[#children + 1] = {type = "label", x = 10, y = 10, w = R.W - 20, text = "@i18n(widgets.dashboard.build_failed)@", color = COLOUR.r}
     end
 end
 

@@ -46,9 +46,8 @@ local SCALE, YELLOW_FROM = 1.25, 1.08                      -- the bar reaches up
 local ACTUAL_X, ACTUAL_W = 386, 94                           -- the measured headspeed above the bar
 local BANK_RX, BANK_Y, BANK_STEP = 434, 150, 30     -- BANK 1 2 3 right-aligned next to the bar
 local FOOT_Y = 277
-local RATE_TYPE = {[0] = "NONE", "BETAFLIGHT", "RACEFLIGHT", "KISS", "ACTUAL", "QUICK", "ROTORFLIGHT"}
-local GOV_MODES = {[0] = "OFF", "LIMIT", "DIRECT", "ELECTRIC", "NITRO"}   -- the firmware's gov_mode; at 3 and 4 the FC governs the headspeed
-local GOV_MODES_OLD = {[0] = "OFF", "PASSTHROUGH", "STANDARD", "MODE1", "MODE2"}   -- below API 12.09; from 2 the FC governs
+local RATE_TYPE = {[0] = "@i18n(widgets.dashboard.nf_rates_none)@", "@i18n(app.pages.flight_tuning_rates.betaflight):upper()@", "@i18n(app.pages.flight_tuning_rates.raceflight):upper()@", "@i18n(app.pages.flight_tuning_rates.kiss):upper()@", "@i18n(app.pages.flight_tuning_rates.actual):upper()@", "@i18n(app.pages.flight_tuning_rates.quick):upper()@", "@i18n(app.pages.flight_tuning_rates.rotorflight):upper()@"}   -- the names of the rates page, in capitals
+local GOV_MODES = {[0] = "@i18n(app.pages.setup_governor.mode_off)@", "@i18n(app.pages.setup_governor.mode_limit)@", "@i18n(app.pages.setup_governor.mode_direct)@", "@i18n(app.pages.setup_governor.mode_electric)@", "@i18n(app.pages.setup_governor.mode_nitro)@"}   -- the firmware's gov_mode with the Governor page's names; at 3 and 4 the FC governs the headspeed
 local DEG_S, DEG = "\194\176/s", "\194\176"
 local RATE_RULE = {   -- rcRates per rates type: {times, divisor, decimals} for axes 1-3 and collective, shown raw * times / divisor
     [0] = {{1, 1, 0}, {1, 1, 0}}, {{1, 100, 2}, {1, 100, 2}}, {{10, 1, 0}, {1, 4, 1}, DEG_S}, {{1, 100, 2}, {1, 100, 2}},   -- NONE, BETAFLIGHT, RACEFLIGHT, KISS
@@ -155,10 +154,10 @@ for a = 0, 2 do
     end
 end
 
-local function valuesFromFc(w, oldApi, rpmUnit)                -- what comes from the records read; only anew when L.values has changed
+local function valuesFromFc(w, rpmUnit)                -- what comes from the records read; only anew when L.values has changed
     local g, p, r = w.gov or {}, w.govProfile or {}, w.rc or {}
     local m = g.gov_mode and floor(g.gov_mode)
-    local mode = m and (oldApi and GOV_MODES_OLD or GOV_MODES)[m] or nil
+    local mode = m and GOV_MODES[m] or nil
     disp.bkGov, disp.bkGovF = mode or "--", mode and COLOUR.g or P.MUTED
     disp.bkRpm, disp.bkRpmF = num(p.governor_headspeed)
     disp.bkRpmE = p.governor_headspeed ~= nil and rpmUnit or ""
@@ -179,14 +178,12 @@ local function refresh(state)
     tick(s)
     local w = L.values
     local g, p, r = w.gov or {}, w.govProfile or {}, w.rc or {}
-    local oldApi = P.apiOld()
-    local governsFrom = oldApi and 2 or 3
     local m = g.gov_mode and floor(g.gov_mode)
     local rpmUnit = "@i18n(widgets.dashboard.nf_rpm_unit)@"   -- the headspeed unit: U/min in the German package, rpm as in the cockpit in the English one
     local fc = G.bkValues
-    if fc == nil or fc.rev ~= L.rev or fc.values ~= w or fc.oldApi ~= oldApi or fc.rpmUnit ~= rpmUnit then
-        valuesFromFc(w, oldApi, rpmUnit)
-        G.bkValues = {rev = L.rev, values = w, oldApi = oldApi, rpmUnit = rpmUnit}
+    if fc == nil or fc.rev ~= L.rev or fc.values ~= w or fc.rpmUnit ~= rpmUnit then
+        valuesFromFc(w, rpmUnit)
+        G.bkValues = {rev = L.rev, values = w, rpmUnit = rpmUnit}
     end
     disp.bkActual, disp.bkActualF = num(s.rpm)
     disp.bkActualE = s.rpm ~= nil and rpmUnit or ""
@@ -202,7 +199,7 @@ local function refresh(state)
     end
     local b = BARS                                   -- the column against the bank's target; without a target against the end of the cockpit's arc
     local top, bottom = sy(b.top), sy(b.bottom)
-    local target = (m ~= nil and m >= governsFrom) and p.governor_headspeed or nil
+    local target = (m ~= nil and m >= 3) and p.governor_headspeed or nil
     if target ~= nil and target <= 0 then target = nil end
     local full = target and (target * SCALE) or T.rpmFull()
     local function yFrom(v)
@@ -401,7 +398,7 @@ function M.build(children, zone, state, ctx)
     if not ok then
         broken = tostring(reason)
         T.note("banks build: " .. broken)
-        children[#children + 1] = {type = "label", x = 10, y = 10, w = R.W - 20, text = broken, color = COLOUR.r}
+        children[#children + 1] = {type = "label", x = 10, y = 10, w = R.W - 20, text = "@i18n(widgets.dashboard.build_failed)@", color = COLOUR.r}
     end
 end
 

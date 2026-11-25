@@ -135,15 +135,5 @@ return function(T)
         return true
     end
 
-    function P.apiOld()                              -- before API 12.09 the governor modes have other names (OFF, PASSTHROUGH, STANDARD, MODE1, MODE2)
-        local v = nil
-        if rfsuite and type(rfsuite.msp) == "table" and type(rfsuite.msp.status) == "function" then
-            local ok, st = pcall(rfsuite.msp.status)
-            if ok and type(st) == "table" then v = tonumber(st.apiVersion) end
-        end
-        if v == nil and rfsuite and type(rfsuite.session) == "table" then v = tonumber(rfsuite.session.apiVersion) end
-        return v ~= nil and v < 12.09
-    end
-
     return P
 end

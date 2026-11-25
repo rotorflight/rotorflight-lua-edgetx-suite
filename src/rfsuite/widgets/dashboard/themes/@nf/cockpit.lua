@@ -86,7 +86,7 @@ local function refresh(state)   -- reads the suite's state (parts.lua T.read) an
     local isArmed = s.isArmed
     disp.arm = (not link) and "link" or ((isArmed == true) and "armed" or ((isArmed == false) and "safe" or "unknown"))
     disp.armColour = (isArmed == true and link) and COLOUR.green or ((isArmed == false and link) and COLOUR.red or COLOUR.grey)
-    disp.armText = (not link) and "NO LINK" or ((isArmed == true) and "ARMED" or ((isArmed == false) and "DISARMED" or "ARM ?"))
+    disp.armText = (not link) and "@i18n(widgets.dashboard.nf_no_link)@" or ((isArmed == true) and "@i18n(widgets.dashboard.status_armed)@" or ((isArmed == false) and "@i18n(widgets.dashboard.status_disarmed)@" or "@i18n(widgets.dashboard.nf_arm_unknown)@"))
     disp.armTextF = (not link) and COLOUR.r or COLOUR.w
     local function value(name, text, fk, unit, font)
         if text == nil then
@@ -121,7 +121,7 @@ local function refresh(state)   -- reads the suite's state (parts.lua T.read) an
     local tWarn, tCrit = T.levels(state, "escTemp", 90, 110)
     if s.temp == nil and s.cell ~= nil then            -- an ESC without temperature: the ESC field shows the voltage per cell in the battery's colour
         value("temp", T.fmt(s.cell, 2), ck, "V")
-        disp.tempWord = "CELL"                          -- the same in every language, like ESC and BEC
+        disp.tempWord = "@i18n(widgets.dashboard.nf_esc_cell)@"   -- the word over the ESC field for the cell voltage
     else
         value("temp", s.temp and T.fmt(s.temp) or nil, s.temp and T.heatColour(s.temp, tWarn, tCrit) or "g", "\194\176C")
         disp.tempWord = "ESC"
@@ -346,7 +346,7 @@ local function armFontFit()                            -- the largest step in wh
     local armFont = F.l
     for _, level in ipairs({F.l, F.std, F.s}) do
         armFont = level
-        if T.textWidth("DISARMED", level) <= ARM.w - 2 * DX - 4 then break end
+        if T.textWidth("@i18n(widgets.dashboard.status_disarmed)@", level) <= ARM.w - 2 * DX - 4 then break end
     end
     return armFont
 end
@@ -477,7 +477,7 @@ function M.build(zone, state, ctx)
         return n
     end
     note("build: " .. tostring(n))
-    return {{type = "label", x = 10, y = 10, w = R.W - 20, text = tostring(n), color = COLOUR.r}}
+    return {{type = "label", x = 10, y = 10, w = R.W - 20, text = "@i18n(widgets.dashboard.build_failed)@", color = COLOUR.r}}   -- the error itself is in the log
 end
 
 return M
