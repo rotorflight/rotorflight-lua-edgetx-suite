@@ -105,7 +105,7 @@ local function refresh(state)
     disp.pfLinkF, disp.pfLinkN = link, levels(tonumber(d.link), LINK_LEVELS)
     disp.pfVfrN = levels(s.vfr, VFR_LEVELS)
     local mode = T.modeWord(s.fcMode)
-    disp.pfMode, disp.pfModeF = mode and T.word(mode) or "--", mode and COLOUR.g or P.MUTED
+    disp.pfMode, disp.pfModeF = mode or "--", mode and COLOUR.g or P.MUTED
     disp.pfFuel, disp.pfFuelF = num(s.fuel ~= nil and floor(s.fuel + 0.5) or nil)
     if s.fuel ~= nil then disp.pfFuelF = batteryF end
     disp.pfPack, disp.pfPackF = num(s.pack, "%.1f")
@@ -138,7 +138,7 @@ local function nameFont(text, textWidth)             -- the model name as large 
     return F.s
 end
 
-local function node(colour)                           -- depends only on colour and language, kept in G as on the banks page; the build in three parts and the assembly
+local function node(colour)                           -- depends only on the colour, kept in G as on the banks page; the build in three parts and the assembly
     local L = T.lines(colour)
     local k = {}                                       -- the children of the one button, moved back by DX, DY
     local parts = {}
@@ -165,29 +165,29 @@ local function node(colour)                           -- depends only on colour 
 
     local function v(name) return function() return disp[name] end end
     parts[2] = function()                              -- the head band and the battery
-    P.word(k, sx(MODE.x), sy(MODE.word), T.word("FLUGMODUS"), COLOUR.w, F.xs, "left", DX, DY)
+    P.word(k, sx(MODE.x), sy(MODE.word), "@i18n(widgets.dashboard.novafly_flight_mode)@", COLOUR.w, F.xs, "left", DX, DY)
     P.row(k, sx(MODE.x), sy(MODE.val), {{v("pfMode"), v("pfModeF"), F.s}}, "left", DX, DY)
     local name = disp.name or ""
     P.row(k, sx(240), sy(HEAD_Y), {{function() return disp.name or "" end, COLOUR.w, nameFont(name, sx(280))}}, nil, DX, DY)
     local cx = sx(a.x + a.w / 2)
-    P.word(k, cx, sy(a.y + 17), T.word("AKKU"), COLOUR.w, F.s, nil, DX, DY)
+    P.word(k, cx, sy(a.y + 17), "@i18n(widgets.dashboard.novafly_battery)@", COLOUR.w, F.s, nil, DX, DY)
     P.row(k, cx, sy(a.y + 45), {{v("pfFuel"), v("pfFuelF"), F.xl}, {"%", COLOUR.w, F.s}}, nil, DX, DY)
     P.row(k, cx, sy(a.y + 74), {{v("pfPack"), v("pfPackF"), F.xs}, {"V  ", COLOUR.w, F.xs}, {v("pfCells"), v("pfCellsF"), F.xs},
                                   {v("pfCap"), v("pfCapF"), F.xs}, {"mAh", COLOUR.w, F.xs}}, nil, DX, DY)
     end
     parts[3] = function()                              -- cell, consumption and the four chips of the last flight
     local lx, rx = sx(a.x + a.w / 4), sx(a.x + a.w * 3 / 4)
-    P.word(k, lx, sy(a.y + 108), T.word("ZELLE"), COLOUR.w, F.xs, nil, DX, DY)
+    P.word(k, lx, sy(a.y + 108), "@i18n(widgets.dashboard.novafly_cell)@", COLOUR.w, F.xs, nil, DX, DY)
     P.row(k, lx, sy(a.y + 133), {{v("pfCell"), v("pfCellF"), F.l}, {"V", COLOUR.w, F.s}}, nil, DX, DY)
-    P.word(k, rx, sy(a.y + 108), T.word("VERBRAUCH"), COLOUR.w, F.xs, nil, DX, DY)
+    P.word(k, rx, sy(a.y + 108), "@i18n(widgets.dashboard.novafly_consumption)@", COLOUR.w, F.xs, nil, DX, DY)
     P.row(k, rx, sy(a.y + 133), {{v("pfMah"), v("pfMahF"), F.l}, {"mAh", COLOUR.w, F.s}}, nil, DX, DY)
-    local chips = {{"HOEHE MAX", "pfAlt", "pfAltE"}, {"STEIGEN MAX", "pfClimb", "pfRateE"}, {"SINKEN MAX", "pfSink", "pfRateE"},
-                   {"FLUGZEIT", "pfTime", nil}}
+    local chips = {{"@i18n(widgets.dashboard.novafly_alt_max)@", "pfAlt", "pfAltE"}, {"@i18n(widgets.dashboard.novafly_climb_max)@", "pfClimb", "pfRateE"}, {"@i18n(widgets.dashboard.novafly_sink_max)@", "pfSink", "pfRateE"},
+                   {"@i18n(widgets.dashboard.novafly_flight_time)@", "pfTime", nil}}
     for i = 1, 4 do
         local x = FOOT.x + (i - 1) * (FOOT.w + FOOT.gap)
         local w = (i == 4) and (480 - x) or FOOT.w
         local c = chips[i]
-        P.word(k, sx(x + w / 2), sy(FOOT.y + 13), T.word(c[1]), COLOUR.w, F.xs, nil, DX, DY)
+        P.word(k, sx(x + w / 2), sy(FOOT.y + 13), c[1], COLOUR.w, F.xs, nil, DX, DY)
         local unit = c[3] and v(c[3]) or "min"
         P.row(k, sx(x + w / 2), sy(FOOT.y + 33), {{v(c[2]), v(c[2] .. "F"), F.std}, {unit, COLOUR.w, F.xs}}, nil, DX, DY)
     end
@@ -196,8 +196,8 @@ local function node(colour)                           -- depends only on colour 
     return k, parts
 end
 
-local function begin(colour)                         -- the set for this colour and language: from G, otherwise newly created (still without nodes)
-    local cacheKey = tostring(colour) .. "|" .. tostring(T.lang())
+local function begin(colour)                         -- the set for this colour: from G, otherwise newly created (still without nodes)
+    local cacheKey = tostring(colour)
     local f = G.pfDone
     if type(f) ~= "table" or f.cacheKey ~= cacheKey then
         local k, parts = node(colour)
@@ -218,9 +218,9 @@ local function buildPart(f)                              -- builds the next part
 end
 
 local broken = nil                                     -- a build that broke off: the page shows the background until the file is loaded again
-local function ready(colour)                            -- are all nodes for this colour and language ready?
+local function ready(colour)                            -- are all nodes for this colour ready?
     local f = G.pfDone
-    return P == nil or broken ~= nil or (type(f) == "table" and f.parts == nil and f.cacheKey == tostring(colour) .. "|" .. tostring(T.lang()))
+    return P == nil or broken ~= nil or (type(f) == "table" and f.parts == nil and f.cacheKey == tostring(colour))
 end
 
 local buildCount, haveRead, lastBuild = 0, false, nil      -- lastBuild: the previous build, whole or a part, and when
@@ -230,7 +230,7 @@ function M.renderKey(zone, state)                      -- as on the banks page: 
     local ok, reason = pcall(refresh, state or {})
     if not ok then T.note("preflight refresh: " .. tostring(reason)) end
     local colour = T.colourFrom(state)
-    local key = "preflight|" .. colour .. "|" .. T.lang() .. "|" .. tostring(disp.name) .. "|" .. tostring(disp.pfPhoto)
+    local key = "preflight|" .. colour .. "|" .. tostring(disp.name) .. "|" .. tostring(disp.pfPhoto)
     if ready(colour) and (lastBuild == nil or lastBuild.whole) then return key end
     buildCount = buildCount + 1
     return key .. "|build " .. buildCount

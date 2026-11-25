@@ -54,8 +54,8 @@ local RATE_RULE = {   -- rcRates per rates type as in NovaFly: {times, divisor, 
     [0] = {{1, 1, 0}, {1, 1, 0}}, {{1, 100, 2}, {1, 100, 2}}, {{10, 1, 0}, {1, 4, 1}, DEG_S}, {{1, 100, 2}, {1, 100, 2}},   -- NONE, BETAFLIGHT, RACEFLIGHT, KISS
     {{10, 1, 0}, {1, 4, 1}}, {{1, 100, 2}, {1, 100, 2}}, {{5, 1, 0}, {5, 40, 2}, DEG_S}}   -- ACTUAL, QUICK, ROTORFLIGHT; there the collective is an angle
 local TENS, PATTERN = {[0] = 1, 10, 100}, {"%.1f", "%.2f"}
-local RATE_AXES = {"ROLL", "NICK", "HECK", "KOLL."}
-local CHAIN = {{"pid_tuning", "pid", "PID"}, {"rc_tuning", "rc", "RATEN"}, {"governor_config", "gov", "GOVERNOR"}, {"governor_profile", "govProfile", "GOVERNOR"}}
+local RATE_AXES = {"@i18n(widgets.dashboard.novafly_roll)@", "@i18n(widgets.dashboard.novafly_pitch)@", "@i18n(widgets.dashboard.novafly_tail)@", "@i18n(widgets.dashboard.novafly_collective)@"}
+local CHAIN = {{"pid_tuning", "pid", "PID"}, {"rc_tuning", "rc", "@i18n(widgets.dashboard.novafly_rates)@"}, {"governor_config", "gov", "@i18n(widgets.dashboard.novafly_governor)@"}, {"governor_profile", "govProfile", "@i18n(widgets.dashboard.novafly_governor)@"}}
 local DEADLINE, PAUSE = 14, 3                             -- a request without a reply is lost after 14 s; after an error the tick reads again after 3 s
 local GREEN, YELLOW, RED = R.rgb(R.GREEN), R.rgb(R.YELLOW), R.rgb(R.RED)
 
@@ -182,7 +182,7 @@ local function refresh(state)
     local oldApi = P.apiOld()
     local governsFrom = oldApi and 2 or 3
     local m = g.gov_mode and floor(g.gov_mode)
-    local rpmUnit = (T.lang() == "de") and "U/min" or "rpm"   -- the headspeed unit: U/min in German, rpm in every other language as in the cockpit
+    local rpmUnit = "@i18n(widgets.dashboard.novafly_rpm_unit)@"   -- the headspeed unit: U/min in the German package, rpm as in the cockpit in the English one
     local fc = G.bkValues
     if fc == nil or fc.rev ~= L.rev or fc.values ~= w or fc.oldApi ~= oldApi or fc.rpmUnit ~= rpmUnit then
         valuesFromFc(w, oldApi, rpmUnit)
@@ -196,7 +196,7 @@ local function refresh(state)
     local foot = "RATE " .. (rate and tostring(rate) or "?")
     local rateType = r.rates_type and RATE_TYPE[floor(r.rates_type)] or nil
     if w.fault ~= nil then   -- the red message needs the row: the rates type stays away while it stands
-        disp.bkFoot, disp.bkError = foot, "MSP " .. T.word(w.fault)
+        disp.bkFoot, disp.bkError = foot, "MSP " .. w.fault
     else
         disp.bkFoot, disp.bkError = foot .. "   " .. (rateType or ""), nil
     end
@@ -231,7 +231,7 @@ local function refresh(state)
     end
 end
 
-local function node(colour)                           -- the nodes depend only on colour and language: built once, kept in G (survives the reload per flight phase)
+local function node(colour)                           -- the nodes depend only on the colour: built once, kept in G (survives the reload per flight phase)
     local Lf = T.lines(colour)
     local k = {}
     local parts = {}                                   -- the build in five parts and the assembly, each small enough for one call
@@ -273,18 +273,18 @@ local function node(colour)                           -- the nodes depend only o
     end
 
     local function v(name) return function() return disp[name] end end
-    local columns = {{"GOVERNOR", "bkGov", nil}, {"DREHZAHL", "bkRpm", "bkRpmE"}, {"HOCHLAUF", "bkSpool", "bkSpoolE"}, {"GAIN", "bkGain", nil}}
+    local columns = {{"@i18n(widgets.dashboard.novafly_governor)@", "bkGov", nil}, {"@i18n(widgets.dashboard.novafly_headspeed)@", "bkRpm", "bkRpmE"}, {"@i18n(widgets.dashboard.novafly_spoolup)@", "bkSpool", "bkSpoolE"}, {"GAIN", "bkGain", nil}}
     parts[2] = function()                              -- the head band and ACTUAL
     for i = 1, 4 do                                    -- the head band: governor, target headspeed, spool-up, gain in the alignment of the four chips
         local x, w = chipPlace(RATE_CHIP, i)
         if i == 1 then x, w = 0, x + w end
         local sp = columns[i]
-        P.word(k, sx(x + w / 2), sy(18), T.word(sp[1]), COLOUR.w, F.xs, nil, DX, DY)
+        P.word(k, sx(x + w / 2), sy(18), sp[1], COLOUR.w, F.xs, nil, DX, DY)
         local segs = {{v(sp[2]), v(sp[2] .. "F"), F.std}}
         if sp[3] then segs[2] = {v(sp[3]), COLOUR.w, F.xs} end
         P.row(k, sx(x + w / 2), sy(35), segs, nil, DX, DY)
     end
-    P.word(k, sx(ACTUAL_X + ACTUAL_W / 2), sy(18), T.word("IST"), COLOUR.w, F.xs, nil, DX, DY)
+    P.word(k, sx(ACTUAL_X + ACTUAL_W / 2), sy(18), "@i18n(widgets.dashboard.novafly_actual)@", COLOUR.w, F.xs, nil, DX, DY)
     P.row(k, sx(ACTUAL_X + ACTUAL_W / 2), sy(35), {{v("bkActual"), v("bkActualF"), F.std}, {v("bkActualE"), COLOUR.w, F.xs}}, nil, DX, DY)
     end
     parts[3] = function()                              -- the rates
@@ -292,18 +292,18 @@ local function node(colour)                           -- the nodes depend only o
         local x, w = chipPlace(RATE_CHIP, i)
         local y = RATE_CHIP.y
         if i == 1 then x, w = 0, x + w end
-        P.word(k, sx(x + w / 2), sy(y + 15), T.word(RATE_AXES[i]), COLOUR.w, F.s, nil, DX, DY)
+        P.word(k, sx(x + w / 2), sy(y + 15), RATE_AXES[i], COLOUR.w, F.s, nil, DX, DY)
         P.row(k, sx(x + w / 2), sy(y + 40), {{v("bkRate" .. i), v("bkRateF" .. i), F.l}, {v("bkRateE" .. i), COLOUR.w, F.xs}}, nil, DX, DY)
     end
     end
-    local gainAxes = {{"ROLL", 0}, {"NICK", 1}, {"HECK", 2}}
+    local gainAxes = {{"@i18n(widgets.dashboard.novafly_roll)@", 0}, {"@i18n(widgets.dashboard.novafly_pitch)@", 1}, {"@i18n(widgets.dashboard.novafly_tail)@", 2}}
     parts[4] = function()                              -- the gains
     for i = 1, 3 do                                    -- gains per axis: P I D F B O
         local x, w = chipPlace(GAIN_CHIP, i)
         local y = GAIN_CHIP.y
         if i == 1 then x, w = 0, x + w end
         local a = gainAxes[i]
-        P.word(k, sx(x + w / 2), sy(y + 13), T.word(a[1]), COLOUR.w, F.s, nil, DX, DY)
+        P.word(k, sx(x + w / 2), sy(y + 13), a[1], COLOUR.w, F.s, nil, DX, DY)
         local pairList = {{10, 36, "P"}, {62, 36, "I"}, {10, 58, "D"}, {62, 58, "F"}, {10, 80, "B"}}
         if a[2] ~= 2 then pairList[#pairList + 1] = {62, 80, "O"} end
         for _, pr in ipairs(pairList) do
@@ -317,7 +317,7 @@ local function node(colour)                           -- the nodes depend only o
     local hs = T.height(F.s)
     for i = 1, 3 do
         local nr = i
-        P.row(k, sx(BANK_RX), sy(BANK_Y + (i - 1) * BANK_STEP) + floor(hs / 2), {{T.word("BANK") .. " " .. i, function() return disp["bkBankF" .. nr] end, F.s}}, "right", DX, DY)
+        P.row(k, sx(BANK_RX), sy(BANK_Y + (i - 1) * BANK_STEP) + floor(hs / 2), {{"BANK" .. " " .. i, function() return disp["bkBankF" .. nr] end, F.s}}, "right", DX, DY)
     end
     local hx = T.height(F.xs)
     local targetPlace = {}
@@ -336,8 +336,8 @@ local function node(colour)                           -- the nodes depend only o
     return k, parts
 end
 
-local function begin(colour)                         -- the set for this colour and language: from G, otherwise newly created (still without nodes)
-    local cacheKey = tostring(colour) .. "|" .. tostring(T.lang())
+local function begin(colour)                         -- the set for this colour: from G, otherwise newly created (still without nodes)
+    local cacheKey = tostring(colour)
     local f = G.bkDone
     if type(f) ~= "table" or f.cacheKey ~= cacheKey then
         local k, parts = node(colour)
@@ -358,9 +358,9 @@ local function buildPart(f)                              -- builds the next part
 end
 
 local broken = nil                                     -- a build that broke off: the page shows the background until the file is loaded again
-local function ready(colour)                            -- are all nodes for this colour and language ready?
+local function ready(colour)                            -- are all nodes for this colour ready?
     local f = G.bkDone
-    return P == nil or broken ~= nil or (type(f) == "table" and f.parts == nil and f.cacheKey == tostring(colour) .. "|" .. tostring(T.lang()))
+    return P == nil or broken ~= nil or (type(f) == "table" and f.parts == nil and f.cacheKey == tostring(colour))
 end
 
 local buildCount, haveRead, lastBuild = 0, false, nil      -- lastBuild: the previous build, whole or a part, and when
@@ -370,7 +370,7 @@ function M.renderKey(zone, state)                      -- while the screen is no
     local ok, reason = pcall(refresh, state or {})
     if not ok then T.note("banks refresh: " .. tostring(reason)) end
     local colour = T.colourFrom(state)
-    local key = "banks|" .. colour .. "|" .. T.lang()
+    local key = "banks|" .. colour
     if ready(colour) and (lastBuild == nil or lastBuild.whole) then return key end
     buildCount = buildCount + 1
     return key .. "|build " .. buildCount

@@ -1,5 +1,5 @@
 -- PARTS of the theme for EdgeTX: what the cockpit (cockpit.lua) and the two pages (preflight.lua, banks.lua) share - the
--- folder, the radio's fonts and their sizes, the colours, the words, the line colours, the reading of the suite's state
+-- folder, the radio's fonts and their sizes, the colours, the line colours, the reading of the suite's state
 -- (refresh) with everything that counts beyond the moment (peak monitor, the current and the last flight, the clock per
 -- bank, the reference of the direction arrow), and the nodes for labels and values. A value is a label whose text,
 -- colour and place are functions that only read what refresh() computed. What must survive a reload lives in state.lua.
@@ -75,8 +75,6 @@ G.R = T.R
 if T.R and T.R.px then T.GAP = T.R.px(4) end   -- the gap in pixels of this screen (800 x 480: 4)
 T.COLOURS = G.COLOURS or T.module("colours.lua") or {}
 G.COLOURS = T.COLOURS
-T.W = G.W or T.module("words.lua") or {}
-G.W = T.W
 
 T.COLOUR_WORDS = {"blue", "turquoise", "green", "yellow", "gold", "orange", "red", "magenta", "violet", "silver"}   -- the stored colour values are English, like every value in the suite's settings (configure.lua has the same order)
 T.COLOUR_INDEX = {}
@@ -102,21 +100,6 @@ function T.lines(colour)                      -- mid tone, core and glow of the 
         G.lines[colour] = l
     end
     return l
-end
-
-function T.lang()                          -- the radio's language; one without words shows English
-    if G.lang == nil then
-        G.lang = "en"
-        local ok, e = pcall(getGeneralSettings)
-        local s = ok and type(e) == "table" and type(e.language) == "string" and string.lower(e.language) or nil
-        if s and T.W[s] then G.lang = s end
-    end
-    return G.lang
-end
-
-function T.word(text)                         -- a fixed word in the radio's language; without an entry it stays as it is
-    local t = T.W[T.lang()]
-    return (t and t[text]) or text
 end
 
 local EST_H = {}   -- the size of the radio font: the height per step measured once (lcd.sizeText), widths per text; without lcd.sizeText estimated
@@ -256,9 +239,9 @@ end
 function T.modeWord(v)   -- the flight mode from the bits (ANGLE 2, HORIZON 4, RESCUE 32) as in the Ethos theme: RESCUE comes with ANGLE and wins, HORIZON before ANGLE, otherwise Acro
     if v == nil then return nil end
     v = floor(v)
-    if floor(v / 32) % 2 == 1 then return "RETTUNG" end
-    if floor(v / 4) % 2 == 1 then return "HORIZONT" end
-    if floor(v / 2) % 2 == 1 then return "WINKEL" end
+    if floor(v / 32) % 2 == 1 then return "@i18n(widgets.dashboard.novafly_rescue)@" end
+    if floor(v / 4) % 2 == 1 then return "@i18n(widgets.dashboard.novafly_horizon)@" end
+    if floor(v / 2) % 2 == 1 then return "@i18n(widgets.dashboard.novafly_angle)@" end
     return "ACRO"
 end
 

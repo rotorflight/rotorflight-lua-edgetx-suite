@@ -51,7 +51,7 @@ local U = {   -- the value fields: centre (pixels), font, unit, place (centred, 
     rssi = {x = sx(413), y = sy(22), f = F.std},
     vfr = {x = sx(413), y = sy(36), f = F.s},
     model = {x = px(400), y = sy(228), f = F.l},                                    -- centred below the arc
-    labels = {{64, 77, "FLUGTIMER"}, {64, 137, "RATE"}, {64, 194, "BANK"}, {417, 77, "BEC"}, {417, 130, "TX"}, {417, 183, "ESC"},   -- the labels in the small step (three sizes: small, medium, large)
+    labels = {{64, 77, "@i18n(widgets.dashboard.novafly_flight_timer)@"}, {64, 137, "RATE"}, {64, 194, "BANK"}, {417, 77, "BEC"}, {417, 130, "TX"}, {417, 183, "ESC"},   -- the labels in the small step (three sizes: small, medium, large)
               {241, 176, "rpm"}, {143, 71, "MCU"}, {56, 268, "ALT"}},
     loadWord = {x = sx(289), y = sy(59), f = F.s},
     tempWord = {x = sx(421), y = sy(268), f = F.s},   -- the word above the field bottom right: ESC above the temperature, CELL above the voltage per cell
@@ -274,9 +274,9 @@ function M.renderKey(zone, state)                      -- if more than one piece
         local w = okg and type(gs) == "table" and tonumber(gs.battWarn) or nil
         if w and w > 0 then G.txWarn = w end
     end
-    local key = "novafly|" .. colour .. "|" .. T.lang() .. "|" .. tostring(disp.name) .. "|" .. tostring(G.packFont)
-    local ck = G.ck                                    -- ck.ready: the screen is fully built, in this colour, language and battery font
-    if not (ck and ck.ready == colour and ck.lang == G.lang and ck.packFont == G.packFont) and missing(colour) > 1 then
+    local key = "novafly|" .. colour .. "|" .. tostring(disp.name) .. "|" .. tostring(G.packFont)
+    local ck = G.ck                                    -- ck.ready: the screen is fully built, in this colour and battery font
+    if not (ck and ck.ready == colour and ck.packFont == G.packFont) and missing(colour) > 1 then
         buildCount = buildCount + 1
         key = key .. "|build " .. buildCount
     end
@@ -312,7 +312,7 @@ local function buildMid()                            -- gauge, tank, labels and 
         n[#n + 1] = {type = "rectangle", x = U.tank.x + (i - 1) * U.tank.step, y = U.tank.y, w = U.tank.bw, h = U.tank.bh, filled = true,
                      color = function() return disp.barColour end, visible = function() return disp.tank >= i end}
     end
-    for _, l in ipairs(U.labels) do T.labelCentred(n, sx(l[1]), sy(l[2]), T.word(l[3]), COLOUR.w, F.s) end   -- the labels in the radio font, the words in the radio's language
+    for _, l in ipairs(U.labels) do T.labelCentred(n, sx(l[1]), sy(l[2]), l[3], COLOUR.w, F.s) end   -- the labels in the radio font, the words from the suite's translations
     local tb = sx(52)                                 -- the word above the field bottom right changes with the value below it
     n[#n + 1] = {type = "label", x = U.tempWord.x - tb, y = U.tempWord.y - floor(T.height(F.s) / 2), w = 2 * tb, align = CENTER, font = F.s,
                  text = function() return disp.tempWord or "ESC" end, color = COLOUR.w}
@@ -381,7 +381,7 @@ local function buildFull(font)                         -- the kids of the button
             bank = {face(BUTTONS.bank, "door_bank.png")}, battery = face(BUTTONS.battery, "door_battery.png"), batt = batt, ring = ring}
 end
 
-local function fixedKey() return tostring(T.lang()) .. "|" .. tostring(G.packFont) end
+local function fixedKey() return tostring(G.packFont) end
 
 missing = function(f)                                    -- how many pieces are still missing for this colour: frame, middle, values
     local ck, n = G.ck, 0
@@ -395,7 +395,7 @@ local function buildPiece(f)                            -- builds the next missi
     local ck = G.ck
     if ck == nil then
         ck = {}
-        G.ck = ck                                      -- what not every build builds anew: frame per colour, middle and values per language and battery font (G survives the reload)
+        G.ck = ck                                      -- what not every build builds anew: frame per colour, middle and values per battery font (G survives the reload)
     end
     local s = fixedKey()
     ck.ready = nil
@@ -464,7 +464,7 @@ local function buildScreen(zone, state, ctx)
         n[#n + 1] = ck.frame.notch
         return n
     end
-    ck.ready, ck.lang, ck.packFont = colour, G.lang, G.packFont
+    ck.ready, ck.packFont = colour, G.packFont
     return assemble(ck, ctx)
 end
 
