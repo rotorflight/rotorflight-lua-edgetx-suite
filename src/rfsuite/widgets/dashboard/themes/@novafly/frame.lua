@@ -23,8 +23,7 @@ R.CORE, R.MID, R.GLOW = LARGE800 and 2 or 1, LARGE800 and 4 or 3, LARGE800 and 6
 R.ROUND = LARGE800 and 7 or 5                  -- outer core radius at a corner of the reference layout with r 4 (6 pixels, the core 1.5 outside of it; at 480: r 4 and half the core)
 R.GREEN, R.YELLOW, R.RED = {12, 228, 16}, {245, 224, 26}, {240, 35, 12}
 R.NEEDLE, R.GREY = {255, 80, 80}, {134, 138, 145}
-R.LARGE = {r = py(152), start = -104.4, stop = 104.4, foot = py(90), tip = py(132), ticks = "ticks_large.png", tickEdge = 2 * (py(152) + py(4)) + 2}   -- the two gauges: arc and arrow (LARGE) or bar (SMALL); angles as in Ethos (0 = top), green up to 78 %, yellow up to 90 %, then red
-R.SMALL = {r = py(70), start = -135, stop = 100, barInner = py(48), barOuter = py(54), ticks = "ticks_small.png", tickEdge = 2 * (py(70) + py(4)) + 2}
+R.LARGE = {r = py(152), start = -104.4, stop = 104.4, foot = py(90), tip = py(132), ticks = "ticks_large.png", tickEdge = 2 * (py(152) + py(4)) + 2}   -- the gauge: arc and arrow; angles as in Ethos (0 = top), green up to 78 %, yellow up to 90 %, then red
 R.FADE_LEFT = {{5, 394}, {55, 200}, {250, 225}, {255, 215}}   -- per line of a page: row of the reference layout and how far it reaches into the picture from the cockpit (as in the Ethos theme); the lowest one (314) is missing on the preflight page: it sat just below the last foot chip and doubled its edge
 R.FADE_RIGHT = {{5, 394}, {55, 330}, {250, 225}, {255, 215}, {314, 120}}
 R.FADE_SOFT = px(200)                     -- length of the gradient at the end of a line (Ethos 120)
@@ -146,17 +145,6 @@ end
 
 function R.arrow(n, points, shown)        -- the cockpit's arrow: a triangle whose corners a function names
     n[#n + 1] = {type = "triangle", x = 0, y = 0, w = 0, h = 0, pts = points, color = R.rgb(R.NEEDLE), visible = shown}
-end
-
-function R.bars(n, F, kind, cx, cy, stop, shown)   -- the bar of the banks page: a ring inside the arc from the start to the value (lvgl angle named by a function)
-    n[#n + 1] = {type = "arc", x = cx, y = cy, radius = kind.barOuter, thickness = kind.barOuter - kind.barInner,
-                 startAngle = floor(R.angle(kind.start) + 0.5), endAngle = stop, color = F.mid, visible = shown}
-end
-
-function R.barAngle(kind, fraction)         -- the lvgl angle of the bar's end for a fraction 0..1
-    if fraction < 0 then fraction = 0 elseif fraction > 1 then fraction = 1 end
-    local a = R.angle(kind.start) + (kind.stop - kind.start) * fraction
-    return floor(a + 0.5)
 end
 
 R.SPIKES = {left = {{66, 24}, {240, 60}, {262, 45}}, right = {{66, 24}, {124, 60}, {136, 45}, {240, 24}}}   -- as in the Ethos theme: per row, how far a line of the pages reaches from the screen edge into the cockpit
