@@ -206,7 +206,7 @@ local function refresh(state)
     local active = s.bank and floor(s.bank) or nil
     for i = 1, 3 do disp[BANK_F[i]] = (active == i) and COLOUR.w or P.MUTED end
     local rate = s.rate and floor(s.rate) or nil
-    local foot = "RATE " .. (rate and tostring(rate) or "?")
+    local foot = "@i18n(widgets.dashboard.nf_rate)@ " .. (rate and tostring(rate) or "?")
     local rateType = r.rates_type and RATE_TYPE[floor(r.rates_type)] or nil
     if w.fault ~= nil then   -- the red message needs the row: the rates type stays away while it stands
         disp.bkFoot, disp.bkError = foot, "MSP " .. w.fault
@@ -286,7 +286,7 @@ local function node(colour)                           -- the nodes depend only o
     end
 
     local function v(name) return function() return disp[name] end end
-    local columns = {{"@i18n(widgets.dashboard.nf_governor)@", "bkGov", nil}, {"@i18n(widgets.dashboard.nf_headspeed)@", "bkRpm", "bkRpmE"}, {"@i18n(widgets.dashboard.nf_spoolup)@", "bkSpool", "bkSpoolE"}, {"GAIN", "bkGain", nil}}
+    local columns = {{"@i18n(widgets.dashboard.nf_governor)@", "bkGov", nil}, {"@i18n(widgets.dashboard.nf_headspeed)@", "bkRpm", "bkRpmE"}, {"@i18n(widgets.dashboard.nf_spoolup)@", "bkSpool", "bkSpoolE"}, {"@i18n(widgets.dashboard.nf_gain)@", "bkGain", nil}}
     parts[2] = function()                              -- the head band and ACTUAL
     for i = 1, 4 do                                    -- the head band: governor, target headspeed, spool-up, gain in the alignment of the four chips
         local x, w = chipPlace(RATE_CHIP, i)
@@ -330,7 +330,7 @@ local function node(colour)                           -- the nodes depend only o
     local hs = T.height(F.s)
     for i = 1, 3 do
         local nr = i
-        P.row(k, sx(BANK_RX), sy(BANK_Y + (i - 1) * BANK_STEP) + floor(hs / 2), {{"BANK" .. " " .. i, function() return disp["bkBankF" .. nr] end, F.s}}, "right", DX, DY)
+        P.row(k, sx(BANK_RX), sy(BANK_Y + (i - 1) * BANK_STEP) + floor(hs / 2), {{"@i18n(widgets.dashboard.nf_bank)@" .. " " .. i, function() return disp["bkBankF" .. nr] end, F.s}}, "right", DX, DY)
     end
     local hx = T.height(F.xs)
     local targetPlace = {}

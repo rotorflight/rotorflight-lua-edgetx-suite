@@ -256,7 +256,7 @@ function T.modeWord(v)   -- the flight mode from the bits (ANGLE 2, HORIZON 4, R
     if floor(v / 32) % 2 == 1 then return "@i18n(widgets.dashboard.nf_rescue)@" end
     if floor(v / 4) % 2 == 1 then return "@i18n(widgets.dashboard.nf_horizon)@" end
     if floor(v / 2) % 2 == 1 then return "@i18n(widgets.dashboard.nf_angle)@" end
-    return "ACRO"
+    return "@i18n(widgets.dashboard.nf_acro)@"
 end
 
 local function directionTick(deg, isArmed)   -- the direction arrow: the reference is taken when arming and holds for the flight; on the ground it follows the heli, a tap sets it

@@ -4932,6 +4932,10 @@ return {
       nf_arm_unknown = "ARM ?",
       nf_esc_cell = "CELL",
       nf_rates_none = "NONE",
+      nf_rate = "RATE",
+      nf_bank = "BANK",
+      nf_gain = "GAIN",
+      nf_acro = "ACRO",
       -- The Urban theme's own words. What it draws that the suite already names in the same
       -- case reads the suite's key instead (layout.lua, common.lua).
       urban_flights = "Flights",
