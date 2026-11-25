@@ -60,12 +60,12 @@ function T.mspSlot()   -- the theme's place at the suite's MSP service and its c
     return m
 end
 
-function T.mspRelease()   -- called from the theme's own passes, never from a reply: the place goes back once no reply is awaited
+function T.mspRelease()   -- called from the theme's own passes, never from a reply: once no reply is awaited the place goes back, the global with it
     local m = _G.NF_MSP
-    if type(m) == "table" and m.client ~= nil and (m.pending or 0) <= 0 then
+    if type(m) == "table" and (m.pending or 0) <= 0 then
         local k = m.client
-        m.client = nil
-        if type(k.release) == "function" then pcall(k.release, k) end
+        _G.NF_MSP = nil
+        if k ~= nil and type(k.release) == "function" then pcall(k.release, k) end
     end
 end
 
