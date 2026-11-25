@@ -4,9 +4,9 @@
 -- bank, the reference of the direction arrow), and the nodes for labels and values. A value is a label whose text,
 -- colour and place are functions that only read what refresh() computed. What must survive a reload lives in state.lua.
 local PATHS = rfsuite and rfsuite.paths or {}
-local DIR = PATHS.core and (PATHS.core .. "/widgets/dashboard/themes/@novafly/") or nil
+local DIR = PATHS.core and (PATHS.core .. "/widgets/dashboard/themes/@nf/") or nil
 if DIR == nil or loadScript(DIR .. "init.lua", "t") == nil then
-    if PATHS.user then DIR = PATHS.user .. "/dashboard/novafly/" end
+    if PATHS.user then DIR = PATHS.user .. "/dashboard/nf/" end
 end
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 local RGB = lcd.RGB
@@ -35,7 +35,7 @@ function T.note(text)
     if noted[text] then return end
     noted[text] = true
     local Log = suiteModule("lib/log.lua")
-    if Log and type(Log.emit) == "function" then pcall(Log.emit, "novafly", text .. " (Lua " .. floor(collectgarbage("count")) .. " KB)", "debug") end
+    if Log and type(Log.emit) == "function" then pcall(Log.emit, "nf", text .. " (Lua " .. floor(collectgarbage("count")) .. " KB)", "debug") end
 end
 
 local function loadFile(fileName)
@@ -53,10 +53,10 @@ end
 
 local G = suiteModule(DIR .. "state.lua")   -- the suite reloads the theme's files on every change of flight phase; what must stay lives in state.lua, which the suite's loader keeps (runtime.lua releaseUnusedThemes)
 if G == nil then
-    G = _G.NOVAFLY_THEME
+    G = _G.NF_THEME
     if type(G) ~= "table" then
         G = {}
-        _G.NOVAFLY_THEME = G
+        _G.NF_THEME = G
     end
 end
 T.G = G
@@ -239,9 +239,9 @@ end
 function T.modeWord(v)   -- the flight mode from the bits (ANGLE 2, HORIZON 4, RESCUE 32) as in the Ethos theme: RESCUE comes with ANGLE and wins, HORIZON before ANGLE, otherwise Acro
     if v == nil then return nil end
     v = floor(v)
-    if floor(v / 32) % 2 == 1 then return "@i18n(widgets.dashboard.novafly_rescue)@" end
-    if floor(v / 4) % 2 == 1 then return "@i18n(widgets.dashboard.novafly_horizon)@" end
-    if floor(v / 2) % 2 == 1 then return "@i18n(widgets.dashboard.novafly_angle)@" end
+    if floor(v / 32) % 2 == 1 then return "@i18n(widgets.dashboard.nf_rescue)@" end
+    if floor(v / 4) % 2 == 1 then return "@i18n(widgets.dashboard.nf_horizon)@" end
+    if floor(v / 2) % 2 == 1 then return "@i18n(widgets.dashboard.nf_angle)@" end
     return "ACRO"
 end
 

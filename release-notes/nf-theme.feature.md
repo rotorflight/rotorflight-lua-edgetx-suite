@@ -1,2 +1,2 @@
-- **The @NovaFly dashboard theme for 800 x 480 screens (`widgets/dashboard/themes/@novafly`, `app/pages/settings/dashboard/theme_index.lua`, `docs/dashboard/novafly-theme.md`)**:
+- **The @NF dashboard theme for 800 x 480 screens (`widgets/dashboard/themes/@nf`, `app/pages/settings/dashboard/theme_index.lua`, `docs/dashboard/nf-theme.md`)**:
   - A free-form theme that takes full screen: one cockpit for every flight phase, a page before it with the model, its battery and the last flight (VORFLUG), and a page after it with the active bank's governor, rates and gains, read from the flight controller (BÄNKE). Its one setting is the colour of the cockpit, on its Settings tile and by a long press on the cockpit's head.

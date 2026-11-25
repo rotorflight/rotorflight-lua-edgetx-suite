@@ -4,9 +4,9 @@
 -- cells, capacity), cell and consumption, open to the right edge; in the foot band four chips with the last flight: altitude, climb,
 -- sink, flight time. A tap anywhere or RTN leads back: the whole page is one button, everything else is its children.
 local PATHS = rfsuite and rfsuite.paths or {}
-local DIR = PATHS.core and (PATHS.core .. "/widgets/dashboard/themes/@novafly/") or nil
+local DIR = PATHS.core and (PATHS.core .. "/widgets/dashboard/themes/@nf/") or nil
 if DIR == nil or loadScript(DIR .. "init.lua", "t") == nil then
-    if PATHS.user then DIR = PATHS.user .. "/dashboard/novafly/" end
+    if PATHS.user then DIR = PATHS.user .. "/dashboard/nf/" end
 end
 local floor = math.floor
 
@@ -165,24 +165,24 @@ local function node(colour)                           -- depends only on the col
 
     local function v(name) return function() return disp[name] end end
     parts[2] = function()                              -- the head band and the battery
-    P.word(k, sx(MODE.x), sy(MODE.word), "@i18n(widgets.dashboard.novafly_flight_mode)@", COLOUR.w, F.xs, "left", DX, DY)
+    P.word(k, sx(MODE.x), sy(MODE.word), "@i18n(widgets.dashboard.nf_flight_mode)@", COLOUR.w, F.xs, "left", DX, DY)
     P.row(k, sx(MODE.x), sy(MODE.val), {{v("pfMode"), v("pfModeF"), F.s}}, "left", DX, DY)
     local name = disp.name or ""
     P.row(k, sx(240), sy(HEAD_Y), {{function() return disp.name or "" end, COLOUR.w, nameFont(name, sx(280))}}, nil, DX, DY)
     local cx = sx(a.x + a.w / 2)
-    P.word(k, cx, sy(a.y + 17), "@i18n(widgets.dashboard.novafly_battery)@", COLOUR.w, F.s, nil, DX, DY)
+    P.word(k, cx, sy(a.y + 17), "@i18n(widgets.dashboard.nf_battery)@", COLOUR.w, F.s, nil, DX, DY)
     P.row(k, cx, sy(a.y + 45), {{v("pfFuel"), v("pfFuelF"), F.xl}, {"%", COLOUR.w, F.s}}, nil, DX, DY)
     P.row(k, cx, sy(a.y + 74), {{v("pfPack"), v("pfPackF"), F.xs}, {"V  ", COLOUR.w, F.xs}, {v("pfCells"), v("pfCellsF"), F.xs},
                                   {v("pfCap"), v("pfCapF"), F.xs}, {"mAh", COLOUR.w, F.xs}}, nil, DX, DY)
     end
     parts[3] = function()                              -- cell, consumption and the four chips of the last flight
     local lx, rx = sx(a.x + a.w / 4), sx(a.x + a.w * 3 / 4)
-    P.word(k, lx, sy(a.y + 108), "@i18n(widgets.dashboard.novafly_cell)@", COLOUR.w, F.xs, nil, DX, DY)
+    P.word(k, lx, sy(a.y + 108), "@i18n(widgets.dashboard.nf_cell)@", COLOUR.w, F.xs, nil, DX, DY)
     P.row(k, lx, sy(a.y + 133), {{v("pfCell"), v("pfCellF"), F.l}, {"V", COLOUR.w, F.s}}, nil, DX, DY)
-    P.word(k, rx, sy(a.y + 108), "@i18n(widgets.dashboard.novafly_consumption)@", COLOUR.w, F.xs, nil, DX, DY)
+    P.word(k, rx, sy(a.y + 108), "@i18n(widgets.dashboard.nf_consumption)@", COLOUR.w, F.xs, nil, DX, DY)
     P.row(k, rx, sy(a.y + 133), {{v("pfMah"), v("pfMahF"), F.l}, {"mAh", COLOUR.w, F.s}}, nil, DX, DY)
-    local chips = {{"@i18n(widgets.dashboard.novafly_alt_max)@", "pfAlt", "pfAltE"}, {"@i18n(widgets.dashboard.novafly_climb_max)@", "pfClimb", "pfRateE"}, {"@i18n(widgets.dashboard.novafly_sink_max)@", "pfSink", "pfRateE"},
-                   {"@i18n(widgets.dashboard.novafly_flight_time)@", "pfTime", nil}}
+    local chips = {{"@i18n(widgets.dashboard.nf_alt_max)@", "pfAlt", "pfAltE"}, {"@i18n(widgets.dashboard.nf_climb_max)@", "pfClimb", "pfRateE"}, {"@i18n(widgets.dashboard.nf_sink_max)@", "pfSink", "pfRateE"},
+                   {"@i18n(widgets.dashboard.nf_flight_time)@", "pfTime", nil}}
     for i = 1, 4 do
         local x = FOOT.x + (i - 1) * (FOOT.w + FOOT.gap)
         local w = (i == 4) and (480 - x) or FOOT.w
@@ -252,7 +252,7 @@ local function buildScreen(children, zone, state, ctx)       -- one part per cal
 end
 
 function M.build(children, zone, state, ctx)
-    if type(ctx) == "table" and type(ctx.keys) == "table" then ctx.keys.pageDown = "openView:novafly_preflight" end   -- the suite closes a view with its key: so both PAGE keys lead back; the cockpit sets them again on its next build
+    if type(ctx) == "table" and type(ctx.keys) == "table" then ctx.keys.pageDown = "openView:nf_preflight" end   -- the suite closes a view with its key: so both PAGE keys lead back; the cockpit sets them again on its next build
     local ok, reason = false, broken or "page.lua missing"
     if P ~= nil and broken == nil then ok, reason = pcall(buildScreen, children, zone, state, ctx) end
     if not ok then

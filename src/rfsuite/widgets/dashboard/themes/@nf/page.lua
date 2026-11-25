@@ -106,7 +106,7 @@ return function(T)
     function P.client()                               -- one place at the suite's MSP service (rfsuite.msp), once for the theme, kept across every reload
         local G = T.G
         if G.mspClient == nil and rfsuite and type(rfsuite.msp) == "table" and type(rfsuite.msp.register) == "function" then
-            local ok, k = pcall(rfsuite.msp.register, "novafly-theme")
+            local ok, k = pcall(rfsuite.msp.register, "nf-theme")
             if ok and type(k) == "table" then G.mspClient = k end
         end
         return G.mspClient

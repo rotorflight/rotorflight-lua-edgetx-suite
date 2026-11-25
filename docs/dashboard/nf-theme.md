@@ -1,20 +1,20 @@
 ---
-title: "@NovaFly theme"
-sidebar_label: "@NovaFly theme"
+title: "@NF theme"
+sidebar_label: "@NF theme"
 ---
 
-# @NovaFly theme
+# @NF theme
 
-*@NovaFly* is a dashboard theme that draws its own screen from code and takes full screen for
+*@NF* is a dashboard theme that draws its own screen from code and takes full screen for
 itself. It shows one cockpit in every flight phase, and two pages of its own beside it:
 **VORFLUG**, the model and its battery before the flight, and **BÄNKE**, the governor, rates and
 gains of the active bank. It is drawn for radios with an 800 x 480 screen, such as the TX16S MK3.
 
 ## Where to find it
 
-*System* → *Settings* → *Dashboard* → *Theme*: choose *@NovaFly* for a flight phase, or for all
+*System* → *Settings* → *Dashboard* → *Theme*: choose *@NF* for a flight phase, or for all
 three. Its one setting, the colour of the cockpit, is under *System* → *Settings* → *Dashboard* →
-*Settings* → *@NovaFly*. It is stored for the radio, and a model can carry its own under
+*Settings* → *@NF*. It is stored for the radio, and a model can carry its own under
 [*Per-Model Settings*](../pages/settings/dashboard/overrides.md) where per-model settings are
 switched on.
 
@@ -24,7 +24,7 @@ the same in every language.
 
 ## What it shows
 
-![@NovaFly: VORFLUG, the cockpit and BÄNKE, in the simulator of a TX16S MK3](../images/dashboard/themes/novafly.png)
+![@NF: VORFLUG, the cockpit and BÄNKE, in the simulator of a TX16S MK3](../images/dashboard/themes/nf.png)
 
 A value the model does not send reads `--` in grey.
 
@@ -108,7 +108,7 @@ seconds later. The page only reads: it changes nothing on the flight controller.
 
 ## Full screen
 
-With *@NovaFly* selected, full screen shows the theme itself. The theme draws no close button: a
+With *@NF* selected, full screen shows the theme itself. The theme draws no close button: a
 **long press on RTN** leaves full screen. In the cockpit:
 
 - **The arm state** opens the [quick menu](quick-menu.md).

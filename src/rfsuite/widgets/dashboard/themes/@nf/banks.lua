@@ -4,9 +4,9 @@
 -- bank's target, green up to the target, yellow just above, red too high, with the mark of this bank's highest headspeed. The
 -- page reads the values through the suite's MSP service; a change of bank or rate reads again. A tap or RTN leads back.
 local PATHS = rfsuite and rfsuite.paths or {}
-local DIR = PATHS.core and (PATHS.core .. "/widgets/dashboard/themes/@novafly/") or nil
+local DIR = PATHS.core and (PATHS.core .. "/widgets/dashboard/themes/@nf/") or nil
 if DIR == nil or loadScript(DIR .. "init.lua", "t") == nil then
-    if PATHS.user then DIR = PATHS.user .. "/dashboard/novafly/" end
+    if PATHS.user then DIR = PATHS.user .. "/dashboard/nf/" end
 end
 local floor = math.floor
 
@@ -50,12 +50,12 @@ local RATE_TYPE = {[0] = "NONE", "BETAFLIGHT", "RACEFLIGHT", "KISS", "ACTUAL", "
 local GOV_MODES = {[0] = "OFF", "LIMIT", "DIRECT", "ELECTRIC", "NITRO"}   -- the firmware's gov_mode; at 3 and 4 the FC governs the headspeed
 local GOV_MODES_OLD = {[0] = "OFF", "PASSTHROUGH", "STANDARD", "MODE1", "MODE2"}   -- below API 12.09; from 2 the FC governs
 local DEG_S, DEG = "\194\176/s", "\194\176"
-local RATE_RULE = {   -- rcRates per rates type as in NovaFly: {times, divisor, decimals} for axes 1-3 and collective, shown raw * times / divisor
+local RATE_RULE = {   -- rcRates per rates type: {times, divisor, decimals} for axes 1-3 and collective, shown raw * times / divisor
     [0] = {{1, 1, 0}, {1, 1, 0}}, {{1, 100, 2}, {1, 100, 2}}, {{10, 1, 0}, {1, 4, 1}, DEG_S}, {{1, 100, 2}, {1, 100, 2}},   -- NONE, BETAFLIGHT, RACEFLIGHT, KISS
     {{10, 1, 0}, {1, 4, 1}}, {{1, 100, 2}, {1, 100, 2}}, {{5, 1, 0}, {5, 40, 2}, DEG_S}}   -- ACTUAL, QUICK, ROTORFLIGHT; there the collective is an angle
 local TENS, PATTERN = {[0] = 1, 10, 100}, {"%.1f", "%.2f"}
-local RATE_AXES = {"@i18n(widgets.dashboard.novafly_roll)@", "@i18n(widgets.dashboard.novafly_pitch)@", "@i18n(widgets.dashboard.novafly_tail)@", "@i18n(widgets.dashboard.novafly_collective)@"}
-local CHAIN = {{"pid_tuning", "pid", "PID"}, {"rc_tuning", "rc", "@i18n(widgets.dashboard.novafly_rates)@"}, {"governor_config", "gov", "@i18n(widgets.dashboard.novafly_governor)@"}, {"governor_profile", "govProfile", "@i18n(widgets.dashboard.novafly_governor)@"}}
+local RATE_AXES = {"@i18n(widgets.dashboard.nf_roll)@", "@i18n(widgets.dashboard.nf_pitch)@", "@i18n(widgets.dashboard.nf_tail)@", "@i18n(widgets.dashboard.nf_collective)@"}
+local CHAIN = {{"pid_tuning", "pid", "PID"}, {"rc_tuning", "rc", "@i18n(widgets.dashboard.nf_rates)@"}, {"governor_config", "gov", "@i18n(widgets.dashboard.nf_governor)@"}, {"governor_profile", "govProfile", "@i18n(widgets.dashboard.nf_governor)@"}}
 local DEADLINE, PAUSE = 14, 3                             -- a request without a reply is lost after 14 s; after an error the tick reads again after 3 s
 local GREEN, YELLOW, RED = R.rgb(R.GREEN), R.rgb(R.YELLOW), R.rgb(R.RED)
 
@@ -132,7 +132,7 @@ local function chipPlace(c, i)                          -- x and width of the i-
     return LEFT_X + (i - 1) * (w + c.gap), w
 end
 
-local function rates(r)                                -- the number per axis after the rule of the rates type as in NovaFly, with a point like the other numbers
+local function rates(r)                                -- the number per axis after the rule of the rates type, with a point like the other numbers
     local rule = r.rates_type and RATE_RULE[floor(r.rates_type)]
     for i = 1, 4 do
         local raw, m = r["rcRates_" .. i], rule and rule[i < 4 and 1 or 2]
@@ -182,7 +182,7 @@ local function refresh(state)
     local oldApi = P.apiOld()
     local governsFrom = oldApi and 2 or 3
     local m = g.gov_mode and floor(g.gov_mode)
-    local rpmUnit = "@i18n(widgets.dashboard.novafly_rpm_unit)@"   -- the headspeed unit: U/min in the German package, rpm as in the cockpit in the English one
+    local rpmUnit = "@i18n(widgets.dashboard.nf_rpm_unit)@"   -- the headspeed unit: U/min in the German package, rpm as in the cockpit in the English one
     local fc = G.bkValues
     if fc == nil or fc.rev ~= L.rev or fc.values ~= w or fc.oldApi ~= oldApi or fc.rpmUnit ~= rpmUnit then
         valuesFromFc(w, oldApi, rpmUnit)
@@ -273,7 +273,7 @@ local function node(colour)                           -- the nodes depend only o
     end
 
     local function v(name) return function() return disp[name] end end
-    local columns = {{"@i18n(widgets.dashboard.novafly_governor)@", "bkGov", nil}, {"@i18n(widgets.dashboard.novafly_headspeed)@", "bkRpm", "bkRpmE"}, {"@i18n(widgets.dashboard.novafly_spoolup)@", "bkSpool", "bkSpoolE"}, {"GAIN", "bkGain", nil}}
+    local columns = {{"@i18n(widgets.dashboard.nf_governor)@", "bkGov", nil}, {"@i18n(widgets.dashboard.nf_headspeed)@", "bkRpm", "bkRpmE"}, {"@i18n(widgets.dashboard.nf_spoolup)@", "bkSpool", "bkSpoolE"}, {"GAIN", "bkGain", nil}}
     parts[2] = function()                              -- the head band and ACTUAL
     for i = 1, 4 do                                    -- the head band: governor, target headspeed, spool-up, gain in the alignment of the four chips
         local x, w = chipPlace(RATE_CHIP, i)
@@ -284,11 +284,11 @@ local function node(colour)                           -- the nodes depend only o
         if sp[3] then segs[2] = {v(sp[3]), COLOUR.w, F.xs} end
         P.row(k, sx(x + w / 2), sy(35), segs, nil, DX, DY)
     end
-    P.word(k, sx(ACTUAL_X + ACTUAL_W / 2), sy(18), "@i18n(widgets.dashboard.novafly_actual)@", COLOUR.w, F.xs, nil, DX, DY)
+    P.word(k, sx(ACTUAL_X + ACTUAL_W / 2), sy(18), "@i18n(widgets.dashboard.nf_actual)@", COLOUR.w, F.xs, nil, DX, DY)
     P.row(k, sx(ACTUAL_X + ACTUAL_W / 2), sy(35), {{v("bkActual"), v("bkActualF"), F.std}, {v("bkActualE"), COLOUR.w, F.xs}}, nil, DX, DY)
     end
     parts[3] = function()                              -- the rates
-    for i = 1, 4 do                                    -- per axis the number as rfsuite and NovaFly show it: rotation rate, factor or for the collective the angle
+    for i = 1, 4 do                                    -- per axis the number as rfsuite shows it: rotation rate, factor or for the collective the angle
         local x, w = chipPlace(RATE_CHIP, i)
         local y = RATE_CHIP.y
         if i == 1 then x, w = 0, x + w end
@@ -296,7 +296,7 @@ local function node(colour)                           -- the nodes depend only o
         P.row(k, sx(x + w / 2), sy(y + 40), {{v("bkRate" .. i), v("bkRateF" .. i), F.l}, {v("bkRateE" .. i), COLOUR.w, F.xs}}, nil, DX, DY)
     end
     end
-    local gainAxes = {{"@i18n(widgets.dashboard.novafly_roll)@", 0}, {"@i18n(widgets.dashboard.novafly_pitch)@", 1}, {"@i18n(widgets.dashboard.novafly_tail)@", 2}}
+    local gainAxes = {{"@i18n(widgets.dashboard.nf_roll)@", 0}, {"@i18n(widgets.dashboard.nf_pitch)@", 1}, {"@i18n(widgets.dashboard.nf_tail)@", 2}}
     parts[4] = function()                              -- the gains
     for i = 1, 3 do                                    -- gains per axis: P I D F B O
         local x, w = chipPlace(GAIN_CHIP, i)
@@ -395,7 +395,7 @@ local function buildScreen(children, zone, state, ctx)       -- a page that is n
 end
 
 function M.build(children, zone, state, ctx)
-    if type(ctx) == "table" and type(ctx.keys) == "table" then ctx.keys.pageUp = "openView:novafly_banks" end   -- the suite closes a view with its key: so both PAGE keys lead back; the cockpit sets them again on its next build
+    if type(ctx) == "table" and type(ctx.keys) == "table" then ctx.keys.pageUp = "openView:nf_banks" end   -- the suite closes a view with its key: so both PAGE keys lead back; the cockpit sets them again on its next build
     local ok, reason = false, broken or "page.lua missing"
     if P ~= nil and broken == nil then ok, reason = pcall(buildScreen, children, zone, state, ctx) end
     if not ok then

@@ -1,12 +1,12 @@
--- NovaFly cockpit as a theme of the Rotorflight suite for EdgeTX: one background (gfx/background.png), the lines as nodes in the
+-- @NF cockpit as a theme of the Rotorflight suite for EdgeTX: one background (gfx/background.png), the lines as nodes in the
 -- chosen colour (frame.lua, colours from colours.lua), the values in the radio font from the suite's state (parts.lua). The
 -- screen is built once; text, colour and place of a value are functions. In full screen: a long press on the head switches
 -- the colour on the ground, a tap on BANK opens the banks page, a tap on the battery the page before, a tap on the direction
 -- ring sets the reference, the ARM field opens the quick menu; the page keys switch the pages when the pilot sets them to Theme.
 local PATHS = rfsuite and rfsuite.paths or {}
-local DIR, THEME_PATH = PATHS.core and (PATHS.core .. "/widgets/dashboard/themes/@novafly/") or nil, "system/@novafly"
+local DIR, THEME_PATH = PATHS.core and (PATHS.core .. "/widgets/dashboard/themes/@nf/") or nil, "system/@nf"
 if DIR == nil or loadScript(DIR .. "init.lua", "t") == nil then
-    if PATHS.user then DIR, THEME_PATH = PATHS.user .. "/dashboard/novafly/", "user/novafly" end
+    if PATHS.user then DIR, THEME_PATH = PATHS.user .. "/dashboard/nf/", "user/nf" end
 end
 local floor, max, min, sin, cos, rad = math.floor, math.max, math.min, math.sin, math.cos, math.rad
 
@@ -26,7 +26,7 @@ if T == nil then
 end
 if T == nil then
     return {build = function() return {{type = "label", x = 10, y = 10, w = (tonumber(LCD_W) or 800) - 20, text = "parts.lua", color = lcd.RGB(255, 80, 80)}} end,
-            renderKey = function() return "novafly|missing" end}
+            renderKey = function() return "nf|missing" end}
 end
 local G, R, COLOUR, F = T.G, T.R, T.COLOUR, T.F
 local disp = G.disp
@@ -51,7 +51,7 @@ local U = {   -- the value fields: centre (pixels), font, unit, place (centred, 
     rssi = {x = sx(413), y = sy(22), f = F.std},
     vfr = {x = sx(413), y = sy(36), f = F.s},
     model = {x = px(400), y = sy(228), f = F.l},                                    -- centred below the arc
-    labels = {{64, 77, "@i18n(widgets.dashboard.novafly_flight_timer)@"}, {64, 137, "RATE"}, {64, 194, "BANK"}, {417, 77, "BEC"}, {417, 130, "TX"}, {417, 183, "ESC"},   -- the labels in the small step (three sizes: small, medium, large)
+    labels = {{64, 77, "@i18n(widgets.dashboard.nf_flight_timer)@"}, {64, 137, "RATE"}, {64, 194, "BANK"}, {417, 77, "BEC"}, {417, 130, "TX"}, {417, 183, "ESC"},   -- the labels in the small step (three sizes: small, medium, large)
               {241, 176, "rpm"}, {143, 71, "MCU"}, {56, 268, "ALT"}},
     loadWord = {x = sx(289), y = sy(59), f = F.s},
     tempWord = {x = sx(421), y = sy(268), f = F.s},   -- the word above the field bottom right: ESC above the temperature, CELL above the voltage per cell
@@ -274,7 +274,7 @@ function M.renderKey(zone, state)                      -- if more than one piece
         local w = okg and type(gs) == "table" and tonumber(gs.battWarn) or nil
         if w and w > 0 then G.txWarn = w end
     end
-    local key = "novafly|" .. colour .. "|" .. tostring(disp.name) .. "|" .. tostring(G.packFont)
+    local key = "nf|" .. colour .. "|" .. tostring(disp.name) .. "|" .. tostring(G.packFont)
     local ck = G.ck                                    -- ck.ready: the screen is fully built, in this colour and battery font
     if not (ck and ck.ready == colour and ck.packFont == G.packFont) and missing(colour) > 1 then
         buildCount = buildCount + 1
@@ -420,14 +420,14 @@ local function assemble(ck, ctx)                       -- the whole screen from 
             {type = "button", x = 0, y = 0, w = ARM.w, h = ARM.h, cornerRadius = py(10), children = v.arm,
              color = function() return disp.armColour end, press = function() ctx.action("openView:menu") end}}}
         button(n, BUTTONS.head, v.head, function() end, nextColour)
-        button(n, BUTTONS.bank, v.bank, function() ctx.action("openView:novafly_banks") end)
+        button(n, BUTTONS.bank, v.bank, function() ctx.action("openView:nf_banks") end)
         local battery = {v.battery, r.batteryIcon[1], r.batteryIcon[2]}
         table.move(v.batt, 1, #v.batt, 4, battery)
-        button(n, BUTTONS.battery, battery, function() ctx.action("openView:novafly_preflight") end)
+        button(n, BUTTONS.battery, battery, function() ctx.action("openView:nf_preflight") end)
         button(n, BUTTONS.ring, v.ring, setRef)
         if type(ctx.keys) == "table" then   -- the page keys, as soon as the pilot has set them to Theme
-            ctx.keys.pageDown = "openView:novafly_banks"
-            ctx.keys.pageUp = "openView:novafly_preflight"
+            ctx.keys.pageDown = "openView:nf_banks"
+            ctx.keys.pageUp = "openView:nf_preflight"
         end
     else
         if ck.zone == nil then ck.zone = buildZone(fixed.font) end

@@ -1,4 +1,4 @@
--- Settings page of the NovaFly theme in the Rotorflight suite for EdgeTX: the colour of the cockpit. It lives in the
+-- Settings page of the @NF theme in the Rotorflight suite for EdgeTX: the colour of the cockpit. It lives in the
 -- suite's theme settings - as the radio's default, or as the model's own value when the page is opened in that
 -- scope. The long press on the cockpit's head writes the same value.
 local function loadModule(path)
@@ -11,8 +11,8 @@ local DashboardLib = loadModule("app/pages/settings/dashboard/lib.lua")
 local Common = loadModule("app/pages/settings/common.lua")
 local t = Common.pageT("settings_dashboard_settings")
 
-local THEME_PATH = "system/@novafly"   -- the page passes the theme it is opened for; a copy under user/dashboard keeps its values under its own key; the literal applies without a passed theme
-local THEME_NAME = "@NovaFly"
+local THEME_PATH = "system/@nf"   -- the page passes the theme it is opened for; a copy under user/dashboard keeps its values under its own key; the literal applies without a passed theme
+local THEME_NAME = "@NF"
 local COLOURS = {"blue", "turquoise", "green", "yellow", "gold", "orange", "red", "magenta", "violet", "silver"}   -- the stored values are English, like every value in the suite's settings (parts.lua COLOUR_WORDS, the same order)
 local COLOUR_OK = {}
 for i = 1, #COLOURS do COLOUR_OK[COLOURS[i]] = true end
@@ -100,18 +100,18 @@ function M.build(ctx)
   Controls.appendSectionHeader(children, x, y, w, THEME_NAME, true, function() end)
   y = y + Controls.SECTION_H
   local choices = {
-    {value = "blue", label = t(i18n, "novafly_colour_blue", "Blue")},
-    {value = "turquoise", label = t(i18n, "novafly_colour_turquoise", "Turquoise")},
-    {value = "green", label = t(i18n, "novafly_colour_green", "Green")},
-    {value = "yellow", label = t(i18n, "novafly_colour_yellow", "Yellow")},
-    {value = "gold", label = t(i18n, "novafly_colour_gold", "Gold")},
-    {value = "orange", label = t(i18n, "novafly_colour_orange", "Orange")},
-    {value = "red", label = t(i18n, "novafly_colour_red", "Red")},
-    {value = "magenta", label = t(i18n, "novafly_colour_magenta", "Magenta")},
-    {value = "violet", label = t(i18n, "novafly_colour_violet", "Violet")},
-    {value = "silver", label = t(i18n, "novafly_colour_silver", "Silver")},
+    {value = "blue", label = t(i18n, "nf_colour_blue", "Blue")},
+    {value = "turquoise", label = t(i18n, "nf_colour_turquoise", "Turquoise")},
+    {value = "green", label = t(i18n, "nf_colour_green", "Green")},
+    {value = "yellow", label = t(i18n, "nf_colour_yellow", "Yellow")},
+    {value = "gold", label = t(i18n, "nf_colour_gold", "Gold")},
+    {value = "orange", label = t(i18n, "nf_colour_orange", "Orange")},
+    {value = "red", label = t(i18n, "nf_colour_red", "Red")},
+    {value = "magenta", label = t(i18n, "nf_colour_magenta", "Magenta")},
+    {value = "violet", label = t(i18n, "nf_colour_violet", "Violet")},
+    {value = "silver", label = t(i18n, "nf_colour_silver", "Silver")},
   }
-  Controls.appendComboSelect(children, x, y, w, t(i18n, "novafly_colour", "Colour"), choices, ui.choice,
+  Controls.appendComboSelect(children, x, y, w, t(i18n, "nf_colour", "Colour"), choices, ui.choice,
     function(v) if COLOUR_OK[v] then ui.choice = v end end)
 end
 

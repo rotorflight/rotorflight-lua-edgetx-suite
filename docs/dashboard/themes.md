@@ -85,7 +85,7 @@ during and after it. Some values in them come
 from the simulation rather than from a model in the air: the head speed reads 0 throughout, and
 *Total time* is the flight controller's own lifetime counter, which is why it differs between the
 pictures. The pictures of @KSE4, @KSE5 and @Kevd come from a later simulated flight that feeds
-head speed, current and throttle as well, so those read values there. The picture of @NovaFly
+head speed, current and throttle as well, so those read values there. The picture of @NF
 shows its three screens on the ground, in the radio simulator of a TX16S MK3.
 
 ### Default
@@ -321,16 +321,16 @@ statistics screen under Deck's header. It has a page of its own: [Deck theme](de
 
 ![Deck before, during and after the flight](../images/dashboard/themes/deck.png)
 
-### @NovaFly
+### @NF
 
 Drawn from code for 800 x 480 screens, taking the whole screen in fullscreen mode: one cockpit in
 every flight phase -- the arm state, the flight timer, the rate and PID profiles, the head speed on
 a dial, the BEC, radio and pack voltages, the current, the ESC temperature and the altitude -- and
 two pages of its own: VORFLUG before it, with the model, its battery and the last flight, and BÄNKE
 after it, with the active bank's governor, rates and gains, read from the flight controller. It has
-a page of its own: [@NovaFly theme](novafly-theme.md).
+a page of its own: [@NF theme](nf-theme.md).
 
-![@NovaFly: VORFLUG, the cockpit and BÄNKE](../images/dashboard/themes/novafly.png)
+![@NF: VORFLUG, the cockpit and BÄNKE](../images/dashboard/themes/nf.png)
 
 ## Related
 
