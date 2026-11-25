@@ -372,11 +372,13 @@ function T.read(state)   -- reads the suite's state: s is the moment (G.s), and 
         end
         flight.clock = now
         if s.alt ~= nil then T.noteAltitude(flight, s.alt, now) end   -- the highest altitude and the strongest climb and sink of the flight
-    elseif flight.running then
+    elseif flight.running and s.isArmed == false then   -- the flight ends on a confirmed disarm
         flight.running, flight.stop, flight.clock = false, true, nil
         G.lastFlight = {peakCurrent = flight.currentMax, bank = s.bank and floor(s.bank) or nil,
                          mah = (s.consumed ~= nil and flight.mahStart ~= nil) and (s.consumed - flight.mahStart) or nil,
                          alt = flight.altMax, climb = flight.climbMax, sink = flight.sinkMax, time = flight.bank[1] + flight.bank[2] + flight.bank[3]}
+    elseif flight.running then
+        flight.clock = nil                             -- link lost, arm state unknown: the flight stays open and the gap counts for no bank
     end
     directionTick(s.deg, s.isArmed == true)
     local r = G.direction
