@@ -178,6 +178,14 @@ local function noteOwner(Lib, prefs)
     G.owner = {id = id, model = Lib.modelOverridesActive(dashboard, modelPrefs.dashboard) == true}
 end
 
+local function staged(t)   -- a copy of a settings table with a dashboard of its own: the colour is written from the copy, the live table gets it once that is saved
+    local c, d = {}, {}
+    for k, v in pairs(t) do c[k] = v end
+    for k, v in pairs(type(t.dashboard) == "table" and t.dashboard or {}) do d[k] = v end
+    c.dashboard = d
+    return c
+end
+
 local function saveColour(fresh, state)   -- the new colour into the same store the settings page writes (the model's own values or the radio's default); until the suite reads again the cockpit shows G.colourNew
     local Lib = suiteModule("app/pages/settings/dashboard/lib.lua")
     local prefs = rfsuite and rfsuite.preferences
@@ -194,15 +202,21 @@ local function saveColour(fresh, state)   -- the new colour into the same store 
         colour = fresh
         return true
     end
+    local function put(radio, model)   -- the colour into the tables as the settings page writes it: with model in the model's scope
+        if model then Lib.setEditScope("model") end
+        Lib.setThemeConfig(radio, THEME_PATH, {colour = fresh}, model)
+        if model then Lib.setEditScope(nil) end
+    end
     if type(owner) == "table" and owner.model then                 -- the colour belongs to the model
         if modelPrefs == nil or owner.id ~= id then return false end   -- and the model is not there: write nothing
         if type(Lib.setEditScope) ~= "function" then return false end
         local MP = suiteModule("lib/model_preferences.lua")
         if MP == nil or type(MP.saveByMcuId) ~= "function" then return false end
-        Lib.setEditScope("model")
-        Lib.setThemeConfig(prefs, THEME_PATH, {colour = fresh}, modelPrefs)
-        Lib.setEditScope(nil)
-        return MP.saveByMcuId(id, modelPrefs) == true and apply()
+        local copy = staged(modelPrefs)
+        put(prefs, copy)
+        if MP.saveByMcuId(id, copy) ~= true then return false end   -- not saved: the live table keeps its colour, a later save of it writes nothing unconfirmed
+        put(prefs, modelPrefs)
+        return apply()
     end
     if owner == nil then
         if state and state.hadInflightFlight == true and state.rfConnected ~= true then return false end   -- nothing noted since loading: after a flight without connection the default behind another cockpit would change - the press does nothing
@@ -213,8 +227,11 @@ local function saveColour(fresh, state)   -- the new colour into the same store 
     end
     local Prefs = suiteModule("lib/preferences.lua")
     if Prefs == nil or type(Prefs.save) ~= "function" then return false end
-    Lib.setThemeConfig(prefs, THEME_PATH, {colour = fresh}, nil)
-    return Prefs.save(prefs) == true and apply()
+    local copy = staged(prefs)
+    put(copy, nil)
+    if Prefs.save(copy) ~= true then return false end
+    put(prefs, nil)
+    return apply()
 end
 
 local lastState = nil   -- a long press on the head at the top: the next colour of the row, with a beep, only on the ground; armed or without a store it does nothing
