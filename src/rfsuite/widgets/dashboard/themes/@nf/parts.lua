@@ -345,15 +345,6 @@ function T.read(state)   -- reads the suite's state: s is the moment (G.s), and 
     end
     local ok, tv = pcall(getValue, "tx-voltage")
     if ok and type(tv) == "number" and tv > 0 then s.tx = tv end
-    if s.isArmed == true and s.rpm ~= nil and s.rpm > 0 and s.bank ~= nil then   -- the peak monitor: per bank min and max of the headspeed while armed
-        local b = floor(s.bank)
-        local sl = G.peak[b]
-        if sl == nil then G.peak[b] = {min = s.rpm, max = s.rpm}
-        else
-            if s.rpm < sl.min then sl.min = s.rpm end
-            if s.rpm > sl.max then sl.max = s.rpm end
-        end
-    end
     local flight = G.flight   -- the flight: peak current, consumption and the clock per bank run along until the heli is disarmed
     if s.isArmed == true then
         if not flight.running then
@@ -375,6 +366,15 @@ function T.read(state)   -- reads the suite's state: s is the moment (G.s), and 
                          alt = flight.altMax, climb = flight.climbMax, sink = flight.sinkMax, time = flight.bank[1] + flight.bank[2] + flight.bank[3]}
     elseif flight.running then
         flight.clock = nil                             -- link lost, arm state unknown: the flight stays open and the gap counts for no bank
+    end
+    if s.isArmed == true and s.rpm ~= nil and s.rpm > 0 and s.bank ~= nil then   -- the peak monitor: per bank min and max of the headspeed while armed, after the start of the flight has emptied it
+        local b = floor(s.bank)
+        local sl = G.peak[b]
+        if sl == nil then G.peak[b] = {min = s.rpm, max = s.rpm}
+        else
+            if s.rpm < sl.min then sl.min = s.rpm end
+            if s.rpm > sl.max then sl.max = s.rpm end
+        end
     end
     directionTick(s.deg, s.isArmed == true)
     local r = G.direction
