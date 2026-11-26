@@ -167,6 +167,10 @@ function T.fmt(v, d)
     if v == nil then return nil end
     return string.format(FORMAT[d or 0], v)
 end
+function T.inUnit(v, ft)   -- metres or metres per second in the suite's altitude unit
+    if v ~= nil and ft then return v * 3.28084 end
+    return v
+end
 function T.fmtT(sec)
     sec = max(0, floor(sec + 0.5))
     return string.format("%02d:%02d", floor(sec / 60), sec % 60)
@@ -302,6 +306,8 @@ function T.read(state)   -- reads the suite's state: s is the moment (G.s), and 
     local d = state.derived or {}
     local function g(k) return tonumber(d[k]) end
     local s = {link = state.rfConnected == true}
+    local loc = rfsuite and rfsuite.preferences and rfsuite.preferences.localizations   -- the suite's altitude unit (altitude_unit 1 = feet), with or without link
+    s.altFt = (type(loc) == "table" and tonumber(loc.altitude_unit) == 1) or false
     if s.link then
         s.pack = nonZero("pack", g("voltage") or tonumber(state.voltage))
         s.cells = tonumber(state.batteryCellCount)
@@ -325,11 +331,7 @@ function T.read(state)   -- reads the suite's state: s is the moment (G.s), and 
         s.fuel = g("fuel")
         if s.fuel ~= nil and (s.fuel < 0 or s.fuel > 100) then s.fuel = nil end
         s.consumed = g("consumption") or g("smartconsumption")
-        local alt = g("altitude")
-        local loc = rfsuite and rfsuite.preferences and rfsuite.preferences.localizations   -- the altitude in the suite's unit: rfsuite.preferences.localizations.altitude_unit 1 = feet
-        s.altFt = (type(loc) == "table" and tonumber(loc.altitude_unit) == 1) or false
-        if alt ~= nil and s.altFt then alt = alt * 3.28084 end
-        s.alt = nonZero("alt", alt)
+        s.alt = nonZero("alt", g("altitude"))   -- metres, and so is everything kept from it; shown in the suite's unit (T.inUnit)
         if s.alt ~= nil then T.noteAltitude(G.sinceStart, s.alt, time()) end
         local cpu = g("RT%")
         if cpu ~= nil then G.loadWord = "RT" else

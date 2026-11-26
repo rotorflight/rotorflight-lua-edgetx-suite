@@ -126,7 +126,7 @@ local function refresh(state)   -- reads the suite's state (parts.lua T.read) an
         value("temp", s.temp and T.fmt(s.temp) or nil, s.temp and T.heatColour(s.temp, tWarn, tCrit) or "g", "\194\176C")
         disp.tempWord = "ESC"
     end
-    value("alt", s.alt and T.fmt(s.alt) or nil, "g", s.altFt and "ft" or "m")
+    value("alt", s.alt and T.fmt(T.inUnit(s.alt, s.altFt)) or nil, "g", s.altFt and "ft" or "m")
     disp.bars, disp.barColour = 0, COLOUR[ck]
     if fraction then
         local a = fraction

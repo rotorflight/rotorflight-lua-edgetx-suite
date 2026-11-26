@@ -120,11 +120,11 @@ local function refresh(state)
     if s.cell ~= nil then disp.pfCellF = batteryF end
     disp.pfMah, disp.pfMahF = num(s.consumed ~= nil and floor(s.consumed + 0.5) or nil)
     local fl, sz = G.lastFlight or {}, G.sinceStart or {}             -- the last flight here; without a flight the peaks since power-on
-    disp.pfAltE, disp.pfRateE = s.altFt and "ft" or "m", s.altFt and "ft/s" or "m/s"
+    disp.pfAltE, disp.pfRateE = s.altFt and "ft" or "m", s.altFt and "ft/s" or "m/s"   -- kept in metres, shown in the suite's unit
     local sink = fl.sink or sz.sinkMax
-    disp.pfAlt, disp.pfAltF = num(fl.alt or sz.altMax, "%.0f")
-    disp.pfClimb, disp.pfClimbF = num(fl.climb or sz.climbMax, "%.1f")
-    disp.pfSink, disp.pfSinkF = num(sink ~= nil and -sink or nil, "%.1f")
+    disp.pfAlt, disp.pfAltF = num(T.inUnit(fl.alt or sz.altMax, s.altFt), "%.0f")
+    disp.pfClimb, disp.pfClimbF = num(T.inUnit(fl.climb or sz.climbMax, s.altFt), "%.1f")
+    disp.pfSink, disp.pfSinkF = num(sink ~= nil and -T.inUnit(sink, s.altFt) or nil, "%.1f")
     local secs = fl.time
     disp.pfTime, disp.pfTimeF = num(secs ~= nil and string.format("%d:%02d", floor(secs / 60), floor(secs % 60)) or nil, "%s")
     local image = type(d.model_image) == "string" and d.model_image or nil
