@@ -1,4 +1,4 @@
--- Shared task: dataflash_summary auslesen
+-- Shared task: read dataflash_summary
 local M = {}
 
 local done = false
@@ -40,7 +40,7 @@ function M.wakeup(args)
 
   if requestSent then return end
 
-  -- MSP dataflash_summary API laden
+  -- Load the MSP dataflash_summary API
   if not dataflashApi then
     dataflashApi = loadModule("tasks/msp/api/dataflash_summary.lua")
   end

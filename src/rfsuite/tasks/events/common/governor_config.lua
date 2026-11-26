@@ -1,4 +1,4 @@
--- Shared task: governor_config auslesen
+-- Shared task: read governor_config
 local M = {}
 
 local done = false
@@ -48,7 +48,7 @@ function M.wakeup(args)
   session.governorMode = nil
   session.governorFeature = nil
 
-  -- MSP governor_config API laden
+  -- Load the MSP governor_config API
   if not governorConfigApi then
     governorConfigApi = loadModule("tasks/msp/api/governor_config.lua")
   end

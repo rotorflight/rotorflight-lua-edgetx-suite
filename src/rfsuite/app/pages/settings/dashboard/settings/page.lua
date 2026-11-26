@@ -348,7 +348,7 @@ local function loadThemeModule(ctx)
 end
 
 function M.getHeaderActions()
-  -- Save und Reload immer aktiv für Theme-Settings
+  -- Save and Reload always active for theme settings
   return { save = true, reload = true, help = true }
 end
 

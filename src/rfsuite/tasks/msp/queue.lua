@@ -843,7 +843,7 @@ function Queue:processQueue(now)
   end
 
 
-  -- Patch: Ein neuer Request (Retry) darf erst nach Ablauf von timeout gesendet werden
+  -- Patch: a new request (retry) goes out only once the timeout has run out, or at once on a receive break when resendOnBreak is set
   local resendNow = false
   if self.common and type(self.common.rxBreaks) == "function" then
     local breaks = self.common.rxBreaks()
@@ -904,7 +904,7 @@ function Queue:processQueue(now)
         msg.__cacheKey = cache and cache.keyFor(msg.command) or false
       end
       self.lastTimeCommandSent = now
-      self.currentMessageStartTime = now -- Timeout-Fenster für jeden Retry neu setzen
+      self.currentMessageStartTime = now -- restart the timeout window for every retry
       self.retryCount = self.retryCount + 1
       -- When this message FIRST went out, kept apart from currentMessageStartTime, which every
       -- retry resets. The reply line reports the distance from here, so a slow answer and a

@@ -762,7 +762,7 @@ local function renderArc(nodes, rect, box, state, themeCommon, utils)
   local defaultMax = isTemp and 140 or 25.2
   local gaugeMin, gaugeMax = resolveGaugeBounds(box, state, utils, defaultMin, defaultMax, isTemp)
 
-  -- Schutz gegen extreme Werte
+  -- Guard against a reversed or too narrow range (under 0.1)
   if gaugeMin == gaugeMax or gaugeMax - gaugeMin < 0.1 then return end
 
   local titleReserved = (box and box.titlepos == "bottom") and 22 or 0

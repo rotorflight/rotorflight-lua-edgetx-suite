@@ -9,7 +9,7 @@ end
 
 local Palette = _G.rfsuite and _G.rfsuite.palette or (_G.rfsuite and _G.rfsuite.require or loadModule)("ui/palette.lua")
 
--- Log laden
+-- Load the logger
 if not Log then
   Log = loadModule("lib/log.lua")
 end
@@ -228,10 +228,10 @@ local function listApiDir(path, names, seen)
   if type(dir) == "function" then
     Log.emit("api_tester", "listApiDir: using dir() for " .. tostring(path), "debug")
     
-    -- WICHTIG: Das Ausführen von dir() absichern und die Rückgabe speichern
+    -- IMPORTANT: guard the dir() call and keep what it returns
     local okDir, iterator = pcall(dir, path)
     
-    -- Nur in die Schleife gehen, wenn wirklich ein Iterator (Funktion) zurückkam
+    -- Only enter the loop when an iterator (a function) really came back
     if okDir and type(iterator) == "function" then
       for fname in iterator do
         local ok, err = pcall(function()
@@ -264,7 +264,7 @@ local function listApiDir(path, names, seen)
       Log.emit("api_tester", "listApiDir: folder not found or empty for " .. tostring(path), "warn")
     end
 
-    local namesStr = (names and #names > 0) and table.concat(names, ", ") or "<leer>"
+    local namesStr = (names and #names > 0) and table.concat(names, ", ") or "<empty>"
     Log.emit("api_tester", "listApiDir: final names for path '" .. tostring(path) .. "': [" .. namesStr .. "]", "debug")
   else
     Log.emit("api_tester", "listApiDir: no dir() available for " .. tostring(path), "error")
@@ -498,7 +498,7 @@ local function discoverApis()
   local names = {}
   local seen = {}
 
-  -- Durchsuche alle konfigurierten Ordner
+  -- Search every configured folder
   for i = 1, #API_DIR_CANDIDATES do
     local path = API_DIR_CANDIDATES[i]
     Log.emit("api_tester", "discoverApis: checking candidate " .. tostring(path), "debug")
@@ -507,7 +507,7 @@ local function discoverApis()
 
   table.sort(names)
 
-  -- Filter: nur APIs anzeigen, die ein numerisches `command` besitzen.
+  -- Filter: list only APIs that define a `command`.
   local filtered = {}
   for i = 1, #names do
     local apiName = names[i]
@@ -520,7 +520,7 @@ local function discoverApis()
     end
   end
 
-  -- UI Daten vorbereiten
+  -- Prepare the UI data
   ui.apiNames = filtered
   ui.choices = {}
   ui.choiceLabels = {}
