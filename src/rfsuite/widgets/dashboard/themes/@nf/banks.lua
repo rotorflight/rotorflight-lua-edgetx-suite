@@ -170,8 +170,8 @@ local function govMode(g)                              -- gov_mode as the Govern
     return m
 end
 
-local function valuesFromFc(w, m, rpmUnit)             -- what comes from the records read; only anew when L.values or the mode has changed
-    local g, p, r = w.gov or {}, w.govProfile or {}, w.rc or {}
+local function valuesFromFc(w, m, rpmUnit, bankOk, rateOk)   -- what comes from the records read; only anew when L.values, the mode or what still matches has changed
+    local g, p, r = w.gov or {}, bankOk and w.govProfile or {}, rateOk and w.rc or {}
     local mode = m and GOV_MODES[m] or nil
     disp.bkGov, disp.bkGovF = mode or "--", mode and COLOUR.g or P.MUTED
     disp.bkRpm, disp.bkRpmF = num(p.governor_headspeed)
@@ -180,7 +180,7 @@ local function valuesFromFc(w, m, rpmUnit)             -- what comes from the re
     disp.bkSpool, disp.bkSpoolF, disp.bkSpoolE = spool or "--", spool and COLOUR.g or P.MUTED, spool and "s" or ""
     disp.bkGain, disp.bkGainF = num(p.governor_gain)
     rates(r)
-    local pid = w.pid or {}
+    local pid = bankOk and w.pid or {}
     for i = 1, #PID_NAMES do
         local nm = PID_NAMES[i]
         disp[nm[1]], disp[nm[2]] = num(pid[nm[3]])
@@ -193,19 +193,20 @@ local function refresh(state)
     T.mspRelease()                                     -- the place at the MSP service goes back between reads
     tick(s)
     local w = L.values
-    local g, p, r = w.gov or {}, w.govProfile or {}, w.rc or {}
+    local active, rate = s.bank and floor(s.bank) or nil, s.rate and floor(s.rate) or nil
+    local rf = L.readFor or {}
+    local bankOk, rateOk = rf.bank == active, rf.rate == rate   -- what was read for another bank or rate stays away (switched while armed: the page reads again on the ground)
+    local g, p, r = w.gov or {}, bankOk and w.govProfile or {}, rateOk and w.rc or {}
     local m = govMode(g)
     local rpmUnit = "@i18n(widgets.dashboard.nf_rpm_unit)@"   -- the headspeed unit: U/min in the German package, rpm as in the cockpit in the English one
     local fc = G.bkValues
-    if fc == nil or fc.rev ~= L.rev or fc.values ~= w or fc.mode ~= m or fc.rpmUnit ~= rpmUnit then
-        valuesFromFc(w, m, rpmUnit)
-        G.bkValues = {rev = L.rev, values = w, mode = m, rpmUnit = rpmUnit}
+    if fc == nil or fc.rev ~= L.rev or fc.values ~= w or fc.mode ~= m or fc.rpmUnit ~= rpmUnit or fc.bankOk ~= bankOk or fc.rateOk ~= rateOk then
+        valuesFromFc(w, m, rpmUnit, bankOk, rateOk)
+        G.bkValues = {rev = L.rev, values = w, mode = m, rpmUnit = rpmUnit, bankOk = bankOk, rateOk = rateOk}
     end
     disp.bkActual, disp.bkActualF = num(s.rpm)
     disp.bkActualE = s.rpm ~= nil and rpmUnit or ""
-    local active = s.bank and floor(s.bank) or nil
     for i = 1, 3 do disp[BANK_F[i]] = (active == i) and COLOUR.w or P.MUTED end
-    local rate = s.rate and floor(s.rate) or nil
     local foot = "@i18n(widgets.dashboard.nf_rate)@ " .. (rate and tostring(rate) or "?")
     local rateType = r.rates_type and RATE_TYPE[floor(r.rates_type)] or nil
     if w.fault ~= nil then   -- the red message needs the row: the rates type stays away while it stands
