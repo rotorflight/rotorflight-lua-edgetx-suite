@@ -318,7 +318,7 @@ function T.read(state)   -- reads the suite's state: s is the moment (G.s), and 
         s.temp = nonZero("temp", g("esc_temp"))
         s.mcutemp = g("mcu_temp")
         if s.mcutemp ~= nil and (s.mcutemp < 10 or s.mcutemp > 130) then s.mcutemp = nil end
-        if state.armed ~= nil then s.isArmed = (state.armed == true) end
+        if state.armedSeen == true then s.isArmed = (state.armed == true) end   -- armed starts false and is false again on every reconnect: only armedSeen says the arm sensor has answered (runtime.lua)
         s.bec = nonZero("bec", g("bec_voltage"))
         s.bank, s.rate = g("pid_profile") or tonumber(state.profile), g("rate_profile")
         s.current = nonZero("current", g("current"))
