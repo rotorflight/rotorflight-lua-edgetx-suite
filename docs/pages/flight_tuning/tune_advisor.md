@@ -78,7 +78,12 @@ you flew from the disarm until the flight is saved and its settings are read.
   and then clears. That reading holds the earlier flight as well, so it is saved marked as containing it, and the
   page leaves the earlier flight out instead of counting it twice. Nothing saved is removed for this. The radio
   marks a reading only when no clear was answered and the link was not lost since that save, and the reading has
-  the same profiles and tune, a longer flight time and no smaller count.
+  the same profiles and tune, a longer flight time and no smaller count. The tune it compares is what the flight
+  controller reports: P, F, B, the rates type, the rates and the I-term relax cut-off. A change that starts the
+  measurements again but is not among these, such as an I gain, a master gain or an expo, erases the earlier flight
+  from the flight controller and still passes the test, whether made on the ground before arming again or during
+  the flight (see *Adjustment functions*). So does a value changed during the flight and set back. The earlier
+  flight is then left out of the advice although the reading does not hold it; it stays saved.
 - **The same holds while the RFSuite widgets do not run for more than 5 seconds** (the configuration tool open):
   the model may have flown meanwhile, so a clear still owed is not sent afterwards, and the flight controller is
   cleared after the next disarm. A pack swapped meanwhile is not seen either: a longer next flight on the same
@@ -298,15 +303,18 @@ and writes: P, F, B, the rates and the I-term relax cut-off per axis, and the PI
 applies an adjustment straight away and saves it when you disarm.
 
 - **Adjusting during a flight starts the measurements again.** On firmware with rotorflight-firmware pull request
-  #607, a profile switch, or an adjustment that changes a P, I, D, F, B or O gain, a rate or an expo, makes the
-  flight controller drop everything it has measured so far and start again on the new tune. That flight is then
+  #607, a PID or rate profile switch, or a change to a P, I, D, F, B or O gain, the I-term relax cut-off, the PID
+  mode, the rates type, a rate or an expo, makes the flight controller drop everything it has measured so far and
+  start again on the new tune. From pull request #608 on, a change to the cyclic or yaw master gain does the same.
+  That holds for an adjustment and for a write from the radio or the configurator alike. That flight is then
   saved with only the part flown after the last change; a change shortly before landing leaves too little, or
   nothing, and a flight with no acro flight time is not saved. A flight not saved yet (see *How a flight is saved*)
   is dropped with it. Leave these adjustments alone while collecting flights for the advisor.
 - **On older firmware, adjusting during a flight mixes two tunes.** On a 4.7 development build from before that
   pull request the flight controller checks the tune only when you arm, so a flight where you adjusted one of
   these settings (or switched profile) is measured partly on the old value and saved as if flown on the value you
-  ended on. If you did use one, press *\** and fly again.
+  ended on. A build with #607 but not #608 does the same for a master gain. If you did use one, press *\** and fly
+  again.
 - **Adjusting between flights is fine.** A *STEPPED* adjustment is saved at disarm, so the next flight is on a new
   tune and the advisor starts again from it, as it does after *Save*.
 - **A *MAPPED* adjustment overrides Save.** It sets the value from the channel's position: once the knob moves,
