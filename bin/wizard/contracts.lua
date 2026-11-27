@@ -2035,6 +2035,14 @@ return function(h)
     -- The Save/Discard question and an error screen end a detection, like leaving the card.
     w.confirmExit=true;reply(1520,1520,1520);w.confirmExit=nil
     check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1500,"S02 the exit question ends the detection and writes nothing")
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    w.error=true;reply(1520,1520,1520);w.error=nil
+    check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1500,"S02 an error screen ends the detection and writes nothing")
+    -- A late STATUS leaves an RX loss unknown: the detection ends as no signal.
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    w.statusQueued=true;reply(1520,1520,1520);w.statusQueued=nil
+    check(w.rx.centre.samples==nil and card.summary()==L.noReceiver and w.data.rc_config.rc_center==1500,
+      "S02 a late STATUS ends the detection as no signal")
     -- STATUS reporting RX loss ends a detection without waiting for the next channel reply.
     card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
     w.onLive("status",{arming_disable_flags=4})
