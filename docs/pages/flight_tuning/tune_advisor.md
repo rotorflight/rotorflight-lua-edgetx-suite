@@ -83,8 +83,8 @@ you flew from the disarm until the flight is saved and its settings are read.
   flight controller start its measurements again but is not among these, such as an I gain or an expo, erases the
   earlier flight from it as well. The next reading can then be mistaken for one that includes the earlier flight,
   which is left out of the advice although it is not in that reading; it stays saved. Made between flights, such a
-  change restarts the measurements when you arm; made during a flight, only on firmware with #607, and for a
-  master gain from #608 on (see *Adjustment functions*). On firmware with #607, a value changed during the flight
+  change restarts the measurements when you arm; made during a flight, only on firmware with #607. A master gain
+  does either only from #608 on (see *Adjustment functions*). On firmware with #607, a value changed during the flight
   and set back can do the same.
 - **The same holds while the RFSuite widgets do not run for more than 5 seconds** (the configuration tool open):
   the model may have flown meanwhile, so a clear still owed is not sent afterwards, and the flight controller is
@@ -301,8 +301,8 @@ advice and the limits stay as they were.
 ## Adjustment functions
 
 In-flight adjustments (*Setup* → *Controls* → *Adjustments*) can change the same settings the advisor measures
-and writes: P, F, B, the rates and the I-term relax cut-off per axis, and the PID and rate profile. The firmware
-applies an adjustment straight away and saves it when you disarm.
+and writes: P, F, B and the rates per axis, and the PID and rate profile. The firmware applies an adjustment
+straight away and saves it when you disarm.
 
 - **Adjusting during a flight starts the measurements again.** On firmware with rotorflight-firmware pull request
   #607, a PID or rate profile switch, or a change to a P, I, D, F, B or O gain, the I-term relax cut-off, the PID
@@ -316,8 +316,11 @@ applies an adjustment straight away and saves it when you disarm.
   the flight controller checks the tune only when you arm, so a flight where you adjusted one of these settings (or
   switched profile) is measured partly on the old value and saved as if flown on the value you ended on. A build
   with #607 but not #608 does the same for a master gain. If you did use one, press *\** and fly again.
-- **Adjusting between flights is fine.** A *STEPPED* adjustment is saved at disarm, so the next flight is on a new
-  tune and the advisor starts again from it, as it does after *Save*.
+- **Adjusting between flights is fine for what the advisor compares.** A *STEPPED* adjustment is saved at disarm,
+  so the next flight is on a new tune. After a change to P, F, B or a rate the advisor starts again from it on that
+  axis, as it does after *Save*. An I or D gain, a master gain and an expo are not among what it compares: after
+  a change to one of them, the flights from before stay combined with the next ones. Press *\** after such a change
+  if the advice should rest on the new tune only.
 - **A *MAPPED* adjustment overrides Save.** It sets the value from the channel's position: once the knob moves,
   and at every power-up while its range is enabled, the value goes back to what the knob says. A value written by
   *Save* then lasts only until that happens. Before applying advice to a setting, set its adjustment's *Type* to
