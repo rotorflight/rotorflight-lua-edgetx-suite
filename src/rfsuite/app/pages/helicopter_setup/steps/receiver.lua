@@ -74,6 +74,10 @@ return function(w)
   --   "ok"        the centre is the rounded average of the three
   local function centreFromSamples(samples, n)
     if n < 1 then return "noSignal" end
+    for i = 1, n do
+      local s = samples[i]
+      if (s[1] or 0) <= 0 or (s[2] or 0) <= 0 or (s[3] or 0) <= 0 then return "noSignal" end
+    end
     local m1, m2, m3
     for axis = 1, 3 do
       local lo, hi, sum = math.huge, -math.huge, 0
@@ -83,7 +87,6 @@ return function(w)
         if v > hi then hi = v end
         sum = sum + v
       end
-      if lo <= 0 then return "noSignal" end
       if hi - lo > CENTRE_STILL then return "moving" end
       if axis == 1 then m1 = sum / n elseif axis == 2 then m2 = sum / n else m3 = sum / n end
     end
@@ -125,7 +128,7 @@ return function(w)
     elseif status == "moving" then
       centre.text = L.centreMoving
     elseif status == "trim" then
-      centre.text = string.format(L.centreTrim, names[axis])
+      centre.text = string.format(L.centreTrimOff, names[axis])
     elseif status == "range" then
       centre.text = string.format(L.centreRange, value, CENTRE_MIN, CENTRE_MAX)
     else
@@ -178,7 +181,7 @@ return function(w)
   local shownCentre, shownCentreText
   local function centreNow()
     local c = w.data.rc_config.rc_center
-    if c ~= shownCentre then shownCentre, shownCentreText = c, string.format(L.centreUs, c) end
+    if c ~= shownCentre then shownCentre, shownCentreText = c, string.format(L.centreValue, c) end
     return shownCentreText
   end
   -- The guide's next end stop. A local of this visit, never kept on w.rx: the measurement
