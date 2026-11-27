@@ -2038,11 +2038,14 @@ return function(h)
     card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
     w.error=true;reply(1520,1520,1520);w.error=nil
     check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1500,"S02 an error screen ends the detection and writes nothing")
-    -- A late STATUS leaves an RX loss unknown: the detection ends as no signal.
+    -- A STATUS past the wizard's limit leaves an RX loss unknown: the detection ends as no signal. The early
+    -- refresh a slow link asks for after one second does not.
     card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
     w.statusQueued=true;reply(1520,1520,1520);w.statusQueued=nil
+    check(w.rx.centre.samples~=nil and w.rx.centre.count==2,"S02 an early STATUS refresh does not end the detection")
+    w.statusWaiting=true;reply(1520,1520,1520);w.statusWaiting=nil
     check(w.rx.centre.samples==nil and card.summary()==L.noReceiver and w.data.rc_config.rc_center==1500,
-      "S02 a late STATUS ends the detection as no signal")
+      "S02 a STATUS past the wizard's limit ends the detection as no signal")
     -- STATUS reporting RX loss ends a detection without waiting for the next channel reply.
     card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
     w.onLive("status",{arming_disable_flags=4})

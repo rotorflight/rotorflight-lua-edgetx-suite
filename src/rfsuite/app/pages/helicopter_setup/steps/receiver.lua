@@ -161,9 +161,9 @@ return function(w)
     local n = centre.count + 1
     centre.samples[n], centre.count = s, n
     if w.logDebug then w:log("debug", "stick center sample %s: %s %s %s", n, s[1], s[2], s[3]) end
-    -- In RX loss the channels hold failsafe values, which are still and agree: no signal at once. A late
-    -- STATUS (the wizard asking for it out of turn, or waiting for it) leaves the loss unknown: the same.
-    if rxLoss or w.statusQueued or w.statusWaiting then centreResult("noSignal"); return end
+    -- In RX loss the channels hold failsafe values, which are still and agree: no signal at once. A STATUS
+    -- past the wizard's own limit (it waits for one and allows no edit) leaves the loss unknown: the same.
+    if rxLoss or w.statusWaiting then centreResult("noSignal"); return end
     if n >= CENTRE_READS then centreResult(centreFromSamples(centre.samples, n)) end
   end
   local function startCentre()
