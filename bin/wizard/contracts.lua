@@ -2028,6 +2028,24 @@ return function(h)
     check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1500,"S02 leaving the card ends the detection and writes nothing")
     w.card=5
     w.dirty.rc_config=nil
+    card.enter();reply(1500,1500,1500);detect.press()
+    for _=1,4 do reply(1520,1520,1520) end
+    check(w.rx.centre.samples~=nil and card.summary()==L.centreSampling and w.data.rc_config.rc_center==1500,
+      "S02 four readings are not enough: the card still reads and nothing is set")
+    -- The Save/Discard question and an error screen end a detection, like leaving the card.
+    w.confirmExit=true;reply(1520,1520,1520);w.confirmExit=nil
+    check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1500,"S02 the exit question ends the detection and writes nothing")
+    -- STATUS reporting RX loss ends a detection without waiting for the next channel reply.
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    w.onLive("status",{arming_disable_flags=4})
+    check(w.rx.centre.samples==nil and card.summary()==L.noReceiver,"S02 STATUS with RX loss ends the detection as no signal")
+    reply(1520,1520,1520);eq(w.data.rc_config.rc_center,1500,"S02 a reply after the RX loss sets nothing")
+    -- An edit the wizard refuses (not usable) is not reported as set.
+    local usable=w.usable;w.usable=function() return false end
+    detectWith({{1520,1520,1520}})
+    w.usable=usable
+    check(w.data.rc_config.rc_center==1500 and card.summary()==L.noReceiver,"S02 a refused edit is not reported as set")
+    check(not w.dirty.rc_config,"S02 a refused edit leaves the RC config unchanged")
     detectWith({{1519,1520,1521},{1520,1521,1520},{1521,1519,1520}})
     eq(w.data.rc_config.rc_center,1520,"S02 centred sticks at 1520 set the center to 1520")
     check(w.dirty.rc_config,"S02 the new center is saved with Next step, with the rest of the RC config")
@@ -2037,9 +2055,12 @@ return function(h)
     eq(card.rows[1].get(),string.format(L.centreUs,1520),"S02 the card shows the new center")
     reply(1520,1520,1520)
     check(not w.validate() and w.message==L.sticksShort,"S02 a changed center needs the stick travel measured again")
+    w.dirty.rc_config=nil
+    detectWith({{1521,1523,1522}})
+    eq(card.summary(),string.format(L.centreSame,1522),"S02 a center within 3 us is reported as right")
+    check(w.data.rc_config.rc_center==1520 and not w.dirty.rc_config,"S02 a right center is not written again")
     detectWith({{1518,1522,1520}})
-    eq(card.summary(),string.format(L.centreSame,1520),"S02 a center within 3 us is reported as right")
-    eq(w.data.rc_config.rc_center,1520,"S02 a right center is not written again")
+    eq(card.summary(),string.format(L.centreSame,1520),"S02 the issue's 1518/1522/1520 is ok and right")
     local function nothing(samples,text,name)
       detectWith(samples);eq(card.summary(),text,name);eq(w.data.rc_config.rc_center,1520,name.." writes nothing")
     end

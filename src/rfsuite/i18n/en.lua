@@ -894,7 +894,7 @@ return {
         centreMoving = "A stick moved. Let go and try again.",
         centreTrim = "%s does not match the other sticks. Center its trim and subtrim.",
         centreRange = "Sticks read %d us, outside %d-%d us.",
-        centreCardHint = "Detect: reads roll, pitch and yaw five times as the FC receives them and sets the stick center to their average.\nBefore: center the three trims, remove any subtrim, center the sticks and let go. Collective is left out: it does not spring back.\nNothing changes when a stick moves, a trim is off (the card names the stick) or the center is outside 1400-1600 us.\nA new center is saved with Next step. Check the sticks again: their travel was measured from the old center.",
+        centreCardHint = "Detect: reads roll, pitch and yaw five times as the FC receives them and sets the stick center to their average.\nBefore: center the three trims, remove any subtrim, center the sticks and let go. Collective is left out: it does not spring back.\nNothing changes when a stick moves, a trim is off (the card names the stick) or the center is outside 1400-1600 us.\nA new center is saved with Next step once the sticks are checked again: their travel was measured from the old center.",
         craftName = "FC name",
         craftNameHint = "FC name: the flight controller's own name, up to 16 characters, saved with the next step.",
         menuHelp = "Complete setup: all 19 steps in order.\n1. to 19.: one step on its own.\nTick: this flight controller completed the step before. Only a record: every step reads the current FC settings when it opens.\nSetup history (last tile): how many steps are ticked, and Reset. Resetting changes no FC setting.",

@@ -104,7 +104,7 @@ return function(w)
   centre.hintList = centre.hintList or { { 0, 0, 0 } }
   local function onCentreCard()
     local card = w.cards and w.cards[w.card]
-    return card ~= nil and card.centre == true and not w.stepMenu
+    return card ~= nil and card.centre == true and not w.stepMenu and not w.confirmExit and not w.error
   end
   local function centreResult(status, value, axis)
     centre.samples, centre.count = nil, nil
@@ -112,6 +112,12 @@ return function(w)
     local rc = w.data.rc_config
     if status == "ok" and math.abs(value - rc.rc_center) > CENTRE_OFF then
       w:field("rc_config", "rc_center", value)
+      -- The wizard refuses an edit while it is not usable (no fresh STATUS); then nothing was set.
+      if rc.rc_center ~= value then
+        centre.status, centre.text = "notSet", L.noReceiver
+        if w.logInfo then w:log("info", "stick center %s not set: edit refused", value) end
+        return
+      end
       centre.text = string.format(L.centreSet, value)
     elseif status == "ok" then
       centre.text = string.format(L.centreSame, value)
@@ -175,6 +181,11 @@ return function(w)
   -- stays for the whole wizard, the step's code leaves with the step.
   local target
   w.onLive = function(api, d)
+    if api == "status" and centre.samples and d and d.arming_disable_flags
+      and (d.arming_disable_flags & 4) ~= 0 then
+      centreResult("noSignal")
+      return
+    end
     if api ~= "rx_channels" then return end
     centreLive(d)
     local map = w.data.rx_map
