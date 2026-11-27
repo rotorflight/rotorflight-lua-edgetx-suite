@@ -110,6 +110,7 @@ return function(w)
     centre.samples, centre.count = nil, nil
     centre.status, centre.value = status, value
     local rc = w.data.rc_config
+    local before = rc.rc_center
     if status == "ok" and math.abs(value - rc.rc_center) > CENTRE_OFF then
       w:field("rc_config", "rc_center", value)
       -- The wizard refuses an edit while it is not usable (no fresh STATUS); then nothing was set.
@@ -130,7 +131,9 @@ return function(w)
     else
       centre.text = L.noReceiver
     end
-    if w.logInfo then w:log("info", "stick center %s %s, rc_center %s", status, tostring(value), tostring(rc.rc_center)) end
+    if w.logInfo then
+      w:log("info", "stick center %s %s, rc_center %s -> %s", status, tostring(value), tostring(before), tostring(rc.rc_center))
+    end
   end
   -- One channel reply on the stick center card: a sample while Detect runs, or the one read for the hint.
   local function centreLive(d)
@@ -331,8 +334,8 @@ return function(w)
   local function automatic() return w.data.rc_config.rc_min_throttle == 0 and w.data.rc_config.rc_max_throttle == 0 end
   local function autoRange()
     local rc = w.data.rc_config
-    local centre, span = rc.rc_center or 1500, math.floor((rc.rc_deflection or 510) * 0.9 + 0.5)
-    return centre - span, centre + span
+    local mid, span = rc.rc_center or 1500, math.floor((rc.rc_deflection or 510) * 0.9 + 0.5)
+    return mid - span, mid + span
   end
   local function throttleRows()
     local rows = {

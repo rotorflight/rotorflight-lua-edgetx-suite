@@ -2081,8 +2081,16 @@ return function(h)
     nothing({{1700,1700,1700}},string.format(L.centreRange,1700,1400,1600),"S02 a center outside 1400-1600 us is refused")
     card.enter();reply(1500,1500,1500);detect.press();w.data.status.arming_disable_flags=4;reply(1500,1500,1500)
     eq(card.summary(),L.noReceiver,"S02 RX loss ends the detection as no signal")
+    -- The wizard's own release (exit question, step menu, a failure) ends a running detection.
+    w.data.status.arming_disable_flags=0
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    w:release()
+    check(w.rx.centre.samples==nil,"S02 the wizard's release ends a running detection")
+    w.data.status.arming_disable_flags=4
     check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1520,"S02 RX loss writes nothing")
     w.data.status.arming_disable_flags=0
+    w.step=3;w:navigate(2,1)
+    check(w.rx.centre==nil,"S02 a new visit of the receiver step starts without the last stick center result")
   end)
   case("W12.channel-list-and-beyond-eight",function()
     local w=world();settle(w);w.step=4
