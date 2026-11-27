@@ -14,7 +14,7 @@
     "src/rfsuite/app/pages/helicopter_setup/help.lua": "210bc647674c7bdf88e1ac00cf623c53858bb0721623f089caa1f95465ac2c46",
     "src/rfsuite/app/pages/helicopter_setup/history.lua": "7a5378a01b8bb4ca80a7a367b7e02978fda35c7cf7f54625ae89ebf57eace9e2",
     "src/rfsuite/app/pages/helicopter_setup/history_store.lua": "4fddb757f91ab30116513d2b71938690b9f2af5ba8383aff15cd60f88d1ffbfa",
-    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "13af815e906f864364f8e4561d35bc526c1cbd4c11e6345146ac62cee8715b6e",
+    "src/rfsuite/app/pages/helicopter_setup/labels.lua": "c9ed1aaa46cb453f0e359e81b1462b25de617b391710cef6d39353a9a4fc1fd0",
     "src/rfsuite/app/pages/helicopter_setup/math.lua": "f125cbdc577a170e8060688d69552d248e5ed6b092852c03139cc2d11d05b1a0",
     "src/rfsuite/app/pages/helicopter_setup/navigation.lua": "66463bc584e42b2cf11d7a2745d9178291cdaa37e4c84ba4aa9484b16b7e03f9",
     "src/rfsuite/app/pages/helicopter_setup/page.lua": "8fb3d1883eba913184b840b997ce19cadc938c85c18caa5b9e914b19b90aa5e2",
@@ -32,7 +32,7 @@
     "src/rfsuite/app/pages/helicopter_setup/steps/pitch.lua": "0e85a424aaed649eb347aeef420a78c097a1ae0a4566038d365ec3c24f4ce464",
     "src/rfsuite/app/pages/helicopter_setup/steps/profiles.lua": "f2622e0780be301ad1f42a4335af35c9c9541f1d0e0bb58feca4e348a9df3ed3",
     "src/rfsuite/app/pages/helicopter_setup/steps/rates.lua": "301a240de5b9c9961c1cf040fbac2a4d06a050704a3d0d0dcb45ef8bda6490d4",
-    "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "dd1cdc28848878d7389f57ad7f956bd306adc0879cdc355c85af2531263c6ab4",
+    "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua": "a1b92003d70dee3c0fbbaad0c56359cfd2c8ec7b8c1ef15051b62c8bd5db4e31",
     "src/rfsuite/app/pages/helicopter_setup/steps/sensors.lua": "a6d4e469340696022acfd8ed5008961f6fd953f27164518737741d658c2822d7",
     "src/rfsuite/app/pages/helicopter_setup/steps/servoType.lua": "689ba4df4c1cd81eae70ed25b73509a1ab0974a11fda1ebc1d5e50d357b09b37",
     "src/rfsuite/app/pages/helicopter_setup/steps/servos.lua": "b6fd582c7ab57fc8602ef0c6e54a74f729541c8af766ec51c08f967a6aee63d4",
@@ -46,7 +46,7 @@
     "src/rfsuite/app/pages/setup/power/battery/page.lua": "bb94e95ab8cac06d560110554faf9ba0b4ab634abc0eb8bba9fde032a6468949",
     "src/rfsuite/app/pages/setup/power/smartfuel/page.lua": "70eac48cbea056fe6b0644e7d4f980bd2af16f229e16a888330bbcbfcf2a5d5f",
     "src/rfsuite/app/pages/setup/power/sources/page.lua": "ff0846f7298aefacba5e522a01f2945e8111fe94110344dad9e4832c5cbc724e",
-    "src/rfsuite/i18n/en.lua": "9d390c64aaf0fb25e80bc29b81b7ad5aed6e168d8253cb8da8d09dd4650956bb",
+    "src/rfsuite/i18n/en.lua": "0d11af75e54486f23a521e6eff01677e813906a78d0ad166e81133d745c2d7c3",
     "src/rfsuite/lib/esc_params.lua": "2a9f2fb0fd6f762ef396ed20da5a48081a5583687bb2803b870a34ca2635eeaf",
     "src/rfsuite/lib/governor_fields.lua": "2c7407a6d75e7b00de9002dbb4be49696a6a3468b2d76013e1998549a2932a3c",
     "src/rfsuite/lib/power_fields.lua": "2204f3bd87281732a784d9aacd45a432d91cd3ab99a7a649c5976192c345c41e",
@@ -2204,6 +2204,24 @@
           "additions": [],
           "rows": [
             {
+              "kind": "MSP write",
+              "label": "rc_config.rc_center",
+              "api": "rc_config",
+              "field": "rc_center",
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : field ( \"rc_config\" , \"rc_center\" , value )"
+            },
+            {
               "kind": "pilot sets",
               "label": "Protocol",
               "api": "rx_config",
@@ -2713,6 +2731,40 @@
           "rows": []
         },
         {
+          "title": "Stick center",
+          "title_expression": "L . centreTitle",
+          "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+          "configurator_reference": [
+            "tabs/setup_wizard/ReceiverArt.svelte",
+            "tabs/setup_wizard/StepReceiver.svelte",
+            "tabs/setup_wizard/StickIcon.svelte"
+          ],
+          "configurator_status": [
+            "same"
+          ],
+          "additions": [],
+          "rows": [
+            {
+              "kind": "read",
+              "label": "Stick center",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : value ( L . centreTitle , centreNow )"
+            }
+          ]
+        },
+        {
           "title": "ELRS link",
           "title_expression": "L . linkTitle",
           "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
@@ -2813,6 +2865,24 @@
               "additions": [],
               "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
               "expression": "w : value ( L . throttleRange , function ( ) local rc = w . data . rc_config if rc . rc_min_throttle ~= rangeMin or rc . rc_max_throttle ~= rangeMax then rangeMin , rangeMax = rc . rc_min_throttle , rc . rc_max_throttle rangeText = ( rangeMin == 0 and rangeMax == 0 ) and L . throttleDefaults or string . format ( L . rangeUs , rangeMin , rangeMax ) end return rangeText end )"
+            },
+            {
+              "kind": "read",
+              "label": "Stick center",
+              "api": null,
+              "field": null,
+              "deviation": false,
+              "configurator_status": [
+                "same"
+              ],
+              "configurator_reference": [
+                "tabs/setup_wizard/ReceiverArt.svelte",
+                "tabs/setup_wizard/StepReceiver.svelte",
+                "tabs/setup_wizard/StickIcon.svelte"
+              ],
+              "additions": [],
+              "source": "src/rfsuite/app/pages/helicopter_setup/steps/receiver.lua",
+              "expression": "w : value ( L . centreTitle , centreNow )"
             }
           ]
         }
@@ -2823,6 +2893,7 @@
         "servo"
       ],
       "msp_writes": [
+        "rc_config.rc_center",
         "rx_config.serialrx_provider",
         "rx_config",
         "rc_config.rc_min_throttle",
