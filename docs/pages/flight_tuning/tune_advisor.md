@@ -319,8 +319,9 @@ straight away and saves it when you disarm.
 - **Adjusting between flights is fine for what the advisor compares.** A *STEPPED* adjustment is saved at disarm,
   so the next flight is on a new tune. After a change to P, F, B or a rate the advisor starts again from it on that
   axis, as it does after *Save*. An I or D gain, a master gain and an expo are not among what it compares: after
-  a change to one of them, the flights from before stay combined with the next ones. Press *\** after such a change
-  if the advice should rest on the new tune only.
+  a change to one of them, the flights from before can stay combined with the next ones; one not cleared from the
+  flight controller yet can instead be left out (see *How a flight is saved*). Press *\** after such a change if the
+  advice should rest on the new tune only.
 - **A *MAPPED* adjustment overrides Save.** It sets the value from the channel's position: once the knob moves,
   and at every power-up while its range is enabled, the value goes back to what the knob says. A value written by
   *Save* then lasts only until that happens. Before applying advice to a setting, set its adjustment's *Type* to
