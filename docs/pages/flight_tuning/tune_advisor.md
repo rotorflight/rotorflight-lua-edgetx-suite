@@ -326,8 +326,11 @@ straight away and saves it when you disarm.
   and at every power-up while its range is enabled, the value goes back to what the knob says. A value written by
   *Save* then lasts only until that happens. Before applying advice to a setting, set its adjustment's *Type* to
   *OFF*, or leave the knob where it gives the new value.
-- *Save* checks the profiles and values at the moment it writes, so an adjustment or profile switch made since the
-  flights stops it with nothing changed.
+- Before its first write, *Save* checks that the flight controller still holds the profiles and the settings the
+  advisor compares for the shown axis (see *Applying the changes*), so a profile switch, or an adjustment to P, F, B
+  or a rate there, made since the flights stops it with nothing changed. An adjustment to an I or D gain, a master
+  gain or an expo does not stop it. A profile switch seen during the save stops it there, and the writes before it
+  stay active until the flight controller restarts.
 
 ## Related
 
