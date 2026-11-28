@@ -2052,6 +2052,35 @@ return function(h)
     w.onLive("status",{arming_disable_flags=4})
     check(w.rx.centre.samples==nil and card.summary()==L.noReceiver,"S02 STATUS with RX loss ends the detection as no signal")
     reply(1520,1520,1520);eq(w.data.rc_config.rc_center,1500,"S02 a reply after the RX loss sets nothing")
+    -- The same through the wizard's early STATUS refresh (its urgent request), also when the next STATUS
+    -- shows the link back before the next channel reply.
+    local function urgentJob()
+      local job,urgent,n=nil,w.bus.urgent,w.rx.centre.count
+      w.bus.urgent=function(_,j) job=j end
+      w.statusQueued=nil;w.statusAt=getTime()-150;w:tick()
+      w.bus.urgent=urgent
+      check(job~=nil and job.api=="status" and w.rx.centre.count==n,
+        "S02 the early STATUS refresh is requested, no channel reply in between")
+      return job or {after=function() end}
+    end
+    local function statusWith(flags)
+      local status=h.api("status").parse(h.fixtures[101]);status.arming_disable_flags=flags
+      return status
+    end
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    urgentJob().after(statusWith((1<<16)|4))
+    check(not w.error and not w.statusWaiting and (w.data.status.arming_disable_flags&4)~=0,
+      "S02 the early STATUS refresh stores the RX loss and keeps the wizard running")
+    check(w.rx.centre.samples==nil and card.summary()==L.noReceiver,
+      "S02 RX loss on the early STATUS refresh ends the detection as no signal")
+    w.data.status.arming_disable_flags=1<<16
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    check(w.rx.centre.count==1,"S02 a detection runs again once the link is back")
+    local job=urgentJob();job.after(statusWith((1<<16)|4));job.after(statusWith(1<<16))
+    for _=1,4 do reply(1520,1520,1520) end
+    check(w.data.rc_config.rc_center==1500 and not w.dirty.rc_config and card.summary()==L.noReceiver,
+      "S02 an RX loss seen only on the early STATUS refresh sets nothing, though the link is back")
+    w.data.status.arming_disable_flags=0
     -- An edit the wizard refuses (not usable) is not reported as set.
     local usable=w.usable;w.usable=function() return false end
     detectWith({{1520,1520,1520}})

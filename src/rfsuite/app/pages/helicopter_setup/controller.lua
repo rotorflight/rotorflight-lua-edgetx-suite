@@ -313,8 +313,10 @@ function M.new(runtime, transport, mathModule, labels)
     end
     if not self.statusQueued then
       self.statusQueued = true
+      -- The step sees this reply as it sees a polled one (an RX loss on it ends a stick center detection).
       self.bus:urgent({ api = "status", after = function(d)
         self.statusQueued = nil; self:acceptStatus(d)
+        if self.onLive then self.onLive("status", d) end
       end })
     end
   end
@@ -1229,6 +1231,7 @@ function M.new(runtime, transport, mathModule, labels)
         self.statusQueued = true
         self.bus:urgent({ api = "status", after = function(d)
           self.statusQueued = nil; self:acceptStatus(d)
+          if self.onLive then self.onLive("status", d) end
         end })
       end
     end
