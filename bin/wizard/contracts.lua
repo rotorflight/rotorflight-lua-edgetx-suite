@@ -2080,6 +2080,19 @@ return function(h)
     for _=1,4 do reply(1520,1520,1520) end
     check(w.data.rc_config.rc_center==1500 and not w.dirty.rc_config and card.summary()==L.noReceiver,
       "S02 an RX loss seen only on the early STATUS refresh sets nothing, though the link is back")
+    -- The STATUS an edit waits for (its own urgent request) ends a detection the same way.
+    w.data.status.arming_disable_flags=1<<16
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    local editJob,urgent,edited=nil,w.bus.urgent,false
+    w.bus.urgent=function(_,j) editJob=j end
+    w.statusQueued=nil;w.statusAt=getTime()-301;w:applyEdit(function() edited=true end)
+    w.bus.urgent=urgent
+    check(editJob~=nil and editJob.api=="status" and not edited and w.rx.centre.count==1,
+      "S02 an edit on an expired STATUS waits for its own STATUS request")
+    if editJob then editJob.after(statusWith((1<<16)|4)) end
+    check(edited and not w.error,"S02 the fresh STATUS runs the waiting edit")
+    check(w.rx.centre.samples==nil and card.summary()==L.noReceiver,
+      "S02 RX loss on the STATUS an edit waits for ends the detection as no signal")
     w.data.status.arming_disable_flags=0
     -- An edit the wizard refuses (not usable) is not reported as set.
     local usable=w.usable;w.usable=function() return false end
