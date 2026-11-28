@@ -7,7 +7,7 @@ sidebar_label: "@NF theme"
 
 *@NF* is a dashboard theme that draws its own screen from code and takes full screen for
 itself. It shows one cockpit in every flight phase, and two pages of its own beside it:
-**VORFLUG**, the model and its battery before the flight, and **BÄNKE**, the governor, rates and
+**Preflight**, the model and its battery before the flight, and **Banks**, the governor, rates and
 gains of the active bank. It is drawn for radios with an 800 x 480, 480 x 320 or 480 x 272 screen, such as the TX16S MK3.
 
 ## Where to find it
@@ -24,7 +24,7 @@ the same in every language.
 
 ## What it shows
 
-![@NF: VORFLUG, the cockpit and BÄNKE, in the simulator of a TX16S MK3](../images/dashboard/themes/nf.png)
+![@NF: Preflight, the cockpit and Banks, in the simulator of a TX16S MK3](../images/dashboard/themes/nf.png)
 
 A value the model does not send reads `--` in grey.
 
@@ -62,7 +62,7 @@ and red starts below 3.45 V per cell. The MCU and ESC temperatures turn yellow a
 warning and critical levels of their announcements (80 and 95 °C, and 90 and 110 °C, unless they
 are changed). The load turns yellow from 50 % and red from 80 %.
 
-### VORFLUG
+### Preflight
 
 The page before the cockpit:
 
@@ -82,7 +82,7 @@ The page before the cockpit:
   highest values since then. Climb and sink are worked out from the altitude over half a
   second at least.
 
-### BÄNKE
+### Banks
 
 The page after the cockpit:
 
@@ -111,15 +111,15 @@ With *@NF* selected, full screen shows the theme itself. The theme draws no clos
 **long press on RTN** leaves full screen. In the cockpit:
 
 - **The arm state** opens the [quick menu](quick-menu.md).
-- **A tap on the battery** opens VORFLUG, **a tap on BANK** opens BÄNKE.
+- **A tap on the battery** opens Preflight, **a tap on BANK** opens Banks.
 - **A long press on the head**, by the logo, changes the colour of the cockpit to the next one, with
   a beep. It does nothing while the model is armed.
 - **A tap on the direction ring** takes the present heading, on the ground.
 - **The page keys**, where *System* → *Settings* → *Dashboard* →
-  [*Keys*](../pages/settings/dashboard/keys.md) leaves them on *Theme*: PAGE < opens VORFLUG and
-  PAGE > opens BÄNKE.
+  [*Keys*](../pages/settings/dashboard/keys.md) leaves them on *Theme*: PAGE < opens Preflight and
+  PAGE > opens Banks.
 
-On VORFLUG and BÄNKE a tap anywhere, RTN or either page key goes back to the cockpit. BÄNKE also
+On Preflight and Banks a tap anywhere, RTN or either page key goes back to the cockpit. Banks also
 opens by itself after a flight; opened that way, it closes again when the model is armed.
 
 Outside full screen the cockpit is drawn without anything that takes a press, and the direction
@@ -136,14 +136,14 @@ ring without its needle.
 The cockpit names the pack voltage, the current, the battery percentage, the head speed, the BEC
 voltage, the ESC and MCU temperatures, the PID and rate profiles, `1RSS`, `VFR`, `RQly`, `RT%`,
 `CPU%`, the altitude, the capacity used and `Yaw`, and reads the radio's own battery voltage.
-VORFLUG adds the link reading and the flight mode telemetry, and reads `BATTERY_CONFIG` from the
-flight controller where the suite holds no battery. BÄNKE reads `PID_TUNING`, `RC_TUNING`,
+Preflight adds the link reading and the flight mode telemetry, and reads `BATTERY_CONFIG` from the
+flight controller where the suite holds no battery. Banks reads `PID_TUNING`, `RC_TUNING`,
 `GOVERNOR_CONFIG` and `GOVERNOR_PROFILE` from the flight controller.
 
 ## What it does not do
 
-- **No statistics screen after the flight**: the cockpit stays, and BÄNKE opens.
-- **BÄNKE does not change the flight controller**: it shows the bank, it does not set it.
+- **No statistics screen after the flight**: the cockpit stays, and Banks opens.
+- **Banks does not change the flight controller**: it shows the bank, it does not set it.
 - **No pages beyond the colour**: the theme declares no boxes, so the shared *Before flight*,
   *In flight*, *Statistics*, *Info bar* and *Keys* pages are not offered for it.
 - **Its pictures are drawn for 800 x 480, 480 x 320 and 480 x 272.**

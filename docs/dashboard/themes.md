@@ -326,11 +326,11 @@ statistics screen under Deck's header. It has a page of its own: [Deck theme](de
 Drawn from code for 800 x 480, 480 x 320 and 480 x 272 screens, taking the whole screen in fullscreen mode: one cockpit in
 every flight phase -- the arm state, the flight timer, the rate and PID profiles, the head speed on
 a dial, the BEC, radio and pack voltages, the current, the ESC temperature and the altitude -- and
-two pages of its own: VORFLUG before it, with the model, its battery and the last flight, and BÄNKE
+two pages of its own: Preflight before it, with the model, its battery and the last flight, and Banks
 after it, with the active bank's governor, rates and gains, read from the flight controller. It has
 a page of its own: [@NF theme](nf-theme.md).
 
-![@NF: VORFLUG, the cockpit and BÄNKE](../images/dashboard/themes/nf.png)
+![@NF: Preflight, the cockpit and Banks](../images/dashboard/themes/nf.png)
 
 ## Related
 
