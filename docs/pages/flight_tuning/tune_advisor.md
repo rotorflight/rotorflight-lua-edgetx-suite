@@ -300,9 +300,9 @@ advice and the limits stay as they were.
 
 ## Adjustment functions
 
-In-flight adjustments (*Setup* → *Controls* → *Adjustments*) can change the same settings the advisor measures
-and writes: P, F, B and the rates per axis, and the PID and rate profile. The firmware applies an adjustment
-straight away and saves it when you disarm.
+In-flight adjustments (*Setup* → *Controls* → *Adjustments*) can change settings the advisor compares (P, F, B and
+the rates per axis) and can switch the PID and rate profile. The firmware applies an adjustment straight away and
+saves it when you disarm.
 
 - **Adjusting during a flight starts the measurements again.** On firmware with rotorflight-firmware pull request
   #607, a PID or rate profile switch, or a change to a P, I, D, F, B or O gain, the I-term relax cut-off, the PID
