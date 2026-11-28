@@ -78,7 +78,14 @@ you flew from the disarm until the flight is saved and its settings are read.
   and then clears. That reading holds the earlier flight as well, so it is saved marked as containing it, and the
   page leaves the earlier flight out instead of counting it twice. Nothing saved is removed for this. The radio
   marks a reading only when no clear was answered and the link was not lost since that save, and the reading has
-  the same profiles and tune, a longer flight time and no smaller count.
+  the same profiles and tune, a longer flight time and no smaller count. The tune it compares is what the flight
+  controller reports: P, F, B, the rates type, the rates and the I-term relax cut-off. A change that makes the
+  flight controller start its measurements again but is not among these, such as an I gain or an expo, erases the
+  earlier flight from it as well. The next reading can then be mistaken for one that includes the earlier flight,
+  which is left out of the advice although it is not in that reading; it stays saved. Made between flights, such a
+  change restarts the measurements when you arm; made during a flight, only on firmware with #607. A master gain
+  does either only from #608 on (see *Adjustment functions*). On firmware with #607, a value changed during the flight
+  and set back can do the same.
 - **The same holds while the RFSuite widgets do not run for more than 5 seconds** (the configuration tool open):
   the model may have flown meanwhile, so a clear still owed is not sent afterwards, and the flight controller is
   cleared after the next disarm. A pack swapped meanwhile is not seen either: a longer next flight on the same
@@ -293,28 +300,37 @@ advice and the limits stay as they were.
 
 ## Adjustment functions
 
-In-flight adjustments (*Setup* → *Controls* → *Adjustments*) can change the same settings the advisor measures
-and writes: P, F, B, the rates and the I-term relax cut-off per axis, and the PID and rate profile. The firmware
-applies an adjustment straight away and saves it when you disarm.
+In-flight adjustments (*Setup* → *Controls* → *Adjustments*) can change settings the advisor compares (P, F, B and
+the rates per axis) and can switch the PID and rate profile. The firmware applies an adjustment straight away and
+saves it when you disarm.
 
 - **Adjusting during a flight starts the measurements again.** On firmware with rotorflight-firmware pull request
-  #607, a profile switch, or an adjustment that changes a P, I, D, F, B or O gain, a rate or an expo, makes the
-  flight controller drop everything it has measured so far and start again on the new tune. That flight is then
+  #607, a PID or rate profile switch, or a change to a P, I, D, F, B or O gain, the I-term relax cut-off, the PID
+  mode, the rates type, a rate or an expo, makes the flight controller drop everything it has measured so far and
+  start again on the new tune. From pull request #608 on, a change to the cyclic or yaw master gain does the same.
+  The same holds when the radio or the configurator writes one of these settings. That flight is then
   saved with only the part flown after the last change; a change shortly before landing leaves too little, or
   nothing, and a flight with no acro flight time is not saved. A flight not saved yet (see *How a flight is saved*)
   is dropped with it. Leave these adjustments alone while collecting flights for the advisor.
-- **On older firmware, adjusting during a flight mixes two tunes.** On a 4.7 development build from before that
-  pull request the flight controller checks the tune only when you arm, so a flight where you adjusted one of
-  these settings (or switched profile) is measured partly on the old value and saved as if flown on the value you
-  ended on. If you did use one, press *\** and fly again.
-- **Adjusting between flights is fine.** A *STEPPED* adjustment is saved at disarm, so the next flight is on a new
-  tune and the advisor starts again from it, as it does after *Save*.
+- **On older firmware, adjusting during a flight mixes two tunes.** On a 4.7 development build from before #607
+  the flight controller checks the tune only when you arm, so a flight where you adjusted one of these settings (or
+  switched profile) is measured partly on the old value and saved as if flown on the value you ended on. A build
+  with #607 but not #608 does the same for a master gain. If you did use one, press *\** and fly again.
+- **Adjusting between flights is fine for what the advisor compares.** A *STEPPED* adjustment is saved at disarm,
+  so the next flight is on a new tune. After a change to P, F, B or a rate the advisor starts again from it on that
+  axis, as it does after *Save*. An I or D gain, a master gain and an expo are not among what it compares: after
+  a change to one of them, the flights from before can stay combined with the next ones; one not cleared from the
+  flight controller yet can instead be left out (see *How a flight is saved*). Press *\** after such a change if the
+  advice should rest on the new tune only.
 - **A *MAPPED* adjustment overrides Save.** It sets the value from the channel's position: once the knob moves,
   and at every power-up while its range is enabled, the value goes back to what the knob says. A value written by
   *Save* then lasts only until that happens. Before applying advice to a setting, set its adjustment's *Type* to
   *OFF*, or leave the knob where it gives the new value.
-- *Save* checks the profiles and values at the moment it writes, so an adjustment or profile switch made since the
-  flights stops it with nothing changed.
+- Before its first write, *Save* checks that the flight controller still holds the profiles and the settings the
+  advisor compares for the shown axis (see *Applying the changes*). If a profile switch, or an adjustment to P, F, B
+  or a rate there, has left one of them different from the flights, it stops with nothing changed. An adjustment to
+  an I or D gain, a master gain or an expo does not stop it. A profile switch found right before one of the later
+  writes stops the save there, and the writes before it stay active until the flight controller restarts.
 
 ## Related
 
