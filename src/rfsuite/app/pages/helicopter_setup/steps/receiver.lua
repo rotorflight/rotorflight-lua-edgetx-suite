@@ -57,11 +57,144 @@ return function(w)
     r.detect = nil; w:touch("rx_map"); w.message = L.detected
     if w.logInfo then w:log("info", "channel map detected") end
   end
+  -- Stick center (rc_center), by the rules the Configurator and the Ethos suite use: radios do not all
+  -- send 1500 us with the sticks centred (some ELRS setups send 1520), and an offset reads as every
+  -- stick held slightly off centre. Roll, pitch and yaw are read as the FC receives them, through the
+  -- channel map; collective does not spring back and is left out. The samples are this step's own
+  -- channel polls (about one every 0.3 s), so Detect adds no MSP request of its own.
+  local CENTRE_MIN, CENTRE_MAX, CENTRE_READS = 1400, 1600, 5
+  -- A stick whose readings spread more than STILL (us) moved; the three must agree within AGREE (us);
+  -- a centre is worth changing beyond OFF (us); sticks within NEAR (us) of rc_center are taken as centred.
+  local CENTRE_STILL, CENTRE_AGREE, CENTRE_OFF, CENTRE_NEAR = 10, 5, 3, 60
+  -- From samples[1..n], each {roll, pitch, yaw} in us: status, centre, axis. Values, not a table.
+  --   "noSignal"  no samples, or a channel reads 0
+  --   "moving"    a stick moved while sampling
+  --   "trim"      axis (1 roll, 2 pitch, 3 yaw) is further than AGREE from the middle value
+  --   "range"     the centre is outside CENTRE_MIN..CENTRE_MAX
+  --   "ok"        the centre is the rounded average of the three
+  local function centreFromSamples(samples, n)
+    if n < 1 then return "noSignal" end
+    for i = 1, n do
+      local s = samples[i]
+      if (s[1] or 0) <= 0 or (s[2] or 0) <= 0 or (s[3] or 0) <= 0 then return "noSignal" end
+    end
+    local m1, m2, m3
+    for axis = 1, 3 do
+      local lo, hi, sum = math.huge, -math.huge, 0
+      for i = 1, n do
+        local v = samples[i][axis] or 0
+        if v < lo then lo = v end
+        if v > hi then hi = v end
+        sum = sum + v
+      end
+      if hi - lo > CENTRE_STILL then return "moving" end
+      if axis == 1 then m1 = sum / n elseif axis == 2 then m2 = sum / n else m3 = sum / n end
+    end
+    local centre = H.round((m1 + m2 + m3) / 3)
+    local middle = math.max(math.min(m1, m2), math.min(math.max(m1, m2), m3))
+    local worst, worstOff = 1, math.abs(m1 - middle)
+    if math.abs(m2 - middle) > worstOff then worst, worstOff = 2, math.abs(m2 - middle) end
+    if math.abs(m3 - middle) > worstOff then worst, worstOff = 3, math.abs(m3 - middle) end
+    if worstOff > CENTRE_AGREE then return "trim", centre, worst end
+    if centre < CENTRE_MIN or centre > CENTRE_MAX then return "range", centre end
+    return "ok", centre
+  end
+  -- Plain data on w.rx, so a result outlives the card rebuild an edit causes: status, value, axis,
+  -- text, samples and count while Detect runs, hintWanted for the one read after the card is entered.
+  r.centre = r.centre or {}
+  local centre = r.centre
+  -- One reused sample for the hint, so the read after entering the card allocates nothing.
+  centre.hintList = centre.hintList or { { 0, 0, 0 } }
+  local function onCentreCard()
+    local card = w.cards and w.cards[w.card]
+    return card ~= nil and card.centre == true and not w.stepMenu and not w.confirmExit and not w.error
+  end
+  local function centreResult(status, value, axis)
+    centre.samples, centre.count = nil, nil
+    centre.status, centre.value = status, value
+    local rc = w.data.rc_config
+    local before = rc.rc_center
+    if status == "ok" and math.abs(value - rc.rc_center) > CENTRE_OFF then
+      w:field("rc_config", "rc_center", value)
+      -- The wizard refuses an edit while it is not usable (no fresh STATUS); then nothing was set.
+      if rc.rc_center ~= value then
+        centre.status, centre.text = "notSet", L.noReceiver
+        if w.logInfo then w:log("info", "stick center %s not set: edit refused", value) end
+        return
+      end
+      centre.text = string.format(L.centreSet, value)
+    elseif status == "ok" then
+      centre.text = string.format(L.centreSame, value)
+    elseif status == "moving" then
+      centre.text = L.centreMoving
+    elseif status == "trim" then
+      centre.text = string.format(L.centreTrimOff, names[axis])
+    elseif status == "range" then
+      centre.text = string.format(L.centreRange, value, CENTRE_MIN, CENTRE_MAX)
+    else
+      centre.text = L.noReceiver
+    end
+    if w.logInfo then
+      w:log("info", "stick center %s %s, rc_center %s -> %s", status, tostring(value), tostring(before), tostring(rc.rc_center))
+    end
+  end
+  -- One channel reply on the stick center card: a sample while Detect runs, or the one read for the hint.
+  local function centreLive(d)
+    if not centre.samples and not centre.hintWanted then return end
+    if not onCentreCard() then
+      if centre.samples and w.logTrace then w:log("trace", "stick center detection left with its card") end
+      centre.samples, centre.count, centre.hintWanted = nil, nil, nil
+      return
+    end
+    local status = w.data.status
+    local rxLoss = status and status.arming_disable_flags and (status.arming_disable_flags & 4) ~= 0
+    local channels, map = d and d.channels, w.data.rx_map
+    local s = centre.samples and { 0, 0, 0 } or centre.hintList[1]
+    for a = 1, 3 do
+      local v = channels and channels[(map[keys[a]] or a - 1) + 1]
+      s[a] = (not rxLoss and type(v) == "number") and v or 0
+    end
+    if not centre.samples then
+      -- The hint: shown only while the resting sticks sit near rc_center and differ from it.
+      centre.hintWanted = nil
+      local st, c = centreFromSamples(centre.hintList, 1)
+      local rc = w.data.rc_config.rc_center
+      local hint = st == "ok" and math.abs(c - rc) <= CENTRE_NEAR and math.abs(c - rc) > CENTRE_OFF and c or nil
+      centre.hint = hint and string.format(L.centreHint, hint, rc) or nil
+      if w.logTrace then w:log("trace", "stick center hint %s", tostring(hint)) end
+      return
+    end
+    local n = centre.count + 1
+    centre.samples[n], centre.count = s, n
+    if w.logDebug then w:log("debug", "stick center sample %s: %s %s %s", n, s[1], s[2], s[3]) end
+    -- In RX loss the channels hold failsafe values, which are still and agree: no signal at once. A STATUS
+    -- past the wizard's own limit (it waits for one and allows no edit) leaves the loss unknown: the same.
+    if rxLoss or w.statusWaiting then centreResult("noSignal"); return end
+    if n >= CENTRE_READS then centreResult(centreFromSamples(centre.samples, n)) end
+  end
+  local function startCentre()
+    centre.samples, centre.count = {}, 0
+    centre.status, centre.value, centre.text, centre.hint, centre.hintWanted = nil, nil, nil, nil, nil
+    if w.logInfo then w:log("info", "stick center detection start") end
+  end
+  -- The stored centre as text, formatted again only when it changes.
+  local shownCentre, shownCentreText
+  local function centreNow()
+    local c = w.data.rc_config.rc_center
+    if c ~= shownCentre then shownCentre, shownCentreText = c, string.format(L.centreValue, c) end
+    return shownCentreText
+  end
   -- The guide's next end stop. A local of this visit, never kept on w.rx: the measurement
   -- stays for the whole wizard, the step's code leaves with the step.
   local target
   w.onLive = function(api, d)
+    if api == "status" and centre.samples and d and d.arming_disable_flags
+      and (d.arming_disable_flags & 4) ~= 0 then
+      centreResult("noSignal")
+      return
+    end
     if api ~= "rx_channels" then return end
+    centreLive(d)
     local map = w.data.rx_map
     local rc = w.data.rc_config
     local span = rc and rc.rc_deflection or 0
@@ -204,8 +337,8 @@ return function(w)
   local function automatic() return w.data.rc_config.rc_min_throttle == 0 and w.data.rc_config.rc_max_throttle == 0 end
   local function autoRange()
     local rc = w.data.rc_config
-    local centre, span = rc.rc_center or 1500, math.floor((rc.rc_deflection or 510) * 0.9 + 0.5)
-    return centre - span, centre + span
+    local mid, span = rc.rc_center or 1500, math.floor((rc.rc_deflection or 510) * 0.9 + 0.5)
+    return mid - span, mid + span
   end
   local function throttleRows()
     local rows = {
@@ -274,6 +407,16 @@ return function(w)
     -- uses rc_center -/+ 0.9 x rc_deflection. Off shows the two fields and Record travel. Nothing is
     -- written when the card opens; a stored range, also one with a single 0, stays as it is.
     w:cardDef(L.throttleRange, L.throttleCardHint, throttleRows(),nil,"heliBladesOff"),
+    -- After the throttle range, before the summary, as in the Configurator and the Ethos suite.
+    w:cardDef(L.centreTitle, L.centreCardHint, {
+      w:value(L.centreTitle, centreNow),
+      w:button(L.detect, startCentre, function() return not centre.samples and not r.detect end)
+    }, function()
+      -- Every entry starts afresh and asks for one read for the hint.
+      centre.samples, centre.count, centre.status, centre.value, centre.text, centre.hint = nil, nil, nil, nil, nil, nil
+      centre.hintWanted = true
+      if w.logTrace then w:log("trace", "stick center card entered") end
+    end),
   }
   cards[4].dense = true
   cards[1].summary=function() return unlocked() and L.receiverUnlocked or L.receiverWarning end
@@ -323,6 +466,11 @@ return function(w)
     if r.record then return r.high>0 and string.format(L.throttleRecording, r.low, r.high) or L.throttleSwitchRange end
     return L.throttleQuick
   end
+  cards[5].centre, cards[5].summaryColor, cards[5].summaryBold = true, "accentInk", true
+  cards[5].summary = function()
+    if centre.samples then return L.centreSampling end
+    return centre.text or centre.hint or L.centreText
+  end
   -- Keep the cards present when the protocol is edited; the rows report applicability live.
   for _,kind in ipairs({"combined"}) do
     local card=w:cardDef(L.linkTitle,L.linkHint,{
@@ -349,7 +497,8 @@ return function(w)
         rangeText = (rangeMin == 0 and rangeMax == 0) and L.throttleDefaults or string.format(L.rangeUs, rangeMin, rangeMax)
       end
       return rangeText
-    end)
+    end),
+    w:value(L.centreTitle, centreNow)
   }, nil, "receiver")
   done.summary = function() return next(w.dirty) and L.stepChanged or L.stepUnchanged end
   cards[#cards+1] = done

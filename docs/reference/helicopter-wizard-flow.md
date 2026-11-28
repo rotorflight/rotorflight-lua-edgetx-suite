@@ -35,19 +35,21 @@ flowchart LR
     S0 --> S1
     subgraph S2["2. Receiver"]
       direction TB
-      S2c0["<b>Receiver protocol</b><br/>sets: Protocol, Minimum (us), Maximum (us)...<br/>reads: Throttle, Range (us), MSP status, MSP...<br/>writes: rx_config, rc_config, feature_config"]:::k3
+      S2c0["<b>Receiver protocol</b><br/>sets: Protocol, Minimum (us), Maximum (us)...<br/>reads: Throttle, Range (us), MSP status, MSP...<br/>writes: rc_config, rx_config, feature_config"]:::k3
       S2c1["<b>Channel order</b><br/>sets: Standard channel order<br/>writes: rx_map"]:::k3
       S2c0 --> S2c1
       S2c2["<b>Check sticks</b>"]:::k4
       S2c1 --> S2c2
       S2c3["<b>Throttle range</b>"]:::k4
       S2c2 --> S2c3
-      S2c4["<b>ELRS link</b><br/>reads: Status"]:::k1
+      S2c4["<b>Stick center</b><br/>reads: Stick center"]:::k1
       S2c3 --> S2c4
-      S2c5["<b>Receiver done</b><br/>reads: Protocol, Channel order, Throttle range"]:::k1
+      S2c5["<b>ELRS link</b><br/>reads: Status"]:::k1
       S2c4 --> S2c5
+      S2c6["<b>Receiver done</b><br/>reads: Protocol, Channel order, Throttle ran..."]:::k1
+      S2c5 --> S2c6
       S2gate{"Advance?<br/>validation passes"}:::k4
-      S2c5 --> S2gate
+      S2c6 --> S2gate
       S2gate -->|blocked| S2gate
     end
     S1 --> S2
@@ -333,7 +335,7 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | --- | --- | --- | --- | --- | --- | --- |
 | Model. Prepare the radio model | Interrupted session<br/>Prepare the radio model | FC name | FC power-cycled<br/>Radio model set up | — | name.name<br/>telemetry_config<br/>telemetry_config.buffer | differs from the Configurator |
 | 1. Board orientation | Prepare<br/>Calibrate the accelerometer<br/>Mounting angles<br/>Check orientation | Roll<br/>Pitch<br/>Yaw | All blades removed<br/>Servos unplugged<br/>Direction is correct | status<br/>attitude<br/>servo<br/>board_auto_align | acc_calibration<br/>board_alignment_config.roll_degrees<br/>board_alignment_config.pitch_degrees<br/>board_alignment_config.yaw_degrees<br/>board_auto_align | same |
-| 2. Receiver | Receiver protocol<br/>Channel order<br/>Check sticks<br/>Throttle range<br/>ELRS link<br/>Receiver done | Protocol<br/>Minimum (us)<br/>Maximum (us)<br/>Automatic throttle range<br/>Advanced<br/>Standard channel order | — | status<br/>rx_channels<br/>servo | rx_config.serialrx_provider<br/>rx_config<br/>rc_config.rc_min_throttle<br/>rc_config.rc_max_throttle<br/>feature_config<br/>feature_config.enabledFeatures<br/>rx_map | same |
+| 2. Receiver | Receiver protocol<br/>Channel order<br/>Check sticks<br/>Throttle range<br/>Stick center<br/>ELRS link<br/>Receiver done | Protocol<br/>Minimum (us)<br/>Maximum (us)<br/>Automatic throttle range<br/>Advanced<br/>Standard channel order | — | status<br/>rx_channels<br/>servo | rc_config.rc_center<br/>rx_config.serialrx_provider<br/>rx_config<br/>rc_config.rc_min_throttle<br/>rc_config.rc_max_throttle<br/>feature_config<br/>feature_config.enabledFeatures<br/>rx_map | same |
 | 3. Mode switches | Arm switch<br/>Rescue switch<br/>Trainer switch<br/>Switches done | — | — | status<br/>rc<br/>servo | mode_ranges<br/>set_mode_range<br/>set_adjustment_range | same |
 | 4. Profiles & gain | Profile switch<br/>Master gain<br/>Trim-button guide<br/>Channel use<br/>Rescue | Profile switch<br/>Method<br/>Rescue mode enable<br/>Flip to upright | — | rescue_profile<br/>status<br/>rc<br/>servo | adjustment_ranges<br/>set_adjustment_range<br/>set_pid_profile<br/>rescue_profile<br/>rescue_profile.rescue_mode<br/>rescue_profile.rescue_flip_mode | same |
 | 5. Rates | Switch position {n} · rate profile {n} / Rate profile {n}<br/>Rates set | — | — | rc_tuning<br/>status<br/>servo | set_pid_profile<br/>rc_tuning | same |
@@ -352,4 +354,4 @@ MSP writes include deferred dirty records and immediate commands. The inventory 
 | 18. Gyro check | Roll<br/>Pitch<br/>Yaw | — | Counters movement | status<br/>servo | — | same |
 | 19. Finish | Swashplate and tail<br/>Motor and governor<br/>Safety check<br/>Before the first flight<br/>Throttle range | — | Final checks understood | status<br/>servo | — | same |
 
-Diagram: 103 nodes; 19 numbered steps plus the model card.
+Diagram: 104 nodes; 19 numbered steps plus the model card.

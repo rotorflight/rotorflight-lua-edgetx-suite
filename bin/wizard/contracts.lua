@@ -1982,6 +1982,160 @@ return function(h)
     w.data.rc_config.rc_min_throttle,w.data.rc_config.rc_max_throttle=1100,1900
     eq(done.rows[3].get(),string.format(L.rangeUs,1100,1900),"W12 the summary names the set range")
   end)
+  case("S02.stick-center",function()
+    local w=world();settle(w);w.step=2;w.data.status.arming_disable_flags=0
+    w.data.rc_config.rc_center,w.data.rc_config.rc_deflection=1500,500
+    local values={1500,1500,1500,1500,1000,1000,1500,1500}
+    local function reply(roll,pitch,yaw,collective)
+      local m=w.data.rx_map
+      if roll then values[m.aileron+1],values[m.elevator+1],values[m.rudder+1]=roll,pitch,yaw end
+      if collective then values[m.collective+1]=collective end
+      local copy={};for i,v in ipairs(values) do copy[i]=v end
+      w.data.rx_channels={channels=copy};w.rxChannelsAt=getTime()
+      w.onLive("rx_channels",w.data.rx_channels)
+    end
+    local c=step(w,"receiver")
+    local card,done=c[5],c[#c]
+    eq(c[4].title,L.throttleRange,"S02 the throttle range card comes before the stick center")
+    eq(card.title,L.centreTitle,"S02 the stick center card follows the throttle range")
+    eq(c[#c-1].link,"combined","S02 the ELRS link card keeps its place before the summary")
+    local detect=card.rows[2]
+    eq(card.rows[1].get(),string.format(L.centreValue,1500),"S02 the card shows the stored center")
+    check(L.centreValue~=L.centreUs and L.centreTrimOff~=L.centreTrim,"S02 the stick center texts do not replace the older centre labels")
+    -- Full stick travel first, so the step could close before the center changes.
+    for i=1,4 do values[i]=1000 end;reply()
+    for i=1,4 do values[i]=2000 end;reply()
+    for i=1,4 do values[i]=1500 end;reply()
+    check(w.validate(),"S02 full travel completes the step before the center is detected")
+    w.card=5;card.enter()
+    eq(card.summary(),L.centreText,"S02 the card opens with the trims and sticks warning")
+    -- Hint: one read after entering the card.
+    reply(1520,1520,1521)
+    eq(card.summary(),string.format(L.centreHint,1520,1500),"S02 resting sticks at 1520 against 1500 give the hint")
+    for _,s in ipairs({{1501,1500,1500},{1590,1590,1590},{1520,1540,1520}}) do
+      card.enter();reply(s[1],s[2],s[3])
+      eq(card.summary(),L.centreText,"S02 no hint for "..s[1].."/"..s[2].."/"..s[3].." against 1500")
+    end
+    reply(1520,1520,1521);eq(card.summary(),L.centreText,"S02 only the read after entering gives a hint")
+    -- Detect: five readings of roll, pitch and yaw; collective is not read.
+    local function detectWith(samples)
+      card.enter();reply(1500,1500,1500)
+      detect.press()
+      check(not detect.enabled(),"S02 Detect is not offered again while it reads")
+      for i=1,5 do local s=samples[(i-1)%#samples+1];reply(s[1],s[2],s[3],1500+i*100) end
+    end
+    detect.press();eq(card.summary(),L.centreSampling,"S02 Detect asks the pilot to hold still")
+    reply(1520,1520,1520);w.card=4;reply(1520,1520,1520)
+    check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1500,"S02 leaving the card ends the detection and writes nothing")
+    w.card=5
+    w.dirty.rc_config=nil
+    card.enter();reply(1500,1500,1500);detect.press()
+    for _=1,4 do reply(1520,1520,1520) end
+    check(w.rx.centre.samples~=nil and card.summary()==L.centreSampling and w.data.rc_config.rc_center==1500,
+      "S02 four readings are not enough: the card still reads and nothing is set")
+    -- The Save/Discard question and an error screen end a detection, like leaving the card.
+    w.confirmExit=true;reply(1520,1520,1520);w.confirmExit=nil
+    check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1500,"S02 the exit question ends the detection and writes nothing")
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    w.error=true;reply(1520,1520,1520);w.error=nil
+    check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1500,"S02 an error screen ends the detection and writes nothing")
+    -- A STATUS past the wizard's limit leaves an RX loss unknown: the detection ends as no signal. The early
+    -- refresh a slow link asks for after one second does not.
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    w.statusQueued=true;reply(1520,1520,1520);w.statusQueued=nil
+    check(w.rx.centre.samples~=nil and w.rx.centre.count==2,"S02 an early STATUS refresh does not end the detection")
+    w.statusWaiting=true;reply(1520,1520,1520);w.statusWaiting=nil
+    check(w.rx.centre.samples==nil and card.summary()==L.noReceiver and w.data.rc_config.rc_center==1500,
+      "S02 a STATUS past the wizard's limit ends the detection as no signal")
+    -- STATUS reporting RX loss ends a detection without waiting for the next channel reply.
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    w.onLive("status",{arming_disable_flags=4})
+    check(w.rx.centre.samples==nil and card.summary()==L.noReceiver,"S02 STATUS with RX loss ends the detection as no signal")
+    reply(1520,1520,1520);eq(w.data.rc_config.rc_center,1500,"S02 a reply after the RX loss sets nothing")
+    -- The same through the wizard's early STATUS refresh (its urgent request), also when the next STATUS
+    -- shows the link back before the next channel reply.
+    local function urgentJob()
+      local job,urgent,n=nil,w.bus.urgent,w.rx.centre.count
+      w.bus.urgent=function(_,j) job=j end
+      w.statusQueued=nil;w.statusAt=getTime()-150;w:tick()
+      w.bus.urgent=urgent
+      check(job~=nil and job.api=="status" and w.rx.centre.count==n,
+        "S02 the early STATUS refresh is requested, no channel reply in between")
+      return job or {after=function() end}
+    end
+    local function statusWith(flags)
+      local status=h.api("status").parse(h.fixtures[101]);status.arming_disable_flags=flags
+      return status
+    end
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    urgentJob().after(statusWith((1<<16)|4))
+    check(not w.error and not w.statusWaiting and (w.data.status.arming_disable_flags&4)~=0,
+      "S02 the early STATUS refresh stores the RX loss and keeps the wizard running")
+    check(w.rx.centre.samples==nil and card.summary()==L.noReceiver,
+      "S02 RX loss on the early STATUS refresh ends the detection as no signal")
+    w.data.status.arming_disable_flags=1<<16
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    check(w.rx.centre.count==1,"S02 a detection runs again once the link is back")
+    local job=urgentJob();job.after(statusWith((1<<16)|4));job.after(statusWith(1<<16))
+    for _=1,4 do reply(1520,1520,1520) end
+    check(w.data.rc_config.rc_center==1500 and not w.dirty.rc_config and card.summary()==L.noReceiver,
+      "S02 an RX loss seen only on the early STATUS refresh sets nothing, though the link is back")
+    -- The STATUS an edit waits for (its own urgent request) ends a detection the same way.
+    w.data.status.arming_disable_flags=1<<16
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    local editJob,urgent,edited=nil,w.bus.urgent,false
+    w.bus.urgent=function(_,j) editJob=j end
+    w.statusQueued=nil;w.statusAt=getTime()-301;w:applyEdit(function() edited=true end)
+    w.bus.urgent=urgent
+    check(editJob~=nil and editJob.api=="status" and not edited and w.rx.centre.count==1,
+      "S02 an edit on an expired STATUS waits for its own STATUS request")
+    if editJob then editJob.after(statusWith((1<<16)|4)) end
+    check(edited and not w.error,"S02 the fresh STATUS runs the waiting edit")
+    check(w.rx.centre.samples==nil and card.summary()==L.noReceiver,
+      "S02 RX loss on the STATUS an edit waits for ends the detection as no signal")
+    w.data.status.arming_disable_flags=0
+    -- An edit the wizard refuses (not usable) is not reported as set.
+    local usable=w.usable;w.usable=function() return false end
+    detectWith({{1520,1520,1520}})
+    w.usable=usable
+    check(w.data.rc_config.rc_center==1500 and card.summary()==L.noReceiver,"S02 a refused edit is not reported as set")
+    check(not w.dirty.rc_config,"S02 a refused edit leaves the RC config unchanged")
+    detectWith({{1519,1520,1521},{1520,1521,1520},{1521,1519,1520}})
+    eq(w.data.rc_config.rc_center,1520,"S02 centred sticks at 1520 set the center to 1520")
+    check(w.dirty.rc_config,"S02 the new center is saved with Next step, with the rest of the RC config")
+    eq(card.summary(),string.format(L.centreSet,1520),"S02 the card says the center was set and the sticks need checking")
+    check(detect.enabled(),"S02 Detect is offered again after a result")
+    eq(done.rows[#done.rows].get(),string.format(L.centreValue,1520),"S02 the summary lists the stick center")
+    eq(card.rows[1].get(),string.format(L.centreValue,1520),"S02 the card shows the new center")
+    reply(1520,1520,1520)
+    check(not w.validate() and w.message==L.sticksShort,"S02 a changed center needs the stick travel measured again")
+    w.dirty.rc_config=nil
+    detectWith({{1521,1523,1522}})
+    eq(card.summary(),string.format(L.centreSame,1522),"S02 a center within 3 us is reported as right")
+    check(w.data.rc_config.rc_center==1520 and not w.dirty.rc_config,"S02 a right center is not written again")
+    detectWith({{1518,1522,1520}})
+    eq(card.summary(),string.format(L.centreSame,1520),"S02 the issue's 1518/1522/1520 is ok and right")
+    local function nothing(samples,text,name)
+      detectWith(samples);eq(card.summary(),text,name);eq(w.data.rc_config.rc_center,1520,name.." writes nothing")
+    end
+    nothing({{1500,0,1500}},L.noReceiver,"S02 a channel reading 0 is no signal")
+    nothing({{1500,0,1500},{1530,0,1500}},L.noReceiver,"S02 a channel at 0 is no signal even when another stick moves")
+    nothing({{1500,1500,1500},{1530,1500,1500}},L.centreMoving,"S02 a stick that moves is reported")
+    nothing({{1520,1540,1520}},string.format(L.centreTrimOff,L.pitch),"S02 a pitch trim off center is named")
+    nothing({{1700,1700,1700}},string.format(L.centreRange,1700,1400,1600),"S02 a center outside 1400-1600 us is refused")
+    card.enter();reply(1500,1500,1500);detect.press();w.data.status.arming_disable_flags=4;reply(1500,1500,1500)
+    eq(card.summary(),L.noReceiver,"S02 RX loss ends the detection as no signal")
+    -- The wizard's own release (exit question, step menu, a failure) ends a running detection.
+    w.data.status.arming_disable_flags=0
+    card.enter();reply(1500,1500,1500);detect.press();reply(1520,1520,1520)
+    w:release()
+    check(w.rx.centre.samples==nil,"S02 the wizard's release ends a running detection")
+    w.data.status.arming_disable_flags=4
+    check(w.rx.centre.samples==nil and w.data.rc_config.rc_center==1520,"S02 RX loss writes nothing")
+    w.data.status.arming_disable_flags=0
+    w.step=3;w:navigate(2,1)
+    check(w.rx.centre==nil,"S02 a new visit of the receiver step starts without the last stick center result")
+  end)
   case("W12.channel-list-and-beyond-eight",function()
     local w=world();settle(w);w.step=4
     w.data.mode_ranges.mode_ranges[1]={id=0,auxChannelIndex=0,range={start=1800,["end"]=2100}}

@@ -1,0 +1,1 @@
+- **The helicopter wizard's Receiver step detects the stick center the FC receives and sets it, as the Configurator does (`helicopter_setup/steps/receiver`)** (#1268)

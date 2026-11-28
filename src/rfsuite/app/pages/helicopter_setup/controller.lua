@@ -313,8 +313,10 @@ function M.new(runtime, transport, mathModule, labels)
     end
     if not self.statusQueued then
       self.statusQueued = true
+      -- The step sees this reply as it sees a polled one (an RX loss on it ends a stick center detection).
       self.bus:urgent({ api = "status", after = function(d)
         self.statusQueued = nil; self:acceptStatus(d)
+        if self.onLive then self.onLive("status", d) end
       end })
     end
   end
@@ -496,7 +498,11 @@ function M.new(runtime, transport, mathModule, labels)
     local held, motor = self.holds, self.motorHold
     if self.logTrace and (next(held) or motor or all) then self:log("trace", "release all=%s motor=%s", tostring(all), tostring(motor ~= nil)) end
     self.holds, self.motorHold, self.listen, self.legacyHold = {}, nil, nil, nil
-    if self.rx then self.rx.detect, self.rx.record = nil, nil end
+    if self.rx then
+      self.rx.detect, self.rx.record = nil, nil
+      -- A running stick center detection ends with the other live work; its last result stays.
+      if self.rx.centre then self.rx.centre.samples, self.rx.centre.count = nil, nil end
+    end
     if self.modeListen then self.modeListen.id = nil end
     if self.profile then self.profile.listen, self.profile.record = nil, nil end
     if self.stopTrial then self:stopTrial() end
@@ -707,7 +713,11 @@ function M.new(runtime, transport, mathModule, labels)
     -- Staged collective values stay until saved or discarded; read anew otherwise.
     if step == 16 and not self.pitchFullChanged then self.pitchLoaded, self.pitchFull = nil, nil end
     -- Stick travel is measured anew on every visit to the receiver step.
-    if step == 2 and self.rx then self.rx.travel, self.rx.travelSig, self.rx.advanced = nil, nil, nil end
+    if step == 2 and self.rx then
+      self.rx.travel, self.rx.travelSig, self.rx.advanced = nil, nil, nil
+      -- So is the stick center: a new visit starts without the last visit's result or hint.
+      self.rx.centre = nil
+    end
   end
   function w:navigate(step, card)
     if self.transition or not self.ready or self.memoryStop then return end
@@ -1221,6 +1231,7 @@ function M.new(runtime, transport, mathModule, labels)
         self.statusQueued = true
         self.bus:urgent({ api = "status", after = function(d)
           self.statusQueued = nil; self:acceptStatus(d)
+          if self.onLive then self.onLive("status", d) end
         end })
       end
     end
