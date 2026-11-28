@@ -52,7 +52,7 @@ local U = {   -- the value fields: centre (pixels), font, unit, place (centred, 
     vfr = {x = sx(413), y = sy(36), f = F.s},
     model = {x = px(400), y = sy(228), f = F.l},                                    -- centred below the arc
     labels = {{64, 77, "@i18n(widgets.dashboard.nf_flight_timer)@"}, {64, 137, "@i18n(widgets.dashboard.nf_rate)@"}, {64, 194, "@i18n(widgets.dashboard.nf_bank)@"}, {417, 77, "BEC"}, {417, 130, "TX"}, {417, 183, "ESC"},   -- the labels in the small step (three sizes: small, medium, large)
-              {241, 176, "rpm"}, {143, 71, "MCU"}, {56, 268, "ALT"}},
+              {241, 176, "@i18n(widgets.dashboard.nf_rpm_unit)@"}, {143, 71, "MCU"}, {56, 268, "ALT"}},
     loadWord = {x = sx(289), y = sy(59), f = F.s},
     tempWord = {x = sx(421), y = sy(268), f = F.s},   -- the word above the field bottom right: ESC above the temperature, CELL above the voltage per cell
     batt = {x = sx(140), y = 294, bw = sx(12), bh = sy(5), n = 5},              -- the battery's bars, from bottom to top
